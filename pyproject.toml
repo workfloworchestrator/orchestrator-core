@@ -3,7 +3,7 @@ requires = ["flit"]
 build-backend = "flit.buildapi"
 
 [tool.flit.metadata]
-module = "core"
+module = "orchestrator"
 dist-name = "orchestrator-core"
 author = "SURF"
 author-email = "automation-beheer@surf.nl"
@@ -27,8 +27,6 @@ classifiers = [
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
@@ -44,7 +42,8 @@ requires = [
     "fastapi-etag~=0.2.2",
     "gunicorn~=20.0.4",
     "httptools==0.1.1",
-    "more-itertools~=8.6.0",
+    "more-itertools~=8.7.0",
+    "itsdangerous~=1.1.0",
     "opentelemetry-api~=0.17b0",
     "opentelemetry-exporter-jaeger~=0.17b0",
     "opentelemetry-instrumentation-fastapi~=0.17b0",
@@ -68,8 +67,8 @@ requires = [
     "structlog~=20.2.0",
     "typer-cli~=0.0.11",
     "uvicorn[standard]~=0.13.3",
-#    "git+https://github.com/workfloworchestrator/nwa-stdlib.git@1.0.15#egg=nwa-stdlib",
-#    "git+https://github.com/workfloworchestrator/oauth2-lib.git@1.0.19#egg=oauth2-lib"
+    "nwa-stdlib~=1.1.1",
+    "oauth2-lib~=1.0.1"
 ]
 description-file = "README.md"
 requires-python = ">=3.6,<3.9"
@@ -103,7 +102,7 @@ test = [
     "pytest-xdist",
     "requests-mock",
     "respx==0.16.3",
-#    "git+https://github.com/workfloworchestrator/urllib3-mock.git#egg=urllib3_mock"
+    "urllib3_mock"
 ]
 doc = [
     "pystache~=0.5.4",
@@ -128,10 +127,9 @@ dev = [
 [tool.isort]
 profile="black"
 line_length = 120
-#forced_separate = ["server", "surf"]
 skip = ["src", "venv"]
 known_third_party=["pynso"]
-known_first_party=["nwastdlib", "oauth2_lib", "migrations", "test"]
+known_first_party=["migrations", "test"]
 
 [tool.black]
 line-length = 120
