@@ -1,0 +1,56 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=26660AF1-165D-4B2B-BD22-0C70026D6DBB"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 29093,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 8,
+          "start": 8
+        }
+      ]
+    },
+    {
+      "id": 29095,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 8,
+          "start": 8
+        }
+      ]
+    },
+    {
+      "id": 10065,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    },
+    {
+      "id": 10064,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    }
+  ],
+  "extra_info": "IP 1 Gbit/s BGP in MAASTRICHT en MAASTRICHT van Centrum Wiskunde & Informatica .",
+  "id": 29201,
+  "name": "5353IP_MT001A-MT001A_CWI-CWI",
+  "order_id": "SNNP-69158",
+  "product": "IR1",
+  "speed": "SERVICE",
+  "status": "IS"
+}

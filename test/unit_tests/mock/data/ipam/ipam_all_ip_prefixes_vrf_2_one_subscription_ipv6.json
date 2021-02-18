@@ -1,0 +1,44 @@
+[
+  {
+    "afi": "6",
+    "asn": 1,
+    "asn__label": "AS0 (Default)",
+    "description": "IPv6 Root",
+      "id": 6,
+      "parent__label": "",
+    "prefix": "::/0",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+    "vrf": "2",
+    "vrf__label": "global"
+  },
+  {
+    "afi": "6",
+    "asn": 1,
+    "asn__label": "AS0 (Default)",
+    "description": "Customer Prefix ruimte 7",
+      "id": 129,
+      "parent": 6,
+    "parent__label": "default(6): ::/0",
+    "prefix": "2001:610::/29",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+      "tags": "['Customer']",
+    "vrf": "2",
+    "vrf__label": "global"
+  },
+  {
+    "afi": "6",
+    "asn": 2,
+    "asn__label": "AS263 (Dev VTB Asnumbers)",
+    "description": "KENNISNET",
+      "id": 26,
+      "parent": 129,
+    "parent__label": "default(6): 2001:610::/29",
+    "prefix": "2001:616:fffe::/48",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+    "vrf": "2",
+    "vrf__label": "global"
+  }
+]

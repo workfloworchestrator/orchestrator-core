@@ -1,0 +1,20 @@
+{
+   "l3internet:l3internet-peer-group": [
+      {
+         "name": "44970c39-3d22-4c2a-a8b7-58db9b57b469",
+         "peer_type": "research-network",
+         "metric_out": 300,
+         "route_servers": [
+            {
+               "address": "145.145.145.145"
+            },
+             {
+               "address": "2001:db8:85a3::8a2e:370:7334"
+            }
+         ],
+         "peer_community": 6666,
+         "peer_group_name": "test-1",
+         "interconnection_type": "transit"
+      }
+   ]
+}

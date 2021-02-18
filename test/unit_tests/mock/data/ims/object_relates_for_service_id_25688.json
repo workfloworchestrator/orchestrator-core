@@ -1,0 +1,14 @@
+[
+  {
+    "id": 243578,
+    "object_name": "CWI",
+    "relate_id": 24990,
+    "relate_type": "CUST_TO_CIRCUIT"
+  },
+  {
+    "id": 243579,
+    "object_name": "KLM",
+    "relate_id": 24990,
+    "relate_type": "CUST_TO_CIRCUIT"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "ptp:ptp": [
+    {
+      "customer_name": "PLACEHOLDER",
+      "device": "ledn002a-jnx-01-vtb",
+      "interface": "irb",
+      "name": "4a6594cf-f8f5-47fd-a160-b2afb2a95bb2",
+      "ptptype": "irb",
+      "subscription_id": "614d2751-c41f-441c-a607-8487dc0fac8c"
+    }
+  ]
+}

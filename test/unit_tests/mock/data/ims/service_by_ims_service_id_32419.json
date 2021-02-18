@@ -1,0 +1,36 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=C5C023F1-AB90-4BC3-BE01-591E1EE3298B"
+  ],
+  "customer_id": "A2223AF9-0A11-E511-80D0-005056956C1A",
+  "domain": "SURFNET8",
+  "endpoints": [
+    {
+      "id": 10064,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    },
+    {
+      "id": 10065,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    }
+  ],
+  "extra_info": "IP 1 Gbit/s Static in AMSTERDAM van GRNET",
+  "id": 32419,
+  "name": "C5C023F1_IP_STATIC_GRNET_ASD001A",
+  "order_id": "SN8 PROCESS 3237BF00-3E10-4C83-B6DC-6EDD8A9EC42E",
+  "product": "IP",
+  "speed": "SERVICE",
+  "status": "IS"
+}

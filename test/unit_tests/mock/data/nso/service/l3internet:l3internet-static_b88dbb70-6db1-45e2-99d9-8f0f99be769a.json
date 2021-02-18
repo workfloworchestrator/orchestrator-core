@@ -1,0 +1,30 @@
+{
+  "l3internet:l3internet-static": [
+    {
+      "name": "b88dbb70-6db1-45e2-99d9-8f0f99be769a",
+      "subscription_id": "d3e23f94-2dcd-4f85-a74b-860c6d2eec2c",
+      "customer_name": "CWI",
+      "surfcert_filter": "default",
+      "pinnen_prefixes": [
+        {
+          "prefix": "145.192.64.0/20"
+        }
+      ],
+      "endpoint": {
+        "device": "ledn001a-jnx-01-vtb",
+        "instance_id": "1",
+        "interface": "ge-0/0/5",
+        "vlan_id": 2,
+        "ipv4_address": "10.1.32.12/31",
+        "ipv4_mtu": 1500,
+        "ipv4_remote_address": "10.1.32.13",
+        "ipv4_prefixes": [
+          {
+            "prefix": "145.192.0.0/18"
+          }
+        ],
+        "speed": 1000
+      }
+    }
+  ]
+}

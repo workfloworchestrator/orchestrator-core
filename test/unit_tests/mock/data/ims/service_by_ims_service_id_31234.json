@@ -1,0 +1,46 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=4BA14F2C-13DD-4768-849A-5E4E9939C13D"
+  ],
+  "customer_id": "AD93DAEF-0911-E511-80D0-005056956C1A",
+  "domain": "SURFNET8",
+  "endpoints": [
+    {
+      "id": 10065,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    },
+    {
+      "id": 10064,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    },
+    {
+      "id": 32278,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 601,
+          "start": 601
+        }
+      ]
+    }
+  ],
+  "extra_info": "IP 1 Gbit/s Static in (nog) onbekend van SURFnet bv",
+  "id": 31234,
+  "name": "0000IP__ (2019-04-05 15:09:01.625404)",
+  "order_id": "SN8 PROCESS 69E7A328-9BA3-4B1E-B6EE-56A6E58B590B",
+  "product": "IP",
+  "speed": "SERVICE",
+  "status": "PL"
+}

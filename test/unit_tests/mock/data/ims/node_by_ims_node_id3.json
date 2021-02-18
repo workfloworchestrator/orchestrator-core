@@ -1,0 +1,12 @@
+{
+  "id": 3,
+  "ipv4": "145.145.69.229",
+  "kind": "ROUTER",
+  "networkrole": "CORE",
+  "location": "Mt001A",
+  "name": "LED001A-JNX-01",
+  "status": "PL",
+  "type": "CNR",
+  "vendor": "CIENA",
+  "domain": "SURFNET8"
+}

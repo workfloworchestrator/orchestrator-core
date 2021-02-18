@@ -1,0 +1,20 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=E7661F1B-F1FB-4437-8FD0-8E890E6E2E61"
+  ],
+  "customer_id": "C9B5E717-0B11-E511-80D0-005056956C1A",
+  "endpoints": [
+    {
+      "id": 95176,
+      "type": "internal_port"
+    }
+  ],
+  "location": "LEDN002A",
+  "extra_info": "IRB Service Port op ledn002a-jnx-01-vtb",
+  "id": 106396,
+  "name": "LEDN002A-JNX-01-VTB_IRBSP_E7661F1B",
+  "order_id": "PID: 774C1533-5085-4EE2-8F44-094983E1698C",
+  "product": "IRBSP",
+  "speed": "BRIDGE",
+  "status": "IS"
+}

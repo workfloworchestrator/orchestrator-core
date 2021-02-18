@@ -1,0 +1,50 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=FB28E465-87FD-4D23-9C75-ED036529E416"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "domain": "SURFNET8",
+  "endpoints": [
+    {
+      "id": 52,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 1,
+          "start": 1,
+          "sub_circuit_id": null
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 1,
+          "start": 1,
+          "sub_circuit_id": null
+        }
+      ]
+    },
+    {
+      "id": 31420,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0,
+          "sub_circuit_id": null
+        }
+      ]
+    }
+  ],
+  "extra_info": "2 Gbit/s SURFfirewall 2 Gbit/s Redundant in 's-Hertogenbosch van Centrum Wiskunde & Informatica .",
+  "id": 25689,
+  "name": "ASD001A_ASD001A_IP_BGP_CWI_913D4B4A",
+  "order_id": "SNNP-66694_MSP",
+  "product": "IP",
+  "speed": "SERVICE",
+  "status": "IS",
+  "location": null
+}

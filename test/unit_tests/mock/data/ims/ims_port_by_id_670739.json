@@ -1,0 +1,12 @@
+{
+  "connector_type": "LC/PC",
+  "fiber_type": "multi-mode",
+  "id": 670739,
+  "iface_type": "10GBASE-SR",
+  "line_name": "MT001A_MSP_CWI_51307",
+  "location": "MT001A",
+  "node": "MT001A_5410FAKE_ANNONACEOUS",
+  "patchposition": "DDFODF_ANNONACEOUS_10G/01 (SC/PC)",
+  "port": "9/2",
+  "status": "IS"
+}

@@ -1,0 +1,17 @@
+{
+  "address": "fd00:0:100:1::20",
+  "afi": "6",
+  "name": "lo0-0.ledn002a-jnx-02-vtb.dev.vtb",
+  "fqdn": "lo0-0.ledn002a-jnx-02-vtb.dev.vtb",
+  "id": 192,
+  "prefix": 9,
+  "prefix__label": "default(6): fd00:0:100:1::/64",
+  "state": 1,
+  "state__label": "Default Resource: Ready",
+  "tags": [
+    "orchestrator",
+    "node"
+  ],
+  "vrf": 1,
+  "vrf__label": "global"
+}

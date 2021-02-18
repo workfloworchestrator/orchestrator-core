@@ -1,0 +1,278 @@
+{
+  "tailf-ncs:device": {
+    "name": "ledn002a-jnx-01-vtb",
+    "address": "192.168.122.38",
+    "port": 22,
+    "ssh": {
+      "host-key": [
+        {
+          "algorithm": "ssh-dss"
+        },
+        {
+          "algorithm": "ssh-rsa"
+        }
+      ]
+    },
+    "description": "192.168.122.38",
+    "authgroup": "wistar-test-1",
+    "device-type": {
+      "netconf": {}
+    },
+    "state": {
+      "admin-state": "unlocked"
+    },
+    "config": {
+      "junos:configuration": {
+        "version": "18.2R1.9",
+        "system": {
+          "host-name": "ledn002a-jnx-01-vtb",
+          "domain-name": "surf.net",
+          "domain-search": [
+            "surf.net"
+          ],
+          "authentication-order": [
+            "password"
+          ],
+          "root-authentication": {
+            "encrypted-password": "$6$rckYKSXp$GLUczcVy12WkKo0qgPyYjr4KYwSAQF2hZFfiEmmMsQsxF92kQEyoenNgwBDUJfGmWtqCxJDkWstrdEn.44sBT1"
+          },
+          "name-server": [
+            {
+              "name": "10.1.0.1"
+            }
+          ],
+          "radius-server": [
+            {
+              "name": "145.145.64.20"
+            },
+            {
+              "name": "145.145.65.20"
+            }
+          ],
+          "login": {
+            "class": [
+              {
+                "name": "readonly-plus-viewconfig"
+              },
+              {
+                "name": "super-user-local"
+              }
+            ],
+            "user": [
+              {
+                "name": "fallback"
+              },
+              {
+                "name": "noc"
+              },
+              {
+                "name": "remote"
+              },
+              {
+                "name": "wistar"
+              }
+            ]
+          },
+          "services": {},
+          "ntp": {}
+        },
+        "chassis": {
+          "fpc": [
+            {
+              "name": "0"
+            }
+          ],
+          "network-services": "enhanced-ip"
+        },
+        "interfaces": {
+          "interface": [
+            {
+              "name": "fxp0"
+            },
+            {
+              "name": "lo0"
+            }
+          ]
+        },
+        "snmp": {
+          "contact": "noc@surfnet.nl",
+          "filter-duplicates": [
+            null
+          ],
+          "client-list": [
+            {
+              "name": "read"
+            }
+          ],
+          "community": [
+            {
+              "name": "b5g6vmqy"
+            }
+          ],
+          "trap-options": {},
+          "trap-group": [
+            {
+              "name": "space"
+            },
+            {
+              "name": "NOC"
+            }
+          ]
+        },
+        "routing-options": {
+          "static": {
+            "route": [
+              {
+                "name": "192.168.122.0/24"
+              }
+            ]
+          }
+        },
+        "protocols": {
+          "mpls": {
+            "lsp-external-controller": [
+              {
+                "name": "pccd"
+              }
+            ],
+            "ipv6-tunneling": [
+              null
+            ]
+          },
+          "bgp": {
+            "mtu-discovery": [
+              null
+            ],
+            "log-updown": [
+              null
+            ],
+            "group": [
+              {
+                "name": "IBGP"
+              }
+            ]
+          },
+          "isis": {
+            "backup-spf-options": {
+              "use-post-convergence-lfa": {},
+              "use-source-packet-routing": {}
+            },
+            "overload": {},
+            "level": [
+              {
+                "name": "2"
+              },
+              {
+                "name": "1"
+              }
+            ],
+            "source-packet-routing": {}
+          },
+          "ldp": {
+            "preference": 20,
+            "track-igp-metric": [
+              null
+            ],
+            "deaggregate": [
+              null
+            ]
+          },
+          "source-packet-routing": {},
+          "pcep": {
+            "@@pcep": {
+              "annotation": "In device template vanwege testbed/productie IP adres"
+            },
+            "pce": [
+              {
+                "name": "northstar1"
+              }
+            ]
+          }
+        },
+        "policy-options": {
+          "prefix-list": [
+            {
+              "name": "dns-servers"
+            },
+            {
+              "name": "ntp-servers"
+            },
+            {
+              "name": "local-addresses"
+            },
+            {
+              "name": "snmp-systems"
+            },
+            {
+              "name": "msdp-peers"
+            },
+            {
+              "name": "msdp-peers-routing-instances"
+            },
+            {
+              "name": "bgp-auto"
+            },
+            {
+              "name": "bgp-auto-routing-instances"
+            },
+            {
+              "name": "backbone-ptp"
+            },
+            {
+              "name": "backbone-ptp-v6"
+            },
+            {
+              "name": "dcn-network"
+            },
+            {
+              "name": "pce-servers"
+            },
+            {
+              "name": "radius-servers"
+            },
+            {
+              "name": "validators-routing-instances"
+            },
+            {
+              "name": "validators"
+            },
+            {
+              "name": "nso-servers"
+            }
+          ],
+          "policy-statement": [
+            {
+              "name": "ecmp"
+            }
+          ]
+        },
+        "firewall": {
+          "family": {
+            "inet": {
+              "filter": [
+                {
+                  "name": "re-protect-v4"
+                },
+                {
+                  "name": "dcn-protect-v4"
+                }
+              ]
+            },
+            "inet6": {
+              "filter": [
+                {
+                  "name": "re-protect-v6"
+                }
+              ]
+            }
+          },
+          "policer": [
+            {
+              "name": "per-interface-arp-limiter"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

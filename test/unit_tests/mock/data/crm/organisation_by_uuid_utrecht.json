@@ -1,0 +1,49 @@
+{
+  "abbreviation": "UU/COLO1/Ut001A",
+  "addresses": [
+    {
+      "addition": null,
+      "city": "UTRECHT",
+      "country_code": "PLACEHOLDER",
+      "extra_address_line": "PLACEHOLDER",
+      "number": "6",
+      "street": "Budapestlaan",
+      "type": "visiting",
+      "uuid": "PLACEHOLDER",
+      "zipcode": "3584 CD"
+    },
+    {
+      "addition": null,
+      "city": null,
+      "country_code": "PLACEHOLDER",
+      "extra_address_line": "PLACEHOLDER",
+      "number": "80125",
+      "street": "Postbus",
+      "type": "post",
+      "uuid": "PLACEHOLDER",
+      "zipcode": "3508 TC"
+    }
+  ],
+  "categories": [
+    {
+      "code": 23,
+      "codeid": "_Universiteiten",
+      "description": "institutions"
+    }
+  ],
+  "contacts": [],
+  "email": "PLACEHOLDER",
+  "fax": "PLACEHOLDER",
+  "locations": [],
+  "name": "Universiteit Utrecht (COLO)",
+  "owner": {
+    "email": "lex@surfnet.nl",
+    "full_name": "Lex Sietses",
+    "mobile_phone": null,
+    "phone": null
+  },
+  "status": 0,
+  "tel": "PLACEHOLDER",
+  "uuid": "90b243b6-0a11-e511-80d0-005056956c1a",
+  "website": "PLACEHOLDER"
+}

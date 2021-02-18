@@ -1,0 +1,14 @@
+{
+  "node_create:node_create": [
+    {
+      "name": "9fa68746-cbc5-4d7d-a9af-dfa4e1479841",
+      "subscription_id": "34efcf1b-8695-44d6-a836-61a0b532caaa",
+      "device": "ledn002a-jnx-01-vtb",
+      "location": "Ledn002a",
+      "loopback0": "10.1.4.19",
+      "loopback0v6": "fd00:0:100:1::10",
+      "sr_segment_node_id": 0,
+      "enable_route_reflector_connection": true
+    }
+  ]
+}

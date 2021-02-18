@@ -81,6 +81,7 @@ test = [
     "apache-license-check",
     "black",
     "blinker",
+    "deepdiff",
     "flake8",
     "flake8-bandit",
     "flake8-bugbear",
@@ -101,7 +102,6 @@ test = [
     "pytest-httpx==0.10.1",
     "pytest-xdist",
     "requests-mock",
-    "respx==0.16.3",
     "urllib3_mock"
 ]
 doc = [

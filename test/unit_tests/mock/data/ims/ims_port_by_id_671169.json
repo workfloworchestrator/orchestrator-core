@@ -1,0 +1,12 @@
+{
+  "connector_type": "LC/PC",
+  "fiber_type": "single-mode",
+  "id": 671169,
+  "iface_type": "1000BASE-LX",
+  "line_name": "ASD001A_SP_TAGGED_SURFNET_A1B95E56",
+  "location": "ASD001A",
+  "node": "ASD001A-JNX-01-VTB",
+  "patchposition": "ASD001A-JNX-01-VTB01/06 (LC/UPC)",
+  "port": "0/0/5",
+  "status": "IS"
+}

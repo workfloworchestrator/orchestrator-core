@@ -1,0 +1,49 @@
+{
+  "abbreviation": "CWI",
+  "addresses": [
+    {
+      "addition": null,
+      "city": "AMSTERDAM",
+      "country_code": "PLACEHOLDER",
+      "extra_address_line": "PLACEHOLDER",
+      "number": "123",
+      "street": "Science Park",
+      "type": "visiting",
+      "uuid": "PLACEHOLDER",
+      "zipcode": "1098 XG"
+    },
+    {
+      "addition": null,
+      "city": null,
+      "country_code": "PLACEHOLDER",
+      "extra_address_line": "PLACEHOLDER",
+      "number": "94079",
+      "street": "Postbus",
+      "type": "post",
+      "uuid": "PLACEHOLDER",
+      "zipcode": "1090 GB"
+    }
+  ],
+  "categories": [
+    {
+      "code": 19,
+      "codeid": "_Onderzoeksinstellingen",
+      "description": "institutions"
+    }
+  ],
+  "contacts": [],
+  "email": "PLACEHOLDER",
+  "fax": "PLACEHOLDER",
+  "locations": [],
+  "name": "Centrum Wiskunde & Informatica .",
+  "owner": {
+    "email": "Arian.Ooijevaar@surfnet.nl",
+    "full_name": "Arian Ooijevaar",
+    "mobile_phone": "+31-613909941",
+    "phone": "+31-613909941"
+  },
+  "status": 0,
+  "tel": "PLACEHOLDER",
+  "uuid": "2f47f65a-0911-e511-80d0-005056956c1a",
+  "website": "PLACEHOLDER"
+}

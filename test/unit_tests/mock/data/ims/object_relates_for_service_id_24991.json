@@ -1,0 +1,14 @@
+[
+  {
+    "id": 243578,
+    "object_name": "AVANS",
+    "relate_id": 24991,
+    "relate_type": "CUST_TO_CIRCUIT"
+  },
+  {
+    "id": 243579,
+    "object_name": "KLM",
+    "relate_id": 24991,
+    "relate_type": "CUST_TO_CIRCUIT"
+  }
+]

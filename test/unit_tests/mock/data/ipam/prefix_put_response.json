@@ -1,0 +1,19 @@
+{
+  "afi": "6",
+  "asn": 1,
+  "asn__label": "AS0 (Default)",
+  "description": "thijs is gek",
+  "enable_ip_discovery": "I",
+  "id": 2086,
+  "ipv6_transition__label": "",
+  "parent": 7,
+  "parent__label": "default(6): ::/0",
+  "prefix": "2001:610:f03:2168::/64",
+  "project__label": "",
+  "state": 1,
+  "state__label": "ALLOCATED",
+  "style__label": "",
+  "vc__label": "",
+  "vrf": "1",
+  "vrf__label": "global"
+}

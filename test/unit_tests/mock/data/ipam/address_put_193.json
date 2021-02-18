@@ -1,0 +1,17 @@
+{
+  "address": "10.1.16.38",
+  "afi": "4",
+  "name": "ae10.ledn002a-jnx-01-vtb.dev.vtb",
+  "fqdn": "ae10.ledn002a-jnx-01-vtb.dev.vtb",
+  "id": 193,
+  "prefix": 1307,
+  "prefix__label": "default(4): 10.1.16.38/31",
+  "state": 1,
+  "state__label": "Default Resource: Ready",
+  "tags": [
+    "orchestrator",
+    "corelink"
+  ],
+  "vrf": 1,
+  "vrf__label": "global"
+}

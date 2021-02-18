@@ -1,0 +1,46 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=26660AF1-165D-4B2B-BD22-0C70026D6DBB"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 29095,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 12,
+          "start": 12
+        }
+      ]
+    },
+    {
+      "id": 10065,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    },
+    {
+      "id": 10064,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    }
+  ],
+  "extra_info": "IP 1 Gbit/s Static in MAASTRICHT van Centrum Wiskunde & Informatica .",
+  "id": 29202,
+  "name": "5353IP_MT001A_CWI",
+  "order_id": "SNNP-69158",
+  "product": "IP",
+  "speed": "SERVICE",
+  "status": "IS"
+}

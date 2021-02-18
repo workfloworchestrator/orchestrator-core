@@ -1,0 +1,36 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=MOCKED SUBSCRIPTION ID"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "domain": "SURFNET8",
+  "endpoints": [
+    {
+      "id": 30254,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 20,
+          "start": 20
+        }
+      ]
+    },
+    {
+      "id": 30256,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 20,
+          "start": 20
+        }
+      ]
+    }
+  ],
+  "extra_info": "1 Gbit/s SN8 LightPath tussen 's-Hertogenbosch en 's-Hertogenbosch van Hogeschool VHL",
+  "id": 37839,
+  "name": "LEDN001A_LEDN001A_LP_PLACEHOLDER_PLACEHOLDER_B9BAF0A6",
+  "order_id": "PID: MOCKED PID",
+  "product": "LP",
+  "speed": "SERVICE",
+  "status": "IS"
+}

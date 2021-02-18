@@ -1,0 +1,818 @@
+[
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 52 67"
+      },
+      {
+        "type": "E-mail",
+        "value": "ict-security.dif@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": null,
+    "function": "n/a",
+    "gender": null,
+    "initials": null,
+    "last_name": "Avans ICT Security",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "SEP",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 52 95"
+      },
+      {
+        "type": "E-mail",
+        "value": "g.deheer@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Gert",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "G.",
+    "last_name": "de Heer",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "073 6295234"
+      },
+      {
+        "type": "E-mail",
+        "value": "asha.dijkstra@han.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Asha",
+    "function": "n/a",
+    "gender": null,
+    "initials": "A.",
+    "last_name": "Dijkstra",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 76 525 09 52"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 51 90 43 63"
+      },
+      {
+        "type": "E-mail",
+        "value": "kas.eimers@avans.nl"
+      },
+      {
+        "type": "Fax",
+        "value": "+31 76 525 04 93"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Kas",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "K.A.S.",
+    "last_name": "Eimers",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "SNM",
+        "value": "Actief"
+      },
+      {
+        "type": "HCP",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      },
+      {
+        "type": "ICO",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "076 5238672"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "0623976272"
+      },
+      {
+        "type": "E-mail",
+        "value": "ey.fioole@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Eky",
+    "function": "n/a",
+    "gender": null,
+    "initials": "E.Y.",
+    "last_name": "Fioole",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 55 92"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 12 91 73 83"
+      },
+      {
+        "type": "E-mail",
+        "value": "p.havekes@avans.nl"
+      },
+      {
+        "type": "Fax",
+        "value": "+31 73 629 54 88"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Peter",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "P.",
+    "last_name": "Havekes",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "SNM",
+        "value": "Actief"
+      },
+      {
+        "type": "SNM",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": "ing.",
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "013 - 5958102"
+      },
+      {
+        "type": "E-mail",
+        "value": "gfj.hupperetz@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Gerard",
+    "function": "n/a",
+    "gender": null,
+    "initials": "G.F.J.",
+    "last_name": "Hupperetz",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 52 95"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 13 16 98 20"
+      },
+      {
+        "type": "E-mail",
+        "value": "jb.janssen@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Jeffrey",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "J.B.",
+    "last_name": "Janssen",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "ICP",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 13 595 84 84"
+      },
+      {
+        "type": "E-mail",
+        "value": "mmj.kamsma@avans.nl"
+      },
+      {
+        "type": "Fax",
+        "value": "+31 13 595 84 83"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Marja",
+    "function": "n/a",
+    "gender": "Vrouw",
+    "initials": "M.M.J.",
+    "last_name": "Kamsma MBA/MBI",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": "drs.",
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 52 95"
+      },
+      {
+        "type": "E-mail",
+        "value": "j.maier@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Hans",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "H.",
+    "last_name": "Maier",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 13 595 81 00"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Bert",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "Bert",
+    "last_name": "Melief",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": "dr.",
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "E-mail",
+        "value": "f.mouwen@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": null,
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "F.",
+    "last_name": "Mouwen",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "SNM",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "E-mail",
+        "value": "Netwerkbeheer.dif@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": null,
+    "function": "n/a",
+    "gender": null,
+    "initials": null,
+    "last_name": "Netwerkbeheer.dif",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "HCP",
+        "value": "Actief"
+      },
+      {
+        "type": "SNM",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 76 523 80 54"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 519 60 570"
+      },
+      {
+        "type": "E-mail",
+        "value": "cl.pronk@avans.nl"
+      },
+      {
+        "type": "Fax",
+        "value": "+31 76 523 80 54"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Kees",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "C.L.",
+    "last_name": "Pronk",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "ICP",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      },
+      {
+        "type": "SNM",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 53 44"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 51 11 18 44"
+      },
+      {
+        "type": "E-mail",
+        "value": "pp.schouten@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": null,
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "P.P.",
+    "last_name": "Schouten",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "HDB",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 88 52 57 528"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 10 04 04 14"
+      },
+      {
+        "type": "E-mail",
+        "value": "dr.schrok@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "David",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "D.R.",
+    "last_name": "Schrok",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "SNM",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      },
+      {
+        "type": "HCP",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "076 5250490"
+      },
+      {
+        "type": "E-mail",
+        "value": "pmg.simons@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Ellen",
+    "function": "n/a",
+    "gender": null,
+    "initials": "P.M.G.",
+    "last_name": "Simons",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "076 5250394"
+      },
+      {
+        "type": "E-mail",
+        "value": "jh.snijders@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Jan",
+    "function": "n/a",
+    "gender": null,
+    "initials": "J.H.",
+    "last_name": "Snijders",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 73 629 52 67"
+      },
+      {
+        "type": "Mobiele telefoon",
+        "value": "+31 6 10 04 04 11"
+      },
+      {
+        "type": "E-mail",
+        "value": "awm.vandreumel@avans.nl"
+      },
+      {
+        "type": "E-mailadres 2",
+        "value": "test@avans.nl"
+      },
+      {
+        "type": "Fax",
+        "value": "+31 73 629 52 05"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Ad",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "A.W.M.",
+    "last_name": "van Dreumel",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "BVI",
+        "value": "Actief"
+      },
+      {
+        "type": "SNM",
+        "value": "Actief"
+      },
+      {
+        "type": "SSC",
+        "value": "Actief"
+      },
+      {
+        "type": "HDB",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "E-mail",
+        "value": "jcm.vandun@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": null,
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "J.C.M.",
+    "last_name": "Van Dun",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "SNM",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "+31 13 595 84 84"
+      },
+      {
+        "type": "Fax",
+        "value": "+31 13 595 84 83"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Frans",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "F.J.M.",
+    "last_name": "van Kalmthout",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": "drs.",
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "076 5250381"
+      },
+      {
+        "type": "E-mail",
+        "value": "vissers.apw@hsbrabant.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Ad",
+    "function": "n/a",
+    "gender": null,
+    "initials": "A.P.W.",
+    "last_name": "Vissers",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "Telefoon",
+        "value": "0)76 523 8718"
+      },
+      {
+        "type": "E-mail",
+        "value": "mp.winkelmolen@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Mirjam",
+    "function": "n/a",
+    "gender": null,
+    "initials": "M.P.",
+    "last_name": "Winkelmolen",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": null,
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": null,
+    "title_prefix": null,
+    "uuid": null
+  },
+  {
+    "contact_mediums": [
+      {
+        "type": "E-mail",
+        "value": "fhhm.degraaff@avans.nl"
+      }
+    ],
+    "department": "n/a",
+    "first_name": "Diederik",
+    "function": "n/a",
+    "gender": "Man",
+    "initials": "D.C.",
+    "last_name": "Zijderveld",
+    "owners": null,
+    "preferred_language": "Nederlands",
+    "roles": [
+      {
+        "type": "CON",
+        "value": "Actief"
+      }
+    ],
+    "status": "Actief",
+    "title_postfix": "MPA",
+    "title_prefix": "dr.",
+    "uuid": null
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "TESTLOCATIE",
+    "type": "_Colocatie",
+    "uuid": "85938c4c-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "Ut001A",
+    "type": "_Colocatie",
+    "uuid": "85938c4c-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "Asd029A",
+    "type": "_Colocatie",
+    "uuid": "94938c4c-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "Asd006A",
+    "type": "_Colocatie",
+    "uuid": "ad938c4c-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "Asd001A",
+    "type": "_Colocatie",
+    "uuid": "ad938c4c-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "MT001A",
+    "type": "_Colocatie",
+    "uuid": "72b243b6-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "Ledn001A",
+    "type": "_Colocatie",
+    "uuid": "160df085-0a11-e511-80d0-005056956c1a"
+  },
+  {
+    "addresses": [],
+    "classification": "PLACEHOLDER",
+    "code": "Ledn002A",
+    "type": "_Colocatie",
+    "uuid": "430df085-0a11-e511-80d0-005056956c1a"
+  }
+]

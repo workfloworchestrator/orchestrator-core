@@ -1,0 +1,18 @@
+{
+  "core_link:core_link": [
+    {
+      "name": "9c7ffcc2-6ecb-49c0-b564-d3c1bea363d2",
+      "subscription_id": "bfc09bf3-26d1-4c6b-a89d-6b19fef05c75",
+      "device1": "amr001a-jnx-01",
+      "interface1": "ge-0/0/0",
+      "address1": "10.1.16.13",
+      "address1v6": "fd00:0:101::d",
+      "device2": "asd001a-jnx-01",
+      "interface2": "ge-0/0/0",
+      "address2": "10.1.16.14",
+      "address2v6": "fd00:0:101::e",
+      "isis-metric": "20",
+      "link-speed": 1000
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+[
+  {
+    "afi": "4",
+    "asn": 1,
+    "asn__label": "AS0 (Default)",
+    "addresses": [
+      {
+        "address": "10.1.16.1",
+        "afi": "4",
+        "name": "ge-0-0-0.asd001a-jnx-01.dev.vtb",
+        "fqdn": "ge-0-0-0.asd001a-jnx-01.dev.vtb",
+        "id": 84,
+        "prefix": 4,
+        "state": 1,
+        "state__label": "Default Resource: Ready",
+        "tags": [
+          "orchestrator",
+          "corelink"
+        ],
+        "vrf": 1
+      },
+      {
+        "address": "10.1.16.2",
+        "afi": "4",
+        "name": "ge-0-0-0.amr001a-jnx-01.dev.vtb",
+        "fqdn": "ge-0-0-0.amr001a-jnx-01.dev.vtb",
+        "id": 86,
+        "prefix": 4,
+        "state": 1,
+        "state__label": "Default Resource: Ready",
+        "tags": [
+          "orchestrator",
+          "corelink"
+        ],
+        "vrf": 1
+      },
+      {
+        "address": "10.1.16.3",
+        "afi": "4",
+        "name": "ge-0-0-0.asd001a-jnx-01.dev.vtb",
+        "fqdn": "ge-0-0-0.asd001a-jnx-01.dev.vtb",
+        "id": 88,
+        "prefix": 4,
+        "state": 1,
+        "state__label": "Default Resource: Ready",
+        "tags": [
+          "orchestrator",
+          "corelink"
+        ],
+        "vrf": 1
+      },
+      {
+        "address": "10.1.16.4",
+        "afi": "4",
+        "name": "ge-0-0-0.amr001a-jnx-01.dev.vtb",
+        "fqdn": "ge-0-0-0.amr001a-jnx-01.dev.vtb",
+        "id": 90,
+        "prefix": 4,
+        "state": 1,
+        "state__label": "Default Resource: Ready",
+        "tags": [
+          "orchestrator",
+          "corelink"
+        ],
+        "vrf": 1
+      },
+      {
+        "address": "10.1.16.5",
+        "afi": "4",
+        "name": "ge-0-0-0.asd001a-jnx-01.dev.vtb",
+        "fqdn": "ge-0-0-0.asd001a-jnx-01.dev.vtb",
+        "id": 92,
+        "prefix": 4,
+        "state": 1,
+        "state__label": "Default Resource: Ready",
+        "tags": [
+          "orchestrator",
+          "corelink"
+        ],
+        "vrf": 1
+      },
+      {
+        "address": "10.1.16.6",
+        "afi": "4",
+        "name": "ge-0-0-0.amr001a-jnx-01.dev.vtb",
+        "fqdn": "ge-0-0-0.amr001a-jnx-01.dev.vtb",
+        "id": 94,
+        "prefix": 4,
+        "state": 1,
+        "state__label": "Default Resource: Ready",
+        "tags": [
+          "orchestrator",
+          "corelink"
+        ],
+        "vrf": 1
+      }
+    ],
+    "description": "Core link addresses",
+    "id": 4,
+    "parent": 1,
+    "parent__label": "default(4): 0.0.0.0/0",
+    "prefix": "10.1.16.0/20",
+    "state": 1,
+    "sub_prefixes": [],
+    "tags": [],
+    "vrf": 1
+  }
+]

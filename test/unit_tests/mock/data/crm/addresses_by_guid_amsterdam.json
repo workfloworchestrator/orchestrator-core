@@ -1,0 +1,30 @@
+{
+  "addresses": [
+    {
+      "addition": null,
+      "city": "AMSTERDAM",
+      "country_code": null,
+      "extra_address_line": null,
+      "number": "9",
+      "street": "Meibergdreef",
+      "type": "Bezoekadres",
+      "uuid": "47965d7c-0eb9-4bea-b713-3c83ac262d3a",
+      "zipcode": "1105AZ"
+    },
+    {
+      "addition": null,
+      "city": "AMSTERDAM",
+      "country_code": null,
+      "extra_address_line": null,
+      "number": "22660",
+      "street": "Postbus",
+      "type": "Postadres",
+      "uuid": "0990f759-2fdd-4234-a87a-dd567a3c03ef",
+      "zipcode": "1100 DD"
+    }
+  ],
+  "classification": "PLACEHOLDER",
+  "code": "Asd006A",
+  "type": "Colocatie",
+  "uuid": "ad938c4c-0a11-e511-80d0-005056956c1a"
+}

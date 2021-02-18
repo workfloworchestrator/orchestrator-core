@@ -1,0 +1,12 @@
+{
+  "connector_type": "LC/PC",
+  "fiber_type": "single-mode",
+  "id": 688019,
+  "iface_type": "1000BASE-LX",
+  "line_name": "UT001A_SP_TAGGED_ESNET_FE4361F2",
+  "location": "UT001A",
+  "node": "UT001A-JNX-FAKE-VTB",
+  "patchposition": "DDFODF_UT001A-JNX-FAKE-VTB/14 (LC/PC)",
+  "port": "0/1/3",
+  "status": "IS"
+}

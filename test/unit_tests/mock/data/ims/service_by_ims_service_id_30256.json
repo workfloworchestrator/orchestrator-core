@@ -1,0 +1,21 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=788FB1B9-3685-4C31-A28C-19D4869AF4D2"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "location": "LEDN001A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 671565,
+      "type": "port"
+    }
+  ],
+  "extra_info": "1 Gbit/s SP te LEIDEN van Centrum Wiskunde & Informatica .",
+  "id": 30256,
+  "name": "LEDN001A_SP_TAGGED_CWI_788FB1B9",
+  "order_id": "SNNP-69380",
+  "product": "SP",
+  "speed": "1000BASE-LX",
+  "status": "IS"
+}

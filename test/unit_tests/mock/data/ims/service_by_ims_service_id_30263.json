@@ -1,0 +1,46 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=D5F74C2A-767C-4FFF-8799-759273671BF2"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "domain": "SURFNET8",
+  "endpoints": [
+    {
+      "id": 30256,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 8,
+          "start": 8
+        }
+      ]
+    },
+    {
+      "id": 31420,
+      "type": "internet",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0
+        }
+      ]
+    },
+    {
+      "id": 30254,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 8,
+          "start": 8
+        }
+      ]
+    }
+  ],
+  "extra_info": "1 Gbit/s SN8 SURFinternet BGP in LEIDEN van Centrum Wiskunde & Informatica .",
+  "id": 30263,
+  "name": "LEDN001A_LEDN001A_IP_BGP_CWI_1538C12F",
+  "order_id": "SN8 PROCESS 47DDF248-EA6B-4EE0-996F-A9FEDE4E8602",
+  "product": "IP",
+  "speed": "SERVICE",
+  "status": "IS"
+}

@@ -1,0 +1,51 @@
+{
+  "aliases": [
+    "SUBSCRIPTION ID=6106249C-3EE4-4115-A0A6-736F363AEA5E",
+    "SUBSCRIPTION_ID=3ED8AB66-096D-409E-B797-866BC7E4E17F"
+  ],
+  "customer_id": "C9B5E717-0B11-E511-80D0-005056956C1A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 29093,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0,
+          "sub_circuit_id": null
+        }
+      ]
+    },
+    {
+      "id": 23942,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 49,
+          "start": 0,
+          "sub_circuit_id": null
+        }
+      ]
+    },
+    {
+      "id": 29095,
+      "type": "service",
+      "vlanranges": [
+        {
+          "end": 0,
+          "start": 0,
+          "sub_circuit_id": null
+        }
+      ]
+    }
+  ],
+  "extra_info": "Lichtpad SNETlan locatie Amsterdam - Universitair Medisch Centrum Utrecht locatie Utrecht",
+  "id": 12345,
+  "location": null,
+  "name": "2195LP-SURFNETNETWERK(SNETLAN@UT)",
+  "order_id": "ARS-P022649",
+  "product": "LP",
+  "speed": "SERVICE",
+  "status": "IS"
+}

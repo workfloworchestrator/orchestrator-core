@@ -1,0 +1,12 @@
+{
+  "id": 83802,
+  "ipv4": "145.145.69.227",
+  "kind": "ROUTER",
+  "networkrole": "CORE",
+  "location": "LEDN002A",
+  "name": "LEDN002A-JNX-01-VTB",
+  "status": "IS",
+  "type": "JNR",
+  "vendor": "JUNIPER",
+  "domain": "SURFNET8"
+}

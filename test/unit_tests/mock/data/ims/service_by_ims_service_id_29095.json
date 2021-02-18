@@ -1,0 +1,20 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=769279E5-7BD8-4F26-998C-18C9D63004FD"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 670596,
+      "type": "port"
+    }
+  ],
+  "extra_info": "10 Gbit/s MSP te MAASTRICHT van Centrum Wiskunde & Informatica .",
+  "id": 29095,
+  "name": "MT001A_MSP_CWI_66064",
+  "order_id": "SNNP-69118",
+  "product": "MSP",
+  "speed": "10GBASE-SR",
+  "status": "IS"
+}

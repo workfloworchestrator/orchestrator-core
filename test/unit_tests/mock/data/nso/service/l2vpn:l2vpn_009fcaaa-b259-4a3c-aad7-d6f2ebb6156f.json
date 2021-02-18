@@ -1,0 +1,62 @@
+{
+    "l2vpn:l2vpn": [
+        {
+            "bum_filter": false,
+            "customer_name": "CWI",
+            "endpoints": [
+                {
+                    "name": "mock.ANY",
+                    "ports": [
+                        {
+                            "device": "asd001a-jnx-01-vtb",
+                            "instance_id": "mock.ANY",
+                            "interface": "ae9",
+                            "vlans": [
+                                "1"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "mock.ANY",
+                    "ports": [
+                        {
+                            "device": "asd001a-jnx-01-vtb",
+                            "instance_id": "mock.ANY",
+                            "interface": "ae9",
+                            "vlans": [
+                                "1"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "mock.ANY",
+                    "ports": [
+                        {
+                            "device": "ledn001a-jnx-01-vtb",
+                            "instance_id": "mock.ANY",
+                            "interface": "ge-0/0/6",
+                            "vlans": [
+                                "2"
+                            ]
+                        },
+                        {
+                            "device": "asd001a-jnx-01-vtb",
+                            "instance_id": "mock.ANY",
+                            "interface": "ge-0/0/5",
+                            "vlans": [
+                                "2"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "enforcepolicer": false,
+            "name": "009fcaaa-b259-4a3c-aad7-d6f2ebb6156f",
+            "speed": 2000,
+            "subscription_id": "subscription_id",
+            "vlan_retagging": true
+        }
+    ]
+}

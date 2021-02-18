@@ -1,0 +1,30 @@
+{
+  "addresses": [
+    {
+      "addition": null,
+      "city": "LEIDEN",
+      "country_code": null,
+      "extra_address_line": null,
+      "number": "1",
+      "street": "Niels Bohrweg",
+      "type": "Bezoekadres",
+      "uuid": "76cf31fe-c847-4156-a01f-738ec2818c8b",
+      "zipcode": "2333CA"
+    },
+    {
+      "addition": null,
+      "city": "LEIDEN",
+      "country_code": null,
+      "extra_address_line": null,
+      "number": "9512",
+      "street": "Postbus",
+      "type": "Postadres",
+      "uuid": "a1b83e02-7b9a-4205-92a6-0c02bcb884fe",
+      "zipcode": "2300 RA"
+    }
+  ],
+  "classification": "PLACEHOLDER",
+  "code": "Ledn001A",
+  "type": "Colocatie",
+  "uuid": "160df085-0a11-e511-80d0-005056956c1a"
+}

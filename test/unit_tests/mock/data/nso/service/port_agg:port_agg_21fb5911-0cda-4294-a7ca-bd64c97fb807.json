@@ -1,0 +1,14 @@
+{
+   "port_agg:port_agg": [
+      {
+         "customer_name": "PLACEHOLDER",
+         "device": "asd001a-jnx-01-vtb",
+         "id": 9,
+         "interfaces": [
+            "xe-1/0/3"
+         ],
+         "name": "21fb5911-0cda-4294-a7ca-bd64c97fb807",
+         "subscription_id": "2ac16aea-c942-4006-a299-d7d083eb4fe4"
+      }
+   ]
+}

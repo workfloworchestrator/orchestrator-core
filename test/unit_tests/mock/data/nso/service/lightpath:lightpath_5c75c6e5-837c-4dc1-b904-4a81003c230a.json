@@ -1,0 +1,31 @@
+{
+    "lightpath:lightpath": [
+        {
+            "customer_name": "PLACEHOLDER",
+            "endpoints_a": [
+                {
+                    "device": "asd001a-jnx-01-vtb",
+                    "instance_id": "21c8aed5-1aa9-4e83-89b0-404076969706",
+                    "interface": "ge-0/0/5",
+                    "tagged_info": {
+                        "outervlan": [
+                            "12"
+                        ]
+                    }
+                }
+            ],
+            "endpoints_z": [
+                {
+                    "device": "ledn001a-jnx-01-vtb",
+                    "instance_id": "87828150-06fb-4714-8c3a-d4737e918310",
+                    "interface": "ge-0/0/5"
+                }
+            ],
+            "enforcepolicer": true,
+            "name": "5c75c6e5-837c-4dc1-b904-4a81003c230a",
+            "remoteportshutdown": false,
+            "speed": 1000,
+            "subscription_id": "dce4c051-a9df-468c-bd78-2c2dff07a914"
+        }
+    ]
+}

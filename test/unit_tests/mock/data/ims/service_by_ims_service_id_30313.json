@@ -1,0 +1,21 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=A1B95E56-0AD3-4E63-9A08-34BB181D83E2"
+  ],
+  "customer_id": "AD93DAEF-0911-E511-80D0-005056956C1A",
+  "location": "ASD001A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 671169,
+      "type": "port"
+    }
+  ],
+  "extra_info": "1 Gbit/s SP te AMSTERDAM van SURFnet bv",
+  "id": 30313,
+  "name": "ASD001A_SP_TAGGED_SURFNET_A1B95E56",
+  "order_id": "SNNP-69405",
+  "product": "SP",
+  "speed": "1000BASE-LX",
+  "status": "IS"
+}

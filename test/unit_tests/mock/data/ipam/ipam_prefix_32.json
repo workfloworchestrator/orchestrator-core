@@ -1,0 +1,20 @@
+{
+  "addresses": [],
+  "afi": "4",
+  "asn": 1,
+  "asn__label": "AS0 (Default)",
+  "description": "bgp test",
+  "id": 32,
+  "parent": 26,
+  "parent__label": "2(4): 145.192.0.0/11",
+  "prefix": "145.192.0.0/18",
+  "state": 1,
+  "state__label": "Default Resource: Ready",
+  "sub_prefixes": [],
+  "vrf": "2",
+  "vrf__label": "2",
+  "tags": [
+    "ip_prefix",
+    "orchestrator"
+  ]
+}

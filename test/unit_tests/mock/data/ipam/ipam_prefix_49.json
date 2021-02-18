@@ -1,0 +1,58 @@
+{
+  "addresses": [
+    {
+      "address": "2001:610:fc7:0:10:1:32:12",
+      "afi": "6",
+      "name": "e9-2-8.mt001a-jnx-01.surf.net",
+      "fqdn": "e9-2-8.mt001a-jnx-01.surf.net",
+      "id": 55,
+      "prefix": 49,
+      "prefix__label": "2(6): 2001:610:fc7:0:10:1:32:12/127",
+      "state": 1,
+      "state__label": "Default Resource: Ready",
+      "tags": [
+        "orchestrator",
+        "ip",
+        "SURFnet"
+      ],
+      "vrf": 2,
+      "vrf__label": "2"
+    },
+    {
+      "address": "2001:610:fc7:0:10:1:32:13",
+      "afi": "6",
+      "name": "cwi-router.customer.surf.net",
+      "fqdn": "cwi-router.customer.surf.net",
+      "id": 56,
+      "prefix": 49,
+      "prefix__label": "2(6): 2001:610:fc7:0:10:1:32:12/127",
+      "state": 1,
+      "state__label": "Default Resource: Ready",
+      "tags": [
+        "orchestrator",
+        "ip",
+        "Customer"
+      ],
+      "vrf": 2,
+      "vrf__label": "2"
+    }
+  ],
+  "afi": "6",
+  "asn": 1,
+  "asn__label": "AS0 (Default)",
+  "description": "PtP for 0000IP_MT001A-MT001A_CWI-CWI (2018-11-22 12:28:24.427869)",
+  "id": 49,
+  "parent": 23,
+  "parent__label": "2(6): 2001:610::/29",
+  "prefix": "2001:610:fc7:0:10:1:32:12/127",
+  "state": 1,
+  "state__label": "Default Resource: Ready",
+  "sub_prefixes": [],
+  "vrf": "2",
+  "vrf__label": "2",
+  "tags": [
+    "orchestrator",
+    "ip",
+    "Customer"
+  ]
+}

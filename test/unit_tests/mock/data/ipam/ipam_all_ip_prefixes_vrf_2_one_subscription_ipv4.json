@@ -1,0 +1,44 @@
+[
+  {
+    "afi": "4",
+    "asn": 1,
+    "asn__label": "AS0 (Default)",
+    "description": "Root",
+      "id": 1,
+      "parent__label": "",
+    "prefix": "0.0.0.0/0",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+    "vrf": "2",
+    "vrf__label": "global"
+  },
+  {
+    "afi": "4",
+    "asn": 1,
+    "asn__label": "AS0 (Default)",
+    "description": "Klant prefix ruimte 1",
+      "id": 124,
+      "parent": 1,
+    "parent__label": "default(4): 0.0.0.0/0",
+    "prefix": "145.0.0.0/9",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+      "tags": "['customer']",
+    "vrf": "2",
+    "vrf__label": "global"
+  },
+  {
+    "afi": "4",
+    "asn": 2,
+    "asn__label": "AS263 (Dev VTB Asnumbers)",
+    "description": "KENNISNET",
+      "id": 25,
+      "parent": 124,
+    "parent__label": "default(4): 145.0.0.0/9",
+    "prefix": "145.0.6.0/24",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+    "vrf": "2",
+    "vrf__label": "global"
+  }
+]

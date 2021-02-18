@@ -1,0 +1,28 @@
+{
+    "aliases": [
+        "SUBSCRIPTION_ID=EAB050D2-F25F-40EC-A1DD-DD30965FE64A"
+    ],
+    "customer_id": "C9B5E717-0B11-E511-80D0-005056956C1A",
+    "domain": null,
+    "endpoints": [
+        {
+            "id": 170212,
+            "type": "service",
+            "vlanranges": [
+                {
+                    "end": 5,
+                    "start": 5,
+                    "sub_circuit_id": null
+                }
+            ]
+        }
+    ],
+    "extra_info": "SURF IP peer port to SURFnet netwerk",
+    "id": 170445,
+    "location": null,
+    "name": "EXIP_LOCAL_IPPP_IX_FIXTURE_EAB050D2",
+    "order_id": "PID: 856DDDA0-3CC9-4C95-A393-B0C7ACEE9652",
+    "product": "IPPP",
+    "speed": "SERVICE",
+    "status": "IS"
+}

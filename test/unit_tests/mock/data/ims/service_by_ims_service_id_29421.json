@@ -1,0 +1,33 @@
+{
+  "aliases": [
+    "CORELINK",
+    "TRUNK"
+  ],
+  "customer_id": "C9B5E717-0B11-E511-80D0-005056956C1A",
+  "domain": null,
+  "endpoints": [
+    {
+      "id": 671312,
+      "type": "port"
+    },
+    {
+      "id": 657721,
+      "type": "port"
+    },
+    {
+      "id": 671343,
+      "type": "port"
+    },
+    {
+      "id": 671333,
+      "type": "port"
+    }
+  ],
+  "extra_info": "Corelink trunk for 92488c46-29cf-4d64-969c-643be1050990 with speed 10000",
+  "id": 29421,
+  "name": "LEDN002A-JNX-01-VTB_0/0/0--LEDN002A-JNX-02-VTB_0/0/1",
+  "order_id": "PID: 2290EFAB-8198-4611-8840-1807767035E2",
+  "product": "TRUNK",
+  "speed": "10G",
+  "status": "PL"
+}

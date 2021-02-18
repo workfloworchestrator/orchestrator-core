@@ -1,0 +1,12 @@
+{
+  "connector_type": "LC/PC",
+  "fiber_type": "single-mode",
+  "id": 671565,
+  "iface_type": "1000BASE-LX",
+  "line_name": "LEDN001A_SP_TAGGED_CWI_788FB1B9",
+  "location": "LEDN001A",
+  "node": "LEDN001A-JNX-01-VTB",
+  "patchposition": "VTB01/07 (LC/PC)",
+  "port": "0/0/6",
+  "status": "IS"
+}

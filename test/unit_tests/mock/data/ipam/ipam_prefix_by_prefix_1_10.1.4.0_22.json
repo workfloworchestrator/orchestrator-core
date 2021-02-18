@@ -1,0 +1,649 @@
+[
+  {
+    "addresses": [
+      {
+        "address": "10.1.4.37",
+        "afi": "4",
+                    "name": "lo0-0.ut001a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ut001a-jnx-01-vtb.dev.vtb",
+        "id": 357,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.36",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 355,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.35",
+        "afi": "4",
+                    "name": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+        "id": 321,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.34",
+        "afi": "4",
+                    "name": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+        "id": 319,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.33",
+        "afi": "4",
+                    "name": "lo0-0.ehv002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ehv002a-jnx-01-vtb.dev.vtb",
+        "id": 313,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.32",
+        "afi": "4",
+                    "name": "lo0-0.mt002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.mt002a-jnx-01-vtb.dev.vtb",
+        "id": 311,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.31",
+        "afi": "4",
+                    "name": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+        "id": 279,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.30",
+        "afi": "4",
+                    "name": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+        "id": 277,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.29",
+        "afi": "4",
+                    "name": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+        "id": 265,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.28",
+        "afi": "4",
+                    "name": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+        "id": 263,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.27",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 261,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.26",
+        "afi": "4",
+                    "name": "lo0-0.ut001a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ut001a-jnx-01-vtb.dev.vtb",
+        "id": 235,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.25",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 233,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.24",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 231,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.23",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 225,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.22",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 203,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.21",
+        "afi": "4",
+                    "name": "lo0-0.dt001b-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt001b-jnx-01-vtb.dev.vtb",
+        "id": 197,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.20",
+        "afi": "4",
+                    "name": "lo0-0.ledn002a-jnx-02-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn002a-jnx-02-vtb.dev.vtb",
+        "id": 191,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.19",
+        "afi": "4",
+                    "name": "lo0-0.ledn002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn002a-jnx-01-vtb.dev.vtb",
+        "id": 189,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.18",
+        "afi": "4",
+                    "name": "lo0-0.asd002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.asd002a-jnx-01-vtb.dev.vtb",
+        "id": 187,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.17",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 185,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.16",
+        "afi": "4",
+                    "name": "lo0-0.ledn002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn002a-jnx-01-vtb.dev.vtb",
+        "id": 183,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.15",
+        "afi": "4",
+                    "name": "lo0-0.ledn002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn002a-jnx-01-vtb.dev.vtb",
+        "id": 181,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.14",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 179,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.13",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 177,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.12",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 175,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.11",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 173,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.10",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 171,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.9",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 169,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.8",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 167,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.7",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 121,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.6",
+        "afi": "4",
+                    "name": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ledn007a-jnx-01-vtb.dev.vtb",
+        "id": 119,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.5",
+        "afi": "4",
+                    "name": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt010a-jnx-01-vtb.dev.vtb",
+        "id": 109,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.4",
+        "afi": "4",
+                    "name": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.dt002a-jnx-01-vtb.dev.vtb",
+        "id": 107,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.3",
+        "afi": "4",
+                    "name": "lo0-0.asd001a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.asd001a-jnx-01-vtb.dev.vtb",
+        "id": 73,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.2",
+        "afi": "4",
+                    "name": "lo0-0.ut001a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.ut001a-jnx-01-vtb.dev.vtb",
+        "id": 71,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      },
+      {
+        "address": "10.1.4.1",
+        "afi": "4",
+                    "name": "lo0-0.hlm001a-jnx-01-vtb.dev.vtb",
+                    "fqdn": "lo0-0.hlm001a-jnx-01-vtb.dev.vtb",
+        "id": 61,
+                    "prefix": 3,
+        "prefix__label": "default(4): 10.1.4.0/22",
+              "state": 1,
+        "state__label": "Default Resource: Ready",
+              "tags": [
+          "orchestrator",
+          "node"
+        ],
+        "vrf": 1,
+        "vrf__label": "global"
+      }
+    ],
+    "afi": "4",
+    "asn": 1,
+    "asn__label": "AS0 (Default)",
+    "description": "Loopback addresses",
+      "id": 3,
+      "parent": 14,
+    "parent__label": "default(4): 10.1.0.0/16",
+    "prefix": "10.1.4.0/22",
+      "state": 1,
+    "state__label": "Default Resource: Ready",
+      "sub_prefixes": [],
+    "tags": "[]",
+    "vrf": "1",
+    "vrf__label": "global"
+  }
+]

@@ -1,0 +1,86 @@
+{
+    "l3internet:l3internet-bgp": [
+        {
+            "customer_name": "CWI",
+            "endpoints": [
+                {
+                    "device": "asd001a-jnx-01-vtb",
+                    "interface": "ae9",
+                    "vlan_id": 1,
+                    "instance_id": "mock.ANY",
+                    "ipv4_address": "10.1.32.24/31",
+                    "ipv4_remote_address": "10.1.32.25",
+                    "ipv4_mtu": 1500,
+                    "ipv4_prefixes": [
+                        {
+                            "prefix": "145.192.0.0/18"
+                        }
+                    ],
+                    "ipv6_address": "2001:610:f00:24::1c/64",
+                    "ipv6_remote_address": "2001:610:f00:24::1a",
+                    "ipv6_mtu": 1500,
+                    "ipv6_prefixes": [
+                        {
+                            "prefix": "2001:612:8000::/33"
+                        }
+                    ],
+                    "speed": 2000,
+                    "bfd_enabled": false,
+                    "bgp_session_priority": "primary",
+                    "export_policy": "default"
+                },
+                {
+                    "device": "asd001a-jnx-01-vtb",
+                    "interface": "ae9",
+                    "vlan_id": 1,
+                    "instance_id": "mock.ANY",
+                    "ipv4_address": "10.1.32.24/31",
+                    "ipv4_remote_address": "10.1.32.25",
+                    "ipv4_mtu": 1500,
+                    "ipv4_prefixes": [
+                        {
+                            "prefix": "145.192.0.0/18"
+                        }
+                    ],
+                    "ipv6_address": "2001:610:f00:24::1c/64",
+                    "ipv6_remote_address": "2001:610:f00:24::1a",
+                    "ipv6_mtu": 1500,
+                    "ipv6_prefixes": [
+                        {
+                            "prefix": "2001:612:8000::/33"
+                        }
+                    ],
+                    "speed": 2000,
+                    "bfd_enabled": false,
+                    "bgp_session_priority": "secondary",
+                    "export_policy": "default"
+                }
+            ],
+            "extra_ptp_ipv4_prefixes": [
+                {
+                    "prefix": "10.1.32.24/31"
+                },
+                {
+                    "prefix": "10.1.32.24/31"
+                }
+            ],
+            "extra_ptp_ipv6_prefixes": [
+                {
+                    "prefix": "2001:610:f00:24::/64"
+                },
+                {
+                    "prefix": "2001:610:f00:24::/64"
+                }
+            ],
+            "name": "1c0a5b26-6ed1-484d-9e07-994248553773",
+            "pinnen_prefixes": [
+                {
+                    "prefix": "145.192.64.0/20"
+                }
+            ],
+            "subscription_id": "subscription_id",
+            "surfcert_filter": "default",
+            "cust_asn": 4294960000
+        }
+    ]
+}

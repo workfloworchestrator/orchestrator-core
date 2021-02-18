@@ -1,0 +1,24 @@
+{
+  "aliases": [
+    "SUBSCRIPTION_ID=935C9D11-74A2-4E3A-A92A-FBDE2B2A0C6A"
+  ],
+  "customer_id": "2F47F65A-0911-E511-80D0-005056956C1A",
+  "endpoints": [
+    {
+      "id": 95179,
+      "type": "internal_port"
+    },
+    {
+      "id": 30259,
+      "type": "service",
+      "vlanranges": []
+    }
+  ],
+  "extra_info": "Aggregated Service Port for 254a409",
+  "id": 61,
+  "name": "ASD001A_AGGSPPPFOUT_TAGGED_PLACEHOLDER_288F2F2F",
+  "order_id": "PID: B43375AB-442D-4E0D-B49C-385E263098F0",
+  "product": "SP",
+  "speed": "VCG",
+  "status": "IS"
+}

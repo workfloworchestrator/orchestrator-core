@@ -1,0 +1,11 @@
+{
+  "connector_type": "LC/PC",
+  "fiber_type": "single-mode",
+  "id": 671322,
+  "iface_type": "10GBASE-LR",
+  "line_name": "LEDN002A-LEDN002A-1G-001",
+  "location": "LEDN002A",
+  "node": "LEDN002A-JNX-02-VTB",
+  "port": "0/0/1",
+  "status": "IS"
+}

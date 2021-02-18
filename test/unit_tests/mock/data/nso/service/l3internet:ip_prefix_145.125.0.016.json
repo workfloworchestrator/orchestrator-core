@@ -1,0 +1,11 @@
+{
+  "l3internet:ip_prefix": [
+    {
+      "prefix": "145.0.0.68/31",
+      "subscription_id": "0684337f-92ab-40ba-b016-6437c366dde7",
+      "to_internet": "True",
+      "customer_aggregate": "False",
+      "lir": "True"
+    }
+  ]
+}

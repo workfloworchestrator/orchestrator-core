@@ -1,0 +1,12 @@
+{
+  "ptp:ptp": [
+    {
+      "customer_name": "PLACEHOLDER",
+      "device": "asd001-jnx-01-vtb",
+      "interface": "AE9",
+      "name": "21fb5911-0cda-4294-a7ca-bd64c97fb807",
+      "ptptype": "tagged",
+      "subscription_id": "614d2751-c41f-441c-a607-8487dc0fac8c"
+    }
+  ]
+}

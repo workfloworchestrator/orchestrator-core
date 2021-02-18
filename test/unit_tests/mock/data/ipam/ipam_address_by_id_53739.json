@@ -1,0 +1,19 @@
+{
+    "address": "145.145.166.202",
+    "description": null,
+    "fqdn": "fixture.local-vtb.peer.surf.net",
+    "id": 53739,
+    "mac": null,
+    "name": "fixture.local-jnx-unittest-vtb.peer.surf.net",
+    "prefix": 60394,
+    "prefix__label": "INFRA(4): 145.145.166.202/31",
+    "state": 1,
+    "state__label": "Default Resource: Ready",
+    "tags": [
+        "orchestrator",
+        "ippp",
+        "SURFnet"
+    ],
+    "vrf": 1,
+    "vrf__label": "global"
+}

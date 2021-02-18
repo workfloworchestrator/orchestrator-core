@@ -1,0 +1,24 @@
+{
+  "addresses": [
+    {
+      "city": "UTRECHT",
+      "number": "6",
+      "street": "Budapestlaan",
+      "type": "Bezoekadres",
+      "uuid": "7d77de0c-9a96-497d-b081-c9c23514950f",
+      "zipcode": "3584 CD"
+    },
+    {
+      "city": "UTRECHT",
+      "number": "80125",
+      "street": "Postbus",
+      "type": "Postadres",
+      "uuid": "8d76ed97-7eb6-432d-940f-dc6c4fcf00cc",
+      "zipcode": "3508 TC"
+    }
+  ],
+  "classification": "PLACEHOLDER",
+  "code": "Ut001A",
+  "type": "Colocatie",
+  "uuid": "90b243b6-0a11-e511-80d0-005056956c1a"
+}

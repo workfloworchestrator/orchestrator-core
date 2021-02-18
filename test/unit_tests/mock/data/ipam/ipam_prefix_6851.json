@@ -1,0 +1,51 @@
+{
+  "afi": "6",
+  "asn": 263,
+  "asn__label": "AS65001 (IMPORT AS)",
+  "addresses": [
+    {
+      "address": "2001:610:f00:24::1a",
+      "afi": "6",
+      "name": "cwi-router.customer.surf.net",
+      "fqdn": "cwi-router.customer.surf.net",
+      "id": 4267,
+      "prefix": 6851,
+      "state": 1,
+      "state__label": "Default Resource: Ready",
+      "tags": [
+        "orchestrator",
+        "ip",
+        "Customer"
+      ],
+      "vrf": 1
+    },
+    {
+      "address": "2001:610:f00:24::1c",
+      "afi": "6",
+      "name": "eae9-1.asd001a-jnx-01-vtb.surf.net",
+      "fqdn": "eae9-1.asd001a-jnx-01-vtb.surf.net",
+      "id": 4265,
+      "prefix": 6851,
+      "state": 1,
+      "state__label": "Default Resource: Ready",
+      "tags": [
+        "orchestrator",
+        "ip",
+        "SURFnet"
+      ],
+      "vrf": 1
+    }
+  ],
+  "description": "PtP for 0000IP_GN001A_RUG (2018-07-19 11:23:32.256629)",
+  "id": 6851,
+  "parent": 5840,
+  "parent__label": "default(6): ::/0",
+  "prefix": "2001:610:f00:24::/64",
+  "state": 1,
+  "sub_prefixes": [],
+  "tags": [
+    "orchestrator",
+    "ip"
+  ],
+  "vrf": 1
+}
