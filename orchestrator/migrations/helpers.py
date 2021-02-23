@@ -1,5 +1,5 @@
 import sqlalchemy as sa
-
+from uuid import UUID, uuid4
 
 def get_resource_type_id_by_name(conn, name):
     result = conn.execute(
@@ -74,6 +74,177 @@ def create_missing_modify_note_workflows(conn):
                 workflow_id=workflow_id,
                 product_id=product["product_id"],
             )
+
+
+def create_workflows(conn, new):
+    """
+    Create a new workflow
+
+    Args:
+        conn: DB connection as available in migration main file
+        new: an dict of your workflow data
+    
+    Example:
+        >>> new_workflows = {
+                "workflow_name": {
+                    "target": "CREATE",
+                    "description": "Workflow description",
+                    "tag": "ProductBlockName1",
+                    "search_phrase": "Search Phrase%",
+                }
+            }
+    """
+    for name, workflow in new.items():
+        workflow["name"] = name
+        conn.execute(
+            sa.text(
+                """
+                WITH new_workflow AS (
+                INSERT INTO workflows(name, target, description)
+                    VALUES (:name, :target, :description)
+                    RETURNING workflow_id)
+                INSERT
+                INTO products_workflows (product_id, workflow_id)
+                SELECT
+                p.product_id,
+                nw.workflow_id
+                FROM products AS p
+                    CROSS JOIN new_workflow AS nw
+                        WHERE p.tag = :tag
+                        AND p.name LIKE :search_phrase
+
+            """
+            ),
+            workflow,
+        )
+
+
+def create_fixed_inputs(conn, product_id, new):
+    """
+    Created fixed inputs for a product
+
+    Args:
+        conn: DB connection as available in migration main file
+        product_id: UUID of the product to link to
+        new: an dict of your workflow data
+        
+    Example:
+        >>> new = {
+                "fixed_input_1": "value",
+                "fixed_input_2": "value"
+            }
+    """
+    uuids = {}
+    for key, value in new.items():
+        uuids[key] = uuid4()
+        conn.execute(
+            sa.text(
+                "INSERT INTO fixed_inputs (fixed_input_id, name, value, created_at, product_id) "
+                "VALUES (:fixed_input_id, :key, :value, now(), :product_id)"
+            ),
+            {"fixed_input_id": uuids[key], "key": key, "value": value, "product_id": product_id},
+        )
+    return uuids
+
+def create_products(conn, new):
+    """
+    Create a new workflow
+
+    Args:
+        conn: DB connection as available in migration main file
+        new: an dict of your workflow data
+    
+    Example:
+        >>> new = {
+                "Example Product": {
+                    "product_id": "c9dc2374-514c-11eb-b685-acde48001122",
+                    "product_type": "ProductType1",
+                    "description": "Product description",
+                    "tag": "ProductType",
+                    "status": "active",
+                    "fixed_inputs": {
+                        "fixed_input_1": "value",
+                        "fixed_input_2": "value2"
+                    }
+                },
+                "Example Product 2": {
+                    "product_type": "ProductType1",
+                    "description": "Product description",
+                    "tag": "ProductType",
+                    "status": "active",
+                    "product_block_ids": [
+                        "37afe017-5a04-4d87-96b0-b8f88a328d7a"
+                    ]
+                }
+            }
+    """
+    uuids = {}
+    for name, product in new.items():
+        product["name"] = name
+        product["product_id"] = str(product.get("product_id", uuid4()))
+        current_uuid = product["product_id"]
+        uuids[name] = current_uuid
+        conn.execute(
+            sa.text(
+                "INSERT INTO products (product_id, name, description, product_type, tag, status, created_at) "
+                "VALUES (:product_id, :name, :description, :product_type, :tag, :status, now())"
+            ),
+            product,
+        )
+        if "product_block_ids" in product:
+            for product_block_uuid in product["product_block_ids"]:
+                # Link many-to-many if product blocks are given.
+                    conn.execute(
+                        sa.text("INSERT INTO product_product_blocks VALUES (:product_id, :product_block_id)"),
+                        {
+                            "product_id": current_uuid,
+                            "product_block_id": product_block_uuid,
+                        },
+                    )
+        if "fixed_inputs" in product:
+            create_fixed_inputs(conn, current_uuid, product["fixed_inputs"])
+    return uuids
+
+
+def create_product_blocks(conn, new):
+    """
+    Create a new workflow
+
+    Args:
+        conn: DB connection as available in migration main file
+        new: an dict of your workflow data
+        products: list of product block ids to link these product blocks to
+    
+    Example:
+        >>> new = {
+                "Example Product Block": {
+                    "product_block_id": "37afe017-5a04-4d87-96b0-b8f88a328d7a",
+                    "description": "Product description",
+                    "tag": "ProductType",
+                    "status": "active",
+                },
+                "Example Product Block Two": {
+                    "product_type": "ProductBlock2",
+                    "description": "Product description",
+                    "tag": "ProductType",
+                    "status": "active",
+                }
+            }
+    """
+    uuids = {}
+    for name, product_block in new.items():
+        product_block["name"] = name
+        product_block["product_block_id"] = str(product_block.get("product_block_id", uuid4()))
+        uuids[name] = product_block["product_block_id"]
+        conn.execute(
+            sa.text(
+                "INSERT INTO product_blocks (product_block_id, name, description, tag, status, created_at) "
+                "VALUES (:product_block_id, :name, :description, :tag, :status, now())"
+            ),
+            product_block,
+        )
+            
+    return uuids
 
 
 def create_resource_types_for_product_blocks(conn, new):
@@ -160,3 +331,114 @@ def delete_resource_types(conn, delete):
         obsolete=tuple(delete),
     )
     conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type in :obsolete"), obsolete=tuple(delete))
+
+
+
+def create(conn, new):
+    """
+    Call other functions in this file based on the schema
+
+    Args:
+        conn: DB connection as available in migration main file
+        new: a dict with everything you want to make and link
+
+    Example:
+        >>> new_stuff = {
+                "products": {
+                    "Example Product": {
+                        "product_id": "c9dc2374-514c-11eb-b685-acde48001122",
+                        "product_type": "ProductType1",
+                        "description": "Product description",
+                        "tag": "ProductType",
+                        "status": "active",
+                        "product_blocks": [
+                            "Example Product Block"
+                        ],
+                        "fixed_inputs": {
+                            "fixed_input_1": "value",
+                            "fixed_input_2": "value2"
+                        }
+                    },
+                    "Example Product 2": {
+                        "product_type": "ProductType1",
+                        "description": "Product description",
+                        "tag": "ProductType",
+                        "status": "active",
+                        "product_block_ids": [
+                            "37afe017-5a04-4d87-96b0-b8f88a328d7a"
+                        ]
+                    }
+                },
+                "product_blocks": {
+                    "Example Product Block": {
+                        "product_block_id": "37afe017-5a04-4d87-96b0-b8f88a328d7a",
+                        "product_type": "ProductBlock1",
+                        "description": "Product description",
+                        "tag": "ProductType",
+                        "status": "active",
+                        "resources": {
+                            "resource_type1": "Resource description",
+                            "resource_type2": "Resource description"  
+                        }
+                    },
+                    "Generated UUID Product Block": {
+                        "product_type": "ProductBlock2",
+                        "description": "Product description",
+                        "tag": "ProductType",
+                        "status": "active",
+                        "resources": {
+                            "resource_type1": "Resource description",
+                            "resource_type3": "Resource description"  
+                        }
+                    }
+                },
+                "resources": {
+                    "Existing Product": {
+                        "resource_type4": "Resource description",
+                        "resource_type5": "Resource description"  
+                    }
+                },
+                "workflows": {
+                    "workflow_name": {
+                        "target": "CREATE",
+                        "description": "Workflow description",
+                        "tag": "ProductType1",
+                        "search_phrase": "Search Phrase%",
+                    }
+                }
+            }
+    """
+    resources = new.get("resources", {})
+    product_block_uuids = {}
+    product_uuids = {}
+
+    if "product_blocks" in new:
+        for product_block_name, product_block in new["product_blocks"].items():
+            # Move resources into one dict
+            if "resources" in product_block:
+                res_dict = {product_block_name: product_block["resources"]}
+                resources.update(res_dict)
+                del product_block["resources"]
+        product_block_uuids = create_product_blocks(conn, new["product_blocks"])
+    
+    if "products" in new:
+        for product in new.get("product_blocks", {}).values():
+            if "product_blocks" in product:
+                if "product_block_ids" not in product:
+                    product["product_block_ids"] = []
+                for product_block_name in product["product_blocks"]:
+                    try:
+                        product["product_block_ids"].append(product_block_uuids[product_block_name])
+                    except KeyError:
+                        try:
+                            product["product_block_ids"].append(get_product_block_id_by_name(conn, product_block_name))
+                        except:
+                            raise ValueError(f"{product_block_name} is not a valid product block.")
+                del product["product_blocks"]
+        product_uuids = create_products(conn, new["products"])
+    
+    if resources:
+        create_resource_types_for_product_blocks(conn, resources)
+    
+    if "workflows" in new:
+        create_workflows(conn, new["workflows"])
