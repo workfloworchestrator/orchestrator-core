@@ -138,10 +138,11 @@ def create_fixed_inputs(conn, product_id, new):
     for key, value in new.items():
         uuids[key] = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO fixed_inputs (fixed_input_id, name, value, created_at, product_id) "
-                "VALUES (:fixed_input_id, :key, :value, now(), :product_id)"
-            ),
+            sa.text("""
+                INSERT INTO fixed_inputs (fixed_input_id, name, value, created_at, product_id)
+                VALUES (:fixed_input_id, :key, :value, now(), :product_id)
+                ON CONFLICT DO NOTHING;
+            """),
             {"fixed_input_id": uuids[key], "key": key, "value": value, "product_id": product_id},
         )
     return uuids
@@ -185,10 +186,11 @@ def create_products(conn, new):
         current_uuid = product["product_id"]
         uuids[name] = current_uuid
         conn.execute(
-            sa.text(
-                "INSERT INTO products (product_id, name, description, product_type, tag, status, created_at) "
-                "VALUES (:product_id, :name, :description, :product_type, :tag, :status, now())"
-            ),
+            sa.text("""
+                INSERT INTO products (product_id, name, description, product_type, tag, status, created_at)
+                VALUES (:product_id, :name, :description, :product_type, :tag, :status, now())
+                ON CONFLICT DO NOTHING;
+            """),
             product,
         )
         if "product_block_ids" in product:
@@ -237,10 +239,11 @@ def create_product_blocks(conn, new):
         product_block["product_block_id"] = str(product_block.get("product_block_id", uuid4()))
         uuids[name] = product_block["product_block_id"]
         conn.execute(
-            sa.text(
-                "INSERT INTO product_blocks (product_block_id, name, description, tag, status, created_at) "
-                "VALUES (:product_block_id, :name, :description, :tag, :status, now())"
-            ),
+            sa.text("""
+                INSERT INTO product_blocks (product_block_id, name, description, tag, status, created_at)
+                VALUES (:product_block_id, :name, :description, :tag, :status, now())
+                ON CONFLICT DO NOTHING;
+            """),
             product_block,
         )
             
