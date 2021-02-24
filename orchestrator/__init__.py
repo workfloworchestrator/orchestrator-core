@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This is the orchestrator orchestrator workflow engine."""
+"""This is the orchestrator workflow engine."""
 
-__version__ = "0.0.1-rc2"
+__version__ = "0.0.1-rc3"
 
 from orchestrator.app import OrchestratorCore
 from orchestrator.settings import app_settings, oauth2_settings
