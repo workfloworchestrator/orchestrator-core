@@ -1,9 +1,0 @@
-{
-  "content": "serial: 2019050800",
-  "id": 217,
-  "name": "automation-zone-test",
-  "ttl": 300,
-  "type": "TXT",
-  "zone": 1,
-  "zone__label": "dev.vtb"
-}

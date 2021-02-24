@@ -67,7 +67,7 @@ def make_field_doc(field_name: str, field_type: Any) -> str:
     >>> class Something:
     ...     "Doc title"
     >>> make_field_doc("int_field", Something)
-    '        int_field:\n            Doc title\n\n            Type :class:`~server.utils.docs.Something`'
+    '        int_field:\n            Doc title\n\n            Type :class:`~orchestrator.utils.docs.Something`'
     """
 
     if field_type in (int, bool, str, UUID):

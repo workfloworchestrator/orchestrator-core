@@ -1,0 +1,50 @@
+name: Unit tests
+on: push
+
+jobs:
+  container_job:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ 3.8 ]
+    container: python:3.8.3-slim
+    services:
+      postgres:
+        image: postgres:11.6-alpine
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          apt update
+          apt install curl -y
+          python -m pip install --upgrade pip
+          pip install flit
+          flit install --deps develop --symlink
+          echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
+        env:
+          FLIT_ROOT_INSTALL: 1
+      - name: Run Unit tests
+        run: AIOCACHE_DISABLE=1 DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator
+        env:
+          POSTGRES_DB: orchestrator-core-test
+          POSTGRES_USER: nwa
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_HOST: postgres
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: true

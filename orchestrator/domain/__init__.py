@@ -19,3 +19,5 @@ from orchestrator.utils.docs import make_product_type_index_doc
 SUBSCRIPTION_MODEL_REGISTRY: Dict[str, Type[SubscriptionModel]] = {}
 
 __doc__ = make_product_type_index_doc(SUBSCRIPTION_MODEL_REGISTRY)
+
+__all__ = ["SubscriptionModel"]
