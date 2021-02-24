@@ -39,7 +39,7 @@ def test_all_products_have_at_least_one_workflow():
     )
 
 
-def test_all_non_system_workflows_have_at_least_one_product():
+def test_all_non_system_workflows_have_at_least_one_product(generic_product_1):
     wfs_without_prod = list(
         flatten(
             WorkflowTable.query.filter(

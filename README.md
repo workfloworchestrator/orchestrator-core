@@ -14,4 +14,16 @@ Step2:
 flit install --deps develop --symlink
 ```
 
-## Setup
+## Running tests.
+
+Create a database
+
+```bash
+createuser -s -P nwa
+createdb orchestrator-core-test -O nwa
+```
+
+Run tests
+```bash
+pytest test/unit_tests
+```

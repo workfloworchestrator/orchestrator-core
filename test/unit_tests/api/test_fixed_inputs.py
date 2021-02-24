@@ -2,28 +2,15 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
-from deepdiff import DeepDiff
 
-from orchestrator.api.api_v1.endpoints.fixed_input import fi_configuration
-from orchestrator.config import (
-    AGGREGATE,
-    CITY_TYPE,
-    DOMAIN,
-    IP_ROUTING_TYPE,
-    NETHERLIGHT,
-    PORT_SPEED,
-    PROTECTION_TYPE,
-    REDUNDANT,
-    SERVICE_SPEED,
-    SIZE,
-    TAGGED,
-)
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
 
 PRODUCT_ID = str(uuid4())
 SUBSCRIPTION_ID = str(uuid4())
 PORT_SPEED_VALUE = "100000"
 SERVICE_SPEED_VALUE = "100000"
+PORT_SPEED = "port_speed"
+SERVICE_SPEED = "service_speed"
 
 
 @pytest.fixture

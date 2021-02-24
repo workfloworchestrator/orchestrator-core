@@ -12,7 +12,6 @@ from orchestrator.db import (
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     SubscriptionTable,
-    WorkflowTable,
     db,
 )
 from orchestrator.utils.json import json_dumps

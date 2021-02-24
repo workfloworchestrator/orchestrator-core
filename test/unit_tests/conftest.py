@@ -30,6 +30,7 @@ from orchestrator.db import (
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     SubscriptionTable,
+    WorkflowTable,
     db,
 )
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, DBSessionMiddleware, SearchQuery
@@ -348,10 +349,6 @@ def fastapi_app(database, db_uri):
     )
     app.add_exception_handler(FormException, form_error_handler)
     app.add_exception_handler(ProblemDetailException, problem_detail_handler)
-    # app.add_exception_handler(ImsApiException, external_api_exception_handler)
-    # app.add_exception_handler(CrmApiExcpetion, external_api_exception_handler)
-    # app.add_exception_handler(JiraApiException, external_api_exception_handler)
-    # app.add_exception_handler(IpamApiException, external_api_exception_handler)
     add_exception_handler(app)
 
     return app
@@ -455,6 +452,7 @@ def generic_product_block_3(generic_resource_type_2):
 
 @pytest.fixture
 def generic_product_1(generic_product_block_1, generic_product_block_2):
+    workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").one()
     p = ProductTable(
         name="Product 1",
         description="Generic Product One",
@@ -462,6 +460,7 @@ def generic_product_1(generic_product_block_1, generic_product_block_2):
         status="active",
         tag="GEN1",
         product_blocks=[generic_product_block_1, generic_product_block_2],
+        workflows=[workflow],
     )
     db.session.add(p)
     db.session.commit()
@@ -470,6 +469,8 @@ def generic_product_1(generic_product_block_1, generic_product_block_2):
 
 @pytest.fixture
 def generic_product_2(generic_product_block_3):
+    workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").one()
+
     p = ProductTable(
         name="Product 2",
         description="Generic Product Two",
@@ -477,6 +478,7 @@ def generic_product_2(generic_product_block_3):
         status="active",
         tag="GEN2",
         product_blocks=[generic_product_block_3],
+        workflows=[workflow],
     )
     db.session.add(p)
     db.session.commit()

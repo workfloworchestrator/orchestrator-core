@@ -3,7 +3,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.orm.exc import MultipleResultsFound
 
-from orchestrator.config import PORT_MODE
 from orchestrator.db import ProductTable
 from orchestrator.services.subscriptions import get_subscription, retrieve_subscription_by_subscription_instance_value
 from test.unit_tests import fixtures

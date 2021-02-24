@@ -19,9 +19,6 @@ from orchestrator.domain.base import ProductBlockModel, ProductModel, Subscripti
 from orchestrator.domain.lifecycle import ProductLifecycle, change_lifecycle
 from orchestrator.types import SubscriptionLifecycle
 
-# from surf.products.product_types.sn8_l2vpn import Sn8L2Vpn
-# from surf.products.product_types.sp import Sn8ServicePort
-
 
 @pytest.fixture
 def test_product():
@@ -547,34 +544,10 @@ def test_removal_of_domain_attrs(test_product, test_product_type):
     assert "Expected exactly one item in iterable, but got" in str(err)
 
 
-# def test_simple_model_with_no_attrs(sn8_service_port_subscription_1):
-#     model = Sn8ServicePort.from_subscription(subscription_id=sn8_service_port_subscription_1)
-#     with pytest.raises(NoResultFound):
-#         SubscriptionInstanceRelationTable.query.filter(
-#             SubscriptionInstanceRelationTable.child_id == model.sp.subscription_instance_id
-#         ).one()
-#
-#
-# def test_complex_model_with_no_attrs(sn8_l2vpn_subscription):
-#     model = Sn8L2Vpn.from_subscription(subscription_id=sn8_l2vpn_subscription)
-#     relation = SubscriptionInstanceRelationTable.query.filter(
-#         SubscriptionInstanceRelationTable.child_id == model.vc.esis[0].subscription_instance_id
-#     ).one()
-#     relation.domain_model_attr = None
-#     db.session.commit()
-#
-#     model2 = Sn8L2Vpn.from_subscription(subscription_id=sn8_l2vpn_subscription)
-#
-#     assert model == model2
-#
-#
-# def test_benchmark_load_domain_model(benchmark, test_product, test_product_type):
-#
-#     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
-#
-#     ip = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
-#     ip.save()
-#
-#     model = benchmark(SubscriptionModel.from_subscription, ip.subscription_id)
-#
-#     assert isinstance(model, ProductTypeForTestInactive)
+def test_simple_model_with_no_attrs(generic_subscription_1, generic_product_type_1):
+    GenericProductOneInactive, GenericProductOne = generic_product_type_1
+    model = GenericProductOne.from_subscription(subscription_id=generic_subscription_1)
+    with pytest.raises(NoResultFound):
+        SubscriptionInstanceRelationTable.query.filter(
+            SubscriptionInstanceRelationTable.child_id == model.pb_1.subscription_instance_id
+        ).one()

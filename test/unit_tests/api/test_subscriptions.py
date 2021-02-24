@@ -16,10 +16,8 @@ from orchestrator.db import (
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     SubscriptionTable,
-    WorkflowTable,
     db,
 )
-from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
