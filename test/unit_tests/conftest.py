@@ -241,7 +241,7 @@ def database(db_uri):
 
     Args:
         db_uri: fixture for providing the application context and an initialized database. Although specifying this
-            as an explicit parameter is redundant due to `flask_app`'s autouse setting, we have made the dependency
+            as an explicit parameter is redundant due to `fastapi_app`'s autouse setting, we have made the dependency
             explicit here for the purpose of documentation.
 
     """
