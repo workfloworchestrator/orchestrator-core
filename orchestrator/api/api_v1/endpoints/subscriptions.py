@@ -13,7 +13,6 @@
 
 """Module that implements subscription related API endpoints."""
 
-from dataclasses import asdict
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
@@ -336,7 +335,7 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()
 
-    subscription = asdict(SubscriptionModel.from_subscription(subscription_id))
+    subscription = SubscriptionModel.from_subscription(subscription_id).dict()
 
     subscription["customer_descriptions"] = customer_descriptions
 

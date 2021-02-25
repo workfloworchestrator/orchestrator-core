@@ -12,16 +12,16 @@
 # limitations under the License.
 
 from collections import defaultdict
-from dataclasses import field
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Type, TypeVar, Union
 from uuid import UUID, uuid4
 
 import structlog
 from more_itertools import flatten, only
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
+from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
 from sqlalchemy import and_
 from sqlalchemy.orm import selectinload
@@ -35,18 +35,9 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.domain.config import PydanticConfig
 from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr, is_list_type, is_of_type, is_optional_type
 from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
-
-if TYPE_CHECKING:
-    # Workaround for the fact that the pre-commit hook uses it's own env.
-    from dataclasses import dataclass
-else:
-    from pydantic.dataclasses import dataclass
-
-    DataclassType = Any
 
 logger = structlog.get_logger(__name__)
 
@@ -67,41 +58,22 @@ def _is_constrained_list_type(type: Type) -> bool:
 
 
 T = TypeVar("T")
-S = TypeVar("S", "SubscriptionModel", "SubscriptionModel")
-B = TypeVar("B", "ProductBlockModel", "ProductBlockModel")
+S = TypeVar("S", bound="SubscriptionModel")
+B = TypeVar("B", bound="ProductBlockModel")
 
 
-class DomainMeta(type):
-    __base_type__: "DomainMeta"
-
-    def __new__(metacls: Type[T], name: str, bases: Tuple[type, ...], namespace: Dict[str, Any], **kwds: Any) -> T:
-        """Create a new domain model type.
-
-        We make sure pydantic dataclasses are properly set up.
-
-        Each domain model is a pydantic dataclass. By calling it here we do
-        not require the decorator on every class definition.
-
-        Because of how python works just setting a field with a new annotation will not override
-        the runtime checks for that field by pydantic. We do that here explicitly using `dataclasses.field`
-        This has the desired effect of actually changing the validations
-        """
-        if name not in ("ProductBlockModel", "SubscriptionModel", "DomainModel"):
-            for field_name in namespace["__annotations__"]:
-                if field_name not in namespace:
-                    namespace[field_name] = field()
-
-        cls = super().__new__(metacls, name, bases, namespace, **kwds)  # type: ignore
-
-        return dataclass(cls, config=PydanticConfig)  # type: ignore
-
-
-class DomainModel(metaclass=DomainMeta):
+class DomainModel(BaseModel):
     """Base class for domain models.
 
     Contains all common Product block/Subscription instance code
     """
 
+    class Config:
+        validate_assignment = True
+        validate_all = True
+        arbitrary_types_allowed = True
+
+    __base_type__: ClassVar[Type["DomainModel"]]
     _product_block_fields_: ClassVar[Dict[str, Type]]
     _non_product_block_fields_: ClassVar[Dict[str, Type]]
 
@@ -328,7 +300,7 @@ class DomainModel(metaclass=DomainMeta):
         return saved_instances
 
 
-class ProductBlockModelMeta(DomainMeta):
+class ProductBlockModelMeta(ModelMetaclass):
     """Metaclass used to create product block instances.
 
     This metaclass is used to make sure the class contains product block metadata.
@@ -339,9 +311,13 @@ class ProductBlockModelMeta(DomainMeta):
     You can find some examples in: :ref:`domain-models`
     """
 
-    def __call__(  # type:ignore
-        self: Type[B], *args: Any, **kwargs: Any
-    ) -> B:
+    __names__: List[str]
+    name: str
+    product_block_id: UUID
+    description: str
+    tag: str
+
+    def __call__(self, *args: Any, **kwargs: Any) -> B:
 
         # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we cant access the db
         # So now we do it just before we instantiate the instance
@@ -395,12 +371,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     description: ClassVar[str]
     tag: ClassVar[str]
 
-    # None of the fields defined here should have defaults.
-    # Python dataclasses prohibits subclasses dataclasses from using non-default fields when
-    # the superclass has a default field. To set a default add it to `new()`.
-    product_block_name: str
-    subscription_instance_id: UUID
-    label: Optional[str]
+    subscription_instance_id: UUID = Field(default_factory=uuid4)
+    label: Optional[str] = None
 
     def __init_subclass__(
         cls,
@@ -432,9 +404,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         """
         sub_instances = cls._init_instances(list(kwargs.keys()))
 
-        return cls(  # type: ignore
-            subscription_instance_id=uuid4(), label=None, product_block_name=cls.name, **sub_instances, **kwargs
-        )
+        return cls(**sub_instances, **kwargs)  # type: ignore
 
     @classmethod
     def _load_instances_values(cls, instance_values: List[SubscriptionInstanceValueTable]) -> Dict[str, str]:
@@ -510,7 +480,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             return cls(  # type: ignore
                 subscription_instance_id=subscription_instance_id,
                 label=label,
-                product_block_name=cls.name,
                 **instance_values,
                 **sub_instances,
             )
@@ -688,9 +657,13 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return children + [subscription_instance]
 
 
-@dataclass(config=PydanticConfig)  # type: ignore
-class ProductModel:
+class ProductModel(BaseModel):
     """Represent the product as defined in the database as a dataclass."""
+
+    class Config:
+        validate_assignment = True
+        validate_all = True
+        arbitrary_types_allowed = True
 
     product_id: UUID
     name: str
@@ -700,7 +673,7 @@ class ProductModel:
     status: ProductLifecycle
 
 
-class SubscriptionModel(DomainModel, metaclass=DomainMeta):
+class SubscriptionModel(DomainModel):
     """Base class for all product subscription models.
 
     Define a subscription model:
@@ -725,18 +698,15 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
     >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP
     """
 
-    # None of the fields defined here should have defaults.
-    # Python dataclasses prohibits subclasses dataclasses from using non-default fields when
-    # the superclass has a default field. To set a default add it to `from_product_id()`.
     product: ProductModel
     customer_id: UUID
-    subscription_id: UUID
-    description: str
-    status: SubscriptionLifecycle
-    insync: bool
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
-    note: Optional[str]
+    subscription_id: UUID = Field(default_factory=uuid4)
+    description: str = "Initial subscription"
+    status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL
+    insync: bool = False
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    note: Optional[str] = None
 
     def __new__(cls, *args: Any, status: Optional[SubscriptionLifecycle] = None, **kwargs: Any) -> "SubscriptionModel":
 
@@ -777,7 +747,7 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        def find_product_block_in(cls: Type[Union[S, B]]) -> List[ProductBlockModel]:
+        def find_product_block_in(cls: Type[DomainModel]) -> List[ProductBlockModel]:
             product_blocks_in_model = []
             for product_block_field_type in cls._product_block_fields_.values():
                 if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
@@ -866,12 +836,12 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
         # Caller wants a new instance and provided a product_id and customer_id
         product_db = ProductTable.query.get(product_id)
         product = ProductModel(
-            product_db.product_id,
-            product_db.name,
-            product_db.description,
-            product_db.product_type,
-            product_db.tag,
-            product_db.status,
+            product_id=product_db.product_id,
+            name=product_db.name,
+            description=product_db.description,
+            product_type=product_db.product_type,
+            tag=product_db.tag,
+            status=product_db.status,
         )
 
         if description is None:
@@ -881,15 +851,14 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
         instances = cls._init_instances()
 
         return cls(
-            product,
-            customer_id,
-            uuid4(),
-            description,
-            status,
-            insync,
-            start_date,
-            end_date,
-            note,
+            product=product,
+            customer_id=customer_id,  # type:ignore
+            description=description,
+            status=status,
+            insync=insync,
+            start_date=start_date,
+            end_date=end_date,
+            note=note,
             **fixed_inputs,
             **instances,
         )
@@ -905,12 +874,12 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
             selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
         ).get(subscription_id)
         product = ProductModel(
-            subscription.product.product_id,
-            subscription.product.name,
-            subscription.product.description,
-            subscription.product.product_type,
-            subscription.product.tag,
-            subscription.product.status,
+            product_id=subscription.product.product_id,
+            name=subscription.product.name,
+            description=subscription.product.description,
+            product_type=subscription.product.product_type,
+            tag=subscription.product.tag,
+            status=subscription.product.status,
         )
         status = SubscriptionLifecycle(subscription.status)
 
@@ -920,7 +889,7 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type:ignore
             cls = lookup_specialized_type(cls, status)
             if cls != old_cls and not issubclass(cls, old_cls):
                 raise ValueError(
@@ -931,16 +900,16 @@ class SubscriptionModel(DomainModel, metaclass=DomainMeta):
         instances = cls._load_instances(subscription.instances, status)
 
         try:
-            return cls(
-                product,
-                subscription.customer_id,
-                subscription_id,
-                subscription.description,
-                status,
-                subscription.insync,
-                subscription.start_date,
-                subscription.end_date,
-                subscription.note,
+            return cls(  # type: ignore
+                product=product,
+                customer_id=subscription.customer_id,
+                subscription_id=subscription_id,  # type:ignore
+                description=subscription.description,
+                status=status,
+                insync=subscription.insync,
+                start_date=subscription.start_date,
+                end_date=subscription.end_date,
+                note=subscription.note,
                 **fixed_inputs,
                 **instances,
             )

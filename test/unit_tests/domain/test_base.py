@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from typing import List, Optional
 from uuid import uuid4
 
@@ -106,7 +105,14 @@ def test_product_type(test_product_block):
 
 @pytest.fixture
 def test_product_model(test_product):
-    return ProductModel(test_product, "TestProduct", "Test ProductTable", "Test", "TEST", ProductLifecycle.ACTIVE)
+    return ProductModel(
+        product_id=test_product,
+        name="TestProduct",
+        description="Test ProductTable",
+        product_type="Test",
+        tag="TEST",
+        status=ProductLifecycle.ACTIVE,
+    )
 
 
 def test_lifecycle(test_product_model, test_product_type, test_product_block):
@@ -114,11 +120,11 @@ def test_lifecycle(test_product_model, test_product_type, test_product_block):
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     # Test create with wrong lifecycle, we can create
-    with pytest.raises(ValueError) as err:
+    with pytest.raises(ValueError, match=r"is not valid for status active"):
         ProductTypeForTestInactive(
-            test_product_model,
-            uuid4(),
-            uuid4(),
+            product=test_product_model,
+            customer_id=uuid4(),
+            subscription_id=uuid4(),
             insync=False,
             description="",
             start_date=None,
@@ -128,13 +134,11 @@ def test_lifecycle(test_product_model, test_product_type, test_product_block):
             status=SubscriptionLifecycle.ACTIVE,
         )
 
-    assert "is not valid for status active" in str(err.value)
-
     # Works with right lifecycle
     product_type = ProductTypeForTestInactive(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -154,9 +158,9 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
 
     # Works with less contrained lifecycle
     product_type = ProductTypeForTest(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -175,9 +179,9 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
 
     # Works with right lifecycle
     product_type = ProductTypeForTest(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -195,11 +199,11 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
     assert product_type.status == SubscriptionLifecycle.ACTIVE
 
     # Does not work with more constrained lifecycle
-    with pytest.raises(ValueError) as err:
+    with pytest.raises(ValueError, match=r"is not valid for status active"):
         ProductTypeForTestProvisioning(
-            test_product_model,
-            uuid4(),
-            uuid4(),
+            product=test_product_model,
+            customer_id=uuid4(),
+            subscription_id=uuid4(),
             insync=False,
             description="",
             start_date=None,
@@ -213,13 +217,11 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
             status=SubscriptionLifecycle.ACTIVE,
         )
 
-    assert "is not valid for status active" in str(err.value)
-
     # Works with right lifecycle
     product_type = ProductTypeForTestProvisioning(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -243,9 +245,9 @@ def test_product_blocks_per_lifecycle(
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     ProductTypeForTestInactive(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -261,9 +263,9 @@ def test_product_blocks_per_lifecycle(
     )
 
     ProductTypeForTestInactive(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -274,9 +276,9 @@ def test_product_blocks_per_lifecycle(
     )
 
     ProductTypeForTestProvisioning(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -292,9 +294,9 @@ def test_product_blocks_per_lifecycle(
     )
 
     ProductTypeForTest(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -310,9 +312,9 @@ def test_product_blocks_per_lifecycle(
     )
 
     ProductTypeForTest(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -327,11 +329,14 @@ def test_product_blocks_per_lifecycle(
         status=SubscriptionLifecycle.INITIAL,
     )
 
-    with pytest.raises(TypeError) as err:
+    with pytest.raises(
+        ValidationError,
+        match=r"2 validation errors for SubBlockForTest\nint_field\n  field required .+\nstr_field\n  field required .+",
+    ):
         ProductTypeForTest(
-            test_product_model,
-            uuid4(),
-            uuid4(),
+            product=test_product_model,
+            customer_id=uuid4(),
+            subscription_id=uuid4(),
             insync=False,
             description="",
             start_date=None,
@@ -340,13 +345,12 @@ def test_product_blocks_per_lifecycle(
             block=BlockForTest.new(),
             status=SubscriptionLifecycle.ACTIVE,
         )
-    assert "missing 2 required positional arguments: 'int_field' and 'str_field'" in str(err.value)
 
-    with pytest.raises(ValidationError) as err:
+    with pytest.raises(ValidationError, match=r"6 validation errors for ProductTypeForTest"):
         ProductTypeForTest(
-            test_product_model,
-            uuid4(),
-            uuid4(),
+            product=test_product_model,
+            customer_id=uuid4(),
+            subscription_id=uuid4(),
             insync=False,
             description="",
             start_date=None,
@@ -355,13 +359,12 @@ def test_product_blocks_per_lifecycle(
             block=BlockForTestInactive.new(),
             status=SubscriptionLifecycle.ACTIVE,
         )
-    assert "instance of BlockForTest, tuple or dict expected" in str(err.value)
 
-    with pytest.raises(TypeError) as err:
+    with pytest.raises(ValidationError, match=r"1 validation error for ProductTypeForTest\nblock\n  field required .+"):
         ProductTypeForTest(
-            test_product_model,
-            uuid4(),
-            uuid4(),
+            product=test_product_model,
+            customer_id=uuid4(),
+            subscription_id=uuid4(),
             insync=False,
             description="",
             start_date=None,
@@ -369,13 +372,12 @@ def test_product_blocks_per_lifecycle(
             note=None,
             status=SubscriptionLifecycle.INITIAL,
         )
-    assert "missing 1 required positional argument: 'block'" in str(err.value)
 
-    with pytest.raises(TypeError) as err:
+    with pytest.raises(ValidationError, match=r"1 validation error for ProductTypeForTest\nblock\n  field required .+"):
         ProductTypeForTest(
-            test_product_model,
-            uuid4(),
-            uuid4(),
+            product=test_product_model,
+            customer_id=uuid4(),
+            subscription_id=uuid4(),
             insync=False,
             description="",
             start_date=None,
@@ -383,7 +385,6 @@ def test_product_blocks_per_lifecycle(
             note=None,
             status=SubscriptionLifecycle.ACTIVE,
         )
-    assert "missing 1 required positional argument: 'block'" in str(err.value)
 
 
 def test_change_lifecycle(test_product_model, test_product_type, test_product_block):
@@ -391,9 +392,9 @@ def test_change_lifecycle(test_product_model, test_product_type, test_product_bl
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     product_type = ProductTypeForTestInactive(
-        test_product_model,
-        uuid4(),
-        uuid4(),
+        product=test_product_model,
+        customer_id=uuid4(),
+        subscription_id=uuid4(),
         insync=False,
         description="",
         start_date=None,
@@ -404,12 +405,10 @@ def test_change_lifecycle(test_product_model, test_product_type, test_product_bl
     )
 
     # Does not work if constraints are not met
-    with pytest.raises(ValidationError) as err:
+    with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
         product_type = change_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
-    assert "int_field\n  none is not an allowed value" in str(err.value)
-    with pytest.raises(ValidationError) as err:
+    with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
         product_type = change_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
-    assert "int_field\n  none is not an allowed value" in str(err.value)
 
     # Set first value
     product_type.block.int_field = 3
@@ -417,9 +416,8 @@ def test_change_lifecycle(test_product_model, test_product_type, test_product_bl
     product_type.block.sub_block_2.int_field = 3
 
     # Does not work if constraints are not met
-    with pytest.raises(ValidationError) as err:
+    with pytest.raises(ValidationError, match=r"str_field\n  none is not an allowed value"):
         product_type = change_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
-    assert "str_field\n  none is not an allowed value" in str(err.value)
 
     # works with correct data
     product_type = change_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
@@ -455,7 +453,7 @@ def test_update_constrained_lists(test_product, test_product_block):
     ip2 = TestConListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert asdict(ip) == asdict(ip2)
+    assert ip.dict() == ip2.dict()
 
     # Test constraint
     with pytest.raises(ValidationError):
@@ -482,7 +480,7 @@ def test_update_lists(test_product, test_product_block):
     ip2 = TestListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert asdict(ip) == asdict(ip2)
+    assert ip.dict() == ip2.dict()
 
 
 def test_generic_from_subscription(test_product, test_product_type):
@@ -538,10 +536,8 @@ def test_removal_of_domain_attrs(test_product, test_product_type):
     ).one()
     relation.domain_model_attr = None
     db.session.commit()
-    with pytest.raises(ValueError) as err:
+    with pytest.raises(ValueError, match=r"Expected exactly one item in iterable, but got"):
         ProductTypeForTestInactive.from_subscription(test_model.subscription_id)
-
-    assert "Expected exactly one item in iterable, but got" in str(err)
 
 
 def test_simple_model_with_no_attrs(generic_subscription_1, generic_product_type_1):

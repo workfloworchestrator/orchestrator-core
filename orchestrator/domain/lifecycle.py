@@ -11,12 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import asdict
 from typing import Dict, List, Optional, Tuple, Type, TypeVar
 
 import structlog
 
-from orchestrator.types import SubscriptionLifecycle, is_list_type, is_optional_type, strEnum
+from orchestrator.types import SubscriptionLifecycle, strEnum
 from orchestrator.utils.datetime import nowtz
 
 logger = structlog.get_logger(__name__)
@@ -57,21 +56,12 @@ T = TypeVar("T")
 
 def change_lifecycle(subscription: T, status: SubscriptionLifecycle) -> T:
     new_klass = lookup_specialized_type(subscription.__class__, status)
-    data = asdict(subscription)
+    data = subscription.dict()  # type:ignore
 
     data["status"] = status
     if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:
         data["start_date"] = nowtz()
     if data["end_date"] is None and status == SubscriptionLifecycle.TERMINATED:
         data["end_date"] = nowtz()
-
-    for product_block_field_name, product_block_field_type in new_klass._product_block_fields_.items():
-        current = getattr(subscription, product_block_field_name)
-        if is_list_type(product_block_field_type):
-            data[product_block_field_name] = [asdict(item) for item in current]
-        elif is_optional_type(product_block_field_type) and current is None:
-            data[product_block_field_name] = None
-        else:
-            data[product_block_field_name] = asdict(current)
 
     return new_klass(**data)
