@@ -1,188 +1,30 @@
 import os
-import uuid
 from contextlib import closing
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import Optional, cast
 
 import pytest
 import structlog
 from alembic import command
 from alembic.config import Config
-from fastapi.applications import FastAPI
-from fastapi_etag.dependency import add_exception_handler
-from nwastdlib.logging import initialise_logging
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
 
-from orchestrator.api.api_v1.api import api_router
-from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.db import (
-    ProductBlockTable,
-    ProductTable,
-    ResourceTypeTable,
-    SubscriptionInstanceTable,
-    SubscriptionInstanceValueTable,
-    SubscriptionTable,
-    WorkflowTable,
-    db,
-)
-from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, DBSessionMiddleware, SearchQuery
+from orchestrator import OrchestratorCore
+from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable, WorkflowTable, db
+from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.domain.lifecycle import change_lifecycle
-from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
-from orchestrator.forms import FormException
-from orchestrator.services import products, subscriptions
 from orchestrator.settings import app_settings
-from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle, UUIDstr
 
 logger = structlog.getLogger(__name__)
 
 CUSTOMER_ID: UUIDstr = "2f47f65a-0911-e511-80d0-005056956c1a"
-
-
-def make_getter(resource_type_name: str, mapper: str) -> Callable[[State], List[Tuple[str, str]]]:
-    """Based on an entry in the subscription mapping create a getter for the state.
-
-    This getter should return a list of tuples each tuple representing an resource type and instance value.
-
-    Examples:
-        Imagine the entry "service_port.port_name" this should return a function that does:
-        fun(resource_type, state): return [(resource_type_name, str(state['service_port']['port_name'])]
-
-        Imagine the entry "service_port.port_tags[]", this should return a function that does:
-        fun(resource_type, state): return [(resource_type_name, str(val)) for val in state['service_port']['port_tags']]
-
-    """
-
-    def getter(state: State) -> List[Tuple[str, str]]:
-        logger.debug("Extracting instance value from state", mapper=mapper)
-        x: Any = state
-        is_optional = mapper.startswith("?")
-        try:
-            for key in mapper.strip("[]?").split("."):
-                x = x[key]
-        except KeyError:
-            if is_optional:
-                logger.debug("Optional instance value not found. Skipping...", mapper=mapper, key=key)
-                return []
-            else:
-                raise
-        logger.debug("Extracted value", value=x)
-
-        if mapper.endswith("[]"):
-            if is_optional:
-                x = [v for v in x if v is not None]
-            return [(resource_type_name, str(val)) for val in x]
-        else:
-            if is_optional and x is None:
-                return []
-            return [(resource_type_name, str(x))]
-
-    return getter
-
-
-def store_subscription_data(
-    subscription_mapping: Dict,
-    state: State,
-    subscription_key: str = "subscription_id",
-    product_key: str = "product",
-    append: bool = False,
-) -> State:
-    """Store subscription instance values of all resource types of all product blocks in the subscription mapping."""
-
-    def build_instances(
-        subscription_instances: List[SubscriptionInstanceTable], product: ProductTable
-    ) -> List[SubscriptionInstanceTable]:
-        def build_instance(product_block_name: str, mapped_values: List[Tuple[str, str]]) -> SubscriptionInstanceTable:
-            product_block = product.find_block_by_name(product_block_name)
-            logger.debug(
-                "Found product block.",
-                product_block_name=product_block_name,
-                product_block_id=product_block.product_block_id,
-            )
-
-            instance_values = []
-            instance_id = None
-            for resource_type, value in mapped_values:
-                if resource_type == "subscription_instance_id":
-                    instance_id = value
-                    continue
-
-                resource_type_id = product_block.find_resource_type_by_name(resource_type).resource_type_id
-                logger.debug(
-                    "Instantiating InstanceValue",
-                    resource_type=resource_type,
-                    resource_type_id=resource_type_id,
-                    value=value,
-                )
-                instance_values.append(SubscriptionInstanceValueTable(resource_type_id=resource_type_id, value=value))
-
-            instance = None
-            if instance_id:
-                instances = list(
-                    filter(lambda si: str(si.subscription_instance_id) == instance_id, subscription_instances)
-                )
-                if len(instances) == 1:
-                    instance = instances[0]
-
-            if instance is None:
-                instance = SubscriptionInstanceTable(product_block_id=product_block.product_block_id)
-                subscription_instances.append(instance)
-
-            instance.values = instance_values
-
-            return instance
-
-        def map_state(block_mapping: Dict) -> List[Tuple[str, str]]:
-            getters = [
-                make_getter(resource_type_name, instance_mapping)
-                for resource_type_name, instance_mapping in block_mapping.items()
-            ]
-            mapped_state = []
-            for getter in getters:
-                mapped_state.extend(getter(state))
-            logger.debug("Processed block_mapping", block_mapping=block_mapping, mapped_state=mapped_state)
-            return mapped_state
-
-        return [
-            build_instance(product_block_name, map_state(block_mapping))
-            for product_block_name, mappings in subscription_mapping.items()
-            for block_mapping in mappings
-        ]
-
-    subscription_id = state[subscription_key]
-    subscription = (
-        SubscriptionTable.query.with_for_update()
-        .options(selectinload(SubscriptionTable.instances))
-        .get(subscription_id)
-    )
-    product = products.get_product(state[product_key])
-    if append:
-        subscription.instances += build_instances([], product)
-    else:
-        subscription.instances = build_instances(subscription.instances, product)
-
-    return state
-
-
-def store_subscription(
-    organisation: UUIDstr,
-    product_id: UUIDstr,
-    subscription_name: str,
-    gen_subscription_id: Callable[[], str] = lambda: str(uuid.uuid4()),
-) -> str:
-    product = ProductTable.query.get(product_id)
-    subscription_id = gen_subscription_id()
-    subscriptions.create_subscription(organisation, product, subscription_name, subscription_id)
-    return subscription_id
 
 
 def run_migrations(db_uri: str) -> None:
@@ -235,8 +77,24 @@ def db_uri(worker_id):
     return str(url)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def init_db_obj(db_uri):
+    """
+    Intialise the database object, and register the Database class in the Wrapper.
+
+    Args:
+        db_uri: The database uri
+
+    Yields:
+        Nothing
+
+    """
+    db.update(Database(db_uri))
+    yield
+
+
 @pytest.fixture(scope="session")
-def database(db_uri):
+def database(db_uri, init_db_obj):
     """Create database and run migrations and cleanup afterwards.
 
     Args:
@@ -256,19 +114,19 @@ def database(db_uri):
         conn.execute(f'CREATE DATABASE "{db_to_create}";')
 
     run_migrations(db_uri)
-    db.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
+    db.wrapped_database.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
 
     try:
         yield
     finally:
-        db.engine.dispose()
+        db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
             conn.execute("COMMIT;")
             conn.execute(f'DROP DATABASE IF EXISTS "{db_to_create}";')
 
 
 @pytest.fixture(autouse=True)
-def db_session(database):
+def db_session(database, init_db_obj):
     """
     Ensure tests are run in a transaction with automatic rollback.
 
@@ -283,10 +141,10 @@ def db_session(database):
         database: fixture for providing an initialized database.
 
     """
-    with closing(db.engine.connect()) as test_connection:
-        db.session_factory = sessionmaker(**SESSION_ARGUMENTS, bind=test_connection)
-        db.scoped_session = scoped_session(db.session_factory, db._scopefunc)
-        BaseModel.set_query(cast(SearchQuery, db.scoped_session.query_property()))
+    with closing(db.wrapped_database.engine.connect()) as test_connection:
+        db.wrapped_database.session_factory = sessionmaker(**SESSION_ARGUMENTS, bind=test_connection)
+        db.wrapped_database.scoped_session = scoped_session(db.session_factory, db._scopefunc)
+        BaseModel.set_query(cast(SearchQuery, db.wrapped_database.scoped_session.query_property()))
 
         trans = test_connection.begin()
         try:
@@ -295,62 +153,10 @@ def db_session(database):
             trans.rollback()
 
 
-def build_subscription_fixture(
-    mapping: Dict,
-    state: State,
-    organisation: UUIDstr,
-    product_name: str = "dummy",
-    description: str = "Dummy Subscription",
-    migrating: bool = False,
-    provisioning: bool = False,
-) -> UUIDstr:
-    """Build a subscription with a mapping, complete state and product name."""
-    product = products.get_product_by_name(product_name)
-    subscription_id = store_subscription(organisation, product.product_id, description)
-    store_subscription_data(mapping, {**state, "subscription_id": subscription_id, "product": product.product_id})
-
-    if migrating:
-        subscriptions.migrate_subscription(subscription_id)
-    elif provisioning:
-        subscriptions.provision_subscription(subscription_id)
-    else:
-        subscriptions.activate_subscription(subscription_id)
-
-    subscriptions.resync(subscription_id)
-
-    # This function is only used in tests. So it should be fine to do a manual commit. Tests, also run fine without it.
-    db.session.commit()
-    return str(subscription_id)
-
-
 @pytest.fixture(scope="session", autouse=True)
 def fastapi_app(database, db_uri):
-    app = FastAPI(
-        title="orchestrator",
-        openapi_url="/openapi/openapi.yaml",
-        docs_url="/api/docs",
-        redoc_url="/api/redoc",
-        default_response_class=JSONResponse,
-    )
-    initialise_logging()
-
-    app.include_router(api_router, prefix="/api")
-    # app.include_router(surf_api_router, prefix="/api")
-
-    app.add_middleware(SessionMiddleware, secret_key=app_settings.SESSION_SECRET)
-    app.add_middleware(DBSessionMiddleware, database=db)
-    origins = app_settings.CORS_ORIGINS.split(",")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_methods=app_settings.CORS_ALLOW_METHODS,
-        allow_headers=app_settings.CORS_ALLOW_HEADERS,
-        expose_headers=app_settings.CORS_EXPOSE_HEADERS,
-    )
-    app.add_exception_handler(FormException, form_error_handler)
-    app.add_exception_handler(ProblemDetailException, problem_detail_handler)
-    add_exception_handler(app)
-
+    app_settings.DATABASE_URI = db_uri
+    app = OrchestratorCore(base_settings=app_settings)
     return app
 
 

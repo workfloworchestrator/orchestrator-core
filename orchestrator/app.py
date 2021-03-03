@@ -34,7 +34,7 @@ from starlette.responses import JSONResponse, Response
 
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.db import db
+from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormException
@@ -71,6 +71,8 @@ class OrchestratorCore(FastAPI):
         initialise_logging()
 
         self.include_router(api_router, prefix="/api")
+
+        init_database(base_settings)
 
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
         self.add_middleware(DBSessionMiddleware, database=db)

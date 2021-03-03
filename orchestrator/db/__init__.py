@@ -10,7 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any, Optional, cast
 
+from structlog import get_logger
 
 from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
@@ -31,9 +33,39 @@ from orchestrator.db.models import (  # noqa: F401
     UtcTimestampException,
     WorkflowTable,
 )
-from orchestrator.settings import app_settings
+from orchestrator.settings import AppSettings
 
-db = Database(app_settings.DATABASE_URI)
+logger = get_logger(__name__)
+
+
+class WrappedDatabase:
+    def __init__(self, wrappee: Optional[Database] = None) -> None:
+        self.wrapped_database = wrappee
+
+    def update(self, wrappee: Database) -> None:
+        self.wrapped_database = wrappee
+
+    def __getattr__(self, attr: str) -> Any:
+        if not isinstance(self.wrapped_database, Database):
+            if "_" in attr:
+                logger.warning("No database configured, but attempting to access class methods")
+                return
+            raise RuntimeWarning(
+                "No database configured at this time. Please pass database configuration to OrchestratorCore base_settings"
+            )
+
+        return getattr(self.wrapped_database, attr)
+
+
+# You need to pass a modified AppSettings class to the OrchestratorCore class to init the database correctly
+db = cast(Database, WrappedDatabase())
+
+
+# The Global Database is set after calling this function
+def init_database(settings: AppSettings) -> Database:
+    db.update(Database(settings.DATABASE_URI))
+    return db
+
 
 __all__ = [
     "transactional",

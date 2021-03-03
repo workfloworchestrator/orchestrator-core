@@ -220,6 +220,10 @@ class Database:
         self.scoped_session.remove()
         self.request_context.reset(token)
 
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        """Implement update function."""
+        pass
+
 
 class DBSessionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, database: Database, commit_on_exit: bool = False):
