@@ -13,14 +13,12 @@
 
 
 import typer
-from surf import load_surf_cli
 
-from orchestrator.cli import scheduler
+from orchestrator.cli import database, scheduler
 
 app = typer.Typer()
-app.add_typer(scheduler.app, name="scheduler")
-
-load_surf_cli(app)
+app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
+app.add_typer(database.app, name="db", help="interact with the database")
 
 if __name__ == "__main__":
     app()
