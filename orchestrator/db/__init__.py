@@ -86,4 +86,5 @@ __all__ = [
     "UtcTimestamp",
     "UtcTimestampException",
     "db",
+    "init_database",
 ]

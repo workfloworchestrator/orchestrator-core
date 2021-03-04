@@ -12,10 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Type
+from typing import Dict, Optional, Type
 
 import sentry_sdk
 import structlog
+import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from nwastdlib.logging import initialise_logging
@@ -34,8 +35,10 @@ from starlette.responses import JSONResponse, Response
 
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
+from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormException
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
@@ -120,3 +123,33 @@ class OrchestratorCore(FastAPI):
             integrations=[SqlalchemyIntegration(), RedisIntegration()],
         )
         self.add_middleware(SentryAsgiMiddleware)
+
+    @staticmethod
+    def register_subscription_model(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
+        """
+        Register your subscription models.
+
+        This method is needed to register your subscription models inside the orchestrator core.
+
+        Args:
+            product_to_subscription_model_mapping: The dictionary should contain a mapping of products to SubscriptionModels.
+                The selection will be done depending on the name of the product.
+
+        Returns:
+            None:
+
+        Examples:
+            product_to_subscription_model_mapping = {
+                "Generic Product One": GenericProductModel,
+                "Generic Product Two": GenericProductModel,
+            }
+
+        """
+        SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
+
+
+main_typer_app = typer.Typer()
+main_typer_app.add_typer(cli_app, name="orchestrator", help="The are the orchestrator cli commands")
+
+if __name__ == "__main__":
+    main_typer_app()
