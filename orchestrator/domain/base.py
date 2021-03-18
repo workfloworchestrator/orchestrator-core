@@ -83,6 +83,11 @@ class DomainModel(BaseModel):
         super().__init_subclass__()
         cls._find_special_fields()
 
+        if kwargs.keys():
+            logger.warning(
+                "Unexpected keyword arguments in domain model class", class_name=cls.__name__, kwargs=kwargs.keys()
+            )
+
         # Check if child subscription instance models conform to the same lifecycle
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
