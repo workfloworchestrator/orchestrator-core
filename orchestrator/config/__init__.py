@@ -37,5 +37,6 @@ NSO_SERVICE_ID = "nso_service_id"  # will contain the service UUID
 NODE_SUBSCRIPTION_ID = "node_subscription_id"
 PORT_MODE = "port_mode"
 INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID = "internetpinnen_prefix_subscription_id"
+PEER_GROUP_SUBSCRIPTION_ID = "peer_group_subscription_id"
 
 MAX_SPEED_POSSIBLE = 1000_000

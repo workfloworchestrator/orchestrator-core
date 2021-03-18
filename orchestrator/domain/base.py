@@ -327,6 +327,8 @@ class ProductBlockModelMeta(ModelMetaclass):
             self.description = product_block.description
             self.tag = product_block.tag
 
+        kwargs["name"] = self.name
+
         return super().__call__(*args, **kwargs)
 
 
@@ -366,11 +368,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     """
 
     __names__: ClassVar[List[str]]
-    name: ClassVar[str]
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
     tag: ClassVar[str]
 
+    name: str  # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
     subscription_instance_id: UUID = Field(default_factory=uuid4)
     label: Optional[str] = None
 
@@ -389,7 +391,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             cls.__base_type__ = cls
             cls.__names__ = product_block_names or [cls.name]
 
-        register_specialized_type(cls, lifecycle)
+        if product_block_name is not None or lifecycle is not None:
+            register_specialized_type(cls, lifecycle)
 
         cls.__doc__ = make_product_block_docstring(cls, lifecycle)
 
@@ -724,7 +727,8 @@ class SubscriptionModel(DomainModel):
         if is_base:
             cls.__base_type__ = cls
 
-        register_specialized_type(cls, lifecycle)
+        if is_base or lifecycle:
+            register_specialized_type(cls, lifecycle)
 
         cls.__doc__ = make_subscription_model_docstring(cls, lifecycle)
 

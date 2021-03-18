@@ -14,7 +14,6 @@ logger = get_logger(__name__)
 
 app: typer.Typer = typer.Typer()
 
-this_location = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 orchestrator_module_location = os.path.dirname(orchestrator.__file__)
 alembic_cfg = Config(file_=os.path.join(orchestrator_module_location, "migrations/alembic.ini"))
 
@@ -40,14 +39,15 @@ def run_migrations(
     if custom_migration_directory:
         alembic_cfg.set_main_option(
             "version_locations",
-            f"{os.path.join(orchestrator_module_location, 'migrations/versions/schema')}, {os.path.join(this_location)}/{custom_migration_directory}",
+            f"{os.path.join(orchestrator_module_location, 'migrations/versions/schema')}, {custom_migration_directory}",
         )
     try:
         command.upgrade(alembic_cfg, "heads")
     except CommandError:
+        logger.exception()
         logger.error(
             "Unable to run the migrations, no revisions found",
-            path=f"{os.path.join(this_location)}/{custom_migration_directory}",
+            path=f"{custom_migration_directory}",
         )
 
 
@@ -100,6 +100,6 @@ def migrate(
     """
     alembic_cfg.set_main_option(
         "version_locations",
-        f"{os.path.join(orchestrator_module_location, 'migrations/versions/schema')}, {os.path.join(this_location)}/{custom_migration_directory}",
+        f"{os.path.join(orchestrator_module_location, 'migrations/versions/schema')}, {custom_migration_directory}",
     )
     command.revision(alembic_cfg, message, autogenerate=autogenerate, version_path=custom_migration_directory)
