@@ -1,11 +1,8 @@
 import os
-from pathlib import Path
-from typing import Optional
+from shutil import copyfile
 
+import jinja2
 import typer
-from alembic import command
-from alembic.config import Config
-from alembic.util import CommandError
 from structlog import get_logger
 
 import orchestrator
@@ -15,91 +12,66 @@ logger = get_logger(__name__)
 app: typer.Typer = typer.Typer()
 
 orchestrator_module_location = os.path.dirname(orchestrator.__file__)
-alembic_cfg = Config(file_=os.path.join(orchestrator_module_location, "migrations/alembic.ini"))
+migration_dir = "migrations"
+
+loader = jinja2.FileSystemLoader(os.path.join(orchestrator_module_location, f"{migration_dir}/templates"))
+jinja_env = jinja2.Environment(
+    loader=loader, autoescape=True, lstrip_blocks=True, trim_blocks=True, undefined=jinja2.StrictUndefined
+)
 
 
-@app.command(name="upgrade")
-def run_migrations(
-    custom_migration_directory: Optional[Path] = typer.Option(None, help="The path towards the migration directory")
-) -> None:
+@app.command(name="init")
+def init() -> None:
     """
     Run the migrations.
 
     This command will run the migrations for initialization of the database. If you have extra migrations that need to be run,
     add this to the
 
-    Args:
-        custom_migration_directory: Path to the migration directory.
-
     Returns:
         None
 
     """
-    logger.info("Running migrations on the database", extra_migration_directory=str(custom_migration_directory))
-    if custom_migration_directory:
-        alembic_cfg.set_main_option(
-            "version_locations",
-            f"{os.path.join(orchestrator_module_location, 'migrations/versions/schema')}, {custom_migration_directory}",
-        )
-    try:
-        command.upgrade(alembic_cfg, "heads")
-    except CommandError:
-        logger.exception()
-        logger.error(
-            "Unable to run the migrations, no revisions found",
-            path=f"{custom_migration_directory}",
-        )
 
+    if os.access(migration_dir, os.F_OK) and os.listdir(migration_dir):
+        raise OSError(f"Directory {migration_dir} already exists and is not empty")
 
-@app.command(name="heads", help="List heads")
-def list_heads() -> None:
-    """
-    List heads of the database.
+    logger.info("Creating directory", directory=os.path.abspath(migration_dir))
+    os.makedirs(migration_dir)
+    versions = os.path.join(migration_dir, "versions")
+    logger.info("Creating directory", directory=os.path.abspath(versions))
+    os.makedirs(versions)
+    versions_schema = os.path.join(migration_dir, "versions/schema")
+    logger.info("Creating directory", directory=os.path.abspath(versions_schema))
+    os.makedirs(versions_schema)
 
-    Returns:
-        Heads of the database.
+    source_env_py = os.path.join(orchestrator_module_location, f"{migration_dir}/env.py")
+    env_py = os.path.join(migration_dir, "env.py")
+    logger.info("Creating file", file=os.path.abspath(env_py))
+    copyfile(source_env_py, env_py)
 
-    """
-    command.heads(alembic_cfg)
+    source_script_py_mako = os.path.join(orchestrator_module_location, f"{migration_dir}/script.py.mako")
+    script_py_mako = os.path.join(migration_dir, "script.py.mako")
+    logger.info("Creating file", file=os.path.abspath(script_py_mako))
+    copyfile(source_script_py_mako, script_py_mako)
 
+    source_helpers_py = os.path.join(orchestrator_module_location, f"{migration_dir}/templates/helpers.py.j2")
+    helpers_py = os.path.join(migration_dir, "helpers.py")
+    logger.info("Creating file", file=os.path.abspath(helpers_py))
+    copyfile(source_helpers_py, helpers_py)
 
-@app.command(name="downgrade", help="Downgrade database")
-def downgrade(revision: Optional[str] = typer.Option(None, help="The revision to downgrade to")) -> None:
-    """
-    Downgrade the Database to a certain revision.
+    template = jinja_env.get_template("alembic.ini.j2")
 
-    Args:
-        revision: The revision to downgrade to.
-
-    Returns:
-        None
-
-    """
-    command.downgrade(alembic_cfg, revision)
-
-
-@app.command(name="migrate", help="Migrate the database")
-def migrate(
-    custom_migration_directory: Path = typer.Argument(..., help="The path towards the migration directory"),
-    message: Optional[str] = typer.Option(None, help="The revision message"),
-    autogenerate: Optional[bool] = typer.Option(
-        False, help="Detect model changes and automatically generate migrations."
-    ),
-) -> None:
-    """
-    Migrate the database.
-
-    Args:
-        custom_migration_directory: The migration directory.
-        message: The message of the migration
-        autogenerate: whether to automatically generate schema change migrations.
-
-    Returns:
-        None
-
-    """
-    alembic_cfg.set_main_option(
-        "version_locations",
-        f"{os.path.join(orchestrator_module_location, 'migrations/versions/schema')}, {custom_migration_directory}",
-    )
-    command.revision(alembic_cfg, message, autogenerate=autogenerate, version_path=custom_migration_directory)
+    if not os.access(os.path.join(os.getcwd(), "alembic.ini"), os.F_OK):
+        logger.info("Creating file", file=os.path.join(os.getcwd(), "alembic.ini"))
+        with open(os.path.join(os.getcwd(), "alembic.ini"), "w") as alembic_ini:
+            alembic_ini.write(
+                template.render(
+                    migrations_dir=migration_dir,
+                    module_migrations_dir=os.path.join(
+                        orchestrator_module_location, f"{migration_dir}/versions/schema"
+                    ),
+                )
+            )
+    else:
+        logger.info("Skipping Alembic.ini file. It already exists")
