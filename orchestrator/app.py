@@ -74,6 +74,7 @@ class OrchestratorCore(FastAPI):
         initialise_logging()
 
         self.include_router(api_router, prefix="/api")
+        self.base_settings = base_settings
 
         init_database(base_settings)
 
@@ -98,6 +99,7 @@ class OrchestratorCore(FastAPI):
 
     def instrument_app(self) -> None:
         logger.info("Activating Opentelemetry tracing to app", app=self.title)
+        self.base_settings.TRACING_ENABLED = True
         trace.set_tracer_provider(tracer_provider)
         FastAPIInstrumentor.instrument_app(self)
         RequestsInstrumentor().instrument()

@@ -55,6 +55,7 @@ class AppSettings(BaseSettings):
     LOG_LEVEL: str = "DEBUG"
     SLACK_ENGINE_SETTINGS_HOOK_ENABLED: bool = False
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
+    TRACING_ENABLED: bool = False
 
 
 class Oauth2Settings(BaseSettings):
