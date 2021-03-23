@@ -206,7 +206,7 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
     if p.last_status != ProcessStatus.WAITING:
         p.last_status = ProcessStatus.FAILED
     p.failed_reason = str(ex)
-    p.traceback = show_ex(ex)
+    p.traceback = show_ex(ex)  # type: ignore
     db.session.add(p)
     try:
         db.session.commit()
