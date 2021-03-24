@@ -45,7 +45,7 @@ def init() -> None:
     logger.info("Creating directory", directory=os.path.abspath(versions_schema))
     os.makedirs(versions_schema)
 
-    source_env_py = os.path.join(orchestrator_module_location, f"{migration_dir}/env.py")
+    source_env_py = os.path.join(orchestrator_module_location, f"{migration_dir}/templates/env.py.j2")
     env_py = os.path.join(migration_dir, "env.py")
     logger.info("Creating file", file=os.path.abspath(env_py))
     copyfile(source_env_py, env_py)
@@ -65,13 +65,6 @@ def init() -> None:
     if not os.access(os.path.join(os.getcwd(), "alembic.ini"), os.F_OK):
         logger.info("Creating file", file=os.path.join(os.getcwd(), "alembic.ini"))
         with open(os.path.join(os.getcwd(), "alembic.ini"), "w") as alembic_ini:
-            alembic_ini.write(
-                template.render(
-                    migrations_dir=migration_dir,
-                    module_migrations_dir=os.path.join(
-                        orchestrator_module_location, f"{migration_dir}/versions/schema"
-                    ),
-                )
-            )
+            alembic_ini.write(template.render(migrations_dir=migration_dir))
     else:
         logger.info("Skipping Alembic.ini file. It already exists")
