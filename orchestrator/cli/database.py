@@ -1,8 +1,13 @@
 import os
+from functools import partial
 from shutil import copyfile
+from typing import Any, Dict, List
 
 import jinja2
 import typer
+from alembic import command
+from alembic.config import Config
+from alembic.util import CommandError
 from structlog import get_logger
 
 import orchestrator
@@ -20,13 +25,22 @@ jinja_env = jinja2.Environment(
 )
 
 
-@app.command(name="init")
+def alembic_cfg() -> Config:
+    cfg = Config("alembic.ini")
+    version_locations = cfg.get_main_option("version_locations")
+    cfg.set_main_option(
+        "version_locations", f"{version_locations} {orchestrator_module_location}/{migration_dir}/versions/schema"
+    )
+    logger.info("Version Locations", locations=cfg.get_main_option("version_locations"))
+    return cfg
+
+
 def init() -> None:
     """
-    Run the migrations.
+    Initialise the migrations directory.
 
-    This command will run the migrations for initialization of the database. If you have extra migrations that need to be run,
-    add this to the
+    This command will initialize a migration directory for the orchestrator core application and setup a correct
+    migration environment.
 
     Returns:
         None
@@ -45,7 +59,7 @@ def init() -> None:
     logger.info("Creating directory", directory=os.path.abspath(versions_schema))
     os.makedirs(versions_schema)
 
-    source_env_py = os.path.join(orchestrator_module_location, f"{migration_dir}/env.py")
+    source_env_py = os.path.join(orchestrator_module_location, f"{migration_dir}/templates/env.py.j2")
     env_py = os.path.join(migration_dir, "env.py")
     logger.info("Creating file", file=os.path.abspath(env_py))
     copyfile(source_env_py, env_py)
@@ -65,13 +79,28 @@ def init() -> None:
     if not os.access(os.path.join(os.getcwd(), "alembic.ini"), os.F_OK):
         logger.info("Creating file", file=os.path.join(os.getcwd(), "alembic.ini"))
         with open(os.path.join(os.getcwd(), "alembic.ini"), "w") as alembic_ini:
-            alembic_ini.write(
-                template.render(
-                    migrations_dir=migration_dir,
-                    module_migrations_dir=os.path.join(
-                        orchestrator_module_location, f"{migration_dir}/versions/schema"
-                    ),
-                )
-            )
+            alembic_ini.write(template.render(migrations_dir=migration_dir))
     else:
         logger.info("Skipping Alembic.ini file. It already exists")
+
+
+def alebic_proxy(argument_name: str, *args: List[Any], **kwargs: Dict) -> None:
+    """
+    Proxy alembic commands.
+
+    Args:
+        argument_name: the alembic command name
+        args: a list of arguments to that command
+        kwargs: a map of keyword arguments to that command
+
+    Returns:
+        None
+
+    """
+
+    logger.info("Running alembic command", command=argument_name, arguments=[*args], **kwargs)
+
+    try:
+        partial(getattr(command, argument_name), *[alembic_cfg(), *args], **kwargs)()
+    except CommandError:
+        logger.exception("Encountered an error while executing alembic command")
