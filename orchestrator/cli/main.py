@@ -11,14 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import typer
 
 from orchestrator.cli import database, scheduler
 
 app = typer.Typer()
 app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
-app.add_typer(database.app, name="db", help="interact with the database")
+app.add_typer(database.app, name="db", help="Interact with the application database")
+
 
 if __name__ == "__main__":
     app()
