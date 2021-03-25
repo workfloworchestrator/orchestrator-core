@@ -3,14 +3,58 @@
 
 This is the orchestrator core repository
 
-## Installation
+## Usage
+This project can be installed as follows:
+
+#### Step 1:
+Install the core.
+```bash
+pip install orchestrator-core
+```
+
+#### Step 2:
+Create a postgres database:
+```bash
+createuser -s -P nwa
+createdb orchestrator-core -O nwa
+```
+
+#### Step 3:
+Create a `main.py` file.
+
+```python
+from orchestrator import OrchestratorCore
+from orchestrator.cli.main import app as core_cli
+from orchestrator.settings import AppSettings
+
+app = OrchestratorCore(base_settings=AppSettings())
+
+if __name__ == "__main__":
+    core_cli()
+```
+
+#### Step 4:
+Initialize the migration environment.
+```bash
+PYTHONPATH=. python main.py db init
+PYTHONPATH=. python main.py db upgrade heads
+```
+
+### Step 5:
+Profit :)
+
+```bash
+uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+```
+
+## Installation (Development)
 
 Step 1:
 ```bash
 pip install flit
 ```
 
-Step2:
+Step 2:
 ```bash
 flit install --deps develop --symlink
 ```
