@@ -62,7 +62,6 @@ class LazyWorkflowInstance:
         self.package = package
         self.function = name
         ALL_WORKFLOWS[name] = self
-        self.instantiate()
 
     def instantiate(self) -> Workflow:
         """Import and instantiate a workflow and return it.

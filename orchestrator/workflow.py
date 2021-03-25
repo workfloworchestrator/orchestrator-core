@@ -529,7 +529,7 @@ class Process(Generic[S]):
         >>> Complete('a').unwrap()
         'a'
         """
-        return self._fold(identity, identity, identity, identity, identity, identity, identity)
+        return self._fold(identity, identity, identity, identity, identity, identity, identity)  # type: ignore
 
     def issuccess(self) -> bool:
         """Test if this instance is Success.

@@ -26,7 +26,7 @@ from orchestrator.utils.json import json_dumps, json_loads
 logger = structlog.get_logger(__name__)
 
 
-__all__ = ("generate_form", "post_process", "FormNotCompleteError", "FormValidationError")
+__all__ = ("generate_form", "post_process", "FormNotCompleteError", "FormValidationError", "FormException")
 
 
 class FormException(Exception):

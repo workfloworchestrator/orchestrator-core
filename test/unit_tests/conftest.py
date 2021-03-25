@@ -292,23 +292,23 @@ def generic_product_3(generic_product_block_2):
 
 
 @pytest.fixture
-def generic_product_block_type_1():
+def generic_product_block_type_1(generic_product_block_1):
     class GenericProductBlockOneInactive(ProductBlockModel, product_block_name="PB_1"):
         rt_1: Optional[str] = None
 
-    class GenericProductBlockOne(GenericProductBlockOneInactive, lifecyle=[SubscriptionLifecycle.ACTIVE]):
+    class GenericProductBlockOne(GenericProductBlockOneInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         rt_1: str
 
     return GenericProductBlockOneInactive, GenericProductBlockOne
 
 
 @pytest.fixture
-def generic_product_block_type_2():
+def generic_product_block_type_2(generic_product_block_2):
     class GenericProductBlockTwoInactive(ProductBlockModel, product_block_name="PB_2"):
         rt_2: Optional[int] = None
         rt_3: Optional[str] = None
 
-    class GenericProductBlockTwo(GenericProductBlockTwoInactive, lifecyle=[SubscriptionLifecycle.ACTIVE]):
+    class GenericProductBlockTwo(GenericProductBlockTwoInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         rt_2: int
         rt_3: str
 
@@ -316,18 +316,18 @@ def generic_product_block_type_2():
 
 
 @pytest.fixture
-def generic_product_block_type_3():
+def generic_product_block_type_3(generic_product_block_3):
     class GenericProductBlockThreeInactive(ProductBlockModel, product_block_name="PB_3"):
         rt_2: Optional[int] = None
 
-    class GenericProductBlockThree(GenericProductBlockThreeInactive, lifecyle=[SubscriptionLifecycle.ACTIVE]):
+    class GenericProductBlockThree(GenericProductBlockThreeInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         rt_2: int
 
     return GenericProductBlockThreeInactive, GenericProductBlockThree
 
 
 @pytest.fixture
-def generic_product_type_1(generic_product_block_type_1, generic_product_block_type_2):
+def generic_product_type_1(generic_product_1, generic_product_block_type_1, generic_product_block_type_2):
     GenericProductBlockOneInactive, GenericProductBlockOne = generic_product_block_type_1
     GenericProductBlockTwoInactive, GenericProductBlockTwo = generic_product_block_type_2
     # Test Product domain models
@@ -348,7 +348,7 @@ def generic_product_type_1(generic_product_block_type_1, generic_product_block_t
 
 
 @pytest.fixture
-def generic_product_type_2(generic_product_block_type_3):
+def generic_product_type_2(generic_product_2, generic_product_block_type_3):
     GenericProductBlockThreeInactive, GenericProductBlockThree = generic_product_block_type_3
 
     class GenericProductTwoInactive(SubscriptionModel, is_base=True):
@@ -373,8 +373,8 @@ def generic_subscription_1(generic_product_1, generic_product_type_1):
     gen_subscription.pb_1.rt_1 = "Value1"
     gen_subscription.pb_2.rt_2 = 42
     gen_subscription.pb_2.rt_3 = "Value2"
-    gen_subscription.description = "Generic Subscription One"
     gen_subscription = change_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
+    gen_subscription.description = "Generic Subscription One"
     gen_subscription.save()
 
     return str(gen_subscription.subscription_id)
@@ -387,8 +387,8 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
         generic_product_2.product_id, customer_id=CUSTOMER_ID, insync=True
     )
     gen_subscription.pb_3.rt_2 = 42
-    gen_subscription.description = "Generic Subscription One"
     gen_subscription = change_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
+    gen_subscription.description = "Generic Subscription One"
     gen_subscription.save()
 
     return str(gen_subscription.subscription_id)
