@@ -21,6 +21,8 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.domain.lifecycle import change_lifecycle
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
+from test.unit_tests.workflows import WorkflowInstanceForTests
+from test.unit_tests.workflows.shared.test_validate_subscriptions import validation_workflow
 
 logger = structlog.getLogger(__name__)
 
@@ -392,3 +394,9 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
     gen_subscription.save()
 
     return str(gen_subscription.subscription_id)
+
+
+@pytest.fixture
+def validation_workflow_instance():
+    with WorkflowInstanceForTests(validation_workflow, "validation_workflow"):
+        yield "created validation workflow"

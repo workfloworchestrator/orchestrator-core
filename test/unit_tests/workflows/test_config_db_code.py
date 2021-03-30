@@ -10,13 +10,6 @@ from orchestrator.db.models import FixedInputTable
 from orchestrator.services import products
 from orchestrator.targets import Target
 from orchestrator.workflows import ALL_WORKFLOWS
-from test.unit_tests.workflows import ALL_TEST_WORKFLOWS
-
-
-def test_all_workflows_in_db():
-    wf_keys_in_code = set(ALL_WORKFLOWS.keys()) - ALL_TEST_WORKFLOWS
-    wf_keys_in_db = set(flatten(WorkflowTable.query.values(WorkflowTable.name)))
-    assert wf_keys_in_code == wf_keys_in_db
 
 
 def test_all_workflows_have_matching_targets_and_descriptions():

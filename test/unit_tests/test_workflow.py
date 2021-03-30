@@ -416,19 +416,18 @@ def test_failing_inputstep_with_form_state_params() -> None:
     def inject_args_test_workflow():
         return init >> modify >> done
 
-    WorkflowInstanceForTests(inject_args_test_workflow, "inject_args_test_workflow")
+    with WorkflowInstanceForTests(inject_args_test_workflow, "inject_args_test_workflow"):
+        init_state = {"subscription_id": uuid4()}
 
-    init_state = {"subscription_id": uuid4()}
+        result, process, step_log = run_workflow("inject_args_test_workflow", init_state)
+        assert_suspended(result)
+        step_log_copy = deepcopy(step_log)
 
-    result, process, step_log = run_workflow("inject_args_test_workflow", init_state)
-    assert_suspended(result)
-    step_log_copy = deepcopy(step_log)
+        with pytest.raises(Exception) as e:
+            resume_workflow(process, step_log, {})
 
-    with pytest.raises(Exception) as e:
-        resume_workflow(process, step_log, {})
-
-    assert "Something went wrong" in str(e.value)
-    assert step_log_copy == step_log  # No steps have been logged because of the error
+        assert "Something went wrong" in str(e.value)
+        assert step_log_copy == step_log  # No steps have been logged because of the error
 
 
 def test_update_wrapper():

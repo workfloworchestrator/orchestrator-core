@@ -30,8 +30,6 @@ from orchestrator.config import (
     NODE_SUBSCRIPTION_ID,
     PARENT_IP_PREFIX_SUBSCRIPTION_ID,
     PEER_GROUP_SUBSCRIPTION_ID,
-    PORT_MODE,
-    PORT_SPEED,
     PORT_SUBSCRIPTION_ID,
 )
 from orchestrator.db import (
@@ -443,8 +441,6 @@ WF_USABLE_MAP: Dict[str, List[str]] = {}
 
 WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
 
-WF_1G_TAGGED_UNTAGGED_ONLY: Dict[str, bool] = {}
-
 
 def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
     """
@@ -508,14 +504,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
                 workflow_json["reason"] = "subscription.no_modify_parent_subscription"
                 workflow_json["unterminated_parents"] = data["unterminated_parents"]
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
-
-            tagged_untagged_1g_only = workflow.name in WF_1G_TAGGED_UNTAGGED_ONLY
-            if tagged_untagged_1g_only:
-                speed = subscription.product.fixed_input_value(PORT_SPEED)
-                port_mode = subscription.find_values_for_resource_type(PORT_MODE)[0].value
-                if speed != 1000 and port_mode not in ["tagged", "untagged"]:
-                    workflow_json["reason"] = "subscription.no_modify_auto_negotiation"
-                    workflow_json["action"] = "modified"
 
         workflows[workflow.target.lower()].append(workflow_json)
 

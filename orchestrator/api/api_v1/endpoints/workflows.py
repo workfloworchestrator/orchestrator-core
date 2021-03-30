@@ -18,9 +18,7 @@ from typing import List, Optional
 from fastapi.routing import APIRouter
 
 from orchestrator.db import ProductTable, WorkflowTable
-from orchestrator.schemas import WorkflowNameToImplementationSchema, WorkflowSchema, WorkflowWithProductTagsSchema
-from orchestrator.workflow import Workflow
-from orchestrator.workflows import ALL_WORKFLOWS, get_workflow
+from orchestrator.schemas import WorkflowSchema, WorkflowWithProductTagsSchema
 
 router = APIRouter()
 
@@ -53,13 +51,3 @@ def get_all_with_product_tags() -> List[WorkflowWithProductTagsSchema]:
         )
 
     return list(map(add_product_tags, all_workflows))
-
-
-@router.get("/coded_workflows", response_model=List[WorkflowNameToImplementationSchema])
-def coded_workflows() -> List[WorkflowNameToImplementationSchema]:
-    def workflow_to_dict(workflow_name: str, workflow: Workflow) -> WorkflowNameToImplementationSchema:
-        return WorkflowNameToImplementationSchema(
-            name=workflow.name, implementation=workflow_name, target=workflow.target
-        )
-
-    return list(map(lambda k: workflow_to_dict(k, get_workflow(k)), ALL_WORKFLOWS.keys()))

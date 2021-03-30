@@ -36,12 +36,7 @@ from orchestrator.schemas.subscription_descriptions import (
     SubscriptionDescriptionBaseSchema,
     SubscriptionDescriptionSchema,
 )
-from orchestrator.schemas.workflow import (
-    SubscriptionWorkflowListsSchema,
-    WorkflowNameToImplementationSchema,
-    WorkflowSchema,
-    WorkflowWithProductTagsSchema,
-)
+from orchestrator.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema, WorkflowWithProductTagsSchema
 
 __all__ = (
     "DienstafnameSchema",
@@ -61,7 +56,6 @@ __all__ = (
     "ProductBaseSchema",
     "ProductSchema",
     "WorkflowWithProductTagsSchema",
-    "WorkflowNameToImplementationSchema",
     "SubscriptionSchema",
     "SubscriptionWithPortAttrSchema",
     "SubscriptionDetailsSchema",

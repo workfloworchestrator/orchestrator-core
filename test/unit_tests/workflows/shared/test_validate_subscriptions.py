@@ -19,10 +19,7 @@ def validation_workflow() -> StepList:
     return StepList([])
 
 
-WorkflowInstanceForTests(validation_workflow, "validation_workflow")
-
-
-def test_happy_flow(generic_subscription_1):
+def test_happy_flow(generic_subscription_1, validation_workflow_instance):
     product = SubscriptionTable.query.get(generic_subscription_1).product
     product.workflows.append(WorkflowTable(name="validation_workflow", target=Target.SYSTEM))
     db.session.add(product)
@@ -32,13 +29,13 @@ def test_happy_flow(generic_subscription_1):
     assert_complete(result)
 
 
-def test_no_subscription():
+def test_no_subscription(validation_workflow_instance):
     with pytest.raises(FormValidationError) as error_info:
         run_workflow("validation_workflow", {"subscription_id": None})
     assert "none is not an allowed value" in str(error_info.value)
 
 
-def test_failed_validation(generic_subscription_1: str) -> None:
+def test_failed_validation(generic_subscription_1: str, validation_workflow_instance) -> None:
     @step("Fail")
     def fail():
         raise ValueError("Failed")
@@ -47,13 +44,14 @@ def test_failed_validation(generic_subscription_1: str) -> None:
     def failing_validation_workflow() -> StepList:
         return begin >> fail
 
-    WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow")
+    with WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow"):
+        product = SubscriptionTable.query.get(generic_subscription_1).product
+        product.workflows.append(WorkflowTable(name="failing_validation_workflow", target=Target.SYSTEM))
+        db.session.add(product)
+        db.session.commit()
 
-    product = SubscriptionTable.query.get(generic_subscription_1).product
-    product.workflows.append(WorkflowTable(name="failing_validation_workflow", target=Target.SYSTEM))
-    db.session.add(product)
-    db.session.commit()
-
-    result, process, step_log = run_workflow("failing_validation_workflow", {"subscription_id": generic_subscription_1})
-    assert_failed(result)
-    assert "Failed" in extract_error(result)
+        result, process, step_log = run_workflow(
+            "failing_validation_workflow", {"subscription_id": generic_subscription_1}
+        )
+        assert_failed(result)
+        assert "Failed" in extract_error(result)

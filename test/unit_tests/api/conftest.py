@@ -48,13 +48,12 @@ def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> st
     def workflow_for_testing_processes_py():
         return init >> insert_object >> check_object >> modify >> done
 
-    WorkflowInstanceForTests(workflow_for_testing_processes_py, "workflow_for_testing_processes_py")
+    with WorkflowInstanceForTests(workflow_for_testing_processes_py, "workflow_for_testing_processes_py"):
+        db_workflow = WorkflowTable(name="workflow_for_testing_processes_py", target=Target.MODIFY)
+        db.session.add(db_workflow)
+        db.session.commit()
 
-    db_workflow = WorkflowTable(name="workflow_for_testing_processes_py", target=Target.MODIFY)
-    db.session.add(db_workflow)
-    db.session.commit()
-
-    return "workflow_for_testing_processes_py"
+        yield "workflow_for_testing_processes_py"
 
 
 @pytest.fixture

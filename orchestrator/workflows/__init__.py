@@ -13,13 +13,12 @@
 
 
 from importlib import import_module
-from typing import List
+from typing import Optional
 
 from orchestrator.utils.docs import make_workflow_index_doc
 from orchestrator.workflow import Workflow
-from orchestrator.workflows.removed_workflow import removed_workflow
 
-DEFAULT_PKG = "orchestrator.workflows"
+DEFAULT_PKG = "server.workflows"
 
 
 ALL_WORKFLOWS = {}
@@ -96,22 +95,13 @@ class LazyWorkflowInstance:
         return f"LazyWorkflowInstance('{self.package}','{self.function}')"
 
 
-REMOVED_WORKFLOWS: List[str] = []
+def get_workflow(name: str) -> Optional[Workflow]:
+    wi = ALL_WORKFLOWS.get(name)
 
+    if not wi:
+        return None
 
-def get_workflow(name: str) -> Workflow:
-    if name in REMOVED_WORKFLOWS:
-        return removed_workflow
-
-    wi = ALL_WORKFLOWS[name]
     return wi.instantiate()
-
-
-def __getattr__(name: str) -> Workflow:
-    try:
-        return get_workflow(name)
-    except KeyError:
-        raise AttributeError(name)
 
 
 # Modify

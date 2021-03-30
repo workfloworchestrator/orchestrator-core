@@ -67,7 +67,7 @@ def make_field_doc(field_name: str, field_type: Any) -> str:
     >>> class Something:
     ...     "Doc title"
     >>> make_field_doc("int_field", Something)
-    '        int_field:\n            Doc title\n\n            Type :class:`~orchestrator.utils.docs.Something`'
+    '        int_field:\n            Doc title\n\n            Type :class:`~server.utils.docs.Something`'
     """
 
     if field_type in (int, bool, str, UUID):
@@ -147,16 +147,16 @@ def make_workflow_doc(wf: "Workflow") -> str:
     return f"{(wf.__doc__ or '')}\n\nSteps:\n\n{steps_string}\n"
 
 
-def make_workflow_index_doc(ALL_WORKFLOWS: Dict[str, "LazyWorkflowInstance"]) -> str:
-    workflow_list_str = "\n".join(map(lambda wf: f"* :obj:`~{wf[1].package}.{wf[0]}`", ALL_WORKFLOWS.items()))
+def make_workflow_index_doc(all_workflows: Dict[str, "LazyWorkflowInstance"]) -> str:
+    workflow_list_str = "\n".join(map(lambda wf: f"* :obj:`~{wf[1].package}.{wf[0]}`", all_workflows.items()))
     return f"\nWorkflows\n---------\n\n{workflow_list_str}\n"
 
 
-def make_product_type_index_doc(SUBSCRIPTION_MODEL_REGISTRY: Dict[str, Type["SubscriptionModel"]]) -> str:
+def make_product_type_index_doc(subscription_model_registry: Dict[str, Type["SubscriptionModel"]]) -> str:
     product_types_str = "\n".join(
         map(
             lambda product: f"* :class:`~{product.__module__}.{product.__qualname__}`",
-            set(SUBSCRIPTION_MODEL_REGISTRY.values()),
+            set(subscription_model_registry.values()),
         )
     )
 

@@ -38,12 +38,6 @@ class WorkflowWithProductTagsSchema(WorkflowBaseSchema):
     product_tags: List[str]
 
 
-class WorkflowNameToImplementationSchema(OrchestratorBaseModel):
-    name: Optional[str]
-    implementation: str
-    target: Optional[Target]
-
-
 class WorkflowListItemSchema(OrchestratorBaseModel):
     name: str
     description: Optional[str]

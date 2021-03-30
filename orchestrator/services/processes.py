@@ -22,6 +22,7 @@ import structlog
 from deepmerge import Merger
 from nwastdlib.ex import show_ex
 
+from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db
 from orchestrator.forms import FormValidationError, post_process
@@ -34,6 +35,7 @@ from orchestrator.workflow import Failed
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
 from orchestrator.workflows import get_workflow
+from orchestrator.workflows.removed_workflow import removed_workflow
 
 logger = structlog.get_logger(__name__)
 
@@ -206,7 +208,7 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
     if p.last_status != ProcessStatus.WAITING:
         p.last_status = ProcessStatus.FAILED
     p.failed_reason = str(ex)
-    p.traceback = show_ex(ex)  # type: ignore
+    p.traceback = show_ex(ex)  # type:ignore
     db.session.add(p)
     try:
         db.session.commit()
@@ -289,6 +291,10 @@ def start_process(
 
     pid = uuid4()
     workflow = get_workflow(workflow_key)
+
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
     initial_state = {
         "process_id": pid,
         "reporter": user,
@@ -331,6 +337,9 @@ def resume_process(
         user_inputs = [{}]
 
     pstat = load_process(process)
+
+    if pstat.workflow == removed_workflow:
+        raise ValueError("This workflow cannot be resumed")
 
     form = pstat.log[0].form
 
@@ -388,6 +397,10 @@ def _restore_log(steps: List[ProcessStepTable]) -> List[WFProcess]:
 
 def load_process(process: ProcessTable) -> ProcessStat:
     workflow = get_workflow(process.workflow)
+
+    if not workflow:
+        workflow = removed_workflow
+
     log = _restore_log(process.steps)
     pstate, remaining = _recoverwf(workflow, log)
 

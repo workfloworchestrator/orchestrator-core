@@ -31,13 +31,6 @@ def test_workflows_by_target(test_client):
             assert target == wf["target"]
 
 
-def test_coded_workflows(test_client):
-    response = test_client.get("/api/workflows/coded_workflows")
-
-    assert HTTPStatus.OK == response.status_code
-    assert len(response.json()) > 1
-
-
 def test_get_all_with_product_tags(test_client):
     response = test_client.get("/api/workflows/with_product_tags")
 

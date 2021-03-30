@@ -108,9 +108,6 @@ def extract_error(result):
     return extract_state(result).get("error")
 
 
-ALL_TEST_WORKFLOWS = set()
-
-
 class WorkflowInstanceForTests(LazyWorkflowInstance):
     """Register Test workflows.
 
@@ -125,8 +122,12 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
     def __init__(self, workflow: Workflow, name: str) -> None:
         self.workflow = workflow
         self.name = name
-        ALL_WORKFLOWS[name] = self
-        ALL_TEST_WORKFLOWS.add(name)
+
+    def __enter__(self):
+        ALL_WORKFLOWS[self.name] = self
+
+    def __exit__(self, _exc_type, _exc_value, _traceback):
+        del ALL_WORKFLOWS[self.name]
 
     def instantiate(self) -> Workflow:
         """Import and instantiate a workflow and return it.
@@ -180,6 +181,7 @@ def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tu
 
     pid = uuid4()
     workflow = get_workflow(workflow_key)
+    assert workflow, "Workflow does not exist"
     initial_state = {
         "process_id": pid,
         "reporter": user,

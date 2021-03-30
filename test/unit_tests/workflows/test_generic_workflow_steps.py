@@ -33,10 +33,9 @@ def test_resume_workflow():
     def testwf():
         return begin >> fakestep1 >> waitforme >> fakestep3 >> done
 
-    WorkflowInstanceForTests(testwf, "testwf")
-
-    # The process and step_log from run_workflow can be used to resume it with resume_workflow
-    result, process, step_log = run_workflow("testwf", {})
-    assert_suspended(result)
-    result, step_log = resume_workflow(process, step_log, {"stad": "Maastricht"})
-    assert_complete(result)
+    with WorkflowInstanceForTests(testwf, "testwf"):
+        # The process and step_log from run_workflow can be used to resume it with resume_workflow
+        result, process, step_log = run_workflow("testwf", {})
+        assert_suspended(result)
+        result, step_log = resume_workflow(process, step_log, {"stad": "Maastricht"})
+        assert_complete(result)

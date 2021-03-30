@@ -39,13 +39,13 @@ def long_running_workflow():
     def long_running_workflow_py():
         return init >> long_running_step >> done
 
-    WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py")
+    with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
 
-    db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
-    db.session.add(db_workflow)
-    db.session.commit()
+        db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
+        db.session.add(db_workflow)
+        db.session.commit()
 
-    return "long_running_workflow_py"
+        yield "long_running_workflow_py"
 
 
 @pytest.fixture
@@ -281,20 +281,6 @@ def test_new_process_post_inconsistent_data(test_client):
         "/api/processes/terminate_sn8_light_path", data={}, headers={"Content_Type": "application/json"}
     )
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
-
-
-# def test_new_process_subscription_out_of_sync(responses, test_client, sn8_lightpath_subscription_1):
-#     subscription = Sn8LightPath.from_subscription(sn8_lightpath_subscription_1)
-#
-#     subscription.insync = False
-#     subscription.save()
-#
-#     response = test_client.post(
-#         "/api/processes/terminate_sn8_light_path",
-#         data=json_dumps([{"subscription_id": sn8_lightpath_subscription_1}]),
-#         headers={"Content_Type": "application/json"},
-#     )
-#     assert HTTPStatus.BAD_REQUEST == response.status_code
 
 
 def test_404_resume(test_client):
