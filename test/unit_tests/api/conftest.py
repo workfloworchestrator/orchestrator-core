@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Generator
 from uuid import uuid4
 
 import pytest
@@ -16,7 +16,7 @@ from test.unit_tests.workflows import WorkflowInstanceForTests
 
 
 @pytest.fixture
-def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> str:
+def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> Generator:
     _, GenericProductOne = generic_product_type_1
 
     @step("Insert UUID in state")
