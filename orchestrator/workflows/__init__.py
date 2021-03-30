@@ -18,7 +18,7 @@ from typing import Optional
 from orchestrator.utils.docs import make_workflow_index_doc
 from orchestrator.workflow import Workflow
 
-DEFAULT_PKG = "server.workflows"
+DEFAULT_PKG = "orchestrator.workflows"
 
 
 ALL_WORKFLOWS = {}
