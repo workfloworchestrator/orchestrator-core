@@ -11,6 +11,7 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.forms import FormPage
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.types import FormGenerator, State, UUIDstr
+from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.workflow import Abort, Failed, Process, ProcessStat, Skipped, Success, Suspend, Waiting
 from orchestrator.workflow import _purestep as purestep
 from orchestrator.workflow import (
@@ -253,7 +254,7 @@ def test_failed_log_step():
     wf = workflow("Failing workflow")(lambda: init >> done)
 
     def failing_store(stat, step, state):
-        return Failed("Failure Message")
+        return Failed(error_state_to_dict(Exception("Failure Message")))
 
     pstat = create_new_process_stat(wf, {"name": "init-state"})
     result = runwf(pstat, failing_store)

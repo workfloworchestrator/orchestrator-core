@@ -191,9 +191,9 @@ def test_process_log_db_step_waiting():
     pstat = ProcessStat(pid, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = "expected failure"
-    state = Waiting(state_data)
+    state = Waiting(error_state_to_dict(Exception(state_data)))
 
-    result = _db_log_step(pstat, step, state.on_waiting(error_state_to_dict))
+    result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
     psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
@@ -209,7 +209,7 @@ def test_process_log_db_step_waiting():
     assert p.assignee == "assignee"
 
     step = make_step_function(lambda: None, "step", None, "assignee")
-    result = _db_log_step(pstat, step, state.on_waiting(error_state_to_dict))
+    result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
     psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
@@ -220,7 +220,7 @@ def test_process_log_db_step_waiting():
     pstep_state = psteps[0].state
     assert len(pstep_state["executed_at"]) == 1
     del pstep_state["executed_at"]
-    assert pstep_state == {"error": state_data, "retries": 1}
+    assert pstep_state == {"class": "Exception", "error": state_data, "retries": 1}
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.WAITING
     assert p.last_step == "step"

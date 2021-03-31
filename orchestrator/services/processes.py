@@ -98,6 +98,7 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
     current_step = None
     if process_state.isfailed() or process_state.iswaiting():
         failed_reason = step_state.get("error")
+        failed_details = step_state.get("details")
         # pop also removes the traceback from the dict
         traceback = step_state.pop("traceback", None)
 
@@ -107,7 +108,7 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
         if process_state.isfailed() and p.is_task:
             # Check if we need a special failed status:
             # If it is an AssertionError:
-            if step_state.get("class") == "AssertionError":
+            if step_state.get("class") == "AssertionError" or step_state.get("class") == "InconsistentData":
                 p.assignee = Assignee.NOC
                 p.last_status = ProcessStatus.INCONSISTENT_DATA
             # If we encounter a connectivity issue with an underlying api:
@@ -129,6 +130,7 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
             and last_db_step.status == process_state.status
             and last_db_step.name == step.name
             and failed_reason == last_db_step.state.get("error")
+            and failed_details == last_db_step.state.get("details")
         ):
             current_step = last_db_step
 
@@ -179,6 +181,7 @@ def _safe_logstep(stat: ProcessStat, step: Step, process_state: WFProcess) -> WF
     try:
         return _db_log_step(stat, step, process_state)
     except Exception as e:
+        logger.exception("Failed to save step", stat=stat, step=step, process_state=process_state)
         failure = Failed(error_state_to_dict(e))
 
         # Try writing the failure, but return the original exception on success
