@@ -13,7 +13,6 @@ from orchestrator.db import ProcessTable
 from orchestrator.forms import post_process
 from orchestrator.services.processes import StateMerger, _db_create_process
 from orchestrator.types import FormGenerator, InputForm, State
-from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
@@ -96,7 +95,7 @@ def assert_step_name(log, expected):
 
 
 def extract_state(result):
-    return result.on_failed(error_state_to_dict).on_waiting(error_state_to_dict).unwrap()
+    return result.unwrap()
 
 
 def extract_error(result):

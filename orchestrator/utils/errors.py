@@ -14,11 +14,11 @@
 
 import sys
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Dict, Optional, cast
 
 import structlog
 
-from orchestrator.types import ErrorDict, ErrorState
+from orchestrator.types import JSON, ErrorDict, ErrorState
 
 # TODO Fix nwastdlib
 if TYPE_CHECKING:
@@ -73,6 +73,20 @@ class ApiException(Exception):
         return error_message
 
 
+class ProcessFailure(Exception):
+    message: str
+    details: JSON
+
+    def __init__(self, message: str, details: JSON) -> None:
+        super().__init__(message, details)
+        self.message = message
+        self.details = details
+
+
+class InconsistentData(ProcessFailure):
+    pass
+
+
 def is_api_exception(ex: Exception) -> bool:
     """Test for swagger-codegen ApiException.
 
@@ -90,57 +104,29 @@ def is_api_exception(ex: Exception) -> bool:
     return ex.__class__.__name__ == "ApiException"
 
 
-def error_state_to_dict(err: ErrorState) -> ErrorDict:
-    """Return an ErrorDict based on the exception, string or tuple in the ErrorState.
+def error_state_to_dict(err: Exception) -> ErrorDict:
+    """Return an ErrorDict based on the exception.
 
     Args:
-        err: ErrorState from a workflow or api error state
-
+        err: Exception
     Returns:
         An ErrorDict containing the error message a status_code and a traceback if available
 
     """
-    # Import here to prevent cyclic imports
-    from orchestrator.forms import FormNotCompleteError, FormValidationError
-
-    if isinstance(err, FormValidationError):
+    if isinstance(err, ProcessFailure):
+        return {"class": type(err).__name__, "error": err.message, "traceback": show_ex(err), "details": err.details}
+    elif is_api_exception(err):
+        err = cast(ApiException, err)
         return {
             "class": type(err).__name__,
-            "error": str(err),
+            "error": err.reason,
+            "status_code": err.status,
+            "body": err.body,
+            "headers": "\n".join(f"{k}: {v}" for k, v in err.headers.items()),
             "traceback": show_ex(err),
-            "validation_errors": err.errors,  # type:ignore
-            "status_code": HTTPStatus.BAD_REQUEST,
         }
-    elif isinstance(err, FormNotCompleteError):
-        return {
-            "class": type(err).__name__,
-            "error": str(err),
-            "traceback": show_ex(err),
-            "form": err.form,
-            "status_code": HTTPStatus.NOT_EXTENDED,
-        }
-    elif isinstance(err, Exception):
-        if is_api_exception(err):
-            err = cast(ApiException, err)
-            return {
-                "class": type(err).__name__,
-                "error": err.reason,
-                "status_code": err.status,
-                "body": err.body,
-                "headers": "\n".join(f"{k}: {v}" for k, v in err.headers.items()),
-                "traceback": show_ex(err),
-            }
-        return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}
-    elif isinstance(err, tuple):
-        cast(Tuple, err)
-        error, status_code = err
-        return {"error": str(error), "status_code": int(status_code)}
-    elif isinstance(err, str):
-        return {"error": err}
-    elif isinstance(err, dict) and "error" in err:  # type: ignore
-        return err
     else:
-        raise TypeError("ErrorState  should be a tuple, exception or string")
+        return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}
 
 
 def post_mortem(debugger: str, error: ErrorState) -> ErrorState:
