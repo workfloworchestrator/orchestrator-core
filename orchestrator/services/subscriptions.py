@@ -430,6 +430,14 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     return result
 
 
+def get_relations(subscription_id: UUIDstr) -> Dict[str, List[UUID]]:
+    subscription_table = SubscriptionTable.query.options(joinedload("product"), joinedload("product.workflows")).get(
+        subscription_id
+    )
+    relations = status_relations(subscription_table)
+    return relations
+
+
 TARGET_DEFAULT_USABLE_MAP: Dict[Target, List[str]] = {
     Target.CREATE: [],
     Target.MODIFY: ["active"],
