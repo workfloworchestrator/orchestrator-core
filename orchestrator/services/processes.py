@@ -181,6 +181,7 @@ def _safe_logstep(stat: ProcessStat, step: Step, process_state: WFProcess) -> WF
     try:
         return _db_log_step(stat, step, process_state)
     except Exception as e:
+        logger.exception("Failed to save step", stat=stat, step=step, process_state=process_state)
         failure = Failed(error_state_to_dict(e))
 
         # Try writing the failure, but return the original exception on success
