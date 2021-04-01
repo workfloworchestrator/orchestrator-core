@@ -13,7 +13,7 @@
 
 from enum import Enum
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 
 from pydantic import BaseModel
 
@@ -78,6 +78,12 @@ StateSimpleInputFormGenerator = Callable[[State], InputForm]
 StateInputFormGenerator = Callable[[State], FormGenerator]
 StateInputStepFunc = Union[StateSimpleInputFormGenerator, StateInputFormGenerator]
 SubscriptionMapping = Dict[str, List[Dict[str, str]]]
+
+
+class SummaryData(TypedDict, total=False):
+    headers: List[str]
+    labels: List[str]
+    columns: List[List[Union[str, int, bool, float]]]
 
 
 def is_of_type(t: Any, test_type: Any) -> bool:

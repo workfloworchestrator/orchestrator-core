@@ -176,5 +176,5 @@ def test_full_text_search(generic_subscription_1):
 def test_str_method():
     assert (
         str(SubscriptionTable())
-        == "SubscriptionTable(name=None, tag=None, subscription_id=None, description=None, status=None, product_id=None, customer_id=None, insync=None, start_date=None, end_date=None, note=None)"
+        == "SubscriptionTable(subscription_id=None, description=None, status=None, product_id=None, customer_id=None, insync=None, start_date=None, end_date=None, note=None)"
     )

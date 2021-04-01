@@ -68,7 +68,7 @@ def update_product(data: ProductCRUDSchema = Body(...)) -> None:
 def delete_product(product_id: UUID) -> None:
     subscriptions = SubscriptionTable.query.filter(SubscriptionTable.product_id == product_id).all()
     if len(subscriptions) > 0:
-        error_subscriptions = ", ".join(map(lambda sub: sub.name, subscriptions))
+        error_subscriptions = ", ".join(map(lambda sub: sub.description, subscriptions))
         raise_status(HTTPStatus.BAD_REQUEST, f"Product {product_id} is used in Subscriptions: {error_subscriptions}")
     return delete(ProductTable, product_id)
 

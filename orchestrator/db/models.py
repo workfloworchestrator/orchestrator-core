@@ -31,7 +31,6 @@ from sqlalchemy import (
     Table,
     Text,
     TypeDecorator,
-    select,
     text,
 )
 from sqlalchemy.dialects import postgresql as pg
@@ -39,7 +38,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import backref, column_property, deferred, object_session, relationship
+from sqlalchemy.orm import backref, deferred, object_session, relationship
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
@@ -466,15 +465,6 @@ class SubscriptionTable(BaseModel):
         "SubscriptionCustomerDescriptionTable", lazy="select", cascade="all, delete-orphan", passive_deletes=True
     )
     processes = relationship("ProcessSubscriptionTable", lazy=True)
-
-    name = column_property(
-        select([ProductTable.name]).where(ProductTable.product_id == product_id).correlate_except(ProductTable),
-        deferred=True,
-    )
-    tag = column_property(
-        select([ProductTable.tag]).where(ProductTable.product_id == product_id).correlate_except(ProductTable),
-        deferred=True,
-    )
 
     @staticmethod
     def find_by_product_tag(tag: str) -> SearchQuery:
