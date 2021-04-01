@@ -13,7 +13,7 @@
 
 from enum import Enum
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypeVar, Union, TypedDict
+from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 
 from pydantic import BaseModel
 from pydantic.typing import get_args, get_origin
