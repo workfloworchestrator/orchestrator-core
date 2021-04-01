@@ -31,6 +31,7 @@ from sqlalchemy import (
     Table,
     Text,
     TypeDecorator,
+    select,
     text,
 )
 from sqlalchemy.dialects import postgresql as pg

@@ -14,12 +14,10 @@ from orchestrator.forms.validators import (
     Label,
     ListOfTwo,
     LongText,
-    MigrationSummary,
     OrganisationId,
     ProductId,
     UniqueConstrainedList,
     contact_person_list,
-    migration_summary,
     product_id,
     unique_conlist,
 )
@@ -415,13 +413,11 @@ def test_display():
     class Form(FormPage):
         display_sub: DisplaySubscription
         label: Label
-        migration_summary: migration_summary({"headers": ["one"]})  # noqa: F821
 
-    assert Form().dict() == {"display_sub": None, "label": None, "migration_summary": None}
-    assert Form(display_sub="foo", label="bar", migration_summary="baz").dict() == {
+    assert Form().dict() == {"display_sub": None, "label": None}
+    assert Form(display_sub="foo", label="bar").dict() == {
         "display_sub": None,
         "label": None,
-        "migration_summary": None,
     }
 
 
@@ -431,7 +427,6 @@ def test_display_only_schema():
     class Form(FormPage):
         display_sub: DisplaySubscription = some_sub_id
         label: Label
-        migration_summary: migration_summary({"headers": ["one"]})  # noqa: F821
 
     assert Form.schema() == {
         "additionalProperties": False,
@@ -443,12 +438,6 @@ def test_display_only_schema():
                 "type": "string",
             },
             "label": {"format": "label", "title": "Label", "type": "string"},
-            "migration_summary": {
-                "format": "summary",
-                "title": "Migration Summary",
-                "type": "string",
-                "uniforms": {"data": {"headers": ["one"]}},
-            },
         },
         "title": "unknown",
         "type": "object",
