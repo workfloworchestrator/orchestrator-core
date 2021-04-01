@@ -95,15 +95,6 @@ class SubscriptionIdSchema(OrchestratorBaseModel):
     subscription_id: UUID
 
 
-class SubscriptionWithPortAttrSchema(SubscriptionSchema):
-    port_mode: Optional[str]
-
-
-class SubscriptionDetailsSchema(SubscriptionWithPortAttrSchema):
-    instances: List[SubscriptionInstanceBase]
-    customer_descriptions: List[SubscriptionDescriptionSchema]
-
-
 class SubscriptionDomainModelSchema(SubscriptionSchema):
     customer_descriptions: List[SubscriptionDescriptionSchema]
 

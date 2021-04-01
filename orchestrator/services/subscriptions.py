@@ -24,14 +24,6 @@ from sqlalchemy import Text, cast, not_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, joinedload, undefer
 
-from orchestrator.config import (
-    INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-    IP_PREFIX_SUBSCRIPTION_ID,
-    NODE_SUBSCRIPTION_ID,
-    PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-    PEER_GROUP_SUBSCRIPTION_ID,
-    PORT_SUBSCRIPTION_ID,
-)
 from orchestrator.db import (
     ProductTable,
     ResourceTypeTable,
@@ -47,19 +39,22 @@ from orchestrator.utils.datetime import nowtz
 logger = structlog.get_logger(__name__)
 
 
-def get_subscription(subscription_id: Union[UUID, UUIDstr], for_update: bool = False) -> SubscriptionTable:
+def get_subscription(
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: SubscriptionTable = SubscriptionTable
+) -> SubscriptionTable:
     """Get the subscription.
 
     Args:
         subscription_id: The subscription_id
         for_update: specific whether we intend to update the subscription
+        model: SubscriptionModelType
 
     Returns: A subscription object
 
     Raises: ValueError: if the requested Subscription does not exist in de database.
 
     """
-    query = SubscriptionTable.query
+    query = model.query
     if for_update:
         query = query.with_for_update()
 
@@ -72,17 +67,6 @@ def get_subscription(subscription_id: Union[UUID, UUIDstr], for_update: bool = F
         return subscription
     else:
         raise ValueError(f"Subscription with {subscription_id} does not exist in the database")
-
-
-def get_subscription_details_by_id(subscription_id: Union[UUIDstr, UUID]) -> Optional[SubscriptionTable]:
-    subscription = (
-        SubscriptionTable.query.options(
-            joinedload("instances"), joinedload("product"), joinedload("customer_descriptions")
-        )
-        .options(undefer(SubscriptionTable.name), undefer(SubscriptionTable.tag), undefer(SubscriptionTable.port_mode))
-        .get(subscription_id)
-    )
-    return subscription
 
 
 def update_subscription_status(subscription_id: UUIDstr, status: str) -> SubscriptionTable:
@@ -384,14 +368,7 @@ def _in_sync_filter(query: Query) -> List[UUID]:
     )
 
 
-RELATION_RESOURCE_TYPES = [
-    PORT_SUBSCRIPTION_ID,
-    IP_PREFIX_SUBSCRIPTION_ID,
-    INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-    PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-    NODE_SUBSCRIPTION_ID,
-    PEER_GROUP_SUBSCRIPTION_ID,
-]
+RELATION_RESOURCE_TYPES: List[str] = []
 
 
 def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
