@@ -212,7 +212,7 @@ def test_delete_with_subscriptions(seed, test_client):
     response = test_client.delete(f"/api/products/{PRODUCT_ID}")
 
     assert HTTPStatus.BAD_REQUEST == response.status_code
-    assert f"Product {PRODUCT_ID} is used in Subscriptions: LightPath" == response.json()["detail"]
+    assert f"Product {PRODUCT_ID} is used in Subscriptions: desc" == response.json()["detail"]
 
 
 def test_tags_all(test_client):

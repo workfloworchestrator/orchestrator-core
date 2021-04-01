@@ -24,7 +24,7 @@ from pydantic.validators import str_validator, uuid_validator
 
 from orchestrator.db.models import ProductTable
 from orchestrator.forms import DisplayOnlyFieldType
-from orchestrator.types import AcceptData, strEnum
+from orchestrator.types import AcceptData, SummaryData, strEnum
 
 logger = structlog.get_logger(__name__)
 
@@ -327,6 +327,19 @@ class ProductId(UUID):
 def product_id(products: Optional[List[UUID]] = None) -> Type[ProductId]:
     namespace = {"products": products}
     return new_class("ProductIdSpecific", (ProductId,), {}, lambda ns: ns.update(namespace))
+
+
+class MigrationSummary(DisplayOnlyFieldType):
+    data: ClassVar[Optional[SummaryData]] = None
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+        field_schema.update(format="summary", type="string", uniforms={"data": cls.data})
+
+
+def migration_summary(data: Optional[SummaryData] = None) -> Type[MigrationSummary]:
+    namespace = {"data": data}
+    return new_class("MigrationSummaryValue", (MigrationSummary,), {}, lambda ns: ns.update(namespace))
 
 
 class ListOfOne(UniqueConstrainedList[T]):

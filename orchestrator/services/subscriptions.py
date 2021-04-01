@@ -22,7 +22,7 @@ import more_itertools
 import structlog
 from sqlalchemy import Text, cast, not_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, joinedload, undefer
+from sqlalchemy.orm import Query, joinedload
 
 from orchestrator.db import (
     ProductTable,
@@ -329,7 +329,7 @@ def query_parent_subscriptions_by_resource_types(resource_type: Iterable[str], s
     """
     return (
         SubscriptionTable.query.join(SubscriptionInstanceTable)
-        .options(undefer(SubscriptionTable.name), joinedload("customer_descriptions"))
+        .options(joinedload("customer_descriptions"))
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(ResourceTypeTable.resource_type.in_(resource_type))
