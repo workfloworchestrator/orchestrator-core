@@ -12,21 +12,19 @@
 # limitations under the License.
 
 from types import new_class
-from typing import Any, ClassVar, Dict, Generator, Iterator, List, Optional, Type, TypeVar, get_args
+from typing import Any, ClassVar, Dict, Generator, List, Optional, Type, TypeVar, get_args
 from uuid import UUID
 
 import structlog
-from pydantic import BaseModel, ConstrainedList, EmailStr, conint, root_validator
+from pydantic import BaseModel, ConstrainedList, EmailStr
 from pydantic.errors import EnumMemberError
 from pydantic.fields import ModelField
-from pydantic.types import ConstrainedInt
 from pydantic.utils import update_not_none
 from pydantic.validators import str_validator, uuid_validator
 
 from orchestrator.db.models import ProductTable
 from orchestrator.forms import DisplayOnlyFieldType
-from orchestrator.types import AcceptData, SummaryData, strEnum
-from orchestrator.utils.vlans import VlanRanges
+from orchestrator.types import AcceptData, strEnum
 
 logger = structlog.get_logger(__name__)
 
@@ -153,24 +151,6 @@ class Accept:
         return v == "ACCEPTED"
 
 
-class BFD(BaseModel):
-    class Config:
-        schema_extra = {"format": "optGroup"}
-
-    # order matters, this should be first
-    enabled: bool
-    minimum_interval: Optional[conint(ge=1, le=255000)] = 900  # type: ignore
-    multiplier: Optional[conint(ge=1, le=255)] = 3  # type: ignore
-
-    @root_validator()
-    def check_optional_fields(cls, values: Dict) -> Dict:  # noqa: B902
-        if not values.get("enabled"):
-            values.pop("minimum_interval", None)
-            values.pop("multiplier", None)
-
-        return values
-
-
 class Choice(strEnum):
     label: ClassVar[str]
 
@@ -293,29 +273,6 @@ class Label(DisplayOnlyFieldType):
         field_schema.update(format="label", type="string")
 
 
-class MigrationSummary(DisplayOnlyFieldType):
-    data: ClassVar[Optional[SummaryData]] = None
-
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        field_schema.update(format="summary", type="string", uniforms={"data": cls.data})
-
-
-def migration_summary(data: Optional[SummaryData] = None) -> Type[MigrationSummary]:
-    namespace = {"data": data}
-    return new_class("MigrationSummaryValue", (MigrationSummary,), {}, lambda ns: ns.update(namespace))
-
-
-class MTU(ConstrainedInt):
-    ge = 1500
-    le = 9000
-
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        super().__modify_schema__(field_schema)
-        field_schema["multipleOf"] = 7500
-
-
 class OrganisationId(UUID):
     @classmethod
     def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
@@ -370,24 +327,6 @@ class ProductId(UUID):
 def product_id(products: Optional[List[UUID]] = None) -> Type[ProductId]:
     namespace = {"products": products}
     return new_class("ProductIdSpecific", (ProductId,), {}, lambda ns: ns.update(namespace))
-
-
-class VlanRangesValidator(VlanRanges):
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict) -> None:
-        field_schema.update(
-            pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
-            examples=["345", "20-23,45,50-100"],
-            type="string",
-            format="vlan",
-        )
-
-    @classmethod
-    def __get_validators__(cls) -> Iterator:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield VlanRanges
 
 
 class ListOfOne(UniqueConstrainedList[T]):

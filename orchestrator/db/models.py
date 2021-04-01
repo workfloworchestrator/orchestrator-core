@@ -31,7 +31,6 @@ from sqlalchemy import (
     Table,
     Text,
     TypeDecorator,
-    and_,
     select,
     text,
 )
@@ -44,7 +43,6 @@ from sqlalchemy.orm import backref, column_property, deferred, object_session, r
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
-from orchestrator.config import PORT_MODE
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
 from orchestrator.targets import Target
@@ -475,21 +473,6 @@ class SubscriptionTable(BaseModel):
     )
     tag = column_property(
         select([ProductTable.tag]).where(ProductTable.product_id == product_id).correlate_except(ProductTable),
-        deferred=True,
-    )
-
-    port_mode = column_property(
-        select(
-            [SubscriptionInstanceValueTable.value],
-            and_(
-                SubscriptionInstanceTable.subscription_id == subscription_id,
-                SubscriptionInstanceValueTable.subscription_instance_id
-                == SubscriptionInstanceTable.subscription_instance_id,
-                SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
-            ),
-        )
-        .where(ResourceTypeTable.resource_type == PORT_MODE)
-        .correlate_except(SubscriptionInstanceValueTable, SubscriptionInstanceTable, ResourceTypeTable),
         deferred=True,
     )
 

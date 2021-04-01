@@ -25,13 +25,7 @@ from orchestrator.schemas.process import (
 from orchestrator.schemas.product import ProductBaseSchema, ProductCRUDSchema, ProductSchema
 from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockEnrichedSchema
 from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
-from orchestrator.schemas.subscription import (
-    SubscriptionDetailsSchema,
-    SubscriptionDomainModelSchema,
-    SubscriptionIdSchema,
-    SubscriptionSchema,
-    SubscriptionWithPortAttrSchema,
-)
+from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionIdSchema, SubscriptionSchema
 from orchestrator.schemas.subscription_descriptions import (
     SubscriptionDescriptionBaseSchema,
     SubscriptionDescriptionSchema,
@@ -39,14 +33,12 @@ from orchestrator.schemas.subscription_descriptions import (
 from orchestrator.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema, WorkflowWithProductTagsSchema
 
 __all__ = (
-    "DienstafnameSchema",
     "EngineSettingsSchema",
     "EngineSettingsBaseSchema",
     "FixedInputConfigurationSchema",
     "GlobalStatusEnum",
     "ProblemDetailSchema",
     "ProcessBaseSchema",
-    "ServiceSchema",
     "ResourceTypeSchema",
     "ResourceTypeBaseSchema",
     "ProductBlockEnrichedSchema",
@@ -57,8 +49,6 @@ __all__ = (
     "ProductSchema",
     "WorkflowWithProductTagsSchema",
     "SubscriptionSchema",
-    "SubscriptionWithPortAttrSchema",
-    "SubscriptionDetailsSchema",
     "SubscriptionDomainModelSchema",
     "SubscriptionWorkflowListsSchema",
     "SubscriptionIdSchema",

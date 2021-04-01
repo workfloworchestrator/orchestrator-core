@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.config import IMS_CIRCUIT_ID
 from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable, db
 from orchestrator.utils.json import json_dumps
+from test.unit_tests.config import IMS_CIRCUIT_ID
 
 PRODUCT_BLOCK_ID = "f51f9542-e83f-42e5-a590-0284dd5493e4"
 

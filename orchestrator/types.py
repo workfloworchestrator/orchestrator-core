@@ -13,10 +13,9 @@
 
 from enum import Enum
 from http import HTTPStatus
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
+from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypeVar, Union
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 UUIDstr = str
 State = Dict[str, Any]
@@ -68,31 +67,6 @@ class AcceptItemType(strEnum):
 
 AcceptData = List[Union[Tuple[str, AcceptItemType], Tuple[str, AcceptItemType, Dict]]]
 
-IMSStatus = Literal["RFS", "PL", "IS", "MI", "RFC", "OOS"]
-
-TransitionType = Literal["speed", "upgrade", "downgrade", "replace"]
-VisiblePortMode = Literal["all", "normal", "tagged", "untagged", "link_member"]
-
-
-class SummaryData(TypedDict, total=False):
-    headers: List[str]
-    labels: List[str]
-    columns: List[List[Union[str, int, bool, float]]]
-
-
-class MailAddress(TypedDict):
-    email: EmailStr
-    name: str
-
-
-class ConfirmationMail(TypedDict):
-    message: str
-    subject: str
-    language: str
-    to: List[MailAddress]
-    cc: List[MailAddress]
-
-
 InputForm = Type[BaseModel]
 
 T = TypeVar("T", bound=BaseModel)
@@ -103,8 +77,6 @@ InputStepFunc = Union[SimpleInputFormGenerator, InputFormGenerator]
 StateSimpleInputFormGenerator = Callable[[State], InputForm]
 StateInputFormGenerator = Callable[[State], FormGenerator]
 StateInputStepFunc = Union[StateSimpleInputFormGenerator, StateInputFormGenerator]
-IPAddress = Union[IPv4Address, IPv6Address]
-IPNetwork = Union[IPv4Network, IPv6Network]
 SubscriptionMapping = Dict[str, List[Dict[str, str]]]
 
 

@@ -8,7 +8,6 @@ from uuid import uuid4
 
 import structlog
 
-from orchestrator.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
 from orchestrator.db import ProcessTable
 from orchestrator.forms import post_process
 from orchestrator.services.processes import StateMerger, _db_create_process
@@ -17,6 +16,7 @@ from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
 from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
+from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
 
 logger = structlog.get_logger(__name__)
 

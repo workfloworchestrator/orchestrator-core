@@ -1,11 +1,9 @@
 from http import HTTPStatus
-from urllib.request import pathname2url
 from uuid import uuid4
 
 import pytest
 from nwastdlib.url import URL
 
-from orchestrator.config import IMS_CIRCUIT_ID, IPAM_PREFIX_ID, PORT_SUBSCRIPTION_ID
 from orchestrator.db import (
     FixedInputTable,
     ProcessSubscriptionTable,
@@ -18,7 +16,17 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.services.subscriptions import RELATION_RESOURCE_TYPES
 from orchestrator.workflow import ProcessStatus
+from test.unit_tests.config import (
+    IMS_CIRCUIT_ID,
+    INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
+    IPAM_PREFIX_ID,
+    NODE_SUBSCRIPTION_ID,
+    PARENT_IP_PREFIX_SUBSCRIPTION_ID,
+    PEER_GROUP_SUBSCRIPTION_ID,
+    PORT_SUBSCRIPTION_ID,
+)
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
 PORT_A_SUBSCRIPTION_ID = str(uuid4())
@@ -222,6 +230,17 @@ def seed():
     db.session.add(invalid_tagged_subscription)
     db.session.commit()
 
+    RELATION_RESOURCE_TYPES.extend(
+        [
+            PORT_SUBSCRIPTION_ID,
+            IP_PREFIX_SUBSCRIPTION_ID,
+            INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
+            PARENT_IP_PREFIX_SUBSCRIPTION_ID,
+            NODE_SUBSCRIPTION_ID,
+            PEER_GROUP_SUBSCRIPTION_ID,
+        ]
+    )
+
     return ip_prefix_product
 
 
@@ -317,51 +336,6 @@ def test_subscriptions_paginated(seed, test_client):
             assert field in item
 
 
-def test_port_subscriptions_paginated(seed, test_client):
-    product_fields = [
-        "name",
-        "created_at",
-        "description",
-        "end_date",
-        "status",
-        "product_type",
-        "product_id",
-        "tag",
-    ]
-    subscription_fields = [
-        "customer_id",
-        "description",
-        "status",
-        "end_date",
-        "insync",
-        "start_date",
-        "subscription_id",
-        "port_mode",
-        "product",
-        "name",
-        "note",
-        "customer_descriptions",
-        "product_id",
-        "tag",
-    ]
-    response = test_client.get("/api/subscriptions/ports")
-
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 5
-
-    for item in response.json():
-        product = item["product"]
-        # test for extra fields in the response that are not listed in the YAML
-        assert set(product.keys()) == set(product_fields)
-        assert set(item.keys()) == set(subscription_fields)
-
-        # Check if all listed YAML fields are also available in Response
-        for field in product_fields:
-            assert field in product
-        for field in subscription_fields:
-            assert field in item
-
-
 def test_filtering_subscriptions(seed, test_client):
     response = test_client.get("/api/subscriptions?filter=status,active")
     assert response.status_code == HTTPStatus.OK
@@ -402,44 +376,6 @@ def test_filtering_subscriptions(seed, test_client):
     response = test_client.get("/api/subscriptions?filter=status,active,product,LightPathProduct-PortBProduct")
     assert response.status_code == HTTPStatus.OK
     assert len(response.json()) == 2
-
-
-def test_filtering_port_subscriptions(seed, test_client):
-    response = test_client.get("/api/subscriptions/ports?filter=status,active")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 3
-
-    response = test_client.get("/api/subscriptions/ports?filter=status,terminated")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 0
-
-    response = test_client.get("/api/subscriptions/ports?filter=tags,SP")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 3
-
-    response = test_client.get("/api/subscriptions/ports?filter=tags,SP-portb")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 4
-
-    response = test_client.get("/api/subscriptions/ports?filter=tag,SP")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 3
-
-    response = test_client.get("/api/subscriptions/ports?filter=tag,SP")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 3
-
-    response = test_client.get("/api/subscriptions/ports?filter=tag,SP-portb")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 4
-
-    response = test_client.get("/api/subscriptions/ports?filter=statuses,provisioning-active")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 4
-
-    response = test_client.get("/api/subscriptions/ports?filter=tags,SP-portb,statuses,provisioning-active")
-    assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == 3
 
 
 def test_sorting_subscriptions(seed, test_client):
@@ -488,38 +424,6 @@ def test_range_subscriptions(seed, test_client):
 
     response = test_client.get("/api/subscriptions?sort=status,asc&range=5,5")
     assert response.status_code == HTTPStatus.BAD_REQUEST
-
-
-def test_subscription_details_by_id(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/{SERVICE_SUBSCRIPTION_ID}")
-
-    assert response.status_code == HTTPStatus.OK
-    subscription = response.json()
-    assert len(subscription["instances"]) == 2
-    assert len(subscription["instances"][0]["values"]) == 2
-
-
-def test_subscriptions_by_tag(seed, test_client):
-    url = pathname2url("SP, PORTB")
-    response = test_client.get(f"/api/subscriptions/tag/{url}")
-    assert len(response.json()) == 4
-
-    response = test_client.get("/api/subscriptions/tag/PORTB")
-    assert len(response.json()) == 1
-
-    response = test_client.get("/api/subscriptions/tag/NOPE")
-    assert len(response.json()) == 0
-
-
-def test_product_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/product/{PRODUCT_ID}")
-    assert len(response.json()) == 1
-
-    response = test_client.get(f"/api/subscriptions/product/{uuid4()}")
-    assert len(response.json()) == 0
-
-    response = test_client.get("/api/subscriptions/product/NOPE")
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 def test_insync_404(seed, test_client):
@@ -621,22 +525,6 @@ def test_delete_subscription_404(responses, seed, test_client):
 
     response = test_client.delete(f"/api/subscriptions/{sub_id}")
     assert response.status_code == HTTPStatus.NOT_FOUND
-
-
-def test_subscriptions_by_customer(seed, test_client):
-    subs = test_client.get(f"api/subscriptions/customer/{CUSTOMER_ID}").json()
-    assert len(subs) == 7
-
-    lp_sub = list(filter(lambda sub: sub["subscription_id"] == SERVICE_SUBSCRIPTION_ID, subs))[0]
-    assert "product" in lp_sub
-
-
-def test_by_product_type_and_customer(seed, test_client):
-    subs = test_client.get(f"api/subscriptions/product_type/LightPath/customer/{CUSTOMER_ID}").json()
-    assert len(subs) == 1
-    lp_sub = list(filter(lambda sub: sub["subscription_id"] == SERVICE_SUBSCRIPTION_ID, subs))[0]
-
-    assert "product" in lp_sub
 
 
 def test_subscription_detail_with_domain_model(test_client, generic_subscription_1):
