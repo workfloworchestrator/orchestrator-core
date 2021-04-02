@@ -1,6 +1,6 @@
 import os
 from contextlib import closing
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 import pytest
 import structlog
@@ -19,6 +19,8 @@ from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseMo
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.domain.lifecycle import change_lifecycle
+from orchestrator.forms import FormPage
+from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -173,6 +175,54 @@ def responses():
         not_used = set(mocked_urls) - set(used_urls)
         if not_used:
             pytest.fail(f"Found unused responses mocks: {not_used}", pytrace=False)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def test_form_translations(worker_id):
+    """Some voodoo to check for each form during test if the translations are complete."""
+
+    translations = generate_translations("en-GB")["forms"]["fields"]
+    used_translations = set()
+
+    # In order to properly wrap a classmethod we need to do special stuff
+    old_init_subclass = FormPage.__dict__["__init_subclass__"]
+
+    # Wrap a form function that is certain to be called to extract the used form fields
+    @classmethod
+    def init_subclass_wrapper(cls, *args, **kwargs: Any) -> None:
+        # Skip forms in test modules
+        if "test" not in cls.__module__:
+            for field_name in cls.__fields__:
+                used_translations.add(field_name)
+                if field_name not in translations and f"{field_name}_accept" not in translations:
+                    pytest.fail(f"Missing translation for field {field_name} in  {cls.__name__}")
+
+        # Because the original is a classmethod we need to conform to the descriptor protocol
+        return old_init_subclass.__get__(None, cls)(*args, **kwargs)
+
+    FormPage.__init_subclass__ = init_subclass_wrapper
+    try:
+        yield
+    finally:
+        # unwrapp and check if all translations are actually used
+        FormPage.__init_subclass__ = old_init_subclass
+
+        # This check only works when you run without python-xdist because we need one single session
+        # TODO this does not work reliable yet
+        # if worker_id == "master":
+        #     unused_keys = set()
+        #     for trans_key in translations:
+        #         if (
+        #             not trans_key.endswith("_info")
+        #             and not trans_key.endswith("_accept")
+        #             and not trans_key.endswith("_fields")
+        #             and trans_key not in used_translations
+        #             and f"{trans_key}_accept" not in used_translations
+        #         ):
+        #             unused_keys.add(trans_key)
+
+        #     if unused_keys:
+        #         pytest.fail(f"found unused translations: {sorted(unused_keys)}", pytrace=False)
 
 
 @pytest.fixture

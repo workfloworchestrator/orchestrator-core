@@ -26,6 +26,7 @@ from orchestrator.api.api_v1.endpoints import (
     settings,
     subscription_customer_descriptions,
     subscriptions,
+    translations,
     user,
     workflows,
 )
@@ -79,3 +80,8 @@ api_router.include_router(
     settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(opa_security_default)]
 )
 api_router.include_router(health.router, prefix="/health", tags=["Core"])
+api_router.include_router(
+    translations.router,
+    prefix="/translations",
+    tags=["Core", "Translations"],
+)

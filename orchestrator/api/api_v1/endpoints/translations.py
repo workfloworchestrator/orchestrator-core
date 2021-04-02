@@ -11,17 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import Dict
 
-from orchestrator.schedules.resume_workflows import run_resume_workflows
-from orchestrator.schedules.scheduling import SchedulingFunction
-from orchestrator.schedules.task_vacuum import vacuum_tasks
-from orchestrator.schedules.validate_subscriptions import validate_subscriptions
-from orchestrator.schedules.validate_products import validate_products
+import structlog
+from fastapi import Query
+from fastapi.routing import APIRouter
 
-ALL_SCHEDULERS: List[SchedulingFunction] = [
-    run_resume_workflows,
-    vacuum_tasks,
-    validate_subscriptions,
-    validate_products,
-]
+from orchestrator.services.translations import generate_translations
+
+logger = structlog.get_logger(__name__)
+
+
+router = APIRouter()
+
+
+@router.get("/{language}", response_model=dict)
+def get_translations(language: str = Query(..., regex="^[a-z]+-[A-Z]+$")) -> Dict[str, str]:
+    translations = generate_translations(language)
+
+    return translations

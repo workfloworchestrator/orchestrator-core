@@ -11,17 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 
-from orchestrator.schedules.resume_workflows import run_resume_workflows
-from orchestrator.schedules.scheduling import SchedulingFunction
-from orchestrator.schedules.task_vacuum import vacuum_tasks
-from orchestrator.schedules.validate_subscriptions import validate_subscriptions
-from orchestrator.schedules.validate_products import validate_products
+from orchestrator.db.models import ProcessTable
+from orchestrator.schedules.scheduling import scheduler
+from orchestrator.services.processes import start_process
 
-ALL_SCHEDULERS: List[SchedulingFunction] = [
-    run_resume_workflows,
-    vacuum_tasks,
-    validate_subscriptions,
-    validate_products,
-]
+
+@scheduler(name="Validate Products and inactive subscriptions", time_unit="day", at="02:30")
+def validate_products() -> None:
+    if not ProcessTable.query.filter(
+        ProcessTable.workflow == "validate_products", ProcessTable.last_status != "completed"
+    ).count():
+        start_process("validate_products")
