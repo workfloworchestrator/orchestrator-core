@@ -13,7 +13,8 @@
 
 import secrets
 import string
-from typing import List
+from pathlib import Path
+from typing import List, Optional
 
 from opentelemetry.exporter import jaeger
 from opentelemetry.sdk.trace import TracerProvider
@@ -56,6 +57,7 @@ class AppSettings(BaseSettings):
     SLACK_ENGINE_SETTINGS_HOOK_ENABLED: bool = False
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
     TRACING_ENABLED: bool = False
+    TRANSLATIONS_DIR: Optional[Path] = None
 
 
 class Oauth2Settings(BaseSettings):

@@ -137,7 +137,7 @@ class Accept:
         yield cls.must_be_complete
 
     @classmethod
-    def enum_validator(cls, v: Any, field: "ModelField") -> "Accept":
+    def enum_validator(cls, v: Any, field: "ModelField") -> str:
         try:
             enum_v = cls.Values(v)
         except ValueError:
@@ -175,9 +175,9 @@ class Choice(strEnum):
     label: ClassVar[str]
 
     def __new__(cls, value: str, label: Optional[str] = None) -> "Choice":
-        obj = str.__new__(cls, value)  # type:ignore
+        obj = str.__new__(cls, value)
         obj._value_ = value
-        obj.label = label or value
+        obj.label = label or value  # type:ignore
         return obj
 
     @classmethod

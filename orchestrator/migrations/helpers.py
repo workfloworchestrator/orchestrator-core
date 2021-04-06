@@ -1,43 +1,44 @@
-from uuid import uuid4
+from typing import Any, Dict, List
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 
 
-def get_resource_type_id_by_name(conn, name):
+def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> Any:
     result = conn.execute(
         sa.text("SELECT resource_type_id FROM resource_types WHERE resource_types.resource_type=:name"), name=name
     )
     return [x for (x,) in result.fetchall()][0]
 
 
-def get_product_block_id_by_name(conn, name):
+def get_product_block_id_by_name(conn: sa.engine.Connection, name: str) -> Any:
     result = conn.execute(
         sa.text("SELECT product_block_id FROM product_blocks WHERE product_blocks.name=:name"), name=name
     )
     return [x for (x,) in result.fetchall()][0]
 
 
-def get_product_id_by_name(conn, name):
+def get_product_id_by_name(conn: sa.engine.Connection, name: str) -> Any:
     result = conn.execute(sa.text("SELECT product_id FROM products WHERE products.name=:name"), name=name)
     return [x for (x,) in result.fetchall()][0]
 
 
-def get_product_name_by_id(conn, id):
+def get_product_name_by_id(conn: sa.engine.Connection, id: str) -> Any:
     result = conn.execute(sa.text("SELECT name FROM products WHERE product_id=:id"), id=id)
     return [x for (x,) in result.fetchall()][0]
 
 
-def get_product_by_id(conn, id):
+def get_product_by_id(conn: sa.engine.Connection, id: str) -> Any:
     result = conn.execute(sa.text("SELECT * FROM products WHERE product_id=:id"), id=id)
     return result.fetchall()[0]
 
 
-def get_fixed_inputs_by_product_id(conn, id):
+def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: str) -> Any:
     result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), id=id)
     return result.fetchall()
 
 
-def insert_resource_type(conn, resource_type, description):
+def insert_resource_type(conn: sa.engine.Connection, resource_type: str, description: str) -> Any:
     """Create a new resource types."""
     conn.execute(
         sa.text(
@@ -49,13 +50,13 @@ def insert_resource_type(conn, resource_type, description):
     )
 
 
-def get_all_active_products_and_ids(conn):
+def get_all_active_products_and_ids(conn: sa.engine.Connection) -> Any:
     """Return a list, with dicts containing keys `product_id` and `name` of active products."""
     result = conn.execute(sa.text("SELECT product_id, name  FROM products WHERE status='active'"))
     return [{"product_id": row[0], "name": row[1]} for row in result.fetchall()]
 
 
-def create_missing_modify_note_workflows(conn):
+def create_missing_modify_note_workflows(conn: sa.engine.Connection) -> None:
     products = get_all_active_products_and_ids(conn)
 
     workflow_id = conn.execute(sa.text("SELECT workflow_id FROM workflows WHERE name = 'modify_note'"))
@@ -78,7 +79,7 @@ def create_missing_modify_note_workflows(conn):
             )
 
 
-def create_workflows(conn, new):
+def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
     """
     Create a new workflow.
 
@@ -121,7 +122,7 @@ def create_workflows(conn, new):
         )
 
 
-def create_fixed_inputs(conn, product_id, new):
+def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: dict) -> Dict[str, UUID]:
     """
     Create a fixed inputs for a product.
 
@@ -152,7 +153,7 @@ def create_fixed_inputs(conn, product_id, new):
     return uuids
 
 
-def create_products(conn, new):
+def create_products(conn: sa.engine.Connection, new: dict) -> Dict[str, UUID]:
     """
     Create a new workflow.
 
@@ -215,7 +216,7 @@ def create_products(conn, new):
     return uuids
 
 
-def create_product_blocks(conn, new):
+def create_product_blocks(conn: sa.engine.Connection, new: dict) -> Dict[str, UUID]:
     """
     Create a new workflow.
 
@@ -259,7 +260,7 @@ def create_product_blocks(conn, new):
     return uuids
 
 
-def create_resource_types_for_product_blocks(conn, new):
+def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: dict) -> None:
     """Create new resource types and link them to existing product_blocks by product_block name.
 
     Note: If the resource type already exists it will still add the resource type to the provided Product Blocks.
@@ -280,7 +281,7 @@ def create_resource_types_for_product_blocks(conn, new):
                 "resource_type1": "Resource description"
             }
         }
-        >>> create_resource_types(conn, new_stuff)
+        >>> create_resource_types(conn: sa.engine.Connection, new_stuff)
     """
     insert_resource_type = sa.text(
         """INSERT INTO resource_types (resource_type, description) VALUES (:resource_type, :description)
@@ -320,7 +321,7 @@ def create_resource_types_for_product_blocks(conn, new):
         )
 
 
-def delete_resource_types(conn, delete):
+def delete_resource_types(conn: sa.engine.Connection, delete: List[str]) -> None:
     """Delete a resource type and it's occurrences in product blocks.
 
     Args:
@@ -330,7 +331,7 @@ def delete_resource_types(conn, delete):
     Usage:
     ```python
     obsolete_stuff = ["name_1", "name_2"]
-    delete_resource_types(conn, obsolete_stuff)
+    delete_resource_types(conn: sa.engine.Connection, obsolete_stuff)
     ```
     """
     conn.execute(
@@ -345,7 +346,7 @@ def delete_resource_types(conn, delete):
     conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type in :obsolete"), obsolete=tuple(delete))
 
 
-def create(conn, new):
+def create(conn: sa.engine.Connection, new: dict) -> None:
     """
     Call other functions in this file based on the schema.
 

@@ -67,7 +67,7 @@ requires = [
     "structlog~=20.2.0",
     "typer-cli~=0.0.11",
     "uvicorn[standard]~=0.13.3",
-    "nwa-stdlib~=1.1.2",
+    "nwa-stdlib~=1.2.0",
     "oauth2-lib~=1.0.2"
 ]
 description-file = "README.md"
@@ -96,7 +96,7 @@ test = [
     "flake8-tidy-imports",
     "isort",
     "jsonref",
-    "mypy==0.790",
+    "mypy",
     "pytest",
     "pytest-cov",
     "pytest-httpx==0.10.1",

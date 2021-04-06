@@ -10,18 +10,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
+from pathlib import Path
+from typing import Dict
 
-from typing import List
+from orchestrator.settings import app_settings
 
-from orchestrator.schedules.resume_workflows import run_resume_workflows
-from orchestrator.schedules.scheduling import SchedulingFunction
-from orchestrator.schedules.task_vacuum import vacuum_tasks
-from orchestrator.schedules.validate_products import validate_products
-from orchestrator.schedules.validate_subscriptions import validate_subscriptions
 
-ALL_SCHEDULERS: List[SchedulingFunction] = [
-    run_resume_workflows,
-    vacuum_tasks,
-    validate_subscriptions,
-    validate_products,
-]
+def generate_translations(language: str) -> Dict[str, str]:
+    translations_dir = app_settings.TRANSLATIONS_DIR or Path(__file__).parent.parent / "workflows" / "translations"
+    filename = translations_dir / f"{language}.json"
+
+    if not filename.exists():
+        return {}
+
+    with filename.open() as translation_file:
+        data = json.load(translation_file)
+        if not isinstance(data, dict):
+            return {}
+        return data

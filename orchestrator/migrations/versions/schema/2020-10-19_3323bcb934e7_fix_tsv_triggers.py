@@ -14,7 +14,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     conn = op.get_bind()
     conn.execute(
         """

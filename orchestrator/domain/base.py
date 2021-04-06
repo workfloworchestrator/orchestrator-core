@@ -485,11 +485,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         sub_instances = cls._load_instances(subscription_instance.children, status)
 
         try:
-            return cls(  # type: ignore
+            return cls(
                 subscription_instance_id=subscription_instance_id,
                 label=label,
                 **instance_values,
-                **sub_instances,
+                **sub_instances,  # type: ignore
             )
         except ValidationError:
             logger.exception(
@@ -869,7 +869,7 @@ class SubscriptionModel(DomainModel):
             end_date=end_date,
             note=note,
             **fixed_inputs,
-            **instances,
+            **instances,  # type: ignore
         )
 
     @classmethod

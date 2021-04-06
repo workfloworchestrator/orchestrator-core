@@ -14,22 +14,12 @@
 
 import sys
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Dict, Optional, cast
+from typing import Dict, Optional, cast
 
 import structlog
+from nwastdlib.ex import show_ex
 
 from orchestrator.types import JSON, ErrorDict, ErrorState
-
-# TODO Fix nwastdlib
-if TYPE_CHECKING:
-
-    def show_ex(ex: BaseException, stacklimit: Optional[int] = None) -> str:
-        ...
-
-
-else:
-    from nwastdlib.ex import show_ex
-
 
 logger = structlog.get_logger(__name__)
 
