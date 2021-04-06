@@ -16,8 +16,8 @@ from typing import List
 from orchestrator.schedules.resume_workflows import run_resume_workflows
 from orchestrator.schedules.scheduling import SchedulingFunction
 from orchestrator.schedules.task_vacuum import vacuum_tasks
-from orchestrator.schedules.validate_subscriptions import validate_subscriptions
 from orchestrator.schedules.validate_products import validate_products
+from orchestrator.schedules.validate_subscriptions import validate_subscriptions
 
 ALL_SCHEDULERS: List[SchedulingFunction] = [
     run_resume_workflows,

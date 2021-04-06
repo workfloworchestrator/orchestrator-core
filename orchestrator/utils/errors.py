@@ -17,11 +17,9 @@ from http import HTTPStatus
 from typing import Dict, Optional, cast
 
 import structlog
-
-from orchestrator.types import JSON, ErrorDict, ErrorState
-
 from nwastdlib.ex import show_ex
 
+from orchestrator.types import JSON, ErrorDict, ErrorState
 
 logger = structlog.get_logger(__name__)
 
