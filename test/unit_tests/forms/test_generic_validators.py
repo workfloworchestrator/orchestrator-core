@@ -5,9 +5,8 @@ from pydantic import ValidationError
 
 from orchestrator.db.models import ProductTable
 from orchestrator.forms import FormPage
+from orchestrator.forms.network_type_validators import BFD, MTU
 from orchestrator.forms.validators import (
-    BFD,
-    MTU,
     Accept,
     Choice,
     ContactPersonList,
@@ -185,97 +184,6 @@ def test_accept_nok():
             "msg": "value is not a valid enumeration member; permitted: 'ACCEPTED', 'INCOMPLETE'",
             "type": "type_error.enum",
         }
-    ]
-    assert expected == error_info.value.errors()
-
-
-def test_bfd_ok():
-    class Form(FormPage):
-        bfd: BFD
-
-    model = {"enabled": False, "minimum_interval": None, "multiplier": None}
-    validated_data = Form(bfd=model).dict()
-
-    expected = {"bfd": BFD(enabled=False, minimum_interval=None, multiplier=None)}
-    assert expected == validated_data
-
-    model = {"enabled": True, "minimum_interval": 600, "multiplier": 3}
-    validated_data = Form(bfd=model).dict()
-
-    expected = {"bfd": BFD(enabled=True, minimum_interval=600, multiplier=3)}
-    assert expected == validated_data
-
-
-def test_bfd_missing_values():
-    class Form(FormPage):
-        bfd: BFD
-
-    model = {"enabled": False}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
-
-    model = {"enabled": True, "multiplier": 4}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
-
-    model = {"enabled": True, "minimum_interval": 600}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
-
-    model = {"enabled": False, "minimum_interval": 600, "multiplier": 3}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
-
-
-def test_bfd_wrong_values():
-    class Form(FormPage):
-        bfd: BFD
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 0, "multiplier": 3})
-
-    expected = [
-        {
-            "loc": ("bfd", "minimum_interval"),
-            "msg": "ensure this value is greater than or equal to 1",
-            "type": "value_error.number.not_ge",
-            "ctx": {"limit_value": 1},
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 255001, "multiplier": 3})
-
-    expected = [
-        {
-            "loc": ("bfd", "minimum_interval"),
-            "msg": "ensure this value is less than or equal to 255000",
-            "type": "value_error.number.not_le",
-            "ctx": {"limit_value": 255000},
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 600, "multiplier": 0})
-
-    expected = [
-        {
-            "loc": ("bfd", "multiplier"),
-            "msg": "ensure this value is greater than or equal to 1",
-            "type": "value_error.number.not_ge",
-            "ctx": {"limit_value": 1},
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 600, "multiplier": 256})
-
-    expected = [
-        {
-            "loc": ("bfd", "multiplier"),
-            "msg": "ensure this value is less than or equal to 255",
-            "type": "value_error.number.not_le",
-            "ctx": {"limit_value": 255},
-        },
     ]
     assert expected == error_info.value.errors()
 
@@ -547,84 +455,6 @@ def test_display_only_schema():
     }
 
 
-def test_display_default():
-    some_sub_id = uuid4()
-
-    class Summary(MigrationSummary):
-        data = {"headers": ["one"]}
-
-    class Form(FormPage):
-        display_sub: DisplaySubscription = some_sub_id
-        label: Label = "bla"
-        migration_summary: Summary = "foo"
-
-    assert Form().dict() == {
-        "display_sub": some_sub_id,
-        "label": "bla",
-        "migration_summary": "foo",
-    }
-    assert Form(display_sub="").dict() == {
-        "display_sub": some_sub_id,
-        "label": "bla",
-        "migration_summary": "foo",
-    }
-
-
-def test_mtu():
-    class Form(FormPage):
-        mtu: MTU
-
-    assert Form(mtu=1500).mtu == 1500
-    assert Form(mtu=1501).mtu == 1501
-    assert Form(mtu=9000).mtu == 9000
-
-
-def test_mtu_schema():
-    class Form(FormPage):
-        mtu: MTU
-
-    assert Form.schema() == {
-        "additionalProperties": False,
-        "properties": {
-            "mtu": {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "title": "Mtu", "type": "integer"}
-        },
-        "required": ["mtu"],
-        "title": "unknown",
-        "type": "object",
-    }
-
-
-def test_mtu_nok():
-    class Form(FormPage):
-        mtu: MTU
-
-    with pytest.raises(ValidationError) as error_info:
-        assert Form(mtu=1499)
-
-    expected = [
-        {
-            "ctx": {"limit_value": 1500},
-            "loc": ("mtu",),
-            "msg": "ensure this value is greater than or equal to 1500",
-            "type": "value_error.number.not_ge",
-        }
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        assert Form(mtu=9001)
-
-    expected = [
-        {
-            "ctx": {"limit_value": 9000},
-            "loc": ("mtu",),
-            "msg": "ensure this value is less than or equal to 9000",
-            "type": "value_error.number.not_le",
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-
 def test_organisation_id_schema():
     class Form(FormPage):
         org_id: OrganisationId
@@ -754,3 +584,172 @@ def test_list_of_two():
         "type": "object",
     }
     assert expected == Form.schema()
+
+
+def test_bfd_ok():
+    class Form(FormPage):
+        bfd: BFD
+
+    model = {"enabled": False, "minimum_interval": None, "multiplier": None}
+    validated_data = Form(bfd=model).dict()
+
+    expected = {"bfd": BFD(enabled=False, minimum_interval=None, multiplier=None)}
+    assert expected == validated_data
+
+    model = {"enabled": True, "minimum_interval": 600, "multiplier": 3}
+    validated_data = Form(bfd=model).dict()
+
+    expected = {"bfd": BFD(enabled=True, minimum_interval=600, multiplier=3)}
+    assert expected == validated_data
+
+
+def test_bfd_missing_values():
+    class Form(FormPage):
+        bfd: BFD
+
+    model = {"enabled": False}
+    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
+
+    model = {"enabled": True, "multiplier": 4}
+    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
+
+    model = {"enabled": True, "minimum_interval": 600}
+    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
+
+    model = {"enabled": False, "minimum_interval": 600, "multiplier": 3}
+    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
+
+
+def test_bfd_wrong_values():
+    class Form(FormPage):
+        bfd: BFD
+
+    with pytest.raises(ValidationError) as error_info:
+        Form(bfd={"enabled": True, "minimum_interval": 0, "multiplier": 3})
+
+    expected = [
+        {
+            "loc": ("bfd", "minimum_interval"),
+            "msg": "ensure this value is greater than or equal to 1",
+            "type": "value_error.number.not_ge",
+            "ctx": {"limit_value": 1},
+        },
+    ]
+    assert expected == error_info.value.errors()
+
+    with pytest.raises(ValidationError) as error_info:
+        Form(bfd={"enabled": True, "minimum_interval": 255001, "multiplier": 3})
+
+    expected = [
+        {
+            "loc": ("bfd", "minimum_interval"),
+            "msg": "ensure this value is less than or equal to 255000",
+            "type": "value_error.number.not_le",
+            "ctx": {"limit_value": 255000},
+        },
+    ]
+    assert expected == error_info.value.errors()
+
+    with pytest.raises(ValidationError) as error_info:
+        Form(bfd={"enabled": True, "minimum_interval": 600, "multiplier": 0})
+
+    expected = [
+        {
+            "loc": ("bfd", "multiplier"),
+            "msg": "ensure this value is greater than or equal to 1",
+            "type": "value_error.number.not_ge",
+            "ctx": {"limit_value": 1},
+        },
+    ]
+    assert expected == error_info.value.errors()
+
+    with pytest.raises(ValidationError) as error_info:
+        Form(bfd={"enabled": True, "minimum_interval": 600, "multiplier": 256})
+
+    expected = [
+        {
+            "loc": ("bfd", "multiplier"),
+            "msg": "ensure this value is less than or equal to 255",
+            "type": "value_error.number.not_le",
+            "ctx": {"limit_value": 255},
+        },
+    ]
+    assert expected == error_info.value.errors()
+
+
+def test_display_default():
+    some_sub_id = uuid4()
+
+    class Summary(MigrationSummary):
+        data = {"headers": ["one"]}
+
+    class Form(FormPage):
+        display_sub: DisplaySubscription = some_sub_id
+        label: Label = "bla"
+        migration_summary: Summary = "foo"
+
+    assert Form().dict() == {
+        "display_sub": some_sub_id,
+        "label": "bla",
+        "migration_summary": "foo",
+    }
+    assert Form(display_sub="").dict() == {
+        "display_sub": some_sub_id,
+        "label": "bla",
+        "migration_summary": "foo",
+    }
+
+
+def test_mtu():
+    class Form(FormPage):
+        mtu: MTU
+
+    assert Form(mtu=1500).mtu == 1500
+    assert Form(mtu=1501).mtu == 1501
+    assert Form(mtu=9000).mtu == 9000
+
+
+def test_mtu_schema():
+    class Form(FormPage):
+        mtu: MTU
+
+    assert Form.schema() == {
+        "additionalProperties": False,
+        "properties": {
+            "mtu": {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "title": "Mtu", "type": "integer"}
+        },
+        "required": ["mtu"],
+        "title": "unknown",
+        "type": "object",
+    }
+
+
+def test_mtu_nok():
+    class Form(FormPage):
+        mtu: MTU
+
+    with pytest.raises(ValidationError) as error_info:
+        assert Form(mtu=1499)
+
+    expected = [
+        {
+            "ctx": {"limit_value": 1500},
+            "loc": ("mtu",),
+            "msg": "ensure this value is greater than or equal to 1500",
+            "type": "value_error.number.not_ge",
+        }
+    ]
+    assert expected == error_info.value.errors()
+
+    with pytest.raises(ValidationError) as error_info:
+        assert Form(mtu=9001)
+
+    expected = [
+        {
+            "ctx": {"limit_value": 9000},
+            "loc": ("mtu",),
+            "msg": "ensure this value is less than or equal to 9000",
+            "type": "value_error.number.not_le",
+        },
+    ]
+    assert expected == error_info.value.errors()

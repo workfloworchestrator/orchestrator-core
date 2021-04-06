@@ -31,8 +31,6 @@ from sqlalchemy import (
     Table,
     Text,
     TypeDecorator,
-    and_,
-    select,
     text,
 )
 from sqlalchemy.dialects import postgresql as pg
@@ -40,11 +38,10 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import backref, column_property, deferred, object_session, relationship
+from sqlalchemy.orm import backref, deferred, object_session, relationship
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
-from orchestrator.config import PORT_MODE
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
 from orchestrator.targets import Target
@@ -468,30 +465,6 @@ class SubscriptionTable(BaseModel):
         "SubscriptionCustomerDescriptionTable", lazy="select", cascade="all, delete-orphan", passive_deletes=True
     )
     processes = relationship("ProcessSubscriptionTable", lazy=True)
-
-    name = column_property(
-        select([ProductTable.name]).where(ProductTable.product_id == product_id).correlate_except(ProductTable),
-        deferred=True,
-    )
-    tag = column_property(
-        select([ProductTable.tag]).where(ProductTable.product_id == product_id).correlate_except(ProductTable),
-        deferred=True,
-    )
-
-    port_mode = column_property(
-        select(
-            [SubscriptionInstanceValueTable.value],
-            and_(
-                SubscriptionInstanceTable.subscription_id == subscription_id,
-                SubscriptionInstanceValueTable.subscription_instance_id
-                == SubscriptionInstanceTable.subscription_instance_id,
-                SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
-            ),
-        )
-        .where(ResourceTypeTable.resource_type == PORT_MODE)
-        .correlate_except(SubscriptionInstanceValueTable, SubscriptionInstanceTable, ResourceTypeTable),
-        deferred=True,
-    )
 
     @staticmethod
     def find_by_product_tag(tag: str) -> SearchQuery:

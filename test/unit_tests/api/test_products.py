@@ -3,7 +3,6 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
 from orchestrator.db import (
     FixedInputTable,
     ProductBlockTable,
@@ -15,6 +14,7 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.utils.json import json_dumps
+from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
 
 PRODUCT_ID = uuid4()
 MSP_PRODUCT_ID = uuid4()
@@ -212,7 +212,7 @@ def test_delete_with_subscriptions(seed, test_client):
     response = test_client.delete(f"/api/products/{PRODUCT_ID}")
 
     assert HTTPStatus.BAD_REQUEST == response.status_code
-    assert f"Product {PRODUCT_ID} is used in Subscriptions: LightPath" == response.json()["detail"]
+    assert f"Product {PRODUCT_ID} is used in Subscriptions: desc" == response.json()["detail"]
 
 
 def test_tags_all(test_client):

@@ -44,6 +44,7 @@ class WrappedDatabase:
 
     def update(self, wrappee: Database) -> None:
         self.wrapped_database = wrappee
+        logger.warning("Database object configured, all methods referencing `db` should work.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_database, Database):
