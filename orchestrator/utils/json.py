@@ -78,7 +78,7 @@ decoding functions differently then `default` and `object_hook` is that they are
 from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
-from ipaddress import _BaseNetwork
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Any, Dict, List, Tuple, Union
 from uuid import UUID
 
@@ -116,7 +116,12 @@ def to_serializable(o: Any) -> Any:
     """
     if isinstance(o, UUID):
         return str(o)
-    if isinstance(o, _BaseNetwork):
+    if (
+        isinstance(o, IPv4Address)
+        or isinstance(o, IPv6Address)
+        or isinstance(o, IPv4Network)
+        or isinstance(o, IPv6Network)
+    ):
         return str(o)
     if isinstance(o, datetime):
         return isoformat(o)
