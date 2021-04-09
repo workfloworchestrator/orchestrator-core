@@ -422,9 +422,10 @@ def create(conn: sa.engine.Connection, new: dict) -> None:
     """
     resources = new.get("resources", {})
     product_block_uuids = {}
+    product_uuids = {}
 
     if "product_blocks" in new:
-        for product_block_name, product_block in new["product_blocks"].items():
+        for product_block_name, product_block in new.get("product_blocks", {}).items():
             # Move resources into one dict
             if "resources" in product_block:
                 res_dict = {product_block_name: product_block["resources"]}
@@ -433,7 +434,7 @@ def create(conn: sa.engine.Connection, new: dict) -> None:
         product_block_uuids = create_product_blocks(conn, new["product_blocks"])
 
     if "products" in new:
-        for product in new.get("product_blocks", {}).values():
+        for product_name, product in new.get("products", {}).items():
             if "product_blocks" in product:
                 if "product_block_ids" not in product:
                     product["product_block_ids"] = []
@@ -443,13 +444,14 @@ def create(conn: sa.engine.Connection, new: dict) -> None:
                     except KeyError:
                         try:
                             product["product_block_ids"].append(get_product_block_id_by_name(conn, product_block_name))
-                        except Exception:
+                        except:
                             raise ValueError(f"{product_block_name} is not a valid product block.")
                 del product["product_blocks"]
-        create_products(conn, new["products"])
-
+        product_uuids = create_products(conn, new["products"])
+    
     if resources:
         create_resource_types_for_product_blocks(conn, resources)
-
+    
     if "workflows" in new:
         create_workflows(conn, new["workflows"])
+
