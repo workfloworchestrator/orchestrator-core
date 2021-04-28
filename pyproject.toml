@@ -62,13 +62,13 @@ requires = [
     "ruamel.yaml~=0.16.12",
     "schedule~=1.0.0",
     "sentry-sdk",
-    "SQLAlchemy~=1.3.23",
+    "SQLAlchemy~=1.3.24",
     "SQLAlchemy-Searchable~=1.2.0",
     "structlog~=20.2.0",
     "typer-cli~=0.0.11",
     "uvicorn[standard]~=0.13.3",
     "nwa-stdlib~=1.2.0",
-    "oauth2-lib~=1.0.3"
+    "oauth2-lib~=1.0.4"
 ]
 description-file = "README.md"
 requires-python = ">=3.6,<3.9"
