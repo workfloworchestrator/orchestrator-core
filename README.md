@@ -17,7 +17,7 @@ pip install orchestrator-core
 #### Step 2:
 Create a postgres database:
 ```bash
-createuser -s -P nwa
+createuser -sP nwa
 createdb orchestrator-core -O nwa
 ```
 
@@ -66,7 +66,7 @@ flit install --deps develop --symlink
 Create a database
 
 ```bash
-createuser -s -P nwa
+createuser -sP nwa
 createdb orchestrator-core-test -O nwa
 ```
 
