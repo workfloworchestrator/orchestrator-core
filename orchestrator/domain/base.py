@@ -23,6 +23,7 @@ from more_itertools import flatten, only
 from pydantic import BaseModel, Field, ValidationError
 from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
+from pydantic.typing import get_args, get_origin
 from sqlalchemy import and_
 from sqlalchemy.orm import selectinload
 
@@ -49,8 +50,8 @@ def _is_constrained_list_type(type: Type) -> bool:
     except Exception:
 
         # Strip generic arguments, it still might be a subclass
-        if hasattr(type, "__origin__"):
-            return _is_constrained_list_type(type.__origin__)
+        if get_origin(type):
+            return _is_constrained_list_type(get_origin(type))
         else:
             return False
 
@@ -91,7 +92,7 @@ class DomainModel(BaseModel):
         # Check if child subscription instance models conform to the same lifecycle
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
-                product_block_field_type = product_block_field_type.__args__[0]
+                product_block_field_type = get_args(product_block_field_type)[0]
 
             if lifecycle:
                 for lifecycle_status in lifecycle:
@@ -149,7 +150,7 @@ class DomainModel(BaseModel):
 
             if is_list_type(product_block_field_type):
                 if _is_constrained_list_type(product_block_field_type):
-                    product_block_model = product_block_field_type.__args__[0]
+                    product_block_model = get_args(product_block_field_type)[0]
                     default_value = product_block_field_type()
                     # if constrainedlist has minimum, return that minimum else empty list
                     if product_block_field_type.min_items:
@@ -232,7 +233,7 @@ class DomainModel(BaseModel):
                 else:
                     product_block_model_list = instances[product_block_field_name]
 
-                product_block_model = product_block_field_type.__args__[0]
+                product_block_model = get_args(product_block_field_type)[0]
                 instance_list: List[SubscriptionInstanceTable] = list(
                     filter(
                         filter_func, flatten(grouped_instances.get(name, []) for name in product_block_model.__names__)
@@ -247,7 +248,7 @@ class DomainModel(BaseModel):
             else:
                 product_block_model = product_block_field_type
                 if is_optional_type(product_block_field_type):
-                    product_block_model = product_block_model.__args__[0]
+                    product_block_model = get_args(product_block_model)[0]
 
                 instance = only(
                     list(
@@ -426,19 +427,19 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         """
         instance_values_dict: State = {}
-        list_field_names = []
+        list_field_names = set()
 
         # Set default values
         for field_name, field_type in cls._non_product_block_fields_.items():
             # Ensure that empty lists are handled OK
             if is_list_type(field_type):
                 instance_values_dict[field_name] = []
-                list_field_names.append(field_name)
+                list_field_names.add(field_name)
 
         for siv in instance_values:
             # check the type of the siv in the instance and act accordingly: only lists and scalar values supported
             resource_type_name = siv.resource_type.resource_type
-            if is_list_type(cls._non_product_block_fields_[resource_type_name]):
+            if resource_type_name in list_field_names:
                 instance_values_dict[resource_type_name].append(siv.value)
             else:
                 instance_values_dict[resource_type_name] = siv.value
@@ -760,7 +761,7 @@ class SubscriptionModel(DomainModel):
             product_blocks_in_model = []
             for product_block_field_type in cls._product_block_fields_.values():
                 if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
-                    product_block_model = product_block_field_type.__args__[0]
+                    product_block_model = get_args(product_block_field_type)[0]
                 else:
                     product_block_model = product_block_field_type
 
@@ -1003,12 +1004,8 @@ class SubscriptionInstanceList(ConstrainedList, List[SI]):
         # This makes a lot of assuptions about the internals of `typing`
         if "__orig_bases__" in cls.__dict__ and cls.__dict__["__orig_bases__"]:
             generic_base_cls = cls.__dict__["__orig_bases__"][0]
-            if (
-                not hasattr(generic_base_cls, "item_type")
-                and hasattr(generic_base_cls, "__args__")
-                and generic_base_cls.__args__
-            ):
-                cls.item_type = generic_base_cls.__args__[0]
+            if not hasattr(generic_base_cls, "item_type") and get_args(generic_base_cls):
+                cls.item_type = get_args(generic_base_cls)[0]
 
         # Make sure __args__ is set
         cls.__args__ = (cls.item_type,)

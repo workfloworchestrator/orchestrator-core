@@ -17,6 +17,8 @@ from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 from uuid import UUID
 
+from pydantic.typing import get_args
+
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import (
     FormGenerator,
@@ -142,9 +144,7 @@ def _build_arguments(func: Union[StepFunc, InputStepFunc], state: State) -> List
     Domain models are retrieved from the DB (after `subscription_id` lookup in the state). Everything else is
     retrieved from the state.
 
-    One exception: if a domain model is requested, but no key (variable name) is found for it in the state, it is
-    interpreted as a request to instantiate it on behalf of the step function. To do so it does lookup `product` and
-    `customer` values (both UUIDs) in the state.
+    For domain models only ``Optional`` and ``List`` are supported as container types. Union, Dict and others are not supported
 
     Args:
         func: step function to inspect for requested arguments
@@ -191,15 +191,15 @@ def _build_arguments(func: Union[StepFunc, InputStepFunc], state: State) -> List
                 subscription_ids = map(_get_sub_id, state.get(name, []))
                 subscriptions = [
                     # Actual type is first argument from list type
-                    param.annotation.__args__[0].from_subscription(subscription_id)
+                    get_args(param.annotation)[0].from_subscription(subscription_id)
                     for subscription_id in subscription_ids
                 ]
                 arguments.append(subscriptions)
             elif is_optional_type(param.annotation, SubscriptionModel):
                 subscription_id = _get_sub_id(state.get(name))
                 if subscription_id:
-                    # Actual type is first argument from union type
-                    sub_mod = param.annotation.__args__[0].from_subscription(subscription_id)
+                    # Actual type is first argument from optional type
+                    sub_mod = get_args(param.annotation)[0].from_subscription(subscription_id)
                     arguments.append(sub_mod)
                 else:
                     arguments.append(None)
@@ -245,7 +245,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     and passed as values to the step function. The dict `new_state` returned by the step function will be merged with
     that of the original `state` dict and returned as the final result.
 
-    It knows how to deal with Optional parameters. Eg, given::
+    It knows how to deal with parameters that have a default. Eg, given::
 
         @inject_args
         def do_stuff_with_saps(subscription_id: UUID, sap1: Dict, sap2: Optional[Dict] = None) -> State:
@@ -283,6 +283,8 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     domain model of the given type. For that to work correctly the keys `product` and `organisation` need to be
     present in the state. This will not work for more than one domain model. Eg. you can't request two domain
     models to be created as we will not know to which of the two domain models `product` is applicable to.
+
+    Also supported is wrapping a domain model in ``Optional`` or ``List``. Other types are not supported.
 
     Args:
         func: a step function with parameters (that should be keys into the state dict, except for optional ones)

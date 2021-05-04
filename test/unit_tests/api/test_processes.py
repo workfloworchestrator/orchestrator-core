@@ -37,7 +37,7 @@ def long_running_workflow():
 
     @workflow("Long Running Workflow")
     def long_running_workflow_py():
-        return init >> long_running_step >> done
+        return init >> long_running_step >> long_running_step >> done
 
     with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
 
@@ -143,23 +143,29 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert response.json()["global_status"] == "PAUSED"
 
     response = test_client.get(f"api/processes/{pid}")
-    assert len(response.json()["steps"]) == 3
+    assert len(response.json()["steps"]) == 4
     assert response.json()["current_state"]["done"] is True
     # assume ordered steplist
-    assert response.json()["steps"][2]["status"] == "pending"
+    assert response.json()["steps"][3]["status"] == "pending"
 
     response = test_client.put("/api/settings/status", json={"global_lock": False})
+
+    # Make sure it started again
+    time.sleep(1)
+
     assert response.json()["global_lock"] is False
     assert response.json()["running_processes"] == 1
     assert response.json()["global_status"] == "RUNNING"
 
-    # Let it finish
+    # Let it finish after second lock step
+    with test_condition:
+        test_condition.notify_all()
     time.sleep(1)
 
     response = test_client.get(f"api/processes/{pid}")
     assert HTTPStatus.OK == response.status_code
     # assume ordered steplist
-    assert response.json()["steps"][2]["status"] == "complete"
+    assert response.json()["steps"][3]["status"] == "complete"
 
     app_settings.TESTING = True
 

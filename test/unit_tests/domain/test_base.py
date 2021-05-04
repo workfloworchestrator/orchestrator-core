@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError, conlist
+from pydantic import Field, ValidationError, conlist
 from sqlalchemy.orm.exc import NoResultFound
 
 from orchestrator.db import (
@@ -21,6 +21,7 @@ from orchestrator.types import SubscriptionLifecycle
 
 @pytest.fixture
 def test_product():
+    resource_type_list = ResourceTypeTable(resource_type="list_field", description="")
     resource_type_int = ResourceTypeTable(resource_type="int_field", description="")
     resource_type_str = ResourceTypeTable(resource_type="str_field", description="")
     product_block = ProductBlockTable(name="BlockForTest", description="Test Block", tag="TEST", status="active")
@@ -31,7 +32,7 @@ def test_product():
         name="TestProduct", description="Test ProductTable", product_type="Test", tag="TEST", status="active"
     )
 
-    product_block.resource_types = [resource_type_int, resource_type_str]
+    product_block.resource_types = [resource_type_int, resource_type_str, resource_type_list]
     product_sub_block.resource_types = [resource_type_int, resource_type_str]
     product.product_blocks = [product_block, product_sub_block]
 
@@ -64,21 +65,27 @@ def test_product_block(test_product_sub_block):
 
     class BlockForTestInactive(ProductBlockModel, product_block_name="BlockForTest"):
         sub_block: SubBlockForTestInactive
-        sub_block_2: SubBlockForTestInactive
+        sub_block_2: Optional[SubBlockForTestInactive] = None
+        sub_block_list: List[SubBlockForTestInactive] = []
         int_field: Optional[int] = None
         str_field: Optional[str] = None
+        list_field: List[int] = Field(default_factory=list)
 
     class BlockForTestProvisioning(BlockForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         sub_block: SubBlockForTestProvisioning
         sub_block_2: SubBlockForTestProvisioning
+        sub_block_list: List[SubBlockForTestProvisioning]
         int_field: int
         str_field: Optional[str] = None
+        list_field: List[int]
 
     class BlockForTest(BlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockForTest
         sub_block_2: SubBlockForTest
+        sub_block_list: List[SubBlockForTest]
         int_field: int
         str_field: str
+        list_field: List[int]
 
     return BlockForTestInactive, BlockForTestProvisioning, BlockForTest
 
@@ -169,6 +176,7 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
         block=BlockForTest.new(
             int_field=3,
             str_field="",
+            list_field=[1],
             sub_block=SubBlockForTest.new(int_field=3, str_field=""),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -190,6 +198,7 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
         block=BlockForTest.new(
             int_field=3,
             str_field="",
+            list_field=[1],
             sub_block=SubBlockForTest.new(int_field=3, str_field=""),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -211,6 +220,7 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
             note=None,
             block=BlockForTestProvisioning.new(
                 int_field=3,
+                list_field=[1],
                 sub_block=SubBlockForTestProvisioning.new(int_field=3),
                 sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
             ),
@@ -229,6 +239,7 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
         note=None,
         block=BlockForTestProvisioning.new(
             int_field=3,
+            list_field=[1],
             sub_block=SubBlockForTestProvisioning.new(int_field=3),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -256,6 +267,7 @@ def test_product_blocks_per_lifecycle(
         block=BlockForTest.new(
             int_field=3,
             str_field="",
+            list_field=[1],
             sub_block=SubBlockForTest.new(int_field=3, str_field=""),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -287,6 +299,7 @@ def test_product_blocks_per_lifecycle(
         block=BlockForTest.new(
             int_field=3,
             str_field="",
+            list_field=[1],
             sub_block=SubBlockForTest.new(int_field=3, str_field=""),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -305,6 +318,7 @@ def test_product_blocks_per_lifecycle(
         block=BlockForTest.new(
             int_field=3,
             str_field="",
+            list_field=[1],
             sub_block=SubBlockForTest.new(int_field=3, str_field=""),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -323,6 +337,7 @@ def test_product_blocks_per_lifecycle(
         block=BlockForTest.new(
             int_field=3,
             str_field="",
+            list_field=[1],
             sub_block=SubBlockForTest.new(int_field=3, str_field=""),
             sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
         ),
@@ -346,7 +361,7 @@ def test_product_blocks_per_lifecycle(
             status=SubscriptionLifecycle.ACTIVE,
         )
 
-    with pytest.raises(ValidationError, match=r"6 validation errors for ProductTypeForTest"):
+    with pytest.raises(ValidationError, match=r"5 validation errors for ProductTypeForTest"):
         ProductTypeForTest(
             product=test_product_model,
             customer_id=uuid4(),
@@ -387,7 +402,8 @@ def test_product_blocks_per_lifecycle(
         )
 
 
-def test_change_lifecycle(test_product_model, test_product_type, test_product_block):
+def test_change_lifecycle(test_product_model, test_product_type, test_product_block, test_product_sub_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
@@ -401,7 +417,7 @@ def test_change_lifecycle(test_product_model, test_product_type, test_product_bl
         end_date=None,
         note=None,
         status=SubscriptionLifecycle.INITIAL,
-        block=BlockForTestInactive.new(),
+        block=BlockForTestInactive.new(sub_block_2=SubBlockForTestInactive.new()),
     )
 
     # Does not work if constraints are not met
@@ -414,6 +430,7 @@ def test_change_lifecycle(test_product_model, test_product_type, test_product_bl
     product_type.block.int_field = 3
     product_type.block.sub_block.int_field = 3
     product_type.block.sub_block_2.int_field = 3
+    product_type.block.list_field = [1]
 
     # Does not work if constraints are not met
     with pytest.raises(ValidationError, match=r"str_field\n  none is not an allowed value"):
@@ -483,6 +500,29 @@ def test_update_lists(test_product, test_product_block):
     assert ip.dict() == ip2.dict()
 
 
+def test_update_optional(test_product, test_product_block):
+    BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
+
+    class TestListProductType(SubscriptionModel, is_base=True):
+        sap: Optional[BlockForTestInactive] = None
+
+    # Creates
+    ip = TestListProductType.from_product_id(product_id=test_product, customer_id=uuid4())
+    ip.save()
+
+    sap = BlockForTestInactive.new(int_field=3, str_field="")
+
+    # Set new sap
+    ip.sap = sap
+
+    ip.save()
+
+    ip2 = TestListProductType.from_subscription(ip.subscription_id)
+
+    # Old default saps should not be saved
+    assert ip.dict() == ip2.dict()
+
+
 def test_generic_from_subscription(test_product, test_product_type):
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
@@ -505,10 +545,13 @@ def test_label_is_saved(test_product, test_product_type):
     assert instance_in_db.label == "My label"
 
 
-def test_domain_model_attrs_saving_loading(test_product, test_product_type):
+def test_domain_model_attrs_saving_loading(test_product, test_product_type, test_product_sub_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
+    test_model.block.sub_block_2 = SubBlockForTestInactive.new()
+    test_model.block.sub_block_list = [SubBlockForTestInactive.new()]
     test_model.save()
     db.session.commit()
 
@@ -520,15 +563,21 @@ def test_domain_model_attrs_saving_loading(test_product, test_product_type):
         SubscriptionInstanceRelationTable.child_id == test_model.block.sub_block_2.subscription_instance_id
     ).one()
     assert relation.domain_model_attr == "sub_block_2"
-
+    relation = SubscriptionInstanceRelationTable.query.filter(
+        SubscriptionInstanceRelationTable.child_id == test_model.block.sub_block_list[0].subscription_instance_id
+    ).one()
+    assert relation.domain_model_attr == "sub_block_list"
     test_model_2 = ProductTypeForTestInactive.from_subscription(test_model.subscription_id)
     assert test_model == test_model_2
 
 
-def test_removal_of_domain_attrs(test_product, test_product_type):
+def test_removal_of_domain_attrs(test_product, test_product_type, test_product_sub_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
+    test_model.block.sub_block_2 = SubBlockForTestInactive.new()
+
     test_model.save()
     db.session.commit()
     relation = SubscriptionInstanceRelationTable.query.filter(
