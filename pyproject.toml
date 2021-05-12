@@ -38,7 +38,7 @@ requires = [
     "click~=7.1",
     "colorama~=0.4.4",
     "deepmerge~=0.1.0",
-    "fastapi~=0.63.0",
+    "fastapi~=0.65.1",
     "fastapi-etag~=0.2.2",
     "gunicorn~=20.0.4",
     "httptools==0.1.1",
@@ -53,7 +53,7 @@ requires = [
     "opentelemetry-instrumentation-sqlalchemy~=0.17b0",
     "opentelemetry-sdk==0.17b0",
     "psycopg2-binary~=2.8.6",
-    "pydantic[email]~=1.7.3",
+    "pydantic[email]~=1.7.4",
     "pynso-restconf~=2.1.0",
     "python-rapidjson==1.0",
     "pytz",
@@ -66,7 +66,7 @@ requires = [
     "SQLAlchemy-Searchable~=1.2.0",
     "structlog~=20.2.0",
     "typer-cli~=0.0.11",
-    "uvicorn[standard]~=0.13.3",
+    "uvicorn[standard]~=0.13.4",
     "nwa-stdlib~=1.2.0",
     "oauth2-lib~=1.0.5"
 ]
