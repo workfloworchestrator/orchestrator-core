@@ -44,6 +44,7 @@ requires = [
     "httptools==0.1.1",
     "more-itertools~=8.7.0",
     "itsdangerous~=1.1.0",
+    "Jinja2~=2.11.3",
     "opentelemetry-api~=0.17b0",
     "opentelemetry-exporter-jaeger~=0.17b0",
     "opentelemetry-instrumentation-fastapi~=0.17b0",
