@@ -63,7 +63,7 @@ requires = [
     "ruamel.yaml~=0.16.12",
     "schedule~=1.0.0",
     "sentry-sdk",
-    "SQLAlchemy~=1.3.24",
+    "SQLAlchemy~=1.4.15",
     "SQLAlchemy-Searchable~=1.2.0",
     "structlog~=20.2.0",
     "typer-cli~=0.0.11",
