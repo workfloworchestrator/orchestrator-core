@@ -51,15 +51,30 @@ uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 
 ## Installation (Development)
 
-Step 1:
+You can develop on teh core in 2 ways; as a standalone project, or if you build a project that uses the pypi package
+of the core you can use a cool symlink trick to get 2 editable projects.
+
+*Step 1:*
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install flit
 ```
 
-Step 2:
+The next step depends on where you want to install the core; the most obvious choice it to install (symlink) it to
+an orchestrator project that you are building. You can point the last parameter to the python binary in the venv
+you're using for your own orchestrator project. It will automatically replace the pypi dep with a symlink to
+the development version of the core and update/downgrade al required packages in your own ochestrator project.
+
+But if you want to test your changes to the core in a standalone project, you can just provide the path to the python
+bin in the `venv` you created  in step1.
+
+*Step 2:*
 ```bash
-flit install --deps develop --symlink
+flit install --deps develop --symlink --python /path/to/a/venv/bin/python
 ```
+
+Note: When you change requirements you can just re-execute "Step 2".
 
 ## Running tests.
 

@@ -16,9 +16,9 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from opentelemetry.exporter import jaeger
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchExportSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseSettings
 
 
@@ -72,11 +72,11 @@ app_settings = AppSettings()
 oauth2_settings = Oauth2Settings()
 
 # Tracer settings
-jaeger_exporter = jaeger.JaegerSpanExporter(
-    service_name=app_settings.SERVICE_NAME,
+jaeger_exporter = JaegerExporter(
+    # service_name=app_settings.SERVICE_NAME,
     agent_host_name=app_settings.LOGGING_HOST,
-    insecure=True,
+    # insecure=True,
 )
 
 tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(BatchExportSpanProcessor(jaeger_exporter))
+tracer_provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))
