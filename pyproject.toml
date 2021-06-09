@@ -69,7 +69,7 @@ requires = [
     "typer-cli~=0.0.11",
     "uvicorn[standard]~=0.13.4",
     "nwa-stdlib~=1.2.0",
-    "oauth2-lib~=1.0.5"
+    "oauth2-lib~=1.0.6"
 ]
 description-file = "README.md"
 requires-python = ">=3.6,<3.10"
@@ -97,13 +97,26 @@ test = [
     "flake8-tidy-imports",
     "isort",
     "jsonref",
-    "mypy",
+    "mypy==0.901",
     "pytest",
     "pytest-cov",
     "pytest-httpx==0.10.1",
     "pytest-xdist",
     "requests-mock",
-    "urllib3_mock"
+    "urllib3_mock",
+    "types-Jinja2",
+    "types-aiofiles",
+    "types-certifi",
+    "types-click",
+    "types-itsdangerous",
+    "types-orjson",
+    "types-pkg_resources",
+    "types-python-dateutil",
+    "types-pytz",
+    "types-redis",
+    "types-requests",
+    "types-toml",
+    "types-ujson"
 ]
 doc = [
     "pystache~=0.5.4",

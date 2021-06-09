@@ -128,7 +128,7 @@ class StepList(List[Step]):
     def map(self, f: Callable) -> StepList:
         return StepList(map(f, self))
 
-    @overload
+    @overload  # type: ignore
     def __getitem__(self, i: int) -> Step:
         ...
 
