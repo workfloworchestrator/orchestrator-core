@@ -60,6 +60,7 @@ requires = [
     "pydantic @ git+https://github.com/hmvp/pydantic.git@491b3c59d8f68f1cbf6ae6ba6d22b5f72219c5cb#egg=pydantic[email]",
     "python-dateutil==2.8.2",
     "python-rapidjson==1.0",
+<<<<<<< HEAD
     "pytz==2020.5",
     "regex==2020.11.13",
     "schedule==1.0.0",
@@ -70,6 +71,21 @@ requires = [
     "uvicorn[standard]==0.13.4",
     "nwa-stdlib==1.2.1",
     "oauth2-lib==1.0.10",
+=======
+    "pytz",
+    "regex~=2020.11.13",
+    "requests~=2.25.1",
+    "ruamel.yaml~=0.16.12",
+    "schedule~=1.0.0",
+    "sentry-sdk",
+    "SQLAlchemy~=1.3.24",
+    "SQLAlchemy-Searchable~=1.2.0",
+    "structlog~=20.2.0",
+    "typer-cli~=0.0.11",
+    "uvicorn[standard]~=0.13.4",
+    "nwa-stdlib~=1.2.0",
+    "oauth2-lib~=1.0.6"
+>>>>>>> 3178959 (Upgraded Mypy)
 ]
 description-file = "README.md"
 requires-python = ">=3.6,<3.10"
