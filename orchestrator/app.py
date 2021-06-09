@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 import sentry_sdk
 import structlog
@@ -48,7 +48,7 @@ logger = structlog.get_logger(__name__)
 
 
 class OrchestratorCore(FastAPI):
-    def __init__(  # type: ignore
+    def __init__(
         self,
         title: str = "The Orchestrator",
         description: str = "The orchestrator is a project that enables users to run workflows.",
@@ -58,7 +58,7 @@ class OrchestratorCore(FastAPI):
         version: str = "1.0.0",
         default_response_class: Type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             title=title,

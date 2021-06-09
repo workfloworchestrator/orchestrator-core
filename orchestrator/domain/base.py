@@ -289,13 +289,14 @@ class DomainModel(BaseModel):
         for product_block_field, product_block_field_type in self._product_block_fields_.items():
             product_block_models = getattr(self, product_block_field)
             if is_list_type(product_block_field_type):
-                saved_instances[product_block_field] = []
+                field_instance_list = []
                 for product_block_model in product_block_models:
-                    saved_instances[product_block_field].extend(  # type: ignore
+                    field_instance_list.extend(
                         product_block_model.save(
                             subscription_id=subscription_id, subscription_instances=instances, status=status
                         )
                     )
+                saved_instances[product_block_field] = field_instance_list
             elif is_optional_type(product_block_field_type) and product_block_models is None:
                 pass
             else:
@@ -476,7 +477,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         assert subscription_instance
 
         if not status:
-            status = SubscriptionLifecycle(subscription_instance.subscription.status)  # type: ignore
+            status = SubscriptionLifecycle(subscription_instance.subscription.status)
         if not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
@@ -653,8 +654,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         sub_instances = self._save_instances(subscription_id, subscription_instances, status)
 
         children: List[SubscriptionInstanceTable] = []
-        for _domain_model_attr, instances in sub_instances.items():
-            children.extend(instances)  # type: ignore
+        for instances in sub_instances.values():
+            if isinstance(instances, list):
+                children.extend(instances)
+            else:
+                children.append(instances)
         subscription_instance.children = children
 
         # Make sure the db creates the relations
@@ -860,9 +864,12 @@ class SubscriptionModel(DomainModel):
         fixed_inputs = {fi.name: fi.value for fi in product_db.fixed_inputs}
         instances = cls._init_instances()
 
+        if isinstance(customer_id, str):
+            customer_id = UUID(customer_id)
+
         return cls(
             product=product,
-            customer_id=customer_id,  # type:ignore
+            customer_id=customer_id,
             description=description,
             status=status,
             insync=insync,
@@ -913,7 +920,7 @@ class SubscriptionModel(DomainModel):
             return cls(  # type: ignore
                 product=product,
                 customer_id=subscription.customer_id,
-                subscription_id=subscription_id,  # type:ignore
+                subscription_id=subscription.subscription_id,
                 description=subscription.description,
                 status=status,
                 insync=subscription.insync,
@@ -974,8 +981,11 @@ class SubscriptionModel(DomainModel):
         new_instance_dict = self._save_instances(self.subscription_id, old_instances_dict, sub.status)
 
         saved_instances: List[SubscriptionInstanceTable] = []
-        for _key, values in new_instance_dict.items():
-            saved_instances.extend(values)  # type: ignore
+        for values in new_instance_dict.values():
+            if isinstance(values, list):
+                saved_instances.extend(values)
+            else:
+                saved_instances.append(values)
 
         sub.instances = saved_instances
 

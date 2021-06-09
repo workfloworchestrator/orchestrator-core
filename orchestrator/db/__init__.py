@@ -59,12 +59,13 @@ class WrappedDatabase:
 
 
 # You need to pass a modified AppSettings class to the OrchestratorCore class to init the database correctly
-db = cast(Database, WrappedDatabase())
+wrapped_db = WrappedDatabase()
+db = cast(Database, wrapped_db)
 
 
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
-    db.update(Database(settings.DATABASE_URI))  # type: ignore
+    wrapped_db.update(Database(settings.DATABASE_URI))
     return db
 
 

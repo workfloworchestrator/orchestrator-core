@@ -132,11 +132,11 @@ class StepList(List[Step]):
     def __getitem__(self, i: int) -> Step:
         ...
 
-    @overload  # noqa: F811
+    @overload
     def __getitem__(self, i: slice) -> StepList:
         ...
 
-    def __getitem__(self, i: Union[int, slice]) -> Union[Step, StepList]:  # noqa: F811
+    def __getitem__(self, i: Union[int, slice]) -> Union[Step, StepList]:
         retval: Union[Step, List[Step]] = super().__getitem__(i)
         if isinstance(retval, list):
             # ensure we return a StepList and not a regular list.

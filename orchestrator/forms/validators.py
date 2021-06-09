@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from types import new_class
-from typing import Any, ClassVar, Dict, Generator, List, Optional, Type, TypeVar, get_args
+from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence, Type, TypeVar, get_args
 from uuid import UUID
 
 import structlog
@@ -113,7 +113,7 @@ def remove_empty_items(v: list) -> list:
     return v
 
 
-class Accept:
+class Accept(str):
     data: ClassVar[Optional[AcceptData]] = None
 
     class Values(strEnum):
@@ -287,9 +287,10 @@ class OrganisationId(UUID):
 
 class ProductIdError(EnumMemberError):
     code = "product_id"
+    enum_values: Sequence[Any]  # Required kwarg
 
     def __str__(self) -> str:
-        permitted = ", ".join(repr(v) for v in self.enum_values)  # type: ignore
+        permitted = ", ".join(repr(v) for v in self.enum_values)
         return f"value is not a valid enumeration member; permitted: {permitted}"
 
 

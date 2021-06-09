@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Tuple, Type, TypeVar
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, TypeVar
 
 import structlog
 
@@ -51,12 +51,16 @@ def lookup_specialized_type(block: Type, lifecycle: Optional[SubscriptionLifecyc
     return specialized_block
 
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from orchestrator.domain.base import SubscriptionModel
+else:
+    SubscriptionModel = None
+T = TypeVar("T", bound=SubscriptionModel)
 
 
 def change_lifecycle(subscription: T, status: SubscriptionLifecycle) -> T:
     new_klass = lookup_specialized_type(subscription.__class__, status)
-    data = subscription.dict()  # type:ignore
+    data = subscription.dict()
 
     data["status"] = status
     if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:

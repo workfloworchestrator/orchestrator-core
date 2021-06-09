@@ -13,7 +13,6 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.utils.json import json_dumps
 from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
 
 PRODUCT_ID = uuid4()
@@ -183,7 +182,7 @@ def test_save(seed, test_client):
     from orchestrator.db import FixedInputTable
 
     fi = FixedInputTable.query.all()
-    response = test_client.post("/api/products/", data=json_dumps(body), headers={"Content_Type": "application/json"})
+    response = test_client.post("/api/products/", json=body)
     assert HTTPStatus.NO_CONTENT == response.status_code
     products = test_client.get("/api/products").json()
     assert 10 == len(products)
@@ -202,7 +201,7 @@ def test_delete(seed, test_client):
         "tag": "Port",
         "status": "active",
     }
-    test_client.post("/api/products/", data=json_dumps(body), headers={"Content_Type": "application/json"})
+    test_client.post("/api/products/", json=body)
 
     response = test_client.delete(f"/api/products/{p_id}")
     assert HTTPStatus.NO_CONTENT == response.status_code

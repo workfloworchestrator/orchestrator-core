@@ -116,7 +116,9 @@ def delete(pid: UUID) -> None:
 
 @router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
 def new_process(
-    workflow_key: str, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    workflow_key: str,
+    json_data: Optional[List[Dict[str, Any]]] = Body(...),
+    user: Optional[OIDCUserModel] = Depends(oidc_user),
 ) -> Dict[str, UUID]:
     check_global_lock()
 
