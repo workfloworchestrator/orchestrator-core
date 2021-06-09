@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 
 from orchestrator.db import ProductTable, SubscriptionCustomerDescriptionTable, SubscriptionTable, db
-from orchestrator.utils.json import json_dumps
 
 SUBSCRIPTION_ID = uuid4()
 SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID = uuid4()
@@ -48,7 +47,7 @@ def test_get_404(seed, test_client):
 
 def test_get_by_customer_and_subscription_id(seed, test_client):
     url = f"/api/subscription_customer_descriptions/customer/{CUSTOMER_ID}/subscription/{SUBSCRIPTION_ID}"
-    response = test_client.get(url, headers={"Content_Type": "application/json"})
+    response = test_client.get(url)
     assert HTTPStatus.OK == response.status_code
     assert response.json()["id"] == str(SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID)
 
@@ -59,9 +58,7 @@ def test_save(seed, test_client):
         "customer_id": uuid4(),
         "description": "Customer specific alias",
     }
-    response = test_client.post(
-        "/api/subscription_customer_descriptions/", data=json_dumps(body), headers={"Content_Type": "application/json"}
-    )
+    response = test_client.post("/api/subscription_customer_descriptions/", json=body)
     assert HTTPStatus.NO_CONTENT == response.status_code
 
     count = db.session.query(SubscriptionCustomerDescriptionTable).count()
@@ -76,9 +73,7 @@ def test_update(seed, test_client):
         "customer_id": uuid4(),
         "description": new_desc,
     }
-    response = test_client.put(
-        "/api/subscription_customer_descriptions/", data=json_dumps(body), headers={"Content_Type": "application/json"}
-    )
+    response = test_client.put("/api/subscription_customer_descriptions/", json=body)
     assert HTTPStatus.NO_CONTENT == response.status_code
 
     count = db.session.query(SubscriptionCustomerDescriptionTable).count()
@@ -89,10 +84,7 @@ def test_update(seed, test_client):
 
 
 def test_delete(seed, test_client):
-    test_client.delete(
-        f"/api/subscription_customer_descriptions/{SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID}",
-        headers={"Content_Type": "application/json"},
-    )
+    test_client.delete(f"/api/subscription_customer_descriptions/{SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID}")
 
     count = db.session.query(SubscriptionCustomerDescriptionTable).count()
     assert 0 == count
