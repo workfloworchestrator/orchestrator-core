@@ -15,7 +15,7 @@
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union, overload
 from uuid import UUID
 
 import more_itertools
@@ -39,9 +39,24 @@ from orchestrator.utils.datetime import nowtz
 logger = structlog.get_logger(__name__)
 
 
+T = TypeVar("T", bound=SubscriptionTable)
+
+
+@overload
+def get_subscription(subscription_id: Union[UUID, UUIDstr], for_update: bool = False) -> SubscriptionTable:
+    ...
+
+
+@overload
 def get_subscription(
-    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: SubscriptionTable = SubscriptionTable
-) -> SubscriptionTable:
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
+) -> T:
+    ...
+
+
+def get_subscription(
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
+) -> T:
     """Get the subscription.
 
     Args:

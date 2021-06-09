@@ -337,6 +337,7 @@ class SubscriptionInstanceTable(BaseModel):
     subscription_id = Column(
         UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True
     )
+    subscription: SubscriptionTable  # From relation backref
     product_block_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id"), nullable=False, index=True)
     product_block = relationship("ProductBlockTable", lazy="subquery")
     values = relationship(
@@ -496,4 +497,4 @@ class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
     global_lock = Column(Boolean(), default=False, nullable=False, primary_key=True)
     running_processes = Column(Integer(), default=0, nullable=False)
-    __table_args__ = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})  # type: ignore
+    __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})

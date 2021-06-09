@@ -142,7 +142,7 @@ class BaseModel(_Base):
 
     __abstract__ = True
 
-    __init__: Callable[..., _Base]  # type: ignore
+    __init__: Callable[..., None]
 
     def __repr__(self) -> str:
         inst_state: InstanceState = sa_inspect(self)

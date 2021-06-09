@@ -131,7 +131,7 @@ def _save_models(state: State) -> None:
             logger.debug("Persisting domain model by calling `save()` on it.", name=key, type=value.__class__.__name__)
             value.save()
         elif isinstance(value, list):
-            _save_models(dict(enumerate(value)))  # type:ignore
+            _save_models({f"{key}.{i}": v for i, v in enumerate(value)})
         elif isinstance(value, dict):
             # traverse entire state, depth first
             _save_models(value)
