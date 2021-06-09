@@ -1,0 +1,46 @@
+site_name: The Orchestrator Core
+site_description: An extensible workflow engine to manage customer facing resources and resource facing resources.
+site_url: https://workfloworchestrator.org/orchestrator-core
+theme:
+  name: material
+  palette:
+  - scheme: default
+    primary: teal
+    accent: amber
+    toggle:
+      icon: material/lightbulb-outline
+      name: Switch to light mode
+  - scheme: slate
+    primary: teal
+    accent: amber
+    toggle:
+      icon: material/lightbulb
+      name: Switch to dark mode
+  features:
+  - search.suggest
+  - search.highlight
+  - navigation.sections
+  - navigation.expand
+  - navigation.tracking
+  - navigation.instant
+  - navigation.indexes
+plugins:
+  - search
+  - render_swagger
+copyright: Copyright Workfloworchestrator; 2020-2021
+repo_name: workfloworchestrator/orchestrator-core
+repo_url: https://github.com/workfloworchestrator/orchestrator-core
+nav:
+  - Orchestrator Core: index.md
+  - Getting Started:
+      - getting-started/index.md
+      - getting-started/development.md
+  - Architecture:
+      - architecture/index.md
+      - Orchestration Philosofy:
+            - architecture/orchestration/index.md
+      - Application Architecture:
+          - architecture/application/index.md
+          - architecture/application/api.md
+  - Contributing:
+      - contributing/index.md

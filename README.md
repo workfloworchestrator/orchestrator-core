@@ -3,7 +3,11 @@
 [![codecov](https://codecov.io/gh/workfloworchestrator/orchestrator-core/branch/main/graph/badge.svg?token=5ANQFI2DHS)](https://codecov.io/gh/workfloworchestrator/orchestrator-core)
 [![pypi_version](https://img.shields.io/pypi/v/orchestrator-core?color=%2334D058&label=pypi%20package)](https://pypi.org/project/orchestrator-core)
 
-This is the orchestrator core repository
+<p align="center"><em>Production ready Orchestration Framework to manage product lifecyle and workflows. Easy to use, Built on top of FastAPI</em></p>
+
+
+## Documentation
+Can be found [here](https://workfloworchestrator.org/orchestrator-core/)
 
 ## Usage
 This project can be installed as follows:
@@ -63,6 +67,9 @@ Profit :)
 ```bash
 uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 ```
+
+Visit [http://127.0.0.1:8080/api/redoc](http://127.0.0.1:8080/api/redoc) to view the api documentation.
+
 
 ## Installation (Development)
 
