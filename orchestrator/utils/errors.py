@@ -67,7 +67,7 @@ class ProcessFailure(Exception):
     message: str
     details: JSON
 
-    def __init__(self, message: str, details: JSON) -> None:
+    def __init__(self, message: str, details: JSON = None) -> None:
         super().__init__(message, details)
         self.message = message
         self.details = details
