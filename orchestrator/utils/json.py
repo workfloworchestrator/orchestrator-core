@@ -156,7 +156,7 @@ def from_serializable(dct: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(v, str) and len(v) == ISO_FORMAT_STR_LEN and v[10] == "T":
             with suppress(ValueError, TypeError):
                 timestamp = datetime.fromisoformat(v)
-                assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."
+                assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."  # noqa: S101
                 dct[k] = timestamp
     return dct
 

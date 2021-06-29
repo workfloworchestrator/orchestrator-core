@@ -139,10 +139,10 @@ class OrchestratorCore(FastAPI):
             None:
 
         Examples:
-            product_to_subscription_model_mapping = {
-                "Generic Product One": GenericProductModel,
-                "Generic Product Two": GenericProductModel,
-            }
+            >>> product_to_subscription_model_mapping = { # doctest:+SKIP
+            ...     "Generic Product One": GenericProductModel,
+            ...     "Generic Product Two": GenericProductModel,
+            ... }
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
