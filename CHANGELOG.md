@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Don't add transitive subscription instance relations to parents of parents (this was unintended behaviour)
+
 ## [0.0.18] - 2021-07-09
 
 ### Added
