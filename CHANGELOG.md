@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [Unreleased]
 
+- Add support for Abstract ProductBlockModels to abstract over common properties (If multiple types of parts are similar and you dont care about the concrete type)
 - Fixed database intialisation
 - Project scaffolding
 - TLC for python 3.9

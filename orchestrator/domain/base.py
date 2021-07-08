@@ -318,11 +318,12 @@ class ProductBlockModelMeta(ModelMetaclass):
     You can find some examples in: :ref:`domain-models`
     """
 
-    __names__: List[str]
+    __names__: Set[str]
     name: str
     product_block_id: UUID
     description: str
     tag: str
+    registry: Dict[str, Type["ProductBlockModel"]] = {}
 
     def __call__(self, *args: Any, **kwargs: Any) -> B:
 
@@ -374,7 +375,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
     """
 
-    __names__: ClassVar[List[str]]
+    registry: ClassVar[Dict[str, Type["ProductBlockModel"]]]
+    __names__: ClassVar[Set[str]] = set()
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
     tag: ClassVar[str]
@@ -387,7 +389,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         cls,
         *,
         product_block_name: Optional[str] = None,
-        product_block_names: Optional[List[str]] = None,
         lifecycle: Optional[List[SubscriptionLifecycle]] = None,
         **kwargs: Any,
     ) -> None:
@@ -396,7 +397,13 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         if product_block_name is not None:
             cls.name = product_block_name
             cls.__base_type__ = cls
-            cls.__names__ = product_block_names or [cls.name]
+            ProductBlockModel.registry[cls.name] = cls
+
+            # Add ourself to any super class. That way we can match a superclass to an instance when loading
+            cls.__names__ = set(cls.name)
+            for klass in cls.__mro__:
+                if issubclass(klass, ProductBlockModel):
+                    klass.__names__.add(cls.name)
 
         if product_block_name is not None or lifecycle is not None:
             register_specialized_type(cls, lifecycle)
@@ -475,6 +482,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_instance_id = subscription_instance.subscription_instance_id
         assert subscription_instance_id
         assert subscription_instance
+
+        if not hasattr(cls, "__base_type__"):
+            cls = ProductBlockModel.registery.get(cls.name, cls)  # type:ignore
 
         if not status:
             status = SubscriptionLifecycle(subscription_instance.subscription.status)
@@ -609,11 +619,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             List of saved instances
 
         """
-        if len(self.__names__) > 1:
-            raise TypeError(
-                "You're calling save() from within one of the Generic/Base ProductTable Blocks: which are read-only by design"
-            )
-
         # Make sure we have a valid subscription instance database model
         if subscription_instances is None:
             subscription_instances = {}

@@ -69,7 +69,7 @@ requires = [
     "typer-cli~=0.0.11",
     "uvicorn[standard]~=0.13.4",
     "nwa-stdlib~=1.2.0",
-    "oauth2-lib~=1.0.6"
+    "oauth2-lib~=1.0.6",
 ]
 description-file = "README.md"
 requires-python = ">=3.6,<3.10"
@@ -116,7 +116,7 @@ test = [
     "types-redis",
     "types-requests",
     "types-toml",
-    "types-ujson"
+    "types-ujson",
 ]
 doc = [
     "pystache~=0.5.4",
@@ -126,7 +126,7 @@ doc = [
     "sphinx-rtd-theme==0.5.0",
     "sphinxcontrib-apidoc~=0.3.0",
     "sphinxcontrib-blockdiag~=2.0.0",
-    "sphinxcontrib-seqdiag~=2.0.0"
+    "sphinxcontrib-seqdiag~=2.0.0",
 ]
 dev = [
     "bumpversion",
@@ -134,16 +134,16 @@ dev = [
     "pre-commit",
     "pydocstyle==3.0.0",
     "python-dotenv",
-    "watchdog"
+    "watchdog",
 ]
 
 
 [tool.isort]
-profile="black"
+profile = "black"
 line_length = 120
 skip = ["src", "venv"]
-known_third_party=["pynso"]
-known_first_party=["migrations", "test"]
+known_third_party = ["pynso"]
+known_first_party = ["migrations", "test"]
 
 [tool.black]
 line-length = 120
