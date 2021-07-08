@@ -460,24 +460,16 @@ def test_product_blocks_per_lifecycle(
         )
 
 
-def test_change_lifecycle(test_product_model, test_product_type, test_product_block, test_product_sub_block):
+def test_change_lifecycle(test_product, test_product_type, test_product_block, test_product_sub_block):
     SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
-    product_type = ProductTypeForTestInactive(
-        product=test_product_model,
-        customer_id=uuid4(),
-        subscription_id=uuid4(),
-        insync=False,
-        description="",
-        start_date=None,
-        end_date=None,
-        note=None,
-        status=SubscriptionLifecycle.INITIAL,
-        block=BlockForTestInactive.new(sub_block_2=SubBlockForTestInactive.new()),
-        test_fixed_input=False,
+    product_type = ProductTypeForTestInactive.from_product_id(
+        test_product,
+        uuid4(),
     )
+    product_type.block = BlockForTestInactive.new(sub_block_2=SubBlockForTestInactive.new())
 
     # Does not work if constraints are not met
     with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
@@ -854,9 +846,10 @@ def test_abstract_super_block(test_product, test_product_type, test_product_bloc
 
     test_model = change_lifecycle(test_model, SubscriptionLifecycle.ACTIVE)
     test_model.save()
+    assert isinstance(test_model.block, BlockForTest)
 
     test_model = AbstractProductTypeForTest.from_subscription(test_model.subscription_id)
-    assert isinstance(test_model.block, AbstractBlockForTest)
+    assert isinstance(test_model.block, BlockForTest)
 
     test_model = ProductTypeForTest.from_subscription(test_model.subscription_id)
     assert isinstance(test_model.block, BlockForTest)
@@ -958,3 +951,72 @@ def test_diff_in_db_missing_in_db(test_product_type):
             "missing_product_blocks_in_db": {"BlockForTest"},
         }
     }
+
+
+def test_from_other_lifecycle_abstract(test_product):
+    class AbstractBlockForTestInactive(ProductBlockModel, product_block_name="BlockForTest"):
+        str_field: Optional[str] = None
+        list_field: List[int] = Field(default_factory=list)
+
+    class AbstractBlockForTestProvisioning(
+        AbstractBlockForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        str_field: Optional[str] = None
+        list_field: List[int]
+
+    class AbstractBlockForTest(AbstractBlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+        list_field: List[int]
+
+    class BlockForTestInactive(AbstractBlockForTestInactive, product_block_name="BlockForTest"):
+        str_field: Optional[str] = None
+        list_field: List[int] = Field(default_factory=list)
+        int_field: Optional[int] = None
+
+    class BlockForTestProvisioning(
+        BlockForTestInactive, AbstractBlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        str_field: Optional[str] = None
+        list_field: List[int]
+        int_field: int
+
+    class BlockForTest(BlockForTestProvisioning, AbstractBlockForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+        list_field: List[int]
+        int_field: int
+
+    block = BlockForTestInactive.new()
+    assert isinstance(block, BlockForTestInactive)
+
+    block.int_field = 1
+    block.str_field = "bla"
+    block.list_field = [1]
+
+    active_block = BlockForTest._from_other_lifecycle(block, SubscriptionLifecycle.ACTIVE)
+
+    assert isinstance(active_block, AbstractBlockForTest)
+    assert isinstance(active_block, BlockForTest)
+    assert active_block.db_model == block.db_model
+
+
+def test_from_other_lifecycle_sub(test_product, test_product_block, test_product_sub_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+    BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
+
+    block = BlockForTestInactive.new(int_field=1, str_field="bla", list_field=[1])
+    block.sub_block = SubBlockForTestInactive.new(int_field=1, str_field="bla")
+    block.sub_block_2 = SubBlockForTestInactive.new(int_field=1, str_field="bla")
+    block.sub_block_list = [SubBlockForTestInactive.new(int_field=1, str_field="bla")]
+
+    assert isinstance(block, BlockForTestInactive)
+
+    active_block = BlockForTest._from_other_lifecycle(block, SubscriptionLifecycle.ACTIVE, uuid4())
+
+    assert isinstance(active_block, BlockForTest)
+    assert isinstance(active_block.sub_block, SubBlockForTest)
+    assert isinstance(active_block.sub_block_2, SubBlockForTest)
+    assert isinstance(active_block.sub_block_list[0], SubBlockForTest)
+    assert active_block.db_model == block.db_model
+    assert active_block.sub_block.db_model == block.sub_block.db_model
+    assert active_block.sub_block_2.db_model == block.sub_block_2.db_model
+    assert active_block.sub_block_list[0].db_model == block.sub_block_list[0].db_model

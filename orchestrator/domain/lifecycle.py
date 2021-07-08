@@ -32,9 +32,6 @@ _sub_type_per_lifecycle: Dict[Tuple[Type, Optional[SubscriptionLifecycle]], Type
 
 
 def register_specialized_type(cls: Type, lifecycle: Optional[List[SubscriptionLifecycle]] = None) -> None:
-    if not cls.__base_type__:
-        return
-
     if lifecycle:
         for lifecycle_state in lifecycle:
             _sub_type_per_lifecycle[(cls.__base_type__, lifecycle_state)] = cls
@@ -43,6 +40,9 @@ def register_specialized_type(cls: Type, lifecycle: Optional[List[SubscriptionLi
 
 
 def lookup_specialized_type(block: Type, lifecycle: Optional[SubscriptionLifecycle]) -> Type:
+    if not hasattr(block, "__base_type__"):
+        raise ValueError("Cannot instantiate a class that has no __base_type__ attribute")
+
     specialized_block = _sub_type_per_lifecycle.get((block.__base_type__, lifecycle), None)
     if specialized_block is None:
         specialized_block = _sub_type_per_lifecycle.get((block.__base_type__, None), None)
@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from orchestrator.domain.base import SubscriptionModel
 else:
     SubscriptionModel = None
+    DomainModel = None
 T = TypeVar("T", bound=SubscriptionModel)
 
 
