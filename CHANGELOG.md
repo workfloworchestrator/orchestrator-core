@@ -7,9 +7,19 @@ reference the gitlab/github issue that is related to the change.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-[Unreleased]
+## [Unreleased]
+
+## [0.0.18] - 2021-07-09
+
+### Added
 
 - Add support for Abstract ProductBlockModels to abstract over common properties (If multiple types of parts are similar and you dont care about the concrete type)
+
+## [0.0.17]
+
+- TLC for python 3.9
+
+## [older versions]
+
 - Fixed database intialisation
 - Project scaffolding
-- TLC for python 3.9
