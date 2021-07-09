@@ -341,7 +341,7 @@ class ProductBlockModelMeta(ModelMetaclass):
 
 
 class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
-    """Base class for all product block models.
+    r"""Base class for all product block models.
 
     ProductTable Blocks are represented as dataclasses with pydantic runtime validation.
 
@@ -369,7 +369,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     >>> example1 = BlockInactive()  # doctest:+SKIP
 
     Create a new instance based on a dict in the state:
-    >>> example2 = BlockInactive(**state)  # doctest:+SKIP
+    >>> example2 = BlockInactive(\*\*state)  # doctest:+SKIP
 
     To retrieve a ProductBlockModel from the database.:
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
@@ -480,8 +480,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_instance = SubscriptionInstanceTable.query.get(subscription_instance_id)
         if subscription_instance:
             subscription_instance_id = subscription_instance.subscription_instance_id
-        assert subscription_instance_id
-        assert subscription_instance
+        assert subscription_instance_id  # noqa: S101
+        assert subscription_instance  # noqa: S101
 
         if not hasattr(cls, "__base_type__"):
             cls = ProductBlockModel.registery.get(cls.name, cls)  # type:ignore
@@ -527,7 +527,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         subscription_instance_values = []
         for field_name, field_type in self._non_product_block_fields_.items():
-            assert (
+            assert (  # noqa: S101
                 field_name in resource_types
             ), f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
 
@@ -641,7 +641,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         if subscription_instance is None:
             raise ValueError("A subscription_id or subscription_instance argument is required")
 
-        assert subscription_id
+        assert subscription_id  # noqa: S101 This can never fail
 
         # Everything is ok, make sure we are of the right class
         specialized_type = lookup_specialized_type(self.__class__, status)
@@ -692,7 +692,7 @@ class ProductModel(BaseModel):
 
 
 class SubscriptionModel(DomainModel):
-    """Base class for all product subscription models.
+    r"""Base class for all product subscription models.
 
     Define a subscription model:
     >>> class SubscriptionInactive(SubscriptionModel, product_type="SP"):  # doctest:+SKIP
@@ -710,7 +710,7 @@ class SubscriptionModel(DomainModel):
     >>> example1 = SubscriptionInactive.from_product_id(product_id, customer_id)  # doctest:+SKIP
 
     Create a new instance based on a dict in the state:
-    >>> example2 = SubscriptionInactive(**state)  # doctest:+SKIP
+    >>> example2 = SubscriptionInactive(\*\*state)  # doctest:+SKIP
 
     To retrieve a ProductBlockModel from the database:
     >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP

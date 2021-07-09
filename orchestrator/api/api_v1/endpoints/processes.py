@@ -341,7 +341,8 @@ def processes_filterable(
         try:
             range_start = int(_range[0])
             range_end = int(_range[1])
-            assert range_start < range_end
+            if range_start >= range_end:
+                raise ValueError("range start must be lower than end")
         except (ValueError, AssertionError):
             msg = "Invalid range parameters"
             logger.exception(msg)

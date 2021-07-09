@@ -64,7 +64,7 @@ class UniqueConstrainedList(ConstrainedList, List[T]):
                 cls.item_type = get_args(generic_base_cls)[0]
 
         # Make sure __args__ is set
-        assert hasattr(cls, "item_type"), "Missing a concrete value for generic type argument"
+        assert hasattr(cls, "item_type"), "Missing a concrete value for generic type argument"  # noqa: S101
 
         cls.__args__ = (cls.item_type,)
 

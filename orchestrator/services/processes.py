@@ -392,7 +392,8 @@ def _restore_log(steps: List[ProcessStepTable]) -> List[WFProcess]:
     for step in steps:
         process = WFProcess.from_status(step.status, step.state)
 
-        assert process
+        if not process:
+            raise ValueError(step.status)
 
         result.append(process)
     return result

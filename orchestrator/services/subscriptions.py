@@ -223,7 +223,7 @@ def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str,
 
     Args:
         subscription_id: SubscriptionTable id of the subscription
-        **attrs: Attributes that will be set
+        attrs: Attributes that will be set
 
     Returns: Subscription
 
@@ -450,17 +450,31 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         subscription: an SqlAlchemy instance of a `db.SubscriptionTable`
 
     Returns:
-        A dictionary with the following structure (reason and its related keys are only present when workflows are blocked)::
-            {
-                "reason": "Optional global reason like subscription is in use"
-                "create": [{"name": "workflow.name", "description": "workflow.description", "reason": "Optional reason why this specific workflow is blocked"}],
-                "modify": [],
-                "terminate": [],
-                "system": [],
-            }
+        A dictionary with the following structure (reason and its related keys are only present when workflows are blocked):
 
+        >>> {  # doctest:+SKIP
+        ...     "reason": "Optional global reason like subscription is in use"
+        ...     "create": [{"name": "workflow.name", "description": "workflow.description", "reason": "Optional reason why this specific workflow is blocked"}],
+        ...     "modify": [],
+        ...     "terminate": [],
+        ...     "system": [],
+        ... }
 
     """
+    {  # doctest:+SKIP
+        "reason": "Optional global reason like subscription is in use",
+        "create": [
+            {
+                "name": "workflow.name",
+                "description": "workflow.description",
+                "reason": "Optional reason why this specific workflow is blocked",
+            }
+        ],
+        "modify": [],
+        "terminate": [],
+        "system": [],
+    }
+
     default_json: Dict[str, Any] = {}
 
     if not subscription.insync:

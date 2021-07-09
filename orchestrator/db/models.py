@@ -229,7 +229,6 @@ class ProductTable(BaseModel):
 
     def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
         workflow = first_true(self.workflows, None, lambda wf: wf.name == name)
-        assert workflow
         return workflow
 
 

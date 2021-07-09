@@ -108,7 +108,8 @@ def _query_with_filters(
         try:
             range_start = int(range[0])
             range_end = int(range[1])
-            assert range_start < range_end
+            if range_start >= range_end:
+                raise ValueError("range start must be lower than end")
         except (ValueError, AssertionError):
             msg = "Invalid range parameters"
             logger.exception(msg)

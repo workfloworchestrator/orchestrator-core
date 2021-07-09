@@ -30,10 +30,9 @@ def create_subscription_for_mapping(
         product: the ProductTable to create a sub for
         mapping: the subscription_mapping belonging to that product
         values: a dictionary of keys from the sub_map and their corresponding test values
-        **kwargs:
+        kwargs:
 
     Returns: The conforming subscription.
-
     """
 
     def build_instance(name, value_mapping):
