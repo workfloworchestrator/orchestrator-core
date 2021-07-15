@@ -15,7 +15,7 @@ from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Type, TypeVar, Union
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
 from uuid import UUID, uuid4
 
 import structlog
@@ -24,7 +24,6 @@ from pydantic import BaseModel, Field, ValidationError
 from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
 from pydantic.typing import get_args, get_origin
-from sqlalchemy import and_
 from sqlalchemy.orm import selectinload
 
 from orchestrator.db import (
@@ -271,7 +270,7 @@ class DomainModel(BaseModel):
 
     def _save_instances(
         self, subscription_id: UUID, instances: Dict[UUID, SubscriptionInstanceTable], status: SubscriptionLifecycle
-    ) -> Dict[str, Union[SubscriptionInstanceTable, List[SubscriptionInstanceTable]]]:
+    ) -> Tuple[List[SubscriptionInstanceTable], Dict[str, List[SubscriptionInstanceTable]]]:
         """Save subscription instances for this domain model.
 
         When a domain model is saved to the database we need to save all child subscription instances for it.
@@ -282,29 +281,32 @@ class DomainModel(BaseModel):
             status: SubscriptionLifecycle of subscription to check if models match
 
         Returns:
-            A list with instances to save
+            A list with instances which are saved and a dict with direct children
 
         """
-        saved_instances: Dict[str, Union[SubscriptionInstanceTable, List[SubscriptionInstanceTable]]] = {}
+        saved_instances: List[SubscriptionInstanceTable] = []
+        child_instances: Dict[str, List[SubscriptionInstanceTable]] = {}
         for product_block_field, product_block_field_type in self._product_block_fields_.items():
             product_block_models = getattr(self, product_block_field)
             if is_list_type(product_block_field_type):
                 field_instance_list = []
                 for product_block_model in product_block_models:
-                    field_instance_list.extend(
-                        product_block_model.save(
-                            subscription_id=subscription_id, subscription_instances=instances, status=status
-                        )
+                    saved, child = product_block_model.save(
+                        subscription_id=subscription_id, subscription_instances=instances, status=status
                     )
-                saved_instances[product_block_field] = field_instance_list
+                    field_instance_list.append(child)
+                    saved_instances.extend(saved)
+                child_instances[product_block_field] = field_instance_list
             elif is_optional_type(product_block_field_type) and product_block_models is None:
                 pass
             else:
-                saved_instances[product_block_field] = product_block_models.save(
+                saved, child = product_block_models.save(
                     subscription_id=subscription_id, subscription_instances=instances, status=status
                 )
+                child_instances[product_block_field] = [child]
+                saved_instances.extend(saved)
 
-        return saved_instances
+        return saved_instances, child_instances
 
 
 class ProductBlockModelMeta(ModelMetaclass):
@@ -558,7 +560,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
     def _set_instance_domain_model_attrs(
         self,
-        subscription_instance_mapping: Dict[str, Union[SubscriptionInstanceTable, List[SubscriptionInstanceTable]]],
+        subscription_instance: SubscriptionInstanceTable,
+        subscription_instance_mapping: Dict[str, List[SubscriptionInstanceTable]],
     ) -> None:
         """
         Save the domain model attribute to the database.
@@ -573,31 +576,19 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             None
 
         """
+        children_relations = []
         # Set the domain_model_attrs in the database
         for domain_model_attr, instances in subscription_instance_mapping.items():
-            if isinstance(instances, list):
-                for instance in instances:
-                    relation = SubscriptionInstanceRelationTable.query.filter(
-                        and_(
-                            SubscriptionInstanceRelationTable.parent_id == self.subscription_instance_id,
-                            SubscriptionInstanceRelationTable.child_id == instance.subscription_instance_id,
-                        )
-                    ).one_or_none()
-
-                    # Skip the None case if no relation is found.
-                    if relation:
-                        relation.domain_model_attr = domain_model_attr
-            else:
-                relation = SubscriptionInstanceRelationTable.query.filter(
-                    and_(
-                        SubscriptionInstanceRelationTable.parent_id == self.subscription_instance_id,
-                        SubscriptionInstanceRelationTable.child_id == instances.subscription_instance_id,
-                    )
-                ).one_or_none()
-
-                # Some subscription instances do not have a parent, so skip the None case
-                if relation:
-                    relation.domain_model_attr = domain_model_attr
+            instance: SubscriptionInstanceTable
+            for index, instance in enumerate(instances):
+                relation = SubscriptionInstanceRelationTable(
+                    parent_id=subscription_instance.subscription_instance_id,
+                    child_id=instance.subscription_instance_id,
+                    order_id=index,
+                    domain_model_attr=domain_model_attr,
+                )
+                children_relations.append(relation)
+        subscription_instance.children_relations = children_relations
 
     def save(
         self,
@@ -605,7 +596,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         status: SubscriptionLifecycle,
         subscription_id: Optional[UUID] = None,
         subscription_instances: Optional[Dict[UUID, SubscriptionInstanceTable]] = None,
-    ) -> List[SubscriptionInstanceTable]:
+    ) -> Tuple[List[SubscriptionInstanceTable], SubscriptionInstanceTable]:
         """Save the current model instance to the database.
 
         This means saving the whole tree of subscription instances and seperately saving all instance values for this instance.
@@ -656,23 +647,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_instance.product_block, subscription_instance.values
         )
 
-        sub_instances = self._save_instances(subscription_id, subscription_instances, status)
+        sub_instances, children = self._save_instances(subscription_id, subscription_instances, status)
 
-        children: List[SubscriptionInstanceTable] = []
-        for instances in sub_instances.values():
-            if isinstance(instances, list):
-                children.extend(instances)
-            else:
-                children.append(instances)
-        subscription_instance.children = children
+        # Save the subscription instances relations.
+        self._set_instance_domain_model_attrs(subscription_instance, children)
 
-        # Make sure the db creates the relations
-        db.session.flush()
-
-        # Save the domain model attributes.
-        self._set_instance_domain_model_attrs(sub_instances)
-
-        return children + [subscription_instance]
+        return sub_instances + [subscription_instance], subscription_instance
 
 
 class ProductModel(BaseModel):
@@ -983,14 +963,7 @@ class SubscriptionModel(DomainModel):
 
         old_instances_dict = {instance.subscription_instance_id: instance for instance in sub.instances}
 
-        new_instance_dict = self._save_instances(self.subscription_id, old_instances_dict, sub.status)
-
-        saved_instances: List[SubscriptionInstanceTable] = []
-        for values in new_instance_dict.values():
-            if isinstance(values, list):
-                saved_instances.extend(values)
-            else:
-                saved_instances.append(values)
+        saved_instances, _ = self._save_instances(self.subscription_id, old_instances_dict, sub.status)
 
         sub.instances = saved_instances
 
