@@ -596,3 +596,90 @@ def test_simple_model_with_no_attrs(generic_subscription_1, generic_product_type
         SubscriptionInstanceRelationTable.query.filter(
             SubscriptionInstanceRelationTable.child_id == model.pb_1.subscription_instance_id
         ).one()
+
+
+def test_abstract_super_block(test_product, test_product_type, test_product_sub_block, test_product_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+    ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
+
+    class AbstractBlockForTestInactive(ProductBlockModel, product_block_name="BlockForTest"):
+        str_field: Optional[str] = None
+        list_field: List[int] = Field(default_factory=list)
+
+    class AbstractBlockForTestProvisioning(
+        AbstractBlockForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        str_field: Optional[str] = None
+        list_field: List[int]
+
+    class AbstractBlockForTest(AbstractBlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+        list_field: List[int]
+
+    class BlockForTestInactive(AbstractBlockForTestInactive, product_block_name="BlockForTest"):
+        str_field: Optional[str] = None
+        list_field: List[int] = Field(default_factory=list)
+        int_field: Optional[int] = None
+
+    class BlockForTestProvisioning(
+        BlockForTestInactive, AbstractBlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        str_field: Optional[str] = None
+        list_field: List[int]
+        int_field: int
+
+    class BlockForTest(BlockForTestProvisioning, AbstractBlockForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+        list_field: List[int]
+        int_field: int
+
+    class AbstractProductTypeForTestInactive(SubscriptionModel, is_base=True):
+        block: AbstractBlockForTestInactive
+
+    class AbstractProductTypeForTestProvisioning(
+        ProductTypeForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        block: AbstractBlockForTestProvisioning
+
+    class AbstractProductTypeForTest(ProductTypeForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        block: AbstractBlockForTest
+
+    class ProductTypeForTestInactive(AbstractProductTypeForTestInactive, is_base=True):
+        block: BlockForTestInactive
+
+    class ProductTypeForTestProvisioning(
+        ProductTypeForTestInactive,
+        AbstractProductTypeForTestProvisioning,
+        lifecycle=[SubscriptionLifecycle.PROVISIONING],
+    ):
+        block: BlockForTestProvisioning
+
+    class ProductTypeForTest(
+        ProductTypeForTestProvisioning, AbstractProductTypeForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        block: BlockForTest
+
+    test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
+    test_model.block = BlockForTestInactive.new()
+
+    test_model.save()
+    db.session.commit()
+
+    test_model = AbstractProductTypeForTestInactive.from_subscription(test_model.subscription_id)
+    assert isinstance(test_model.block, AbstractBlockForTestInactive)
+
+    test_model = ProductTypeForTestInactive.from_subscription(test_model.subscription_id)
+    assert isinstance(test_model.block, BlockForTestInactive)
+
+    test_model.block.int_field = 1
+    test_model.block.str_field = "bla"
+    test_model.block.list_field = [1]
+
+    test_model = change_lifecycle(test_model, SubscriptionLifecycle.ACTIVE)
+    test_model.save()
+
+    test_model = AbstractProductTypeForTest.from_subscription(test_model.subscription_id)
+    assert isinstance(test_model.block, AbstractBlockForTest)
+
+    test_model = ProductTypeForTest.from_subscription(test_model.subscription_id)
+    assert isinstance(test_model.block, BlockForTest)
