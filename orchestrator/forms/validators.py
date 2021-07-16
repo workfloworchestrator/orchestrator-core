@@ -68,7 +68,7 @@ class UniqueConstrainedList(ConstrainedList, List[T]):
 
         cls.__args__ = (cls.item_type,)
 
-    def __class_getitem__(cls, key: Any) -> Type:
+    def __class_getitem__(cls, key: Any) -> Any:
         # Some magic to make sure that subclasses of this class still work as expected
         class Inst(cls):  # type: ignore
             item_type = key
