@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.19] - 2021-07-19
+
+### Added
+
+- Work with python 3.9
+
 ### Changed
 
 - Don't add transitive subscription instance relations to parents of parents (this was unintended behaviour)
