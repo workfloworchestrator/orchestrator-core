@@ -36,9 +36,8 @@ from orchestrator.db import (
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
 from orchestrator.services.subscriptions import (
-    RELATION_RESOURCE_TYPES,
-    query_child_subscriptions_by_resource_types,
-    query_parent_subscriptions_by_resource_types,
+    query_child_subscriptions,
+    query_parent_subscriptions,
     subscription_workflows,
 )
 
@@ -133,12 +132,12 @@ def delete_subscription(subscription_id: UUID) -> None:
 
 @router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
 def parent_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_parent_subscriptions_by_resource_types(RELATION_RESOURCE_TYPES, subscription_id).all()
+    return query_parent_subscriptions(subscription_id).all()
 
 
 @router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
 def child_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_child_subscriptions_by_resource_types(RELATION_RESOURCE_TYPES, subscription_id).all()
+    return query_child_subscriptions(subscription_id).all()
 
 
 @router.get("/", response_model=List[SubscriptionSchema])
