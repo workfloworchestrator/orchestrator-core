@@ -287,6 +287,7 @@ class DomainModel(BaseModel):
                         )
                     )
                 )
+
                 if is_optional_type(product_block_field_type) and instance is None:
                     instances[product_block_field_name] = None
                 elif not is_optional_type(product_block_field_type) and instance is None:
@@ -757,14 +758,26 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_id = subscription_instance.subscription_id
 
         if subscription_instance is None and subscription_id:
-            subscription_instance = SubscriptionInstanceTable(
-                subscription_instance_id=self.subscription_instance_id,
-                subscription_id=subscription_id,
-                product_block_id=self.product_block_id,
+            instance_in_db: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(
+                self.subscription_instance_id
             )
-            db.session.add(subscription_instance)
-            db.session.flush()
-            subscription_instances[self.subscription_instance_id] = subscription_instance
+            if instance_in_db:
+                if instance_in_db.subscription_id != subscription_id:
+                    return [], instance_in_db
+                else:
+                    # We get here only if we somehow find a instance that belongs to this subscription but
+                    # was not included in `subscription_instances` whiich should be te list of all instances
+                    # for this subscription
+                    raise ValueError("Should never happen")
+            else:
+                subscription_instance = SubscriptionInstanceTable(
+                    subscription_instance_id=self.subscription_instance_id,
+                    subscription_id=subscription_id,
+                    product_block_id=self.product_block_id,
+                )
+                db.session.add(subscription_instance)
+                db.session.flush()
+                subscription_instances[self.subscription_instance_id] = subscription_instance
 
         if subscription_instance is None:
             raise ValueError("A subscription_id or subscription_instance argument is required")
@@ -790,6 +803,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         self._set_instance_domain_model_attrs(subscription_instance, children)
 
         return sub_instances + [subscription_instance], subscription_instance
+
+    @property
+    def subscription(self) -> SubscriptionTable:
+        sub_instance = SubscriptionInstanceTable.query.get(self.subscription_instance_id)
+
+        assert sub_instance and sub_instance.subscription  # noqa: S101
+
+        return sub_instance.subscription
 
 
 class ProductModel(BaseModel):
