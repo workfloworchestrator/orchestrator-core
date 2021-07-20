@@ -19,8 +19,7 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Ty
 from uuid import UUID, uuid4
 
 import structlog
-from more_itertools import flatten, only
-from more_itertools.more import first
+from more_itertools import first, flatten, one, only
 from pydantic import BaseModel, Field, ValidationError
 from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
@@ -104,10 +103,7 @@ class DomainModel(BaseModel):
             )
 
         # Check if child subscription instance models conform to the same lifecycle
-        for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
-            if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
-                product_block_field_type = get_args(product_block_field_type)[0]
-
+        for product_block_field_name, product_block_field_type in cls._get_child_product_block_types().items():
             if lifecycle:
                 for lifecycle_status in lifecycle:
                     specialized_type = lookup_specialized_type(product_block_field_type, lifecycle_status)
@@ -115,6 +111,20 @@ class DomainModel(BaseModel):
                         raise AssertionError(
                             f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {product_block_field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
                         )
+
+    @classmethod
+    def _get_child_product_block_types(cls) -> Dict[str, Type["ProductBlockModel"]]:
+        """Return all the product block model types.
+
+        This strips any List[..] or Optional[...] types.
+        """
+        result = {}
+        for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
+            if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
+                product_block_field_type = first(get_args(product_block_field_type))
+
+            result[product_block_field_name] = product_block_field_type
+        return result
 
     @classmethod
     def _find_special_fields(cls: Type) -> None:
@@ -165,7 +175,7 @@ class DomainModel(BaseModel):
 
             if is_list_type(product_block_field_type):
                 if _is_constrained_list_type(product_block_field_type):
-                    product_block_model = get_args(product_block_field_type)[0]
+                    product_block_model = one(get_args(product_block_field_type))
                     default_value = product_block_field_type()
                     # if constrainedlist has minimum, return that minimum else empty list
                     if product_block_field_type.min_items:
@@ -252,7 +262,7 @@ class DomainModel(BaseModel):
                     else:
                         product_block_model_list = []
 
-                product_block_model = get_args(product_block_field_type)[0]
+                product_block_model = one(get_args(product_block_field_type))
                 instance_list: List[SubscriptionInstanceTable] = list(
                     filter(
                         filter_func, flatten(grouped_instances.get(name, []) for name in product_block_model.__names__)
@@ -267,7 +277,7 @@ class DomainModel(BaseModel):
             else:
                 product_block_model = product_block_field_type
                 if is_optional_type(product_block_field_type):
-                    product_block_model = get_args(product_block_model)[0]
+                    product_block_model = first(get_args(product_block_model))
 
                 instance = only(
                     list(
@@ -296,11 +306,11 @@ class DomainModel(BaseModel):
             if is_list_type(field_type):
                 data[field_name] = []
                 for item in getattr(other, field_name):
-                    data[field_name].append(get_args(field_type)[0]._from_other_lifecycle(item, status))
+                    data[field_name].append(one(get_args(field_type))._from_other_lifecycle(item, status))
 
             else:
                 if is_optional_type(field_type):
-                    field_type = get_args(field_type)[0]
+                    field_type = first(get_args(field_type))
 
                 data[field_name] = field_type._from_other_lifecycle(getattr(other, field_name), status)
         return data
@@ -457,6 +467,64 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                     klass.__names__.add(cls.name)
 
         cls.__doc__ = make_product_block_docstring(cls, lifecycle)
+
+    @classmethod
+    def diff_product_block_in_database(cls) -> Dict[str, Any]:
+        """Return any differences between the attrs defined on the domain model and those on product blocks in the database.
+
+        This is only needed to check if the domain model and database models match which would be done during testing...
+        """
+        if not cls.name:
+            # This is a superclass we can't check that
+            return {}
+
+        product_block_db = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one_or_none()
+
+        product_blocks_in_db = {pb.name for pb in product_block_db.children} if product_block_db else set()
+        product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
+
+        missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
+        missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
+
+        resource_types_model = set(cls._non_product_block_fields_)
+        resource_types_db = {rt.resource_type for rt in product_block_db.resource_types} if product_block_db else set()
+
+        missing_resource_types_in_db = resource_types_model - resource_types_db
+        missing_resource_types_in_model = resource_types_db - resource_types_model
+
+        logger.debug(
+            "ProductBlockTable blocks diff",
+            product_block_db=product_block_db.name if product_block_db else None,
+            product_blocks_in_db=product_blocks_in_db,
+            product_blocks_in_model=product_blocks_in_model,
+            resource_types_db=resource_types_db,
+            resource_types_model=resource_types_model,
+            missing_product_blocks_in_db=missing_product_blocks_in_db,
+            missing_product_blocks_in_model=missing_product_blocks_in_model,
+            missing_resource_types_in_db=missing_resource_types_in_db,
+            missing_resource_types_in_model=missing_resource_types_in_model,
+        )
+
+        missing_data = {}
+        for product_block_in_model in product_blocks_types_in_model:
+            missing_data.update(product_block_in_model.diff_product_block_in_database())
+
+        diff = {
+            k: v
+            for k, v in {
+                "missing_product_blocks_in_db": missing_product_blocks_in_db,
+                "missing_product_blocks_in_model": missing_product_blocks_in_model,
+                "missing_resource_types_in_db": missing_resource_types_in_db,
+                "missing_resource_types_in_model": missing_resource_types_in_model,
+            }.items()
+            if v
+        }
+
+        if diff:
+            missing_data[cls.name] = diff
+
+        return missing_data
 
     @classmethod
     def new(cls: Type[B], **kwargs: Any) -> B:
@@ -803,90 +871,54 @@ class SubscriptionModel(DomainModel):
         This is only needed to check if the domain model and database models match which would be done during testing...
         """
         product_db = ProductTable.query.get(product_id)
-        fixed_inputs_db = {fi.name for fi in product_db.fixed_inputs}
-        fixed_inputs_model = set(cls._non_product_block_fields_.keys())
-        missing_fixed_inputs_in_db = fixed_inputs_model - fixed_inputs_db
-        missing_fixed_inputs_in_model = fixed_inputs_db - fixed_inputs_model
+
+        product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
+        product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
+
+        missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
+        missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
+
+        fixed_inputs_model = set(cls._non_product_block_fields_)
+        fixed_inputs_in_db = {fi.name for fi in product_db.fixed_inputs} if product_db else set()
+
+        missing_fixed_inputs_in_db = fixed_inputs_model - fixed_inputs_in_db
+        missing_fixed_inputs_in_model = fixed_inputs_in_db - fixed_inputs_model
+
         logger.debug(
-            "Fixed inputs diff",
-            fixed_inputs_db=fixed_inputs_db,
+            "ProductTable blocks diff",
+            product_block_db=product_db.name if product_db else None,
+            product_blocks_in_db=product_blocks_in_db,
+            product_blocks_in_model=product_blocks_in_model,
+            fixed_inputs_in_db=fixed_inputs_in_db,
             fixed_inputs_model=fixed_inputs_model,
+            missing_product_blocks_in_db=missing_product_blocks_in_db,
+            missing_product_blocks_in_model=missing_product_blocks_in_model,
             missing_fixed_inputs_in_db=missing_fixed_inputs_in_db,
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        def find_product_block_in(cls: Type[DomainModel]) -> List[ProductBlockModel]:
-            product_blocks_in_model = []
-            for product_block_field_type in cls._product_block_fields_.values():
-                if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
-                    product_block_model = first(get_args(product_block_field_type))
-                else:
-                    product_block_model = product_block_field_type
+        missing_data_children = {}
+        for product_block_in_model in product_blocks_types_in_model:
+            missing_data_children.update(product_block_in_model.diff_product_block_in_database())
 
-                if issubclass(product_block_model, ProductBlockModel):
-                    product_blocks_in_model.extend(find_product_block_in(product_block_model))
-
-                product_blocks_in_model.append(product_block_model)
-            return product_blocks_in_model
-
-        product_blocks_in_db: Dict[str, ProductBlockTable] = {pb.name: pb for pb in product_db.product_blocks}
-        product_blocks_in_model: List[ProductBlockModel] = find_product_block_in(cls)
-        missing_product_blocks_in_db: List[str] = []
-
-        missing_resource_types_in_db: Dict[str, Set[str]] = {}
-        missing_resource_types_in_model: Dict[str, Set[str]] = {}
-
-        # Check resource types and missing product blocks in model
-        for product_block_model in product_blocks_in_model:
-            resource_types_model = set(product_block_model._non_product_block_fields_)
-
-            if product_block_model.name not in product_blocks_in_db:
-                missing_product_blocks_in_db.append(product_block_model.name)
-                missing_resource_types_in_db[product_block_model.name] = resource_types_model
-                continue
-
-            matching_product_block = product_blocks_in_db[product_block_model.name]
-
-            logger.debug(
-                "resource types for in model.",
-                product_block_name=product_block_model.name,
-                resource_types_model=resource_types_model,
-            )
-
-            logger.debug("Matching product block in database", product_block_name=matching_product_block.name)
-
-            resource_types_db = {rt.resource_type for rt in matching_product_block.resource_types}
-            logger.debug("Resource types in database.", resource_types_db=resource_types_db)
-            missing_db = resource_types_model - resource_types_db
-            if missing_db:
-                missing_resource_types_in_db[matching_product_block.name] = missing_db
-
-            missing_model = resource_types_db - resource_types_model
-            if missing_model:
-                missing_resource_types_in_model[matching_product_block.name] = missing_model
-
-        missing_product_blocks_in_model = set(product_blocks_in_db.keys()).difference(
-            map(attrgetter("name"), product_blocks_in_model)
-        )
-
-        logger.debug(
-            "ProductTable blocks diff",
-            missing_product_blocks_in_db=missing_product_blocks_in_db,
-            missing_product_blocks_in_model=missing_product_blocks_in_model,
-        )
-
-        return {
+        diff = {
             k: v
-            for k, v in (
-                ("missing_fixed_inputs_in_db", missing_fixed_inputs_in_db),
-                ("missing_fixed_inputs_in_model", missing_fixed_inputs_in_model),
-                ("missing_product_blocks_in_db", missing_product_blocks_in_db),
-                ("missing_product_blocks_in_model", missing_product_blocks_in_model),
-                ("missing_resource_types_in_db", missing_resource_types_in_db),
-                ("missing_resource_types_in_model", missing_resource_types_in_model),
-            )
+            for k, v in {
+                "missing_product_blocks_in_db": missing_product_blocks_in_db,
+                "missing_product_blocks_in_model": missing_product_blocks_in_model,
+                "missing_fixed_inputs_in_db": missing_fixed_inputs_in_db,
+                "missing_fixed_inputs_in_model": missing_fixed_inputs_in_model,
+                "missing_in_children": missing_data_children,
+            }.items()
             if v
         }
+
+        missing_data = {}
+        if diff:
+            missing_data[product_db.name] = diff
+
+        return missing_data
 
     @classmethod
     def from_product_id(

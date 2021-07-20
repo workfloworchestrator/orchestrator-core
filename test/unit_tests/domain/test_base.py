@@ -45,12 +45,13 @@ def test_product_blocks_db():
 
     product_block.resource_types = [resource_type_int, resource_type_str, resource_type_list]
     product_sub_block.resource_types = [resource_type_int, resource_type_str]
+    product_block.children = [product_sub_block]
 
     db.session.add(product_block)
     db.session.add(product_sub_block)
     db.session.commit()
 
-    return [product_block, product_sub_block]
+    return product_block
 
 
 @pytest.fixture
@@ -62,7 +63,7 @@ def test_product(test_product_blocks_db):
     fixed_input = FixedInputTable(name="test_fixed_input", value="False")
 
     product.fixed_inputs = [fixed_input]
-    product.product_blocks = test_product_blocks_db
+    product.product_blocks = [test_product_blocks_db]
 
     db.session.add(product)
     db.session.commit()
@@ -154,14 +155,13 @@ def test_product_model(test_product):
 
 
 def test_product_block_metadata(test_product_block, test_product_blocks_db):
-    block_db_model, _ = test_product_blocks_db
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
 
     BlockForTestInactive.new()  # Need at least one instance since we lazy load this stuff
 
     assert BlockForTestInactive.name == "BlockForTest"
     assert BlockForTestInactive.description == "Test Block"
-    assert BlockForTestInactive.product_block_id == block_db_model.product_block_id
+    assert BlockForTestInactive.product_block_id == test_product_blocks_db.product_block_id
     assert BlockForTestInactive.tag == "TEST"
 
 
@@ -764,7 +764,6 @@ def test_simple_model_with_no_attrs(generic_subscription_1, generic_product_type
 
 
 def test_abstract_super_block(test_product, test_product_type, test_product_blocks_db):
-    block_db_model, _ = test_product_blocks_db
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     class AbstractBlockForTestInactive(ProductBlockModel):
@@ -836,7 +835,7 @@ def test_abstract_super_block(test_product, test_product_type, test_product_bloc
     assert not hasattr(AbstractBlockForTestInactive, "tag")
     assert BlockForTestInactive.name == "BlockForTest"
     assert BlockForTestInactive.description == "Test Block"
-    assert BlockForTestInactive.product_block_id == block_db_model.product_block_id
+    assert BlockForTestInactive.product_block_id == test_product_blocks_db.product_block_id
     assert BlockForTestInactive.tag == "TEST"
 
     test_model.save()
@@ -908,21 +907,32 @@ def test_diff_in_db(test_product, test_product_type):
     class Wrong(SubscriptionModel):
         pass
 
-    assert Wrong.diff_product_in_database(test_product) == {
-        "missing_fixed_inputs_in_db": {
-            "customer_id",
-            "description",
-            "end_date",
-            "insync",
-            "note",
-            "product",
-            "start_date",
-            "status",
-            "subscription_id",
-        },
-        "missing_fixed_inputs_in_model": {"test_fixed_input"},
-        "missing_product_blocks_in_model": {"BlockForTest", "SubBlockForTest"},
-    }
+    assert (
+        Wrong.diff_product_in_database(test_product)
+        == {
+            "TestProduct": {
+                "missing_fixed_inputs_in_db": {
+                    "customer_id",
+                    "description",
+                    "end_date",
+                    "insync",
+                    "note",
+                    "product",
+                    "start_date",
+                    "status",
+                    "subscription_id",
+                },
+                "missing_fixed_inputs_in_model": {"test_fixed_input"},
+                "missing_product_blocks_in_model": {"BlockForTest"},
+            }
+        }
+        != {
+            "TestProduct": {
+                "missing_in_children": {"BlockForTest": {"missing_product_blocks_in_db": {"SubBlockForTest"}}},
+                "missing_product_blocks_in_model": {"SubBlockForTest"},
+            }
+        }
+    )
 
 
 def test_diff_in_db_missing_in_db(test_product_type):
@@ -936,10 +946,15 @@ def test_diff_in_db_missing_in_db(test_product_type):
     db.session.commit()
 
     assert ProductTypeForTestInactive.diff_product_in_database(product.product_id) == {
-        "missing_fixed_inputs_in_db": {"test_fixed_input"},
-        "missing_product_blocks_in_db": ["SubBlockForTest", "SubBlockForTest", "SubBlockForTest", "BlockForTest"],
-        "missing_resource_types_in_db": {
-            "BlockForTest": {"int_field", "list_field", "str_field"},
-            "SubBlockForTest": {"int_field", "str_field"},
-        },
+        "TestProductEmpty": {
+            "missing_fixed_inputs_in_db": {"test_fixed_input"},
+            "missing_in_children": {
+                "BlockForTest": {
+                    "missing_product_blocks_in_db": {"SubBlockForTest"},
+                    "missing_resource_types_in_db": {"int_field", "list_field", "str_field"},
+                },
+                "SubBlockForTest": {"missing_resource_types_in_db": {"int_field", "str_field"}},
+            },
+            "missing_product_blocks_in_db": {"BlockForTest"},
+        }
     }
