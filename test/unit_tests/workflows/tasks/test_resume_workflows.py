@@ -13,7 +13,7 @@ WORKFLOW_ID = uuid.uuid4()
 PID = uuid.uuid4()
 
 
-@pytest.fixture()
+@pytest.fixture
 def waiting_process():
 
     state = {"foo": "bar"}

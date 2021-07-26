@@ -20,6 +20,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from more_itertools import flatten, only
+from more_itertools.more import first
 from pydantic import BaseModel, Field, ValidationError
 from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
@@ -37,12 +38,24 @@ from orchestrator.db import (
 )
 from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr, is_list_type, is_of_type, is_optional_type
+from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
 
 logger = structlog.get_logger(__name__)
 
 
 def _is_constrained_list_type(type: Type) -> bool:
+    """Check if type is a constained list type.
+
+    Example:
+        >>> _is_constrained_list_type(List[int])
+        False
+        >>> class ListType(ConstrainedList):
+        ...     min_items = 1
+        >>> _is_constrained_list_type(ListType)
+        True
+
+    """
     # subclass on typing.List throws exception and there is no good way to test for this
     try:
         is_constrained_list = issubclass(type, ConstrainedList)
@@ -57,9 +70,9 @@ def _is_constrained_list_type(type: Type) -> bool:
     return is_constrained_list
 
 
-T = TypeVar("T")
-S = TypeVar("S", bound="SubscriptionModel")
-B = TypeVar("B", bound="ProductBlockModel")
+T = TypeVar("T")  # pragma: no mutate
+S = TypeVar("S", bound="SubscriptionModel")  # pragma: no mutate
+B = TypeVar("B", bound="ProductBlockModel")  # pragma: no mutate
 
 
 class DomainModel(BaseModel):
@@ -69,11 +82,11 @@ class DomainModel(BaseModel):
     """
 
     class Config:
-        validate_assignment = True
-        validate_all = True
-        arbitrary_types_allowed = True
+        validate_assignment = True  # pragma: no mutate
+        validate_all = True  # pragma: no mutate
+        arbitrary_types_allowed = True  # pragma: no mutate
 
-    __base_type__: ClassVar[Type["DomainModel"]]
+    __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
     _product_block_fields_: ClassVar[Dict[str, Type]]
     _non_product_block_fields_: ClassVar[Dict[str, Type]]
 
@@ -85,7 +98,9 @@ class DomainModel(BaseModel):
 
         if kwargs.keys():
             logger.warning(
-                "Unexpected keyword arguments in domain model class", class_name=cls.__name__, kwargs=kwargs.keys()
+                "Unexpected keyword arguments in domain model class",  # pragma: no mutate
+                class_name=cls.__name__,
+                kwargs=kwargs.keys(),
             )
 
         # Check if child subscription instance models conform to the same lifecycle
@@ -95,9 +110,10 @@ class DomainModel(BaseModel):
 
             if lifecycle:
                 for lifecycle_status in lifecycle:
-                    if lookup_specialized_type(product_block_field_type, lifecycle_status) != product_block_field_type:
+                    specialized_type = lookup_specialized_type(product_block_field_type, lifecycle_status)
+                    if not issubclass(product_block_field_type, specialized_type):
                         raise AssertionError(
-                            f"The lifecycle status of the type for the field: {product_block_field_name} is not suitable for the lifecycle status of this model"
+                            f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {product_block_field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
                         )
 
     @classmethod
@@ -153,7 +169,7 @@ class DomainModel(BaseModel):
                     default_value = product_block_field_type()
                     # if constrainedlist has minimum, return that minimum else empty list
                     if product_block_field_type.min_items:
-                        logger.debug("creating min_items", type=product_block_field_type)
+                        logger.debug("creating min_items", type=product_block_field_type)  # pragma: no mutate
                         for _ in range(product_block_field_type.min_items):
                             default_value.append(product_block_model.new())
                 else:
@@ -161,12 +177,10 @@ class DomainModel(BaseModel):
                     default_value = []
             elif is_optional_type(product_block_field_type, ProductBlockModel):
                 default_value = None
-            elif issubclass(product_block_field_type, ProductBlockModel):
+            else:
                 product_block_model = product_block_field_type
                 # Scalar field of a ProductBlockModel expects 1 instance
                 default_value = product_block_model.new()
-            else:
-                raise AssertionError("ProductTable block field has an unsupported type")
             instances[product_block_field_name] = default_value
         return instances
 
@@ -224,13 +238,11 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             filter_func = match_domain_model_attr_if_possible(product_block_field_name)
             if is_list_type(product_block_field_type):
-                if product_block_field_name not in instances:
+                if product_block_field_name not in grouped_instances:
                     if _is_constrained_list_type(product_block_field_type):
                         product_block_model_list = product_block_field_type()
                     else:
                         product_block_model_list = []
-                else:
-                    product_block_model_list = instances[product_block_field_name]
 
                 product_block_model = get_args(product_block_field_type)[0]
                 instance_list: List[SubscriptionInstanceTable] = list(
@@ -267,6 +279,23 @@ class DomainModel(BaseModel):
                     )
 
         return instances
+
+    @classmethod
+    def _data_from_lifecycle(cls, other: "DomainModel", status: SubscriptionLifecycle) -> Dict:
+        data = other.dict()
+
+        for field_name, field_type in cls._product_block_fields_.items():
+            if is_list_type(field_type):
+                data[field_name] = []
+                for item in getattr(other, field_name):
+                    data[field_name].append(get_args(field_type)[0]._from_other_lifecycle(item, status))
+
+            else:
+                if is_optional_type(field_type):
+                    field_type = get_args(field_type)[0]
+
+                data[field_name] = field_type._from_other_lifecycle(getattr(other, field_name), status)
+        return data
 
     def _save_instances(
         self, subscription_id: UUID, instances: Dict[UUID, SubscriptionInstanceTable], status: SubscriptionLifecycle
@@ -321,14 +350,15 @@ class ProductBlockModelMeta(ModelMetaclass):
     """
 
     __names__: Set[str]
-    name: str
+    name: Optional[str]
     product_block_id: UUID
     description: str
     tag: str
-    registry: Dict[str, Type["ProductBlockModel"]] = {}
+    registry: Dict[str, Type["ProductBlockModel"]] = {}  # pragma: no mutate
 
     def __call__(self, *args: Any, **kwargs: Any) -> B:
-
+        if not self.name:
+            raise ValueError(f"Cannot create instance of abstract class. Use one of {self.__names__}")
         # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we cant access the db
         # So now we do it just before we instantiate the instance
         if not hasattr(self, "product_block_id"):
@@ -377,13 +407,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
     """
 
-    registry: ClassVar[Dict[str, Type["ProductBlockModel"]]]
+    registry: ClassVar[Dict[str, Type["ProductBlockModel"]]]  # pragma: no mutate
     __names__: ClassVar[Set[str]] = set()
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
     tag: ClassVar[str]
 
-    name: str  # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
+    # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
+    # Is actually optional since abstract classes dont have it. In practice it is always set
+    name: str
     subscription_instance_id: UUID = Field(default_factory=uuid4)
     label: Optional[str] = None
 
@@ -397,18 +429,24 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         super().__init_subclass__(lifecycle=lifecycle, **kwargs)
 
         if product_block_name is not None:
+            # This is a concrete product block base class (so not a abstract super class or a specific lifecycle version)
             cls.name = product_block_name
             cls.__base_type__ = cls
+            cls.__names__ = {cls.name}
             ProductBlockModel.registry[cls.name] = cls
+        elif lifecycle is None:
+            # Abstract class, no product block name
+            cls.name = None  # type:ignore
+            cls.__names__ = set()
+
+        # For everything except abstact classes
+        if cls.name is not None:
+            register_specialized_type(cls, lifecycle)
 
             # Add ourself to any super class. That way we can match a superclass to an instance when loading
-            cls.__names__ = set(cls.name)
             for klass in cls.__mro__:
                 if issubclass(klass, ProductBlockModel):
                     klass.__names__.add(cls.name)
-
-        if product_block_name is not None or lifecycle is not None:
-            register_specialized_type(cls, lifecycle)
 
         cls.__doc__ = make_product_block_docstring(cls, lifecycle)
 
@@ -462,6 +500,20 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return instance_values_dict
 
     @classmethod
+    def _from_other_lifecycle(
+        cls: Type[B],
+        other: "ProductBlockModel",
+        status: SubscriptionLifecycle,
+    ) -> B:
+        if not cls.__base_type__:
+            cls = ProductBlockModel.registry.get(other.name, cls)  # type:ignore
+            cls = lookup_specialized_type(cls, status)
+
+        data = cls._data_from_lifecycle(other, status)
+
+        return cls(**data)
+
+    @classmethod
     def from_db(
         cls: Type[B],
         subscription_instance_id: Optional[UUID] = None,
@@ -485,12 +537,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         assert subscription_instance_id  # noqa: S101
         assert subscription_instance  # noqa: S101
 
-        if not hasattr(cls, "__base_type__"):
-            cls = ProductBlockModel.registery.get(cls.name, cls)  # type:ignore
-
         if not status:
             status = SubscriptionLifecycle(subscription_instance.subscription.status)
-        if not issubclass(cls, lookup_specialized_type(cls, status)):
+
+        if not cls.__base_type__:
+            cls = ProductBlockModel.registry.get(subscription_instance.product_block.name, cls)  # type:ignore
+            cls = lookup_specialized_type(cls, status)
+
+        elif not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
         label = subscription_instance.label
@@ -610,6 +664,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             List of saved instances
 
         """
+        if not self.name:
+            raise ValueError(f"Cannot create instance of abstract class. Use one of {self.__names__}")
+
         # Make sure we have a valid subscription instance database model
         if subscription_instances is None:
             subscription_instances = {}
@@ -659,9 +716,9 @@ class ProductModel(BaseModel):
     """Represent the product as defined in the database as a dataclass."""
 
     class Config:
-        validate_assignment = True
-        validate_all = True
-        arbitrary_types_allowed = True
+        validate_assignment = True  # pragma: no mutate
+        validate_all = True  # pragma: no mutate
+        arbitrary_types_allowed = True  # pragma: no mutate
 
     product_id: UUID
     name: str
@@ -698,13 +755,13 @@ class SubscriptionModel(DomainModel):
 
     product: ProductModel
     customer_id: UUID
-    subscription_id: UUID = Field(default_factory=uuid4)
-    description: str = "Initial subscription"
-    status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL
-    insync: bool = False
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    note: Optional[str] = None
+    subscription_id: UUID = Field(default_factory=uuid4)  # pragma: no mutate
+    description: str = "Initial subscription"  # pragma: no mutate
+    status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL  # pragma: no mutate
+    insync: bool = False  # pragma: no mutate
+    start_date: Optional[datetime] = None  # pragma: no mutate
+    end_date: Optional[datetime] = None  # pragma: no mutate
+    note: Optional[str] = None  # pragma: no mutate
 
     def __new__(cls, *args: Any, status: Optional[SubscriptionLifecycle] = None, **kwargs: Any) -> "SubscriptionModel":
 
@@ -750,7 +807,7 @@ class SubscriptionModel(DomainModel):
             product_blocks_in_model = []
             for product_block_field_type in cls._product_block_fields_.values():
                 if is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
-                    product_block_model = get_args(product_block_field_type)[0]
+                    product_block_model = first(get_args(product_block_field_type))
                 else:
                     product_block_model = product_block_field_type
 
@@ -866,6 +923,29 @@ class SubscriptionModel(DomainModel):
         )
 
     @classmethod
+    def from_other_lifecycle(
+        cls: Type[S],
+        other: "SubscriptionModel",
+        status: SubscriptionLifecycle,
+    ) -> S:
+        if not cls.__base_type__:
+            # Import here to prevent cyclic imports
+            from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(other.product.name, cls)  # type:ignore
+            cls = lookup_specialized_type(cls, status)
+
+        data = cls._data_from_lifecycle(other, status)
+
+        data["status"] = status
+        if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:
+            data["start_date"] = nowtz()
+        if data["end_date"] is None and status == SubscriptionLifecycle.TERMINATED:
+            data["end_date"] = nowtz()
+
+        return cls(**data)
+
+    @classmethod
     def from_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
         subscription = SubscriptionTable.query.options(
@@ -885,18 +965,14 @@ class SubscriptionModel(DomainModel):
         )
         status = SubscriptionLifecycle(subscription.status)
 
-        if not hasattr(cls, "__base_type__"):
-            old_cls = cls
-
+        if not cls.__base_type__:
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
             cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type:ignore
             cls = lookup_specialized_type(cls, status)
-            if cls != old_cls and not issubclass(cls, old_cls):
-                raise ValueError(
-                    f"{cls} is not a valid subclass of {old_cls}, make sure the class matches with the status in database"
-                )
+        elif not issubclass(cls, lookup_specialized_type(cls, status)):
+            raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
         instances = cls._load_instances(subscription.instances, status)
@@ -979,7 +1055,7 @@ class SubscriptionModel(DomainModel):
         db.session.flush()
 
 
-SI = TypeVar("SI")
+SI = TypeVar("SI")  # pragma: no mutate
 
 
 class SubscriptionInstanceList(ConstrainedList, List[SI]):

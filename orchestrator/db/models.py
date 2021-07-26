@@ -345,6 +345,7 @@ class SubscriptionInstanceTable(BaseModel):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="asc(SubscriptionInstanceValueTable.value)",
+        backref=backref("subscription_instance", lazy=True),
     )
     label = Column(String(255))
 
