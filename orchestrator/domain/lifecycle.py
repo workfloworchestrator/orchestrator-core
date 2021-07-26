@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, TypeVar
 import structlog
 
 from orchestrator.types import SubscriptionLifecycle, strEnum
-from orchestrator.utils.datetime import nowtz
 
 logger = structlog.get_logger(__name__)
 
@@ -32,6 +31,9 @@ _sub_type_per_lifecycle: Dict[Tuple[Type, Optional[SubscriptionLifecycle]], Type
 
 
 def register_specialized_type(cls: Type, lifecycle: Optional[List[SubscriptionLifecycle]] = None) -> None:
+    if not cls.__base_type__:
+        return
+
     if lifecycle:
         for lifecycle_state in lifecycle:
             _sub_type_per_lifecycle[(cls.__base_type__, lifecycle_state)] = cls
@@ -40,9 +42,6 @@ def register_specialized_type(cls: Type, lifecycle: Optional[List[SubscriptionLi
 
 
 def lookup_specialized_type(block: Type, lifecycle: Optional[SubscriptionLifecycle]) -> Type:
-    if not hasattr(block, "__base_type__"):
-        raise ValueError("Cannot instantiate a class that has no __base_type__ attribute")
-
     specialized_block = _sub_type_per_lifecycle.get((block.__base_type__, lifecycle), None)
     if specialized_block is None:
         specialized_block = _sub_type_per_lifecycle.get((block.__base_type__, None), None)
@@ -59,13 +58,6 @@ T = TypeVar("T", bound=SubscriptionModel)
 
 
 def change_lifecycle(subscription: T, status: SubscriptionLifecycle) -> T:
-    new_klass = lookup_specialized_type(subscription.__class__, status)
-    data = subscription.dict()
+    from orchestrator.domain.base import SubscriptionModel
 
-    data["status"] = status
-    if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:
-        data["start_date"] = nowtz()
-    if data["end_date"] is None and status == SubscriptionLifecycle.TERMINATED:
-        data["end_date"] = nowtz()
-
-    return new_klass(**data)
+    return SubscriptionModel.from_other_lifecycle(subscription, status)  # type: ignore
