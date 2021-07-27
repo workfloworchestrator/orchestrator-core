@@ -186,7 +186,10 @@ class DomainModel(BaseModel):
 
     @classmethod
     def _load_instances(
-        cls, db_instances: List[SubscriptionInstanceTable], status: SubscriptionLifecycle
+        cls,
+        db_instances: List[SubscriptionInstanceTable],
+        status: SubscriptionLifecycle,
+        match_domain_attr: bool = True,
     ) -> Dict[str, Union[Optional["ProductBlockModel"], List["ProductBlockModel"]]]:
         """Load subscription instances for this domain model.
 
@@ -196,6 +199,7 @@ class DomainModel(BaseModel):
         Args:
             db_instances: list of database models to load from
             status: SubscriptionLifecycle of subscription to check if models match
+            match_domain_attr: Match domain attribute from relation (not wanted when loading product blocks directly related to subscriptions)
 
         Returns:
             A dict with instances to pass to the new model
@@ -226,6 +230,10 @@ class DomainModel(BaseModel):
                     Boolean of match.
 
                 """
+                # We don't match on the product_blocks directly under subscriptions. They don't have parent relations to those
+                if not match_domain_attr:
+                    return True
+
                 attr_names = {
                     relation.domain_model_attr for relation in instance.parent_relations if relation.domain_model_attr
                 }
@@ -975,7 +983,7 @@ class SubscriptionModel(DomainModel):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
-        instances = cls._load_instances(subscription.instances, status)
+        instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
         try:
             return cls(  # type: ignore
