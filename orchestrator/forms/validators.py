@@ -22,14 +22,14 @@ from pydantic.fields import ModelField
 from pydantic.utils import update_not_none
 from pydantic.validators import str_validator, uuid_validator
 
-from orchestrator.db.models import ProductTable
 from orchestrator.forms import DisplayOnlyFieldType
+from orchestrator.services import products
 from orchestrator.types import AcceptData, SummaryData, strEnum
 
 logger = structlog.get_logger(__name__)
 
 
-T = TypeVar("T")
+T = TypeVar("T")  # pragma: no mutate
 
 
 class UniqueConstrainedList(ConstrainedList, List[T]):
@@ -311,7 +311,7 @@ class ProductId(UUID):
 
     @classmethod
     def is_product(cls, v: UUID) -> UUID:
-        product = ProductTable.query.get(v)
+        product = products.get_product_by_id(v)
         if product is None:
             raise ValueError("Product not found")
 
