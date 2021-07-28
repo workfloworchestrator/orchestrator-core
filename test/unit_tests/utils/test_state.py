@@ -4,10 +4,12 @@ from typing import List, Optional
 from uuid import uuid4
 
 import pytest
+from nwastdlib import const
 
 from orchestrator.domain.lifecycle import change_lifecycle
+from orchestrator.forms import FormPage, post_process
 from orchestrator.types import State, SubscriptionLifecycle
-from orchestrator.utils.state import extract, inject_args
+from orchestrator.utils.state import extract, form_inject_args, inject_args
 
 STATE = {"one": 1, "two": 2, "three": 3, "four": 4}
 
@@ -64,6 +66,22 @@ def test_state() -> None:
         assert default == "bla"
 
     step_func_default(STATE)
+
+    step_func_const = inject_args(const({}))
+    step_func_const(STATE)
+
+    @inject_args
+    def step_func_state(state, one):
+        assert state == STATE
+        assert one == STATE["one"]
+
+    step_func_state(STATE)
+
+    @inject_args
+    def step_func_empty():
+        pass
+
+    step_func_state(STATE)
 
 
 def test_inject_args(generic_product_1, generic_product_type_1) -> None:
@@ -191,5 +209,93 @@ def test_inject_args_optional(generic_product_1, generic_product_type_1) -> None
     assert state_amended["generic_sub"].pb_1.rt_1 is not None
 
     # Test `nso_service_id` has been persisted to the database with the modifications from the step function.`
+    fresh_generic_sub = GenericProduct.from_subscription(state_amended["generic_sub"].subscription_id)
+    assert fresh_generic_sub.pb_1.rt_1 is not None
+
+
+def test_form_inject_args(generic_product_1, generic_product_type_1) -> None:
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+    product_id = generic_product_1.product_id
+    state = {"product": product_id, "organisation": uuid4()}
+    generic_sub = GenericProductOneInactive.from_product_id(
+        product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
+    )
+    generic_sub.pb_1.rt_1 = "test"
+    generic_sub.pb_2.rt_2 = 42
+    generic_sub.pb_2.rt_3 = "test2"
+
+    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+
+    generic_sub.save()
+
+    @form_inject_args
+    def form_function(generic_sub: GenericProduct) -> State:
+        assert generic_sub.subscription_id
+        assert generic_sub.pb_1.rt_1 == "test"
+        generic_sub.pb_1.rt_1 = "test string"
+
+        class Form(FormPage):
+            pass
+
+        _ = yield Form
+        return {"generic_sub": generic_sub}
+
+    # Put `generic_sub` as an UUID in. Entire `generic_sub` object would have worked as well, but this way we will be
+    # certain that if we end up with an entire `generic_sub` object in the step function, it will have been retrieved
+    # from the database.
+    state["generic_sub"] = generic_sub.subscription_id
+
+    state_amended = post_process(form_function, state, [{}])
+    assert "generic_sub" in state_amended
+
+    # Do we now have an entire object instead of merely a UUID
+    assert isinstance(state_amended["generic_sub"], GenericProduct)
+
+    # And does it have the modifcations from the step functions
+    assert state_amended["generic_sub"].pb_1.rt_1 == "test string"
+
+    # Test `rt_1` has been persisted to the database with the modifications from the step function.`
+    fresh_generic_sub = GenericProduct.from_subscription(state_amended["generic_sub"].subscription_id)
+    assert fresh_generic_sub.pb_1.rt_1 is not None
+
+
+def test_form_inject_args_simple(generic_product_1, generic_product_type_1) -> None:
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+    product_id = generic_product_1.product_id
+    state = {"product": product_id, "organisation": uuid4()}
+    generic_sub = GenericProductOneInactive.from_product_id(
+        product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
+    )
+    generic_sub.pb_1.rt_1 = "test"
+    generic_sub.pb_2.rt_2 = 42
+    generic_sub.pb_2.rt_3 = "test2"
+
+    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+
+    generic_sub.save()
+
+    @form_inject_args
+    def form_function(generic_sub: GenericProduct) -> State:
+        assert generic_sub.subscription_id
+        assert generic_sub.pb_1.rt_1 == "test"
+        generic_sub.pb_1.rt_1 = "test string"
+
+        return {"generic_sub": generic_sub}
+
+    # Put `generic_sub` as an UUID in. Entire `generic_sub` object would have worked as well, but this way we will be
+    # certain that if we end up with an entire `generic_sub` object in the step function, it will have been retrieved
+    # from the database.
+    state["generic_sub"] = generic_sub.subscription_id
+
+    state_amended = form_function(state)
+    assert "generic_sub" in state_amended
+
+    # Do we now have an entire object instead of merely a UUID
+    assert isinstance(state_amended["generic_sub"], GenericProduct)
+
+    # And does it have the modifcations from the step functions
+    assert state_amended["generic_sub"].pb_1.rt_1 == "test string"
+
+    # Test `rt_1` has been persisted to the database with the modifications from the step function.`
     fresh_generic_sub = GenericProduct.from_subscription(state_amended["generic_sub"].subscription_id)
     assert fresh_generic_sub.pb_1.rt_1 is not None

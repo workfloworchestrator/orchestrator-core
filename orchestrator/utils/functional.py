@@ -35,6 +35,8 @@ def first_available_or_next(values: Iterable[int], start: int = 0) -> int:
 
     >>> first_available_or_next([0, 1, 3], start=11)
     11
+    >>> first_available_or_next([0, 1, 3], start=4)
+    4
     >>> first_available_or_next([], 22)
     22
     >>> first_available_or_next([1, 100, 101], 33)
@@ -50,9 +52,9 @@ def first_available_or_next(values: Iterable[int], start: int = 0) -> int:
         First available value or next logical one.
 
     """
-    # +2 -> One +1 to get as many consecutive values up to and including the max value. Another +1 for one extra.
+    # +2 -> One +1 to get as many consecutive values up to and including the max+1 value. Another +1 for one extra because range is exclusive.
     stop = max(values, default=0) + 2
-    if start > stop:
+    if start >= stop:
         stop = start + 1
     return min(set(range(start, stop)) - set(values))
 
