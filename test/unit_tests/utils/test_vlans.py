@@ -9,10 +9,12 @@ def test_vlanranges_instantiation():
     assert VlanRanges(None) == VlanRanges([])
     assert VlanRanges("") == VlanRanges([])
     assert VlanRanges(4) == VlanRanges("4")
+    assert VlanRanges([10, 12, 13, 14, 15, 16]) == VlanRanges([[10], [12, 16]])
     assert VlanRanges("0") == VlanRanges([(0, 0)]) == VlanRanges([[0]])
     assert VlanRanges("2,4,8") == VlanRanges([(2, 2), (4, 4), (8, 8)]) == VlanRanges([[2], [4], [8]])
     assert VlanRanges("80-120") == VlanRanges([(80, 120)]) == VlanRanges([[80, 120]])
     assert VlanRanges("10,12-16") == VlanRanges([(10, 10), (12, 16)]) == VlanRanges([[10], [12, 16]])
+    assert VlanRanges("0-4096") == VlanRanges([[0, 4096]])
 
     # String interpretation is quite flexible, allowing extra whitespace
     assert VlanRanges("  4   , 6-   10") == VlanRanges("4,6-10")
@@ -24,9 +26,24 @@ def test_vlanranges_instantiation():
     # Non-sensical ranges are not an error perse
     assert VlanRanges("10-1") == VlanRanges("")
 
+    with pytest.raises(ValueError):
+        VlanRanges([{}, {}])
+
+    with pytest.raises(ValueError):
+        VlanRanges("AAA")
+
+    with pytest.raises(ValueError):
+        VlanRanges(object())
+
+    with pytest.raises(ValueError):
+        VlanRanges("0-4097")
+
+    with pytest.raises(ValueError):
+        VlanRanges("-1-4096")
+
 
 def test_vlanranges_str_repr():
-    vr = VlanRanges("10-14,4,200-256")
+    vr = VlanRanges("10-14,4,200-256,300-301")
 
     # `str` version of VlanRanges should be suitable value for constructor, resulting in equivalent object
     assert vr == VlanRanges(str(vr))
@@ -34,6 +51,13 @@ def test_vlanranges_str_repr():
     # `repr` version of VlanRanges should be valid Python code resulting in equivalent object
     vr_from_repr = eval(repr(vr), globals(), locals())  # noqa: S307 Use of possibly insecure function
     assert vr_from_repr == vr
+
+
+def test_vlanranges_eq():
+    vr = VlanRanges("10-20")
+    assert vr != 1
+    assert vr == VlanRanges("10-20")
+    assert vr != "foo"
 
 
 def test_vlanranges_in():
@@ -73,6 +97,13 @@ def test_vlanranges_sub():
     assert vr - VlanRanges("0-3,9,21,22-30") == VlanRanges("10-20")
 
 
+def test_vlanranges_sub_int():
+    vr = VlanRanges("10-20")
+    assert vr - 20 == VlanRanges("10-19")
+    assert vr - 10 == VlanRanges("11-20")
+    assert vr - 15 == VlanRanges("10-14,16-20")
+
+
 def test_vlanranges_and():
     vr = VlanRanges("10-20")
     assert vr & VlanRanges("8-9") == VlanRanges("")
@@ -99,6 +130,20 @@ def test_vlanranges_or():
     assert vr | VlanRanges("0-3,10,20,21-28") == VlanRanges("0-3,10-28")
     assert vr | VlanRanges("0-3,20") == VlanRanges("0-3,10-20")
     assert vr | VlanRanges("0-3,9,21,22-30") == VlanRanges("0-3,9-30")
+
+
+def test_vlanranges_isdisjoint():
+    vr = VlanRanges("10-20")
+    assert vr.isdisjoint(VlanRanges("8-9"))
+    assert not vr.isdisjoint(VlanRanges("9-10"))
+    assert vr.isdisjoint(VlanRanges("21-23"))
+    assert not vr.isdisjoint(VlanRanges("20-23"))
+    assert not vr.isdisjoint(VlanRanges("10-20"))
+    assert not vr.isdisjoint(VlanRanges("11-19"))
+
+    assert not vr.isdisjoint(VlanRanges("0-3,10,20,21-28"))
+    assert not vr.isdisjoint(VlanRanges("0-3,20"))
+    assert vr.isdisjoint(VlanRanges("0-3,9,21,22-30"))
 
 
 def test_vlanranges_union():
@@ -132,10 +177,26 @@ def test_vlanranges_lt():
     assert not VlanRanges("20-23") < vr
     assert not VlanRanges("10-20") < vr
     assert VlanRanges("11-19") < vr
+    assert not VlanRanges("9-21") < vr
 
     assert not VlanRanges("0-3,10,20,21-28") < vr
     assert not VlanRanges("0-3,20") < vr
     assert not VlanRanges("0-3,9,21,22-30") < vr
+
+
+def test_vlanranges_ge():
+    vr = VlanRanges("10-20")
+    assert not VlanRanges("8-9") >= vr
+    assert not VlanRanges("9-10") >= vr
+    assert not VlanRanges("21-23") >= vr
+    assert not VlanRanges("20-23") >= vr
+    assert VlanRanges("10-20") >= vr
+    assert not VlanRanges("11-19") >= vr
+    assert VlanRanges("9-21") >= vr
+
+    assert not VlanRanges("0-3,10,20,21-28") >= vr
+    assert not VlanRanges("0-3,20") >= vr
+    assert not VlanRanges("0-3,9,21,22-30") >= vr
 
 
 def test_vlanranges_hash():
@@ -143,6 +204,12 @@ def test_vlanranges_hash():
     # Just making sure it doesn't raise an exception. Which, BTW will be raised, should the internal representation
     # be changed to a mutable data structure.
     assert hash(vr)
+
+
+def test_vlanranges_len():
+    assert len(VlanRanges(1)) == 1
+    assert len(VlanRanges("0-4096")) == 4097
+    assert len(VlanRanges("0-5,10-15")) == 12
 
 
 def test_vlanranges_serialization_deserialization():
@@ -165,6 +232,7 @@ def test_vlanranges_validations():
         vlanrange: VlanRanges
 
     assert TestVlanRanges(vlanrange="12").vlanrange == VlanRanges(12)
+    assert TestVlanRanges(vlanrange=VlanRanges(12)).vlanrange == VlanRanges(12)
 
     with pytest.raises(ValueError):
         TestVlanRanges(vlanrange="bla")

@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import operator
 from collections import abc
-from functools import reduce, total_ordering
+from functools import reduce
 from typing import AbstractSet, Any, Iterable, Iterator, List, Optional, Sequence, Tuple, Union, cast
+
+from more_itertools import first, last
 
 from orchestrator.utils.functional import expand_ranges, to_ranges
 
 
-@total_ordering
 class VlanRanges(abc.Set):
     """Represent VLAN ranges.
 
@@ -77,17 +78,19 @@ class VlanRanges(abc.Set):
             vlans = [[val]]
         elif isinstance(val, abc.Sequence):
             if len(val) > 0:
-                if isinstance(val[0], int):
+                if isinstance(first(val), int):
                     vlans = list(map(lambda x: [x], val))
-                elif isinstance(val[0], abc.Sequence):
+                elif isinstance(first(val), abc.Sequence):
                     vlans = cast(Sequence[Sequence[int]], val)
+                else:
+                    raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.")
         elif isinstance(val, abc.Iterable):
             vlans = list(map(lambda x: [x], val))  # type: ignore
         else:
             raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.")
 
         er = expand_ranges(vlans, inclusive=True)
-        if er and not (er[0] >= 0 and er[-1] <= 4096):
+        if er and not (first(er) >= 0 and last(er) <= 4096):
             raise ValueError(f"{val} is out of range (0-4096).")
 
         self._vlan_ranges = tuple(to_ranges(er))
@@ -124,8 +127,7 @@ class VlanRanges(abc.Set):
             Number of VLAN's
 
         """
-        # Utilize the __iter__ method
-        return sum(1 for _ in self)
+        return sum(len(r) for r in self._vlan_ranges)
 
     def __str__(self) -> str:
         # `range` objects have an exclusive `stop`. VlanRanges is expressed using terms that use an inclusive stop,

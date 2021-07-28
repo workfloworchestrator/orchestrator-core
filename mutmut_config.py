@@ -7,5 +7,11 @@ def pre_mutation(context):
 
     if line.strip().startswith("logger.") or prev_line.strip().startswith("logger."):
         context.skip = True
+    if line.strip().startswith("logger = structlog"):
+        context.skip = True
     if line.strip().startswith("cls.__doc__"):
+        context.skip = True
+
+    # This file is copied verbatim and is not tested
+    if context.filename.endswith("crypt.py"):
         context.skip = True
