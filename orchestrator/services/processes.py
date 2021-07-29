@@ -13,7 +13,6 @@
 
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
-from functools import partial
 from http import HTTPStatus
 from typing import Any, Callable, List, Literal, Optional, Tuple
 from uuid import UUID, uuid4
@@ -30,7 +29,7 @@ from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.datetime import nowtz
-from orchestrator.utils.errors import error_state_to_dict, post_mortem
+from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.workflow import Failed
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
@@ -222,8 +221,6 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
 
 
 def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
-    debugger = app_settings.POST_MORTEM_DEBUGGER
-
     def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
         """
         Update amount of running processes by one.
@@ -258,7 +255,7 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
             logger.exception("Unknown workflow failure", pid=pid)
             result = Failed(ex)
 
-        return result.on_failed(partial(post_mortem, debugger))
+        return result
 
     workflow_executor = get_thread_pool()
 
