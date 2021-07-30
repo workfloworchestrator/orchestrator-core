@@ -64,7 +64,7 @@ pip install flit
 ```
 
 ### Step 2:
-This step depends on where you want to install the core; there are two possibilities: standalone (e.g. to run tests) 
+This step depends on where you want to install the core; there are two possibilities: standalone (e.g. to run tests)
 or symlinked to an orchestrator-project that you're working on.
 
 *Stand alone*
@@ -78,15 +78,15 @@ pip install pre-commit
 
 *Symlinked to other orchestrator-project*
 
-You can point the last parameter to the python binary in the venv you're using for your own orchestrator project. 
-It will automatically replace the pypi dep with a symlink to the development version of the core and update/downgrade 
+You can point the last parameter to the python binary in the venv you're using for your own orchestrator project.
+It will automatically replace the pypi dep with a symlink to the development version of the core and update/downgrade
 all required packages in your own orchestrator project.
 
 ```bash
 flit install --deps develop --symlink --python /path/to/a/orchestrator-project/venv/bin/python
 ```
 
-So if you have the core and your own orchestrator project repo in the same folder and the main project folder is 
+So if you have the core and your own orchestrator project repo in the same folder and the main project folder is
 `orchestrator` and want to use relative links:
 
 ```bash
