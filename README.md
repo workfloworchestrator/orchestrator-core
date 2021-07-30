@@ -55,23 +55,31 @@ You can develop on the core in 2 ways; as a standalone project, or if you build 
 of the core you can use a cool symlink trick to get 2 editable projects.
 
 *Step 1:*
+
+Install flit:
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install flit
 ```
 
-The next step depends on where you want to install the core; the most obvious choice it to install (symlink) it to
+*Step 2:*
+
+This step depends on where you want to install the core; the most obvious choice it to install (symlink) it to
 an orchestrator project that you are building. You can point the last parameter to the python binary in the venv
 you're using for your own orchestrator project. It will automatically replace the pypi dep with a symlink to
 the development version of the core and update/downgrade all required packages in your own orchestrator project.
 
-NOTE: if you want to test your changes to the core in a standalone project, you can just provide the path to the python
-bin in the `venv` you created  in step1.
-
-*Step 2:*
 ```bash
-flit install --deps develop --symlink --python /path/to/a/venv/bin/python
+flit install --deps develop --symlink --python /path/to/a/orchestrator-project/venv/bin/python
+```
+
+So if you have the core and your main project repo in the same folder and the main project folder is `orchestrator` 
+and want to use relative links:
+
+```bash
+flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
 ```
 
 Note: When you change requirements you can just re-execute "Step 2".
