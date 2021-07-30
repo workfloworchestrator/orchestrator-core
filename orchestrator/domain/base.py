@@ -447,7 +447,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             cls.name = None  # type:ignore
             cls.__names__ = set()
 
-        # For everything except abstact classes
+        # For everything except abstract classes
         if cls.name is not None:
             register_specialized_type(cls, lifecycle)
 
@@ -513,6 +513,10 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         other: "ProductBlockModel",
         status: SubscriptionLifecycle,
     ) -> B:
+        """Create new domain model from instance while changing the status.
+
+        This makes sure we always have a specific instance..
+        """
         if not cls.__base_type__:
             cls = ProductBlockModel.registry.get(other.name, cls)  # type:ignore
             cls = lookup_specialized_type(cls, status)
@@ -936,6 +940,10 @@ class SubscriptionModel(DomainModel):
         other: "SubscriptionModel",
         status: SubscriptionLifecycle,
     ) -> S:
+        """Create new domain model from instance while changing the status.
+
+        This makes sure we always have a speficic instance.
+        """
         if not cls.__base_type__:
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
