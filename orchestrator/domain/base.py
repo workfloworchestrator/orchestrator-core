@@ -34,7 +34,6 @@ from orchestrator.db import (
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     SubscriptionTable,
-    database,
     db,
 )
 from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
@@ -90,7 +89,6 @@ class DomainModel(BaseModel):
     __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
     _product_block_fields_: ClassVar[Dict[str, Type]]
     _non_product_block_fields_: ClassVar[Dict[str, Type]]
-    _db_model: database.BaseModel
 
     def __init_subclass__(
         cls, *args: Any, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
@@ -136,6 +134,9 @@ class DomainModel(BaseModel):
         cls._product_block_fields_ = {}
 
         for field_name, field_type in cls.__annotations__.items():
+            if field_name.startswith("_"):
+                continue
+
             try:
                 is_product_block_field = (
                     is_list_type(field_type, DomainModel)
@@ -154,7 +155,7 @@ class DomainModel(BaseModel):
 
     @classmethod
     def _init_instances(
-        cls, skip_keys: Optional[List[str]] = None
+        cls, subscription_id: UUID, skip_keys: Optional[List[str]] = None
     ) -> Dict[str, Union[List["ProductBlockModel"], "ProductBlockModel"]]:
         """Initialize default subscription instances.
 
@@ -184,7 +185,7 @@ class DomainModel(BaseModel):
                     if product_block_field_type.min_items:
                         logger.debug("creating min_items", type=product_block_field_type)  # pragma: no mutate
                         for _ in range(product_block_field_type.min_items):
-                            default_value.append(product_block_model.new())
+                            default_value.append(product_block_model.new(subscription_id=subscription_id))
                 else:
                     # a list field of ProductBlockModels without limits gets an empty list
                     default_value = []
@@ -193,7 +194,7 @@ class DomainModel(BaseModel):
             else:
                 product_block_model = product_block_field_type
                 # Scalar field of a ProductBlockModel expects 1 instance
-                default_value = product_block_model.new()
+                default_value = product_block_model.new(subscription_id=subscription_id)
             instances[product_block_field_name] = default_value
         return instances
 
@@ -311,7 +312,9 @@ class DomainModel(BaseModel):
                 data[field_name] = []
                 for item in getattr(other, field_name):
                     if item.subscription.subscription_id == subscription_id:
-                        data[field_name].append(one(get_args(field_type))._from_other_lifecycle(item, status))
+                        data[field_name].append(
+                            one(get_args(field_type))._from_other_lifecycle(item, status, subscription_id)
+                        )
                     else:
                         data[field_name].append(item)
 
@@ -321,7 +324,7 @@ class DomainModel(BaseModel):
 
                 value = getattr(other, field_name)
                 if value.subscription.subscription_id == subscription_id:
-                    data[field_name] = field_type._from_other_lifecycle(value, status)
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
                 else:
                     data[field_name] = value
         return data
@@ -541,7 +544,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return missing_data
 
     @classmethod
-    def new(cls: Type[B], **kwargs: Any) -> B:
+    def new(cls: Type[B], subscription_id: UUID, **kwargs: Any) -> B:
         """Create a new empty product block.
 
         We need to use this instead of the normal constructor because that assumes you pass in
@@ -549,7 +552,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         This is similar to `from_product_id()`
         """
-        sub_instances = cls._init_instances(list(kwargs.keys()))
+        sub_instances = cls._init_instances(subscription_id, list(kwargs.keys()))
 
         subscription_instance_id = uuid4()
 
@@ -559,10 +562,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         db_model = SubscriptionInstanceTable(
             product_block_id=cls.product_block_id,
             subscription_instance_id=subscription_instance_id,
+            subscription_id=subscription_id,
         )
-
+        db.session.enable_relationship_loading(db_model)
         model = cls(subscription_instance_id=subscription_instance_id, **sub_instances, **kwargs)  # type: ignore
         model._db_model = db_model
+        assert db_model.subscription  # noqa: S101
         return model
 
     @classmethod
@@ -994,9 +999,10 @@ class SubscriptionModel(DomainModel):
             end_date=end_date,
             note=note,
         )
+        db.session.add(subscription)
 
         fixed_inputs = {fi.name: fi.value for fi in product_db.fixed_inputs}
-        instances = cls._init_instances()
+        instances = cls._init_instances(subscription_id)
 
         if isinstance(customer_id, str):
             customer_id = UUID(customer_id)

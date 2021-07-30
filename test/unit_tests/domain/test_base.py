@@ -19,7 +19,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     db,
 )
-from orchestrator.db.models import FixedInputTable
+from orchestrator.db.models import FixedInputTable, SubscriptionTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import (
     ProductBlockModel,
@@ -154,10 +154,17 @@ def test_product_model(test_product):
     )
 
 
-def test_product_block_metadata(test_product_block, test_product_blocks_db):
+def test_product_block_metadata(test_product_block, test_product, test_product_blocks_db):
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
 
-    BlockForTestInactive.new()  # Need at least one instance since we lazy load this stuff
+    subscription_id = uuid4()
+    dummy_subscription = SubscriptionTable(subscription_id=subscription_id)
+    db.session.add(dummy_subscription)
+    db.session.flush()
+
+    BlockForTestInactive.new(
+        subscription_id=subscription_id
+    )  # Need at least one instance since we lazy load this stuff
 
     assert BlockForTestInactive.name == "BlockForTest"
     assert BlockForTestInactive.description == "Test Block"
@@ -168,19 +175,20 @@ def test_product_block_metadata(test_product_block, test_product_blocks_db):
 def test_lifecycle(test_product_model, test_product_type, test_product_block):
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
+    subscription_id = uuid4()
 
     # Test create with wrong lifecycle, we can create
     with pytest.raises(ValueError, match=r"is not valid for status active"):
         ProductTypeForTestInactive(
             product=test_product_model,
             customer_id=uuid4(),
-            subscription_id=uuid4(),
+            subscription_id=subscription_id,
             insync=False,
             description="",
             start_date=None,
             end_date=None,
             note=None,
-            block=BlockForTestInactive.new(),
+            block=BlockForTestInactive.new(subscription_id),
             status=SubscriptionLifecycle.ACTIVE,
             test_fixed_input=False,
         )
@@ -189,13 +197,13 @@ def test_lifecycle(test_product_model, test_product_type, test_product_block):
     product_type = ProductTypeForTestInactive(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
-        block=BlockForTestInactive.new(),
+        block=BlockForTestInactive.new(subscription_id),
         status=SubscriptionLifecycle.INITIAL,
         test_fixed_input=False,
     )
@@ -207,23 +215,25 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
     SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
+    subscription_id = uuid4()
 
     # Works with less contrained lifecycle
     product_type = ProductTypeForTest(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTest.new(
+            subscription_id=subscription_id,
             int_field=3,
             str_field="",
             list_field=[1],
-            sub_block=SubBlockForTest.new(int_field=3, str_field=""),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.INITIAL,
         test_fixed_input=False,
@@ -235,18 +245,19 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
     product_type = ProductTypeForTest(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTest.new(
+            subscription_id=subscription_id,
             int_field=3,
             str_field="",
             list_field=[1],
-            sub_block=SubBlockForTest.new(int_field=3, str_field=""),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.ACTIVE,
         test_fixed_input=False,
@@ -259,17 +270,18 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
         ProductTypeForTestProvisioning(
             product=test_product_model,
             customer_id=uuid4(),
-            subscription_id=uuid4(),
+            subscription_id=subscription_id,
             insync=False,
             description="",
             start_date=None,
             end_date=None,
             note=None,
             block=BlockForTestProvisioning.new(
+                subscription_id=subscription_id,
                 int_field=3,
                 list_field=[1],
-                sub_block=SubBlockForTestProvisioning.new(int_field=3),
-                sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+                sub_block=SubBlockForTestProvisioning.new(subscription_id=subscription_id, int_field=3),
+                sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             ),
             status=SubscriptionLifecycle.ACTIVE,
             test_fixed_input=False,
@@ -279,17 +291,18 @@ def test_lifecycle_specific(test_product_model, test_product_type, test_product_
     product_type = ProductTypeForTestProvisioning(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTestProvisioning.new(
+            subscription_id=subscription_id,
             int_field=3,
             list_field=[1],
-            sub_block=SubBlockForTestProvisioning.new(int_field=3),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTestProvisioning.new(subscription_id=subscription_id, int_field=3),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.PROVISIONING,
         test_fixed_input=False,
@@ -303,22 +316,24 @@ def test_product_blocks_per_lifecycle(
     SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
+    subscription_id = uuid4()
 
     ProductTypeForTestInactive(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTest.new(
+            subscription_id=subscription_id,
             int_field=3,
             str_field="",
             list_field=[1],
-            sub_block=SubBlockForTest.new(int_field=3, str_field=""),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.INITIAL,
         test_fixed_input=False,
@@ -327,13 +342,13 @@ def test_product_blocks_per_lifecycle(
     ProductTypeForTestInactive(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
-        block=BlockForTestInactive.new(int_field=3),
+        block=BlockForTestInactive.new(subscription_id=subscription_id, int_field=3),
         status=SubscriptionLifecycle.INITIAL,
         test_fixed_input=False,
     )
@@ -341,18 +356,19 @@ def test_product_blocks_per_lifecycle(
     ProductTypeForTestProvisioning(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTest.new(
+            subscription_id=subscription_id,
             int_field=3,
             str_field="",
             list_field=[1],
-            sub_block=SubBlockForTest.new(int_field=3, str_field=""),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.PROVISIONING,
         test_fixed_input=False,
@@ -361,18 +377,19 @@ def test_product_blocks_per_lifecycle(
     ProductTypeForTest(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTest.new(
+            subscription_id=subscription_id,
             int_field=3,
             str_field="",
             list_field=[1],
-            sub_block=SubBlockForTest.new(int_field=3, str_field=""),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.ACTIVE,
         test_fixed_input=False,
@@ -381,18 +398,19 @@ def test_product_blocks_per_lifecycle(
     ProductTypeForTest(
         product=test_product_model,
         customer_id=uuid4(),
-        subscription_id=uuid4(),
+        subscription_id=subscription_id,
         insync=False,
         description="",
         start_date=None,
         end_date=None,
         note=None,
         block=BlockForTest.new(
+            subscription_id=subscription_id,
             int_field=3,
             str_field="",
             list_field=[1],
-            sub_block=SubBlockForTest.new(int_field=3, str_field=""),
-            sub_block_2=SubBlockForTest.new(int_field=3, str_field=""),
+            sub_block=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
+            sub_block_2=SubBlockForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
         status=SubscriptionLifecycle.INITIAL,
         test_fixed_input=False,
@@ -405,13 +423,13 @@ def test_product_blocks_per_lifecycle(
         ProductTypeForTest(
             product=test_product_model,
             customer_id=uuid4(),
-            subscription_id=uuid4(),
+            subscription_id=subscription_id,
             insync=False,
             description="",
             start_date=None,
             end_date=None,
             note=None,
-            block=BlockForTest.new(),
+            block=BlockForTest.new(subscription_id=subscription_id),
             status=SubscriptionLifecycle.ACTIVE,
             test_fixed_input=False,
         )
@@ -420,13 +438,13 @@ def test_product_blocks_per_lifecycle(
         ProductTypeForTest(
             product=test_product_model,
             customer_id=uuid4(),
-            subscription_id=uuid4(),
+            subscription_id=subscription_id,
             insync=False,
             description="",
             start_date=None,
             end_date=None,
             note=None,
-            block=BlockForTestInactive.new(),
+            block=BlockForTestInactive.new(subscription_id=subscription_id),
             status=SubscriptionLifecycle.ACTIVE,
             test_fixed_input=False,
         )
@@ -435,7 +453,7 @@ def test_product_blocks_per_lifecycle(
         ProductTypeForTest(
             product=test_product_model,
             customer_id=uuid4(),
-            subscription_id=uuid4(),
+            subscription_id=subscription_id,
             insync=False,
             description="",
             start_date=None,
@@ -449,7 +467,7 @@ def test_product_blocks_per_lifecycle(
         ProductTypeForTest(
             product=test_product_model,
             customer_id=uuid4(),
-            subscription_id=uuid4(),
+            subscription_id=subscription_id,
             insync=False,
             description="",
             start_date=None,
@@ -469,7 +487,10 @@ def test_change_lifecycle(test_product, test_product_type, test_product_block, t
         test_product,
         uuid4(),
     )
-    product_type.block = BlockForTestInactive.new(sub_block_2=SubBlockForTestInactive.new())
+    product_type.block = BlockForTestInactive.new(
+        subscription_id=product_type.subscription_id,
+        sub_block_2=SubBlockForTestInactive.new(subscription_id=product_type.subscription_id),
+    )
 
     # Does not work if constraints are not met
     with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
@@ -481,7 +502,7 @@ def test_change_lifecycle(test_product, test_product_type, test_product_block, t
     product_type.block.int_field = 3
     product_type.block.sub_block.int_field = 3
     product_type.block.sub_block_2.int_field = 3
-    product_type.block.sub_block_list = [SubBlockForTestInactive.new()]
+    product_type.block.sub_block_list = [SubBlockForTestInactive.new(subscription_id=product_type.subscription_id)]
     product_type.block.sub_block_list[0].int_field = 4
     product_type.block.list_field = [1]
 
@@ -580,7 +601,7 @@ def test_save_load(test_product_model, test_product_type, test_product_block, te
     # Set first value
     model.block.int_field = 3
     model.block.sub_block.int_field = 3
-    model.block.sub_block_2 = SubBlockForTestInactive.new()
+    model.block.sub_block_2 = SubBlockForTestInactive.new(subscription_id=model.subscription_id)
     model.block.sub_block_2.int_field = 3
     model.block.list_field = [1]
     model.block.sub_block.str_field = "B"
@@ -617,7 +638,7 @@ def test_update_constrained_lists(test_product, test_product_block):
     ip = TestConListProductType.from_product_id(product_id=test_product, customer_id=uuid4())
     ip.save()
 
-    sap = BlockForTestInactive.new(int_field=3, str_field="")
+    sap = BlockForTestInactive.new(subscription_id=ip.subscription_id, int_field=3, str_field="")
 
     # Set new saps, removes old one
     ip.saps = [sap]
@@ -644,7 +665,7 @@ def test_update_lists(test_product, test_product_block):
     ip = TestListProductType.from_product_id(product_id=test_product, customer_id=uuid4())
     ip.save()
 
-    sap = BlockForTestInactive.new(int_field=3, str_field="")
+    sap = BlockForTestInactive.new(subscription_id=ip.subscription_id, int_field=3, str_field="")
 
     # Set new saps
     ip.saps = [sap]
@@ -667,7 +688,7 @@ def test_update_optional(test_product, test_product_block):
     ip = TestListProductType.from_product_id(product_id=test_product, customer_id=uuid4())
     ip.save()
 
-    sap = BlockForTestInactive.new(int_field=3, str_field="")
+    sap = BlockForTestInactive.new(subscription_id=ip.subscription_id, int_field=3, str_field="")
 
     # Set new sap
     ip.sap = sap
@@ -707,8 +728,8 @@ def test_domain_model_attrs_saving_loading(test_product, test_product_type, test
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
-    test_model.block.sub_block_2 = SubBlockForTestInactive.new()
-    test_model.block.sub_block_list = [SubBlockForTestInactive.new()]
+    test_model.block.sub_block_2 = SubBlockForTestInactive.new(subscription_id=test_model.subscription_id)
+    test_model.block.sub_block_list = [SubBlockForTestInactive.new(subscription_id=test_model.subscription_id)]
     test_model.save()
     db.session.commit()
 
@@ -733,7 +754,7 @@ def test_removal_of_domain_attrs(test_product, test_product_type, test_product_s
     ProductTypeForTestInactive, ProductTypeForTestProvisioning, ProductTypeForTest = test_product_type
 
     test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
-    test_model.block.sub_block_2 = SubBlockForTestInactive.new()
+    test_model.block.sub_block_2 = SubBlockForTestInactive.new(subscription_id=test_model.subscription_id)
 
     test_model.save()
     db.session.commit()
@@ -816,11 +837,11 @@ def test_abstract_super_block(test_product, test_product_type, test_product_bloc
     SUBSCRIPTION_MODEL_REGISTRY["TestProduct"] = ProductTypeForTest
 
     test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
-    test_model.block = BlockForTestInactive.new()
+    test_model.block = BlockForTestInactive.new(subscription_id=test_model.subscription_id)
 
     # Check metadata
     with pytest.raises(ValueError, match=r"Cannot create instance of abstract class. Use one of {'BlockForTest'}"):
-        AbstractBlockForTestInactive.new()
+        AbstractBlockForTestInactive.new(subscription_id=test_model.subscription_id)
     assert AbstractBlockForTestInactive.name is None
     assert not hasattr(AbstractBlockForTestInactive, "description")
     assert not hasattr(AbstractBlockForTestInactive, "product_block_id")
@@ -985,14 +1006,14 @@ def test_from_other_lifecycle_abstract(test_product):
         list_field: List[int]
         int_field: int
 
-    block = BlockForTestInactive.new()
+    block = BlockForTestInactive.new(subscription_id=uuid4())
     assert isinstance(block, BlockForTestInactive)
 
     block.int_field = 1
     block.str_field = "bla"
     block.list_field = [1]
 
-    active_block = BlockForTest._from_other_lifecycle(block, SubscriptionLifecycle.ACTIVE)
+    active_block = BlockForTest._from_other_lifecycle(block, SubscriptionLifecycle.ACTIVE, uuid4())
 
     assert isinstance(active_block, AbstractBlockForTest)
     assert isinstance(active_block, BlockForTest)
@@ -1002,11 +1023,12 @@ def test_from_other_lifecycle_abstract(test_product):
 def test_from_other_lifecycle_sub(test_product, test_product_block, test_product_sub_block):
     SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
+    subscription_id = uuid4()
 
-    block = BlockForTestInactive.new(int_field=1, str_field="bla", list_field=[1])
-    block.sub_block = SubBlockForTestInactive.new(int_field=1, str_field="bla")
-    block.sub_block_2 = SubBlockForTestInactive.new(int_field=1, str_field="bla")
-    block.sub_block_list = [SubBlockForTestInactive.new(int_field=1, str_field="bla")]
+    block = BlockForTestInactive.new(subscription_id=subscription_id, int_field=1, str_field="bla", list_field=[1])
+    block.sub_block = SubBlockForTestInactive.new(subscription_id=subscription_id, int_field=1, str_field="bla")
+    block.sub_block_2 = SubBlockForTestInactive.new(subscription_id=subscription_id, int_field=1, str_field="bla")
+    block.sub_block_list = [SubBlockForTestInactive.new(subscription_id=subscription_id, int_field=1, str_field="bla")]
 
     assert isinstance(block, BlockForTestInactive)
 
