@@ -5,6 +5,7 @@ repos:
       - id: pyupgrade
         args:
           - --py38-plus
+          - --keep-runtime-typing
   - repo: https://github.com/timothycrosley/isort
     rev: 5.9.2
     hooks:
