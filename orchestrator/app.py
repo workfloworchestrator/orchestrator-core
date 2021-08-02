@@ -151,7 +151,7 @@ class OrchestratorCore(FastAPI):
 
 
 main_typer_app = typer.Typer()
-main_typer_app.add_typer(cli_app, name="orchestrator", help="This are the orchestrator cli commands")
+main_typer_app.add_typer(cli_app, name="orchestrator", help="The orchestrator CLI commands")
 
 if __name__ == "__main__":
     main_typer_app()

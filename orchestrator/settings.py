@@ -73,9 +73,7 @@ oauth2_settings = Oauth2Settings()
 
 # Tracer settings
 jaeger_exporter = JaegerExporter(
-    # service_name=app_settings.SERVICE_NAME,
     agent_host_name=app_settings.LOGGING_HOST,
-    # insecure=True,
 )
 
 tracer_provider = TracerProvider()
