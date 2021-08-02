@@ -22,6 +22,7 @@ from fastapi_etag.dependency import add_exception_handler
 from nwastdlib.logging import initialise_logging
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
@@ -101,6 +102,7 @@ class OrchestratorCore(FastAPI):
         trace.set_tracer_provider(tracer_provider)
         FastAPIInstrumentor.instrument_app(self)
         RequestsInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument()
         RedisInstrumentor().instrument()
         Psycopg2Instrumentor().instrument()
         SQLAlchemyInstrumentor().instrument(engine=db.engine, tracer_provider=tracer_provider)
@@ -113,7 +115,7 @@ class OrchestratorCore(FastAPI):
         environment: str,
         release: Optional[str] = GIT_COMMIT_HASH,
     ) -> None:
-        logger.info("Adding Sentry middelware to app", app=self.title)
+        logger.info("Adding Sentry middleware to app", app=self.title)
         sentry_sdk.init(
             dsn=sentry_dsn,
             traces_sample_rate=trace_sample_rate,
@@ -149,7 +151,7 @@ class OrchestratorCore(FastAPI):
 
 
 main_typer_app = typer.Typer()
-main_typer_app.add_typer(cli_app, name="orchestrator", help="The are the orchestrator cli commands")
+main_typer_app.add_typer(cli_app, name="orchestrator", help="This are the orchestrator cli commands")
 
 if __name__ == "__main__":
     main_typer_app()
