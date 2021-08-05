@@ -51,26 +51,67 @@ uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 
 ## Installation (Development)
 
-Step 1:
+You can develop on the core in 2 ways; as a standalone project, or if you build a project that uses the pypi package
+of the core you can use a cool symlink trick to get 2 editable projects.
+
+### Step 1:
+Install flit:
+
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install flit
 ```
 
-Step 2:
+### Step 2:
+This step depends on where you want to install the core; there are two possibilities: standalone (e.g. to run tests)
+or symlinked to an orchestrator-project that you're working on.
+
+*Stand alone*
+
 ```bash
-flit install --deps develop --symlink
+flit install --deps develop --symlink --python venv/bin/python
+# optional: handy for tests and development
+pip install redis
+pip install pre-commit
 ```
+
+*Symlinked to other orchestrator-project*
+
+You can point the last parameter to the python binary in the venv you're using for your own orchestrator project.
+It will automatically replace the pypi dep with a symlink to the development version of the core and update/downgrade
+all required packages in your own orchestrator project.
+
+```bash
+flit install --deps develop --symlink --python /path/to/a/orchestrator-project/venv/bin/python
+```
+
+So if you have the core and your own orchestrator project repo in the same folder and the main project folder is
+`orchestrator` and want to use relative links:
+
+```bash
+flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
+```
+
+Note: When you change requirements you can just re-execute "Step 2".
 
 ## Running tests.
 
-Create a database
+*Create a database*
 
 ```bash
 createuser -sP nwa
 createdb orchestrator-core-test -O nwa
 ```
 
-Run tests
+*Run tests*
+
 ```bash
 pytest test/unit_tests
+```
+
+or with xdist:
+
+```bash
+pytest -n auto test/unit_tests
 ```
