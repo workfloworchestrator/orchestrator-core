@@ -103,7 +103,7 @@ test = [
     "mypy",
     "pytest",
     "pytest-cov",
-    "pytest-httpx==0.10.1",
+    "pytest-httpx",
     "pytest-xdist",
     "requests-mock",
     "urllib3_mock",
