@@ -72,9 +72,10 @@ app_settings = AppSettings()
 oauth2_settings = Oauth2Settings()
 
 # Tracer settings
+tracer_provider = TracerProvider()
+
 jaeger_exporter = JaegerExporter(
     agent_host_name=app_settings.LOGGING_HOST,
+    udp_split_oversized_batches=True
 )
-
-tracer_provider = TracerProvider()
 tracer_provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))
