@@ -34,7 +34,12 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
+from orchestrator.schemas import (
+    SubscriptionDescriptionBaseSchema,
+    SubscriptionDomainModelSchema,
+    SubscriptionSchema,
+    SubscriptionWorkflowListsSchema,
+)
 from orchestrator.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     query_child_subscriptions_by_resource_types,
@@ -138,6 +143,13 @@ def parent_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
 
 @router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
 def child_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_child_subscriptions_by_resource_types(RELATION_RESOURCE_TYPES, subscription_id).all()
+
+
+@router.get(
+    "/related_subscription_descriptions/{subscription_id}", response_model=List[SubscriptionDescriptionBaseSchema]
+)
+def related_subscription_descriptions(subscription_id: UUID) -> List[SubscriptionTable]:
     return query_child_subscriptions_by_resource_types(RELATION_RESOURCE_TYPES, subscription_id).all()
 
 
