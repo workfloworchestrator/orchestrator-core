@@ -84,9 +84,9 @@ from uuid import UUID
 
 import rapidjson as json
 import structlog
-from pydantic import BaseModel
 
 from orchestrator.utils.datetime import isoformat
+from pydantic import BaseModel
 
 PY_JSON_TYPES = Union[Dict[str, Any], List, str, int, float, bool, None, object]  # pragma: no mutate
 

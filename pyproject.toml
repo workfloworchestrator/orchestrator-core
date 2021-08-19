@@ -57,7 +57,7 @@ requires = [
     "opentelemetry-instrumentation-wsgi~=0.23b2",
     "opentelemetry-sdk==1.4.1",
     "psycopg2-binary~=2.8.6",
-    "pydantic[email]~=1.7.4",
+    "pydantic[email] @ git+https://github.com/hmvp/pydantic.git@multiple_inheritance#egg=pydantic",
     "pynso-restconf~=2.1.0",
     "python-rapidjson==1.0",
     "pytz",

@@ -14,9 +14,8 @@
 
 from typing import Any, Dict, Iterator, Optional
 
-from pydantic import BaseModel, ConstrainedInt, conint, root_validator
-
 from orchestrator.utils.vlans import VlanRanges
+from pydantic import BaseModel, ConstrainedInt, conint, root_validator
 
 
 class BFD(BaseModel):

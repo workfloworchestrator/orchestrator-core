@@ -1,9 +1,9 @@
 import pytest
-from pydantic import ValidationError
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.network_type_validators import BFD, MTU, VlanRangesValidator
 from orchestrator.utils.vlans import VlanRanges
+from pydantic import ValidationError
 
 
 def test_bfd_ok():

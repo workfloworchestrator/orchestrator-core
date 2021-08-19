@@ -19,6 +19,7 @@ from typing import List, Optional
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
 from opentelemetry.sdk.trace import TracerProvider  # type: ignore
 from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
+
 from pydantic import BaseSettings
 
 

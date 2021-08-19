@@ -13,9 +13,8 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
-
 from orchestrator.utils.vlans import VlanRanges
+from pydantic import BaseModel
 
 
 class OrchestratorBaseModel(BaseModel):

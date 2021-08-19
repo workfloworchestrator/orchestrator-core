@@ -16,7 +16,6 @@ from typing import Callable, Dict, Optional, cast
 from uuid import UUID
 
 from more_itertools import first_true
-from pydantic import validator
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms import FormPage
@@ -27,6 +26,7 @@ from orchestrator.types import FormGenerator, InputForm, InputStepFunc, State, S
 from orchestrator.utils.state import form_inject_args
 from orchestrator.workflow import StepList, Workflow, done, init, make_workflow, step
 from orchestrator.workflows.steps import resync, store_process_subscription, unsync_unchecked
+from pydantic import validator
 
 
 def _generate_new_subscription_form(workflow_target: str, workflow_name: str) -> InputForm:

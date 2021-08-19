@@ -17,8 +17,6 @@ from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 from uuid import UUID
 
-from pydantic.typing import get_args
-
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import (
     FormGenerator,
@@ -33,6 +31,7 @@ from orchestrator.types import (
     is_optional_type,
 )
 from orchestrator.utils.functional import logger
+from pydantic.typing import get_args
 
 
 def extract(keys: Tuple[str, ...], state: State) -> Tuple[Any, ...]:

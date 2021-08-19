@@ -150,7 +150,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     """
     if get_origin(t):
-        if is_optional_type(t):
+        if is_optional_type(t) or is_union_type(t):
             for arg in get_args(t):
                 if is_list_type(arg, test_type):
                     return True
@@ -195,4 +195,35 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
                     return is_of_type(arg, test_type)
                 else:
                     return True
+    return False
+
+
+def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
+    """Check if `t` is union type (Union[Type, AnotherType]).
+
+    Optionally check if T is of `test_type` We cannot check for literal Nones.
+
+    >>> is_union_type(Union[int, str])
+    True
+    >>> is_union_type(Union[int, str], str)
+    False
+    >>> is_union_type(int)
+    False
+    >>> is_union_type(Optional[str], str, False)
+    True
+    >>> is_union_type(Optional[str], str)
+    False
+
+    """
+    if get_origin(t):
+        if get_origin(t) == Union:
+            if test_type:
+                for arg in get_args(t):
+                    result = is_of_type(arg, test_type)
+                    if not result:
+                        return result
+                return True
+            else:
+                return True
+
     return False
