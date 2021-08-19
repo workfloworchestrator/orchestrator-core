@@ -15,13 +15,14 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import Extra
+
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.product import ProductBaseSchema
 from orchestrator.schemas.product_block import ProductBlockSchema
 from orchestrator.schemas.resource_type import ResourceTypeSchema
 from orchestrator.schemas.subscription_descriptions import SubscriptionDescriptionSchema
 from orchestrator.types import SubscriptionLifecycle, strEnum
-from pydantic import Extra
 
 
 class PortMode(strEnum):

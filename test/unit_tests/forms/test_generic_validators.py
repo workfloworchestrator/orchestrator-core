@@ -3,6 +3,7 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from orchestrator.forms import FormPage, ReadOnlyField
 from orchestrator.forms.validators import (
@@ -26,7 +27,6 @@ from orchestrator.forms.validators import (
 )
 from orchestrator.services import products
 from orchestrator.utils.json import json_dumps, json_loads
-from pydantic import ValidationError
 
 
 def test_constrained_list_good():

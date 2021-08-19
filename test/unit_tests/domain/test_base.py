@@ -5,6 +5,9 @@ from uuid import uuid4
 
 import pytest
 import pytz
+from pydantic import Field, ValidationError, conlist
+from pydantic.main import BaseModel
+from pydantic.types import ConstrainedList
 from sqlalchemy.orm.exc import NoResultFound
 
 from orchestrator.db import (
@@ -16,7 +19,7 @@ from orchestrator.db import (
     SubscriptionInstanceValueTable,
     db,
 )
-from orchestrator.db.models import FixedInputTable, SubscriptionTable
+from orchestrator.db.models import FixedInputTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import (
     ProductBlockModel,
@@ -27,9 +30,6 @@ from orchestrator.domain.base import (
 )
 from orchestrator.domain.lifecycle import ProductLifecycle, change_lifecycle
 from orchestrator.types import SubscriptionLifecycle
-from pydantic import Field, ValidationError, conlist
-from pydantic.main import BaseModel
-from pydantic.types import ConstrainedList
 
 
 @pytest.fixture
@@ -156,13 +156,8 @@ def test_product_model(test_product):
 
 def test_product_block_metadata(test_product_block, test_product, test_product_blocks_db):
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
-    test_product
 
     subscription_id = uuid4()
-    dummy_subscription = SubscriptionTable(subscription_id=subscription_id)
-    db.session.add(dummy_subscription)
-    db.session.flush()
-
     BlockForTestInactive.new(
         subscription_id=subscription_id
     )  # Need at least one instance since we lazy load this stuff

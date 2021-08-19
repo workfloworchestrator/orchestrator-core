@@ -1,7 +1,7 @@
 import pytest
+from pydantic.dataclasses import dataclass
 
 from orchestrator.utils.vlans import VlanRanges
-from pydantic.dataclasses import dataclass
 
 
 def test_vlanranges_instantiation():

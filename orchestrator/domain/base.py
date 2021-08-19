@@ -20,6 +20,11 @@ from uuid import UUID, uuid4
 
 import structlog
 from more_itertools import first, flatten, one, only
+from pydantic import BaseModel, Field, ValidationError
+from pydantic.fields import PrivateAttr
+from pydantic.main import ModelMetaclass
+from pydantic.types import ConstrainedList
+from pydantic.typing import get_args, get_origin
 from sqlalchemy.orm import selectinload
 
 from orchestrator.db import (
@@ -43,11 +48,6 @@ from orchestrator.types import (
 )
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
-from pydantic import BaseModel, Field, ValidationError
-from pydantic.fields import PrivateAttr
-from pydantic.main import ModelMetaclass
-from pydantic.types import ConstrainedList
-from pydantic.typing import get_args, get_origin
 
 logger = structlog.get_logger(__name__)
 
@@ -120,7 +120,7 @@ class DomainModel(BaseModel):
                             specialized_type = lookup_specialized_type(field_type, lifecycle_status)
                             if not issubclass(field_type, specialized_type):
                                 raise AssertionError(
-                                    f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {product_block_field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
+                                    f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
                                 )
                     else:
                         specialized_type = lookup_specialized_type(product_block_field_type, lifecycle_status)
@@ -130,7 +130,7 @@ class DomainModel(BaseModel):
                             )
 
     @classmethod
-    def _get_child_product_block_types(cls) -> Dict[str, Type["ProductBlockModel"]]:
+    def _get_child_product_block_types(cls) -> Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]:
         """Return all the product block model types.
 
         This strips any List[..] or Optional[...] types.
@@ -138,11 +138,13 @@ class DomainModel(BaseModel):
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
-                product_block_field_type = get_args(product_block_field_type)
+                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(product_block_field_type)  # type: ignore
             elif is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
-                product_block_field_type = first(get_args(product_block_field_type))
+                field_type = first(get_args(product_block_field_type))
+            else:
+                field_type = product_block_field_type
 
-            result[product_block_field_name] = product_block_field_type
+            result[product_block_field_name] = field_type
         return result
 
     @classmethod
@@ -310,12 +312,15 @@ class DomainModel(BaseModel):
                     )
                 )
                 product_block_model = None
+
+                if instance is None:
+                    raise ValueError("Required subscription instance is missing in the database")
+
                 for field_type in get_args(product_block_field_type):
                     if instance.product_block.name == field_type.name:
                         product_block_model = field_type
 
-                if instance is None or product_block_model is None:
-                    raise ValueError("Required subscription instance is missing in the database")
+                assert not product_block_model is None, "Product block model has not been resolved. Unable to continue"
                 instances[product_block_field_name] = product_block_model.from_db(
                     subscription_instance=instance, status=status
                 )
@@ -541,6 +546,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         product_blocks_in_db = {pb.name for pb in product_block_db.children} if product_block_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        if len(list(product_blocks_types_in_model)) > 0 and isinstance(first(list(product_blocks_types_in_model)), tuple):
+            # If the `product_block_types_in_model` is a Tuple we assume that we cross a subscription boundary.
+            # This basically means we cannot check the productmodel in the database as it is an unspecific type.
+            return {}
+
         product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
@@ -565,9 +575,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             missing_resource_types_in_model=missing_resource_types_in_model,
         )
 
-        missing_data = {}
+        missing_data: Dict[str, Any] = {}
         for product_block_in_model in product_blocks_types_in_model:
-            missing_data.update(product_block_in_model.diff_product_block_in_database())
+            missing_data.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
 
         diff = {
             k: v
@@ -741,8 +751,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         subscription_instance_values = []
         for field_name, field_type in self._non_product_block_fields_.items():
-            if isinstance(field_type, ProductBlockModel):
-                return
             assert (  # noqa: S101
                 field_name in resource_types
             ), f"Domain model {self.__class__} does not match the ProductBlockTable {product_block.name}, missing: {field_name} {resource_types}"
@@ -957,6 +965,11 @@ class SubscriptionModel(DomainModel):
 
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        if len(list(product_blocks_types_in_model)) > 0 and isinstance(first(list(product_blocks_types_in_model)), tuple):
+            # If the `product_block_types_in_model` is a Tuple we assume that we cross a subscription boundary.
+            # This basically means we cannot check the productmodel in the database as it is an unspecific type.
+            return {}
+
         product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
@@ -981,9 +994,9 @@ class SubscriptionModel(DomainModel):
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        missing_data_children = {}
+        missing_data_children: Dict[str, Any] = {}
         for product_block_in_model in product_blocks_types_in_model:
-            missing_data_children.update(product_block_in_model.diff_product_block_in_database())
+            missing_data_children.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
 
         diff = {
             k: v

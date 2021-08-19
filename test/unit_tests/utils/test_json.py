@@ -19,10 +19,10 @@ from uuid import UUID
 
 import pytest
 import pytz
+from pydantic import BaseModel
 
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.json import from_serializable, json_dumps, json_loads, non_none_dict, to_serializable
-from pydantic import BaseModel
 
 
 def test_serialization_datetime():

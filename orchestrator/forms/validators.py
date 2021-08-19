@@ -16,15 +16,15 @@ from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence, Typ
 from uuid import UUID
 
 import structlog
-
-from orchestrator.forms import DisplayOnlyFieldType
-from orchestrator.services import products
-from orchestrator.types import AcceptData, SummaryData, strEnum
 from pydantic import BaseModel, ConstrainedList, EmailStr
 from pydantic.errors import EnumMemberError
 from pydantic.fields import ModelField
 from pydantic.utils import update_not_none
 from pydantic.validators import str_validator, uuid_validator
+
+from orchestrator.forms import DisplayOnlyFieldType
+from orchestrator.services import products
+from orchestrator.types import AcceptData, SummaryData, strEnum
 
 logger = structlog.get_logger(__name__)
 

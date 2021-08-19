@@ -206,23 +206,23 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_union_type(Union[int, str])
     True
     >>> is_union_type(Union[int, str], str)
-    False
-    >>> is_union_type(int)
-    False
-    >>> is_union_type(Optional[str], str, False)
     True
-    >>> is_union_type(Optional[str], str)
+    >>> is_union_type(Union[int, str], Union[int, str])
+    True
+    >>> is_union_type(int)
     False
 
     """
     if get_origin(t):
-        if get_origin(t) == Union:
+        if get_origin(t) == Union:  # type: ignore
             if test_type:
+                if is_of_type(t, test_type):
+                    return True
                 for arg in get_args(t):
                     result = is_of_type(arg, test_type)
-                    if not result:
+                    if result:
                         return result
-                return True
+                return False
             else:
                 return True
 

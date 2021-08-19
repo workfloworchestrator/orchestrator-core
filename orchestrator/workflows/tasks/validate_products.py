@@ -16,6 +16,7 @@ from typing import Dict, List
 from more_itertools import flatten
 from more_itertools.more import one
 from more_itertools.recipes import first_true
+from pydantic import ValidationError
 from sqlalchemy import not_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.sqltypes import JSON
@@ -30,7 +31,6 @@ from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.errors import ProcessFailure
 from orchestrator.workflow import StepList, done, init, step, workflow
-from pydantic import ValidationError
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
 

@@ -98,7 +98,7 @@ test = [
     "flake8-rst",
     "flake8-rst-docstrings",
     "flake8-tidy-imports",
-    "isort",
+    "isort~=5.9.3",
     "jsonref",
     "mypy",
     "pytest",
@@ -146,7 +146,7 @@ dev = [
 profile = "black"
 line_length = 120
 skip = ["src", "venv"]
-known_third_party = ["pynso"]
+known_third_party = ["pynso", "pydantic"]
 known_first_party = ["migrations", "test"]
 
 [tool.black]

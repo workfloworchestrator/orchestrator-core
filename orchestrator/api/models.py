@@ -20,6 +20,7 @@ from uuid import UUID
 
 from dateutil.parser import isoparse
 from more_itertools import flatten
+from pydantic import BaseModel
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import (
@@ -34,7 +35,6 @@ from orchestrator.db import (
     WorkflowTable,
     db,
 )
-from pydantic import BaseModel
 
 
 def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
