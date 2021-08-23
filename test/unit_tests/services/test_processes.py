@@ -646,7 +646,7 @@ def test_run_process_async_success():
     assert EngineSettingsTable.query.one().running_processes == 1
 
     event.set()
-    sleep(0.01)
+    sleep(2)
 
     assert EngineSettingsTable.query.one().running_processes == 0
     app_settings.TESTING = True

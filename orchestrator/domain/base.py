@@ -130,7 +130,9 @@ class DomainModel(BaseModel):
                             )
 
     @classmethod
-    def _get_child_product_block_types(cls) -> Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]:
+    def _get_child_product_block_types(
+        cls,
+    ) -> Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]:
         """Return all the product block model types.
 
         This strips any List[..] or Optional[...] types.
@@ -320,7 +322,9 @@ class DomainModel(BaseModel):
                     if instance.product_block.name == field_type.name:
                         product_block_model = field_type
 
-                assert not product_block_model is None, "Product block model has not been resolved. Unable to continue"
+                assert (  # noqa: S101
+                    product_block_model is not None
+                ), "Product block model has not been resolved. Unable to continue"
                 instances[product_block_field_name] = product_block_model.from_db(
                     subscription_instance=instance, status=status
                 )
@@ -403,7 +407,9 @@ class DomainModel(BaseModel):
                     field_instance_list.append(child)
                     saved_instances.extend(saved)
                 child_instances[product_block_field] = field_instance_list
-            elif is_optional_type(product_block_field_type) and product_block_models is None:
+            elif (
+                is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
+            ) and product_block_models is None:
                 pass
             else:
                 saved, child = product_block_models.save(subscription_id=subscription_id, status=status)
@@ -546,7 +552,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         product_blocks_in_db = {pb.name for pb in product_block_db.children} if product_block_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
-        if len(list(product_blocks_types_in_model)) > 0 and isinstance(first(list(product_blocks_types_in_model)), tuple):
+        if len(list(product_blocks_types_in_model)) > 0 and isinstance(
+            first(list(product_blocks_types_in_model)), tuple
+        ):
             # If the `product_block_types_in_model` is a Tuple we assume that we cross a subscription boundary.
             # This basically means we cannot check the productmodel in the database as it is an unspecific type.
             return {}
@@ -847,10 +855,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             self._db_model = subscription_instance
         else:
             subscription_instance = self._db_model
+            # We only need to add to the session if the subscription_instance does not exist.
+            db.session.add(subscription_instance)
 
         subscription_instance.subscription_id = subscription_id
 
-        db.session.add(subscription_instance)
         db.session.flush()
 
         # Everything is ok, make sure we are of the right class
@@ -965,7 +974,9 @@ class SubscriptionModel(DomainModel):
 
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
-        if len(list(product_blocks_types_in_model)) > 0 and isinstance(first(list(product_blocks_types_in_model)), tuple):
+        if len(list(product_blocks_types_in_model)) > 0 and isinstance(
+            first(list(product_blocks_types_in_model)), tuple
+        ):
             # If the `product_block_types_in_model` is a Tuple we assume that we cross a subscription boundary.
             # This basically means we cannot check the productmodel in the database as it is an unspecific type.
             return {}

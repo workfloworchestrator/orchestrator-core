@@ -27,6 +27,7 @@ classifiers = [
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.8",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
@@ -60,12 +61,12 @@ requires = [
     "pydantic[email] @ git+https://github.com/hmvp/pydantic.git@multiple_inheritance#egg=pydantic",
     "pynso-restconf~=2.1.0",
     "python-rapidjson==1.0",
-    "pytz",
+    "pytz~=2020.5",
     "regex~=2020.11.13",
     "requests~=2.25.1",
     "ruamel.yaml~=0.16.12",
     "schedule~=1.0.0",
-    "sentry-sdk",
+    "sentry-sdk~=1.3.0",
     "SQLAlchemy~=1.3.24",
     "SQLAlchemy-Searchable~=1.2.0",
     "structlog~=20.2.0",
@@ -151,7 +152,7 @@ known_first_party = ["migrations", "test"]
 
 [tool.black]
 line-length = 120
-target-version = ["py38"]
+target-version = ["py39"]
 exclude = '''
 (
   /(

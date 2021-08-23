@@ -174,6 +174,8 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     True
     >>> is_optional_type(Union[None, int])
     True
+    >>> is_optional_type(Union[int, str, None])
+    True
     >>> is_optional_type(Optional[int], int)
     True
     >>> is_optional_type(Optional[int], str)
@@ -186,7 +188,7 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     """
     if get_origin(t):
-        if get_origin(t) == Union and len(get_args(t)) == 2 and None.__class__ in get_args(t):  # type:ignore
+        if get_origin(t) == Union and None.__class__ in get_args(t):  # type:ignore
             for arg in get_args(t):
                 if arg is None.__class__:
                     continue
