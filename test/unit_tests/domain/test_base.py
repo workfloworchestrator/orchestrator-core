@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, TypeVar
+from typing import List, Optional, TypeVar, Union
 from unittest import mock
 from uuid import uuid4
 
@@ -51,7 +51,7 @@ def test_product_blocks_db():
     db.session.add(product_sub_block)
     db.session.commit()
 
-    return product_block
+    return product_block, product_sub_block
 
 
 @pytest.fixture
@@ -62,12 +62,40 @@ def test_product(test_product_blocks_db):
 
     fixed_input = FixedInputTable(name="test_fixed_input", value="False")
 
+    product_block, product_sub_block = test_product_blocks_db
     product.fixed_inputs = [fixed_input]
-    product.product_blocks = [test_product_blocks_db]
+    product.product_blocks = [product_block]
 
     db.session.add(product)
     db.session.commit()
 
+    return product.product_id
+
+
+@pytest.fixture
+def test_union_product(test_product_blocks_db):
+    product = ProductTable(
+        name="UnionProduct", description="Test Union Product", product_type="Test", tag="Union", status="active"
+    )
+
+    product_block, product_sub_block = test_product_blocks_db
+    product.product_blocks = [product_block, product_sub_block]
+    db.session.add(product)
+    db.session.commit()
+    return product.product_id
+
+
+@pytest.fixture
+def test_sub_product(test_product_blocks_db):
+    product = ProductTable(
+        name="SubProduct", description="Test SubProduct", product_type="Test", tag="Sub", status="active"
+    )
+
+    product_block, product_sub_block = test_product_blocks_db
+
+    product.product_blocks = [product_sub_block]
+    db.session.add(product)
+    db.session.commit()
     return product.product_id
 
 
@@ -120,6 +148,46 @@ def test_product_block(test_product_sub_block):
 
 
 @pytest.fixture
+def test_union_type_product(test_product_sub_block, test_product_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+    BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
+
+    class UnionProductInactive(SubscriptionModel, is_base=True):
+        test_block: Optional[BlockForTestInactive]
+        union_block: Optional[Union[SubBlockForTestInactive, BlockForTestInactive]]
+
+    class UnionProductProvisioning(UnionProductInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        test_block: BlockForTestProvisioning
+        union_block: Union[SubBlockForTestProvisioning, BlockForTestProvisioning]
+
+    class UnionProduct(UnionProductProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_block: BlockForTest
+        union_block: Union[SubBlockForTest, BlockForTest]
+
+    SUBSCRIPTION_MODEL_REGISTRY["UnionProduct"] = UnionProduct
+    yield UnionProductInactive, UnionProductProvisioning, UnionProduct
+    del SUBSCRIPTION_MODEL_REGISTRY["UnionProduct"]
+
+
+@pytest.fixture
+def test_sub_type_product(test_product_sub_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+
+    class SubProductInactive(SubscriptionModel, is_base=True):
+        test_block: Optional[SubBlockForTestInactive]
+
+    class SubProductProvisioning(SubProductInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        test_block: SubBlockForTestProvisioning
+
+    class SubProduct(SubProductProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_block: SubBlockForTest
+
+    SUBSCRIPTION_MODEL_REGISTRY["SubProduct"] = SubProduct
+    yield SubProductInactive, SubProductProvisioning, SubProduct
+    del SUBSCRIPTION_MODEL_REGISTRY["SubProduct"]
+
+
+@pytest.fixture
 def test_product_type(test_product_block):
     BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
 
@@ -162,9 +230,11 @@ def test_product_block_metadata(test_product_block, test_product, test_product_b
         subscription_id=subscription_id
     )  # Need at least one instance since we lazy load this stuff
 
+    product_block, product_sub_block = test_product_blocks_db
+
     assert BlockForTestInactive.name == "BlockForTest"
     assert BlockForTestInactive.description == "Test Block"
-    assert BlockForTestInactive.product_block_id == test_product_blocks_db.product_block_id
+    assert BlockForTestInactive.product_block_id == product_block.product_block_id
     assert BlockForTestInactive.tag == "TEST"
 
 
@@ -835,6 +905,8 @@ def test_abstract_super_block(test_product, test_product_type, test_product_bloc
     test_model = ProductTypeForTestInactive.from_product_id(product_id=test_product, customer_id=uuid4())
     test_model.block = BlockForTestInactive.new(subscription_id=test_model.subscription_id)
 
+    product_block, product_sub_block = test_product_blocks_db
+
     # Check metadata
     with pytest.raises(ValueError, match=r"Cannot create instance of abstract class. Use one of {'BlockForTest'}"):
         AbstractBlockForTestInactive.new(subscription_id=test_model.subscription_id)
@@ -844,7 +916,7 @@ def test_abstract_super_block(test_product, test_product_type, test_product_bloc
     assert not hasattr(AbstractBlockForTestInactive, "tag")
     assert BlockForTestInactive.name == "BlockForTest"
     assert BlockForTestInactive.description == "Test Block"
-    assert BlockForTestInactive.product_block_id == test_product_blocks_db.product_block_id
+    assert BlockForTestInactive.product_block_id == product_block.product_block_id
     assert BlockForTestInactive.tag == "TEST"
 
     test_model.save()
@@ -1038,3 +1110,67 @@ def test_from_other_lifecycle_sub(test_product, test_product_block, test_product
     assert active_block.sub_block.db_model == block.sub_block.db_model
     assert active_block.sub_block_2.db_model == block.sub_block_2.db_model
     assert active_block.sub_block_list[0].db_model == block.sub_block_list[0].db_model
+
+
+def test_prodcut_model_with_union_type_directly_below(
+    test_union_product,
+    test_union_type_product,
+    test_sub_product,
+    test_sub_type_product,
+    test_product_sub_block,
+    test_product_block,
+):
+    UnionProductInactive, UnionProductProvisioning, UnionProduct = test_union_type_product
+    SubProductInactive, SubProductProvisioning, SubProduct = test_sub_type_product
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+    BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block
+
+    sub_subscription_inactive = SubProductInactive.from_product_id(product_id=test_sub_product, customer_id=uuid4())
+    sub_subscription_inactive.test_block = SubBlockForTestInactive.new(
+        subscription_id=sub_subscription_inactive.subscription_id, int_field=1, str_field="blah"
+    )
+    sub_subscription_inactive.save()
+    sub_subscription_active = SubscriptionModel.from_other_lifecycle(
+        sub_subscription_inactive, SubscriptionLifecycle.ACTIVE
+    )
+    sub_subscription_active.save()
+
+    union_subscription_inactive = UnionProductInactive.from_product_id(
+        product_id=test_union_product, customer_id=uuid4()
+    )
+
+    union_subscription_inactive.test_block = BlockForTestInactive.new(
+        subscription_id=union_subscription_inactive.subscription_id,
+        int_field=3,
+        str_field="",
+        list_field=[1],
+        sub_block=SubBlockForTestInactive.new(
+            subscription_id=union_subscription_inactive.subscription_id, int_field=3, str_field=""
+        ),
+        sub_block_2=SubBlockForTestInactive.new(
+            subscription_id=union_subscription_inactive.subscription_id, int_field=3, str_field=""
+        ),
+    )
+
+    with pytest.raises(AttributeError):
+        SubscriptionModel.from_other_lifecycle(union_subscription_inactive, SubscriptionLifecycle.ACTIVE)
+
+    new_sub_block = SubBlockForTest.new(
+        subscription_id=union_subscription_inactive.subscription_id, int_field=1, str_field="2"
+    )
+    union_subscription_inactive.union_block = new_sub_block
+    union_subscription_inactive.save()
+
+    assert union_subscription_inactive.diff_product_in_database(union_subscription_inactive.product.product_id) == {}
+    union_subscription = SubscriptionModel.from_other_lifecycle(
+        union_subscription_inactive, SubscriptionLifecycle.ACTIVE
+    )
+
+    union_subscription.union_block = sub_subscription_active.test_block
+
+    with pytest.raises(ValueError) as exc:
+        union_subscription.save()
+        assert (
+            str(exc)
+            == "Attempting to save a Foreign `Subscription Instance` directly below a subscription. This is not allowed."
+        )

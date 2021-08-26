@@ -214,6 +214,10 @@ class DomainModel(BaseModel):
                     default_value = []
             elif is_optional_type(product_block_field_type, ProductBlockModel):
                 default_value = None
+            elif is_union_type(product_block_field_type):
+                raise ValueError(
+                    "Union Types must always be `Optional` when calling `.new().` We are unable to detect which type to intialise and Union types always cross subscription boundaries."
+                )
             else:
                 product_block_model = product_block_field_type
                 # Scalar field of a ProductBlockModel expects 1 instance
@@ -389,7 +393,6 @@ class DomainModel(BaseModel):
 
         Args:
             subscription_id: The subscription id
-            instances: list of existing database models to update
             status: SubscriptionLifecycle of subscription to check if models match
 
         Returns:
@@ -552,14 +555,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         product_blocks_in_db = {pb.name for pb in product_block_db.children} if product_block_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
-        if len(list(product_blocks_types_in_model)) > 0 and isinstance(
-            first(list(product_blocks_types_in_model)), tuple
-        ):
-            # If the `product_block_types_in_model` is a Tuple we assume that we cross a subscription boundary.
-            # This basically means we cannot check the productmodel in the database as it is an unspecific type.
-            return {}
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
+        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
+            # There may only be one in the type if it is a Tuple
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
+        else:
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
@@ -584,8 +585,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         )
 
         missing_data: Dict[str, Any] = {}
-        for product_block_in_model in product_blocks_types_in_model:
-            missing_data.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
+        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
+            for product_block_model in one(product_blocks_types_in_model):  # type: ignore
+                missing_data.update(product_block_model.diff_product_block_in_database())
+        else:
+            for product_block_in_model in product_blocks_types_in_model:
+                missing_data.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
 
         diff = {
             k: v
@@ -769,7 +774,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                 continue
             if is_list_type(field_type):
                 for val, siv in zip_longest(value, current_values_dict[field_name]):
-                    if val is not None:
+                    if val:
                         if siv:
                             siv.value = str(val)
                             subscription_instance_values.append(siv)
@@ -833,7 +838,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         Args:
             status: current SubscriptionLifecycle to check if all constraints match
             subscription_id: Optional subscription id needed if this is a new model
-            subscription_instances: List of existing subscription instances to update
 
         Returns:
             List of saved instances
@@ -974,14 +978,10 @@ class SubscriptionModel(DomainModel):
 
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
-        if len(list(product_blocks_types_in_model)) > 0 and isinstance(
-            first(list(product_blocks_types_in_model)), tuple
-        ):
-            # If the `product_block_types_in_model` is a Tuple we assume that we cross a subscription boundary.
-            # This basically means we cannot check the productmodel in the database as it is an unspecific type.
-            return {}
-
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
+        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
+        else:
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
@@ -1206,8 +1206,14 @@ class SubscriptionModel(DomainModel):
 
         old_instances_dict = {instance.subscription_instance_id: instance for instance in sub.instances}
 
-        saved_instances, _ = self._save_instances(self.subscription_id, self.status)
+        saved_instances, child_instances = self._save_instances(self.subscription_id, self.status)
 
+        for instances in child_instances.values():
+            for instance in instances:
+                if instance.subscription_id != self.subscription_id:
+                    raise ValueError(
+                        "Attempting to save a Foreign `Subscription Instance` directly below a subscription. This is not allowed."
+                    )
         sub.instances = saved_instances
 
         # Calculate what to remove
