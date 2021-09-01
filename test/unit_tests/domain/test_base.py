@@ -55,6 +55,21 @@ def test_product_blocks_db():
 
 
 @pytest.fixture
+def test_product_blocks_union_db(test_product_blocks_db):
+    product_block, product_sub_block = test_product_blocks_db
+    resource_type_int = ResourceTypeTable.query.filter(ResourceTypeTable.resource_type == "int_field").one()
+    product_union_sub_block = ProductBlockTable(
+        name="UnionSubBlockForTest", description="Test Union Sub Block", tag="TEST", status="active"
+    )
+    product_union_sub_block.resource_types = [resource_type_int]
+    db.session.add(product_union_sub_block)
+    product_block.children.append(product_union_sub_block)
+    db.session.commit()
+
+    return product_block, product_sub_block, product_union_sub_block
+
+
+@pytest.fixture
 def test_product(test_product_blocks_db):
     product = ProductTable(
         name="TestProduct", description="Test ProductTable", product_type="Test", tag="TEST", status="active"
@@ -82,6 +97,23 @@ def test_union_product(test_product_blocks_db):
     product.product_blocks = [product_block, product_sub_block]
     db.session.add(product)
     db.session.commit()
+    return product.product_id
+
+
+@pytest.fixture
+def test_union_sub_product(test_product_blocks_union_db):
+    product = ProductTable(
+        name="UnionProductSub",
+        description="Product with Union sub product_block",
+        tag="UnionSub",
+        product_type="Test",
+        status="active",
+    )
+    product_block, _, _ = test_product_blocks_union_db
+    product.product_blocks = [product_block]
+    db.session.add(product)
+    db.session.commit()
+
     return product.product_id
 
 
@@ -117,6 +149,22 @@ def test_product_sub_block():
 
 
 @pytest.fixture
+def test_union_sub_product_block():
+    class UnionSubBlockForTestInactive(ProductBlockModel, product_block_name="UnionSubBlockForTest"):
+        int_field: Optional[int] = None
+
+    class UnionSubBlockForTestProvisioning(
+        UnionSubBlockForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    ):
+        int_field: int
+
+    class UnionSubBlockForTest(UnionSubBlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        int_field: int
+
+    return UnionSubBlockForTestInactive, UnionSubBlockForTestProvisioning, UnionSubBlockForTest
+
+
+@pytest.fixture
 def test_product_block(test_product_sub_block):
     SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
 
@@ -145,6 +193,50 @@ def test_product_block(test_product_sub_block):
         list_field: List[int]
 
     return BlockForTestInactive, BlockForTestProvisioning, BlockForTest
+
+
+@pytest.fixture
+def test_product_block_with_union(test_product_sub_block, test_union_sub_product_block):
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+    UnionSubBlockForTestInactive, UnionSubBlockForTestProvisioning, UnionSubBlockForTest = test_union_sub_product_block
+
+    class BlockForTestInactive(ProductBlockModel, product_block_name="BlockForTest"):
+        union_block: Optional[Union[SubBlockForTestInactive, UnionSubBlockForTestInactive]] = None
+        int_field: Optional[int] = None
+        str_field: Optional[str] = None
+        list_field: List[int] = Field(default_factory=list)
+
+    class BlockForTestProvisioning(BlockForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        union_block: Union[SubBlockForTestProvisioning, UnionSubBlockForTestProvisioning]
+        int_field: int
+        str_field: Optional[str] = None
+        list_field: List[int]
+
+    class BlockForTest(BlockForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        union_block: Union[SubBlockForTest, UnionSubBlockForTest]
+        int_field: int
+        str_field: str
+        list_field: List[int]
+
+    return BlockForTestInactive, BlockForTestProvisioning, BlockForTest
+
+
+@pytest.fixture
+def test_product_with_union_sub_product_block(test_product_block_with_union):
+    BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block_with_union
+
+    class UnionProductSubInactive(SubscriptionModel, is_base=True):
+        test_block: Optional[BlockForTestInactive]
+
+    class UnionProductSubProvisioning(UnionProductSubInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        test_block: BlockForTestProvisioning
+
+    class UnionProductSub(UnionProductSubProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_block: BlockForTest
+
+    SUBSCRIPTION_MODEL_REGISTRY["UnionProductSub"] = UnionProductSub
+    yield UnionProductSubInactive, UnionProductSubProvisioning, UnionProductSub
+    del SUBSCRIPTION_MODEL_REGISTRY["UnionProductSub"]
 
 
 @pytest.fixture
@@ -1174,3 +1266,62 @@ def test_prodcut_model_with_union_type_directly_below(
             str(exc)
             == "Attempting to save a Foreign `Subscription Instance` directly below a subscription. This is not allowed."
         )
+
+
+def test_union_productblock_as_sub(
+    test_product_with_union_sub_product_block,
+    test_product_block_with_union,
+    test_sub_type_product,
+    test_product_sub_block,
+    test_sub_product,
+    test_union_sub_product,
+):
+    UnionProductSubInactive, UnionProductSubProvisioning, UnionProductSub = test_product_with_union_sub_product_block
+    BlockForTestInactive, BlockForTestProvisioning, BlockForTest = test_product_block_with_union
+    SubProductInactive, SubProductProvisioning, SubProduct = test_sub_type_product
+    SubBlockForTestInactive, SubBlockForTestProvisioning, SubBlockForTest = test_product_sub_block
+
+    sub_subscription_inactive = SubProductInactive.from_product_id(product_id=test_sub_product, customer_id=uuid4())
+    sub_subscription_inactive.test_block = SubBlockForTestInactive.new(
+        subscription_id=sub_subscription_inactive.subscription_id, int_field=1, str_field="blah"
+    )
+    sub_subscription_inactive.save()
+    sub_subscription_active = SubscriptionModel.from_other_lifecycle(
+        sub_subscription_inactive, SubscriptionLifecycle.ACTIVE
+    )
+    sub_subscription_active.save()
+
+    union_subscription_inactive = UnionProductSubInactive.from_product_id(
+        product_id=test_union_sub_product, customer_id=uuid4()
+    )
+    union_subscription_inactive.test_block = BlockForTestInactive.new(
+        subscription_id=union_subscription_inactive.subscription_id
+    )
+    union_subscription_inactive.save()
+
+    union_subscription_inactive.test_block.int_field = 1
+    union_subscription_inactive.test_block.str_field = "blah"
+    union_subscription_inactive.test_block.union_block = sub_subscription_active.test_block
+
+    union_subscription_inactive.test_block.list_field = [2]
+
+    union_subscription = SubscriptionModel.from_other_lifecycle(
+        union_subscription_inactive, status=SubscriptionLifecycle.ACTIVE
+    )
+    union_subscription.save()
+
+    # This needs to happen in the test due to the fact it is using cached objects.
+    db.session.commit()
+    assert union_subscription.diff_product_in_database(test_union_sub_product) == {}
+
+    union_subscription_from_database = SubscriptionModel.from_subscription(union_subscription.subscription_id)
+
+    assert union_subscription_from_database == union_subscription
+
+    sub_subscription_terminated = SubscriptionModel.from_other_lifecycle(
+        sub_subscription_active, SubscriptionLifecycle.TERMINATED
+    )
+
+    # Do not allow subscriptions that have a parent make an unsafe transition.
+    with pytest.raises(ValueError):
+        sub_subscription_terminated.save()

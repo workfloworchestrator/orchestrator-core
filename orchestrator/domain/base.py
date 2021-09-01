@@ -38,6 +38,7 @@ from orchestrator.db import (
 )
 from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
 from orchestrator.types import (
+    SAFE_PARENT_TRANSITIONS_FOR_STATUS,
     State,
     SubscriptionLifecycle,
     UUIDstr,
@@ -851,6 +852,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             self.subscription_instance_id
         )
         if subscription_instance:
+            # Block unsafe status changes on domain models that have Subscription instances with parent relations
+            for parent in subscription_instance.parents:
+                if (
+                    parent.subscription != self.subscription
+                    and status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[self.subscription.status]
+                ):
+                    raise ValueError(
+                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription_id, subscription_instance.parents))}"
+                    )
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
             if self.subscription and subscription_instance.subscription_id != subscription_id:
