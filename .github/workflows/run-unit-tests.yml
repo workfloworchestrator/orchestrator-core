@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         python-version: [ 3.9 ]
-    container: python:3.9.6-slim
+    container: python:3.9.7-slim
     services:
       postgres:
         image: postgres:11.6-alpine

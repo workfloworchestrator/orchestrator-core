@@ -363,9 +363,6 @@ class SubscriptionInstanceRelationTable(BaseModel):
     # attribute uses the same product block model.
     domain_model_attr = Column(Text())
 
-    parent: SubscriptionInstanceTable
-    child: SubscriptionInstanceTable
-
 
 subscription_relation_index = Index(
     "subscription_relation_p_c_o_ix",
@@ -395,7 +392,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
     label = Column(String(255))
 
-    children_relations: List[SubscriptionInstanceRelationTable] = relationship(
+    children_relations = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -403,16 +400,16 @@ class SubscriptionInstanceTable(BaseModel):
         order_by=SubscriptionInstanceRelationTable.order_id,
         collection_class=ordering_list("order_id"),
         backref=backref("parent", lazy=True),
-        foreign_keys="SubscriptionInstanceRelationTable.parent_id",
+        foreign_keys="[SubscriptionInstanceRelationTable.parent_id]",
     )
 
-    parent_relations: List[SubscriptionInstanceRelationTable] = relationship(
+    parent_relations = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
         backref=backref("child", lazy=True),
-        foreign_keys="SubscriptionInstanceRelationTable.child_id",
+        foreign_keys="[SubscriptionInstanceRelationTable.child_id]",
     )
 
     parents = association_proxy(
