@@ -7,7 +7,7 @@ repos:
           - --py38-plus
           - --keep-runtime-typing
   - repo: https://github.com/timothycrosley/isort
-    rev: 5.9.2
+    rev: 5.9.3
     hooks:
       - id: isort
   - repo: https://github.com/psf/black
