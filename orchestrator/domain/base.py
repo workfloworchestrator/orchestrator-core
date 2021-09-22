@@ -298,10 +298,13 @@ class DomainModel(BaseModel):
                 for item in getattr(other, field_name):
                     data[field_name].append(get_args(field_type)[0]._from_other_lifecycle(item, status))
 
+            elif is_optional_type(field_type):
+                field_type = get_args(field_type)[0]
+                try:
+                    data[field_name] = field_type._from_other_lifecycle(getattr(other, field_name), status)
+                except AttributeError:
+                    data[field_name] = None
             else:
-                if is_optional_type(field_type):
-                    field_type = get_args(field_type)[0]
-
                 data[field_name] = field_type._from_other_lifecycle(getattr(other, field_name), status)
         return data
 
