@@ -58,6 +58,7 @@ from orchestrator.types import (
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
+from orchestrator.utils.websocket import send_data_to_websocket
 
 logger = structlog.get_logger(__name__)
 
@@ -1134,6 +1135,8 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
 
         process = dblogstep(step, result_to_log)
+
+        send_data_to_websocket(step, step_result_process, process.unwrap())
 
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.

@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from fastapi import WebSocket, Query
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
@@ -54,6 +55,8 @@ from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
 from orchestrator.workflow import ProcessStatus
+from orchestrator.utils.websocket import ws_manager
+from orchestrator.utils.json import json_dumps
 
 router = APIRouter()
 
@@ -63,7 +66,8 @@ logger = structlog.get_logger(__name__)
 def _get_process(pid: UUID) -> ProcessTable:
     process = ProcessTable.query.options(
         joinedload(ProcessTable.steps),
-        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+        joinedload(ProcessTable.process_subscriptions)
+        .joinedload(ProcessSubscriptionTable.subscription),
     ).get(pid)
 
     if not process:
@@ -370,3 +374,34 @@ def processes_filterable(
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))
 
     return [asdict(enrich_process(p)) for p in results]
+
+
+@router.websocket("/test/{pid}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    pid: str,
+    token: str = Query(...)
+):
+    error = await ws_manager.authorize(websocket, token)
+
+    await websocket.accept()
+
+    if error:
+        await ws_manager.disconnect(websocket, reason=error)
+        return
+
+    process = get_current_process_data(pid)
+    await websocket.send_text(json_dumps({"process": process}))
+    if not is_process_running(process):
+        await websocket.close()
+        return
+
+    await ws_manager.connect(websocket, pid)
+
+
+def is_process_running(p: ProcessTable) -> bool:
+    return p['status'] == ProcessStatus.RUNNING
+
+
+def get_current_process_data(pid: int) -> Any:
+    return show(pid)

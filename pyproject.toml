@@ -68,7 +68,7 @@ requires = [
     "typer-cli==0.0.11",
     "uvicorn[standard]==0.13.4",
     "nwa-stdlib==1.2.1",
-    "oauth2-lib==1.0.8",
+    "oauth2-lib==1.0.9",
 ]
 description-file = "README.md"
 requires-python = ">=3.6,<3.10"
