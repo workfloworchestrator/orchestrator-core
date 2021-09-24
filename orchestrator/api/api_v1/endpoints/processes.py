@@ -55,7 +55,7 @@ from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
 from orchestrator.workflow import ProcessStatus
-from orchestrator.utils.websocket import ws_manager
+from orchestrator.utils.websocket import websocket_manager
 from orchestrator.utils.json import json_dumps
 
 router = APIRouter()
@@ -66,8 +66,7 @@ logger = structlog.get_logger(__name__)
 def _get_process(pid: UUID) -> ProcessTable:
     process = ProcessTable.query.options(
         joinedload(ProcessTable.steps),
-        joinedload(ProcessTable.process_subscriptions)
-        .joinedload(ProcessSubscriptionTable.subscription),
+        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
     ).get(pid)
 
     if not process:
@@ -377,17 +376,13 @@ def processes_filterable(
 
 
 @router.websocket("/test/{pid}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    pid: str,
-    token: str = Query(...)
-):
-    error = await ws_manager.authorize(websocket, token)
+async def websocket_endpoint(websocket: WebSocket, pid: str, token: str = Query(...)):
+    error = await websocket_manager.authorize(websocket, token)
 
     await websocket.accept()
 
     if error:
-        await ws_manager.disconnect(websocket, reason=error)
+        await websocket_manager.disconnect(websocket, reason=error)
         return
 
     process = get_current_process_data(pid)
@@ -396,11 +391,15 @@ async def websocket_endpoint(
         await websocket.close()
         return
 
-    await ws_manager.connect(websocket, pid)
+    await websocket_manager.connect(websocket, pid)
 
 
 def is_process_running(p: ProcessTable) -> bool:
-    return p['status'] == ProcessStatus.RUNNING
+    return (
+        p["status"] == ProcessStatus.RUNNING
+        or p["status"] == ProcessStatus.SUSPENDED
+        or p["status"] == ProcessStatus.WAITING
+    )
 
 
 def get_current_process_data(pid: int) -> Any:

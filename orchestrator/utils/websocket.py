@@ -1,25 +1,23 @@
 import structlog
 import asyncio
-from typing import Any
-from starlette.concurrency import run_until_first_complete
-# from orchestrator.workflow import Process, Step
-from orchestrator.utils.json import json_dumps
+from httpx import AsyncClient
 from broadcaster import Broadcast
-from orchestrator.security import oidc_user, opa_security_default
+from starlette.concurrency import run_until_first_complete
 from fastapi.websockets import WebSocket
 from fastapi.exceptions import HTTPException
-from httpx import AsyncClient
+from orchestrator.security import oidc_user, opa_security_default
+from orchestrator.types import State
+from orchestrator.utils.json import json_dumps
 from orchestrator.forms import generate_form
 
 logger = structlog.get_logger(__name__)
 
 
 class WebsocketManager:
-    def __init__(self):
-        self.broadcast = Broadcast("redis://localhost:6379")
+    def __init__(self, broadcast_url: str):
+        self.broadcast = Broadcast(broadcast_url)
 
     async def authorize(self, websocket: WebSocket, token: str):
-
         try:
             async with AsyncClient() as client:
                 user = await oidc_user(websocket.url, async_request=client, token=token)
@@ -32,11 +30,10 @@ class WebsocketManager:
         await self.broadcast.connect()
 
         await run_until_first_complete(
-            (self.receiver, {"websocket": websocket, "pid": pid}),
             (self.sender, {"websocket": websocket, "pid": pid}),
         )
 
-    async def disconnect(self, websocket, code=1000, reason=''):
+    async def disconnect(self, websocket, code=1000, reason=""):
         if reason:
             await websocket.send_text(json_dumps(reason))
         await websocket.close()
@@ -58,32 +55,26 @@ class WebsocketManager:
         await self.broadcast.connect()
         await self.broadcast.publish(f"step_process:{pid}", message=json_dumps({"step": data}))
 
-        if data['name'] == "Done":
+        if data["name"] == "Done":
             await self.broadcast.publish(f"step_process:{pid}", message="Done")
         await self.broadcast.disconnect()
 
 
-ws_manager = WebsocketManager()
+websocket_manager = WebsocketManager("redis://localhost:6379")
 
 
-def send_data_to_websocket(step: Any, step_process_state: Any, process: Any):
-    process_state = step_process_state.unwrap()
-
-    if 'process_id' in process:
-        pid = process['process_id']
-    elif 'process_id' in process_state:
-        pid = process_state['process_id']
+def send_data_to_websocket(pid: str, step: str, state: State, status: str):
     form = None
     if step.form:
-        form = generate_form(step.form, process, [])
+        form = generate_form(step.form, state, [])
 
     step_data = {
         "name": step.name,
-        "status": step_process_state.status,
-        "state": process,
+        "status": status,
+        "state": state,
         "form": form,
     }
 
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(ws_manager.broadcast_data(pid, step_data))
+    loop.run_until_complete(websocket_manager.broadcast_data(pid, step_data))
     loop.close()

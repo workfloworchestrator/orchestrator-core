@@ -35,6 +35,7 @@ from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
+from orchestrator.utils.websocket import send_data_to_websocket
 
 logger = structlog.get_logger(__name__)
 
@@ -165,6 +166,8 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
     except BaseException:
         db.session.rollback()
         raise
+
+    send_data_to_websocket(stat.pid, step, step_state, process_state.status)
 
     # Return the state as stored in the database
     return process_state.__class__(current_step.state)
