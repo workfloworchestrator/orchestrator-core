@@ -57,6 +57,7 @@ class AppSettings(BaseSettings):
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
     TRACING_ENABLED: bool = False
     TRANSLATIONS_DIR: Optional[Path] = None
+    WEBSOCKET_BROADCASTER_URL: str = "memory://"
 
 
 class Oauth2Settings(BaseSettings):

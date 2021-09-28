@@ -13,6 +13,7 @@ from orchestrator.types import strEnum
 from orchestrator.types import State
 from orchestrator.forms import generate_form
 from orchestrator.workflow import Step
+from orchestrator.settings import app_settings
 
 logger = get_logger(__name__)
 
@@ -69,7 +70,7 @@ class WebSocketManager:
         await self.broadcast.disconnect()
 
 
-websocket_manager = WebSocketManager("redis://localhost:6379")
+websocket_manager = WebSocketManager(app_settings.WEBSOCKET_BROADCASTER_URL)
 
 
 def send_data_to_websocket(pid: UUID, step: Step, state: State, status: str) -> None:
