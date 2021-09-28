@@ -375,8 +375,8 @@ def processes_filterable(
     return [asdict(enrich_process(p)) for p in results]
 
 
-@router.websocket("/test/{pid}")
-async def websocket_endpoint(websocket: WebSocket, pid: str, token: str = Query(...)):
+@router.websocket("/{pid}")
+async def websocket_endpoint(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
     error = await websocket_manager.authorize(websocket, token)
 
     await websocket.accept()
@@ -394,13 +394,9 @@ async def websocket_endpoint(websocket: WebSocket, pid: str, token: str = Query(
     await websocket_manager.connect(websocket, pid)
 
 
-def is_process_running(p: ProcessTable) -> bool:
-    return (
-        p["status"] == ProcessStatus.RUNNING
-        or p["status"] == ProcessStatus.SUSPENDED
-        or p["status"] == ProcessStatus.WAITING
-    )
+def is_process_running(p: Dict) -> bool:
+    return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
-def get_current_process_data(pid: int) -> Any:
+def get_current_process_data(pid: UUID) -> Any:
     return show(pid)
