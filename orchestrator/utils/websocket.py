@@ -1,6 +1,6 @@
 from asyncio import new_event_loop
 from structlog import get_logger
-from typing import Union, Dict
+from typing import Union, Dict, Optional
 from httpx import AsyncClient
 from broadcaster import Broadcast
 from uuid import UUID
@@ -22,7 +22,7 @@ class WebSocketManager:
     def __init__(self, broadcast_url: str):
         self.broadcast = Broadcast(broadcast_url)
 
-    async def authorize(self, websocket: WebSocket, token: str) -> Union[Dict, None]:
+    async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
         try:
             async with AsyncClient() as client:
                 user = await oidc_user(websocket, async_request=client, token=token)
@@ -69,7 +69,7 @@ class WebSocketManager:
 websocket_manager = WebSocketManager(app_settings.WEBSOCKET_BROADCASTER_URL)
 
 
-def create_websocket_data(process: ProcessTable, step: ProcessStepTable, step_form: InputFormGenerator) -> Dict:
+def create_websocket_data(process: ProcessTable, step: ProcessStepTable, step_form: Optional[InputFormGenerator]) -> Dict:
     form = None
     if step_form:
         form = generate_form(step_form, step.state, [])
@@ -90,7 +90,7 @@ def create_websocket_data(process: ProcessTable, step: ProcessStepTable, step_fo
     }
 
 
-def send_data_to_websocket(pid: int, data: Dict) -> None:
+def send_data_to_websocket(pid: UUID, data: Dict) -> None:
     loop = new_event_loop()
     loop.run_until_complete(websocket_manager.broadcast_data(pid, data))
     loop.close()
