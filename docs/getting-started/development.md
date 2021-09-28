@@ -2,31 +2,38 @@
 
 To add features to the repository follow the following procedure to setup a working development environment.
 
-## Installation (Development)
+### Installation (Development)
 Install the project and its dependancies to develop on the code.
 
-### Step 1 - install flit:
-```console
+#### Step 1 - install flit:
+``` shell
 pip install flit
 ```
 
-### Step 2 - install the development code:
-```console
+#### Step 2 - install the development code:
+``` shell
 flit install --deps develop --symlink
 ```
 
-## Running tests
+!!! danger
+    Make sure to use the flit binary that is installed in your environment. You can check the correct
+    path by running
+    ``` shell
+    which flit
+    ```
+
+### Running tests
 Run the unit-test suite to verify a correct setup.
 
-### Step 1 - Create a database
+#### Step 1 - Create a database
 
-```console
+``` shell
 createuser -sP nwa
 createdb orchestrator-core-test -O nwa
 ```
 
-### Step 2 - Run tests
-```console
+#### Step 2 - Run tests
+``` shell
 pytest test/unit_tests
 ```
 

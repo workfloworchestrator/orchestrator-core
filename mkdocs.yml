@@ -30,17 +30,43 @@ plugins:
 copyright: Copyright Workfloworchestrator; 2020-2021
 repo_name: workfloworchestrator/orchestrator-core
 repo_url: https://github.com/workfloworchestrator/orchestrator-core
+markdown_extensions:
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - pymdownx.keys
+  - pymdownx.inlinehilite
+  - attr_list
+  - codehilite
+
+extra_css:
+  - 'css/termynal.css'
+  - 'css/custom.css'
+extra_javascript:
+  - 'js/termynal.js'
+  - 'js/custom.js'
+
 nav:
   - Orchestrator Core: index.md
   - Getting Started:
-      - getting-started/index.md
-      - getting-started/development.md
+    - Base Application: getting-started/base.md
+    - Development setup: getting-started/development.md
+    - Workshop - Hello World:
+      - Goal of the workshop: getting-started/workshop/goal.md
+      - Install the orchestrator-core: getting-started/workshop/step1.md
+      - Get the client up and running: getting-started/workshop/step2.md
   - Architecture:
-      - architecture/index.md
-      - Orchestration Philosofy:
-            - architecture/orchestration/index.md
-      - Application Architecture:
-          - architecture/application/index.md
-          - architecture/application/api.md
+    - architecture/index.md
+    - Orchestration Philosofy:
+      - architecture/orchestration/index.md
+    - Application Architecture:
+      - architecture/application/index.md
+      - architecture/application/api.md
   - Contributing:
-      - contributing/index.md
+    - contributing/index.md
