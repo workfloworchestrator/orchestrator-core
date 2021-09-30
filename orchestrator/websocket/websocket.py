@@ -2,7 +2,7 @@ from typing import Dict, Optional, Union
 
 from broadcaster import Broadcast
 from fastapi.exceptions import HTTPException
-from fastapi.websockets import WebSocket
+from fastapi import WebSocket, status
 from httpx import AsyncClient
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
@@ -43,7 +43,12 @@ class WebSocketManager:
         except ConnectionClosed:
             pass
 
-    async def disconnect(self, websocket: WebSocket, code: int = 1000, reason: Union[Dict, str, None] = None) -> None:
+    async def disconnect(
+        self,
+        websocket: WebSocket,
+        code: int = status.WS_1000_NORMAL_CLOSURE,
+        reason: Union[Dict, str, None] = None,
+    ) -> None:
         if reason:
             await websocket.send_text(json_dumps(reason))
         await websocket.close(code)
