@@ -29,8 +29,11 @@ class WebSocketManager:
             return {"error": vars(e)}
         return None
 
-    async def connect_db(self) -> None:
+    async def connect_redis(self) -> None:
         await self.sub_broadcast.connect()
+
+    async def disconnect_redis(self) -> None:
+        await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, pid: UUID) -> None:
         await run_until_first_complete(

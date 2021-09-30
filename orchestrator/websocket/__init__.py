@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from asyncio import get_event_loop, new_event_loop
+from asyncio import new_event_loop
 from typing import Any, Dict, Optional, cast
 from uuid import UUID
 
@@ -55,8 +55,6 @@ websocket_manager = cast(WebSocketManager, wrapped_websocket_manager)
 # The Global WebSocketManager is set after calling this function
 def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
     wrapped_websocket_manager.update(WebSocketManager(settings.WEBSOCKET_BROADCASTER_URL))
-    loop = get_event_loop()
-    loop.run_until_complete(websocket_manager.connect_db())
     return websocket_manager
 
 
@@ -89,8 +87,11 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
     if data["process"]["status"] == ProcessStatus.COMPLETED:
         data["close"] = True
 
+    async def send_data():
+        await websocket_manager.broadcast_data(channel, data)
+
     loop = new_event_loop()
-    loop.run_until_complete(websocket_manager.broadcast_data(channel, data))
+    loop.run_until_complete(send_data())
     loop.close()
 
 

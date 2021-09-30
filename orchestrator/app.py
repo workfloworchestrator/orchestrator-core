@@ -62,6 +62,7 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        websocket_manager = init_websocket_manager(base_settings)
         super().__init__(
             title=title,
             description=description,
@@ -70,6 +71,8 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
+            on_startup=[websocket_manager.connect_redis],
+            on_shutdown=[websocket_manager.disconnect_redis],
             **kwargs,
         )
 
@@ -78,8 +81,6 @@ class OrchestratorCore(FastAPI):
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
-
-        init_websocket_manager(base_settings)
 
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
         self.add_middleware(DBSessionMiddleware, database=db)
