@@ -22,9 +22,9 @@ class WebSocketManager:
     async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
         try:
             async with AsyncClient() as client:
-                user = await oidc_user(websocket, async_request=client, token=token)
+                user = await oidc_user(websocket, async_request=client, token=token)  # type: ignore
                 if user:
-                    await opa_security_default(websocket, user, client)
+                    await opa_security_default(websocket, user, client)  # type: ignore
         except HTTPException as e:
             return {"error": vars(e)}
         return None
@@ -55,7 +55,7 @@ class WebSocketManager:
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)
-                if "close" in json and json["close"]:
+                if type(json) is dict and "close" in json and json["close"]:
                     await self.disconnect(websocket)
 
     async def broadcast_data(self, channel: str, data: Dict) -> None:
