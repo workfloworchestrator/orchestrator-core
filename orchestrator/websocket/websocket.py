@@ -6,6 +6,7 @@ from fastapi.websockets import WebSocket
 from httpx import AsyncClient
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
+from websockets import ConnectionClosed
 
 from orchestrator.security import oidc_user, opa_security_default
 from orchestrator.utils.json import json_dumps, json_loads
@@ -35,9 +36,12 @@ class WebSocketManager:
         await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
-        await run_until_first_complete(
-            (self.sender, {"websocket": websocket, "channel": channel}),
-        )
+        try:
+            await run_until_first_complete(
+                (self.sender, {"websocket": websocket, "channel": channel}),
+            )
+        except ConnectionClosed:
+            pass
 
     async def disconnect(self, websocket: WebSocket, code: int = 1000, reason: Union[Dict, str, None] = None) -> None:
         if reason:
