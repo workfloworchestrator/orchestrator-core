@@ -1,14 +1,15 @@
-from structlog import get_logger
-from typing import Union, Dict, Optional
-from httpx import AsyncClient
-from broadcaster import Broadcast
+from typing import Dict, Optional, Union
 from uuid import UUID
-from starlette.concurrency import run_until_first_complete
-from fastapi.websockets import WebSocket
+
+from broadcaster import Broadcast
 from fastapi.exceptions import HTTPException
+from fastapi.websockets import WebSocket
+from httpx import AsyncClient
+from starlette.concurrency import run_until_first_complete
+from structlog import get_logger
+
 from orchestrator.security import oidc_user, opa_security_default
 from orchestrator.utils.json import json_dumps, json_loads
-from orchestrator.workflow import ProcessStatus
 
 logger = get_logger(__name__)
 
@@ -28,7 +29,7 @@ class WebSocketManager:
             return {"error": vars(e)}
         return None
 
-    async def connect_db(self):
+    async def connect_db(self) -> None:
         await self.sub_broadcast.connect()
 
     async def connect(self, websocket: WebSocket, pid: UUID) -> None:
@@ -54,7 +55,7 @@ class WebSocketManager:
                 if "close" in json and json["close"]:
                     await self.disconnect(websocket)
 
-    async def broadcast_data(self, channel: UUID, data: Dict) -> None:
+    async def broadcast_data(self, channel: str, data: Dict) -> None:
         await self.pub_broadcast.connect()
         await self.pub_broadcast.publish(channel, message=json_dumps(data))
         await self.pub_broadcast.disconnect()

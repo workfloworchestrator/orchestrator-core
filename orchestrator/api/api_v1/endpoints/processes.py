@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
-from fastapi import WebSocket, Query
+from fastapi import Query, WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
@@ -54,10 +54,9 @@ from orchestrator.schemas import (
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
-from orchestrator.workflow import ProcessStatus
-from orchestrator.websocket import websocket_manager
 from orchestrator.utils.json import json_dumps
-from fastapi.websockets import WebSocketDisconnect
+from orchestrator.websocket import websocket_manager
+from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
 

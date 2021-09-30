@@ -30,12 +30,12 @@ from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
+from orchestrator.websocket import create_process_step_websocket_data, send_process_step_data_to_websocket
 from orchestrator.workflow import Failed
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
-from orchestrator.websocket import send_process_step_data_to_websocket, create_process_step_websocket_data
 
 logger = structlog.get_logger(__name__)
 

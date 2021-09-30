@@ -11,16 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from asyncio import new_event_loop, get_event_loop
-from typing import Any, Optional, cast, Dict
+from asyncio import get_event_loop, new_event_loop
+from typing import Any, Dict, Optional, cast
+from uuid import UUID
 
 from structlog import get_logger
-from uuid import UUID
-from orchestrator.settings import AppSettings
-from orchestrator.websocket.websocket import WebSocketManager
+
+from orchestrator.db import ProcessStepTable, ProcessTable
 from orchestrator.forms import generate_form
-from orchestrator.db import ProcessTable, ProcessStepTable
+from orchestrator.settings import AppSettings
 from orchestrator.types import InputFormGenerator
+from orchestrator.websocket.websocket import WebSocketManager
 from orchestrator.workflow import ProcessStatus
 
 logger = get_logger(__name__)
@@ -59,7 +60,9 @@ def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
     return websocket_manager
 
 
-def create_process_step_websocket_data(process: ProcessTable, step: ProcessStepTable, step_form: Optional[InputFormGenerator]) -> Dict:
+def create_process_step_websocket_data(
+    process: ProcessTable, step: ProcessStepTable, step_form: Optional[InputFormGenerator]
+) -> Dict:
     form = None
     if step_form:
         form = generate_form(step_form, step.state, [])
