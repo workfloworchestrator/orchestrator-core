@@ -1,5 +1,4 @@
 from typing import Dict, Optional, Union
-from uuid import UUID
 
 from broadcaster import Broadcast
 from fastapi.exceptions import HTTPException
@@ -35,9 +34,9 @@ class WebSocketManager:
     async def disconnect_redis(self) -> None:
         await self.sub_broadcast.disconnect()
 
-    async def connect(self, websocket: WebSocket, pid: UUID) -> None:
+    async def connect(self, websocket: WebSocket, channel: str) -> None:
         await run_until_first_complete(
-            (self.sender, {"websocket": websocket, "pid": pid}),
+            (self.sender, {"websocket": websocket, "channel": channel}),
         )
 
     async def disconnect(self, websocket: WebSocket, code: int = 1000, reason: Union[Dict, str, None] = None) -> None:
@@ -45,12 +44,12 @@ class WebSocketManager:
             await websocket.send_text(json_dumps(reason))
         await websocket.close(code)
 
-    async def receiver(self, websocket: WebSocket, pid: UUID) -> None:
+    async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
             pass
 
-    async def sender(self, websocket: WebSocket, pid: UUID) -> None:
-        async with self.sub_broadcast.subscribe(channel=f"step_process:{pid}") as subscriber:
+    async def sender(self, websocket: WebSocket, channel: str) -> None:
+        async with self.sub_broadcast.subscribe(channel=channel) as subscriber:
             async for event in subscriber:
                 await websocket.send_text(event.message)
 

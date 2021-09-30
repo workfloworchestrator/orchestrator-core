@@ -396,8 +396,8 @@ async def websocket_endpoint(websocket: WebSocket, pid: UUID, token: str = Query
         logger.info("socket closed")
         await websocket.close()
 
-    # logger.debug("should not get to this", is_process_running(process))
-    await websocket_manager.connect(websocket, pid)
+    channel = f"step_process:{pid}"
+    await websocket_manager.connect(websocket, channel)
 
 
 def is_process_running(p: Dict) -> bool:
