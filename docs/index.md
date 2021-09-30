@@ -37,3 +37,9 @@ tasks reliably and easily, Orchestration adds a layer and allows you to add more
 This **orchestrator-core** provides a framework through which you can manage service orchestration for your end users. It enables you to
 define products to which users can subscribe, and helps you intelligently manage the lifecycle of **Creation**, **Modification**,
 **Termination** and **Validation** of a customer subscription.
+
+## Usage
+{%
+    include-markdown "../README.md"
+    start="## Usage"
+%}

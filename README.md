@@ -71,69 +71,45 @@ uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 Visit [http://127.0.0.1:8080/api/redoc](http://127.0.0.1:8080/api/redoc) to view the api documentation.
 
 
-## Installation (Development)
+## Setting up a development environment
 
-You can develop on the core in 2 ways; as a standalone project, or if you build a project that uses the pypi package
-of the core you can use a cool symlink trick to get 2 editable projects.
+To add features to the repository follow the following procedure to setup a working development environment.
 
-### Step 1:
-Install flit:
+### Installation (Development)
+Install the project and its dependancies to develop on the code.
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
+#### Step 1 - install flit:
+``` shell
+mkdvirtualenv -p python3.9 orchestrator-core
+workon orchestrator-core
 pip install flit
 ```
 
-### Step 2:
-This step depends on where you want to install the core; there are two possibilities: standalone (e.g. to run tests)
-or symlinked to an orchestrator-project that you're working on.
-
-*Stand alone*
-
-```bash
-flit install --deps develop --symlink --python venv/bin/python
-# optional: handy for tests and development
-pip install redis
-pip install pre-commit
+#### Step 2 - install the development code:
+``` shell
+flit install --deps develop --symlink
 ```
 
-*Symlinked to other orchestrator-project*
+!!! danger
+    Make sure to use the flit binary that is installed in your environment. You can check the correct
+    path by running
+    ``` shell
+    which flit
+    ```
 
-You can point the last parameter to the python binary in the venv you're using for your own orchestrator project.
-It will automatically replace the pypi dep with a symlink to the development version of the core and update/downgrade
-all required packages in your own orchestrator project.
+### Running tests
+Run the unit-test suite to verify a correct setup.
 
-```bash
-flit install --deps develop --symlink --python /path/to/a/orchestrator-project/venv/bin/python
-```
+#### Step 1 - Create a database
 
-So if you have the core and your own orchestrator project repo in the same folder and the main project folder is
-`orchestrator` and want to use relative links:
-
-```bash
-flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
-```
-
-Note: When you change requirements you can just re-execute "Step 2".
-
-## Running tests.
-
-*Create a database*
-
-```bash
+``` shell
 createuser -sP nwa
 createdb orchestrator-core-test -O nwa
 ```
 
-*Run tests*
-
-```bash
+#### Step 2 - Run tests
+``` shell
 pytest test/unit_tests
 ```
 
-or with xdist:
-
-```bash
-pytest -n auto test/unit_tests
-```
+If you do not encounter any failures in the test, you should be able to develop features in the orchestrator-core.
