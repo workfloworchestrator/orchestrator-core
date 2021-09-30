@@ -44,6 +44,7 @@ from orchestrator.exception_handlers import form_error_handler, problem_detail_h
 from orchestrator.forms import FormException
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
 from orchestrator.version import GIT_COMMIT_HASH
+from orchestrator.websocket import init_websocket_manager
 
 logger = structlog.get_logger(__name__)
 
@@ -77,6 +78,8 @@ class OrchestratorCore(FastAPI):
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
+
+        init_websocket_manager(base_settings)
 
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
         self.add_middleware(DBSessionMiddleware, database=db)

@@ -55,8 +55,9 @@ from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
 from orchestrator.workflow import ProcessStatus
-from orchestrator.utils.websocket import websocket_manager
+from orchestrator.websocket import websocket_manager
 from orchestrator.utils.json import json_dumps
+from fastapi.websockets import WebSocketDisconnect
 
 router = APIRouter()
 
@@ -385,12 +386,18 @@ async def websocket_endpoint(websocket: WebSocket, pid: UUID, token: str = Query
         await websocket_manager.disconnect(websocket, reason=error)
         return
 
-    process = get_current_process_data(pid)
-    await websocket.send_text(json_dumps({"process": process}))
-    if not is_process_running(process):
-        await websocket.close()
+    try:
+        process = get_current_process_data(pid)
+    except Exception as error:
+        await websocket_manager.disconnect(websocket, reason={"error": vars(error)})
         return
 
+    await websocket.send_text(json_dumps({"process": process}))
+    if not is_process_running(process):
+        logger.info("socket closed")
+        await websocket.close()
+
+    # logger.debug("should not get to this", is_process_running(process))
     await websocket_manager.connect(websocket, pid)
 
 
