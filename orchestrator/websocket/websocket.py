@@ -57,6 +57,7 @@ class WebSocketManager:
                 json = json_loads(event.message)
                 if type(json) is dict and "close" in json and json["close"]:
                     await self.disconnect(websocket)
+                    return
 
     async def broadcast_data(self, channel: str, data: Dict) -> None:
         await self.pub_broadcast.connect()
