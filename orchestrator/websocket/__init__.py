@@ -87,11 +87,8 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
     if data["process"]["status"] == ProcessStatus.COMPLETED:
         data["close"] = True
 
-    async def send_data():
-        await websocket_manager.broadcast_data(channel, data)
-
     loop = new_event_loop()
-    loop.run_until_complete(send_data())
+    loop.run_until_complete(websocket_manager.broadcast_data(channel, data))
     loop.close()
 
 
