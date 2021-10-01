@@ -6,6 +6,7 @@ workflow steps execute atomic functions that may fail and can be safely retried 
 
 ### Exercise - create a workflow and input form
 Please do the following:
+
 - Create a workflow file and register it in the workflow engine
 - Declare an input form
 - Fill out the subscription model and trasition it to the active state.

@@ -206,7 +206,7 @@ As mentioned before an advanced usecase would be to use `ProductBlockModels` fro
     False
     ```
 This is valid use of the domain models. The code will detect that `port` is part of `first_service_port` and respect
-onwership. It basically will treat it as a `read-only` object.
+onwership. It basically will treat it as a `read-only` property.
 
 #### Union types
 There may also be a case where a user would like to define two different types to a `ProductBlockModel` propery.

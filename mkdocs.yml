@@ -72,7 +72,7 @@ nav:
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
     - Orchestration Philosofy: architecture/orchestration/philosophy.md
-    - How do Worflows work?: architecture/application/workflow.md
+    - How do Workflows work?: architecture/application/workflow.md
     - Domain Models: architecture/application/domainmodels.md
     - Api Docs: architecture/application/api.md
   - Contributing:
