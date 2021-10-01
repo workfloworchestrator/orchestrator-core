@@ -5,6 +5,7 @@ This construct enables the user to use the `dot` notation to interact with a sub
 
 Read the [Domain Models](../../../architecture/application/domainmodels) section to understand how the concept works.
 
+### Exercise -  Create a domain model
 The domain model is correctly implemented when it achieves the following goals:
 
 - It must implement the life-cycles: `Inintial` and `Active`

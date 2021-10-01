@@ -102,8 +102,8 @@ class ServicePortBlockInactive(ProductBlockModel, product_block_name="Service Po
 
 ```
 As you can see in this model we define it as an Inactive Class. As parameter we pass the name of the product_block in the
-database. In the second highlighted line you see a variable. This references a `resource_type` in the database what the type is.
-In the `Inactive` or `Initial` phase of the Subscripton lifecycle we are the restrictive on typing; All fields/resource types
+database. In the second highlighted line you see a variable. This references a `resource_type` in the database, and annotates what type it should be at runtime.
+In the `Inactive` or `Initial` phase of the Subscripton lifecycle we are least restrictive in annotating the properties; All fields/resource types
 are Optional.
 
 ##### Product Block Model - Provisioning
