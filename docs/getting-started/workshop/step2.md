@@ -26,7 +26,8 @@ The orchestrator client gui has a number of prerequisites:
 $ yarn install
 $ cp .env.local.example .env.local
 $ source .env.local
-$ ln -s src/custom-example src/custom
+$ cd src
+$ ln -s custom-example custom
 $ yarn start
 ```
 </div>
