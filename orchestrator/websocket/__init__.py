@@ -81,10 +81,14 @@ def create_process_step_websocket_data(
     }
 
 
+def is_process_active(p: Dict) -> bool:
+    return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
+
+
 def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
     channel = f"step_process:{pid}"
 
-    if data["process"]["status"] == ProcessStatus.COMPLETED:
+    if not is_process_active(data["process"]):
         data["close"] = True
 
     loop = new_event_loop()
@@ -97,4 +101,5 @@ __all__ = [
     "init_websocket_manager",
     "create_websocket_data",
     "send_process_step_data_to_websocket",
+    "is_process_active",
 ]

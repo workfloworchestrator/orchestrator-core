@@ -55,7 +55,7 @@ from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
 from orchestrator.utils.json import json_dumps
-from orchestrator.websocket import websocket_manager
+from orchestrator.websocket import is_process_active, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -392,16 +392,12 @@ async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str =
         return
 
     await websocket.send_text(json_dumps({"process": process}))
-    if not is_process_running(process):
+    if not is_process_active(process):
         await websocket.close()
         return
 
     channel = f"step_process:{pid}"
     await websocket_manager.connect(websocket, channel)
-
-
-def is_process_running(p: Dict) -> bool:
-    return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
 def get_current_process_data(pid: UUID) -> Any:

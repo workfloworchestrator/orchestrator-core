@@ -1,8 +1,8 @@
 from typing import Dict, Optional, Union
 
 from broadcaster import Broadcast
-from fastapi.exceptions import HTTPException
 from fastapi import WebSocket, status
+from fastapi.exceptions import HTTPException
 from httpx import AsyncClient
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
