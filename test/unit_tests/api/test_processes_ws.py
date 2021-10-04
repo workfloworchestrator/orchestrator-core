@@ -11,6 +11,7 @@ from fastapi.websockets import WebSocketDisconnect
 from starlette.testclient import DataType, TestClient
 
 from orchestrator import OrchestratorCore
+from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, WorkflowTable, db
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -153,6 +154,9 @@ def test_websocket_process_detail_invalid_uuid(test_client):
             assert "Not Found" == error["title"]
             assert f"Process with pid {pid} not found" == error["detail"]
             assert 404 == error["status_code"]
+
+            # close and call receive_text to check websocket close exception
+            data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
@@ -163,6 +167,9 @@ def test_websocket_process_detail_completed(test_client, completed_process):
             data = websocket.receive_text()
             process = json_loads(data)["process"]
             assert process["status"] == "completed"
+
+            # close and call receive_text to check websocket close exception
+            data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
@@ -239,7 +246,9 @@ def test_websocket_process_detail_workflow(test_client_redis, long_running_workf
             assert step["name"] == "Done"
             assert step["status"] == StepStatus.COMPLETE
             assert json_data["close"] is True
-            websocket.close()
+
+            # close and call receive_text to check websocket close exception
+            data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
     except AssertionError as e:
@@ -251,3 +260,72 @@ def test_websocket_process_detail_workflow(test_client_redis, long_running_workf
         raise e
 
     app_settings.TESTING = True
+
+
+def test_websocket_process_detail_with_suspend(test_client_redis, test_workflow):
+    response = test_client_redis.post(f"/api/processes/{test_workflow}", json=[{}])
+
+    assert (
+        HTTPStatus.CREATED == response.status_code
+    ), f"Invalid response status code (response data: {response.json()})"
+
+    pid = response.json()["id"]
+
+    try:
+        with test_client_redis.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+            # Resume process
+            user_input = {"generic_select": "A"}
+
+            response = test_client_redis.put(f"/api/processes/{pid}/resume", json=[user_input])
+            assert HTTPStatus.NO_CONTENT == response.status_code
+
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["status"] == ProcessStatus.SUSPENDED
+            assert process["assignee"] == Assignee.CHANGES
+
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["status"] == ProcessStatus.RUNNING
+            assert process["assignee"] == Assignee.CHANGES
+
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["status"] == ProcessStatus.COMPLETED
+            assert process["assignee"] == Assignee.SYSTEM
+
+            # close and call receive_text to check websocket close exception
+            data = websocket.receive_text()
+    except WebSocketDisconnect as exception:
+        assert exception.code == status.WS_1000_NORMAL_CLOSURE
+
+
+def test_websocket_process_detail_with_abort(test_client_redis, test_workflow):
+    response = test_client_redis.post(f"/api/processes/{test_workflow}", json=[{}])
+
+    assert (
+        HTTPStatus.CREATED == response.status_code
+    ), f"Invalid response status code (response data: {response.json()})"
+
+    pid = response.json()["id"]
+
+    try:
+        with test_client_redis.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+            # Abort process
+            response = test_client_redis.put(f"/api/processes/{pid}/abort")
+            assert HTTPStatus.NO_CONTENT == response.status_code
+
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["status"] == ProcessStatus.SUSPENDED
+            assert process["assignee"] == Assignee.CHANGES
+
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["status"] == ProcessStatus.ABORTED
+            assert process["assignee"] == Assignee.SYSTEM
+
+            # close and call receive_text to check websocket close exception
+            data = websocket.receive_text()
+    except WebSocketDisconnect as exception:
+        assert exception.code == status.WS_1000_NORMAL_CLOSURE
