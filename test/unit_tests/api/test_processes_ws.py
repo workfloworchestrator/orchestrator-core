@@ -1,0 +1,253 @@
+import time
+from http import HTTPStatus
+from threading import Condition
+from typing import Any, MutableMapping, Optional
+from uuid import uuid4
+
+import pytest
+import requests
+from fastapi import status
+from fastapi.websockets import WebSocketDisconnect
+from starlette.testclient import DataType, TestClient
+
+from orchestrator import OrchestratorCore
+from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, WorkflowTable, db
+from orchestrator.settings import app_settings
+from orchestrator.targets import Target
+from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.workflow import ProcessStatus, StepStatus, done, init, step, workflow
+from test.unit_tests.workflows import WorkflowInstanceForTests
+
+test_condition = Condition()
+
+LONG_RUNNING_STEP = "Long Running Step"
+IMMEDIATE_STEP = "Long Running Step"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fastapi_app_redis(database, db_uri):
+    app_settings.DATABASE_URI = db_uri
+    app_settings.WEBSOCKET_BROADCASTER_URL = "redis://localhost:6379"
+    app = OrchestratorCore(base_settings=app_settings)
+    return app
+
+
+@pytest.fixture(scope="session")
+def test_client_redis(fastapi_app_redis):
+    class JsonTestClient(TestClient):
+        def request(  # type: ignore
+            self,
+            method: str,
+            url: str,
+            data: Optional[DataType] = None,
+            headers: Optional[MutableMapping[str, str]] = None,
+            json: Any = None,
+            **kwargs: Any,
+        ) -> requests.Response:
+            if json is not None:
+                if headers is None:
+                    headers = {}
+                data = json_dumps(json).encode()
+                headers["Content-Type"] = "application/json"
+
+            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
+
+    return JsonTestClient(fastapi_app_redis)
+
+
+@pytest.fixture
+def long_running_workflow():
+    @step(LONG_RUNNING_STEP)
+    def long_running_step():
+        with test_condition:
+            test_condition.wait()
+        return {"done": True}
+
+    @step(IMMEDIATE_STEP)
+    def immediate_step():
+        return {"done": True}
+
+    @workflow("Long Running Workflow")
+    def long_running_workflow_py():
+        return init >> long_running_step >> immediate_step >> long_running_step >> done
+
+    with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
+
+        db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
+        db.session.add(db_workflow)
+        db.session.commit()
+
+        yield "long_running_workflow_py"
+
+
+@pytest.fixture
+def completed_process(test_workflow, generic_subscription_1):
+    pid = uuid4()
+    process = ProcessTable(pid=pid, workflow=test_workflow, last_status=ProcessStatus.COMPLETED)
+    init_step = ProcessStepTable(pid=pid, name="Start", status=StepStatus.SUCCESS, state={})
+    insert_step = ProcessStepTable(
+        pid=pid,
+        name="Insert UUID in state",
+        status=StepStatus.SUCCESS,
+        state={"subscription_id": generic_subscription_1},
+    )
+    check_step = ProcessStepTable(
+        pid=pid,
+        name="Test that it is a string now",
+        status=StepStatus.SUCCESS,
+        state={"subscription_id": generic_subscription_1},
+    )
+    step = ProcessStepTable(
+        pid=pid, name="Modify", status=StepStatus.SUCCESS, state={"subscription_id": generic_subscription_1}
+    )
+
+    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=generic_subscription_1)
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(insert_step)
+    db.session.add(check_step)
+    db.session.add(step)
+    db.session.add(process_subscription)
+    db.session.commit()
+
+    return pid
+
+
+@pytest.fixture
+def started_process(test_workflow, generic_subscription_1):
+    pid = uuid4()
+    process = ProcessTable(pid=pid, workflow=test_workflow, last_status=ProcessStatus.SUSPENDED)
+    init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
+    insert_step = ProcessStepTable(
+        pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": generic_subscription_1}
+    )
+    check_step = ProcessStepTable(
+        pid=pid,
+        name="Test that it is a string now",
+        status="success",
+        state={"subscription_id": generic_subscription_1},
+    )
+    step = ProcessStepTable(pid=pid, name="Modify", status="suspend", state={"subscription_id": generic_subscription_1})
+
+    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=generic_subscription_1)
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(insert_step)
+    db.session.add(check_step)
+    db.session.add(step)
+    db.session.add(process_subscription)
+    db.session.commit()
+
+    return pid
+
+
+def test_websocket_process_detail_invalid_uuid(test_client):
+    pid = uuid4()
+
+    try:
+        with test_client.websocket_connect(f"/api/processes/{pid}?token=") as websocket:
+            data = websocket.receive_text()
+            error = json_loads(data)["error"]
+            assert "Not Found" == error["title"]
+            assert f"Process with pid {pid} not found" == error["detail"]
+            assert 404 == error["status_code"]
+    except WebSocketDisconnect as exception:
+        assert exception.code == status.WS_1000_NORMAL_CLOSURE
+
+
+def test_websocket_process_detail_completed(test_client, completed_process):
+    try:
+        with test_client.websocket_connect(f"api/processes/{completed_process}?token=") as websocket:
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["status"] == "completed"
+    except WebSocketDisconnect as exception:
+        assert exception.code == status.WS_1000_NORMAL_CLOSURE
+
+
+def test_websocket_process_detail_workflow(test_client_redis, long_running_workflow):
+    app_settings.TESTING = False
+
+    # Start the workflow
+    response = test_client_redis.post(f"/api/processes/{long_running_workflow}", json=[{}])
+    assert (
+        HTTPStatus.CREATED == response.status_code
+    ), f"Invalid response status code (response data: {response.json()})"
+
+    pid = response.json()["id"]
+
+    response = test_client_redis.get(f"api/processes/{pid}")
+    assert HTTPStatus.OK == response.status_code
+
+    # Make sure it started again
+    time.sleep(1)
+
+    try:
+        with test_client_redis.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+            # Check the websocket messages.
+            # the initial process details.
+            data = websocket.receive_text()
+            process = json_loads(data)["process"]
+            assert process["workflow_name"] == "long_running_workflow_py"
+            assert process["status"] == ProcessStatus.RUNNING
+
+            # Let first long step finish, receive_text would otherwise wait for a message indefinitely.
+            with test_condition:
+                test_condition.notify_all()
+            time.sleep(1)
+
+            # message step 1.
+            data = websocket.receive_text()
+            json_data = json_loads(data)
+            process = json_data["process"]
+            step = json_data["step"]
+            assert process["status"] == ProcessStatus.RUNNING
+            assert step["name"] == LONG_RUNNING_STEP
+            assert step["status"] == StepStatus.SUCCESS
+
+            # message step 2.
+            data = websocket.receive_text()
+            json_data = json_loads(data)
+            process = json_data["process"]
+            step = json_data["step"]
+            assert process["status"] == ProcessStatus.RUNNING
+            assert step["name"] == IMMEDIATE_STEP
+            assert step["status"] == StepStatus.SUCCESS
+
+            # Let second long step finish, receive_text would otherwise wait for a message indefinitely.
+            with test_condition:
+                test_condition.notify_all()
+            time.sleep(1)
+
+            # message step 3.
+            data = websocket.receive_text()
+            json_data = json_loads(data)
+            process = json_data["process"]
+            step = json_data["step"]
+            assert process["status"] == ProcessStatus.RUNNING
+            assert step["name"] == LONG_RUNNING_STEP
+            assert step["status"] == StepStatus.SUCCESS
+
+            # message step 4.
+            data = websocket.receive_text()
+            json_data = json_loads(data)
+            process = json_data["process"]
+            step = json_data["step"]
+            assert process["status"] == ProcessStatus.COMPLETED
+            assert step["name"] == "Done"
+            assert step["status"] == StepStatus.COMPLETE
+            assert json_data["close"] is True
+            websocket.close()
+    except WebSocketDisconnect as exception:
+        assert exception.code == status.WS_1000_NORMAL_CLOSURE
+    except AssertionError as e:
+        # Finish steps so the test doesn't get stuck waiting forever.
+        with test_condition:
+            test_condition.notify_all()
+        with test_condition:
+            test_condition.notify_all()
+        raise e
+
+    app_settings.TESTING = True

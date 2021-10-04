@@ -376,7 +376,7 @@ def processes_filterable(
 
 
 @router.websocket("/{pid}")
-async def websocket_endpoint(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
+async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
     error = await websocket_manager.authorize(websocket, token)
 
     await websocket.accept()
@@ -393,8 +393,8 @@ async def websocket_endpoint(websocket: WebSocket, pid: UUID, token: str = Query
 
     await websocket.send_text(json_dumps({"process": process}))
     if not is_process_running(process):
-        logger.info("socket closed")
         await websocket.close()
+        return
 
     channel = f"step_process:{pid}"
     await websocket_manager.connect(websocket, channel)

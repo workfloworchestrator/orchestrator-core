@@ -36,6 +36,7 @@ class WebSocketManager:
         await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
+        await self.connect_redis()
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
