@@ -1,21 +1,17 @@
 import time
 from http import HTTPStatus
 from threading import Condition
-from typing import Any, MutableMapping, Optional
 from uuid import uuid4
 
 import pytest
-import requests
 from fastapi import status
 from fastapi.websockets import WebSocketDisconnect
-from starlette.testclient import DataType, TestClient
 
-from orchestrator import OrchestratorCore
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, WorkflowTable, db
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.utils.json import json_loads
 from orchestrator.workflow import ProcessStatus, StepStatus, done, init, step, workflow
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
@@ -23,37 +19,6 @@ test_condition = Condition()
 
 LONG_RUNNING_STEP = "Long Running Step"
 IMMEDIATE_STEP = "Long Running Step"
-
-
-@pytest.fixture(scope="session", autouse=True)
-def fastapi_app_redis(database, db_uri):
-    app_settings.DATABASE_URI = db_uri
-    app_settings.WEBSOCKET_BROADCASTER_URL = "redis://localhost:6379"
-    app = OrchestratorCore(base_settings=app_settings)
-    return app
-
-
-@pytest.fixture(scope="session")
-def test_client_redis(fastapi_app_redis):
-    class JsonTestClient(TestClient):
-        def request(  # type: ignore
-            self,
-            method: str,
-            url: str,
-            data: Optional[DataType] = None,
-            headers: Optional[MutableMapping[str, str]] = None,
-            json: Any = None,
-            **kwargs: Any,
-        ) -> requests.Response:
-            if json is not None:
-                if headers is None:
-                    headers = {}
-                data = json_dumps(json).encode()
-                headers["Content-Type"] = "application/json"
-
-            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
-
-    return JsonTestClient(fastapi_app_redis)
 
 
 @pytest.fixture
@@ -115,35 +80,6 @@ def completed_process(test_workflow, generic_subscription_1):
     return pid
 
 
-@pytest.fixture
-def started_process(test_workflow, generic_subscription_1):
-    pid = uuid4()
-    process = ProcessTable(pid=pid, workflow=test_workflow, last_status=ProcessStatus.SUSPENDED)
-    init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
-    insert_step = ProcessStepTable(
-        pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": generic_subscription_1}
-    )
-    check_step = ProcessStepTable(
-        pid=pid,
-        name="Test that it is a string now",
-        status="success",
-        state={"subscription_id": generic_subscription_1},
-    )
-    step = ProcessStepTable(pid=pid, name="Modify", status="suspend", state={"subscription_id": generic_subscription_1})
-
-    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=generic_subscription_1)
-
-    db.session.add(process)
-    db.session.add(init_step)
-    db.session.add(insert_step)
-    db.session.add(check_step)
-    db.session.add(step)
-    db.session.add(process_subscription)
-    db.session.commit()
-
-    return pid
-
-
 def test_websocket_process_detail_invalid_uuid(test_client):
     pid = uuid4()
 
@@ -174,25 +110,25 @@ def test_websocket_process_detail_completed(test_client, completed_process):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
-def test_websocket_process_detail_workflow(test_client_redis, long_running_workflow):
+def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     app_settings.TESTING = False
 
     # Start the workflow
-    response = test_client_redis.post(f"/api/processes/{long_running_workflow}", json=[{}])
+    response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
     assert (
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
     pid = response.json()["id"]
 
-    response = test_client_redis.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{pid}")
     assert HTTPStatus.OK == response.status_code
 
     # Make sure it started again
     time.sleep(1)
 
     try:
-        with test_client_redis.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+        with test_client.websocket_connect(f"api/processes/{pid}?token=") as websocket:
             # Check the websocket messages.
             # the initial process details.
             data = websocket.receive_text()
@@ -257,13 +193,13 @@ def test_websocket_process_detail_workflow(test_client_redis, long_running_workf
             test_condition.notify_all()
         with test_condition:
             test_condition.notify_all()
+        app_settings.TESTING = True
         raise e
-
     app_settings.TESTING = True
 
 
-def test_websocket_process_detail_with_suspend(test_client_redis, test_workflow):
-    response = test_client_redis.post(f"/api/processes/{test_workflow}", json=[{}])
+def test_websocket_process_detail_with_suspend(test_client, test_workflow):
+    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
         HTTPStatus.CREATED == response.status_code
@@ -272,11 +208,11 @@ def test_websocket_process_detail_with_suspend(test_client_redis, test_workflow)
     pid = response.json()["id"]
 
     try:
-        with test_client_redis.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+        with test_client.websocket_connect(f"api/processes/{pid}?token=") as websocket:
             # Resume process
             user_input = {"generic_select": "A"}
 
-            response = test_client_redis.put(f"/api/processes/{pid}/resume", json=[user_input])
+            response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
             assert HTTPStatus.NO_CONTENT == response.status_code
 
             data = websocket.receive_text()
@@ -300,8 +236,8 @@ def test_websocket_process_detail_with_suspend(test_client_redis, test_workflow)
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
-def test_websocket_process_detail_with_abort(test_client_redis, test_workflow):
-    response = test_client_redis.post(f"/api/processes/{test_workflow}", json=[{}])
+def test_websocket_process_detail_with_abort(test_client, test_workflow):
+    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
         HTTPStatus.CREATED == response.status_code
@@ -310,9 +246,9 @@ def test_websocket_process_detail_with_abort(test_client_redis, test_workflow):
     pid = response.json()["id"]
 
     try:
-        with test_client_redis.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+        with test_client.websocket_connect(f"api/processes/{pid}?token=") as websocket:
             # Abort process
-            response = test_client_redis.put(f"/api/processes/{pid}/abort")
+            response = test_client.put(f"/api/processes/{pid}/abort")
             assert HTTPStatus.NO_CONTENT == response.status_code
 
             data = websocket.receive_text()
