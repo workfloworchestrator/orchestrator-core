@@ -92,6 +92,7 @@ def test_websocket_process_detail_invalid_uuid(test_client):
             assert 404 == error["status_code"]
 
             # close and call receive_text to check websocket close exception
+            websocket.close()
             data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
@@ -105,6 +106,7 @@ def test_websocket_process_detail_completed(test_client, completed_process):
             assert process["status"] == "completed"
 
             # close and call receive_text to check websocket close exception
+            websocket.close()
             data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
@@ -184,6 +186,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
             assert json_data["close"] is True
 
             # close and call receive_text to check websocket close exception
+            websocket.close()
             data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
@@ -231,6 +234,7 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
             assert process["assignee"] == Assignee.SYSTEM
 
             # close and call receive_text to check websocket close exception
+            websocket.close()
             data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
@@ -262,6 +266,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
             assert process["assignee"] == Assignee.SYSTEM
 
             # close and call receive_text to check websocket close exception
+            websocket.close()
             data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE

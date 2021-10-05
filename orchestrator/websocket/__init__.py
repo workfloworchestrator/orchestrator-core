@@ -13,18 +13,22 @@
 
 from asyncio import new_event_loop
 from typing import Any, Dict, Optional, cast
+from urllib.parse import urlparse
 from uuid import UUID
 
 from structlog import get_logger
 
 from orchestrator.db import ProcessStepTable, ProcessTable
 from orchestrator.forms import generate_form
-from orchestrator.settings import AppSettings
+from orchestrator.settings import AppSettings, app_settings
 from orchestrator.types import InputFormGenerator
-from orchestrator.websocket.websocket import WebSocketManager
+from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStatus
 
 logger = get_logger(__name__)
+
+
+broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 
 
 class WrappedWebSocketManager:
@@ -93,7 +97,10 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
 
     loop = new_event_loop()
     loop.run_until_complete(websocket_manager.broadcast_data(channel, data))
-    loop.close()
+    try:
+        loop.close()
+    except:
+        pass
 
 
 __all__ = [
