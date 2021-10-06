@@ -99,7 +99,7 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
     loop.run_until_complete(websocket_manager.broadcast_data(channel, data))
     try:
         loop.close()
-    except:
+    except Exception:  # noqa: S110
         pass
 
 

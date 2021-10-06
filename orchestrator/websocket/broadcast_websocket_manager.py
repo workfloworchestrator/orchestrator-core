@@ -4,7 +4,6 @@ from broadcaster import Broadcast
 from fastapi import WebSocket, status
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
-from websockets import ConnectionClosed
 
 from orchestrator.utils.json import json_dumps, json_loads
 
@@ -28,7 +27,7 @@ class BroadcastWebsocketManager:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     async def disconnect(
