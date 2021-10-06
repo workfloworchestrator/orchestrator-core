@@ -21,7 +21,22 @@ createuser -sP nwa
 createdb orchestrator-core -O nwa
 ```
 
-#### Step 3:
+#### Step 3 (optional):
+When using multiple workers, you will need a redis, postgres or kafka service for live updates with websockets.
+Redis is installed by default and for postgres or kafka you will need to install them:
+```bash
+pip install broadcaster[postgres]
+pip install broadcaster[kafka]
+```
+
+For the connection you need an env variable with the connection url.
+```bash
+export WEBSOCKET_BROADCASTER_URL="redis://localhost:6379"
+```
+
+more broadcaster info [here](https://pypi.org/project/broadcaster/)
+
+#### Step 4:
 Create a `main.py` file.
 
 ```python
@@ -35,14 +50,14 @@ if __name__ == "__main__":
     core_cli()
 ```
 
-#### Step 4:
+#### Step 5:
 Initialize the migration environment.
 ```bash
 PYTHONPATH=. python main.py db init
 PYTHONPATH=. python main.py db upgrade heads
 ```
 
-### Step 5:
+### Step 6:
 Profit :)
 
 ```bash

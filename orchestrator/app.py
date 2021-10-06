@@ -44,6 +44,7 @@ from orchestrator.exception_handlers import form_error_handler, problem_detail_h
 from orchestrator.forms import FormException
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
 from orchestrator.version import GIT_COMMIT_HASH
+from orchestrator.websocket import init_websocket_manager
 
 logger = structlog.get_logger(__name__)
 
@@ -61,6 +62,7 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        websocket_manager = init_websocket_manager(base_settings)
         super().__init__(
             title=title,
             description=description,
@@ -69,6 +71,8 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
+            on_startup=[websocket_manager.connect_redis],
+            on_shutdown=[websocket_manager.disconnect_redis],
             **kwargs,
         )
 
