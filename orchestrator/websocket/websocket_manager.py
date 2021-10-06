@@ -1,6 +1,6 @@
+from asyncio import get_event_loop
 from typing import Dict, Optional, Union
 from urllib.parse import urlparse
-from asyncio import get_event_loop
 
 from fastapi import WebSocket, status
 from fastapi.exceptions import HTTPException
