@@ -34,7 +34,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install flit
           flit install --deps develop --symlink
-          pip install redis
           echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
         env:
           FLIT_ROOT_INSTALL: 1
