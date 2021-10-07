@@ -1,8 +1,17 @@
+import functools
 from typing import Optional
 
 import pytest
 
-from orchestrator.utils.functional import as_t, expand_ranges, first_available_or_next, ireplace, join_cs, to_ranges
+from orchestrator.utils.functional import (
+    as_t,
+    expand_ranges,
+    first_available_or_next,
+    ireplace,
+    join_cs,
+    orig,
+    to_ranges,
+)
 
 
 def test_join_cs():
@@ -22,6 +31,8 @@ def test_join_cs():
     assert join_cs("a", "b") == "a,b"
     assert join_cs(["a"], ["b"]) == "a,b"
     assert join_cs(["a"], ("b",)) == "a,b"
+
+    assert join_cs("a,,b") == "a,b"
 
     assert join_cs("a,b") == "a,b"
     assert join_cs(["a", "b"]) == "a,b"
@@ -47,6 +58,7 @@ def test_first_available_or_next():
     assert first_available_or_next([]) == 0
 
     assert first_available_or_next([0, 1, 3], start=11) == 11
+    assert first_available_or_next([0, 1, 3], start=4) == 4
     assert first_available_or_next([], 22) == 22
     assert first_available_or_next([1, 100, 101], 33) == 33
     assert first_available_or_next([11, 22, 33, 44, 55], 33) == 34
@@ -98,3 +110,19 @@ def test_to_ranges():
         range(100, 101),
         range(200, 203),
     ]
+
+
+def test_orig():
+    def func():
+        pass
+
+    @functools.wraps(func)
+    def wrapper():
+        return func()
+
+    @functools.wraps(wrapper)
+    def super_wrapper():
+        return wrapper()
+
+    assert orig(wrapper) == func
+    assert orig(super_wrapper) == func

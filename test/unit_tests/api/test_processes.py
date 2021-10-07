@@ -19,7 +19,6 @@ from orchestrator.db import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.utils.json import json_dumps
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
 from test.unit_tests.conftest import CUSTOMER_ID
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -37,7 +36,7 @@ def long_running_workflow():
 
     @workflow("Long Running Workflow")
     def long_running_workflow_py():
-        return init >> long_running_step >> done
+        return init >> long_running_step >> long_running_step >> done
 
     with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
 
@@ -111,9 +110,7 @@ def test_delete_process_404(test_client, started_process):
 def test_long_running_pause(test_client, long_running_workflow):
     app_settings.TESTING = False
     # Start the workflow
-    response = test_client.post(
-        f"/api/processes/{long_running_workflow}", data=json_dumps([{}]), headers={"Content_Type": "application/json"}
-    )
+    response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
     assert (
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
@@ -143,23 +140,29 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert response.json()["global_status"] == "PAUSED"
 
     response = test_client.get(f"api/processes/{pid}")
-    assert len(response.json()["steps"]) == 3
+    assert len(response.json()["steps"]) == 4
     assert response.json()["current_state"]["done"] is True
     # assume ordered steplist
-    assert response.json()["steps"][2]["status"] == "pending"
+    assert response.json()["steps"][3]["status"] == "pending"
 
     response = test_client.put("/api/settings/status", json={"global_lock": False})
+
+    # Make sure it started again
+    time.sleep(1)
+
     assert response.json()["global_lock"] is False
     assert response.json()["running_processes"] == 1
     assert response.json()["global_status"] == "RUNNING"
 
-    # Let it finish
+    # Let it finish after second lock step
+    with test_condition:
+        test_condition.notify_all()
     time.sleep(1)
 
     response = test_client.get(f"api/processes/{pid}")
     assert HTTPStatus.OK == response.status_code
     # assume ordered steplist
-    assert response.json()["steps"][2]["status"] == "complete"
+    assert response.json()["steps"][3]["status"] == "complete"
 
     app_settings.TESTING = True
 
@@ -169,13 +172,13 @@ def test_service_unavailable_engine_locked(test_client, test_workflow):
     engine_settings.global_lock = True
     db.session.flush()
 
-    response = test_client.post(f"/api/processes/{test_workflow}", data=json_dumps([{}]))
+    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert HTTPStatus.SERVICE_UNAVAILABLE == response.status_code
 
 
 def test_complete_workflow(test_client, test_workflow):
-    response = test_client.post(f"/api/processes/{test_workflow}", data=json_dumps([{}]))
+    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
         HTTPStatus.CREATED == response.status_code
@@ -198,7 +201,7 @@ def test_complete_workflow(test_client, test_workflow):
         "generic_select": 123,
     }
 
-    response = test_client.put(f"/api/processes/{pid}/resume", data=json_dumps([user_input]))
+    response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert response.json()["validation_errors"] == [
         {
@@ -217,7 +220,7 @@ def test_complete_workflow(test_client, test_workflow):
     # Now for real
     user_input = {"generic_select": "A"}
 
-    response = test_client.put(f"/api/processes/{pid}/resume", data=json_dumps([user_input]))
+    response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
     assert HTTPStatus.NO_CONTENT == response.status_code
 
     process = test_client.get(f"api/processes/{pid}").json()
@@ -263,41 +266,29 @@ def test_process_subscription_by_subscription_id_404(test_client):
 
 
 def test_new_process_invalid_body(test_client, long_running_workflow):
-    response = test_client.post(
-        f"/api/processes/{long_running_workflow}",
-        data="[{'wrong': 'body'}]",
-        headers={"Content_Type": "application/json"},
-    )
-    assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
+    response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{"wrong": "body"}])
+    assert HTTPStatus.BAD_REQUEST == response.status_code
 
 
-def test_new_process_invalid_content_type(test_client):
+def test_new_process_invalid_Content_Type(test_client):
     response = test_client.post("/api/processes/terminate_sn8_light_path")
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
 
 
 def test_new_process_post_inconsistent_data(test_client):
-    response = test_client.post(
-        "/api/processes/terminate_sn8_light_path", data={}, headers={"Content_Type": "application/json"}
-    )
+    response = test_client.post("/api/processes/terminate_sn8_light_path", json={})
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
 
 
 def test_404_resume(test_client):
-    response = test_client.put(
-        f"/api/processes/{uuid.uuid4()}/resume", data=json_dumps({}), headers={"Content_Type": "application/json"}
-    )
+    response = test_client.put(f"/api/processes/{uuid.uuid4()}/resume", json={})
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
 def test_resume_validations(test_client, started_process):
     process_info_before = test_client.get(f"/api/processes/{started_process}").json()
 
-    response = test_client.put(
-        f"/api/processes/{started_process}/resume",
-        data=json_dumps([{"generic_select": 123}]),
-        headers={"Content_Type": "application/json"},
-    )
+    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": 123}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert [
         {
@@ -324,11 +315,7 @@ def test_resume_with_empty_form(test_client, started_process):
     db.session.flush()
 
     process_info_before = test_client.get(f"/api/processes/{started_process}").json()
-    response = test_client.put(
-        f"/api/processes/{started_process}/resume",
-        data=json_dumps([{"generic_select": "A"}]),
-        headers={"Content_Type": "application/json"},
-    )
+    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": "A"}])
 
     assert HTTPStatus.NO_CONTENT == response.status_code
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()
@@ -340,11 +327,7 @@ def test_resume_with_empty_form(test_client, started_process):
 
 def test_resume_happy_flow(test_client, started_process):
     process_info_before = test_client.get(f"/api/processes/{started_process}").json()
-    response = test_client.put(
-        f"/api/processes/{started_process}/resume",
-        data=json_dumps([{"generic_select": "A"}]),
-        headers={"Content_Type": "application/json"},
-    )
+    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": "A"}])
 
     assert HTTPStatus.NO_CONTENT == response.status_code
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()
@@ -362,11 +345,7 @@ def test_resume_with_incorrect_workflow_status(test_client, started_process):
     db.session.commit()
 
     process_info_before = test_client.get(f"/api/processes/{started_process}").json()
-    response = test_client.put(
-        f"/api/processes/{started_process}/resume",
-        data=json_dumps([{"generic_select": "A"}]),
-        headers={"Content_Type": "application/json"},
-    )
+    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": "A"}])
     assert 409 == response.status_code
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]

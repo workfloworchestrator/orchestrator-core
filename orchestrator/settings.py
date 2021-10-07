@@ -16,9 +16,9 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from opentelemetry.exporter import jaeger
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchExportSpanProcessor
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
+from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
 from pydantic import BaseSettings
 
 
@@ -50,7 +50,6 @@ class AppSettings(BaseSettings):
     CACHE_HOST: str = "127.0.0.1"
     CACHE_PORT: int = 6379
     CC_NOC: int = 0
-    POST_MORTEM_DEBUGGER: str = ""
     SERVICE_NAME: str = "orchestrator-core"
     LOGGING_HOST: str = "localhost"
     LOG_LEVEL: str = "DEBUG"
@@ -58,6 +57,7 @@ class AppSettings(BaseSettings):
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
     TRACING_ENABLED: bool = False
     TRANSLATIONS_DIR: Optional[Path] = None
+    WEBSOCKET_BROADCASTER_URL: str = "memory://"
 
 
 class Oauth2Settings(BaseSettings):
@@ -73,11 +73,7 @@ app_settings = AppSettings()
 oauth2_settings = Oauth2Settings()
 
 # Tracer settings
-jaeger_exporter = jaeger.JaegerSpanExporter(
-    service_name=app_settings.SERVICE_NAME,
-    agent_host_name=app_settings.LOGGING_HOST,
-    insecure=True,
-)
-
 tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(BatchExportSpanProcessor(jaeger_exporter))
+
+jaeger_exporter = JaegerExporter(agent_host_name=app_settings.LOGGING_HOST, udp_split_oversized_batches=True)
+tracer_provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))

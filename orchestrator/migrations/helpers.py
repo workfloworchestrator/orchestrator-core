@@ -329,10 +329,9 @@ def delete_resource_types(conn: sa.engine.Connection, delete: List[str]) -> None
         delete: list of resource_type names you want to delete
 
     Usage:
-    ```python
-    obsolete_stuff = ["name_1", "name_2"]
-    delete_resource_types(conn: sa.engine.Connection, obsolete_stuff)
-    ```
+        >>>
+            obsolete_stuff = ["name_1", "name_2"]
+            delete_resource_types(conn: sa.engine.Connection, obsolete_stuff)
     """
     conn.execute(
         sa.text(

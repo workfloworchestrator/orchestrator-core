@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Tuple, Type, TypeVar
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, TypeVar
 
 import structlog
+from deprecated import deprecated
 
 from orchestrator.types import SubscriptionLifecycle, strEnum
-from orchestrator.utils.datetime import nowtz
 
 logger = structlog.get_logger(__name__)
 
@@ -51,17 +51,16 @@ def lookup_specialized_type(block: Type, lifecycle: Optional[SubscriptionLifecyc
     return specialized_block
 
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from orchestrator.domain.base import SubscriptionModel
+else:
+    SubscriptionModel = None
+    DomainModel = None
+T = TypeVar("T", bound=SubscriptionModel)
 
 
+@deprecated("use `SubscriptionModel.from_other_lifecycle(subscription, status)`")
 def change_lifecycle(subscription: T, status: SubscriptionLifecycle) -> T:
-    new_klass = lookup_specialized_type(subscription.__class__, status)
-    data = subscription.dict()  # type:ignore
+    from orchestrator.domain.base import SubscriptionModel
 
-    data["status"] = status
-    if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:
-        data["start_date"] = nowtz()
-    if data["end_date"] is None and status == SubscriptionLifecycle.TERMINATED:
-        data["end_date"] = nowtz()
-
-    return new_klass(**data)
+    return SubscriptionModel.from_other_lifecycle(subscription, status)  # type: ignore

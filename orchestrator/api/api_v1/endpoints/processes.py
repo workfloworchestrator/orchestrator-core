@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from fastapi import Query, WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
@@ -53,6 +54,8 @@ from orchestrator.schemas import (
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
+from orchestrator.utils.json import json_dumps
+from orchestrator.websocket import is_process_active, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -116,7 +119,9 @@ def delete(pid: UUID) -> None:
 
 @router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
 def new_process(
-    workflow_key: str, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    workflow_key: str,
+    json_data: Optional[List[Dict[str, Any]]] = Body(...),
+    user: Optional[OIDCUserModel] = Depends(oidc_user),
 ) -> Dict[str, UUID]:
     check_global_lock()
 
@@ -339,7 +344,8 @@ def processes_filterable(
         try:
             range_start = int(_range[0])
             range_end = int(_range[1])
-            assert range_start < range_end
+            if range_start >= range_end:
+                raise ValueError("range start must be lower than end")
         except (ValueError, AssertionError):
             msg = "Invalid range parameters"
             logger.exception(msg)
@@ -367,3 +373,32 @@ def processes_filterable(
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))
 
     return [asdict(enrich_process(p)) for p in results]
+
+
+@router.websocket("/{pid}")
+async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
+    error = await websocket_manager.authorize(websocket, token)
+
+    await websocket.accept()
+
+    if error:
+        await websocket_manager.disconnect(websocket, reason=error)
+        return
+
+    try:
+        process = get_current_process_data(pid)
+    except Exception as error:
+        await websocket_manager.disconnect(websocket, reason={"error": vars(error)})
+        return
+
+    await websocket.send_text(json_dumps({"process": process}))
+    if not is_process_active(process):
+        await websocket.close()
+        return
+
+    channel = f"step_process:{pid}"
+    await websocket_manager.connect(websocket, channel)
+
+
+def get_current_process_data(pid: UUID) -> Any:
+    return show(pid)

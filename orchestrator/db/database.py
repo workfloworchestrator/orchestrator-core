@@ -19,8 +19,7 @@ from uuid import uuid4
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.ext.declarative import as_declarative
-from sqlalchemy.ext.declarative.api import DeclarativeMeta
+from sqlalchemy.ext.declarative import DeclarativeMeta, as_declarative
 from sqlalchemy.orm import Query, Session, scoped_session, sessionmaker
 from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.sql.schema import MetaData
@@ -142,7 +141,7 @@ class BaseModel(_Base):
 
     __abstract__ = True
 
-    __init__: Callable[..., _Base]  # type: ignore
+    __init__: Callable[..., None]
 
     def __repr__(self) -> str:
         inst_state: InstanceState = sa_inspect(self)

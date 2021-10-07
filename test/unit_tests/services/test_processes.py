@@ -646,15 +646,14 @@ def test_run_process_async_success():
     assert EngineSettingsTable.query.one().running_processes == 1
 
     event.set()
-    sleep(0.01)
+    sleep(1)
 
     assert EngineSettingsTable.query.one().running_processes == 0
     app_settings.TESTING = True
 
 
-@mock.patch("orchestrator.services.processes.post_mortem")
 @mock.patch("orchestrator.services.processes._db_log_process_ex")
-def test_run_process_async_exception(mock_db_log_process_ex, mock_post_mortem):
+def test_run_process_async_exception(mock_db_log_process_ex):
     pid = uuid4()
     event = Event()
 
@@ -673,8 +672,6 @@ def test_run_process_async_exception(mock_db_log_process_ex, mock_post_mortem):
     sleep(0.1)
 
     assert EngineSettingsTable.query.one().running_processes == 0
-    mock_post_mortem.assert_called_once_with("", mock.ANY)
-    assert repr(mock_post_mortem.call_args[0][1]) == "ValueError('Failed')"
 
     mock_db_log_process_ex.assert_called_once_with(pid, mock.ANY)
     assert repr(mock_db_log_process_ex.call_args[0][1]) == "ValueError('Failed')"

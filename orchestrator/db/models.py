@@ -229,7 +229,6 @@ class ProductTable(BaseModel):
 
     def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
         workflow = first_true(self.workflows, None, lambda wf: wf.name == name)
-        assert workflow
         return workflow
 
 
@@ -268,6 +267,31 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
+    children_relations = relationship(
+        "ProductBlockRelationTable",
+        lazy="subquery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        backref=backref("parent", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.parent_id]",
+    )
+
+    parent_relations = relationship(
+        "ProductBlockRelationTable",
+        lazy="subquery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        backref=backref("child", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.child_id]",
+    )
+
+    parents = association_proxy(
+        "parent_relations", "parent", creator=lambda parent: ProductBlockRelationTable(parent=parent)
+    )
+    children = association_proxy(
+        "children_relations", "child", creator=lambda child: ProductBlockRelationTable(child=child)
+    )
+
     @staticmethod
     def find_by_name(name: str) -> ProductBlockTable:
         return ProductBlockTable.query.filter(ProductBlockTable.name == name).one()
@@ -280,6 +304,24 @@ class ProductBlockTable(BaseModel):
             .filter(ResourceTypeTable.resource_type == name)
             .one()
         )
+
+
+class ProductBlockRelationTable(BaseModel):
+    __tablename__ = "product_block_relations"
+    parent_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+
+    child_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+
+    min = Column(Integer())
+    max = Column(Integer())
+
+
+product_block_relation_index = Index(
+    "product_block_relation_p_c_ix",
+    ProductBlockRelationTable.parent_id,
+    ProductBlockRelationTable.child_id,
+    unique=True,
+)
 
 
 class ResourceTypeTable(BaseModel):
@@ -337,6 +379,7 @@ class SubscriptionInstanceTable(BaseModel):
     subscription_id = Column(
         UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True
     )
+    subscription: SubscriptionTable  # From relation backref
     product_block_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id"), nullable=False, index=True)
     product_block = relationship("ProductBlockTable", lazy="subquery")
     values = relationship(
@@ -345,6 +388,7 @@ class SubscriptionInstanceTable(BaseModel):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="asc(SubscriptionInstanceValueTable.value)",
+        backref=backref("subscription_instance", lazy=True),
     )
     label = Column(String(255))
 
@@ -496,4 +540,4 @@ class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
     global_lock = Column(Boolean(), default=False, nullable=False, primary_key=True)
     running_processes = Column(Integer(), default=0, nullable=False)
-    __table_args__ = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})  # type: ignore
+    __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})

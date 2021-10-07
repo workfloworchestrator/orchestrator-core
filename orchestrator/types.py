@@ -16,6 +16,7 @@ from http import HTTPStatus
 from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 
 from pydantic import BaseModel
+from pydantic.typing import get_args, get_origin
 
 UUIDstr = str
 State = Dict[str, Any]
@@ -49,6 +50,32 @@ class SubscriptionLifecycle(strEnum):
     DISABLED = "disabled"
     TERMINATED = "terminated"
     PROVISIONING = "provisioning"
+
+
+# The key is the Parent subscription life cycle status. The keys are lists of safe transitions for child subscriptions.
+SAFE_PARENT_TRANSITIONS_FOR_STATUS = {
+    SubscriptionLifecycle.INITIAL: [
+        SubscriptionLifecycle.ACTIVE,
+        SubscriptionLifecycle.PROVISIONING,
+        SubscriptionLifecycle.MIGRATING,
+        SubscriptionLifecycle.DISABLED,
+        SubscriptionLifecycle.TERMINATED,
+    ],
+    SubscriptionLifecycle.ACTIVE: [
+        SubscriptionLifecycle.ACTIVE,
+        SubscriptionLifecycle.MIGRATING,
+    ],
+    SubscriptionLifecycle.MIGRATING: [SubscriptionLifecycle.ACTIVE],
+    SubscriptionLifecycle.PROVISIONING: [SubscriptionLifecycle.ACTIVE],
+    SubscriptionLifecycle.TERMINATED: [
+        SubscriptionLifecycle.INITIAL,
+        SubscriptionLifecycle.ACTIVE,
+        SubscriptionLifecycle.MIGRATING,
+        SubscriptionLifecycle.DISABLED,
+        SubscriptionLifecycle.PROVISIONING,
+    ],
+    SubscriptionLifecycle.DISABLED: [SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.TERMINATED],
+}
 
 
 class AcceptItemType(strEnum):
@@ -102,10 +129,10 @@ def is_of_type(t: Any, test_type: Any) -> bool:
     """
 
     if (
-        hasattr(t, "__origin__")
-        and hasattr(test_type, "__origin__")
-        and t.__origin__ is test_type.__origin__
-        and t.__args__ == test_type.__args__
+        get_origin(t)
+        and get_origin(test_type)
+        and get_origin(t) is get_origin(test_type)
+        and get_args(t) == get_args(test_type)
     ):
         return True
 
@@ -148,16 +175,16 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_list_type(Literal[1,2,3])
     False
     """
-    if hasattr(t, "__origin__"):
-        if is_optional_type(t):
-            for arg in t.__args__:
+    if get_origin(t):
+        if is_optional_type(t) or is_union_type(t):
+            for arg in get_args(t):
                 if is_list_type(arg, test_type):
                     return True
-        elif t.__origin__ == Literal:
+        elif get_origin(t) == Literal:  # type:ignore
             return False  # Literal cannot contain lists see pep 586
-        elif issubclass(t.__origin__, list):
-            if test_type and t.__args__:
-                return is_of_type(t.__args__[0], test_type)
+        elif issubclass(get_origin(t), list):
+            if test_type and get_args(t):
+                return is_of_type(get_args(t)[0], test_type)
             else:
                 return True
 
@@ -173,6 +200,8 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     True
     >>> is_optional_type(Union[None, int])
     True
+    >>> is_optional_type(Union[int, str, None])
+    True
     >>> is_optional_type(Optional[int], int)
     True
     >>> is_optional_type(Optional[int], str)
@@ -184,9 +213,9 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_optional_type(int)
     False
     """
-    if hasattr(t, "__origin__"):
-        if t.__origin__ == Union and len(t.__args__) == 2:
-            for arg in t.__args__:
+    if get_origin(t):
+        if get_origin(t) == Union and None.__class__ in get_args(t):  # type:ignore
+            for arg in get_args(t):
                 if arg is None.__class__:
                     continue
 
@@ -194,4 +223,35 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
                     return is_of_type(arg, test_type)
                 else:
                     return True
+    return False
+
+
+def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
+    """Check if `t` is union type (Union[Type, AnotherType]).
+
+    Optionally check if T is of `test_type` We cannot check for literal Nones.
+
+    >>> is_union_type(Union[int, str])
+    True
+    >>> is_union_type(Union[int, str], str)
+    True
+    >>> is_union_type(Union[int, str], Union[int, str])
+    True
+    >>> is_union_type(int)
+    False
+
+    """
+    if get_origin(t):
+        if get_origin(t) == Union:  # type: ignore
+            if test_type:
+                if is_of_type(t, test_type):
+                    return True
+                for arg in get_args(t):
+                    result = is_of_type(arg, test_type)
+                    if result:
+                        return result
+                return False
+            else:
+                return True
+
     return False

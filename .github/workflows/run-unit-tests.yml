@@ -7,8 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ 3.8 ]
-    container: python:3.8.3-slim
+        python-version: [ 3.9 ]
+    container: python:3.9.7-slim
     services:
       postgres:
         image: postgres:11.6-alpine
@@ -30,10 +30,11 @@ jobs:
       - name: Install dependencies
         run: |
           apt update
-          apt install curl -y
+          apt install curl git build-essential -y
           python -m pip install --upgrade pip
           pip install flit
           flit install --deps develop --symlink
+          pip install redis
           echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
         env:
           FLIT_ROOT_INSTALL: 1

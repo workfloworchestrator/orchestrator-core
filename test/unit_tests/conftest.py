@@ -1,8 +1,10 @@
 import os
+import typing
 from contextlib import closing
 from typing import Any, Optional, cast
 
 import pytest
+import requests
 import structlog
 from alembic import command
 from alembic.config import Config
@@ -10,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
-from starlette.testclient import TestClient
+from starlette.testclient import DataType, TestClient
 from urllib3_mock import Responses
 
 from orchestrator import OrchestratorCore
@@ -23,6 +25,7 @@ from orchestrator.forms import FormPage
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
+from orchestrator.utils.json import json_dumps
 from test.unit_tests.workflows import WorkflowInstanceForTests
 from test.unit_tests.workflows.shared.test_validate_subscriptions import validation_workflow
 
@@ -151,7 +154,25 @@ def fastapi_app(database, db_uri):
 
 @pytest.fixture(scope="session")
 def test_client(fastapi_app):
-    return TestClient(fastapi_app)
+    class JsonTestClient(TestClient):
+        def request(  # type: ignore
+            self,
+            method: str,
+            url: str,
+            data: Optional[DataType] = None,
+            headers: Optional[typing.MutableMapping[str, str]] = None,
+            json: typing.Any = None,
+            **kwargs: Any,
+        ) -> requests.Response:
+            if json is not None:
+                if headers is None:
+                    headers = {}
+                data = json_dumps(json).encode()
+                headers["Content-Type"] = "application/json"
+
+            return super().request(method, url, data=data, headers=headers, **kwargs)  # type: ignore
+
+    return JsonTestClient(fastapi_app)
 
 
 @pytest.fixture(autouse=True)

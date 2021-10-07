@@ -13,12 +13,12 @@
 
 
 from copy import deepcopy
-from typing import Any, Dict, Generator, List, Optional, TypedDict, Union
+from typing import Any, Dict, Generator, List, Optional, TypedDict, Union, cast
 
 import structlog
 from pydantic.error_wrappers import ValidationError, display_errors
 from pydantic.fields import Field, ModelField, Undefined
-from pydantic.main import BaseModel, Extra
+from pydantic.main import BaseModel, Extra  # type: ignore
 
 from orchestrator.types import JSON, InputForm, State, StateInputFormGenerator
 from orchestrator.utils.json import json_dumps, json_loads
@@ -52,16 +52,16 @@ class FormValidationError(FormException):
     validator_name: str
     errors: List[PydanticErrorDict]
 
-    def __init__(self, validator_name: str, errors: List[PydanticErrorDict]):
+    def __init__(self, validator_name: str, errors: List[Dict[str, Any]]):
         super().__init__(validator_name, errors)
         self.validator_name = validator_name
-        self.errors = errors
+        self.errors = cast(List[PydanticErrorDict], errors)
 
     def __str__(self) -> str:
         no_errors = len(self.errors)
         return (
-            f'{no_errors} validation error{"" if no_errors == 1 else "s"} for {self.validator_name}\n'  # type:ignore
-            f"{display_errors(self.errors)}"
+            f'{no_errors} validation error{"" if no_errors == 1 else "s"} for {self.validator_name}\n'
+            f"{display_errors(cast(List[Dict[str, Any]], self.errors))}"  # type: ignore
         )
 
 
@@ -104,7 +104,7 @@ def post_process(form_generator: Optional[StateInputFormGenerator], state: State
             try:
                 form_validated_data = generated_form(**user_input)
             except ValidationError as e:
-                raise FormValidationError(e.model.__name__, e.errors()) from e  # type:ignore
+                raise FormValidationError(e.model.__name__, e.errors()) from e  # type: ignore
 
             # Update state with validated_data
             current_state.update(form_validated_data.dict())

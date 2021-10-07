@@ -13,7 +13,7 @@
 
 import random
 import re
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 # ------------------------------------------------------------------------------
@@ -23,10 +23,10 @@ class Cryptic:
     MAGIC = "$9$"
     MAGIC_SEARCH = r"\$9\$"
     FAMILY = ["QzF3n6/9CAtpu0O", "B1IREhcSyrleKvMW8LXx", "7N-dVbwsY2g4oaJZGUDj", "iHkq.mPf5T"]
-    EXTRA = {}  # type: ignore
+    EXTRA: Dict[str, int] = {}
     VALID = ""
     NUM_ALPHA = ""
-    ALPHA_NUM = {}  # type: ignore
+    ALPHA_NUM: Dict[str, int] = {}
     ENCODING = [[1, 4, 32], [1, 16, 32], [1, 8, 32], [1, 64], [1, 32], [1, 4, 16, 128], [1, 32, 64]]
 
     # ------------------------------------------------------------------------------

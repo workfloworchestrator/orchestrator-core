@@ -1,28 +1,31 @@
+from typing import TypeVar
+from unittest import mock
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.db.models import ProductTable
-from orchestrator.forms import FormPage
-from orchestrator.forms.network_type_validators import BFD, MTU
+from orchestrator.forms import FormPage, ReadOnlyField
 from orchestrator.forms.validators import (
     Accept,
     Choice,
     ContactPersonList,
     DisplaySubscription,
     Label,
+    ListOfOne,
     ListOfTwo,
     LongText,
     MigrationSummary,
     OrganisationId,
     ProductId,
     UniqueConstrainedList,
+    choice_list,
     contact_person_list,
     migration_summary,
     product_id,
     unique_conlist,
 )
+from orchestrator.services import products
 from orchestrator.utils.json import json_dumps, json_loads
 
 
@@ -45,6 +48,41 @@ def test_constrained_list_default():
 def test_constrained_list_constraints():
     class UniqueConListModel(FormPage):
         v: unique_conlist(int, min_items=1, unique_items=True)
+
+    m = UniqueConListModel(v=list(range(7)))
+    assert m.v == list(range(7))
+
+    with pytest.raises(ValidationError) as exc_info:
+        UniqueConListModel(v=[1, 1, 1])
+    assert exc_info.value.errors() == [{"loc": ("v",), "msg": "Items must be unique", "type": "value_error"}]
+
+    with pytest.raises(ValidationError) as exc_info:
+        UniqueConListModel(v=1)
+    assert exc_info.value.errors() == [{"loc": ("v",), "msg": "value is not a valid list", "type": "type_error.list"}]
+
+    with pytest.raises(ValidationError) as exc_info:
+        UniqueConListModel(v=[])
+    assert exc_info.value.errors() == [
+        {
+            "loc": ("v",),
+            "msg": "ensure this value has at least 1 items",
+            "type": "value_error.list.min_items",
+            "ctx": {"limit_value": 1},
+        }
+    ]
+
+
+def test_constrained_list_inherit_constraints():
+    T = TypeVar("T")
+
+    class Parent(UniqueConstrainedList[T]):
+        min_items = 1
+
+    class Child(Parent[T]):
+        unique_items = True
+
+    class UniqueConListModel(FormPage):
+        v: Child[int]
 
     m = UniqueConListModel(v=list(range(7)))
     assert m.v == list(range(7))
@@ -283,6 +321,135 @@ def test_choice_schema():
     }
 
 
+def test_choice_list():
+    class LegChoice(Choice):
+        Primary = "Primary"
+        Secondary = "Secondary"
+
+    class Form(FormPage):
+        choice: choice_list(LegChoice)
+
+    # Validation works
+    Form(choice=["Primary"])
+    Form(choice=["Primary", "Primary"])
+
+    with pytest.raises(ValidationError):
+        Form(choice=["Wrong"])
+
+    with pytest.raises(ValidationError):
+        Form(choice=["Primary", "Wrong"])
+
+
+def test_choice_list_default():
+    class LegChoice(Choice):
+        Primary = "Primary"
+        Secondary = "Secondary"
+
+    class Form(FormPage):
+        choice: choice_list(LegChoice) = [LegChoice.Primary]
+
+    Form(choice=["Primary"])
+    Form()
+    Form(choice=[LegChoice.Primary])
+
+    with pytest.raises(ValidationError):
+        Form(choice=["Wrong"])
+
+
+def test_choice_list_default_str():
+    class LegChoice(Choice):
+        Primary = "Primary"
+        Secondary = "Secondary"
+
+    class Form(FormPage):
+        choice: choice_list(LegChoice) = ["Primary"]
+
+    Form(choice=["Primary"])
+    Form()
+    Form(choice=[LegChoice.Primary])
+
+    with pytest.raises(ValidationError):
+        Form(choice=["Wrong"])
+
+
+def test_choice_list_schema():
+    class LegChoice(Choice):
+        Primary = "Primary"
+        Secondary = "Secondary"
+
+    class LegChoiceLabel(Choice):
+        Primary = ("Primary", "Primary LP")
+        Secondary = ("Secondary", "Secondary LP")
+        Tertiary = "Tertiary"
+
+    class Form(FormPage):
+        choice: choice_list(LegChoice)
+        choice_label: choice_list(LegChoiceLabel)
+
+    assert Form.schema() == {
+        "additionalProperties": False,
+        "definitions": {
+            "LegChoice": {
+                "description": "An enumeration.",
+                "enum": ["Primary", "Secondary"],
+                "title": "LegChoice",
+                "type": "string",
+            },
+            "LegChoiceLabel": {
+                "description": "An enumeration.",
+                "enum": ["Primary", "Secondary", "Tertiary"],
+                "options": {"Primary": "Primary LP", "Secondary": "Secondary LP", "Tertiary": "Tertiary"},
+                "title": "LegChoiceLabel",
+                "type": "string",
+            },
+        },
+        "properties": {
+            "choice": {"items": {"$ref": "#/definitions/LegChoice"}, "type": "array"},
+            "choice_label": {
+                "items": {"$ref": "#/definitions/LegChoiceLabel"},
+                "options": {"Primary": "Primary LP", "Secondary": "Secondary LP", "Tertiary": "Tertiary"},
+                "type": "array",
+            },
+        },
+        "required": ["choice", "choice_label"],
+        "title": "unknown",
+        "type": "object",
+    }
+
+
+def test_choice_list_constraints():
+    class LegChoice(Choice):
+        Primary = "Primary"
+        Secondary = "Secondary"
+
+    class Form(FormPage):
+        choice: choice_list(LegChoice, min_items=1, unique_items=True) = ["Primary"]
+
+    m = Form(choice=[LegChoice.Primary, LegChoice.Secondary])
+    assert m.choice == [LegChoice.Primary, LegChoice.Secondary]
+
+    with pytest.raises(ValidationError) as exc_info:
+        Form(choice=[1, 1, 1])
+    assert exc_info.value.errors() == [{"loc": ("choice",), "msg": "Items must be unique", "type": "value_error"}]
+
+    with pytest.raises(ValidationError) as exc_info:
+        Form(choice=1)
+    assert exc_info.value.errors() == [
+        {"loc": ("choice",), "msg": "value is not a valid list", "type": "type_error.list"}
+    ]
+
+    with pytest.raises(ValidationError) as exc_info:
+        Form(choice=[])
+    assert exc_info.value.errors() == [
+        {
+            "loc": ("choice",),
+            "msg": "ensure this value has at least 1 items",
+            "type": "value_error.list.min_items",
+            "ctx": {"limit_value": 1},
+        }
+    ]
+
+
 def test_contact_persons():
     class Form(FormPage):
         contact_persons: ContactPersonList
@@ -455,6 +622,25 @@ def test_display_only_schema():
     }
 
 
+def test_read_only_field_schema():
+    class Form(FormPage):
+        read_only: int = ReadOnlyField(1, const=False)
+
+    assert Form.schema() == {
+        "additionalProperties": False,
+        "properties": {
+            "read_only": {
+                "const": 1,
+                "title": "Read Only",
+                "type": "integer",
+                "uniforms": {"disabled": True, "value": 1},
+            },
+        },
+        "title": "unknown",
+        "type": "object",
+    }
+
+
 def test_organisation_id_schema():
     class Form(FormPage):
         org_id: OrganisationId
@@ -466,215 +652,6 @@ def test_organisation_id_schema():
         "title": "unknown",
         "type": "object",
     }
-
-
-def test_product_id_ok(generic_product_1):
-    product = ProductTable.query.limit(1).one()
-
-    class Form(FormPage):
-        product_id: ProductId
-
-    assert Form(product_id=product.product_id).product_id == product.product_id
-
-
-def test_product_id_schema():
-    class Form(FormPage):
-        product_id: ProductId
-
-    expected = {
-        "additionalProperties": False,
-        "properties": {"product_id": {"format": "productId", "title": "Product Id", "type": "string"}},
-        "required": ["product_id"],
-        "title": "unknown",
-        "type": "object",
-    }
-    assert expected == Form.schema()
-
-
-def test_product_id_schema_with_product():
-    some_product = uuid4()
-
-    class Form(FormPage):
-        product_id: product_id(products=[some_product])
-
-    expected = {
-        "additionalProperties": False,
-        "properties": {
-            "product_id": {
-                "format": "productId",
-                "title": "Product Id",
-                "type": "string",
-                "uniforms": {"productIds": [some_product]},
-            }
-        },
-        "required": ["product_id"],
-        "title": "unknown",
-        "type": "object",
-    }
-    assert expected == Form.schema()
-
-
-def test_product_id_nok():
-    class Form(FormPage):
-        product_id: ProductId
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(product_id="INCOMPLETE")
-
-    expected = [{"loc": ("product_id",), "msg": "value is not a valid uuid", "type": "type_error.uuid"}]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(product_id=uuid4())
-
-    expected = [{"loc": ("product_id",), "msg": "Product not found", "type": "value_error"}]
-    assert expected == error_info.value.errors()
-
-
-def test_product_id_nok_with_products(generic_product_1, generic_product_2):
-    product = ProductTable.query.limit(1).one()
-    another_product = ProductTable.query.offset(1).limit(1).one()
-
-    class Form(FormPage):
-        product_id: product_id(products=[product.product_id])
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(product_id="INCOMPLETE")
-
-    expected = [{"loc": ("product_id",), "msg": "value is not a valid uuid", "type": "type_error.uuid"}]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(product_id=uuid4())
-
-    expected = [{"loc": ("product_id",), "msg": "Product not found", "type": "value_error"}]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(product_id=another_product.product_id)
-
-    expected = [
-        {
-            "ctx": {"enum_values": [str(product.product_id)]},
-            "loc": ("product_id",),
-            "msg": f"value is not a valid enumeration member; permitted: '{product.product_id}'",
-            "type": "type_error.product_id",
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-
-def test_list_of_two():
-    class Form(FormPage):
-        list: ListOfTwo[str]
-
-    expected = {
-        "additionalProperties": False,
-        "properties": {
-            "list": {
-                "items": {"type": "string"},
-                "title": "List",
-                "minItems": 2,
-                "maxItems": 2,
-                "type": "array",
-            }
-        },
-        "required": ["list"],
-        "title": "unknown",
-        "type": "object",
-    }
-    assert expected == Form.schema()
-
-
-def test_bfd_ok():
-    class Form(FormPage):
-        bfd: BFD
-
-    model = {"enabled": False, "minimum_interval": None, "multiplier": None}
-    validated_data = Form(bfd=model).dict()
-
-    expected = {"bfd": BFD(enabled=False, minimum_interval=None, multiplier=None)}
-    assert expected == validated_data
-
-    model = {"enabled": True, "minimum_interval": 600, "multiplier": 3}
-    validated_data = Form(bfd=model).dict()
-
-    expected = {"bfd": BFD(enabled=True, minimum_interval=600, multiplier=3)}
-    assert expected == validated_data
-
-
-def test_bfd_missing_values():
-    class Form(FormPage):
-        bfd: BFD
-
-    model = {"enabled": False}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
-
-    model = {"enabled": True, "multiplier": 4}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
-
-    model = {"enabled": True, "minimum_interval": 600}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
-
-    model = {"enabled": False, "minimum_interval": 600, "multiplier": 3}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
-
-
-def test_bfd_wrong_values():
-    class Form(FormPage):
-        bfd: BFD
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 0, "multiplier": 3})
-
-    expected = [
-        {
-            "loc": ("bfd", "minimum_interval"),
-            "msg": "ensure this value is greater than or equal to 1",
-            "type": "value_error.number.not_ge",
-            "ctx": {"limit_value": 1},
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 255001, "multiplier": 3})
-
-    expected = [
-        {
-            "loc": ("bfd", "minimum_interval"),
-            "msg": "ensure this value is less than or equal to 255000",
-            "type": "value_error.number.not_le",
-            "ctx": {"limit_value": 255000},
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 600, "multiplier": 0})
-
-    expected = [
-        {
-            "loc": ("bfd", "multiplier"),
-            "msg": "ensure this value is greater than or equal to 1",
-            "type": "value_error.number.not_ge",
-            "ctx": {"limit_value": 1},
-        },
-    ]
-    assert expected == error_info.value.errors()
-
-    with pytest.raises(ValidationError) as error_info:
-        Form(bfd={"enabled": True, "minimum_interval": 600, "multiplier": 256})
-
-    expected = [
-        {
-            "loc": ("bfd", "multiplier"),
-            "msg": "ensure this value is less than or equal to 255",
-            "type": "value_error.number.not_le",
-            "ctx": {"limit_value": 255},
-        },
-    ]
-    assert expected == error_info.value.errors()
 
 
 def test_display_default():
@@ -700,56 +677,185 @@ def test_display_default():
     }
 
 
-def test_mtu():
+@mock.patch.object(products, "get_product_by_id")
+def test_product_id(mock_get_product_by_id):
+    product_x_id = uuid4()
+    product_y_id = uuid4()
+
+    mock_get_product_by_id.side_effect = [product_x_id, product_y_id]
+
     class Form(FormPage):
-        mtu: MTU
+        product_x: product_id([product_x_id])
+        product_id: ProductId
 
-    assert Form(mtu=1500).mtu == 1500
-    assert Form(mtu=1501).mtu == 1501
-    assert Form(mtu=9000).mtu == 9000
+    data = Form(product_id=product_y_id, product_x=product_x_id)
+    assert data.product_x == product_x_id
+    assert data.product_id == product_y_id
+    assert mock_get_product_by_id.has_calls([mock.call(product_x_id), mock.call(product_y_id)])
 
 
-def test_mtu_schema():
+def test_product_id_schema():
+    product_x_id = uuid4()
+
     class Form(FormPage):
-        mtu: MTU
+        product_x: product_id([product_x_id])
+        product_id: ProductId
 
     assert Form.schema() == {
         "additionalProperties": False,
         "properties": {
-            "mtu": {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "title": "Mtu", "type": "integer"}
+            "product_id": {"format": "productId", "title": "Product Id", "type": "string"},
+            "product_x": {
+                "format": "productId",
+                "title": "Product X",
+                "type": "string",
+                "uniforms": {"productIds": [product_x_id]},
+            },
         },
-        "required": ["mtu"],
+        "required": ["product_x", "product_id"],
         "title": "unknown",
         "type": "object",
     }
 
 
-def test_mtu_nok():
+@mock.patch.object(products, "get_product_by_id")
+def test_product_id_nok(mock_get_product_by_id):
+    product_x_id = uuid4()
+    product_y_id = uuid4()
+
+    mock_get_product_by_id.side_effect = [product_y_id, None]
+
     class Form(FormPage):
-        mtu: MTU
+        product_x: product_id([product_x_id])
+        product_id: ProductId
 
     with pytest.raises(ValidationError) as error_info:
-        assert Form(mtu=1499)
+        Form(product_id=product_y_id, product_x=product_y_id)
 
     expected = [
         {
-            "ctx": {"limit_value": 1500},
-            "loc": ("mtu",),
-            "msg": "ensure this value is greater than or equal to 1500",
-            "type": "value_error.number.not_ge",
+            "ctx": {"enum_values": [str(product_x_id)]},
+            "loc": ("product_x",),
+            "msg": f"value is not a valid enumeration member; permitted: '{str(product_x_id)}'",
+            "type": "type_error.product_id",
+        },
+        {"loc": ("product_id",), "msg": "Product not found", "type": "value_error"},
+    ]
+    assert expected == error_info.value.errors()
+    assert mock_get_product_by_id.has_calls([mock.call(product_x_id), mock.call(product_y_id)])
+
+    with pytest.raises(ValidationError) as error_info:
+        Form(product_id="INCOMPLETE")
+
+    expected = [
+        {"loc": ("product_x",), "msg": "field required", "type": "value_error.missing"},
+        {"loc": ("product_id",), "msg": "value is not a valid uuid", "type": "type_error.uuid"},
+    ]
+    assert expected == error_info.value.errors()
+
+
+def test_migration_summary_schema():
+    class Summary(MigrationSummary):
+        data = "foo"
+
+    class Form(FormPage):
+        ms1: Summary
+        ms2: migration_summary("bar")  # noqa: F821
+
+    assert Form.schema() == {
+        "additionalProperties": False,
+        "properties": {
+            "ms1": {"format": "summary", "title": "Ms1", "type": "string", "uniforms": {"data": "foo"}},
+            "ms2": {"format": "summary", "title": "Ms2", "type": "string", "uniforms": {"data": "bar"}},
+        },
+        "title": "unknown",
+        "type": "object",
+    }
+
+
+def test_list_of_one():
+    class Form(FormPage):
+        one: ListOfOne[int]
+
+    assert Form(one=[1])
+
+    with pytest.raises(ValidationError) as error_info:
+        assert Form(one=[])
+
+    expected = [
+        {
+            "ctx": {"limit_value": 1},
+            "loc": ("one",),
+            "msg": "ensure this value has at least 1 items",
+            "type": "value_error.list.min_items",
         }
     ]
     assert expected == error_info.value.errors()
 
     with pytest.raises(ValidationError) as error_info:
-        assert Form(mtu=9001)
+        assert Form(one=[1, 2])
 
     expected = [
         {
-            "ctx": {"limit_value": 9000},
-            "loc": ("mtu",),
-            "msg": "ensure this value is less than or equal to 9000",
-            "type": "value_error.number.not_le",
+            "ctx": {"limit_value": 1},
+            "loc": ("one",),
+            "msg": "ensure this value has at most 1 items",
+            "type": "value_error.list.max_items",
         },
     ]
     assert expected == error_info.value.errors()
+
+
+def test_list_of_two():
+    class Form(FormPage):
+        two: ListOfTwo[int]
+
+    assert Form(two=[1, 2])
+
+    with pytest.raises(ValidationError) as error_info:
+        assert Form(two=[1])
+
+    expected = [
+        {
+            "ctx": {"limit_value": 2},
+            "loc": ("two",),
+            "msg": "ensure this value has at least 2 items",
+            "type": "value_error.list.min_items",
+        }
+    ]
+    assert expected == error_info.value.errors()
+
+    with pytest.raises(ValidationError) as error_info:
+        assert Form(two=[1, 2, 3])
+
+    expected = [
+        {
+            "ctx": {"limit_value": 2},
+            "loc": ("two",),
+            "msg": "ensure this value has at most 2 items",
+            "type": "value_error.list.max_items",
+        },
+    ]
+    assert expected == error_info.value.errors()
+
+
+def test_list_of_two_schema():
+    class Form(FormPage):
+        list: ListOfTwo[str]
+
+    expected = {
+        "additionalProperties": False,
+        "properties": {
+            "list": {
+                "items": {"type": "string"},
+                "title": "List",
+                "minItems": 2,
+                "maxItems": 2,
+                "type": "array",
+            }
+        },
+        "required": ["list"],
+        "title": "unknown",
+        "type": "object",
+    }
+    assert expected == Form.schema()

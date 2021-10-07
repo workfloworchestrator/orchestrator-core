@@ -12,14 +12,13 @@
 # limitations under the License.
 
 
-import sys
 from http import HTTPStatus
 from typing import Dict, Optional, cast
 
 import structlog
 from nwastdlib.ex import show_ex
 
-from orchestrator.types import JSON, ErrorDict, ErrorState
+from orchestrator.types import JSON, ErrorDict
 
 logger = structlog.get_logger(__name__)
 
@@ -67,7 +66,7 @@ class ProcessFailure(Exception):
     message: str
     details: JSON
 
-    def __init__(self, message: str, details: JSON) -> None:
+    def __init__(self, message: str, details: JSON = None) -> None:
         super().__init__(message, details)
         self.message = message
         self.details = details
@@ -117,21 +116,3 @@ def error_state_to_dict(err: Exception) -> ErrorDict:
         }
     else:
         return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}
-
-
-def post_mortem(debugger: str, error: ErrorState) -> ErrorState:
-    if isinstance(error, Exception) and hasattr(error, "__traceback__"):
-        if debugger == "web_pdb":
-            try:
-                import web_pdb
-            except ImportError:
-                logger.critical("web_pd could not be imported for post mortem debugging")
-                return error
-            web_pdb.post_mortem(error.__traceback__)
-        elif debugger == "print":
-            print(show_ex(error), file=sys.stderr)  # noqa: T001
-        elif debugger == "reraise":
-            # This exception will normally be suppressed by threadpoolexecutor.
-            # When env var TESTING is set the exception will be raised when .result() is called on the future
-            raise error
-    return error

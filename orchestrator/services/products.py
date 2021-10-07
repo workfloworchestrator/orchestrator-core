@@ -15,6 +15,7 @@
 from typing import List, Union
 from uuid import UUID
 
+from deprecated import deprecated
 from more_itertools.more import one
 from sqlalchemy.orm import joinedload
 
@@ -22,6 +23,7 @@ from orchestrator.db import ProductTable
 from orchestrator.types import UUIDstr
 
 
+@deprecated("Use get_product_by_id")
 def get_product(product_id: Union[UUID, UUIDstr]) -> ProductTable:
     """
     Get product by id.
@@ -36,7 +38,20 @@ def get_product(product_id: Union[UUID, UUIDstr]) -> ProductTable:
     if product:
         return product
     else:
-        raise ValueError(f"ProductTable with ID '{product_id}' does not exist")
+        raise ValueError(f"Product with ID '{product_id}' does not exist")
+
+
+def get_product_by_id(product_id: Union[UUID, UUIDstr]) -> ProductTable:
+    """
+    Get product by id.
+
+    Args:
+        product_id: ProductTable id uuid
+
+    Returns: ProductTable object
+
+    """
+    return ProductTable.query.options(joinedload("fixed_inputs")).get(product_id)
 
 
 def get_product_by_name(name: str) -> ProductTable:

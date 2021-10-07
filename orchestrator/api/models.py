@@ -134,7 +134,7 @@ def parse_date_fields(json_dict: Dict) -> None:
                 json_dict[date_field] = datetime.fromtimestamp(val / 1e3)
             if isinstance(val, str):
                 timestamp = isoparse(val)
-                assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."
+                assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."  # noqa: S101
                 json_dict[date_field] = timestamp
         rel: Dict
         for rel in flatten(list(filter(lambda i: isinstance(i, list), json_dict.values()))):

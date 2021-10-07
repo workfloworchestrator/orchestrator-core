@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from types import new_class
-from typing import Any, ClassVar, Dict, Generator, List, Optional, Type, TypeVar, get_args
+from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence, Type, TypeVar, get_args
 from uuid import UUID
 
 import structlog
@@ -22,14 +22,14 @@ from pydantic.fields import ModelField
 from pydantic.utils import update_not_none
 from pydantic.validators import str_validator, uuid_validator
 
-from orchestrator.db.models import ProductTable
 from orchestrator.forms import DisplayOnlyFieldType
+from orchestrator.services import products
 from orchestrator.types import AcceptData, SummaryData, strEnum
 
 logger = structlog.get_logger(__name__)
 
 
-T = TypeVar("T")
+T = TypeVar("T")  # pragma: no mutate
 
 
 class UniqueConstrainedList(ConstrainedList, List[T]):
@@ -64,11 +64,11 @@ class UniqueConstrainedList(ConstrainedList, List[T]):
                 cls.item_type = get_args(generic_base_cls)[0]
 
         # Make sure __args__ is set
-        assert hasattr(cls, "item_type"), "Missing a concrete value for generic type argument"
+        assert hasattr(cls, "item_type"), "Missing a concrete value for generic type argument"  # noqa: S101
 
         cls.__args__ = (cls.item_type,)
 
-    def __class_getitem__(cls, key: Any) -> Type:
+    def __class_getitem__(cls, key: Any) -> Any:
         # Some magic to make sure that subclasses of this class still work as expected
         class Inst(cls):  # type: ignore
             item_type = key
@@ -113,7 +113,7 @@ def remove_empty_items(v: list) -> list:
     return v
 
 
-class Accept:
+class Accept(str):
     data: ClassVar[Optional[AcceptData]] = None
 
     class Values(strEnum):
@@ -287,9 +287,10 @@ class OrganisationId(UUID):
 
 class ProductIdError(EnumMemberError):
     code = "product_id"
+    enum_values: Sequence[Any]  # Required kwarg
 
     def __str__(self) -> str:
-        permitted = ", ".join(repr(v) for v in self.enum_values)  # type: ignore
+        permitted = ", ".join(repr(v) for v in self.enum_values)
         return f"value is not a valid enumeration member; permitted: {permitted}"
 
 
@@ -310,7 +311,7 @@ class ProductId(UUID):
 
     @classmethod
     def is_product(cls, v: UUID) -> UUID:
-        product = ProductTable.query.get(v)
+        product = products.get_product_by_id(v)
         if product is None:
             raise ValueError("Product not found")
 
