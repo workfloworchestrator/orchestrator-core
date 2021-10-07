@@ -1,13 +1,15 @@
+from importlib.machinery import SourceFileLoader
+
 import toml
 from setuptools import setup
 
-from orchestrator import __version__
+version = SourceFileLoader("__version__", "orchestrator/__init__.py").load_module()
 
 setup_variables = toml.load("pyproject.toml")["tool"]["flit"]["metadata"]
 
 setup(
     name=setup_variables["dist-name"],
-    version=__version__,
+    version=str(version.__version__),  # type: ignore
     classifiers=setup_variables["classifiers"],
     author=setup_variables["author"],
     author_email=setup_variables["author-email"],
