@@ -75,19 +75,20 @@ Visit [http://127.0.0.1:8080/api/redoc](http://127.0.0.1:8080/api/redoc) to view
 
 To add features to the repository follow the following procedure to setup a working development environment.
 
-### Installation (Development)
+### Installation (Development standalone)
 Install the project and its dependencies to develop on the code.
 
 #### Step 1 - install flit:
-``` shell
-mkvirtualenv -p python3.9 orchestrator-core
-workon orchestrator-core
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install flit
 ```
 
 #### Step 2 - install the development code:
-``` shell
-flit install --deps develop --symlink
+```shell
+flit install --deps develop --symlink --python venv/bin/python
 ```
 
 !!! danger
@@ -102,14 +103,46 @@ Run the unit-test suite to verify a correct setup.
 
 #### Step 1 - Create a database
 
-``` shell
+```shell
 createuser -sP nwa
 createdb orchestrator-core-test -O nwa
 ```
 
 #### Step 2 - Run tests
-``` shell
+```shell
 pytest test/unit_tests
+```
+or with xdist:
+
+```bash
+pytest -n auto test/unit_tests
 ```
 
 If you do not encounter any failures in the test, you should be able to develop features in the orchestrator-core.
+
+### Installation (Development symlinked into orchestrator SURF)
+
+If you are working on a project that uses the `orchestrator-core` and you want to test you new features against it, 
+you can use some `flit` magic. It will automatically replace the pypi dep with a symlink to the development version 
+of the core and update/downgrade all required packages in your own orchestrator project.
+
+#### Step 1 - install flit:
+
+```shell
+python - m venv venv
+source venv/bin/activate
+pip install flit
+```
+
+### Step 2 - symlink the core to your own project
+
+```shell
+flit install --deps develop --symlink --python /path/to/a/orchestrator-project/venv/bin/python
+```
+
+So if you have the core and your own orchestrator project repo in the same folder and the main project folder is
+`orchestrator` and you want to use relative links, this will be last step:
+
+```shell
+flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
+```
