@@ -15,14 +15,15 @@
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union, overload
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar, Union, overload
 from uuid import UUID
 
 import more_itertools
 import structlog
 from sqlalchemy import Text, cast, not_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, joinedload
+from sqlalchemy.orm import Query, aliased, joinedload
+from sqlalchemy.sql.expression import or_
 
 from orchestrator.db import (
     ProductTable,
@@ -32,6 +33,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.db.models import SubscriptionInstanceRelationTable
 from orchestrator.targets import Target
 from orchestrator.types import UUIDstr
 from orchestrator.utils.datetime import nowtz
@@ -223,7 +225,7 @@ def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str,
 
     Args:
         subscription_id: SubscriptionTable id of the subscription
-        **attrs: Attributes that will be set
+        attrs: Attributes that will be set
 
     Returns: Subscription
 
@@ -336,36 +338,76 @@ def find_values_for_resource_types(
     return rt2v
 
 
-def query_parent_subscriptions_by_resource_types(resource_type: Iterable[str], subscription_id: UUID) -> Query:
+def query_parent_subscriptions(subscription_id: UUID) -> Query:
     """
     Return a query with all subscriptions -parents- that use this subscription_id with resource_type.
 
     The query can be used to add extra filters when/where needed.
     """
-    return (
+    # Find relations through resource types
+    resource_type_relations = (
         SubscriptionTable.query.join(SubscriptionInstanceTable)
         .options(joinedload("customer_descriptions"))
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
-        .filter(ResourceTypeTable.resource_type.in_(resource_type))
+        .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
         .filter(SubscriptionInstanceValueTable.value == str(subscription_id))
-        .with_entities(SubscriptionTable)
+        .with_entities(SubscriptionTable.subscription_id)
+    )
+
+    # Find relations through instance hierarchy
+    parent_instances = aliased(SubscriptionInstanceTable)
+    child_instances = aliased(SubscriptionInstanceTable)
+    relation_relations = (
+        SubscriptionTable.query.join(parent_instances.subscription)
+        .join(parent_instances.children_relations)
+        .join(child_instances, SubscriptionInstanceRelationTable.child)
+        .filter(child_instances.subscription_id == subscription_id)
+        .filter(parent_instances.subscription_id != subscription_id)
+        .with_entities(SubscriptionTable.subscription_id)
+    )
+
+    return SubscriptionTable.query.filter(
+        or_(
+            SubscriptionTable.subscription_id.in_(resource_type_relations.subquery()),
+            SubscriptionTable.subscription_id.in_(relation_relations.subquery()),
+        )
     )
 
 
-def query_child_subscriptions_by_resource_types(resource_type: Iterable[str], subscription_id: UUID) -> Query:
+def query_child_subscriptions(subscription_id: UUID) -> Query:
     """
     Return a query with all subscriptions -children- that are used by this subscription in resource_type.
 
     The query can be used to add extra filters when/where needed.
     """
-    return (
+    # Find relations through resource types
+    resource_type_relations = (
         SubscriptionInstanceTable.query.join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
-        .filter(ResourceTypeTable.resource_type.in_(resource_type))
+        .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
         .filter(SubscriptionInstanceTable.subscription_id == subscription_id)
         .join(SubscriptionTable, SubscriptionInstanceValueTable.value == cast(SubscriptionTable.subscription_id, Text))
-        .with_entities(SubscriptionTable)
+        .with_entities(SubscriptionTable.subscription_id)
+    )
+
+    # Find relations through instance hierarchy
+    parent_instances = aliased(SubscriptionInstanceTable)
+    child_instances = aliased(SubscriptionInstanceTable)
+    relation_relations = (
+        SubscriptionTable.query.join(child_instances.subscription)
+        .join(child_instances.parent_relations)
+        .join(parent_instances, SubscriptionInstanceRelationTable.parent)
+        .filter(parent_instances.subscription_id == subscription_id)
+        .filter(child_instances.subscription_id != subscription_id)
+        .with_entities(SubscriptionTable.subscription_id)
+    )
+
+    return SubscriptionTable.query.filter(
+        or_(
+            SubscriptionTable.subscription_id.in_(resource_type_relations.subquery()),
+            SubscriptionTable.subscription_id.in_(relation_relations.subquery()),
+        )
     )
 
 
@@ -400,12 +442,12 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     4) IP_prefix cannot be terminated when in use
 
     """
-    parent_query = query_parent_subscriptions_by_resource_types(RELATION_RESOURCE_TYPES, subscription.subscription_id)
+    parent_query = query_parent_subscriptions(subscription.subscription_id)
 
     unterminated_parents = _terminated_filter(parent_query)
     locked_parent_relations = _in_sync_filter(parent_query)
 
-    query = query_child_subscriptions_by_resource_types(RELATION_RESOURCE_TYPES, subscription.subscription_id)
+    query = query_child_subscriptions(subscription.subscription_id)
 
     locked_child_relations = _in_sync_filter(query)
 
@@ -450,17 +492,31 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         subscription: an SqlAlchemy instance of a `db.SubscriptionTable`
 
     Returns:
-        A dictionary with the following structure (reason and its related keys are only present when workflows are blocked)::
-            {
-                "reason": "Optional global reason like subscription is in use"
-                "create": [{"name": "workflow.name", "description": "workflow.description", "reason": "Optional reason why this specific workflow is blocked"}],
-                "modify": [],
-                "terminate": [],
-                "system": [],
-            }
+        A dictionary with the following structure (reason and its related keys are only present when workflows are blocked):
 
+        >>> {  # doctest:+SKIP
+        ...     "reason": "Optional global reason like subscription is in use"
+        ...     "create": [{"name": "workflow.name", "description": "workflow.description", "reason": "Optional reason why this specific workflow is blocked"}],
+        ...     "modify": [],
+        ...     "terminate": [],
+        ...     "system": [],
+        ... }
 
     """
+    {  # doctest:+SKIP
+        "reason": "Optional global reason like subscription is in use",
+        "create": [
+            {
+                "name": "workflow.name",
+                "description": "workflow.description",
+                "reason": "Optional reason why this specific workflow is blocked",
+            }
+        ],
+        "modify": [],
+        "terminate": [],
+        "system": [],
+    }
+
     default_json: Dict[str, Any] = {}
 
     if not subscription.insync:

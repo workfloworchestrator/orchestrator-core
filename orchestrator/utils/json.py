@@ -79,7 +79,7 @@ from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 from uuid import UUID
 
 import rapidjson as json
@@ -88,7 +88,7 @@ from pydantic import BaseModel
 
 from orchestrator.utils.datetime import isoformat
 
-PY_JSON_TYPES = Union[Dict[str, Any], List, str, int, float, bool, None, object]
+PY_JSON_TYPES = Union[Dict[str, Any], List, str, int, float, bool, None, object]  # pragma: no mutate
 
 logger = structlog.get_logger(__name__)
 
@@ -156,12 +156,12 @@ def from_serializable(dct: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(v, str) and len(v) == ISO_FORMAT_STR_LEN and v[10] == "T":
             with suppress(ValueError, TypeError):
                 timestamp = datetime.fromisoformat(v)
-                assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."
+                assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."  # noqa: S101
                 dct[k] = timestamp
     return dct
 
 
-def non_none_dict(dikt: List[Tuple[str, Any]]) -> Dict[Any, Any]:
+def non_none_dict(dikt: Sequence[Tuple[str, Any]]) -> Dict[Any, Any]:
     """
     Return no `None` values in a Dict.
 
@@ -172,6 +172,10 @@ def non_none_dict(dikt: List[Tuple[str, Any]]) -> Dict[Any, Any]:
 
     Returns:
         dict of the keys and values if value is not None
+
+    Examples:
+        >>> non_none_dict({"a": 0, "b": None, "c": ""}.items())
+        {'a': 0, 'c': ''}
 
     """
     return {k: v for k, v in dikt if v is not None}

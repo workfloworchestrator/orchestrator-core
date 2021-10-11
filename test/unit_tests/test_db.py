@@ -119,7 +119,7 @@ def test_transactional_no_commit_second_thread():
 
 def test_autouse_fixture_rolls_back_aaa():
     # We want to test whether a change committed to the database in one test is visible to other tests (as in really
-    # persisted to the database). Of course such a change should not be visible if our `flask_app` and `database`
+    # persisted to the database). Of course such a change should not be visible if our `fastapi_app` and `database`
     # autouse fixtures work as advertised.
     #
     # However, tests should be independent of each other and we cannot assume one test runs before the other. Hence
@@ -141,7 +141,7 @@ def test_autouse_fixture_rolls_back_aaa():
 
 def test_autouse_fixture_rolls_back_bbb():
     # We want to test whether a change committed to the database in one test is visible to other tests (as in really
-    # persisted to the database). Of course such a change should not be visible if our `flask_app` and `database`
+    # persisted to the database). Of course such a change should not be visible if our `fastapi_app` and `database`
     # autouse fixtures work as advertised.
     #
     # However, tests should be independent of each other and we cannot assume one test runs before the other. Hence

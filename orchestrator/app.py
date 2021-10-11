@@ -20,12 +20,13 @@ import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from nwastdlib.logging import initialise_logging
-from opentelemetry import trace
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry import trace  # type: ignore
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
+from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor  # type: ignore
+from opentelemetry.instrumentation.redis import RedisInstrumentor  # type: ignore
+from opentelemetry.instrumentation.requests import RequestsInstrumentor  # type: ignore
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor  # type: ignore
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
@@ -43,6 +44,7 @@ from orchestrator.exception_handlers import form_error_handler, problem_detail_h
 from orchestrator.forms import FormException
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
 from orchestrator.version import GIT_COMMIT_HASH
+from orchestrator.websocket import init_websocket_manager
 
 logger = structlog.get_logger(__name__)
 
@@ -60,6 +62,7 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        websocket_manager = init_websocket_manager(base_settings)
         super().__init__(
             title=title,
             description=description,
@@ -68,6 +71,8 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
+            on_startup=[websocket_manager.connect_redis],
+            on_shutdown=[websocket_manager.disconnect_redis],
             **kwargs,
         )
 
@@ -101,6 +106,7 @@ class OrchestratorCore(FastAPI):
         trace.set_tracer_provider(tracer_provider)
         FastAPIInstrumentor.instrument_app(self)
         RequestsInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument()
         RedisInstrumentor().instrument()
         Psycopg2Instrumentor().instrument()
         SQLAlchemyInstrumentor().instrument(engine=db.engine, tracer_provider=tracer_provider)
@@ -113,7 +119,7 @@ class OrchestratorCore(FastAPI):
         environment: str,
         release: Optional[str] = GIT_COMMIT_HASH,
     ) -> None:
-        logger.info("Adding Sentry middelware to app", app=self.title)
+        logger.info("Adding Sentry middleware to app", app=self.title)
         sentry_sdk.init(
             dsn=sentry_dsn,
             traces_sample_rate=trace_sample_rate,
@@ -139,17 +145,17 @@ class OrchestratorCore(FastAPI):
             None:
 
         Examples:
-            product_to_subscription_model_mapping = {
-                "Generic Product One": GenericProductModel,
-                "Generic Product Two": GenericProductModel,
-            }
+            >>> product_to_subscription_model_mapping = { # doctest:+SKIP
+            ...     "Generic Product One": GenericProductModel,
+            ...     "Generic Product Two": GenericProductModel,
+            ... }
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
 
 
 main_typer_app = typer.Typer()
-main_typer_app.add_typer(cli_app, name="orchestrator", help="The are the orchestrator cli commands")
+main_typer_app.add_typer(cli_app, name="orchestrator", help="The orchestrator CLI commands")
 
 if __name__ == "__main__":
     main_typer_app()

@@ -229,7 +229,6 @@ class ProductTable(BaseModel):
 
     def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
         workflow = first_true(self.workflows, None, lambda wf: wf.name == name)
-        assert workflow
         return workflow
 
 
@@ -268,6 +267,31 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
+    children_relations = relationship(
+        "ProductBlockRelationTable",
+        lazy="subquery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        backref=backref("parent", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.parent_id]",
+    )
+
+    parent_relations = relationship(
+        "ProductBlockRelationTable",
+        lazy="subquery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        backref=backref("child", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.child_id]",
+    )
+
+    parents = association_proxy(
+        "parent_relations", "parent", creator=lambda parent: ProductBlockRelationTable(parent=parent)
+    )
+    children = association_proxy(
+        "children_relations", "child", creator=lambda child: ProductBlockRelationTable(child=child)
+    )
+
     @staticmethod
     def find_by_name(name: str) -> ProductBlockTable:
         return ProductBlockTable.query.filter(ProductBlockTable.name == name).one()
@@ -280,6 +304,24 @@ class ProductBlockTable(BaseModel):
             .filter(ResourceTypeTable.resource_type == name)
             .one()
         )
+
+
+class ProductBlockRelationTable(BaseModel):
+    __tablename__ = "product_block_relations"
+    parent_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+
+    child_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+
+    min = Column(Integer())
+    max = Column(Integer())
+
+
+product_block_relation_index = Index(
+    "product_block_relation_p_c_ix",
+    ProductBlockRelationTable.parent_id,
+    ProductBlockRelationTable.child_id,
+    unique=True,
+)
 
 
 class ResourceTypeTable(BaseModel):
@@ -346,6 +388,7 @@ class SubscriptionInstanceTable(BaseModel):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="asc(SubscriptionInstanceValueTable.value)",
+        backref=backref("subscription_instance", lazy=True),
     )
     label = Column(String(255))
 
