@@ -24,6 +24,7 @@ from orchestrator.settings import AppSettings, app_settings
 from orchestrator.types import InputFormGenerator
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStatus
+from orchestrator.utils.show_process import show_process
 
 logger = get_logger(__name__)
 
@@ -78,14 +79,7 @@ def create_process_step_websocket_data(
         form = generate_form(step_form, step.state, [])
 
     return {
-        "process": {
-            "pid": process.pid,
-            "workflow": process.workflow,
-            "assignee": process.assignee,
-            "step": process.last_step,
-            "status": process.last_status,
-            "last_modified": process.last_modified_at,
-        },
+        "process": show_process(process),
         "step": {
             "name": step.name,
             "status": step.status,
