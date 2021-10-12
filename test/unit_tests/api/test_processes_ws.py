@@ -12,6 +12,7 @@ from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessT
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.json import json_loads
+from orchestrator.websocket import websocket_manager
 from orchestrator.workflow import ProcessStatus, StepStatus, done, init, step, workflow
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
@@ -112,6 +113,7 @@ def test_websocket_process_detail_completed(test_client, completed_process):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
+@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     app_settings.TESTING = False
 
@@ -201,6 +203,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     app_settings.TESTING = True
 
 
+@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_detail_with_suspend(test_client, test_workflow):
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
@@ -240,6 +243,7 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
+@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_detail_with_abort(test_client, test_workflow):
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
@@ -272,6 +276,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
+@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_list_multiple_workflows(test_client, long_running_workflow, test_workflow):
     app_settings.TESTING = False
 
@@ -287,7 +292,8 @@ def test_websocket_process_list_multiple_workflows(test_client, long_running_wor
     assert HTTPStatus.OK == response.status_code
 
     try:
-        with test_client.websocket_connect("api/processes/all/?token=") as websocket:# start test_workflow
+        with test_client.websocket_connect("api/processes/all/?token=") as websocket:
+            # start test_workflow
             test_workflow_response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
             assert (

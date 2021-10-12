@@ -14,20 +14,14 @@ class BroadcastWebsocketManager:
     def __init__(self, broadcast_url: str):
         self.sub_broadcast = Broadcast(broadcast_url)
         self.pub_broadcast = Broadcast(broadcast_url)
-        self.connected = False
 
     async def connect_redis(self) -> None:
-        if not self.connected:
-            await self.sub_broadcast.connect()
-            self.connected = True
+        await self.sub_broadcast.connect()
 
     async def disconnect_redis(self) -> None:
-        if self.connected:
-            await self.sub_broadcast.disconnect()
-            self.connected = False
+        await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
-        await self.connect_redis()  # necessary for unit tests
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),

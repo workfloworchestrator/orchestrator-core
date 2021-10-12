@@ -55,9 +55,9 @@ from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
 from orchestrator.utils.json import json_dumps
+from orchestrator.utils.show_process import show_process
 from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_manager
 from orchestrator.workflow import ProcessStatus
-from orchestrator.utils.show_process import show_process
 
 router = APIRouter()
 

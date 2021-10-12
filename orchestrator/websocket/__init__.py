@@ -22,9 +22,9 @@ from orchestrator.db import ProcessStepTable, ProcessTable
 from orchestrator.forms import generate_form
 from orchestrator.settings import AppSettings, app_settings
 from orchestrator.types import InputFormGenerator
+from orchestrator.utils.show_process import show_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStatus
-from orchestrator.utils.show_process import show_process
 
 logger = get_logger(__name__)
 
@@ -36,7 +36,7 @@ class WS_CHANNELS:
     ALL_PROCESSES = "processes"
 
     @staticmethod
-    def SINGLE_PROCESS(pid: UUID):
+    def SINGLE_PROCESS(pid: UUID) -> str:
         return f"process_detail:{pid}"
 
 

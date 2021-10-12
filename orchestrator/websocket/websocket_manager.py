@@ -17,8 +17,9 @@ class WebSocketManager:
     _backend: Union[MemoryWebsocketManager, BroadcastWebsocketManager]
 
     def __init__(self, broadcast_url: str):
-        broadcaster_type = urlparse(broadcast_url).scheme
-        if broadcaster_type == "memory":
+        self.broadcaster_type = urlparse(broadcast_url).scheme
+        self.connected = False
+        if self.broadcaster_type == "memory":
             self._backend = MemoryWebsocketManager()
         else:
             self._backend = BroadcastWebsocketManager(broadcast_url)
@@ -34,10 +35,14 @@ class WebSocketManager:
         return None
 
     async def connect_redis(self) -> None:
-        await self._backend.connect_redis()
+        if not self.connected:
+            await self._backend.connect_redis()
+            self.connected = True
 
     async def disconnect_redis(self) -> None:
-        await self._backend.disconnect_redis()
+        if self.connected:
+            await self._backend.disconnect_redis()
+            self.connected = False
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         await self._backend.connect(websocket, channel)
