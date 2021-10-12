@@ -27,7 +27,7 @@ class BroadcastWebsocketManager:
             self.connected = False
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
-        await self.connect_redis()
+        await self.connect_redis()  # necessary for unit tests
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
