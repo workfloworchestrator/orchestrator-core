@@ -50,7 +50,8 @@ class BroadcastWebsocketManager:
                     await self.disconnect(websocket)
                     break
 
-    async def broadcast_data(self, channel: str, data: Dict) -> None:
+    async def broadcast_data(self, channels: list[str], data: Dict) -> None:
         await self.pub_broadcast.connect()
-        await self.pub_broadcast.publish(channel, message=json_dumps(data))
+        for channel in channels:
+            await self.pub_broadcast.publish(channel, message=json_dumps(data))
         await self.pub_broadcast.disconnect()
