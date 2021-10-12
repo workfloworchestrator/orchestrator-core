@@ -1,4 +1,3 @@
-from asyncio import get_event_loop
 from typing import Dict, Optional, Union
 from urllib.parse import urlparse
 
@@ -50,4 +49,3 @@ class WebSocketManager:
 
     async def broadcast_data(self, channel: str, data: Dict) -> None:
         await self._backend.broadcast_data(channel, data)
-        get_event_loop().stop()

@@ -31,6 +31,14 @@ logger = get_logger(__name__)
 broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 
 
+class WS_CHANNELS:
+    ALL_PROCESSES = "processes"
+
+    @staticmethod
+    def SINGLE_PROCESS(pid: UUID):
+        return f"process_detail:{pid}"
+
+
 class WrappedWebSocketManager:
     def __init__(self, wrappee: Optional[WebSocketManager] = None) -> None:
         self.wrapped_websocket_manager = wrappee
@@ -71,6 +79,8 @@ def create_process_step_websocket_data(
 
     return {
         "process": {
+            "pid": process.pid,
+            "workflow": process.workflow,
             "assignee": process.assignee,
             "step": process.last_step,
             "status": process.last_status,
@@ -90,13 +100,14 @@ def is_process_active(p: Dict) -> bool:
 
 
 def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
-    channel = f"step_process:{pid}"
+    channel = WS_CHANNELS.SINGLE_PROCESS(pid)
 
     if not is_process_active(data["process"]):
         data["close"] = True
 
     loop = new_event_loop()
     loop.run_until_complete(websocket_manager.broadcast_data(channel, data))
+    loop.run_until_complete(websocket_manager.broadcast_data(WS_CHANNELS.ALL_PROCESSES, data))
     try:
         loop.close()
     except Exception:  # noqa: S110
@@ -109,4 +120,5 @@ __all__ = [
     "create_websocket_data",
     "send_process_step_data_to_websocket",
     "is_process_active",
+    "WS_CHANNELS",
 ]

@@ -14,12 +14,17 @@ class BroadcastWebsocketManager:
     def __init__(self, broadcast_url: str):
         self.sub_broadcast = Broadcast(broadcast_url)
         self.pub_broadcast = Broadcast(broadcast_url)
+        self.connected = False
 
     async def connect_redis(self) -> None:
-        await self.sub_broadcast.connect()
+        if not self.connected:
+            await self.sub_broadcast.connect()
+            self.connected = True
 
     async def disconnect_redis(self) -> None:
-        await self.sub_broadcast.disconnect()
+        if self.connected:
+            await self.sub_broadcast.disconnect()
+            self.connected = False
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         await self.connect_redis()
@@ -47,7 +52,7 @@ class BroadcastWebsocketManager:
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)
-                if type(json) is dict and "close" in json and json["close"]:
+                if type(json) is dict and "close" in json and json["close"] and channel != "processes":
                     await self.disconnect(websocket)
                     break
 
