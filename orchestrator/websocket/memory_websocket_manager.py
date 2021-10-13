@@ -43,14 +43,15 @@ class MemoryWebsocketManager:
             if len(self.connections_by_pid[channel]):
                 del self.connections_by_pid[channel]
 
-    async def broadcast_data(self, channel: str, data: Dict) -> None:
+    async def broadcast_data(self, channels: list[str], data: Dict) -> None:
         try:
-            if channel in self.connections_by_pid:
-                for connection in self.connections_by_pid[channel]:
-                    await connection.send_text(json_dumps(data))
+            for channel in channels:
+                if channel in self.connections_by_pid:
+                    for connection in self.connections_by_pid[channel]:
+                        await connection.send_text(json_dumps(data))
 
-            if "close" in data and data["close"]:
-                await self.disconnect_all(channel)
+                if "close" in data and data["close"]:
+                    await self.disconnect_all(channel)
         except (RuntimeError, ValueError):
             pass
 

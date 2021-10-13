@@ -22,7 +22,6 @@ class BroadcastWebsocketManager:
         await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
-        await self.connect_redis()
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
@@ -47,11 +46,12 @@ class BroadcastWebsocketManager:
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)
-                if type(json) is dict and "close" in json and json["close"]:
+                if type(json) is dict and "close" in json and json["close"] and channel != "processes":
                     await self.disconnect(websocket)
                     break
 
-    async def broadcast_data(self, channel: str, data: Dict) -> None:
+    async def broadcast_data(self, channels: list[str], data: Dict) -> None:
         await self.pub_broadcast.connect()
-        await self.pub_broadcast.publish(channel, message=json_dumps(data))
+        for channel in channels:
+            await self.pub_broadcast.publish(channel, message=json_dumps(data))
         await self.pub_broadcast.disconnect()

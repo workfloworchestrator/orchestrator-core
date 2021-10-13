@@ -22,6 +22,7 @@ from orchestrator.db import ProcessStepTable, ProcessTable
 from orchestrator.forms import generate_form
 from orchestrator.settings import AppSettings, app_settings
 from orchestrator.types import InputFormGenerator
+from orchestrator.utils.show_process import show_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStatus
 
@@ -29,6 +30,14 @@ logger = get_logger(__name__)
 
 
 broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
+
+
+class WS_CHANNELS:
+    ALL_PROCESSES = "processes"
+
+    @staticmethod
+    def SINGLE_PROCESS(pid: UUID) -> str:
+        return f"process_detail:{pid}"
 
 
 class WrappedWebSocketManager:
@@ -70,12 +79,7 @@ def create_process_step_websocket_data(
         form = generate_form(step_form, step.state, [])
 
     return {
-        "process": {
-            "assignee": process.assignee,
-            "step": process.last_step,
-            "status": process.last_status,
-            "last_modified": process.last_modified_at,
-        },
+        "process": show_process(process),
         "step": {
             "name": step.name,
             "status": step.status,
@@ -90,13 +94,14 @@ def is_process_active(p: Dict) -> bool:
 
 
 def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
-    channel = f"step_process:{pid}"
+    channel = WS_CHANNELS.SINGLE_PROCESS(pid)
 
     if not is_process_active(data["process"]):
         data["close"] = True
 
     loop = new_event_loop()
-    loop.run_until_complete(websocket_manager.broadcast_data(channel, data))
+    channels = [channel, WS_CHANNELS.ALL_PROCESSES]
+    loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
     try:
         loop.close()
     except Exception:  # noqa: S110
@@ -109,4 +114,5 @@ __all__ = [
     "create_websocket_data",
     "send_process_step_data_to_websocket",
     "is_process_active",
+    "WS_CHANNELS",
 ]
