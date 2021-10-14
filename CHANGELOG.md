@@ -7,7 +7,19 @@ reference the gitlab/github issue that is related to the change.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.1] - 2021-10-14
+
+### Breaking changes
+- Added explicit `subscription_id` parameter to the ProductBlockModel. Alle 
+
+### Features
+- Introduced hierarchical relationships across subscription boundaries
+- Added some documentation
+- Allow pip -e installable packages.
+
+### Bugfix
+- fix bug in saving subscriptions, we now explicitly refresh mapped objects.
+
 
 ## [0.0.19] - 2021-07-19
 
