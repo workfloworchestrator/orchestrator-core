@@ -38,13 +38,14 @@ jobs:
         env:
           FLIT_ROOT_INSTALL: 1
       - name: Run Unit tests
-        run: AIOCACHE_DISABLE=1 DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator
+        run: AIOCACHE_DISABLE=1 DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml
         env:
           POSTGRES_DB: orchestrator-core-test
           POSTGRES_USER: nwa
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v2
         with:
           fail_ci_if_error: true
+          files: ./coverage.xml

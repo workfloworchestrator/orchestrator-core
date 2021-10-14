@@ -13,7 +13,7 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "0.1.1"
+__version__ = "0.2.1"
 
 from orchestrator.app import OrchestratorCore
 from orchestrator.settings import app_settings, oauth2_settings
@@ -32,4 +32,5 @@ __all__ = [
     "conditional",
     "focussteps",
     "steplens",
+    "__version__",
 ]

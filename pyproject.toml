@@ -127,6 +127,7 @@ doc = [
     "mkdocs-include-markdown-plugin"
 ]
 dev = [
+    "toml",
     "bumpversion",
     "mypy_extensions",
     "pre-commit",
