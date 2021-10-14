@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.1] - 2021-10-14
 
 ### Breaking changes
-- Added explicit `subscription_id` parameter to the ProductBlockModel. Alle 
+- Added explicit `subscription_id` parameter to the ProductBlockModel.
+- You must add a `product_block_relation` entry to the database if you need to stack product blocks in a domain model
+- Some changes in helper functions
 
 ### Features
 - Introduced hierarchical relationships across subscription boundaries
