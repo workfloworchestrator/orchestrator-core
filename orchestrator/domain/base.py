@@ -852,6 +852,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             self.subscription_instance_id
         )
         if subscription_instance:
+            # Make sure we do not use a mapped session.
+            db.session.refresh(subscription_instance)
             # Block unsafe status changes on domain models that have Subscription instances with parent relations
             for parent in subscription_instance.parents:
                 if (
@@ -1200,6 +1202,9 @@ class SubscriptionModel(DomainModel):
         ).get(self.subscription_id)
         if not sub:
             sub = self._db_model
+
+        # Make sure we refresh the object and not use an already mapped object
+        db.session.refresh(sub)
 
         self._db_model = sub
         sub.product_id = self.product.product_id
