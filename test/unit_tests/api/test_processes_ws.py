@@ -299,6 +299,9 @@ def test_websocket_process_list_multiple_workflows(test_client, long_running_wor
     response = test_client.get(f"api/processes/{long_running_workflow_pid}")
     assert HTTPStatus.OK == response.status_code
 
+    # to keep track of the amount of websocket messages
+    message_count = 0
+
     try:
         with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # start test_workflow
@@ -328,21 +331,11 @@ def test_websocket_process_list_multiple_workflows(test_client, long_running_wor
 
             # Check the websocket messages.
             # Message after connecting, returns all failed processes pid and status.
-            data = websocket.receive_text()
-            json_data = json_loads(data)
+            message = websocket.receive_text()
+            message_count += 1
+            json_data = json_loads(message)
             failed_processes = json_data["failedProcesses"]
             assert len(failed_processes) == 0
-
-            websocket_messages = [
-                websocket.receive_text(),
-                websocket.receive_text(),
-                websocket.receive_text(),
-                websocket.receive_text(),
-                websocket.receive_text(),
-                websocket.receive_text(),
-                websocket.receive_text(),
-                websocket.receive_text(),
-            ]
 
             expected_test_workflow_steps = [
                 {
@@ -399,7 +392,9 @@ def test_websocket_process_list_multiple_workflows(test_client, long_running_wor
             ]
 
             # Checks if the correct messages are send, without order for which workflow.
-            for message in websocket_messages:
+            while True:
+                message = websocket.receive_text()
+                message_count += 1
                 json_data = json_loads(message)
                 assert "process" in json_data, f"Websocket message does not contain process: {json_data}"
                 process = json_data["process"]
@@ -418,9 +413,13 @@ def test_websocket_process_list_multiple_workflows(test_client, long_running_wor
                 assert step["name"] == expectedData["step"]
                 assert step["status"] == expectedData["step_status"]
 
+                if "close" in json_data:
+                    break
+
             assert json_data["close"] is True
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
+        assert message_count == 9
     except AssertionError as e:
         # Finish steps so the test doesn't get stuck waiting forever.
         with test_condition:
