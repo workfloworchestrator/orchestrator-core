@@ -113,8 +113,10 @@ def test_websocket_process_detail_completed(test_client, completed_process):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
-@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_detail_workflow(test_client, long_running_workflow):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
     app_settings.TESTING = False
 
     # Start the workflow
@@ -203,8 +205,10 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     app_settings.TESTING = True
 
 
-@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_detail_with_suspend(test_client, test_workflow):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
@@ -243,8 +247,10 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
-@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_detail_with_abort(test_client, test_workflow):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
@@ -276,8 +282,10 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
-@pytest.mark.skipif(websocket_manager.broadcaster_type != "memory", reason="test does not work with redis")
 def test_websocket_process_list_multiple_workflows(test_client, long_running_workflow, test_workflow):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
     app_settings.TESTING = False
 
     # Start long_running_workflow
@@ -319,6 +327,12 @@ def test_websocket_process_list_multiple_workflows(test_client, long_running_wor
             websocket.close()
 
             # Check the websocket messages.
+            # message process workflow_for_testing_processes_py 1.
+            data = websocket.receive_text()
+            json_data = json_loads(data)
+            failed_processes = json_data["failedProcesses"]
+            assert len(failed_processes) == 0
+
             # message process workflow_for_testing_processes_py 1.
             data = websocket.receive_text()
             json_data = json_loads(data)
