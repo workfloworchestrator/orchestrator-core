@@ -114,7 +114,7 @@ def test_websocket_process_detail_completed(test_client, completed_process):
 
 
 def test_websocket_process_detail_workflow(test_client, long_running_workflow):
-    if websocket_manager.broadcaster_type != "memory":
+    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT == 'local':
         pytest.skip("test does not work with redis")
 
     app_settings.TESTING = False
@@ -283,7 +283,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
 
 
 def test_websocket_process_list_multiple_workflows(test_client, long_running_workflow, test_workflow):
-    if websocket_manager.broadcaster_type != "memory":
+    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT == 'local':
         pytest.skip("test does not work with redis")
 
     app_settings.TESTING = False
