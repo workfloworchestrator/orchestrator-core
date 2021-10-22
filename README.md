@@ -76,11 +76,11 @@ Visit [http://127.0.0.1:8080/api/redoc](http://127.0.0.1:8080/api/redoc) to view
 To add features to the repository follow the following procedure to setup a working development environment.
 
 ### Installation (Development)
-Install the project and its dependancies to develop on the code.
+Install the project and its dependencies to develop on the code.
 
 #### Step 1 - install flit:
 ``` shell
-mkdvirtualenv -p python3.9 orchestrator-core
+mkvirtualenv -p python3.9 orchestrator-core
 workon orchestrator-core
 pip install flit
 ```
