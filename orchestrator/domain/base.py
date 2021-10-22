@@ -374,7 +374,10 @@ class DomainModel(BaseModel):
                 value = getattr(other, field_name)
                 if is_optional_type(field_type):
                     field_type = first(get_args(field_type))
-                    data[field_name] = None
+                    if value:
+                        data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                    else:
+                        data[field_name] = None
 
                 elif is_union_type(field_type) and not is_optional_type(field_type):
                     field_types = get_args(field_type)
