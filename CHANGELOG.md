@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 - Introduced hierarchical relationships across subscription boundaries
 - Added some documentation
-- Added divider class
+- Added new form field that gives the ability to add a divider to forms
 - Better handling of empty optional fields 
 
 ## [0.0.21] - 2021-09-22
