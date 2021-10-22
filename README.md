@@ -132,7 +132,7 @@ If you do not encounter any failures in the test, you should be able to develop 
 
 ### Installation (Development symlinked into orchestrator SURF)
 
-If you are working on a project that already uses the `orchestrator-core` and you want to test you new core features
+If you are working on a project that already uses the `orchestrator-core` and you want to test your new core features
 against it, you can use some `flit` magic to symlink the dev version of the core to your project. It will
 automatically replace the pypi dep with a symlink to the development version
 of the core and update/downgrade all required packages in your own orchestrator project.
