@@ -370,19 +370,19 @@ class DomainModel(BaseModel):
                     data[field_name].append(
                         one(get_args(field_type))._from_other_lifecycle(item, status, subscription_id)
                     )
-
             else:
+                value = getattr(other, field_name)
                 if is_optional_type(field_type):
                     field_type = first(get_args(field_type))
+                    data[field_name] = None
 
-                value = getattr(other, field_name)
-
-                if is_union_type(field_type) and not is_optional_type(field_type):
+                elif is_union_type(field_type) and not is_optional_type(field_type):
                     field_types = get_args(field_type)
                     for f_type in field_types:
                         if f_type.name == value.name:
                             field_type = f_type
-                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                else:
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
     def _save_instances(
