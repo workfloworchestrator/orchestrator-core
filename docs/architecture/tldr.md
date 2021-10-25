@@ -15,7 +15,6 @@ function to the database. The Orchestrator is able to execute any list of functi
 return a dictionary and/or consume variables stored in keys under that dictionary.
 
 ```python
-
 @workflow("Name of the workflow", initial_input_form=input_form_generator)
 def workflow():
     return (
@@ -38,5 +37,5 @@ instances of a `Product`, `ProductBlock` and `ResourceType` and stores them as `
 and ``SubscriptionInstanceValues.`
 
 It is therefore possible to have N number of Subscriptions to a single product. A workflow is typically executed
-to manipulate a Subscription and transition it from one lifecycle state to another (`Initial`, `Provisioning`, 
-`Active`, `Terminated`). 
+to manipulate a Subscription and transition it from one lifecycle state to another (`Initial`, `Provisioning`,
+`Active`, `Terminated`).

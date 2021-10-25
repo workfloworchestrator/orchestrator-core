@@ -11,6 +11,7 @@ from orchestrator.forms.validators import (
     Choice,
     ContactPersonList,
     DisplaySubscription,
+    Divider,
     Label,
     ListOfOne,
     ListOfTwo,
@@ -589,6 +590,18 @@ def test_display():
         "display_sub": None,
         "label": None,
         "migration_summary": None,
+    }
+
+
+def test_labels_with_value_and_dividers():
+    class Form(FormPage):
+        label: Label = "value"
+        divider: Divider
+
+    assert Form().dict() == {"label": "value", "divider": None}
+    assert Form(label="fob", divider="baz").dict() == {
+        "label": "value",
+        "divider": None,
     }
 
 

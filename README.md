@@ -14,13 +14,13 @@ This project can be installed as follows:
 
 #### Step 1:
 Install the core.
-```bash
+```shell
 pip install orchestrator-core
 ```
 
 #### Step 2:
 Create a postgres database:
-```bash
+```shell
 createuser -sP nwa
 createdb orchestrator-core -O nwa
 ```
@@ -28,13 +28,13 @@ createdb orchestrator-core -O nwa
 #### Step 3 (optional):
 When using multiple workers, you will need a redis, postgres or kafka service for live updates with websockets.
 Redis is installed by default and for postgres or kafka you will need to install them:
-```bash
+```shell
 pip install broadcaster[postgres]
 pip install broadcaster[kafka]
 ```
 
 For the connection you need an env variable with the connection url.
-```bash
+```shell
 export WEBSOCKET_BROADCASTER_URL="redis://localhost:6379"
 ```
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
 #### Step 5:
 Initialize the migration environment.
-```bash
+```shell
 PYTHONPATH=. python main.py db init
 PYTHONPATH=. python main.py db upgrade heads
 ```
@@ -64,7 +64,7 @@ PYTHONPATH=. python main.py db upgrade heads
 ### Step 6:
 Profit :)
 
-```bash
+```shell
 uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 ```
 
@@ -75,41 +75,85 @@ Visit [http://127.0.0.1:8080/api/redoc](http://127.0.0.1:8080/api/redoc) to view
 
 To add features to the repository follow the following procedure to setup a working development environment.
 
-### Installation (Development)
-Install the project and its dependancies to develop on the code.
+### Installation (Development standalone)
+Install the project and its dependencies to develop on the code.
 
 #### Step 1 - install flit:
-``` shell
-mkdvirtualenv -p python3.9 orchestrator-core
-workon orchestrator-core
+
+```shell
+python3 -m venv venv
+source venv/bin/activate
 pip install flit
 ```
 
 #### Step 2 - install the development code:
-``` shell
-flit install --deps develop --symlink
+```shell
+flit install --deps develop --symlink --python venv/bin/python
+pip install redis
 ```
 
 !!! danger
     Make sure to use the flit binary that is installed in your environment. You can check the correct
     path by running
-    ``` shell
+    ```shell
     which flit
     ```
+
+To be sure that the packages will be installed against the correct venv you can also prepend the python interpreter
+that you want to use:
+
+```shell
+flit install --deps develop --symlink --python venv/bin/python
+pip install redis
+```
+
 
 ### Running tests
 Run the unit-test suite to verify a correct setup.
 
 #### Step 1 - Create a database
 
-``` shell
+```shell
 createuser -sP nwa
 createdb orchestrator-core-test -O nwa
 ```
 
 #### Step 2 - Run tests
-``` shell
+```shell
 pytest test/unit_tests
+```
+or with xdist:
+
+```shell
+pytest -n auto test/unit_tests
 ```
 
 If you do not encounter any failures in the test, you should be able to develop features in the orchestrator-core.
+
+### Installation (Development symlinked into orchestrator SURF)
+
+If you are working on a project that already uses the `orchestrator-core` and you want to test your new core features
+against it, you can use some `flit` magic to symlink the dev version of the core to your project. It will
+automatically replace the pypi dep with a symlink to the development version
+of the core and update/downgrade all required packages in your own orchestrator project.
+
+#### Step 1 - install flit:
+
+```shell
+python - m venv venv
+source venv/bin/activate
+pip install flit
+```
+
+### Step 2 - symlink the core to your own project
+
+```shell
+flit install --deps develop --symlink --python /path/to/a/orchestrator-project/venv/bin/python
+```
+
+So if you have the core and your own orchestrator project repo in the same folder and the main project folder is
+`orchestrator` and you want to use relative links, this will be last step:
+
+```shell
+flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
+```

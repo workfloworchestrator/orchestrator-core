@@ -273,6 +273,12 @@ class Label(DisplayOnlyFieldType):
         field_schema.update(format="label", type="string")
 
 
+class Divider(DisplayOnlyFieldType):
+    @classmethod
+    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+        field_schema.update(format="divider", type="string")
+
+
 class OrganisationId(UUID):
     @classmethod
     def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
