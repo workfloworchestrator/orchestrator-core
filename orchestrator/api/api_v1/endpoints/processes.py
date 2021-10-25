@@ -28,7 +28,7 @@ from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import String, cast
-from sqlalchemy.orm import contains_eager, defer, joinedload
+from sqlalchemy.orm import contains_eager, defer, joinedload, load_only
 from sqlalchemy.sql import expression
 from starlette.responses import Response
 
@@ -353,6 +353,8 @@ async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) 
         await websocket_manager.disconnect(websocket, reason=error)
         return
 
+    await websocket.send_text(json_dumps({"failedProcesses": get_failed_processes()}))
+
     channel = WS_CHANNELS.ALL_PROCESSES
     await websocket_manager.connect(websocket, channel)
 
@@ -382,5 +384,15 @@ async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str =
     await websocket_manager.connect(websocket, channel)
 
 
-def get_current_process_data(pid: UUID) -> Any:
+def get_current_process_data(pid: UUID) -> dict[str, Any]:
     return show(pid)
+
+
+def get_failed_processes() -> list[dict[str, Any]]:
+    return (
+        ProcessTable.query.options(
+            load_only(ProcessTable.pid, ProcessTable.last_status),
+        )
+        .filter(ProcessTable.last_status.in_(["failed", "inconsistent_data", "api_unavailable"]))
+        .all()
+    )
