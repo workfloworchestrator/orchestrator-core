@@ -64,6 +64,7 @@ SAFE_PARENT_TRANSITIONS_FOR_STATUS = {
     SubscriptionLifecycle.ACTIVE: [
         SubscriptionLifecycle.ACTIVE,
         SubscriptionLifecycle.MIGRATING,
+        SubscriptionLifecycle.PROVISIONING
     ],
     SubscriptionLifecycle.MIGRATING: [SubscriptionLifecycle.ACTIVE],
     SubscriptionLifecycle.PROVISIONING: [SubscriptionLifecycle.ACTIVE],
