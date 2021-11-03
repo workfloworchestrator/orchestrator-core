@@ -910,6 +910,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     def db_model(self) -> SubscriptionInstanceTable:
         return self._db_model
 
+    @property
+    def parents(self) -> list[SubscriptionInstanceTable]:
+        return self._db_model.parents
+
+    @property
+    def children(self) -> list[SubscriptionInstanceTable]:
+        return self._db_model.children
+
 
 class ProductModel(BaseModel):
     """Represent the product as defined in the database as a dataclass."""
