@@ -26,16 +26,21 @@ createdb orchestrator-core -O nwa
 ```
 
 #### Step 3 (optional):
-When using multiple workers, you will need a redis, postgres or kafka service for live updates with websockets.
-Redis is installed by default and for postgres or kafka you will need to install them:
+When using multiple workers, you will need a redis server for live updates with websockets.
+
+Default it uses memory which works with only one worker.
 ```shell
-pip install broadcaster[postgres]
-pip install broadcaster[kafka]
+export WEBSOCKET_BROADCASTER_URL="memory://"
 ```
 
-For the connection you need an env variable with the connection url.
+For the redis connection you need set the env variable with the connection url.
 ```shell
 export WEBSOCKET_BROADCASTER_URL="redis://localhost:6379"
+```
+
+Websockets can also be turned off with:
+```shell
+export WEBSOCKETS_ON=False
 ```
 
 more broadcaster info [here](https://pypi.org/project/broadcaster/)

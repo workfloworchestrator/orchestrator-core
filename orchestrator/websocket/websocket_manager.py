@@ -7,8 +7,9 @@ from httpx import AsyncClient
 from structlog import get_logger
 
 from orchestrator.security import oidc_user, opa_security_default
-from orchestrator.websocket.broadcast_websocket_manager import BroadcastWebsocketManager
-from orchestrator.websocket.memory_websocket_manager import MemoryWebsocketManager
+from orchestrator.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
+from orchestrator.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
+from orchestrator.websocket.managers.websocket_manager_off import WebsocketManagerOff
 
 logger = get_logger(__name__)
 
@@ -16,13 +17,16 @@ logger = get_logger(__name__)
 class WebSocketManager:
     _backend: Union[MemoryWebsocketManager, BroadcastWebsocketManager]
 
-    def __init__(self, broadcast_url: str):
+    def __init__(self, websockets_on: bool, broadcast_url: str):
+        self.on = websockets_on
         self.broadcaster_type = urlparse(broadcast_url).scheme
         self.connected = False
-        if self.broadcaster_type == "memory":
-            self._backend = MemoryWebsocketManager()
-        else:
+        if not self.on:
+            self._backend = WebsocketManagerOff()
+        elif self.broadcaster_type == "redis":
             self._backend = BroadcastWebsocketManager(broadcast_url)
+        else:
+            self._backend = MemoryWebsocketManager()
 
     async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
         try:
