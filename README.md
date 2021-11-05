@@ -28,12 +28,12 @@ createdb orchestrator-core -O nwa
 #### Step 3 (optional):
 When using multiple workers, you will need a redis server for live updates with websockets.
 
-Default it uses memory which works with only one worker.
+By default it will use memory which works with only one worker.
 ```shell
 export WEBSOCKET_BROADCASTER_URL="memory://"
 ```
 
-For the redis connection you need set the env variable with the connection url.
+For the redis connection you need to set the env variable with the connection url.
 ```shell
 export WEBSOCKET_BROADCASTER_URL="redis://localhost:6379"
 ```
