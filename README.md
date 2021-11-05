@@ -40,7 +40,7 @@ export WEBSOCKET_BROADCASTER_URL="redis://localhost:6379"
 
 Websockets can also be turned off with:
 ```shell
-export WEBSOCKETS_ON=False
+export ENABLE_WEBSOCKETS=False
 ```
 
 more broadcaster info [here](https://pypi.org/project/broadcaster/)
