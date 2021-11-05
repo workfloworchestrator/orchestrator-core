@@ -116,15 +116,16 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
         pass
 
 
-def websocket_enabled(func: Any) -> Any:
-    async def empty_handler() -> None:
-        return
+async def empty_handler() -> None:
+    return
 
-    @wraps(func)
+
+def websocket_enabled(handler: Any) -> Any:
+    @wraps(handler)
     @wraps(empty_handler)
     async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
         if websocket_manager.enabled:
-            return await func(*args, **kwargs)
+            return await handler(*args, **kwargs)
         else:
             return await empty_handler()
 
