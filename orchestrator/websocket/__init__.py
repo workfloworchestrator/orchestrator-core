@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from asyncio import new_event_loop
+from functools import wraps
 from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -40,6 +41,10 @@ class WS_CHANNELS:
         return f"process_detail:{pid}"
 
 
+async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
+    return
+
+
 class WrappedWebSocketManager:
     def __init__(self, wrappee: Optional[WebSocketManager] = None) -> None:
         self.wrapped_websocket_manager = wrappee
@@ -56,11 +61,9 @@ class WrappedWebSocketManager:
             raise RuntimeWarning(
                 "No WebSocketManager configured at this time. Please pass WebSocketManager configuration to OrchestratorCore base_settings"
             )
-        if not self.wrapped_websocket_manager.enabled:
-            logger.warning(
-                "Websockets are disabled, No WebSocketManager configured, but attempting to access class methods"
-            )
-            return
+        if attr != "enabled" and not self.wrapped_websocket_manager.enabled:
+            logger.warning("Websockets are disabled, unable to access class methods")
+            return empty_fn
 
         return getattr(self.wrapped_websocket_manager, attr)
 
@@ -113,11 +116,27 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
         pass
 
 
+def websocket_enabled(func: Any) -> Any:
+    async def empty_handler() -> None:
+        return
+
+    @wraps(func)
+    @wraps(empty_handler)
+    async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+        if websocket_manager.enabled:
+            return await func(*args, **kwargs)
+        else:
+            return await empty_handler()
+
+    return wrapper
+
+
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
-    "create_websocket_data",
-    "send_process_step_data_to_websocket",
+    "create_process_step_websocket_data",
     "is_process_active",
+    "send_process_step_data_to_websocket",
+    "websocket_enabled",
     "WS_CHANNELS",
 ]
