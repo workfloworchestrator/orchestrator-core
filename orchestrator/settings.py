@@ -58,6 +58,7 @@ class AppSettings(BaseSettings):
     TRACING_ENABLED: bool = False
     TRANSLATIONS_DIR: Optional[Path] = None
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
+    WEBSOCKETS_ON: bool = True
 
 
 class Oauth2Settings(BaseSettings):

@@ -46,7 +46,14 @@ class WrappedWebSocketManager:
 
     def update(self, wrappee: WebSocketManager) -> None:
         self.wrapped_websocket_manager = wrappee
-        logger.warning("WebSocketManager object configured, all methods referencing `websocket_manager` should work.")
+        if self.wrapped_websocket_manager.on:
+            logger.warning(
+                "WebSocketManager object configured, all methods referencing `websocket_manager` should work."
+            )
+        else:
+            logger.warning(
+                "WebSockets are turned off, WebSocketManager object configured with all methods referencing `websocket_manager` only logging its turned off"
+            )
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
@@ -67,7 +74,7 @@ websocket_manager = cast(WebSocketManager, wrapped_websocket_manager)
 
 # The Global WebSocketManager is set after calling this function
 def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
-    wrapped_websocket_manager.update(WebSocketManager(settings.WEBSOCKET_BROADCASTER_URL))
+    wrapped_websocket_manager.update(WebSocketManager(settings.WEBSOCKETS_ON, settings.WEBSOCKET_BROADCASTER_URL))
     return websocket_manager
 
 
