@@ -56,7 +56,7 @@ from orchestrator.services.processes import SYSTEM_USER, abort_process, load_pro
 from orchestrator.types import JSON
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.show_process import show_process
-from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_enabled, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -345,9 +345,8 @@ def processes_filterable(
 
 
 @router.websocket("/all/")
+@websocket_enabled
 async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
-    if not websocket_manager.on:
-        return
     error = await websocket_manager.authorize(websocket, token)
 
     await websocket.accept()
@@ -362,9 +361,8 @@ async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) 
 
 
 @router.websocket("/{pid}")
+@websocket_enabled
 async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
-    if not websocket_manager.on:
-        return
     error = await websocket_manager.authorize(websocket, token)
 
     await websocket.accept()

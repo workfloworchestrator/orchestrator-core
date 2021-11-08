@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from asyncio import new_event_loop
+from functools import wraps
 from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -40,20 +41,17 @@ class WS_CHANNELS:
         return f"process_detail:{pid}"
 
 
+async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
+    return
+
+
 class WrappedWebSocketManager:
     def __init__(self, wrappee: Optional[WebSocketManager] = None) -> None:
         self.wrapped_websocket_manager = wrappee
 
     def update(self, wrappee: WebSocketManager) -> None:
         self.wrapped_websocket_manager = wrappee
-        if self.wrapped_websocket_manager.on:
-            logger.warning(
-                "WebSocketManager object configured, all methods referencing `websocket_manager` should work."
-            )
-        else:
-            logger.warning(
-                "WebSockets are turned off, WebSocketManager object configured with all methods referencing `websocket_manager` only logging its turned off"
-            )
+        logger.warning("WebSocketManager object configured, all methods referencing `websocket_manager` should work.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
@@ -63,6 +61,9 @@ class WrappedWebSocketManager:
             raise RuntimeWarning(
                 "No WebSocketManager configured at this time. Please pass WebSocketManager configuration to OrchestratorCore base_settings"
             )
+        if attr != "enabled" and not self.wrapped_websocket_manager.enabled:
+            logger.warning("Websockets are disabled, unable to access class methods")
+            return empty_fn
 
         return getattr(self.wrapped_websocket_manager, attr)
 
@@ -74,7 +75,7 @@ websocket_manager = cast(WebSocketManager, wrapped_websocket_manager)
 
 # The Global WebSocketManager is set after calling this function
 def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
-    wrapped_websocket_manager.update(WebSocketManager(settings.WEBSOCKETS_ON, settings.WEBSOCKET_BROADCASTER_URL))
+    wrapped_websocket_manager.update(WebSocketManager(settings.ENABLE_WEBSOCKETS, settings.WEBSOCKET_BROADCASTER_URL))
     return websocket_manager
 
 
@@ -115,11 +116,28 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
         pass
 
 
+async def empty_handler() -> None:
+    return
+
+
+def websocket_enabled(handler: Any) -> Any:
+    @wraps(handler)
+    @wraps(empty_handler)
+    async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+        if websocket_manager.enabled:
+            return await handler(*args, **kwargs)
+        else:
+            return await empty_handler()
+
+    return wrapper
+
+
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
-    "create_websocket_data",
-    "send_process_step_data_to_websocket",
+    "create_process_step_websocket_data",
     "is_process_active",
+    "send_process_step_data_to_websocket",
+    "websocket_enabled",
     "WS_CHANNELS",
 ]

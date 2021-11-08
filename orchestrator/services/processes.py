@@ -171,7 +171,7 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
         db.session.rollback()
         raise
 
-    if websocket_manager.on:
+    if websocket_manager.enabled:
         websocket_data = create_process_step_websocket_data(p, current_step, step.form)
         send_process_step_data_to_websocket(p.pid, websocket_data)
 
