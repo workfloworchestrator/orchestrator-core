@@ -182,7 +182,7 @@ def show(pid: UUID) -> Dict[str, Any]:
     steps = [
         {
             "name": step.name,
-            "executed": step.executed_at,
+            "executed": int(step.executed_at.timestamp()),
             "status": step.status,
             "state": step.state,
             "commit_hash": step.commit_hash,
