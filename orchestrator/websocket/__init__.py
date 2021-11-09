@@ -90,8 +90,10 @@ def create_process_step_websocket_data(
         "process": show_process(process),
         "step": {
             "name": step.name,
+            "executed": int(step.executed_at.timestamp()),
             "status": step.status,
             "state": step.state,
+            "commit_hash": step.commit_hash,
             "form": form,
         },
     }
