@@ -513,6 +513,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     # Is actually optional since abstract classes dont have it. In practice it is always set
     name: str
     subscription_instance_id: UUID
+    owner_subscription_id: UUID
     label: Optional[str] = None
 
     def __init_subclass__(
@@ -635,7 +636,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_id=subscription_id,
         )
         db.session.enable_relationship_loading(db_model)
-        model = cls(subscription_instance_id=subscription_instance_id, **sub_instances, **kwargs)  # type: ignore
+        model = cls(subscription_instance_id=subscription_instance_id, owner_subscription_id=subscription_id, **sub_instances, **kwargs)  # type: ignore
         model._db_model = db_model
         return model
 
@@ -738,6 +739,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         try:
             model = cls(
                 subscription_instance_id=subscription_instance_id,
+                owner_subscription_id=subscription_instance.subscription_id,
                 subscription=subscription_instance.subscription,
                 label=label,
                 **instance_values,  # type: ignore
