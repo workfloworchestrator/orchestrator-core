@@ -98,42 +98,26 @@ def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
     """
     for name, workflow in new.items():
         workflow["name"] = name
-        result = conn.execute(
+        conn.execute(
             sa.text(
                 """
-                INSERT INTO workflows (workflow_id, name, target, description)
-                VALUES (:workflow_id, :name, :target, :description)
-                RETURNING workflow_id
-                """
+                WITH new_workflow AS (
+                    INSERT INTO workflows(workflow_id, name, target, description)
+                    VALUES (:workflow_id, :name, :target, :description)
+                    RETURNING workflow_id)
+                INSERT
+                INTO products_workflows (product_id, workflow_id)
+                SELECT
+                p.product_id,
+                nw.workflow_id
+                FROM products AS p
+                    CROSS JOIN new_workflow AS nw
+                        WHERE p.tag = :tag
+                        AND p.name LIKE :search_phrase
+            """
             ),
             workflow,
         )
-
-        if "tag" in workflow or "search_string" in workflow:
-
-            search_phrase = ""
-            workflow["workflow_id"] = [x for (x,) in result.fetchall()][0]
-
-            if "tag" in workflow and "search_string" in workflow:
-                search_phrase = "WHERE p.tag = :tag AND p.name LIKE :search_phrase"
-            elif "tag" in workflow:
-                search_phrase = "WHERE p.tag = :tag"
-            elif "search_phrase" in workflow:
-                search_phrase = "WHERE p.name LIKE :search_phrase"
-
-            conn.execute(
-                sa.text(
-                    f"""
-                    INSERT INTO products_workflows (product_id, workflow_id)
-                    (
-                        SELECT p.product_id "product_id", :workflow_id "workflow_id"
-                        FROM products AS p
-                        {search_phrase}
-                    )
-                    """
-                ),
-                workflow,
-            )
 
 
 def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> Dict[str, str]:
@@ -228,8 +212,7 @@ def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
 
 
 def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
-    """
-    Create new product blocks
+    """Create new product blocks.
 
     Args:
         conn: DB connection as available in migration main file
@@ -603,24 +586,24 @@ def delete(conn: sa.engine.Connection, obsolete: Dict) -> None:
         obsolete: a dict with everything you want to delete
 
     Example:
-    >>> obsolete = [
-            "products": [
-                "Example Product",
-                "Example Product 2"
-            ],
-            "product_blocks": [
-                "Example Product Block",
-                "Example Product Block 2"
-            ],
-            "resources": [
-                    "resource_type4,
-                    "resource_type5"
-            ],
-            "workflows": [
-                "workflow_name_a",
-                "workflow_name_b",
+        >>> obsolete = [
+                "products": [
+                    "Example Product",
+                    "Example Product 2"
+                ],
+                "product_blocks": [
+                    "Example Product Block",
+                    "Example Product Block 2"
+                ],
+                "resources": [
+                        "resource_type4,
+                        "resource_type5"
+                ],
+                "workflows": [
+                    "workflow_name_a",
+                    "workflow_name_b",
+                ]
             ]
-        ]
     """
     if "resource_types" in obsolete:
         for res_type in obsolete["resource_types"]:
