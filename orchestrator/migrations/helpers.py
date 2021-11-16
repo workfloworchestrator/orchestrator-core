@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Dict
+from typing import Any, Dict, List, Sequence
 
 import sqlalchemy as sa
 
@@ -32,7 +32,7 @@ def get_product_by_id(conn: sa.engine.Connection, id: str) -> Any:
     return result.fetchall()[0]
 
 
-def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: str) -> Any:
+def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: str) -> Sequence:
     result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), id=id)
     return result.fetchall()
 
@@ -49,7 +49,7 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
     )
 
 
-def get_all_active_products_and_ids(conn: sa.engine.Connection) -> Any:
+def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[str, str]]:
     """Return a list, with dicts containing keys `product_id` and `name` of active products."""
     result = conn.execute(sa.text("SELECT product_id, name  FROM products WHERE status='active'"))
     return [{"product_id": row[0], "name": row[1]} for row in result.fetchall()]
@@ -137,9 +137,9 @@ def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
             )
 
 
-def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> dict:
+def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> Dict[str, str]:
     """
-    Created fixed inputs for a product
+    Create fixed inputs for a given product
 
     Args:
         conn: DB connection as available in migration main file
@@ -168,9 +168,9 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) 
     return uuids
 
 
-def create_products(conn: sa.engine.Connection, new: Dict) -> dict:
+def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
     """
-    Create a new workflow
+    Create new products with their fixed inputs
 
     Args:
         conn: DB connection as available in migration main file
@@ -230,7 +230,7 @@ def create_products(conn: sa.engine.Connection, new: Dict) -> dict:
     return uuids
 
 
-def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> dict:
+def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
     """
     Create new product blocks
 
@@ -417,7 +417,6 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
     """
     resources = new.get("resources", {})
     product_block_uuids = {}
-    product_uuids = {}
 
     # Create defined product blocks
     if "product_blocks" in new:
@@ -444,7 +443,6 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
                         except:
                             raise ValueError(f"{product_block_name} is not a valid product block.")
                 del product["product_blocks"]
-        product_uuids = create_products(conn, new["products"])
 
     # Create defined resource types
     if resources:
