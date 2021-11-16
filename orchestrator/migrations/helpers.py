@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Dict
+from typing import Any, Dict, List, Sequence
 
 import sqlalchemy as sa
 
@@ -32,7 +32,7 @@ def get_product_by_id(conn: sa.engine.Connection, id: str) -> Any:
     return result.fetchall()[0]
 
 
-def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: str) -> Any:
+def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: str) -> Sequence:
     result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), id=id)
     return result.fetchall()
 
@@ -49,7 +49,7 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
     )
 
 
-def get_all_active_products_and_ids(conn: sa.engine.Connection) -> Any:
+def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[str, str]]:
     """Return a list, with dicts containing keys `product_id` and `name` of active products."""
     result = conn.execute(sa.text("SELECT product_id, name  FROM products WHERE status='active'"))
     return [{"product_id": row[0], "name": row[1]} for row in result.fetchall()]
@@ -79,8 +79,7 @@ def create_missing_modify_note_workflows(conn: sa.engine.Connection) -> None:
 
 
 def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
-    """
-    Create a new workflow
+    """Create new workflows.
 
     Args:
         conn: DB connection as available in migration main file
@@ -99,47 +98,30 @@ def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
     """
     for name, workflow in new.items():
         workflow["name"] = name
-        result = conn.execute(
+        conn.execute(
             sa.text(
                 """
-                INSERT INTO workflows (workflow_id, name, target, description)
-                VALUES (:workflow_id, :name, :target, :description)
-                RETURNING workflow_id
-                """
+                WITH new_workflow AS (
+                    INSERT INTO workflows(workflow_id, name, target, description)
+                    VALUES (:workflow_id, :name, :target, :description)
+                    RETURNING workflow_id)
+                INSERT
+                INTO products_workflows (product_id, workflow_id)
+                SELECT
+                p.product_id,
+                nw.workflow_id
+                FROM products AS p
+                    CROSS JOIN new_workflow AS nw
+                        WHERE p.tag = :tag
+                        AND p.name LIKE :search_phrase
+            """
             ),
             workflow,
         )
 
-        if "tag" in workflow or "search_string" in workflow:
 
-            search_phrase = ""
-            workflow["workflow_id"] = [x for (x,) in result.fetchall()][0]
-
-            if "tag" in workflow and "search_string" in workflow:
-                search_phrase = "WHERE p.tag = :tag AND p.name LIKE :search_phrase"
-            elif "tag" in workflow:
-                search_phrase = "WHERE p.tag = :tag"
-            elif "search_phrase" in workflow:
-                search_phrase = "WHERE p.name LIKE :search_phrase"
-
-            conn.execute(
-                sa.text(
-                    f"""
-                    INSERT INTO products_workflows (product_id, workflow_id)
-                    (
-                        SELECT p.product_id "product_id", :workflow_id "workflow_id"
-                        FROM products AS p
-                        {search_phrase}
-                    )
-                    """
-                ),
-                workflow,
-            )
-
-
-def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> dict:
-    """
-    Created fixed inputs for a product
+def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> Dict[str, str]:
+    """Create fixed inputs for a given product.
 
     Args:
         conn: DB connection as available in migration main file
@@ -168,9 +150,8 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) 
     return uuids
 
 
-def create_products(conn: sa.engine.Connection, new: Dict) -> dict:
-    """
-    Create a new workflow
+def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
+    """Create new products with their fixed inputs.
 
     Args:
         conn: DB connection as available in migration main file
@@ -230,9 +211,8 @@ def create_products(conn: sa.engine.Connection, new: Dict) -> dict:
     return uuids
 
 
-def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> dict:
-    """
-    Create new product blocks
+def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
+    """Create new product blocks.
 
     Args:
         conn: DB connection as available in migration main file
@@ -297,7 +277,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
         >>> create_resource_types(conn, new_stuff)
     """
     insert_resource_type = sa.text(
-        """INSERT INTO resource_types (resource_type_id, resource_type, description) 
+        """INSERT INTO resource_types (resource_type_id, resource_type, description)
         VALUES (:resource_type_id, :resource_type, :description)
         ON CONFLICT DO NOTHING;"""
     )
@@ -341,8 +321,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
 
 
 def create(conn: sa.engine.Connection, new: Dict) -> None:
-    """
-    Call other functions in this file based on the schema
+    """Call other functions in this file based on the schema.
 
     Args:
         conn: DB connection as available in migration main file
@@ -417,7 +396,6 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
     """
     resources = new.get("resources", {})
     product_block_uuids = {}
-    product_uuids = {}
 
     # Create defined product blocks
     if "product_blocks" in new:
@@ -431,7 +409,7 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
 
     # Create defined products
     if "products" in new:
-        for product_name, product in new.get("products", {}).items():
+        for _, product in new["products"].items():
             if "product_blocks" in product:
                 if "product_block_ids" not in product:
                     product["product_block_ids"] = []
@@ -441,10 +419,10 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
                     except KeyError:
                         try:
                             product["product_block_ids"].append(get_product_block_id_by_name(conn, product_block_name))
-                        except:
+                        except Exception:
                             raise ValueError(f"{product_block_name} is not a valid product block.")
                 del product["product_blocks"]
-        product_uuids = create_products(conn, new["products"])
+        create_products(conn, new["products"])
 
     # Create defined resource types
     if resources:
@@ -462,11 +440,9 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Dict) -> None:
         conn: DB connection as available in migration main file
         delete: list of resource_type names you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = ["name_1", "name_2"]
-    delete_resource_types(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = ["name_1", "name_2"]
+        >>> delete_resource_types(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -491,11 +467,9 @@ def delete_product(conn: sa.engine.Connection, name: str) -> None:
         conn: DB connection as available in migration main file
         name: a product name you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = "name_1"
-    delete_product(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = "name_1"
+        >>> delete_product(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -524,11 +498,9 @@ def delete_product_block(conn: sa.engine.Connection, name: str) -> None:
         conn: DB connection as available in migration main file
         name: a product_block name you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = "name_1"
-    delete_product_block(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = "name_1"
+        >>> delete_product_block(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -557,11 +529,9 @@ def delete_workflow(conn: sa.engine.Connection, name: str) -> None:
         conn: DB connection as available in migration main file
         name: a workflow name you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = "name_1"
-    delete_workflow(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = "name_1"
+        >>> delete_workflow(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -587,11 +557,9 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
         conn: DB connection as available in migration main file
         resource_type: a resource_type name you want to delete
 
-    Usage:
-    ```python
-    resource_type = "name_1"
-    delete_product_block(conn, resource_type)
-    ```
+    Example:
+        >>> resource_type = "name_1"
+        >>> delete_product_block(conn, resource_type)
     """
     conn.execute(
         sa.text(
@@ -611,32 +579,31 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
 
 
 def delete(conn: sa.engine.Connection, obsolete: Dict) -> None:
-    """
-    Call other functions in this file based on the schema
+    """Delete multiple products, product_blocks, resources, and workflows.
 
     Args:
         conn: DB connection as available in migration main file
         obsolete: a dict with everything you want to delete
 
     Example:
-    >>> obsolete = [
-            "products": [
-                "Example Product",
-                "Example Product 2"
-            ],
-            "product_blocks": [
-                "Example Product Block",
-                "Example Product Block 2"
-            ],
-            "resources": [
-                    "resource_type4,
-                    "resource_type5"
-            ],
-            "workflows": [
-                "workflow_name_a",
-                "workflow_name_b",
+        >>> obsolete = [
+                "products": [
+                    "Example Product",
+                    "Example Product 2"
+                ],
+                "product_blocks": [
+                    "Example Product Block",
+                    "Example Product Block 2"
+                ],
+                "resources": [
+                        "resource_type4,
+                        "resource_type5"
+                ],
+                "workflows": [
+                    "workflow_name_a",
+                    "workflow_name_b",
+                ]
             ]
-        ]
     """
     if "resource_types" in obsolete:
         for res_type in obsolete["resource_types"]:
