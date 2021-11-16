@@ -449,7 +449,7 @@ def generic_subscription_1(generic_product_1, generic_product_type_1):
     gen_subscription = change_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
     gen_subscription.description = "Generic Subscription One"
     gen_subscription.save()
-
+    db.session.commit()
     return str(gen_subscription.subscription_id)
 
 
@@ -463,6 +463,7 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
     gen_subscription = change_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
     gen_subscription.description = "Generic Subscription One"
     gen_subscription.save()
+    db.session.commit()
 
     return str(gen_subscription.subscription_id)
 

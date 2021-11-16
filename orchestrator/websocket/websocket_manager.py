@@ -1,4 +1,3 @@
-from asyncio import get_event_loop
 from typing import Dict, Optional, Union
 from urllib.parse import urlparse
 
@@ -8,8 +7,8 @@ from httpx import AsyncClient
 from structlog import get_logger
 
 from orchestrator.security import oidc_user, opa_security_default
-from orchestrator.websocket.broadcast_websocket_manager import BroadcastWebsocketManager
-from orchestrator.websocket.memory_websocket_manager import MemoryWebsocketManager
+from orchestrator.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
+from orchestrator.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
 
 logger = get_logger(__name__)
 
@@ -17,12 +16,14 @@ logger = get_logger(__name__)
 class WebSocketManager:
     _backend: Union[MemoryWebsocketManager, BroadcastWebsocketManager]
 
-    def __init__(self, broadcast_url: str):
-        broadcaster_type = urlparse(broadcast_url).scheme
-        if broadcaster_type == "memory":
-            self._backend = MemoryWebsocketManager()
-        else:
+    def __init__(self, websockets_enabled: bool, broadcast_url: str):
+        self.enabled = websockets_enabled
+        self.broadcaster_type = urlparse(broadcast_url).scheme
+        self.connected = False
+        if self.broadcaster_type == "redis":
             self._backend = BroadcastWebsocketManager(broadcast_url)
+        else:
+            self._backend = MemoryWebsocketManager()
 
     async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
         try:
@@ -35,10 +36,14 @@ class WebSocketManager:
         return None
 
     async def connect_redis(self) -> None:
-        await self._backend.connect_redis()
+        if not self.connected:
+            await self._backend.connect_redis()
+            self.connected = True
 
     async def disconnect_redis(self) -> None:
-        await self._backend.disconnect_redis()
+        if self.connected:
+            await self._backend.disconnect_redis()
+            self.connected = False
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         await self._backend.connect(websocket, channel)
@@ -48,6 +53,5 @@ class WebSocketManager:
     ) -> None:
         await self._backend.disconnect(websocket, code, reason)
 
-    async def broadcast_data(self, channel: str, data: Dict) -> None:
-        await self._backend.broadcast_data(channel, data)
-        get_event_loop().stop()
+    async def broadcast_data(self, channels: list[str], data: Dict) -> None:
+        await self._backend.broadcast_data(channels, data)

@@ -370,19 +370,23 @@ class DomainModel(BaseModel):
                     data[field_name].append(
                         one(get_args(field_type))._from_other_lifecycle(item, status, subscription_id)
                     )
-
             else:
+                value = getattr(other, field_name)
                 if is_optional_type(field_type):
                     field_type = first(get_args(field_type))
+                    if value:
+                        data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                    else:
+                        data[field_name] = None
 
-                value = getattr(other, field_name)
-
-                if is_union_type(field_type) and not is_optional_type(field_type):
+                elif is_union_type(field_type) and not is_optional_type(field_type):
                     field_types = get_args(field_type)
                     for f_type in field_types:
                         if f_type.name == value.name:
                             field_type = f_type
-                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                else:
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
     def _save_instances(
@@ -509,6 +513,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     # Is actually optional since abstract classes dont have it. In practice it is always set
     name: str
     subscription_instance_id: UUID
+    owner_subscription_id: UUID
     label: Optional[str] = None
 
     def __init_subclass__(
@@ -631,7 +636,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_id=subscription_id,
         )
         db.session.enable_relationship_loading(db_model)
-        model = cls(subscription_instance_id=subscription_instance_id, **sub_instances, **kwargs)  # type: ignore
+        model = cls(subscription_instance_id=subscription_instance_id, owner_subscription_id=subscription_id, **sub_instances, **kwargs)  # type: ignore
         model._db_model = db_model
         return model
 
@@ -734,6 +739,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         try:
             model = cls(
                 subscription_instance_id=subscription_instance_id,
+                owner_subscription_id=subscription_instance.subscription_id,
                 subscription=subscription_instance.subscription,
                 label=label,
                 **instance_values,  # type: ignore
@@ -852,6 +858,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             self.subscription_instance_id
         )
         if subscription_instance:
+            # Make sure we do not use a mapped session.
+            db.session.refresh(subscription_instance)
             # Block unsafe status changes on domain models that have Subscription instances with parent relations
             for parent in subscription_instance.parents:
                 if (
@@ -903,6 +911,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def db_model(self) -> SubscriptionInstanceTable:
         return self._db_model
+
+    @property
+    def parents(self) -> list[SubscriptionInstanceTable]:
+        return self._db_model.parents
+
+    @property
+    def children(self) -> list[SubscriptionInstanceTable]:
+        return self._db_model.children
 
 
 class ProductModel(BaseModel):
@@ -1200,6 +1216,9 @@ class SubscriptionModel(DomainModel):
         ).get(self.subscription_id)
         if not sub:
             sub = self._db_model
+
+        # Make sure we refresh the object and not use an already mapped object
+        db.session.refresh(sub)
 
         self._db_model = sub
         sub.product_id = self.product.product_id

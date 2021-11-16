@@ -533,3 +533,16 @@ def test_subscription_detail_with_domain_model(test_client, generic_subscription
     assert response.status_code == HTTPStatus.OK
     # Check hierarchy
     assert response.json()["pb_1"]["rt_1"] == "Value1"
+
+
+def test_other_subscriptions(test_client, generic_subscription_2, generic_product_type_2):
+    _, GenericProductTwo = generic_product_type_2
+    response = test_client.get(URL("api/subscriptions/instance/other_subscriptions/") / uuid4())
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+    subscription = GenericProductTwo.from_subscription(generic_subscription_2)
+    response = test_client.get(
+        URL("api/subscriptions/instance/other_subscriptions/") / subscription.pb_3.subscription_instance_id
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert len(response.json()) == 0

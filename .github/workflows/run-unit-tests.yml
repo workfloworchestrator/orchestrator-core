@@ -7,8 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ 3.9 ]
-    container: python:3.9.7-slim
+        python-version: [ 3.9.7 ]
+    container: python:${{ matrix.python-version }}-slim
     services:
       postgres:
         image: postgres:11.6-alpine
@@ -30,22 +30,22 @@ jobs:
       - name: Install dependencies
         run: |
           apt update
-          apt install curl git build-essential -y
+          apt install curl git build-essential libpq-dev libffi-dev -y
           python -m pip install --upgrade pip
           pip install flit
           flit install --deps develop --symlink
-          pip install redis
           echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
         env:
           FLIT_ROOT_INSTALL: 1
       - name: Run Unit tests
-        run: AIOCACHE_DISABLE=1 DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator
+        run: AIOCACHE_DISABLE=1 DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml
         env:
           POSTGRES_DB: orchestrator-core-test
           POSTGRES_USER: nwa
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v2
         with:
           fail_ci_if_error: true
+          files: ./coverage.xml
