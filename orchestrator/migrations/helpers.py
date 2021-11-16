@@ -79,8 +79,7 @@ def create_missing_modify_note_workflows(conn: sa.engine.Connection) -> None:
 
 
 def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
-    """
-    Create a new workflow
+    """Create new workflows.
 
     Args:
         conn: DB connection as available in migration main file
@@ -138,8 +137,7 @@ def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
 
 
 def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> Dict[str, str]:
-    """
-    Create fixed inputs for a given product
+    """Create fixed inputs for a given product.
 
     Args:
         conn: DB connection as available in migration main file
@@ -169,8 +167,7 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) 
 
 
 def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
-    """
-    Create new products with their fixed inputs
+    """Create new products with their fixed inputs.
 
     Args:
         conn: DB connection as available in migration main file
@@ -297,7 +294,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
         >>> create_resource_types(conn, new_stuff)
     """
     insert_resource_type = sa.text(
-        """INSERT INTO resource_types (resource_type_id, resource_type, description) 
+        """INSERT INTO resource_types (resource_type_id, resource_type, description)
         VALUES (:resource_type_id, :resource_type, :description)
         ON CONFLICT DO NOTHING;"""
     )
@@ -341,8 +338,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
 
 
 def create(conn: sa.engine.Connection, new: Dict) -> None:
-    """
-    Call other functions in this file based on the schema
+    """Call other functions in this file based on the schema.
 
     Args:
         conn: DB connection as available in migration main file
@@ -430,7 +426,7 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
 
     # Create defined products
     if "products" in new:
-        for product_name, product in new.get("products", {}).items():
+        for _, product in new["products"].items():
             if "product_blocks" in product:
                 if "product_block_ids" not in product:
                     product["product_block_ids"] = []
@@ -440,9 +436,10 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
                     except KeyError:
                         try:
                             product["product_block_ids"].append(get_product_block_id_by_name(conn, product_block_name))
-                        except:
+                        except Exception:
                             raise ValueError(f"{product_block_name} is not a valid product block.")
                 del product["product_blocks"]
+        create_products(conn, new["products"])
 
     # Create defined resource types
     if resources:
@@ -460,11 +457,9 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Dict) -> None:
         conn: DB connection as available in migration main file
         delete: list of resource_type names you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = ["name_1", "name_2"]
-    delete_resource_types(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = ["name_1", "name_2"]
+        >>> delete_resource_types(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -489,11 +484,9 @@ def delete_product(conn: sa.engine.Connection, name: str) -> None:
         conn: DB connection as available in migration main file
         name: a product name you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = "name_1"
-    delete_product(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = "name_1"
+        >>> delete_product(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -522,11 +515,9 @@ def delete_product_block(conn: sa.engine.Connection, name: str) -> None:
         conn: DB connection as available in migration main file
         name: a product_block name you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = "name_1"
-    delete_product_block(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = "name_1"
+        >>> delete_product_block(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -555,11 +546,9 @@ def delete_workflow(conn: sa.engine.Connection, name: str) -> None:
         conn: DB connection as available in migration main file
         name: a workflow name you want to delete
 
-    Usage:
-    ```python
-    obsolete_stuff = "name_1"
-    delete_workflow(conn, obsolete_stuff)
-    ```
+    Example:
+        >>> obsolete_stuff = "name_1"
+        >>> delete_workflow(conn, obsolete_stuff)
     """
     conn.execute(
         sa.text(
@@ -585,11 +574,9 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
         conn: DB connection as available in migration main file
         resource_type: a resource_type name you want to delete
 
-    Usage:
-    ```python
-    resource_type = "name_1"
-    delete_product_block(conn, resource_type)
-    ```
+    Example:
+        >>> resource_type = "name_1"
+        >>> delete_product_block(conn, resource_type)
     """
     conn.execute(
         sa.text(
@@ -609,8 +596,7 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
 
 
 def delete(conn: sa.engine.Connection, obsolete: Dict) -> None:
-    """
-    Call other functions in this file based on the schema
+    """Delete multiple products, product_blocks, resources, and workflows.
 
     Args:
         conn: DB connection as available in migration main file
