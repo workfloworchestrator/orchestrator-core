@@ -36,19 +36,38 @@ from orchestrator.db import (
     db,
 )
 
+# def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
+#     required_columns = {
+#         k: v
+#         for k, v in cls.__table__.columns._data.items()
+#         if not v.nullable and (not v.server_default or v.primary_key)
+#     }
+#     required_attributes: Iterable[str] = required_columns.keys()
+#     if is_new_instance:
+#         required_attributes = filter(lambda k: not required_columns[k].primary_key, required_attributes)
+#     missing_attributes = list(filter(lambda key: key not in json_dict, required_attributes))
+#     if len(missing_attributes) != 0:
+#         raise_status(HTTPStatus.BAD_REQUEST, f"Missing attributes '{', '.join(missing_attributes)}' for {cls.__name__}")
+#     return json_dict
+
 
 def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
-    required_columns = {
-        k: v
-        for k, v in cls.__table__.columns._data.items()
-        if not v.nullable and (not v.server_default or v.primary_key)
-    }
+    required_columns = (
+        {
+            k: v
+            for k, v in cls.__table__.columns._collection
+            if not v.nullable and (not v.server_default or v.primary_key)
+        }
+    )
     required_attributes: Iterable[str] = required_columns.keys()
     if is_new_instance:
         required_attributes = filter(lambda k: not required_columns[k].primary_key, required_attributes)
     missing_attributes = list(filter(lambda key: key not in json_dict, required_attributes))
     if len(missing_attributes) != 0:
-        raise_status(HTTPStatus.BAD_REQUEST, f"Missing attributes '{', '.join(missing_attributes)}' for {cls.__name__}")
+        raise_status(
+            HTTPStatus.BAD_REQUEST,
+            f"Missing attributes '{', '.join(missing_attributes)}' for {cls.__name__}",
+        )
     return json_dict
 
 
@@ -76,7 +95,7 @@ def create_or_update(cls: Type, obj: BaseModel) -> None:
 
 def update(cls: Type, base_model: BaseModel) -> None:
     json_dict = transform_json(base_model.dict())
-    pk = list({k: v for k, v in cls.__table__.columns._data.items() if v.primary_key}.keys())[0]
+    pk = list({k: v for k, v in cls.__table__.columns._collection if v.primary_key}.keys())[0]
     instance = cls.query.filter(cls.__dict__[pk] == json_dict[pk])
     if not instance:
         raise_status(HTTPStatus.NOT_FOUND)
@@ -88,7 +107,7 @@ def update(cls: Type, base_model: BaseModel) -> None:
 
 
 def delete(cls: Type, primary_key: UUID) -> None:
-    pk = list({k: v for k, v in cls.__table__.columns._data.items() if v.primary_key}.keys())[0]
+    pk = list({k: v for k, v in cls.__table__.columns._collection if v.primary_key}.keys())[0]
     row_count = cls.query.filter(cls.__dict__[pk] == primary_key).delete()
     db.session.commit()
     if row_count > 0:

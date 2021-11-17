@@ -80,7 +80,10 @@ def db_uri(worker_id):
         # pytest is being run without any workers
         return database_uri
     url = make_url(database_uri)
-    url.database = f"{url.database}-{worker_id}"
+    if hasattr(url, "set"):
+        url = url.set(database=f"{url.database}-{worker_id}")
+    else:
+        url.database = f"{url.database}-{worker_id}"
     return str(url)
 
 
@@ -97,7 +100,10 @@ def database(db_uri):
     db.update(Database(db_uri))
     url = make_url(db_uri)
     db_to_create = url.database
-    url.database = "postgres"
+    if hasattr(url, "set"):
+        url = url.set(database="postgres")
+    else:
+        url.database = "postgres"
     engine = create_engine(url)
     with closing(engine.connect()) as conn:
         conn.execute("COMMIT;")
