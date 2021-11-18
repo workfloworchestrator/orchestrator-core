@@ -864,10 +864,10 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             for parent in subscription_instance.parents:
                 if (
                     parent.subscription != self.subscription
-                    and status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[self.subscription.status]
+                    and parent.subscription.status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[status]
                 ):
                     raise ValueError(
-                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription_id, subscription_instance.parents))}"
+                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
                     )
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
