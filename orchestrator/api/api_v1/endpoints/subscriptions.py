@@ -30,6 +30,7 @@ from orchestrator.db import (
     ProcessSubscriptionTable,
     ProcessTable,
     SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceTable,
     SubscriptionTable,
     db,
 )
@@ -179,3 +180,18 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
         raise_status(HTTPStatus.NOT_FOUND)
 
     return subscription_workflows(subscription)
+
+
+@router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
+def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
+    subscription_instance = SubscriptionInstanceTable.query.get(subscription_instance_id)
+
+    if not subscription_instance:
+        raise_status(HTTPStatus.NOT_FOUND)
+
+    return list(
+        filter(
+            lambda sub_id: sub_id != subscription_instance.subscription_id,
+            {parent.subscription_id for parent in subscription_instance.parents},
+        )
+    )

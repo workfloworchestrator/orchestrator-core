@@ -732,9 +732,11 @@ def test_save_load(test_product_model, test_product_type, test_product_block, te
                 "name": "SubBlockForTest",
                 "str_field": None,
                 "subscription_instance_id": mock.ANY,
+                "owner_subscription_id": mock.ANY,
             },
             "sub_block_2": None,
             "sub_block_list": [],
+            "owner_subscription_id": mock.ANY,
             "subscription_instance_id": mock.ANY,
         },
         "customer_id": customer_id,
@@ -1316,7 +1318,13 @@ def test_union_productblock_as_sub(
 
     union_subscription_from_database = SubscriptionModel.from_subscription(union_subscription.subscription_id)
 
-    assert union_subscription_from_database == union_subscription
+    assert type(union_subscription_from_database) == type(union_subscription)
+    assert union_subscription_from_database.test_block.int_field == union_subscription.test_block.int_field
+    assert union_subscription_from_database.test_block.str_field == union_subscription.test_block.str_field
+    assert (
+        union_subscription_from_database.test_block.union_block.subscription_instance_id
+        == sub_subscription_active.test_block.subscription_instance_id
+    )
 
     sub_subscription_terminated = SubscriptionModel.from_other_lifecycle(
         sub_subscription_active, SubscriptionLifecycle.TERMINATED
