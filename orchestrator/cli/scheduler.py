@@ -45,6 +45,7 @@ def run() -> None:
             log.info("Sleeping for %d seconds", idle)
             sleep(idle)
 
+
 @app.command()
 def show_schedule() -> None:
     """Show the currently configured schedule."""
