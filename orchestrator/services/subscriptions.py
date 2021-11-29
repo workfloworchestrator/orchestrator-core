@@ -503,20 +503,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         ... }
 
     """
-    {  # doctest:+SKIP
-        "reason": "Optional global reason like subscription is in use",
-        "create": [
-            {
-                "name": "workflow.name",
-                "description": "workflow.description",
-                "reason": "Optional reason why this specific workflow is blocked",
-            }
-        ],
-        "modify": [],
-        "terminate": [],
-        "system": [],
-    }
-
     default_json: Dict[str, Any] = {}
 
     if not subscription.insync:
