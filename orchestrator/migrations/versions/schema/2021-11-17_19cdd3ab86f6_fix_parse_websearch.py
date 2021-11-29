@@ -5,7 +5,6 @@ Revises: 6896a54e9483
 Create Date: 2021-11-17 21:23:09.959694
 
 """
-import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -38,8 +37,7 @@ def upgrade() -> None:
                   ) AS word
               ) AS words
               $$ LANGUAGE SQL IMMUTABLE;
-    
-    
+
               CREATE OR REPLACE FUNCTION parse_websearch(search_query text)
               RETURNS tsquery AS $$
               SELECT parse_websearch('pg_catalog.simple', search_query);
