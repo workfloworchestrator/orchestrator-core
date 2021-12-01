@@ -27,7 +27,7 @@ class BroadcastWebsocketManager:
                 (self.sender, {"websocket": websocket, "channel": channel}),
                 (self.receiver, {"websocket": websocket, "channel": channel}),
             )
-        except Exception: # noqa: S110
+        except Exception:  # noqa: S110
             pass
 
     async def disconnect(
