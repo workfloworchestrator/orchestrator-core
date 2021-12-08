@@ -160,3 +160,6 @@ exclude = '''
   )/
 )
 '''
+
+[tool.nitpick]
+style="github://workfloworchestrator/nitpick-style@main/nitpick-style-fastapi.toml"

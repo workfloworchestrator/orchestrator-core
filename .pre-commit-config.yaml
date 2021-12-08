@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.21.2
+    rev: v2.29.0
     hooks:
       - id: pyupgrade
         args:
@@ -58,3 +58,7 @@ repos:
     rev: v0.7.2.1
     hooks:
       - id: shellcheck
+  - repo: https://github.com/andreoliwa/nitpick
+    rev: v0.27.0
+    hooks:
+      - id: nitpick
