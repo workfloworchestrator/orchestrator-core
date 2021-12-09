@@ -1,6 +1,8 @@
 -r base.txt
 apache-license-check
 black
+blinker
+deepdiff
 flake8
 flake8-bandit
 flake8-bugbear
@@ -14,6 +16,25 @@ flake8-rst
 flake8-rst-docstrings
 flake8-tidy-imports
 isort
+jsonref
+mypy
 pytest
 pytest-cov
+pytest-httpx
 pytest-xdist
+requests-mock
+types-aiofiles
+types-certifi
+types-click
+types-Deprecated
+types-itsdangerous
+types-Jinja2
+types-orjson
+types-pkg_resources
+types-python-dateutil
+types-pytz
+types-redis
+types-requests
+types-toml
+types-ujson
+urllib3_mock
