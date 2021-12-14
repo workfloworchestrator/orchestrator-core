@@ -134,9 +134,6 @@ def test_websocket_process_detail_invalid_uuid(test_client):
 
 
 def test_websocket_process_detail_completed(test_client, completed_process):
-    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
-        pytest.skip("test does not work with redis")
-
     try:
         with test_client.websocket_connect(f"api/processes/{completed_process}?token=") as websocket:
             data = websocket.receive_text()
@@ -244,7 +241,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
 
 
 def test_websocket_process_detail_with_suspend(test_client, test_workflow):
-    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
+    if websocket_manager.broadcaster_type != "memory":
         pytest.skip("test does not work with redis")
 
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
@@ -286,7 +283,7 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
 
 
 def test_websocket_process_detail_with_abort(test_client, test_workflow):
-    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
+    if websocket_manager.broadcaster_type != "memory":
         pytest.skip("test does not work with redis")
 
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
@@ -321,7 +318,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
 
 
 def test_websocket_process_list_multiple_workflows(test_client, test_workflow, test_workflow_2):
-    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
+    if websocket_manager.broadcaster_type != "memory":
         pytest.skip("test does not work with redis")
 
     # to keep track of the amount of websocket messages
