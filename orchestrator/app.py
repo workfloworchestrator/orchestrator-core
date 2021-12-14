@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Type
 
 import sentry_sdk
 import structlog
@@ -58,7 +58,7 @@ class OrchestratorCore(FastAPI):
         docs_url: str = "/api/docs",
         redoc_url: str = "/api/redoc",
         version: str = "1.0.0",
-        default_response_class: type[Response] = JSONResponse,
+        default_response_class: Type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
@@ -131,7 +131,7 @@ class OrchestratorCore(FastAPI):
         self.add_middleware(SentryAsgiMiddleware)
 
     @staticmethod
-    def register_subscription_models(product_to_subscription_model_mapping: dict[str, type[SubscriptionModel]]) -> None:
+    def register_subscription_models(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
         """
         Register your subscription models.
 
