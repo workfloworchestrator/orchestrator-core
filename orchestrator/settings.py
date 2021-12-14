@@ -14,7 +14,7 @@
 import secrets
 import string
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.sdk.trace import TracerProvider
@@ -26,9 +26,9 @@ class AppSettings(BaseSettings):
     TESTING: bool = True
     SESSION_SECRET: str = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # noqa: S311
     CORS_ORIGINS: str = "*"
-    CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
-    CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
-    CORS_EXPOSE_HEADERS: list[str] = [
+    CORS_ALLOW_METHODS: List[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
+    CORS_ALLOW_HEADERS: List[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
+    CORS_EXPOSE_HEADERS: List[str] = [
         "Cache-Control",
         "Content-Language",
         "Content-Length",
