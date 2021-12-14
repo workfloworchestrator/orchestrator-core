@@ -134,6 +134,9 @@ def test_websocket_process_detail_invalid_uuid(test_client):
 
 
 def test_websocket_process_detail_completed(test_client, completed_process):
+    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
+        pytest.skip("test does not work with redis")
+
     try:
         with test_client.websocket_connect(f"api/processes/{completed_process}?token=") as websocket:
             data = websocket.receive_text()
