@@ -1,8 +1,0 @@
--r test.txt
-bumpversion
-mypy_extensions
-pre-commit
-pydocstyle
-python-dotenv
-toml
-watchdog

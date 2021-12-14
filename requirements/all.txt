@@ -1,3 +1,0 @@
--r base.txt
--r dev.txt
--r test.txt
