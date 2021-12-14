@@ -14,11 +14,11 @@
 import secrets
 import string
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
-from opentelemetry.sdk.trace import TracerProvider  # type: ignore
-from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseSettings
 
 
@@ -26,9 +26,9 @@ class AppSettings(BaseSettings):
     TESTING: bool = True
     SESSION_SECRET: str = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # noqa: S311
     CORS_ORIGINS: str = "*"
-    CORS_ALLOW_METHODS: List[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
-    CORS_ALLOW_HEADERS: List[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
-    CORS_EXPOSE_HEADERS: List[str] = [
+    CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
+    CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
+    CORS_EXPOSE_HEADERS: list[str] = [
         "Cache-Control",
         "Content-Language",
         "Content-Length",

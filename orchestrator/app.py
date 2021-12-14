@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Type
+from typing import Any, Optional
 
 import sentry_sdk
 import structlog
@@ -20,13 +20,13 @@ import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from nwastdlib.logging import initialise_logging
-from opentelemetry import trace  # type: ignore
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor  # type: ignore
-from opentelemetry.instrumentation.redis import RedisInstrumentor  # type: ignore
-from opentelemetry.instrumentation.requests import RequestsInstrumentor  # type: ignore
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor  # type: ignore
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
@@ -58,7 +58,7 @@ class OrchestratorCore(FastAPI):
         docs_url: str = "/api/docs",
         redoc_url: str = "/api/redoc",
         version: str = "1.0.0",
-        default_response_class: Type[Response] = JSONResponse,
+        default_response_class: type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
@@ -131,7 +131,7 @@ class OrchestratorCore(FastAPI):
         self.add_middleware(SentryAsgiMiddleware)
 
     @staticmethod
-    def register_subscription_models(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
+    def register_subscription_models(product_to_subscription_model_mapping: dict[str, type[SubscriptionModel]]) -> None:
         """
         Register your subscription models.
 
