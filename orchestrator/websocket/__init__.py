@@ -35,6 +35,7 @@ broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 
 class WS_CHANNELS:
     ALL_PROCESSES = "processes"
+    ENGINE_SETTINGS = "engine-settings"
 
     @staticmethod
     def SINGLE_PROCESS(pid: UUID) -> str:
