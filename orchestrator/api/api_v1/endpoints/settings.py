@@ -18,9 +18,9 @@ from aiocache import Cache
 from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
+from oauth2_lib.fastapi import OIDCUserModel
 from starlette.background import BackgroundTasks
 
-from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
