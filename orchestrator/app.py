@@ -19,7 +19,6 @@ import structlog
 import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
-from nwastdlib.logging import initialise_logging
 from opentelemetry import trace  # type: ignore
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
@@ -34,6 +33,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
+from nwastdlib.logging import initialise_logging
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app

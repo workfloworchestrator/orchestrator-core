@@ -70,7 +70,14 @@ def set_global_status(
         user_name = user.user_name if user else SYSTEM_USER
         settings.post_update_to_slack(EngineSettingsSchema.from_orm(result), user_name)
 
-    return generate_engine_status_response(result)
+    status_response = generate_engine_status_response(result)
+    if websocket_manager.enabled:
+        # send engine status to socket.
+        websocket_manager.broadcast_data(
+            [WS_CHANNELS.ENGINE_SETTINGS, {"engine-status": generate_engine_status_response(result)}]
+        )
+
+    return status_response
 
 
 @router.get("/status", response_model=EngineSettingsSchema)

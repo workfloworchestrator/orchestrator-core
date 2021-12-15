@@ -35,10 +35,10 @@ from typing import (
 from uuid import UUID
 
 import structlog
-from nwastdlib import const, identity
 from structlog.stdlib import BoundLogger
 from structlog.threadlocal import tmp_bind
 
+from nwastdlib import const, identity
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, db, transactional
 from orchestrator.forms import FormPage
