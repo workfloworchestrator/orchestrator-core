@@ -29,7 +29,7 @@ from orchestrator.services import settings
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.settings import app_settings
 from orchestrator.utils.json import json_dumps
-from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_enabled, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, websocket_enabled, websocket_manager
 
 router = APIRouter()
 
