@@ -97,7 +97,7 @@ test = [
     "flake8-tidy-imports",
     "isort~=5.9.3",
     "jsonref",
-    "mypy==0.9.10",
+    "mypy==0.910",
     "pytest",
     "pytest-cov",
     "pytest-httpx",
