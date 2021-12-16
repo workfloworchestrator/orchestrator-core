@@ -74,7 +74,7 @@ def set_global_status(
     if websocket_manager.enabled:
         # send engine status to socket.
         websocket_manager.broadcast_data(
-            [WS_CHANNELS.ENGINE_SETTINGS, {"engine-status": generate_engine_status_response(result)}]
+            [WS_CHANNELS.ENGINE_SETTINGS], {"engine-status": generate_engine_status_response(result)}
         )
 
     return status_response
