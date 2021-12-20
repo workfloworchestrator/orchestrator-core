@@ -27,9 +27,9 @@ classifiers = [
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.7",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
 ]
@@ -72,7 +72,7 @@ requires = [
     "oauth2-lib==1.0.11",
 ]
 description-file = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.6,<3.10"
 
 [tool.flit.metadata.urls]
 Documentation = "https://workfloworchestrator.org/orchestrator-core/"
