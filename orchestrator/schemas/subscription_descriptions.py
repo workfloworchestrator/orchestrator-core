@@ -23,10 +23,15 @@ class SubscriptionDescriptionBaseSchema(OrchestratorBaseModel):
     customer_id: UUID
     subscription_id: UUID
 
-    class Config:
-        orm_mode = True
-
 
 class SubscriptionDescriptionSchema(SubscriptionDescriptionBaseSchema):
     id: UUID
     created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+
+class SubscriptionDescriptionSchemaNoORM(SubscriptionDescriptionSchema):
+    class Config:
+        orm_mode = False

@@ -11,7 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.schemas.engine_settings import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.schemas.engine_settings import (
+    EngineSettingsBaseSchema,
+    EngineSettingsSchema,
+    EngineSettingsSchemaResult,
+    GlobalStatusEnum,
+)
 from orchestrator.schemas.fixed_input import FixedInputConfigurationSchema, FixedInputSchema
 from orchestrator.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.schemas.process import (
@@ -22,13 +27,14 @@ from orchestrator.schemas.process import (
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
 )
-from orchestrator.schemas.product import ProductBaseSchema, ProductCRUDSchema, ProductSchema
+from orchestrator.schemas.product import ProductBaseSchemaORM, ProductCRUDSchema, ProductSchemaORM
 from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockEnrichedSchema
-from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
+from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema, ResourceTypeSchemaORM
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionIdSchema, SubscriptionSchema
 from orchestrator.schemas.subscription_descriptions import (
     SubscriptionDescriptionBaseSchema,
     SubscriptionDescriptionSchema,
+    SubscriptionDescriptionSchemaNoORM,
 )
 from orchestrator.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema, WorkflowWithProductTagsSchema
 
@@ -45,8 +51,8 @@ __all__ = (
     "ProductBlockBaseSchema",
     "FixedInputSchema",
     "WorkflowSchema",
-    "ProductBaseSchema",
-    "ProductSchema",
+    "ProductBaseSchemaORM",
+    "ProductSchemaORM",
     "WorkflowWithProductTagsSchema",
     "SubscriptionSchema",
     "SubscriptionDomainModelSchema",
@@ -60,4 +66,7 @@ __all__ = (
     "SubscriptionDescriptionSchema",
     "SubscriptionDescriptionBaseSchema",
     "ProductCRUDSchema",
+    "EngineSettingsSchemaResult",
+    "ResourceTypeSchemaORM",
+    "SubscriptionDescriptionSchemaNoORM",
 )

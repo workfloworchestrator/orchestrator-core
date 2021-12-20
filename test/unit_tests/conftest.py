@@ -20,7 +20,6 @@ from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable, 
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
-from orchestrator.domain.lifecycle import change_lifecycle
 from orchestrator.forms import FormPage
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
@@ -148,7 +147,8 @@ def db_session(database):
         try:
             yield
         finally:
-            trans.rollback()
+            if not trans._deactivated_from_connection:
+                trans.rollback()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -452,7 +452,7 @@ def generic_subscription_1(generic_product_1, generic_product_type_1):
     gen_subscription.pb_1.rt_1 = "Value1"
     gen_subscription.pb_2.rt_2 = 42
     gen_subscription.pb_2.rt_3 = "Value2"
-    gen_subscription = change_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
+    gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
     gen_subscription.description = "Generic Subscription One"
     gen_subscription.save()
     db.session.commit()
@@ -466,7 +466,7 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
         generic_product_2.product_id, customer_id=CUSTOMER_ID, insync=True
     )
     gen_subscription.pb_3.rt_2 = 42
-    gen_subscription = change_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
+    gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
     gen_subscription.description = "Generic Subscription One"
     gen_subscription.save()
     db.session.commit()

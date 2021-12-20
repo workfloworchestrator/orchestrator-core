@@ -17,7 +17,7 @@ from uuid import UUID
 
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
+from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchemaORM
 
 
 class ProductBlockBaseSchema(OrchestratorBaseModel):
@@ -37,7 +37,7 @@ class ProductBlockEnrichedSchema(OrchestratorBaseModel):
     status: ProductLifecycle
     created_at: Optional[datetime]
     end_date: Optional[datetime]
-    resource_types: Optional[List[ResourceTypeSchema]]
+    resource_types: Optional[List[ResourceTypeSchemaORM]]
 
     class Config:
         orm_mode = True
@@ -48,6 +48,7 @@ class ProductBlockSchema(ProductBlockBaseSchema):
     status: ProductLifecycle
     created_at: datetime
     end_date: Optional[datetime]
+    resource_types: Optional[List[ResourceTypeSchemaORM]]  # type: ignore
 
     class Config:
         orm_mode = True

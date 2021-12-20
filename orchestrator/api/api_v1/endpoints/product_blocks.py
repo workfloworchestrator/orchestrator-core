@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from http import HTTPStatus
 from typing import List
 from uuid import UUID
@@ -30,13 +29,12 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[ProductBlockSchema])
-def fetch() -> List[ProductBlockSchema]:
-    items = copy.copy(ProductBlockTable.query.options(joinedload("resource_types")).all())
-    return items
+def fetch() -> List[ProductBlockTable]:
+    return ProductBlockTable.query.options(joinedload("resource_types")).all()
 
 
 @router.get("/{product_block_id}", response_model=ProductBlockSchema)
-def product_block_by_id(product_block_id: UUID) -> ProductBlockSchema:
+def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
     product_block = (
         ProductBlockTable.query.options(joinedload("resource_types"))
         .filter_by(product_block_id=product_block_id)

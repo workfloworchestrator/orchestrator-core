@@ -22,7 +22,12 @@ from starlette.background import BackgroundTasks
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
-from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.schemas import (
+    EngineSettingsBaseSchema,
+    EngineSettingsSchema,
+    EngineSettingsSchemaResult,
+    GlobalStatusEnum,
+)
 from orchestrator.security import oidc_user
 from orchestrator.services import settings
 from orchestrator.services.processes import SYSTEM_USER
@@ -40,7 +45,7 @@ async def clear_cache(name: str, background_tasks: BackgroundTasks) -> None:
         background_tasks.add_task(cache.delete, f"/{name}*")
 
 
-@router.put("/status", response_model=EngineSettingsSchema)
+@router.put("/status", response_model=EngineSettingsSchemaResult)
 def set_global_status(
     body: EngineSettingsBaseSchema, user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> EngineSettingsSchema:
@@ -70,7 +75,7 @@ def set_global_status(
     return generate_engine_status_response(result)
 
 
-@router.get("/status", response_model=EngineSettingsSchema)
+@router.get("/status", response_model=EngineSettingsSchemaResult)
 def get_global_status() -> EngineSettingsSchema:
     """
     Retrieve the global status object.
