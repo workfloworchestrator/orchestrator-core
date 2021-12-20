@@ -41,7 +41,7 @@ class WS_CHANNELS:
         return f"process_detail:{pid}"
 
 
-async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
+async def empty_fn(*args: tuple, **kwargs: Dict[str, Any]) -> None:
     return
 
 
@@ -125,7 +125,7 @@ async def empty_handler() -> None:
 def websocket_enabled(handler: Any) -> Any:
     @wraps(handler)
     @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
         if websocket_manager.enabled:
             return await handler(*args, **kwargs)
         else:

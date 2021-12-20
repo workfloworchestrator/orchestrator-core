@@ -386,11 +386,11 @@ async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str =
     await websocket_manager.connect(websocket, channel)
 
 
-def get_current_process_data(pid: UUID) -> dict[str, Any]:
+def get_current_process_data(pid: UUID) -> Dict[str, Any]:
     return show(pid)
 
 
-def get_failed_processes() -> list[dict[str, Any]]:
+def get_failed_processes() -> List[Dict[str, Any]]:
     return (
         ProcessTable.query.options(
             load_only(ProcessTable.pid, ProcessTable.last_status),

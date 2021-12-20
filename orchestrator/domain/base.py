@@ -913,11 +913,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return self._db_model
 
     @property
-    def parents(self) -> list[SubscriptionInstanceTable]:
+    def parents(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.parents
 
     @property
-    def children(self) -> list[SubscriptionInstanceTable]:
+    def children(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.children
 
 
