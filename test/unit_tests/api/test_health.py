@@ -25,6 +25,6 @@ def test_get_health(test_client):
 
 @mock.patch("orchestrator.api.api_v1.endpoints.health.ProductTable")
 def test_get_health_no_connection(mock_preference, test_client):
-    mock_preference.query.limit().value.side_effect = OperationalError("THIS", "IS", "KABOOM")
+    mock_preference.query.limit().with_entities.side_effect = OperationalError("THIS", "IS", "KABOOM")
     response = test_client.get("/api/health/")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR

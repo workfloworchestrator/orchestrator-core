@@ -10,12 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
+from sys import version_info
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
 from uuid import UUID, uuid4
 
 import structlog
@@ -156,7 +156,18 @@ class DomainModel(BaseModel):
         cls._non_product_block_fields_ = {}
         cls._product_block_fields_ = {}
 
-        for field_name, field_type in cls.__annotations__.items():
+        if version_info.minor < 10:
+            annotations = cls.__dict__.get("__annotations__", {})
+        else:
+            if TYPE_CHECKING:
+                annotations = {}
+            else:
+                # Only available in python > 3.10
+                from inspect import get_annotations
+
+                annotations = get_annotations(cls)
+
+        for field_name, field_type in annotations.items():
             if field_name.startswith("_"):
                 continue
 
@@ -913,11 +924,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return self._db_model
 
     @property
-    def parents(self) -> list[SubscriptionInstanceTable]:
+    def parents(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.parents
 
     @property
-    def children(self) -> list[SubscriptionInstanceTable]:
+    def children(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.children
 
 
@@ -1011,7 +1022,6 @@ class SubscriptionModel(DomainModel):
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
-
         fixed_inputs_model = set(cls._non_product_block_fields_)
         fixed_inputs_in_db = {fi.name for fi in product_db.fixed_inputs} if product_db else set()
 

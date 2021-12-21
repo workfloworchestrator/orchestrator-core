@@ -25,7 +25,7 @@ def test_all_workflows_have_matching_targets_and_descriptions():
 
 def test_all_products_have_at_least_one_workflow():
     prods_without_wf = list(
-        flatten(ProductTable.query.filter(not_(ProductTable.workflows.any())).values(ProductTable.name))
+        flatten(ProductTable.query.filter(not_(ProductTable.workflows.any())).with_entities(ProductTable.name))
     )
     assert len(prods_without_wf) == 0, (
         f"These products do not have a workflow " f"associated with them: {', '.join(prods_without_wf)}."
@@ -37,7 +37,7 @@ def test_all_non_system_workflows_have_at_least_one_product(generic_product_1):
         flatten(
             WorkflowTable.query.filter(
                 WorkflowTable.target != Target.SYSTEM, not_(WorkflowTable.products.any())
-            ).values(WorkflowTable.name)
+            ).with_entities(WorkflowTable.name)
         )
     )
     assert len(wfs_without_prod) == 0, (

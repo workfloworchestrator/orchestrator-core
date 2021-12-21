@@ -93,7 +93,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
 @step("Check that all products have at least one workflow")
 def check_that_products_have_at_least_one_workflow() -> State:
     prods_without_wf = list(
-        flatten(ProductTable.query.filter(not_(ProductTable.workflows.any())).values(ProductTable.name))
+        flatten(ProductTable.query.filter(not_(ProductTable.workflows.any())).with_entities(ProductTable.name))
     )
     if prods_without_wf:
         raise ProcessFailure("Found products that do not have a workflow associated with them", prods_without_wf)

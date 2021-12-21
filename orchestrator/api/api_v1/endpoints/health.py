@@ -28,7 +28,7 @@ router = APIRouter()
 @router.get("/", response_model=str)
 def get_health() -> str:
     try:
-        ProductTable.query.limit(1).value(ProductTable.name)
+        ProductTable.query.limit(1).with_entities(ProductTable.name)
     except OperationalError as e:
         logger.warning("Health endpoint returned: notok!")
         logger.debug("Health endpoint error details", error=str(e))
