@@ -14,7 +14,6 @@
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.domain.lifecycle import change_lifecycle
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import Step, step
@@ -67,7 +66,7 @@ def set_status(status: SubscriptionLifecycle) -> Step:
     @step(f"Set subscription to '{status}'")
     def _set_status(subscription: SubscriptionModel) -> State:
         """Set subscription to status."""
-        subscription = change_lifecycle(subscription, status)
+        subscription = SubscriptionModel.from_other_lifecycle(subscription, status)
         return {"subscription": subscription}
 
     _set_status.__doc__ = f"Set subscription to '{status}'."

@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from nwastdlib import const
 
-from orchestrator.domain.lifecycle import change_lifecycle
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.forms import FormPage, post_process
 from orchestrator.types import State, SubscriptionLifecycle
 from orchestrator.utils.state import extract, form_inject_args, inject_args
@@ -95,7 +95,7 @@ def test_inject_args(generic_product_1, generic_product_type_1) -> None:
     generic_sub.pb_2.rt_2 = 42
     generic_sub.pb_2.rt_3 = "test2"
 
-    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
 
     generic_sub.save()
 
@@ -136,7 +136,7 @@ def test_inject_args_list(generic_product_1, generic_product_type_1) -> None:
     generic_sub.pb_2.rt_2 = 42
     generic_sub.pb_2.rt_3 = "test2"
 
-    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
 
     generic_sub.save()
 
@@ -178,7 +178,7 @@ def test_inject_args_optional(generic_product_1, generic_product_type_1) -> None
     generic_sub.pb_2.rt_2 = 42
     generic_sub.pb_2.rt_3 = "test2"
 
-    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
 
     generic_sub.save()
 
@@ -224,7 +224,7 @@ def test_form_inject_args(generic_product_1, generic_product_type_1) -> None:
     generic_sub.pb_2.rt_2 = 42
     generic_sub.pb_2.rt_3 = "test2"
 
-    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
 
     generic_sub.save()
 
@@ -270,7 +270,7 @@ def test_form_inject_args_simple(generic_product_1, generic_product_type_1) -> N
     generic_sub.pb_2.rt_2 = 42
     generic_sub.pb_2.rt_3 = "test2"
 
-    generic_sub = change_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
 
     generic_sub.save()
 

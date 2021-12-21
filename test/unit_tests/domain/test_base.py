@@ -28,7 +28,7 @@ from orchestrator.domain.base import (
     SubscriptionModel,
     _is_constrained_list_type,
 )
-from orchestrator.domain.lifecycle import ProductLifecycle, change_lifecycle
+from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
 
 
@@ -652,9 +652,9 @@ def test_change_lifecycle(test_product, test_product_type, test_product_block, t
 
     # Does not work if constraints are not met
     with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
-        product_type = change_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
+        product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
     with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
-        product_type = change_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
+        product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
 
     # Set first value
     product_type.block.int_field = 3
@@ -666,10 +666,10 @@ def test_change_lifecycle(test_product, test_product_type, test_product_block, t
 
     # Does not work if constraints are not met
     with pytest.raises(ValidationError, match=r"str_field\n  none is not an allowed value"):
-        product_type = change_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
+        product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
 
     # works with correct data
-    product_type = change_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
+    product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
     assert product_type.status == SubscriptionLifecycle.PROVISIONING
     assert product_type.block.str_field is None
 
@@ -679,7 +679,7 @@ def test_change_lifecycle(test_product, test_product_type, test_product_block, t
     product_type.block.sub_block_list[0].str_field = "D"
 
     # works with correct data
-    product_type_new = change_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
+    product_type_new = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
     assert product_type_new.status == SubscriptionLifecycle.ACTIVE
     expected_dict = product_type.dict()
     expected_dict["status"] = SubscriptionLifecycle.ACTIVE
@@ -768,7 +768,7 @@ def test_save_load(test_product_model, test_product_type, test_product_block, te
     model.block.sub_block_2.str_field = "C"
 
     # works with correct data
-    model = change_lifecycle(model, SubscriptionLifecycle.ACTIVE)
+    model = SubscriptionModel.from_other_lifecycle(model, SubscriptionLifecycle.ACTIVE)
 
     model.save()
     db.session.commit()
@@ -1027,7 +1027,7 @@ def test_abstract_super_block(test_product, test_product_type, test_product_bloc
     test_model.block.str_field = "bla"
     test_model.block.list_field = [1]
 
-    test_model = change_lifecycle(test_model, SubscriptionLifecycle.ACTIVE)
+    test_model = SubscriptionModel.from_other_lifecycle(test_model, SubscriptionLifecycle.ACTIVE)
     test_model.save()
     assert isinstance(test_model.block, BlockForTest)
 
@@ -1087,17 +1087,6 @@ def test_diff_in_db(test_product, test_product_type):
         Wrong.diff_product_in_database(test_product)
         == {
             "TestProduct": {
-                "missing_fixed_inputs_in_db": {
-                    "customer_id",
-                    "description",
-                    "end_date",
-                    "insync",
-                    "note",
-                    "product",
-                    "start_date",
-                    "status",
-                    "subscription_id",
-                },
                 "missing_fixed_inputs_in_model": {"test_fixed_input"},
                 "missing_product_blocks_in_model": {"BlockForTest"},
             }

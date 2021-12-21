@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.9.7]
+        python-version: [3.9.9, 3.10.1]
 
     steps:
       - uses: actions/checkout@v2
@@ -30,7 +30,7 @@ jobs:
       - name: Check formatting
         run: |
           isort -c .
-          black --check .
+          python -V | grep 10 || black --check .
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
