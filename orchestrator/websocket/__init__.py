@@ -35,6 +35,7 @@ broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 
 class WS_CHANNELS:
     ALL_PROCESSES = "processes"
+    ENGINE_SETTINGS = "engine-settings"
 
     @staticmethod
     def SINGLE_PROCESS(pid: UUID) -> str:
@@ -110,7 +111,7 @@ def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
         data["close"] = True
 
     loop = new_event_loop()
-    channels = [channel, WS_CHANNELS.ALL_PROCESSES]
+    channels = [channel, WS_CHANNELS.ALL_PROCESSES, WS_CHANNELS.ENGINE_SETTINGS]
     loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
     try:
         loop.close()
