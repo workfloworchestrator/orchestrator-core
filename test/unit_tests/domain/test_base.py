@@ -1087,17 +1087,6 @@ def test_diff_in_db(test_product, test_product_type):
         Wrong.diff_product_in_database(test_product)
         == {
             "TestProduct": {
-                "missing_fixed_inputs_in_db": {
-                    "customer_id",
-                    "description",
-                    "end_date",
-                    "insync",
-                    "note",
-                    "product",
-                    "start_date",
-                    "status",
-                    "subscription_id",
-                },
                 "missing_fixed_inputs_in_model": {"test_fixed_input"},
                 "missing_product_blocks_in_model": {"BlockForTest"},
             }
