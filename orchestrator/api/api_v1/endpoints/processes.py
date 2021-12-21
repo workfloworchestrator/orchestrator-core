@@ -53,9 +53,8 @@ from orchestrator.schemas import (
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
-from orchestrator.utils.json import json_dumps
 from orchestrator.utils.show_process import show_process
-from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_enabled, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, websocket_enabled, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -333,33 +332,3 @@ async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) 
 
     channel = WS_CHANNELS.ALL_PROCESSES
     await websocket_manager.connect(websocket, channel)
-
-
-@router.websocket("/{pid}")
-@websocket_enabled
-async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
-    error = await websocket_manager.authorize(websocket, token)
-
-    await websocket.accept()
-
-    if error:
-        await websocket_manager.disconnect(websocket, reason=error)
-        return
-
-    try:
-        process = get_current_process_data(pid)
-    except Exception as error:
-        await websocket_manager.disconnect(websocket, reason={"error": vars(error)})
-        return
-
-    await websocket.send_text(json_dumps({"process": process}))
-    if not is_process_active(process):
-        await websocket.close()
-        return
-
-    channel = WS_CHANNELS.SINGLE_PROCESS(pid)
-    await websocket_manager.connect(websocket, channel)
-
-
-def get_current_process_data(pid: UUID) -> dict[str, Any]:
-    return show(pid)
