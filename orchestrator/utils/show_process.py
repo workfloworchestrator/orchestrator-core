@@ -14,10 +14,12 @@
 from more_itertools import first
 
 from orchestrator.db import ProcessTable
+from orchestrator.forms import generate_form
+from orchestrator.workflow import ProcessStat
 
 
-def show_process(p: ProcessTable) -> dict:
-    subscription = first(p.subscriptions, None)
+def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
+    subscription = first(process.subscriptions, None)
     if subscription:
         product_id = subscription.product_id
         customer_id = subscription.customer_id
@@ -25,24 +27,52 @@ def show_process(p: ProcessTable) -> dict:
         product_id = None
         customer_id = None
 
+    steps = [
+        {
+            "name": step.name,
+            "executed": step.executed_at.timestamp(),
+            "status": step.status,
+            "state": step.state,
+            "created_by": step.created_by,
+            "stepid": step.stepid,
+        }
+        for step in process.steps
+    ]
+
+    form = None
+    if pStat.log:
+        form = pStat.log[0].form
+
+        pstat_steps = list(map(lambda step: {"name": step.name, "status": "pending"}, pStat.log))
+        for step in steps:
+            if step["name"] == pstat_steps[0]["name"]:
+                pstat_steps.pop(0)
+        steps += pstat_steps
+
     return {
-        "id": p.pid,
-        "workflow_name": p.workflow,
+        "id": process.pid,
+        "pid": process.pid,  # list and single get differentiate with this value and the above.
+        "workflow": process.workflow,
+        "workflow_name": process.workflow,
         "product": product_id,
         "customer": customer_id,
-        "assignee": p.assignee,
-        "status": p.last_status,
-        "failed_reason": p.failed_reason,
-        "traceback": p.traceback,
-        "step": p.last_step,
-        "created_by": p.created_by,
-        "started": p.started_at,
-        "last_modified": p.last_modified_at,
+        "assignee": process.assignee,
+        "status": process.last_status,
+        "last_status": process.last_status,  # list and single get differentiate with this value and the above.
+        "failed_reason": process.failed_reason,
+        "traceback": process.traceback,
+        "step": process.last_step,
+        "steps": steps,
+        "created_by": process.created_by,
+        "started": process.started_at.timestamp(),
+        "last_modified": process.last_modified_at.timestamp(),
         "subscriptions": [
             # explicit conversion using excluded_keys to prevent eager loaded subscriptions (when loaded for form domain models)
             # to cause circular reference errors
             s.subscription.__json__(excluded_keys={"instances", "customer_descriptions", "processes", "product"})
-            for s in p.process_subscriptions
+            for s in process.process_subscriptions
         ],
-        "is_task": p.is_task,
+        "is_task": process.is_task,
+        "form": generate_form(form, pStat.state.unwrap(), []),
+        "current_state": pStat.state.unwrap(),
     }
