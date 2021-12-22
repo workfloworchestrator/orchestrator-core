@@ -84,7 +84,7 @@ def is_process_active(p: Dict) -> bool:
 
 def send_process_data_to_websocket(pid: UUID, data: Dict) -> None:
     loop = new_event_loop()
-    channels = [WS_CHANNELS.ALL_PROCESSES, WS_CHANNELS.ENGINE_SETTINGS]
+    channels = [WS_CHANNELS.ALL_PROCESSES]
     loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
     try:
         loop.close()
