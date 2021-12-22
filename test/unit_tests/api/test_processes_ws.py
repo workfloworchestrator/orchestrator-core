@@ -1,6 +1,7 @@
 import time
 from http import HTTPStatus
 from threading import Condition
+from typing import Any, Dict, Generator
 from uuid import uuid4
 
 import pytest
@@ -11,14 +12,16 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, WorkflowTable, db
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
+from orchestrator.types import UUIDstr
 from orchestrator.utils.json import json_loads
+from orchestrator.websocket import websocket_manager
 from orchestrator.workflow import ProcessStatus, StepStatus, done, init, step, workflow
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
 
 LONG_RUNNING_STEP = "Long Running Step"
-IMMEDIATE_STEP = "Long Running Step"
+IMMEDIATE_STEP = "Immediate Step"
 
 
 @pytest.fixture
@@ -44,6 +47,38 @@ def long_running_workflow():
         db.session.commit()
 
         yield "long_running_workflow_py"
+
+
+@pytest.fixture
+def test_workflow_2(generic_subscription_1: UUIDstr, generic_product_type_1) -> Generator:
+    _, GenericProductOne = generic_product_type_1
+
+    @step("Insert UUID in state")
+    def insert_object():
+        return {"subscription_id": str(uuid4()), "model": GenericProductOne.from_subscription(generic_subscription_1)}
+
+    @step("Test that it is a string now")
+    def check_object(subscription_id: Any, model: Dict) -> None:
+        # This is actually a test. It would be nicer to have this in a proper test but that takes to much setup that
+        # already happens here. So we hijack this fixture and run this test for all tests that use this fixture
+        # (which should not be an issue)
+        assert isinstance(subscription_id, str)
+        assert isinstance(model, dict)
+
+    @step("immediate step")
+    def immediate_step():
+        return {"done": True}
+
+    @workflow("Workflow")
+    def workflow_for_testing_processes_2_py():
+        return init >> insert_object >> check_object >> immediate_step >> done
+
+    with WorkflowInstanceForTests(workflow_for_testing_processes_2_py, "workflow_for_testing_processes_2_py"):
+        db_workflow = WorkflowTable(name="workflow_for_testing_processes_2_py", target=Target.MODIFY)
+        db.session.add(db_workflow)
+        db.session.commit()
+
+        yield "workflow_for_testing_processes_2_py"
 
 
 @pytest.fixture
@@ -112,7 +147,11 @@ def test_websocket_process_detail_completed(test_client, completed_process):
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
 
+# long running workflow test only works locally and with memory type
 def test_websocket_process_detail_workflow(test_client, long_running_workflow):
+    if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
+        pytest.skip("test does not work with redis")
+
     app_settings.TESTING = False
 
     # Start the workflow
@@ -202,6 +241,9 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
 
 
 def test_websocket_process_detail_with_suspend(test_client, test_workflow):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
@@ -241,6 +283,9 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
 
 
 def test_websocket_process_detail_with_abort(test_client, test_workflow):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
     response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
 
     assert (
@@ -270,3 +315,134 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
             data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
+
+
+def test_websocket_process_list_multiple_workflows(test_client, test_workflow, test_workflow_2):
+    if websocket_manager.broadcaster_type != "memory":
+        pytest.skip("test does not work with redis")
+
+    # to keep track of the amount of websocket messages
+    message_count = 0
+
+    expected_test_workflow_steps = [
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "Start",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "Insert UUID in state",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "Test that it is a string now",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.CHANGES,
+            "status": ProcessStatus.SUSPENDED,
+            "step": "Modify",
+            "step_status": StepStatus.SUSPEND,
+        },
+    ]
+
+    test_workflow_2_steps = [
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "Start",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "Insert UUID in state",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "Test that it is a string now",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.RUNNING,
+            "step": "immediate step",
+            "step_status": StepStatus.SUCCESS,
+        },
+        {
+            "assignee": Assignee.SYSTEM,
+            "status": ProcessStatus.COMPLETED,
+            "step": "Done",
+            "step_status": StepStatus.COMPLETE,
+        },
+    ]
+
+    try:
+        with test_client.websocket_connect("api/processes/all/?token=") as websocket:
+            # start test_workflow
+            test_workflow_response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
+
+            assert (
+                HTTPStatus.CREATED == test_workflow_response.status_code
+            ), f"Invalid response status code (response data: {test_workflow_response.json()})"
+
+            test_workflow_response_pid = test_workflow_response.json()["id"]
+
+            # Start test_workflow_2
+            response = test_client.post(f"/api/processes/{test_workflow_2}", json=[{}])
+            assert (
+                HTTPStatus.CREATED == response.status_code
+            ), f"Invalid response status code (response data: {response.json()})"
+
+            test_workflow_2_pid = response.json()["id"]
+
+            # Make sure it started again
+            time.sleep(1)
+
+            # close and call receive_text to check websocket close exception
+            websocket.close()
+
+            # Check the websocket messages.
+            # Message after connecting, returns all failed processes pid and status.
+            message = websocket.receive_text()
+            message_count += 1
+            json_data = json_loads(message)
+            failed_processes = json_data["failedProcesses"]
+            assert len(failed_processes) == 0
+
+            # Checks if the correct messages are send, without order for which workflow.
+            while True:
+                message = websocket.receive_text()
+                message_count += 1
+                json_data = json_loads(message)
+                assert "process" in json_data, f"Websocket message does not contain process: {json_data}"
+                process = json_data["process"]
+                step = json_data["step"]
+                expectedData = {}
+
+                if process["id"] == test_workflow_response_pid:
+                    expectedData = expected_test_workflow_steps.pop(0)
+                elif process["id"] == test_workflow_2_pid:
+                    expectedData = test_workflow_2_steps.pop(0)
+
+                assert "status" in expectedData, "message not one of the workflows"
+                assert process["assignee"] == expectedData["assignee"]
+                assert process["status"] == expectedData["status"]
+                assert process["step"] == expectedData["step"]
+                assert step["name"] == expectedData["step"]
+                assert step["status"] == expectedData["step_status"]
+
+                if len(expected_test_workflow_steps) == 0 and len(test_workflow_2_steps) == 0:
+                    break
+    except WebSocketDisconnect as exception:
+        assert exception.code == status.WS_1000_NORMAL_CLOSURE
+    except AssertionError as e:
+        raise e
+    assert message_count == 10

@@ -16,9 +16,9 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
-from opentelemetry.sdk.trace import TracerProvider  # type: ignore
-from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseSettings
 
 
@@ -58,6 +58,7 @@ class AppSettings(BaseSettings):
     TRACING_ENABLED: bool = False
     TRANSLATIONS_DIR: Optional[Path] = None
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
+    ENABLE_WEBSOCKETS: bool = True
 
 
 class Oauth2Settings(BaseSettings):

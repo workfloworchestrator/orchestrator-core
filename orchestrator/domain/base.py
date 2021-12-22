@@ -10,12 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
+from sys import version_info
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
 from uuid import UUID, uuid4
 
 import structlog
@@ -156,7 +156,18 @@ class DomainModel(BaseModel):
         cls._non_product_block_fields_ = {}
         cls._product_block_fields_ = {}
 
-        for field_name, field_type in cls.__annotations__.items():
+        if version_info.minor < 10:
+            annotations = cls.__dict__.get("__annotations__", {})
+        else:
+            if TYPE_CHECKING:
+                annotations = {}
+            else:
+                # Only available in python > 3.10
+                from inspect import get_annotations
+
+                annotations = get_annotations(cls)
+
+        for field_name, field_type in annotations.items():
             if field_name.startswith("_"):
                 continue
 
@@ -370,19 +381,23 @@ class DomainModel(BaseModel):
                     data[field_name].append(
                         one(get_args(field_type))._from_other_lifecycle(item, status, subscription_id)
                     )
-
             else:
+                value = getattr(other, field_name)
                 if is_optional_type(field_type):
                     field_type = first(get_args(field_type))
+                    if value:
+                        data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                    else:
+                        data[field_name] = None
 
-                value = getattr(other, field_name)
-
-                if is_union_type(field_type) and not is_optional_type(field_type):
+                elif is_union_type(field_type) and not is_optional_type(field_type):
                     field_types = get_args(field_type)
                     for f_type in field_types:
                         if f_type.name == value.name:
                             field_type = f_type
-                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                else:
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
     def _save_instances(
@@ -509,6 +524,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     # Is actually optional since abstract classes dont have it. In practice it is always set
     name: str
     subscription_instance_id: UUID
+    owner_subscription_id: UUID
     label: Optional[str] = None
 
     def __init_subclass__(
@@ -631,7 +647,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_id=subscription_id,
         )
         db.session.enable_relationship_loading(db_model)
-        model = cls(subscription_instance_id=subscription_instance_id, **sub_instances, **kwargs)  # type: ignore
+        model = cls(subscription_instance_id=subscription_instance_id, owner_subscription_id=subscription_id, **sub_instances, **kwargs)  # type: ignore
         model._db_model = db_model
         return model
 
@@ -734,6 +750,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         try:
             model = cls(
                 subscription_instance_id=subscription_instance_id,
+                owner_subscription_id=subscription_instance.subscription_id,
                 subscription=subscription_instance.subscription,
                 label=label,
                 **instance_values,  # type: ignore
@@ -852,14 +869,16 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             self.subscription_instance_id
         )
         if subscription_instance:
+            # Make sure we do not use a mapped session.
+            db.session.refresh(subscription_instance)
             # Block unsafe status changes on domain models that have Subscription instances with parent relations
             for parent in subscription_instance.parents:
                 if (
                     parent.subscription != self.subscription
-                    and status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[self.subscription.status]
+                    and parent.subscription.status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[status]
                 ):
                     raise ValueError(
-                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription_id, subscription_instance.parents))}"
+                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
                     )
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
@@ -903,6 +922,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def db_model(self) -> SubscriptionInstanceTable:
         return self._db_model
+
+    @property
+    def parents(self) -> List[SubscriptionInstanceTable]:
+        return self._db_model.parents
+
+    @property
+    def children(self) -> List[SubscriptionInstanceTable]:
+        return self._db_model.children
 
 
 class ProductModel(BaseModel):
@@ -995,7 +1022,6 @@ class SubscriptionModel(DomainModel):
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
-
         fixed_inputs_model = set(cls._non_product_block_fields_)
         fixed_inputs_in_db = {fi.name for fi in product_db.fixed_inputs} if product_db else set()
 
@@ -1200,6 +1226,9 @@ class SubscriptionModel(DomainModel):
         ).get(self.subscription_id)
         if not sub:
             sub = self._db_model
+
+        # Make sure we refresh the object and not use an already mapped object
+        db.session.refresh(sub)
 
         self._db_model = sub
         sub.product_id = self.product.product_id

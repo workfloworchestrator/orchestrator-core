@@ -20,13 +20,13 @@ import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from nwastdlib.logging import initialise_logging
-from opentelemetry import trace  # type: ignore
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor  # type: ignore
-from opentelemetry.instrumentation.redis import RedisInstrumentor  # type: ignore
-from opentelemetry.instrumentation.requests import RequestsInstrumentor  # type: ignore
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor  # type: ignore
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration

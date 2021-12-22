@@ -1,4 +1,17 @@
-from typing import Dict, Union
+# Copyright 2019-2020 SURF.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Dict, List, Union
 
 from broadcaster import Broadcast
 from fastapi import WebSocket, status
@@ -22,10 +35,10 @@ class BroadcastWebsocketManager:
         await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
-        await self.connect_redis()
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
+                (self.receiver, {"websocket": websocket, "channel": channel}),
             )
         except Exception:  # noqa: S110
             pass
@@ -47,11 +60,12 @@ class BroadcastWebsocketManager:
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)
-                if type(json) is dict and "close" in json and json["close"]:
+                if type(json) is dict and "close" in json and json["close"] and channel != "processes":
                     await self.disconnect(websocket)
                     break
 
-    async def broadcast_data(self, channel: str, data: Dict) -> None:
+    async def broadcast_data(self, channels: List[str], data: Dict) -> None:
         await self.pub_broadcast.connect()
-        await self.pub_broadcast.publish(channel, message=json_dumps(data))
+        for channel in channels:
+            await self.pub_broadcast.publish(channel, message=json_dumps(data))
         await self.pub_broadcast.disconnect()

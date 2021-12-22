@@ -369,8 +369,8 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
 
     return SubscriptionTable.query.filter(
         or_(
-            SubscriptionTable.subscription_id.in_(resource_type_relations.subquery()),
-            SubscriptionTable.subscription_id.in_(relation_relations.subquery()),
+            SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
+            SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
         )
     )
 
@@ -405,8 +405,8 @@ def query_child_subscriptions(subscription_id: UUID) -> Query:
 
     return SubscriptionTable.query.filter(
         or_(
-            SubscriptionTable.subscription_id.in_(resource_type_relations.subquery()),
-            SubscriptionTable.subscription_id.in_(relation_relations.subquery()),
+            SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
+            SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
         )
     )
 
@@ -414,14 +414,16 @@ def query_child_subscriptions(subscription_id: UUID) -> Query:
 def _terminated_filter(query: Query) -> List[UUID]:
     return list(
         more_itertools.flatten(
-            query.filter(SubscriptionTable.status != "terminated").values(SubscriptionTable.subscription_id)
+            query.filter(SubscriptionTable.status != "terminated").with_entities(SubscriptionTable.subscription_id)
         )
     )
 
 
 def _in_sync_filter(query: Query) -> List[UUID]:
     return list(
-        more_itertools.flatten(query.filter(not_(SubscriptionTable.insync)).values(SubscriptionTable.subscription_id))
+        more_itertools.flatten(
+            query.filter(not_(SubscriptionTable.insync)).with_entities(SubscriptionTable.subscription_id)
+        )
     )
 
 
@@ -503,20 +505,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         ... }
 
     """
-    {  # doctest:+SKIP
-        "reason": "Optional global reason like subscription is in use",
-        "create": [
-            {
-                "name": "workflow.name",
-                "description": "workflow.description",
-                "reason": "Optional reason why this specific workflow is blocked",
-            }
-        ],
-        "modify": [],
-        "terminate": [],
-        "system": [],
-    }
-
     default_json: Dict[str, Any] = {}
 
     if not subscription.insync:

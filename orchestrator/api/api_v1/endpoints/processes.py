@@ -25,10 +25,10 @@ from fastapi import Query, WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked, first
+from more_itertools import chunked
 from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import String, cast
-from sqlalchemy.orm import contains_eager, defer, joinedload
+from sqlalchemy.orm import contains_eager, defer, joinedload, load_only
 from sqlalchemy.sql import expression
 from starlette.responses import Response
 
@@ -55,7 +55,8 @@ from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
 from orchestrator.utils.json import json_dumps
-from orchestrator.websocket import is_process_active, websocket_manager
+from orchestrator.utils.show_process import show_process
+from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_enabled, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -73,38 +74,6 @@ def _get_process(pid: UUID) -> ProcessTable:
         raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
 
     return process
-
-
-def _show_process(p: ProcessTable) -> Dict:
-    subscription = first(p.subscriptions, None)
-    if subscription:
-        product_id = subscription.product_id
-        customer_id = subscription.customer_id
-    else:
-        product_id = None
-        customer_id = None
-
-    return {
-        "id": p.pid,
-        "workflow_name": p.workflow,
-        "product": product_id,
-        "customer": customer_id,
-        "assignee": p.assignee,
-        "status": p.last_status,
-        "failed_reason": p.failed_reason,
-        "traceback": p.traceback,
-        "step": p.last_step,
-        "created_by": p.created_by,
-        "started": p.started_at,
-        "last_modified": p.last_modified_at,
-        "subscriptions": [
-            # explicit conversion using excluded_keys to prevent eager loaded subscriptions (when loaded for form domain models)
-            # to cause circular reference errors
-            s.subscription.__json__(excluded_keys={"instances", "customer_descriptions", "processes", "product"})
-            for s in p.process_subscriptions
-        ],
-        "is_task": p.is_task,
-    }
 
 
 @router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
@@ -213,7 +182,7 @@ def show(pid: UUID) -> Dict[str, Any]:
     steps = [
         {
             "name": step.name,
-            "executed": step.executed_at,
+            "executed": int(step.executed_at.timestamp()),
             "status": step.status,
             "state": step.state,
             "commit_hash": step.commit_hash,
@@ -227,7 +196,7 @@ def show(pid: UUID) -> Dict[str, Any]:
     else:
         form = None
 
-    data = _show_process(process)
+    data = show_process(process)
     data["current_state"] = p.state.unwrap()
     data["steps"] = steps
     data["form"] = generate_form(form, p.state.unwrap(), [])
@@ -375,7 +344,24 @@ def processes_filterable(
     return [asdict(enrich_process(p)) for p in results]
 
 
+@router.websocket("/all/")
+@websocket_enabled
+async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
+    error = await websocket_manager.authorize(websocket, token)
+
+    await websocket.accept()
+    if error:
+        await websocket_manager.disconnect(websocket, reason=error)
+        return
+
+    await websocket.send_text(json_dumps({"failedProcesses": get_failed_processes()}))
+
+    channel = WS_CHANNELS.ALL_PROCESSES
+    await websocket_manager.connect(websocket, channel)
+
+
 @router.websocket("/{pid}")
+@websocket_enabled
 async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
     error = await websocket_manager.authorize(websocket, token)
 
@@ -396,9 +382,19 @@ async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str =
         await websocket.close()
         return
 
-    channel = f"step_process:{pid}"
+    channel = WS_CHANNELS.SINGLE_PROCESS(pid)
     await websocket_manager.connect(websocket, channel)
 
 
-def get_current_process_data(pid: UUID) -> Any:
+def get_current_process_data(pid: UUID) -> Dict[str, Any]:
     return show(pid)
+
+
+def get_failed_processes() -> List[Dict[str, Any]]:
+    return (
+        ProcessTable.query.options(
+            load_only(ProcessTable.pid, ProcessTable.last_status),
+        )
+        .filter(ProcessTable.last_status.in_(["failed", "inconsistent_data", "api_unavailable"]))
+        .all()
+    )

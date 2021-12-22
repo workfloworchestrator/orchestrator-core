@@ -76,4 +76,3 @@ INFO:     Application startup complete.
 ### Step 6 - Profit :boom: :grin:
 
 Visit [the app](http://127.0.0.1:8080/api/redoc) to view the api documentation.
-
