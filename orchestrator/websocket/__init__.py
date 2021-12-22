@@ -33,9 +33,10 @@ broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 
 class WS_CHANNELS:
     ALL_PROCESSES = "processes"
+    ENGINE_SETTINGS = "engine-settings"
 
 
-async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
+async def empty_fn(*args: tuple, **kwargs: Dict[str, Any]) -> None:
     return
 
 
@@ -83,7 +84,7 @@ def is_process_active(p: Dict) -> bool:
 
 def send_process_data_to_websocket(pid: UUID, data: Dict) -> None:
     loop = new_event_loop()
-    channels = [WS_CHANNELS.ALL_PROCESSES]
+    channels = [WS_CHANNELS.ALL_PROCESSES, WS_CHANNELS.ENGINE_SETTINGS]
     loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
     try:
         loop.close()
@@ -98,7 +99,7 @@ async def empty_handler() -> None:
 def websocket_enabled(handler: Any) -> Any:
     @wraps(handler)
     @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
         if websocket_manager.enabled:
             return await handler(*args, **kwargs)
         else:

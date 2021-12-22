@@ -19,7 +19,6 @@ from uuid import UUID
 
 import structlog
 from fastapi.routing import APIRouter
-from sqlalchemy import text
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
@@ -64,41 +63,9 @@ def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptio
 
 
 @router.get("/all", response_model=List[SubscriptionSchema])
-def subscriptions_all() -> List[SubscriptionSchema]:
+def subscriptions_all() -> List[SubscriptionTable]:
     """Return subscriptions with only a join on products."""
-    subscription_columns = [
-        "subscription_id",
-        "description",
-        "status",
-        "insync",
-        "start_date",
-        "end_date",
-        "customer_id",
-    ]
-    query = """SELECT s.subscription_id, s.description as description, s.status, s.insync, s.start_date,
-               s.end_date, s.customer_id,
-               p.created_at as product_created_at, p.description as product_description,
-               p.end_date as product_end_date, p.name as product_name,
-               p.tag as product_tag, p.product_id as product_product_id, p.status as product_status,
-               p.product_type as product_type
-                FROM subscriptions s
-                 JOIN products p ON s.product_id = p.product_id"""
-    subscriptions = db.session.execute(text(query))
-    result: List[SubscriptionSchema] = []
-    for sub in subscriptions:
-        sub_dict = dict(zip(subscription_columns, sub))
-        product = {
-            "description": sub["product_description"],
-            "name": sub["product_name"],
-            "product_id": sub["product_product_id"],
-            "status": sub["product_status"],
-            "product_type": sub["product_type"],
-            "tag": sub["product_tag"],
-        }
-        sub_dict["product"] = product
-        result.append(SubscriptionSchema.parse_obj(sub_dict))
-    # validation the response doesn't work correct for nested responses: a unit test ensures schema correctness
-    return result
+    return SubscriptionTable.query.all()
 
 
 @router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
@@ -108,7 +75,6 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
     ).all()
 
     subscription = SubscriptionModel.from_subscription(subscription_id).dict()
-
     subscription["customer_descriptions"] = customer_descriptions
 
     if not subscription:

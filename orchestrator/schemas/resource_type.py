@@ -22,12 +22,11 @@ class ResourceTypeBaseSchema(OrchestratorBaseModel):
     description: Optional[str]
     resource_type_id: Optional[UUID]
 
-    class Config:
-        orm_mode = True
-
 
 class ResourceTypeSchema(ResourceTypeBaseSchema):
     resource_type_id: UUID
 
+
+class ResourceTypeSchemaORM(ResourceTypeSchema):
     class Config:
         orm_mode = True

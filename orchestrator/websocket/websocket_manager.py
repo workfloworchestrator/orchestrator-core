@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 from fastapi import WebSocket, status
@@ -66,5 +66,5 @@ class WebSocketManager:
     ) -> None:
         await self._backend.disconnect(websocket, code, reason)
 
-    async def broadcast_data(self, channels: list[str], data: Dict) -> None:
+    async def broadcast_data(self, channels: List[str], data: Dict) -> None:
         await self._backend.broadcast_data(channels, data)

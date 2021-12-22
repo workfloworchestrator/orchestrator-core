@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 from broadcaster import Broadcast
 from fastapi import WebSocket, status
@@ -64,7 +64,7 @@ class BroadcastWebsocketManager:
                     await self.disconnect(websocket)
                     break
 
-    async def broadcast_data(self, channels: list[str], data: Dict) -> None:
+    async def broadcast_data(self, channels: List[str], data: Dict) -> None:
         await self.pub_broadcast.connect()
         for channel in channels:
             await self.pub_broadcast.publish(channel, message=json_dumps(data))

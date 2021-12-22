@@ -14,7 +14,6 @@
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, TypeVar
 
 import structlog
-from deprecated import deprecated
 
 from orchestrator.types import SubscriptionLifecycle, strEnum
 
@@ -57,10 +56,3 @@ else:
     SubscriptionModel = None
     DomainModel = None
 T = TypeVar("T", bound=SubscriptionModel)
-
-
-@deprecated("use `SubscriptionModel.from_other_lifecycle(subscription, status)`")
-def change_lifecycle(subscription: T, status: SubscriptionLifecycle) -> T:
-    from orchestrator.domain.base import SubscriptionModel
-
-    return SubscriptionModel.from_other_lifecycle(subscription, status)  # type: ignore

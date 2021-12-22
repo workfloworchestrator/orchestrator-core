@@ -67,6 +67,7 @@ class UtcTimestamp(TypeDecorator):
     """
 
     impl = sqlalchemy.types.TIMESTAMP(timezone=True)
+    cache_ok = False
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
         if value is not None:
@@ -117,7 +118,7 @@ class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
     id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     pid = Column(UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
-    process = relationship("ProcessTable")
+    process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription_id = Column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     subscription = relationship("SubscriptionTable", lazy=True)
     created_at = Column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
@@ -343,7 +344,11 @@ class WorkflowTable(BaseModel):
     description = Column(Text(), nullable=True)
     created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     products = relationship(
-        "ProductTable", secondary=product_workflows_association, lazy="select", passive_deletes=True
+        "ProductTable",
+        secondary=product_workflows_association,
+        lazy="select",
+        passive_deletes=True,
+        back_populates="workflows",
     )
 
 
@@ -506,9 +511,13 @@ class SubscriptionTable(BaseModel):
         backref=backref("subscription", lazy=True),
     )
     customer_descriptions = relationship(
-        "SubscriptionCustomerDescriptionTable", lazy="select", cascade="all, delete-orphan", passive_deletes=True
+        "SubscriptionCustomerDescriptionTable",
+        lazy="select",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="subscription",
     )
-    processes = relationship("ProcessSubscriptionTable", lazy=True)
+    processes = relationship("ProcessSubscriptionTable", lazy=True, back_populates="subscription")
 
     @staticmethod
     def find_by_product_tag(tag: str) -> SearchQuery:
