@@ -49,7 +49,7 @@ async def clear_cache(name: str, background_tasks: BackgroundTasks) -> None:
 
 
 @router.put("/status", response_model=EngineSettingsSchemaResult)
-def set_global_status(
+async def set_global_status(
     body: EngineSettingsBaseSchema, user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> EngineSettingsSchema:
     """
@@ -78,7 +78,7 @@ def set_global_status(
     status_response = generate_engine_status_response(result)
     if websocket_manager.enabled:
         # send engine status to socket.
-        websocket_manager.broadcast_data(
+        await websocket_manager.broadcast_data(
             [WS_CHANNELS.ENGINE_SETTINGS], {"engine-status": generate_engine_status_response(result)}
         )
 
