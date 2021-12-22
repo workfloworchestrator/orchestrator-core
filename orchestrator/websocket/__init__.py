@@ -35,10 +35,6 @@ class WS_CHANNELS:
     ALL_PROCESSES = "processes"
     ENGINE_SETTINGS = "engine-settings"
 
-    @staticmethod
-    def SINGLE_PROCESS(pid: UUID) -> str:
-        return f"process_detail:{pid}"
-
 
 async def empty_fn(*args: tuple, **kwargs: Dict[str, Any]) -> None:
     return
@@ -87,13 +83,8 @@ def is_process_active(p: Dict) -> bool:
 
 
 def send_process_data_to_websocket(pid: UUID, data: Dict) -> None:
-    channel = WS_CHANNELS.SINGLE_PROCESS(pid)
-
-    if not is_process_active(data["process"]):
-        data["close"] = True
-
     loop = new_event_loop()
-    channels = [channel, WS_CHANNELS.ALL_PROCESSES, WS_CHANNELS.ENGINE_SETTINGS]
+    channels = [WS_CHANNELS.ALL_PROCESSES, WS_CHANNELS.ENGINE_SETTINGS]
     loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
     try:
         loop.close()
@@ -108,7 +99,7 @@ async def empty_handler() -> None:
 def websocket_enabled(handler: Any) -> Any:
     @wraps(handler)
     @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
         if websocket_manager.enabled:
             return await handler(*args, **kwargs)
         else:
