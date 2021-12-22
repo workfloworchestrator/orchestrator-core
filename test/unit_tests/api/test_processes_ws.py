@@ -115,38 +115,6 @@ def completed_process(test_workflow, generic_subscription_1):
     return pid
 
 
-def test_websocket_process_detail_invalid_uuid(test_client):
-    pid = uuid4()
-
-    try:
-        with test_client.websocket_connect(f"/api/processes/{pid}?token=") as websocket:
-            data = websocket.receive_text()
-            error = json_loads(data)["error"]
-            assert "Not Found" == error["title"]
-            assert f"Process with pid {pid} not found" == error["detail"]
-            assert 404 == error["status_code"]
-
-            # close and call receive_text to check websocket close exception
-            websocket.close()
-            data = websocket.receive_text()
-    except WebSocketDisconnect as exception:
-        assert exception.code == status.WS_1000_NORMAL_CLOSURE
-
-
-def test_websocket_process_detail_completed(test_client, completed_process):
-    try:
-        with test_client.websocket_connect(f"api/processes/{completed_process}?token=") as websocket:
-            data = websocket.receive_text()
-            process = json_loads(data)["process"]
-            assert process["status"] == "completed"
-
-            # close and call receive_text to check websocket close exception
-            websocket.close()
-            data = websocket.receive_text()
-    except WebSocketDisconnect as exception:
-        assert exception.code == status.WS_1000_NORMAL_CLOSURE
-
-
 # long running workflow test only works locally and with memory type
 def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     if websocket_manager.broadcaster_type != "memory" or app_settings.ENVIRONMENT != "local":
@@ -169,7 +137,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     time.sleep(1)
 
     try:
-        with test_client.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all?token=") as websocket:
             # Check the websocket messages.
             # the initial process details.
             data = websocket.receive_text()
@@ -233,6 +201,9 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
             test_condition.notify_all()
         app_settings.TESTING = True
         raise e
+
+    with test_condition:
+        test_condition.notify_all()
     app_settings.TESTING = True
 
 
@@ -249,7 +220,7 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
     pid = response.json()["id"]
 
     try:
-        with test_client.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all?token=") as websocket:
             # Resume process
             user_input = {"generic_select": "A"}
 
@@ -291,7 +262,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
     pid = response.json()["id"]
 
     try:
-        with test_client.websocket_connect(f"api/processes/{pid}?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all?token=") as websocket:
             # Abort process
             response = test_client.put(f"/api/processes/{pid}/abort")
             assert HTTPStatus.NO_CONTENT == response.status_code
@@ -410,6 +381,8 @@ def test_websocket_process_list_multiple_workflows(test_client, test_workflow, t
 
             # Checks if the correct messages are send, without order for which workflow.
             while True:
+                if message_count == 9:
+                    break
                 message = websocket.receive_text()
                 message_count += 1
                 json_data = json_loads(message)
