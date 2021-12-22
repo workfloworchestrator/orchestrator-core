@@ -19,13 +19,11 @@ from uuid import UUID
 
 from structlog import get_logger
 
-from orchestrator.db import ProcessStepTable, ProcessTable
-from orchestrator.forms import generate_form
+from orchestrator.db import ProcessTable
 from orchestrator.settings import AppSettings, app_settings
-from orchestrator.types import InputFormGenerator
 from orchestrator.utils.show_process import show_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflow import ProcessStatus
+from orchestrator.workflow import ProcessStat, ProcessStatus
 
 logger = get_logger(__name__)
 
@@ -80,31 +78,15 @@ def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
     return websocket_manager
 
 
-def create_process_step_websocket_data(
-    process: ProcessTable, step: ProcessStepTable, step_form: Optional[InputFormGenerator]
-) -> Dict:
-    form = None
-    if step_form:
-        form = generate_form(step_form, step.state, [])
-
-    return {
-        "process": show_process(process),
-        "step": {
-            "name": step.name,
-            "executed": int(step.executed_at.timestamp()),
-            "status": step.status,
-            "state": step.state,
-            "commit_hash": step.commit_hash,
-            "form": form,
-        },
-    }
+def create_process_websocket_data(process: ProcessTable, pStat: ProcessStat) -> Dict:
+    return {"process": show_process(process, pStat)}
 
 
 def is_process_active(p: Dict) -> bool:
     return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
-def send_process_step_data_to_websocket(pid: UUID, data: Dict) -> None:
+def send_process_data_to_websocket(pid: UUID, data: Dict) -> None:
     channel = WS_CHANNELS.SINGLE_PROCESS(pid)
 
     if not is_process_active(data["process"]):
@@ -126,7 +108,7 @@ async def empty_handler() -> None:
 def websocket_enabled(handler: Any) -> Any:
     @wraps(handler)
     @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
+    async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
         if websocket_manager.enabled:
             return await handler(*args, **kwargs)
         else:
@@ -138,9 +120,9 @@ def websocket_enabled(handler: Any) -> Any:
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
-    "create_process_step_websocket_data",
+    "create_process_websocket_data",
     "is_process_active",
-    "send_process_step_data_to_websocket",
+    "send_process_data_to_websocket",
     "websocket_enabled",
     "WS_CHANNELS",
 ]
