@@ -30,11 +30,7 @@ from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.websocket import (
-    create_process_step_websocket_data,
-    send_process_step_data_to_websocket,
-    websocket_manager,
-)
+from orchestrator.websocket import create_process_websocket_data, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import Failed
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
@@ -172,8 +168,9 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
         raise
 
     if websocket_manager.enabled:
-        websocket_data = create_process_step_websocket_data(p, current_step, step.form)
-        send_process_step_data_to_websocket(p.pid, websocket_data)
+        new_pStat = load_process(p)
+        websocket_data = create_process_websocket_data(p, new_pStat)
+        send_process_data_to_websocket(p.pid, websocket_data)
 
     # Return the state as stored in the database
     return process_state.__class__(current_step.state)

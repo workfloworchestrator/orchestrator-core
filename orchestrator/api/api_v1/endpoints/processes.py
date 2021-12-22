@@ -28,7 +28,7 @@ from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import String, cast
-from sqlalchemy.orm import contains_eager, defer, joinedload, load_only
+from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql import expression
 from starlette.responses import Response
 
@@ -43,7 +43,6 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.forms import generate_form
 from orchestrator.schemas import (
     ProcessIdSchema,
     ProcessListItemSchema,
@@ -54,9 +53,8 @@ from orchestrator.schemas import (
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
 from orchestrator.types import JSON
-from orchestrator.utils.json import json_dumps
 from orchestrator.utils.show_process import show_process
-from orchestrator.websocket import WS_CHANNELS, is_process_active, websocket_enabled, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, websocket_enabled, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -176,31 +174,9 @@ def assignees() -> List[str]:
 @router.get("/{pid}", response_model=ProcessSchema)
 def show(pid: UUID) -> Dict[str, Any]:
     process = _get_process(pid)
-
     p = load_process(process)
 
-    steps = [
-        {
-            "name": step.name,
-            "executed": int(step.executed_at.timestamp()),
-            "status": step.status,
-            "state": step.state,
-            "commit_hash": step.commit_hash,
-        }
-        for step in process.steps
-    ]
-
-    if p.log:
-        form = p.log[0].form
-        steps += list(map(lambda step: {"name": step.name, "status": "pending"}, p.log))
-    else:
-        form = None
-
-    data = show_process(process)
-    data["current_state"] = p.state.unwrap()
-    data["steps"] = steps
-    data["form"] = generate_form(form, p.state.unwrap(), [])
-
+    data = show_process(process, p)
     return data
 
 
@@ -354,47 +330,5 @@ async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) 
         await websocket_manager.disconnect(websocket, reason=error)
         return
 
-    await websocket.send_text(json_dumps({"failedProcesses": get_failed_processes()}))
-
     channel = WS_CHANNELS.ALL_PROCESSES
     await websocket_manager.connect(websocket, channel)
-
-
-@router.websocket("/{pid}")
-@websocket_enabled
-async def websocket_process_detail(websocket: WebSocket, pid: UUID, token: str = Query(...)) -> None:
-    error = await websocket_manager.authorize(websocket, token)
-
-    await websocket.accept()
-
-    if error:
-        await websocket_manager.disconnect(websocket, reason=error)
-        return
-
-    try:
-        process = get_current_process_data(pid)
-    except Exception as error:
-        await websocket_manager.disconnect(websocket, reason={"error": vars(error)})
-        return
-
-    await websocket.send_text(json_dumps({"process": process}))
-    if not is_process_active(process):
-        await websocket.close()
-        return
-
-    channel = WS_CHANNELS.SINGLE_PROCESS(pid)
-    await websocket_manager.connect(websocket, channel)
-
-
-def get_current_process_data(pid: UUID) -> Dict[str, Any]:
-    return show(pid)
-
-
-def get_failed_processes() -> List[Dict[str, Any]]:
-    return (
-        ProcessTable.query.options(
-            load_only(ProcessTable.pid, ProcessTable.last_status),
-        )
-        .filter(ProcessTable.last_status.in_(["failed", "inconsistent_data", "api_unavailable"]))
-        .all()
-    )
