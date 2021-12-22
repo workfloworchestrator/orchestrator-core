@@ -42,12 +42,11 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
     form = None
     if pStat.log:
         form = pStat.log[0].form
-
         pstat_steps = list(map(lambda step: {"name": step.name, "status": "pending"}, pStat.log))
-        for step in steps:
-            if step["name"] == pstat_steps[0]["name"]:
-                pstat_steps.pop(0)
         steps += pstat_steps
+
+    current_state = pStat.state.unwrap() if pStat.state else None
+    generated_form = generate_form(form, current_state, []) if form and current_state else None
 
     return {
         "id": process.pid,
@@ -73,6 +72,6 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
             for s in process.process_subscriptions
         ],
         "is_task": process.is_task,
-        "form": generate_form(form, pStat.state.unwrap(), []),
-        "current_state": pStat.state.unwrap(),
+        "form": generated_form,
+        "current_state": current_state,
     }

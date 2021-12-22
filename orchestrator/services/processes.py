@@ -168,7 +168,8 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
         raise
 
     if websocket_manager.enabled:
-        websocket_data = create_process_websocket_data(p, stat)
+        new_pStat = load_process(p)
+        websocket_data = create_process_websocket_data(p, new_pStat)
         send_process_data_to_websocket(p.pid, websocket_data)
 
     # Return the state as stored in the database
