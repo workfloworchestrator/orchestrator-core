@@ -14,12 +14,11 @@
 """Module that implements subscription related API endpoints."""
 
 from http import HTTPStatus
-
-from fastapi import Depends
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from fastapi import Depends
 from fastapi.routing import APIRouter
 from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
@@ -40,9 +39,10 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
+    get_subscription,
     query_child_subscriptions,
     query_parent_subscriptions,
-    subscription_workflows, get_subscription,
+    subscription_workflows,
 )
 
 router = APIRouter()
