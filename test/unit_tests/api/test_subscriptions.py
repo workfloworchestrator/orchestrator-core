@@ -585,7 +585,7 @@ def test_try_set_failed_task_in_sync(seed, test_client):
 
     create_failed_process()
 
-    response = test_client.put(f"/api/surf/subscriptions/{subscription_id}/set_in_sync")
+    response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     subscription = SubscriptionTable.query.get(subscription_id)
