@@ -14,11 +14,14 @@
 """Module that implements subscription related API endpoints."""
 
 from http import HTTPStatus
+
+from fastapi import Depends
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
 from fastapi.routing import APIRouter
+from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
@@ -35,10 +38,11 @@ from orchestrator.db import (
 )
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
+from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     query_child_subscriptions,
     query_parent_subscriptions,
-    subscription_workflows,
+    subscription_workflows, get_subscription,
 )
 
 router = APIRouter()
@@ -161,3 +165,33 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
             {parent.subscription_id for parent in subscription_instance.parents},
         )
     )
+
+
+@router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
+def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
+    def failed_processes() -> list:
+        return (
+            ProcessSubscriptionTable.query.join(ProcessTable)
+            .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
+            .filter(~ProcessTable.is_task)
+            .filter(ProcessTable.last_status != "completed")
+            .all()
+        )
+
+    try:
+        subscription = get_subscription(subscription_id, for_update=True)
+        if not subscription.insync:
+            logger.info(
+                "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
+            )
+
+            if not failed_processes():
+                subscription.insync = True
+                db.session.commit()
+                logger.info("Subscription set in sync", user=current_user)
+            else:
+                raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"Subscription {subscription_id} has still failed tasks")
+        else:
+            logger.info("Subscription already in sync")
+    except ValueError as e:
+        raise_status(HTTPStatus.NOT_FOUND, str(e))
