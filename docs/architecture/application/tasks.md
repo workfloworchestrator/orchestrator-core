@@ -21,11 +21,13 @@ from server.workflow import StepList, done, init, step, workflow
 
 logger = structlog.get_logger(__name__)
 
+
 @step("NSO calls")
 def nso_calls() -> State:
     logger.info("Start NSO calls", ran_at=time.time())
-    time.sleep(5) # Do stuff
+    time.sleep(5)  # Do stuff
     logger.info("NSO calls finished", done_at=time.time())
+
 
 @workflow("Nightly sync", target=Target.SYSTEM)
 def task_sync_from() -> StepList:
@@ -49,6 +51,7 @@ params = dict(
     target="SYSTEM",
     description="Nightly validate and NSO sync",
 )
+
 
 def upgrade() -> None:
     conn = op.get_bind()
@@ -83,6 +86,7 @@ The schedule file is essentially the crontab associated with the task. They are 
 from server.schedules.scheduling import scheduler
 from server.services.processes import start_process
 
+
 @scheduler(name="Nightly sync", time_unit="minutes", period=1)
 def run_nightly_sync() -> None:
     start_process("task_sync_from")
@@ -91,10 +95,10 @@ def run_nightly_sync() -> None:
 Yes this runs every minute even though it's called `nightly_sync`. There are other variations on the time units that can be used:
 
 ```python
-time_unit="hour", period=1
-time_unit="hours", period=6
-time_unit="day", at="03:00"
-time_unit="day", at="00:10"
+time_unit = "hour", period = 1
+time_unit = "hours", period = 6
+time_unit = "day", at = "03:00"
+time_unit = "day", at = "00:10"
 ```
 
 And similar to the task/workflow file, the schedule file will need to be registered in `orchestrator/server/schedules/__init__.py`:
@@ -153,7 +157,7 @@ But the schedule (ie: crontab) files are also code modules so one can achieve th
 def run_nightly_sync() -> None:
     subs = Subscription.query.filter(
         Subscription.description.like("Node%Provisioned")
-        ).all()
+    ).all()
     logger.info("Node schedule subs", subs=subs)
 
     for sub in subs:

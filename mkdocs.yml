@@ -73,7 +73,10 @@ nav:
     - Architecture; TLDR: architecture/tldr.md
     - Orchestration Philosofy: architecture/orchestration/philosophy.md
     - How do Workflows work?: architecture/application/workflow.md
+    - What are tasks?: architecture/application/tasks.md
+    - Validating input through forms: architecture/application/forms.md
     - Domain Models: architecture/application/domainmodels.md
     - Api Docs: architecture/application/api.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
+    - Testing: contributing/testing.md

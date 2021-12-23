@@ -54,9 +54,16 @@ import uuid
 import pytest
 
 from server.db import Product, Subscription
-from test.unit_tests.workflows import (assert_complete,
-    assert_failed, extract_error, extract_state, run_workflow,
-    assert_suspended, resume_workflow)
+from test.unit_tests.workflows import (
+    assert_complete,
+    assert_failed,
+    extract_error,
+    extract_state,
+    run_workflow,
+    assert_suspended,
+    resume_workflow,
+)
+
 
 @pytest.mark.workflow
 def test_create_cts(responses):
@@ -68,20 +75,20 @@ def test_create_cts(responses):
 To start it off, just define the initial input content in a data structure and feed it to a function that starts the workflow:
 
 ```python
-    initial_state = [
-        {"product": str(product.product_id)},
-        {
-            "organisation" : ESNET_ORG_UUID,
-            "esnet5_circuit_id" : "2",
-            "esnet6_circuit_id" : "2",
-            "snow_ticket_assignee" : "mgoode",
-            "noc_due_date" : "2020-07-02 07:00:00",
-        },
-    ]
+initial_state = [
+    {"product": str(product.product_id)},
+    {
+        "organisation": ESNET_ORG_UUID,
+        "esnet5_circuit_id": "2",
+        "esnet6_circuit_id": "2",
+        "snow_ticket_assignee": "mgoode",
+        "noc_due_date": "2020-07-02 07:00:00",
+    },
+]
 
-    result, process, step_log = run_workflow("create_circuit_transition", initial_state)
-    assert_suspended(result)
-    state = extract_state(result)
+result, process, step_log = run_workflow("create_circuit_transition", initial_state)
+assert_suspended(result)
+state = extract_state(result)
 ```
 
 In this example it's a workflow suspends several times so the `assert_suspended` function is called. If the workflow doesn't have anything like that (ie: it's just one step) you can just let it go and call `assert_complete`. In the above example, you can pause, and examine the state object to make sure the contents are what is expected.
@@ -89,19 +96,19 @@ In this example it's a workflow suspends several times so the `assert_suspended`
 To resume a multi-step/suspended workflow, you do this:
 
 ```python
-    confirm_complete_prework = {
-        "outbound_shipper" : "fedex",
-        "return_shipper" : "fedex",
-        "generate_shipping_details" : "ACCEPTED",
-        "provider_receiving_ticket" : "23432",
-        "provider_remote_hands_ticket" : "345345",
-        "confirm_colo_and_ports" : "ACCEPTED",
-        "complete_mops_info" : "ACCEPTED",
-        "create_pmc_notification" : "pmc notify",
-        "reserve_traffic_generator" : "ACCEPTED",
-    }
+confirm_complete_prework = {
+    "outbound_shipper": "fedex",
+    "return_shipper": "fedex",
+    "generate_shipping_details": "ACCEPTED",
+    "provider_receiving_ticket": "23432",
+    "provider_remote_hands_ticket": "345345",
+    "confirm_colo_and_ports": "ACCEPTED",
+    "complete_mops_info": "ACCEPTED",
+    "create_pmc_notification": "pmc notify",
+    "reserve_traffic_generator": "ACCEPTED",
+}
 
-    result, step_log = resume_workflow(process, step_log, confirm_complete_prework)
+result, step_log = resume_workflow(process, step_log, confirm_complete_prework)
 ```
 
 One doesn't need to update the main state object, just create a fresh data structure of the new data and call `resume_workflow` - the new data will be added to the state object. Lather, rinse and repeat until the workflow is complete.
@@ -121,9 +128,9 @@ def test_create_cts(responses):
 That responses arg being passed in is the aforementioned fixture. This is then passed into your mock classes:
 
 ```python
-    esdb = EsdbMocks(responses)
-    oauth = OAuthMocks(responses)
-    snow = SnowMocks(responses)
+esdb = EsdbMocks(responses)
+oauth = OAuthMocks(responses)
+snow = SnowMocks(responses)
 ```
 
 `Product.name` needs to match the first argument of the `@create_workflow` decorator and needs to be defined as a product in the database or that call will fail.
@@ -139,13 +146,13 @@ class OAuthMocks:
 
     def post_token(self):
 
-        response = r'''{
+        response = r"""{
   "access_token":"MTQ0NjJkZmQ5OTM2NDE1ZTZjNGZmZjI3",
   "token_type":"bearer",
   "expires_in":3600,
   "refresh_token":"IwOGYzYTlmM2YxOTQ5MGE3YmNmMDFkNTVk",
   "scope":"create"
-}'''
+}"""
         response = json.loads(response)
 
         self.responses.add(
@@ -161,7 +168,7 @@ Pretty basic - define what the return payload looks like. One defines an HTTP ve
 Also, if you're mocking a call that contains a query string make sure to include the
 
 ```python
-match_querystring=True,
+match_querystring = (True,)
 ```
 
 flag to `responses.add()` or you'll go insane trying to figure out why it didn't register properly.
@@ -173,9 +180,9 @@ Not going to lie, this part can get kind of tedious depending on the amount of c
 The way this works is that rather than mimicking the name of the method being mocked, it does a look up using a two-tuple of the verb and the uri. And it needs to be registered with the fixture or else the lookup won't work. So back in the test function, one needs to do this before initiating the workflow:
 
 ```python
-    oauth = OAuthMocks(responses)
-    ...
-    token = oauth.post_token()
+oauth = OAuthMocks(responses)
+...
+token = oauth.post_token()
 ```
 
 Even though you haven't run the workflow yet, and you won't use the return value, doing that registers the verb/uri pair with the fixture. Then going forward when the code executes and there is an HTTP call to that verb/uri pair, the contents of that method will be returned (payload, headers, etc).
@@ -211,9 +218,15 @@ The `-s` flag to `pytest` is needed if you want to see your print statements. Ot
 The `test_esnet` tree is a clone of the SN `test` tree with all of the SN specific stuff removed. Some tests may still reference code in the `test` tree - utility testing code for example:
 
 ```python
-from test.unit_tests.workflows import (assert_complete,
-    assert_failed, extract_error, extract_state, run_workflow,
-    assert_suspended, resume_workflow)
+from test.unit_tests.workflows import (
+    assert_complete,
+    assert_failed,
+    extract_error,
+    extract_state,
+    run_workflow,
+    assert_suspended,
+    resume_workflow,
+)
 ```
 
 That's by design - those things are core orchestrator code so it stays put.
@@ -229,34 +242,34 @@ See `.env.example` on how to set the URI for the database the testing framework 
 The initial state for the form input is defined in a pretty straightforward way - at least for create workflows:
 
 ```python
-    initial_state = [
-        {"product": str(product.product_id)},
-        {
-            "organisation" : ESNET_ORG_UUID,
-            "esnet5_circuit_id" : "2",
-            "esnet6_circuit_id" : "2",
-            "snow_ticket_assignee" : "mgoode",
-            "noc_due_date" : "2020-07-02 07:00:00",
-        },
-    ]
+initial_state = [
+    {"product": str(product.product_id)},
+    {
+        "organisation": ESNET_ORG_UUID,
+        "esnet5_circuit_id": "2",
+        "esnet6_circuit_id": "2",
+        "snow_ticket_assignee": "mgoode",
+        "noc_due_date": "2020-07-02 07:00:00",
+    },
+]
 
-    result, process, step_log = run_workflow("create_circuit_transition", initial_state)
+result, process, step_log = run_workflow("create_circuit_transition", initial_state)
 ```
 
 But there seems to be a gotcha when defining initial state for a terminate / etc workflow that modifies existing subscriptions:
 
 ```python
-    # Yes, the initial state is a list of two identical dicts.
-    # Why? I don't know. But I do know if you don't do this an
-    # maddening form incomplete validation error will happen. -mmg
-    initial_state = [
-        {"subscription_id": nes_subscription2},
-        {
-            "subscription_id": nes_subscription2,
-        }
-    ]
+# Yes, the initial state is a list of two identical dicts.
+# Why? I don't know. But I do know if you don't do this an
+# maddening form incomplete validation error will happen. -mmg
+initial_state = [
+    {"subscription_id": nes_subscription2},
+    {
+        "subscription_id": nes_subscription2,
+    },
+]
 
-    result, process, step_log = run_workflow("terminate_node_enrollment", initial_state)
+result, process, step_log = run_workflow("terminate_node_enrollment", initial_state)
 ```
 
 So if one gets a vague form validation error when doing this, it might be something alone these lines.
