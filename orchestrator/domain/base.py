@@ -37,6 +37,7 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
+from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
     SAFE_PARENT_TRANSITIONS_FOR_STATUS,
     State,
@@ -551,7 +552,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         if cls.name is not None:
             register_specialized_type(cls, lifecycle)
 
-            # Add ourself to any super class. That way we can match a superclass to an instance when loading
+            # Add ourselves to any super class. That way we can match a superclass to an instance when loading
             for klass in cls.__mro__:
                 if issubclass(klass, ProductBlockModel):
                     klass.__names__.add(cls.name)
@@ -696,7 +697,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     ) -> B:
         """Create new domain model from instance while changing the status.
 
-        This makes sure we always have a specific instance..
+        This makes sure we always have a specific instance.
         """
         if not cls.__base_type__:
             cls = ProductBlockModel.registry.get(other.name, cls)  # type:ignore
@@ -851,7 +852,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     ) -> Tuple[List[SubscriptionInstanceTable], SubscriptionInstanceTable]:
         """Save the current model instance to the database.
 
-        This means saving the whole tree of subscription instances and seperately saving all instance values for this instance.
+        This means saving the whole tree of subscription instances and separately saving all instance values for this instance.
 
         Args:
             status: current SubscriptionLifecycle to check if all constraints match
@@ -1134,7 +1135,7 @@ class SubscriptionModel(DomainModel):
     ) -> S:
         """Create new domain model from instance while changing the status.
 
-        This makes sure we always have a speficic instance.
+        This makes sure we always have a specific instance.
         """
         if not cls.__base_type__:
             # Import here to prevent cyclic imports
@@ -1155,6 +1156,75 @@ class SubscriptionModel(DomainModel):
         model._db_model = other._db_model
 
         return model
+
+    # TODO: this method has quite a lot in common with from_subscription. If we are happy with this approach we can
+    # extract some common functions
+    @classmethod
+    def from_other_product(
+        cls: Type[S],
+        old_instantiation: S,
+        new_product_id: Union[UUID, str],
+        new_root: Optional[tuple[str, ProductBlockModel]] = None,
+    ) -> S:
+        db_product = get_product_by_id(new_product_id)
+
+        subscription = SubscriptionTable.query.options(
+            selectinload(SubscriptionTable.instances)
+            .selectinload(SubscriptionInstanceTable.product_block)
+            .selectinload(ProductBlockTable.resource_types),
+            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.parent_relations),
+            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+        ).get(old_instantiation.subscription_id)
+
+        product = ProductModel(
+            name=db_product.name,
+            description=db_product.description,
+            product_id=db_product.product_id,
+            tag=db_product.tag,
+            product_type=db_product.product_type,
+            status=db_product.status,
+        )
+
+        status = SubscriptionLifecycle(subscription.status)
+
+        if not cls.__base_type__:
+            # Import here to prevent cyclic imports
+            from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+
+            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type:ignore
+            cls = lookup_specialized_type(cls, status)
+        elif not issubclass(cls, lookup_specialized_type(cls, status)):
+            raise ValueError(f"{cls} is not valid for lifecycle {status}")
+
+        fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
+
+        if new_root:
+            name, product_block = new_root
+            instances = {name: product_block}
+        else:
+            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
+
+        try:
+            model = cls(
+                product=product,
+                customer_id=subscription.customer_id,
+                subscription_id=subscription.subscription_id,
+                description=subscription.description,
+                status=status,
+                insync=subscription.insync,
+                start_date=subscription.start_date,
+                end_date=subscription.end_date,
+                note=subscription.note,
+                **fixed_inputs,
+                **instances,  # type: ignore
+            )
+            model._db_model = subscription
+            return model
+        except ValidationError:
+            logger.exception(
+                "Subscription is not correct in database", loaded_fixed_inputs=fixed_inputs, loaded_instances=instances
+            )
+            raise
 
     @classmethod
     def from_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> S:
@@ -1186,6 +1256,7 @@ class SubscriptionModel(DomainModel):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
+
         instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
         try:
@@ -1281,7 +1352,7 @@ class SubscriptionInstanceList(ConstrainedList, List[SI]):
         super().__init_subclass__(**kwargs)  # type:ignore
 
         # Copy generic argument (SI) if not set explicitly
-        # This makes a lot of assuptions about the internals of `typing`
+        # This makes a lot of assumptions about the internals of `typing`
         if "__orig_bases__" in cls.__dict__ and cls.__dict__["__orig_bases__"]:
             generic_base_cls = cls.__dict__["__orig_bases__"][0]
             if not hasattr(generic_base_cls, "item_type") and get_args(generic_base_cls):

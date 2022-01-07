@@ -40,7 +40,7 @@ class strEnum(str, Enum):
 
     @classmethod
     def values(cls) -> List:
-        return list(map(lambda obj: obj.value, cls))  # type: ignore
+        return [obj.value for obj in cls]  # type: ignore
 
 
 class SubscriptionLifecycle(strEnum):
