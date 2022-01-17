@@ -33,8 +33,3 @@ class EngineSettingsSchema(EngineSettingsBaseSchema):
 
     class Config:
         orm_mode = True
-
-
-class EngineSettingsSchemaResult(EngineSettingsSchema):
-    class Config:
-        orm_mode = False

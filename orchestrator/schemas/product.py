@@ -22,7 +22,7 @@ from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBl
 from orchestrator.schemas.workflow import WorkflowSchema
 
 
-class ProductBaseSchemaORM(OrchestratorBaseModel):
+class ProductBaseSchema(OrchestratorBaseModel):
     product_id: Optional[UUID]
     name: str
     description: str
@@ -36,7 +36,7 @@ class ProductBaseSchemaORM(OrchestratorBaseModel):
         orm_mode = True
 
 
-class ProductSchemaORM(ProductBaseSchemaORM):
+class ProductSchema(ProductBaseSchema):
     product_id: UUID
     created_at: datetime
     product_blocks: List[ProductBlockSchema]
@@ -44,14 +44,6 @@ class ProductSchemaORM(ProductBaseSchemaORM):
     workflows: List[WorkflowSchema]
 
 
-class ProductCRUDSchema(ProductBaseSchemaORM):
+class ProductCRUDSchema(ProductBaseSchema):
     product_blocks: Optional[List[ProductBlockBaseSchema]]
     fixed_inputs: Optional[List[FixedInputBaseSchema]]
-
-    class Config:
-        orm_mode = False
-
-
-class ProductBaseSchemaNoORM(ProductBaseSchemaORM):
-    class Config:
-        orm_mode = False
