@@ -26,7 +26,5 @@ class ResourceTypeBaseSchema(OrchestratorBaseModel):
 class ResourceTypeSchema(ResourceTypeBaseSchema):
     resource_type_id: UUID
 
-
-class ResourceTypeSchemaORM(ResourceTypeSchema):
     class Config:
         orm_mode = True
