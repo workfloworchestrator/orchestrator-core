@@ -17,7 +17,7 @@ from uuid import UUID
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.subscription import SubscriptionBaseSchema
+from orchestrator.schemas.subscription import SubscriptionBaseSchema, SubscriptionSchema
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
 
@@ -113,4 +113,4 @@ class ProcessListItemSchema(OrchestratorBaseModel):
     workflow: str
     workflow_target: Optional[Target]
     is_task: bool
-    subscriptions: List[SubscriptionBaseSchema]
+    subscriptions: List[SubscriptionSchema]
