@@ -24,7 +24,7 @@ from orchestrator.schemas.process import (
 )
 from orchestrator.schemas.product import ProductBaseSchema, ProductCRUDSchema, ProductSchema
 from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockEnrichedSchema
-from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema, ResourceTypeSchemaORM
+from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionIdSchema, SubscriptionSchema
 from orchestrator.schemas.subscription_descriptions import (
     SubscriptionDescriptionBaseSchema,
@@ -58,7 +58,6 @@ __all__ = (
     "SubscriptionIdSchema",
     "ResourceTypeSchema",
     "ResourceTypeBaseSchema",
-    "ResourceTypeSchemaORM",
     "WorkflowSchema",
     "WorkflowWithProductTagsSchema",
 )

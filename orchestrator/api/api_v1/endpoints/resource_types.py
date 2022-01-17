@@ -21,17 +21,17 @@ from fastapi.routing import APIRouter
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
 from orchestrator.db import ProductBlockTable, ResourceTypeTable
-from orchestrator.schemas import ResourceTypeBaseSchema, ResourceTypeSchema, ResourceTypeSchemaORM
+from orchestrator.schemas import ResourceTypeBaseSchema, ResourceTypeSchema
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ResourceTypeSchemaORM])
+@router.get("/", response_model=List[ResourceTypeSchema])
 def fetch() -> List[ResourceTypeTable]:
     return ResourceTypeTable.query.all()
 
 
-@router.get("/{resource_type_id}", response_model=ResourceTypeSchemaORM)
+@router.get("/{resource_type_id}", response_model=ResourceTypeSchema)
 def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
     resource_type = ResourceTypeTable.query.filter_by(resource_type_id=resource_type_id).first()
     if not resource_type:
