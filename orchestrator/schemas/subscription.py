@@ -18,7 +18,7 @@ from uuid import UUID
 from pydantic import Extra
 
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.product import ProductBaseSchemaNoORM, ProductBaseSchemaORM
+from orchestrator.schemas.product import ProductBaseSchema
 from orchestrator.schemas.product_block import ProductBlockSchema
 from orchestrator.schemas.resource_type import ResourceTypeSchema
 from orchestrator.schemas.subscription_descriptions import SubscriptionDescriptionSchema
@@ -83,24 +83,12 @@ class SubscriptionSchema(SubscriptionBaseSchema):
     name: Optional[str]
     subscription_id: UUID
     end_date: Optional[datetime]
-    product: Optional[ProductBaseSchemaORM]
+    product: Optional[ProductBaseSchema]
     customer_descriptions: Optional[List[SubscriptionDescriptionSchema]]
     tag: Optional[str]
 
     class Config:
         orm_mode = True
-
-
-class SubscriptionSchemaNoOrm(SubscriptionBaseSchema):
-    name: Optional[str]
-    subscription_id: UUID
-    end_date: Optional[datetime]
-    product: Optional[ProductBaseSchemaNoORM]
-    customer_descriptions: Optional[List[SubscriptionDescriptionSchema]]
-    tag: Optional[str]
-
-    class Config:
-        orm_mode = False
 
 
 class SubscriptionIdSchema(OrchestratorBaseModel):
@@ -109,8 +97,7 @@ class SubscriptionIdSchema(OrchestratorBaseModel):
 
 class SubscriptionDomainModelSchema(SubscriptionSchema):
     customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []  # type: ignore
-    product: ProductBaseSchemaNoORM
+    product: ProductBaseSchema
 
     class Config:
         extra = Extra.allow
-        orm_mode = False

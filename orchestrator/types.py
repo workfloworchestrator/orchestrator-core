@@ -189,7 +189,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
                     return True
         elif get_origin(t) == Literal:  # type:ignore
             return False  # Literal cannot contain lists see pep 586
-        elif issubclass(get_origin(t), list):
+        elif issubclass(get_origin(t), list):  # type: ignore
             if test_type and get_args(t):
                 return is_of_type(get_args(t)[0], test_type)
             else:
