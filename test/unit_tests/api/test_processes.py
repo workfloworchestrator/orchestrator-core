@@ -406,6 +406,20 @@ def test_processes_filterable_response_model(
     }
 
 
+def test_processes_filterable_response_model_contains_product_info(
+    test_client, mocked_processes, generic_subscription_2, generic_subscription_1
+):
+    response = test_client.get("/api/processes/?sort=started,asc")
+    assert HTTPStatus.OK == response.status_code
+    processes = response.json()
+    assert len(processes) == 7
+    process = processes[0]
+
+    assert len(process["subscriptions"]) == 1
+    assert process["subscriptions"][0]["product"]["tag"] == "GEN1"
+    assert process["subscriptions"][0]["product"]["name"] == "Product 1"
+
+
 def test_processes_assignees(test_client):
     response = test_client.get("/api/processes/assignees")
     assert HTTPStatus.OK == response.status_code
