@@ -21,6 +21,7 @@ from orchestrator.schemas.process import (
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
+    ProcessResumeAllSchema,
 )
 from orchestrator.schemas.product import ProductBaseSchema, ProductCRUDSchema, ProductSchema
 from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockEnrichedSchema
@@ -45,6 +46,7 @@ __all__ = (
     "ProductBaseSchema",
     "ProductSchema",
     "ProcessSubscriptionSchema",
+    "ProcessResumeAllSchema",
     "ProcessBaseSchema",
     "ProcessSchema",
     "ProcessIdSchema",

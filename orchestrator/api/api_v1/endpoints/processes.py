@@ -49,6 +49,7 @@ from orchestrator.schemas import (
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
+    ProcessResumeAllSchema,
 )
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
@@ -112,6 +113,62 @@ def resume_process_endpoint(
     user_name = user.user_name if user else SYSTEM_USER
 
     resume_process(process, user=user_name, user_inputs=json_data)
+
+
+@router.put("/resume-all", response_model=ProcessResumeAllSchema)
+def resume_all_processess_endpoint(
+    json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> Dict[str, int]:
+    check_global_lock()
+
+    # TODO maybe allow only 1 resume-all request to run? As it can take quite some time to complete
+    #  for a large number of failed processes. (and someone might assume it's not working, click
+    #  'Rerun all' again, creating another request which will also try to resume processes..)
+
+    user_name = user.user_name if user else SYSTEM_USER
+
+    # orchestrator-gui/src/pages/Tasks.tsx  restarts processes that are tasks and have status:
+    # ["running", "failed", "waiting", "api_unavailable", "inconsistent_data"]
+    # Processes with status "running" are not allowed to be restarted, so filter for the other 4
+    processes_to_restart = (
+        ProcessTable.query.options(
+            joinedload(ProcessTable.steps),
+            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+        )
+        .filter(
+            ProcessTable.last_status.in_(
+                [
+                    ProcessStatus.FAILED,
+                    ProcessStatus.WAITING,
+                    ProcessStatus.API_UNAVAILABLE,
+                    ProcessStatus.INCONSISTENT_DATA,
+                ]
+            )
+        )
+        .filter(ProcessTable.is_task.is_(True))
+        .all()
+    )
+
+    # TODO remove log statements, or reduce level
+    resumed = refused = failed = 0
+    logger.warning(f"Going to resume {len(processes_to_restart)} processes")
+    for process in processes_to_restart:
+        try:
+            resume_process(process, user=user_name)
+            resumed += 1
+        except ValueError as e:
+            if "cannot be resumed" in str(e).lower():
+                refused += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+        logger.warning(
+            f"Resuming {len(processes_to_restart)} process: resumed {resumed} refused {refused} failed {failed}"
+        )
+
+    # TODO maybe return other counters as well
+    return {"count": resumed}
 
 
 @router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
