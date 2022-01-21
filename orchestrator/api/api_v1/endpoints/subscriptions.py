@@ -24,6 +24,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
+from orchestrator import settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import _query_with_filters
 from orchestrator.db import (
@@ -170,11 +171,14 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
 def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
     def failed_processes() -> list:
+        if settings.DISABLE_INSYNC_CHECK:
+            return []
         return (
             ProcessSubscriptionTable.query.join(ProcessTable)
             .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
             .filter(~ProcessTable.is_task)
             .filter(ProcessTable.last_status != "completed")
+            .filter(ProcessTable.last_status != "aborted")
             .all()
         )
 
