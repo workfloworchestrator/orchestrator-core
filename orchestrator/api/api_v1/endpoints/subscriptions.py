@@ -170,7 +170,7 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
 def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
-    def failed_processes() -> list[str]:
+    def failed_processes() -> List[str]:
         if app_settings.DISABLE_INSYNC_CHECK:
             return []
         _failed_processes = (
