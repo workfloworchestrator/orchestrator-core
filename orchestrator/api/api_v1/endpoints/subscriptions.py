@@ -197,7 +197,7 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
             else:
                 raise_status(
                     HTTPStatus.UNPROCESSABLE_ENTITY,
-                    f"Subscription {subscription_id} has still failed tasks with id's: {failed_processes}",
+                    f"Subscription {subscription_id} has still failed processes with id's: {failed_processes}",
                 )
         else:
             logger.info("Subscription already in sync")
