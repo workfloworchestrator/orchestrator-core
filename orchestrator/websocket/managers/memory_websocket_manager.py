@@ -33,7 +33,9 @@ class MemoryWebsocketManager:
 
         try:
             while True:
-                await websocket.receive_text()
+                message = await websocket.receive_text()
+                if message == "__ping__":
+                    await websocket.send_text("__pong__")
         except WebSocketDisconnect:
             pass
 

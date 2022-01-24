@@ -52,7 +52,8 @@ class BroadcastWebsocketManager:
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
-            pass
+            if message == "__ping__":
+                await websocket.send_text("__pong__")
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
         async with self.sub_broadcast.subscribe(channel=channel) as subscriber:
