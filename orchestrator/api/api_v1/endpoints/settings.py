@@ -38,9 +38,9 @@ router = APIRouter()
 async def clear_cache(name: str, background_tasks: BackgroundTasks) -> None:
     cache = Cache(Cache.REDIS, endpoint=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
     if name == "all":
-        background_tasks.add_task(cache.delete, "/*")
+        await cache.clear(namespace="orchestrator")
     else:
-        background_tasks.add_task(cache.delete, f"/{name}*")
+        await cache.clear(namespace=f"orchestrator:{name}")
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
