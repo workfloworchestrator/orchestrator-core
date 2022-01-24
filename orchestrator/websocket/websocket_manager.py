@@ -66,5 +66,8 @@ class WebSocketManager:
     ) -> None:
         await self._backend.disconnect(websocket, code, reason)
 
+    async def disconnect_all(self) -> None:
+        await self._backend.disconnect_all()
+
     async def broadcast_data(self, channels: List[str], data: Dict) -> None:
         await self._backend.broadcast_data(channels, data)
