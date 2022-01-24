@@ -20,10 +20,11 @@ from uuid import UUID, uuid4
 import structlog
 from deepmerge import Merger
 from nwastdlib.ex import show_ex
+from sqlalchemy.orm import joinedload
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db
+from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db, ProcessSubscriptionTable
 from orchestrator.forms import FormValidationError, post_process
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -365,6 +366,38 @@ def resume_process(
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep))
 
 
+def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> None:
+    """Asynchronously resume multiple failed or suspended processes.
+
+    Args:
+        processes: Processes from database
+        user_name: User who requested resuming the processes
+    """
+
+    def run():
+        resumed = 0
+        for _proc in processes:
+            # Todo should the loop check the global lock and abort when needed?
+            try:
+                process = _get_process(_proc.pid)
+                if process.last_status == ProcessStatus.RUNNING:
+                    # Process has been started by something else in the meantime
+                    logger.info("Cannot resume a running process", pid=_proc.pid)
+                    continue
+                resume_process(process, user=user_name)
+                resumed += 1
+            except Exception:
+                logger.exception("Failed to resume process", pid=_proc.pid)
+        logger.info(f"Resumed {resumed} out of {len(processes)} processes")
+
+    workflow_executor = get_thread_pool()
+
+    process_handle = workflow_executor.submit(run)
+
+    if app_settings.TESTING:
+        process_handle.result()
+
+
 def abort_process(process: ProcessTable, user: str) -> WFProcess:
     pstat = load_process(process)
 
@@ -412,3 +445,15 @@ def load_process(process: ProcessTable) -> ProcessStat:
     pstate, remaining = _recoverwf(workflow, log)
 
     return ProcessStat(pid=process.pid, workflow=workflow, state=pstate, log=remaining, current_user=SYSTEM_USER)
+
+
+def _get_process(pid: UUID) -> ProcessTable:
+    process = ProcessTable.query.options(
+        joinedload(ProcessTable.steps),
+        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+    ).get(pid)
+
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
+
+    return process
