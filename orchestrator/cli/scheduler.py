@@ -39,8 +39,11 @@ def run() -> None:
     while True:
         schedule.run_pending()
         idle = schedule.idle_seconds()
-        log.info("Sleeping for %d seconds", idle)
-        sleep(idle)
+        if idle < 0:
+            log.info("Next job in queue is scheduled in the past, run it now.")
+        else:
+            log.info("Sleeping for %d seconds", idle)
+            sleep(idle)
 
 
 @app.command()

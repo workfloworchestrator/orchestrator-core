@@ -7,6 +7,22 @@ reference the gitlab/github issue that is related to the change.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-rc1] - 2021-12-22
+### Breaking changes
+- SQL-alchemy 1.4.x
+- Refactored models to be compatible with SQL-Alchemy 1.4.x
+- Minimum requirement of Postgres 12
+
+### Features
+- Python 3.10 support
+- Pydantic v1.9.0a1
+- Updated schemas to support Pydantic v1.9.0
+- Implemented Websockets on Process detail, process-list and engine settings
+- Precommit hook updates
+- Nitpick updates
+- Removal of deprecated functions, `change_subscription_lifecycle` and `get_product`
+
+
 ## [0.2.0] - 2021-10-25
 
 ### Breaking changes

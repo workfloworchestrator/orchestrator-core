@@ -27,12 +27,12 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[ResourceTypeSchema])
-def fetch() -> List[ResourceTypeSchema]:
+def fetch() -> List[ResourceTypeTable]:
     return ResourceTypeTable.query.all()
 
 
 @router.get("/{resource_type_id}", response_model=ResourceTypeSchema)
-def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeSchema:
+def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
     resource_type = ResourceTypeTable.query.filter_by(resource_type_id=resource_type_id).first()
     if not resource_type:
         raise_status(HTTPStatus.NOT_FOUND, f"Resource type {resource_type_id} not found")

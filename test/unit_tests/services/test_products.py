@@ -4,19 +4,7 @@ import pytest
 from sqlalchemy.orm.exc import NoResultFound
 
 from orchestrator.db import ProductTable
-from orchestrator.services.products import get_product, get_product_by_id, get_product_by_name, get_tags, get_types
-
-
-def test_get_product(generic_product_1):
-    product = ProductTable.query.filter(ProductTable.name == "Product 1").one()
-
-    result = get_product(product.product_id)
-    assert result.product_id == product.product_id
-
-
-def test_get_product_err(generic_product_1):
-    with pytest.raises(ValueError):
-        get_product(uuid4())
+from orchestrator.services.products import get_product_by_id, get_product_by_name, get_tags, get_types
 
 
 def test_get_product_by_id(generic_product_1):

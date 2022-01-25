@@ -48,6 +48,7 @@ class ProductBlockSchema(ProductBlockBaseSchema):
     status: ProductLifecycle
     created_at: datetime
     end_date: Optional[datetime]
+    resource_types: Optional[List[ResourceTypeSchema]]  # type: ignore
 
     class Config:
         orm_mode = True

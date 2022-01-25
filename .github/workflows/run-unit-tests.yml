@@ -7,11 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ 3.9.7 ]
+        python-version: [3.8.12, 3.9.9, 3.10.1]
     container: python:${{ matrix.python-version }}-slim
     services:
       postgres:
-        image: postgres:11.6-alpine
+        image: postgres:12-alpine
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
@@ -44,6 +44,7 @@ jobs:
           POSTGRES_USER: nwa
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v2
         with:

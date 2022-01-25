@@ -18,8 +18,9 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from fastapi import Depends
 from fastapi.routing import APIRouter
-from sqlalchemy import text
+from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
@@ -36,7 +37,9 @@ from orchestrator.db import (
 )
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
+from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
+    get_subscription,
     query_child_subscriptions,
     query_parent_subscriptions,
     subscription_workflows,
@@ -64,41 +67,9 @@ def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptio
 
 
 @router.get("/all", response_model=List[SubscriptionSchema])
-def subscriptions_all() -> List[SubscriptionSchema]:
+def subscriptions_all() -> List[SubscriptionTable]:
     """Return subscriptions with only a join on products."""
-    subscription_columns = [
-        "subscription_id",
-        "description",
-        "status",
-        "insync",
-        "start_date",
-        "end_date",
-        "customer_id",
-    ]
-    query = """SELECT s.subscription_id, s.description as description, s.status, s.insync, s.start_date,
-               s.end_date, s.customer_id,
-               p.created_at as product_created_at, p.description as product_description,
-               p.end_date as product_end_date, p.name as product_name,
-               p.tag as product_tag, p.product_id as product_product_id, p.status as product_status,
-               p.product_type as product_type
-                FROM subscriptions s
-                 JOIN products p ON s.product_id = p.product_id"""
-    subscriptions = db.session.execute(text(query))
-    result: List[SubscriptionSchema] = []
-    for sub in subscriptions:
-        sub_dict = dict(zip(subscription_columns, sub))
-        product = {
-            "description": sub["product_description"],
-            "name": sub["product_name"],
-            "product_id": sub["product_product_id"],
-            "status": sub["product_status"],
-            "product_type": sub["product_type"],
-            "tag": sub["product_tag"],
-        }
-        sub_dict["product"] = product
-        result.append(SubscriptionSchema.parse_obj(sub_dict))
-    # validation the response doesn't work correct for nested responses: a unit test ensures schema correctness
-    return result
+    return SubscriptionTable.query.all()
 
 
 @router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
@@ -108,7 +79,6 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
     ).all()
 
     subscription = SubscriptionModel.from_subscription(subscription_id).dict()
-
     subscription["customer_descriptions"] = customer_descriptions
 
     if not subscription:
@@ -195,3 +165,33 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
             {parent.subscription_id for parent in subscription_instance.parents},
         )
     )
+
+
+@router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
+def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
+    def failed_processes() -> list:
+        return (
+            ProcessSubscriptionTable.query.join(ProcessTable)
+            .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
+            .filter(~ProcessTable.is_task)
+            .filter(ProcessTable.last_status != "completed")
+            .all()
+        )
+
+    try:
+        subscription = get_subscription(subscription_id, for_update=True)
+        if not subscription.insync:
+            logger.info(
+                "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
+            )
+
+            if not failed_processes():
+                subscription.insync = True
+                db.session.commit()
+                logger.info("Subscription set in sync", user=current_user)
+            else:
+                raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"Subscription {subscription_id} has still failed tasks")
+        else:
+            logger.info("Subscription already in sync")
+    except ValueError as e:
+        raise_status(HTTPStatus.NOT_FOUND, str(e))

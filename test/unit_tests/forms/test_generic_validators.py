@@ -55,7 +55,9 @@ def test_constrained_list_constraints():
 
     with pytest.raises(ValidationError) as exc_info:
         UniqueConListModel(v=[1, 1, 1])
-    assert exc_info.value.errors() == [{"loc": ("v",), "msg": "Items must be unique", "type": "value_error"}]
+    assert exc_info.value.errors() == [
+        {"loc": ("v",), "msg": "the list has duplicated items", "type": "value_error.list.unique_items"}
+    ]
 
     with pytest.raises(ValidationError) as exc_info:
         UniqueConListModel(v=1)
@@ -90,7 +92,9 @@ def test_constrained_list_inherit_constraints():
 
     with pytest.raises(ValidationError) as exc_info:
         UniqueConListModel(v=[1, 1, 1])
-    assert exc_info.value.errors() == [{"loc": ("v",), "msg": "Items must be unique", "type": "value_error"}]
+    assert exc_info.value.errors() == [
+        {"loc": ("v",), "msg": "the list has duplicated items", "type": "value_error.list.unique_items"}
+    ]
 
     with pytest.raises(ValidationError) as exc_info:
         UniqueConListModel(v=1)
@@ -431,7 +435,9 @@ def test_choice_list_constraints():
 
     with pytest.raises(ValidationError) as exc_info:
         Form(choice=[1, 1, 1])
-    assert exc_info.value.errors() == [{"loc": ("choice",), "msg": "Items must be unique", "type": "value_error"}]
+    assert exc_info.value.errors() == [
+        {"loc": ("choice",), "msg": "the list has duplicated items", "type": "value_error.list.unique_items"}
+    ]
 
     with pytest.raises(ValidationError) as exc_info:
         Form(choice=1)

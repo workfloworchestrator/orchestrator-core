@@ -43,9 +43,6 @@ class ProductSchema(ProductBaseSchema):
     fixed_inputs: List[FixedInputSchema]
     workflows: List[WorkflowSchema]
 
-    class Config:
-        orm_mode = True
-
 
 class ProductCRUDSchema(ProductBaseSchema):
     product_blocks: Optional[List[ProductBlockBaseSchema]]
