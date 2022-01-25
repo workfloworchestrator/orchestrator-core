@@ -227,6 +227,18 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
         raise
 
 
+def _get_process(pid: UUID) -> ProcessTable:
+    process = ProcessTable.query.options(
+        joinedload(ProcessTable.steps),
+        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+    ).get(pid)
+
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
+
+    return process
+
+
 def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
         """
@@ -367,7 +379,7 @@ def resume_process(
 
 
 def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> None:
-    """Asynchronously resume multiple failed or suspended processes.
+    """Asynchronously resume multiple failed processes.
 
     Args:
         processes: Processes from database
@@ -445,15 +457,3 @@ def load_process(process: ProcessTable) -> ProcessStat:
     pstate, remaining = _recoverwf(workflow, log)
 
     return ProcessStat(pid=process.pid, workflow=workflow, state=pstate, log=remaining, current_user=SYSTEM_USER)
-
-
-def _get_process(pid: UUID) -> ProcessTable:
-    process = ProcessTable.query.options(
-        joinedload(ProcessTable.steps),
-        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-    ).get(pid)
-
-    if not process:
-        raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
-
-    return process

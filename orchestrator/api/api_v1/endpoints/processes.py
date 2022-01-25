@@ -112,9 +112,7 @@ def resume_process_endpoint(
 
 
 @router.put("/resume-all", response_model=ProcessResumeAllSchema)
-def resume_all_processess_endpoint(
-    json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
-) -> Dict[str, int]:
+def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
     check_global_lock()
 
     user_name = user.user_name if user else SYSTEM_USER

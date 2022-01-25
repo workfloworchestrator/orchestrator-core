@@ -428,3 +428,25 @@ def test_processes_assignees(test_client):
 def test_processes_statuses(test_client):
     response = test_client.get("/api/processes/statuses")
     assert HTTPStatus.OK == response.status_code
+
+
+def test_resume_all_processes(test_client, mocked_processes_resumeall):
+    response = test_client.put("/api/processes/resume-all")
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 3
+
+
+def test_resume_all_processes_nothing_to_do(test_client):
+    response = test_client.put("/api/processes/resume-all")
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 0
+
+
+def test_resume_all_processes_valueerror(test_client, mocked_processes_resumeall, caplog):
+    """Test resuming all processes where one raises ValueError"""
+    with mock.patch("orchestrator.services.processes.resume_process") as mocked_resume:
+        mocked_resume.side_effect = [None, ValueError("This workflow cannot be resumed"), None]
+        response = test_client.put("/api/processes/resume-all")
+    assert HTTPStatus.OK == response.status_code
+    assert response.json()["count"] == 3  # returns 3 because it's async
+    assert "Resumed 2 out of 3 processes" in caplog.text  # log should confirm 1 process was not resumed

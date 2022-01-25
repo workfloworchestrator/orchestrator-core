@@ -18,6 +18,7 @@ from orchestrator.services.processes import (
     _run_process_async,
     _safe_logstep,
     start_process,
+    _async_resume_processes,
 )
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -735,3 +736,28 @@ def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_proc
         },
         [{}],
     )
+
+
+@mock.patch("orchestrator.services.processes._get_process")
+@mock.patch("orchestrator.services.processes.resume_process")
+def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
+    """Test that _async_resume_process() rejects running processes and handles failures."""
+    processes = [mock.Mock(spec=ProcessTable()), mock.Mock(spec=ProcessTable()), mock.Mock(spec=ProcessTable())]
+    processes[0].pid, processes[0].last_status = 123, ProcessStatus.RUNNING
+    processes[1].pid, processes[1].last_status = 124, ProcessStatus.FAILED
+    processes[2].pid, processes[2].last_status = 125, ProcessStatus.API_UNAVAILABLE
+
+    # get_process() should be called 3 times
+    mock_get_process.side_effect = processes
+
+    # resume_process() should be called 2 times for the non-running processes; let 1 call fail
+    mock_resume_process.side_effect = [None, ValueError("This workflow cannot be resumed")]
+
+    # Don't set app_settings.TESTING=False because we want to await the result
+    _async_resume_processes(processes, "testusername")
+
+    assert len(mock_get_process.mock_calls) == 3
+    assert len(mock_resume_process.mock_calls) == 2
+    assert "Cannot resume a running process" in caplog.text  # pid 123 should not be resumed
+    assert "Failed to resume process" in caplog.text  # pid 125 should fail
+    assert "Resumed 1 out of 3 processes" in caplog.text
