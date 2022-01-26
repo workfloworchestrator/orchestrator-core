@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
 from http import HTTPStatus
@@ -24,7 +24,8 @@ from sqlalchemy.orm import joinedload
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db, ProcessSubscriptionTable
+from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -378,29 +379,43 @@ def resume_process(
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep))
 
 
-def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> None:
+async def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> bool:
     """Asynchronously resume multiple failed processes.
 
     Args:
         processes: Processes from database
         user_name: User who requested resuming the processes
+
+    Returns:
+        True if the resume-all operation has been started.
+        False if it has not been started because it is already running.
     """
+    lock_expiration = max(30, len(processes) // 10)
+    if not (lock := await distlock_manager.get_lock("resume-all", lock_expiration)):
+        return False
 
     def run():
-        resumed = 0
-        for _proc in processes:
-            # Todo should the loop check the global lock and abort when needed?
+        try:
+            resumed = 0
+            for _proc in processes:
+                try:
+                    process = _get_process(_proc.pid)
+                    if process.last_status == ProcessStatus.RUNNING:
+                        # Process has been started by something else in the meantime
+                        logger.info("Cannot resume a running process", pid=_proc.pid)
+                        continue
+                    resume_process(process, user=user_name)
+                    resumed += 1
+                except Exception:
+                    logger.exception("Failed to resume process", pid=_proc.pid)
+            logger.info(f"Resumed {resumed} out of {len(processes)} processes")
+        finally:
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(distlock_manager.release_lock(lock))
             try:
-                process = _get_process(_proc.pid)
-                if process.last_status == ProcessStatus.RUNNING:
-                    # Process has been started by something else in the meantime
-                    logger.info("Cannot resume a running process", pid=_proc.pid)
-                    continue
-                resume_process(process, user=user_name)
-                resumed += 1
-            except Exception:
-                logger.exception("Failed to resume process", pid=_proc.pid)
-        logger.info(f"Resumed {resumed} out of {len(processes)} processes")
+                loop.close()
+            except Exception:  # noqa: S110
+                pass
 
     workflow_executor = get_thread_pool()
 
@@ -408,6 +423,8 @@ def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> No
 
     if app_settings.TESTING:
         process_handle.result()
+
+    return True
 
 
 def abort_process(process: ProcessTable, user: str) -> WFProcess:

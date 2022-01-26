@@ -18,10 +18,10 @@ from orchestrator.schemas.process import (
     ProcessBaseSchema,
     ProcessIdSchema,
     ProcessListItemSchema,
+    ProcessResumeAllSchema,
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
-    ProcessResumeAllSchema,
 )
 from orchestrator.schemas.product import ProductBaseSchema, ProductCRUDSchema, ProductSchema
 from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockEnrichedSchema

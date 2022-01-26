@@ -46,20 +46,20 @@ from orchestrator.db import (
 from orchestrator.schemas import (
     ProcessIdSchema,
     ProcessListItemSchema,
+    ProcessResumeAllSchema,
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
-    ProcessResumeAllSchema,
 )
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import (
     SYSTEM_USER,
+    _async_resume_processes,
+    _get_process,
     abort_process,
     load_process,
     resume_process,
     start_process,
-    _async_resume_processes,
-    _get_process,
 )
 from orchestrator.types import JSON
 from orchestrator.utils.show_process import show_process
@@ -112,7 +112,7 @@ def resume_process_endpoint(
 
 
 @router.put("/resume-all", response_model=ProcessResumeAllSchema)
-def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
+async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
     check_global_lock()
 
     user_name = user.user_name if user else SYSTEM_USER
@@ -133,9 +133,10 @@ def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_
         .all()
     )
 
-    logger.info(f"Going to resume {len(processes_to_resume)} processes")
+    if not await _async_resume_processes(processes_to_resume, user_name):
+        raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
 
-    _async_resume_processes(processes_to_resume, user_name)
+    logger.info(f"Going to resume {len(processes_to_resume)} processes")
 
     return {"count": len(processes_to_resume)}
 

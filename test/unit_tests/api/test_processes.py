@@ -1,7 +1,7 @@
 import time
 import uuid
 from http import HTTPStatus
-from threading import Condition
+from threading import Condition, Event
 from unittest import mock
 from uuid import uuid4
 
@@ -431,12 +431,39 @@ def test_processes_statuses(test_client):
 
 
 def test_resume_all_processes(test_client, mocked_processes_resumeall):
+    """Test resuming all processes."""
     response = test_client.put("/api/processes/resume-all")
     assert HTTPStatus.OK == response.status_code
     assert response.json()["count"] == 3
 
 
+def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resumeall):
+    """Test only 1 of multiple resume-all calls is successful.
+
+    This uses the "MemoryDistlockManager" reference implementation.
+    """
+    event = Event()
+
+    def resume_noop(*args, **kwargs):
+        event.wait(2)  # To keep the lock open for a while
+
+    # Disable Testing setting since we want to run async
+    app_settings.TESTING = False
+
+    with mock.patch("orchestrator.services.processes.resume_process", new=resume_noop):
+        responses = [test_client.put("/api/processes/resume-all") for _ in range(5)]
+        responses.sort(key=lambda r: r.status_code)
+        event.set()
+
+    app_settings.TESTING = True
+
+    assert responses[0].status_code == HTTPStatus.OK
+    assert responses[0].json()["count"] == 3
+    assert all(response.status_code == HTTPStatus.CONFLICT for response in responses[1:])
+
+
 def test_resume_all_processes_nothing_to_do(test_client):
+    """Test resuming all process when there are no process to be resumed."""
     response = test_client.put("/api/processes/resume-all")
     assert HTTPStatus.OK == response.status_code
     assert response.json()["count"] == 0
