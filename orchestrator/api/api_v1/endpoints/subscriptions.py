@@ -79,9 +79,9 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()
 
-    subscription = SubscriptionModel.from_subscription(subscription_id).dict()
+    s = SubscriptionModel.from_subscription(subscription_id)
+    subscription = s.dict()
     subscription["customer_descriptions"] = customer_descriptions
-
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
     return subscription
