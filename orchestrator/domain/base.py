@@ -1157,8 +1157,29 @@ class SubscriptionModel(DomainModel):
 
         return model
 
-    # TODO: this method has quite a lot in common with from_subscription. If we are happy with this approach we can
-    # extract some common functions
+    # Some common functions shared by from_other_product and from_subscription
+
+    @classmethod
+    def _get_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> Any:
+        return SubscriptionTable.query.options(
+            selectinload(SubscriptionTable.instances)
+            .selectinload(SubscriptionInstanceTable.product_block)
+            .selectinload(ProductBlockTable.resource_types),
+            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.parent_relations),
+            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+        ).get(subscription_id)
+
+    @classmethod
+    def _to_product_model(cls: Type[S], product: ProductTable) -> ProductModel:
+        return ProductModel(
+            product_id=product.product_id,
+            name=product.name,
+            description=product.description,
+            product_type=product.product_type,
+            tag=product.tag,
+            status=product.status,
+        )
+
     @classmethod
     def from_other_product(
         cls: Type[S],
@@ -1168,22 +1189,8 @@ class SubscriptionModel(DomainModel):
     ) -> S:
         db_product = get_product_by_id(new_product_id)
 
-        subscription = SubscriptionTable.query.options(
-            selectinload(SubscriptionTable.instances)
-            .selectinload(SubscriptionInstanceTable.product_block)
-            .selectinload(ProductBlockTable.resource_types),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.parent_relations),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-        ).get(old_instantiation.subscription_id)
-
-        product = ProductModel(
-            name=db_product.name,
-            description=db_product.description,
-            product_id=db_product.product_id,
-            tag=db_product.tag,
-            product_type=db_product.product_type,
-            status=db_product.status,
-        )
+        subscription = cls._get_subscription(old_instantiation.subscription_id)
+        product = cls._to_product_model(db_product)
 
         status = SubscriptionLifecycle(subscription.status)
 
@@ -1229,21 +1236,9 @@ class SubscriptionModel(DomainModel):
     @classmethod
     def from_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
-        subscription = SubscriptionTable.query.options(
-            selectinload(SubscriptionTable.instances)
-            .selectinload(SubscriptionInstanceTable.product_block)
-            .selectinload(ProductBlockTable.resource_types),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.parent_relations),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-        ).get(subscription_id)
-        product = ProductModel(
-            product_id=subscription.product.product_id,
-            name=subscription.product.name,
-            description=subscription.product.description,
-            product_type=subscription.product.product_type,
-            tag=subscription.product.tag,
-            status=subscription.product.status,
-        )
+        subscription = cls._get_subscription(subscription_id)
+        product = cls._to_product_model(subscription.product)
+
         status = SubscriptionLifecycle(subscription.status)
 
         if not cls.__base_type__:
