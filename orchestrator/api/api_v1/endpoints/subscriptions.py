@@ -44,6 +44,7 @@ from orchestrator.services.subscriptions import (
     query_parent_subscriptions,
     subscription_workflows,
 )
+from orchestrator.settings import app_settings
 
 router = APIRouter()
 
@@ -169,14 +170,18 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
 def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
-    def failed_processes() -> list:
-        return (
+    def failed_processes() -> List[str]:
+        if app_settings.DISABLE_INSYNC_CHECK:
+            return []
+        _failed_processes = (
             ProcessSubscriptionTable.query.join(ProcessTable)
             .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
             .filter(~ProcessTable.is_task)
             .filter(ProcessTable.last_status != "completed")
+            .filter(ProcessTable.last_status != "aborted")
             .all()
         )
+        return [str(p.pid) for p in _failed_processes]
 
     try:
         subscription = get_subscription(subscription_id, for_update=True)
@@ -184,13 +189,16 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
             logger.info(
                 "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
             )
-
-            if not failed_processes():
-                subscription.insync = True
+            failed_processes = failed_processes()  # type: ignore
+            if not failed_processes:
+                subscription.insync = True  # type: ignore
                 db.session.commit()
                 logger.info("Subscription set in sync", user=current_user)
             else:
-                raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"Subscription {subscription_id} has still failed tasks")
+                raise_status(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    f"Subscription {subscription_id} has still failed processes with id's: {failed_processes}",
+                )
         else:
             logger.info("Subscription already in sync")
     except ValueError as e:

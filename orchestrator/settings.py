@@ -59,6 +59,7 @@ class AppSettings(BaseSettings):
     TRANSLATIONS_DIR: Optional[Path] = None
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
     ENABLE_WEBSOCKETS: bool = True
+    DISABLE_INSYNC_CHECK: bool = False
 
 
 class Oauth2Settings(BaseSettings):
