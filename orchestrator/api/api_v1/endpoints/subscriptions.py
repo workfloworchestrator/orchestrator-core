@@ -18,7 +18,9 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from fastapi import Depends
 from fastapi.routing import APIRouter
+from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
@@ -35,11 +37,14 @@ from orchestrator.db import (
 )
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
+from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
+    get_subscription,
     query_child_subscriptions,
     query_parent_subscriptions,
     subscription_workflows,
 )
+from orchestrator.settings import app_settings
 
 router = APIRouter()
 
@@ -161,3 +166,40 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
             {parent.subscription_id for parent in subscription_instance.parents},
         )
     )
+
+
+@router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
+def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
+    def failed_processes() -> List[str]:
+        if app_settings.DISABLE_INSYNC_CHECK:
+            return []
+        _failed_processes = (
+            ProcessSubscriptionTable.query.join(ProcessTable)
+            .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
+            .filter(~ProcessTable.is_task)
+            .filter(ProcessTable.last_status != "completed")
+            .filter(ProcessTable.last_status != "aborted")
+            .all()
+        )
+        return [str(p.pid) for p in _failed_processes]
+
+    try:
+        subscription = get_subscription(subscription_id, for_update=True)
+        if not subscription.insync:
+            logger.info(
+                "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
+            )
+            failed_processes = failed_processes()  # type: ignore
+            if not failed_processes:
+                subscription.insync = True  # type: ignore
+                db.session.commit()
+                logger.info("Subscription set in sync", user=current_user)
+            else:
+                raise_status(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    f"Subscription {subscription_id} has still failed processes with id's: {failed_processes}",
+                )
+        else:
+            logger.info("Subscription already in sync")
+    except ValueError as e:
+        raise_status(HTTPStatus.NOT_FOUND, str(e))

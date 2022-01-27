@@ -25,6 +25,7 @@ logger = get_logger(__name__)
 
 class BroadcastWebsocketManager:
     def __init__(self, broadcast_url: str):
+        self.connected: list[WebSocket] = []
         self.sub_broadcast = Broadcast(broadcast_url)
         self.pub_broadcast = Broadcast(broadcast_url)
 
@@ -35,6 +36,7 @@ class BroadcastWebsocketManager:
         await self.sub_broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
+        self.connected.append(websocket)
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
@@ -42,6 +44,7 @@ class BroadcastWebsocketManager:
             )
         except Exception:  # noqa: S110
             pass
+        self.connected.remove(websocket)
 
     async def disconnect(
         self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: Union[Dict, str, None] = None
@@ -49,10 +52,17 @@ class BroadcastWebsocketManager:
         if reason:
             await websocket.send_text(json_dumps(reason))
         await websocket.close(code)
+        self.connected.remove(websocket)
+
+    async def disconnect_all(self) -> None:
+        for websocket in self.connected:
+            websocket.close(status.WS_1000_NORMAL_CLOSURE)
+            self.connected.remove(websocket)
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
-            pass
+            if message == "__ping__":
+                await websocket.send_text("__pong__")
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
         async with self.sub_broadcast.subscribe(channel=channel) as subscriber:

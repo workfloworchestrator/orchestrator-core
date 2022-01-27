@@ -22,11 +22,7 @@ from pytz import timezone
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
 from orchestrator.db import SubscriptionCustomerDescriptionTable
-from orchestrator.schemas import (
-    SubscriptionDescriptionBaseSchema,
-    SubscriptionDescriptionSchema,
-    SubscriptionDescriptionSchemaNoORM,
-)
+from orchestrator.schemas import SubscriptionDescriptionBaseSchema, SubscriptionDescriptionSchema
 
 router = APIRouter()
 
@@ -37,7 +33,7 @@ def save_subscription_customer_description(data: SubscriptionDescriptionBaseSche
 
 
 @router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def update_subscription_customer_descriptions(data: SubscriptionDescriptionSchemaNoORM = Body(...)) -> None:
+def update_subscription_customer_descriptions(data: SubscriptionDescriptionSchema = Body(...)) -> None:
     if data.created_at is None:
         data.created_at = datetime.now(tz=timezone("UTC"))
     return update(SubscriptionCustomerDescriptionTable, data)

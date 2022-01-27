@@ -16,7 +16,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.services.subscriptions import RELATION_RESOURCE_TYPES
+from orchestrator.services.subscriptions import RELATION_RESOURCE_TYPES, unsync
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
@@ -546,3 +546,48 @@ def test_other_subscriptions(test_client, generic_subscription_2, generic_produc
     )
     assert response.status_code == HTTPStatus.OK
     assert len(response.json()) == 0
+
+
+def test_set_in_sync(seed, test_client):
+    subscription_id = IP_PREFIX_SUBSCRIPTION_ID
+    unsync(subscription_id)
+    db.session.commit()
+
+    response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
+    assert response.status_code == HTTPStatus.OK
+
+    subscription = SubscriptionTable.query.get(subscription_id)
+    assert subscription.insync
+
+
+def _create_failed_process(subscription_id):
+    pid = uuid4()
+
+    process = ProcessTable(
+        pid=pid,
+        workflow="validate_ip_prefix",
+        last_status=ProcessStatus.FAILED,
+        last_step="Verify references in NSO",
+        assignee="NOC",
+        is_task=False,
+    )
+    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=subscription_id)
+
+    db.session.add(process)
+    db.session.add(process_subscription)
+
+    db.session.commit()
+
+
+def test_try_set_failed_task_in_sync(seed, test_client):
+    subscription_id = IP_PREFIX_SUBSCRIPTION_ID
+    unsync(IP_PREFIX_SUBSCRIPTION_ID)
+    db.session.commit()
+
+    _create_failed_process(subscription_id)
+
+    response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    subscription = SubscriptionTable.query.get(subscription_id)
+    assert not subscription.insync

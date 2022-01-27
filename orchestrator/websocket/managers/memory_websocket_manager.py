@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 from fastapi import WebSocket, WebSocketDisconnect, status
 from structlog import get_logger
@@ -33,7 +33,9 @@ class MemoryWebsocketManager:
 
         try:
             while True:
-                await websocket.receive_text()
+                message = await websocket.receive_text()
+                if message == "__ping__":
+                    await websocket.send_text("__pong__")
         except WebSocketDisconnect:
             pass
 
@@ -44,10 +46,10 @@ class MemoryWebsocketManager:
             await websocket.send_text(json_dumps(reason))
         await websocket.close(code=code)
 
-    async def disconnect_all(self, channel: str, code: int = 1000, reason: Optional[Union[Dict, str]] = None) -> None:
-        if channel in self.connections_by_pid:
+    async def disconnect_all(self) -> None:
+        for channel in self.connections_by_pid:
             for connection in self.connections_by_pid[channel]:
-                await self.disconnect(connection, code, reason)
+                await self.disconnect(connection)
                 self.remove(connection, channel)
 
     def remove(self, websocket: WebSocket, channel: str) -> None:
@@ -62,9 +64,8 @@ class MemoryWebsocketManager:
                 if channel in self.connections_by_pid:
                     for connection in self.connections_by_pid[channel]:
                         await connection.send_text(json_dumps(data))
-
-                if "close" in data and data["close"]:
-                    await self.disconnect_all(channel)
+                        if "close" in data and data["close"]:
+                            await self.disconnect(connection)
         except (RuntimeError, ValueError):
             pass
 

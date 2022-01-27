@@ -23,14 +23,14 @@ from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.schemas import ProductCRUDSchema, ProductSchemaORM
+from orchestrator.schemas import ProductCRUDSchema, ProductSchema
 from orchestrator.services.products import get_tags, get_types
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ProductSchemaORM])
-def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List[ProductSchemaORM]:
+@router.get("/", response_model=List[ProductSchema])
+def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List[ProductSchema]:
     query = ProductTable.query.options(
         selectinload("workflows"), selectinload("fixed_inputs"), selectinload("product_blocks")
     )
@@ -42,7 +42,7 @@ def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List
     return query.all()
 
 
-@router.get("/{product_id}", response_model=ProductSchemaORM)
+@router.get("/{product_id}", response_model=ProductSchema)
 def product_by_id(product_id: UUID) -> ProductTable:
     product = (
         ProductTable.query.options(joinedload("fixed_inputs"), joinedload("product_blocks"), joinedload("workflows"))

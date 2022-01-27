@@ -30,8 +30,3 @@ class SubscriptionDescriptionSchema(SubscriptionDescriptionBaseSchema):
 
     class Config:
         orm_mode = True
-
-
-class SubscriptionDescriptionSchemaNoORM(SubscriptionDescriptionSchema):
-    class Config:
-        orm_mode = False

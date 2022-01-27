@@ -73,7 +73,7 @@ def _is_constrained_list_type(type: Type) -> bool:
 
         # Strip generic arguments, it still might be a subclass
         if get_origin(type):
-            return _is_constrained_list_type(get_origin(type))
+            return _is_constrained_list_type(get_origin(type))  # type: ignore
         else:
             return False
 
