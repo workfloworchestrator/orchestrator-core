@@ -394,7 +394,7 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
     if not (lock := await distlock_manager.get_lock("resume-all", lock_expiration)):
         return False
 
-    def run():
+    def run() -> None:
         try:
             resumed = 0
             for _proc in processes:

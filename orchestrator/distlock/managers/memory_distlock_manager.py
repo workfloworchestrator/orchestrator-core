@@ -12,7 +12,7 @@
 # limitations under the License.
 from threading import Lock, Thread
 from time import sleep, time
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 from structlog import get_logger
 
@@ -31,7 +31,7 @@ class MemoryDistLockManager(Thread):
     manager_lock: Lock = Lock()
     locks: Dict[str, Tuple[Lock, float]] = {}
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.daemon = True
         self.name = "MemoryDistLockExpirationThread"
@@ -43,12 +43,12 @@ class MemoryDistLockManager(Thread):
     async def disconnect_redis(self) -> None:
         pass
 
-    async def get_lock(self, resource: str, expiration_seconds: int) -> Union[None, Lock]:
+    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[Lock]:
         with self.manager_lock:
             resource_lock, expire_at = self.locks.get(resource, (Lock(), time() + expiration_seconds))
             if not resource_lock.acquire(blocking=False):
                 logger.debug("Resource is already locked", resource=resource, expire_at=expire_at)
-                return
+                return None
             logger.debug("Successfully locked resource", resource=resource, expire_at=expire_at)
             self.locks[resource] = resource_lock, expire_at
             return resource_lock
@@ -63,7 +63,7 @@ class MemoryDistLockManager(Thread):
             del self.locks[name]
             logger.debug("Successfully unlocked resource", resource=name)
 
-    def run(self):
+    def run(self) -> None:
         while True:
             with self.manager_lock:
                 timestamp = time()
@@ -74,3 +74,9 @@ class MemoryDistLockManager(Thread):
                     del self.locks[resource]
                     logger.debug("Successfully unlocked expired resource", resource=resource, expire_at=expire_at)
             sleep(0.1)
+
+
+__all__ = [
+    "MemoryDistLockManager",
+    "Lock",
+]

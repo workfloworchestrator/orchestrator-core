@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 from orchestrator.distlock.managers.memory_distlock_manager import Lock as MemoryLock
 from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
@@ -33,12 +33,10 @@ class DistLockManager:
 
     _backend: Union[MemoryDistLockManager, RedisDistLockManager]
 
-    def __init__(
-        self, enabled: bool, backend: Union[None, str] = None, redis_address: Union[None, Tuple[str, int]] = None
-    ):
+    def __init__(self, enabled: bool, backend: Optional[str] = None, redis_address: Optional[Tuple[str, int]] = None):
         self.enabled = enabled
         self.connected = False
-        if backend == "redis":
+        if backend == "redis" and redis_address:
             self._backend = RedisDistLockManager(redis_address)
         else:
             self._backend = MemoryDistLockManager()
@@ -53,7 +51,7 @@ class DistLockManager:
             await self._backend.disconnect_redis()
             self.connected = False
 
-    async def get_lock(self, resource: str, expiration_seconds: int) -> Union[None, DistLock]:
+    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[DistLock]:
         return await self._backend.get_lock(resource, expiration_seconds)
 
     async def release_lock(self, resource: DistLock) -> None:
