@@ -1209,7 +1209,7 @@ class SubscriptionModel(DomainModel):
             name, product_block = new_root
             instances = {name: product_block}
         else:
-            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
+            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type:ignore
 
         try:
             model = cls(
