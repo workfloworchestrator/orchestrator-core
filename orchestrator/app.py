@@ -74,7 +74,11 @@ class OrchestratorCore(FastAPI):
             version=version,
             default_response_class=default_response_class,
             on_startup=[websocket_manager.connect_redis, distlock_manager.connect_redis],
-            on_shutdown=[websocket_manager.disconnect_redis, websocket_manager.disconnect_all, distlock_manager.disconnect_redis],
+            on_shutdown=[
+                websocket_manager.disconnect_redis,
+                websocket_manager.disconnect_all,
+                distlock_manager.disconnect_redis,
+            ],
             **kwargs,
         )
 
