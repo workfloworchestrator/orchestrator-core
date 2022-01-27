@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 
 class RedisDistLockManager:
     """Create Distributed Locks in Redis.
+
     https://redis.io/topics/distlock
     """
 

@@ -136,7 +136,7 @@ async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends
     if not await _async_resume_processes(processes_to_resume, user_name):
         raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
 
-    logger.info(f"Going to resume {len(processes_to_resume)} processes")
+    logger.info("Resuming all processes", count=len(processes_to_resume))
 
     return {"count": len(processes_to_resume)}
 

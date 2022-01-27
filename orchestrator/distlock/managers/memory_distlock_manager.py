@@ -56,7 +56,7 @@ class MemoryDistLockManager(Thread):
     async def release_lock(self, lock: Lock) -> None:
         with self.manager_lock:
             lock.release()
-            for resource, (resource_lock, expire_at) in self.locks.items():
+            for resource, (resource_lock, _) in self.locks.items():
                 if lock is resource_lock:
                     name = resource
                     break

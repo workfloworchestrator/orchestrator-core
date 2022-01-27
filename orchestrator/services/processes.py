@@ -408,7 +408,7 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
                     resumed += 1
                 except Exception:
                     logger.exception("Failed to resume process", pid=_proc.pid)
-            logger.info(f"Resumed {resumed} out of {len(processes)} processes")
+            logger.info("Completed resuming processes")
         finally:
             loop = asyncio.new_event_loop()
             loop.run_until_complete(distlock_manager.release_lock(lock))
