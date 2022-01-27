@@ -476,4 +476,5 @@ def test_resume_all_processes_valueerror(test_client, mocked_processes_resumeall
         response = test_client.put("/api/processes/resume-all")
     assert HTTPStatus.OK == response.status_code
     assert response.json()["count"] == 3  # returns 3 because it's async
-    assert "Resumed 2 out of 3 processes" in caplog.text  # log should confirm 1 process was not resumed
+    assert "Failed to resume process" in caplog.text  # log should confirm 1 process was not resumed
+    assert "Completed resuming processes" in caplog.text

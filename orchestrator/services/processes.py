@@ -396,7 +396,6 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
 
     def run() -> None:
         try:
-            resumed = 0
             for _proc in processes:
                 try:
                     process = _get_process(_proc.pid)
@@ -405,7 +404,6 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
                         logger.info("Cannot resume a running process", pid=_proc.pid)
                         continue
                     resume_process(process, user=user_name)
-                    resumed += 1
                 except Exception:
                     logger.exception("Failed to resume process", pid=_proc.pid)
             logger.info("Completed resuming processes")

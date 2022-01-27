@@ -639,7 +639,7 @@ def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
     assert len(mock_resume_process.mock_calls) == 2
     assert "Cannot resume a running process" in caplog.text  # pid 123 should not be resumed
     assert "Failed to resume process" in caplog.text  # pid 125 should fail
-    assert "Resumed 1 out of 3 processes" in caplog.text
+    assert "Completed resuming processes" in caplog.text
 
 
 def test_db_log_process_ex():
