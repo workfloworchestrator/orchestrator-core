@@ -1196,7 +1196,7 @@ class SubscriptionModel(DomainModel):
         elif not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
 
-        fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
+        fixed_inputs = {fi.name: fi.value for fi in db_product.fixed_inputs}
 
         if new_root:
             name, product_block = new_root
