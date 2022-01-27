@@ -1185,7 +1185,7 @@ class SubscriptionModel(DomainModel):
         cls: Type[S],
         old_instantiation: S,
         new_product_id: Union[UUID, str],
-        new_root: Optional[tuple[str, ProductBlockModel]] = None,
+        new_root: Optional[Tuple[str, ProductBlockModel]] = None,
     ) -> S:
         db_product = get_product_by_id(new_product_id)
 
