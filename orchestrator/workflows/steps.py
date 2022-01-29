@@ -10,6 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import deepcopy
+from typing import Optional
+
+import structlog
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
@@ -18,22 +22,50 @@ from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import Step, step
 
+logger = structlog.get_logger(__name__)
+
 
 @step("Unlock subscription")
 def resync(subscription: SubscriptionModel) -> State:
+    """
+    Transition a subscription to in sync.
+    """
     subscription.insync = True
     return {"subscription": subscription}
 
 
 @step("Lock subscription")
-def unsync(subscription_id: UUIDstr) -> State:
+def unsync(subscription_id: UUIDstr, __old_subscription__: Optional[dict] = None) -> State:
+    """
+    Transition a subscription to out of sync.
+
+    This step will also create a backup of the current subscription details in the state with the key
+    `__old_subscription__`
+
+    Note: Some workflows already change subscription details in the initial form step. This is not a best practice but
+    it can be handy/needed for some scenarios. To ensure that you get a correct backup these forms need to create
+    the backup in the initial form step and save it to `__old_subscription__`. This step will NOT overwrite any existing
+    data in the state for the `__old_subscription__` key.
+    """
     subscription = SubscriptionModel.from_subscription(subscription_id)
 
+    # Handle backup if needed
+    if __old_subscription__:
+        logger.info(
+            "Skipping backup of subscription details because it already exists in the state",
+            subscription_id=str(subscription_id),
+        )
+        subscription_backup = __old_subscription__
+    else:
+        logger.info("Creating backup of subscription details in the state", subscription_id=str(subscription_id))
+        subscription_backup = deepcopy(subscription.dict())
+
+    # Handle transition
     if not subscription.insync:
         raise ValueError("Subscription is already out of sync, cannot continue!")
-
     subscription.insync = False
-    return {"subscription": subscription}
+
+    return {"subscription": subscription, "__old_subscription__": subscription_backup}
 
 
 @step("Lock subscription")
