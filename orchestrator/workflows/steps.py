@@ -27,9 +27,7 @@ logger = structlog.get_logger(__name__)
 
 @step("Unlock subscription")
 def resync(subscription: SubscriptionModel) -> State:
-    """
-    Transition a subscription to in sync.
-    """
+    """Transition a subscription to in sync."""
     subscription.insync = True
     return {"subscription": subscription}
 
