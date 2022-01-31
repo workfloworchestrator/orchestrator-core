@@ -469,7 +469,7 @@ def test_resume_all_processes_nothing_to_do(test_client):
     assert response.json()["count"] == 0
 
 
-def test_resume_all_processes_valueerror(test_client, mocked_processes_resumeall, caplog):
+def test_resume_all_processes_value_error(test_client, mocked_processes_resumeall, caplog):
     """Test resuming all processes where one raises ValueError."""
     with mock.patch("orchestrator.services.processes.resume_process") as mocked_resume:
         mocked_resume.side_effect = [None, ValueError("This workflow cannot be resumed"), None]

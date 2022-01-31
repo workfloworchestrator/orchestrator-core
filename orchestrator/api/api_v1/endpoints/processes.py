@@ -113,6 +113,11 @@ def resume_process_endpoint(
 
 @router.put("/resume-all", response_model=ProcessResumeAllSchema)
 async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
+    """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
+
+    The retry is started in the background, returning status 200 and number of processes in message.
+    When it is already running, refuse and return status 409 instead.
+    """
     check_global_lock()
 
     user_name = user.user_name if user else SYSTEM_USER
