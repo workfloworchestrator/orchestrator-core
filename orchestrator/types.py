@@ -52,39 +52,6 @@ class SubscriptionLifecycle(strEnum):
     PROVISIONING = "provisioning"
 
 
-# The key is the Parent subscription life cycle status. The keys are lists of safe transitions for child subscriptions.
-SAFE_PARENT_TRANSITIONS_FOR_STATUS = {
-    SubscriptionLifecycle.INITIAL: [
-        SubscriptionLifecycle.INITIAL,
-    ],
-    SubscriptionLifecycle.ACTIVE: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.PROVISIONING,
-        SubscriptionLifecycle.MIGRATING,
-        SubscriptionLifecycle.ACTIVE,
-        SubscriptionLifecycle.TERMINATED,
-        SubscriptionLifecycle.DISABLED,
-    ],
-    SubscriptionLifecycle.MIGRATING: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.MIGRATING,
-        SubscriptionLifecycle.TERMINATED,
-    ],
-    SubscriptionLifecycle.PROVISIONING: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.PROVISIONING,
-        SubscriptionLifecycle.ACTIVE,
-        SubscriptionLifecycle.TERMINATED,
-    ],
-    SubscriptionLifecycle.TERMINATED: [SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.TERMINATED],
-    SubscriptionLifecycle.DISABLED: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.DISABLED,
-        SubscriptionLifecycle.TERMINATED,
-    ],
-}
-
-
 class AcceptItemType(strEnum):
     INFO = "info"
     LABEL = "label"
