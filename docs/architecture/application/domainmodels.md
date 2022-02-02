@@ -93,12 +93,12 @@ a property that references one or more other product block models.
 class ServicePortBlockInactive(ProductBlockModel, product_block_name="Service Port"):
     """Object model for a SN8 Service Port product block."""
 
-    node_subscription_id: Optional[UUID] = None
     nso_service_id: Optional[UUID] = None
     port_mode: Optional[PortMode] = None
     lldp: Optional[bool] = None
     ims_circuit_id: Optional[int] = None
     auto_negotiation: Optional[bool] = None
+    node: Optional[NodeProductBlock] = None
 
 ```
 As you can see in this model we define it as an Inactive Class. As parameter we pass the name of the product_block in the
@@ -113,12 +113,12 @@ class ServicePortBlockProvisioning(
 ):
     """Object model for a SN8 Service Port product block in active state."""
 
-    node_subscription_id: UUID
     nso_service_id: UUID
     port_mode: PortMode
     lldp: bool
     ims_circuit_id: Optional[int] = None
     auto_negotiation: Optional[bool] = None
+    node: NodeProductBlock
 ```
 In this stage whe have changed the way a Subscription domain model should look like in a certain Lifecyle state.
 You also see that the `resource_type` now no-longer is Optional. It must exist in this instantiation of the class. The
@@ -129,12 +129,12 @@ model will raise a `ValidationError` upon `.save()` if typing is not filled in c
 class ServicePortBlock(ServicePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Object model for a SN8 Service Port product block in active state."""
 
-    node_subscription_id: UUID
     nso_service_id: UUID
     port_mode: PortMode
     lldp: bool
     ims_circuit_id: int
     auto_negotiation: Optional[bool] = None
+    node: NodeProductBlock
 ```
 
 The Class is now defined in it's most strict form, in other words in the Active lifecycle of a subscription,
