@@ -1,6 +1,11 @@
 from orchestrator.config.assignee import Assignee
 from orchestrator.forms import FormPage
+from orchestrator.services.subscriptions import get_subscription
+from orchestrator.types import UUIDstr
+from orchestrator.utils.functional import orig
+from orchestrator.utils.json import to_serializable
 from orchestrator.workflow import begin, done, inputstep, step, workflow
+from orchestrator.workflows.steps import unsync
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_complete,
@@ -39,3 +44,12 @@ def test_resume_workflow():
         assert_suspended(result)
         result, step_log = resume_workflow(process, step_log, {"stad": "Maastricht"})
         assert_complete(result)
+
+
+def test_unsync(generic_subscription_1):
+    result = orig(unsync)(generic_subscription_1)
+    # Test is backup is available
+    assert result["__old_subscriptions__"][generic_subscription_1]["description"] == "Generic Subscription One"
+    assert result["__old_subscriptions__"][generic_subscription_1]["insync"] is True
+    # Test if subscription will be set to insync = False:
+    assert result["subscription"].insync is False

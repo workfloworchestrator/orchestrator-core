@@ -18,8 +18,10 @@ import structlog
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.services.subscriptions import get_subscription
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
+from orchestrator.utils.json import to_serializable
 from orchestrator.workflow import Step, step
 
 logger = structlog.get_logger(__name__)
@@ -33,37 +35,61 @@ def resync(subscription: SubscriptionModel) -> State:
 
 
 @step("Lock subscription")
-def unsync(subscription_id: UUIDstr, __old_subscription__: Optional[dict] = None) -> State:
+def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = None) -> State:
     """
     Transition a subscription to out of sync.
 
     This step will also create a backup of the current subscription details in the state with the key
-    `__old_subscription__`
+    `__old_subscriptions__`
 
-    Note: Some workflows already change subscription details in the initial form step. This is not a best practice but
+    Note:  This step will NOT overwrite any existing data in the state for the `__old_subscriptions__` key. Some
+    workflows already change subscription details in the initial form step. This is not a best practice but
     it can be handy/needed for some scenarios. To ensure that you get a correct backup these forms need to create
-    the backup in the initial form step and save it to `__old_subscription__`. This step will NOT overwrite any existing
-    data in the state for the `__old_subscription__` key.
+    the backup in the initial form step and save it to `__old_subscriptions__`.
+
+    An example, showing the creation of a backup for 2 subscriptions during the initial form step :
+
+    >>> subscription = YOUR_DOMAIN_MODEL.from_subscription(subscription_id)
+    >>> subscription_backup = {}
+    >>> subscription_backup[subscription.subscription_id] = deepcopy(subscription.dict())
+    >>> subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.dict())
+    >>> return {..., "__old_subscriptions__": subscription_backup }
+
+    It's also possible to make the backup for a subscription that doesn't have a domain model:
+
+    >>> from orchestrator.utils.json import to_serializable
+    >>> subscription = subscriptions.get_subscription(subscription_id)
+    >>> subscription_backup = {subscription_id: to_serializable(subscription)}
+    >>> Do your changes here ...
+    >>> return {..., "subscription": to_serializable(subscription), "__old_subscriptions__": subscription_backup }
+
     """
-    subscription = SubscriptionModel.from_subscription(subscription_id)
+    try:
+        subscription = SubscriptionModel.from_subscription(subscription_id)
+    except:  # noqa
+        subscription = get_subscription(subscription_id)  # type: ignore
 
     # Handle backup if needed
-    if __old_subscription__:
+    if __old_subscriptions__ and __old_subscriptions__.get(subscription_id):
         logger.info(
             "Skipping backup of subscription details because it already exists in the state",
             subscription_id=str(subscription_id),
         )
-        subscription_backup = __old_subscription__
+        subscription_backup = __old_subscriptions__
     else:
         logger.info("Creating backup of subscription details in the state", subscription_id=str(subscription_id))
-        subscription_backup = deepcopy(subscription.dict())
+        subscription_backup = __old_subscriptions__ or {}
+        if isinstance(subscription, SubscriptionModel):
+            subscription_backup[str(subscription_id)] = deepcopy(subscription.dict())
+        else:
+            subscription_backup[str(subscription_id)] = to_serializable(subscription)  # type: ignore
 
     # Handle transition
     if not subscription.insync:
         raise ValueError("Subscription is already out of sync, cannot continue!")
     subscription.insync = False
 
-    return {"subscription": subscription, "__old_subscription__": subscription_backup}
+    return {"subscription": subscription, "__old_subscriptions__": subscription_backup}
 
 
 @step("Lock subscription")
