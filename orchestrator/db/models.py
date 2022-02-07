@@ -297,6 +297,10 @@ class ProductBlockTable(BaseModel):
     def find_by_name(name: str) -> ProductBlockTable:
         return ProductBlockTable.query.filter(ProductBlockTable.name == name).one()
 
+    @staticmethod
+    def find_by_tag(tag: str) -> ProductBlockTable:
+        return ProductBlockTable.query.filter(ProductBlockTable.tag == tag).one()
+
     def find_resource_type_by_name(self, name: str) -> ResourceTypeTable:
         return (
             object_session(self)

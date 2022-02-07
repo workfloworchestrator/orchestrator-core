@@ -1,3 +1,4 @@
+import asyncio
 from concurrent.futures import Future
 from http import HTTPStatus
 from threading import Event
@@ -12,6 +13,7 @@ from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable,
 from orchestrator.forms import FormValidationError
 from orchestrator.services.processes import (
     SYSTEM_USER,
+    _async_resume_processes,
     _db_create_process,
     _db_log_process_ex,
     _db_log_step,
@@ -613,6 +615,31 @@ def test_safe_logstep_critical_failure():
             )
 
         assert f"Failed to write failure step to process: process with PID {pid} not found" in str(e.value)
+
+
+@mock.patch("orchestrator.services.processes._get_process")
+@mock.patch("orchestrator.services.processes.resume_process")
+def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
+    """Test that _async_resume_process() rejects running processes and handles failures."""
+    processes = [mock.Mock(spec=ProcessTable()), mock.Mock(spec=ProcessTable()), mock.Mock(spec=ProcessTable())]
+    processes[0].pid, processes[0].last_status = 123, ProcessStatus.RUNNING
+    processes[1].pid, processes[1].last_status = 124, ProcessStatus.FAILED
+    processes[2].pid, processes[2].last_status = 125, ProcessStatus.API_UNAVAILABLE
+
+    # get_process() should be called 3 times
+    mock_get_process.side_effect = processes
+
+    # resume_process() should be called 2 times for the non-running processes; let 1 call fail
+    mock_resume_process.side_effect = [None, ValueError("This workflow cannot be resumed")]
+
+    # Don't set app_settings.TESTING=False because we want to await the result
+    asyncio.run(_async_resume_processes(processes, "testusername"))
+
+    assert len(mock_get_process.mock_calls) == 3
+    assert len(mock_resume_process.mock_calls) == 2
+    assert "Cannot resume a running process" in caplog.text  # pid 123 should not be resumed
+    assert "Failed to resume process" in caplog.text  # pid 125 should fail
+    assert "Completed resuming processes" in caplog.text
 
 
 def test_db_log_process_ex():
