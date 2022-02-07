@@ -110,3 +110,62 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
         mock_process(generic_subscription_2, "completed", first_datetime + timedelta(days=2), is_task=True),
         mock_process(None, "running", first_datetime + timedelta(days=4), is_task=True),
     ]
+
+
+@pytest.fixture
+def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_subscription_2):
+    first_datetime = datetime(2020, 1, 14, 9, 30, tzinfo=pytz.utc)
+
+    def mock_process(subscription_id, status, started, assignee=Assignee.SYSTEM, is_task=False):
+        pid = uuid4()
+        process = ProcessTable(
+            pid=pid,
+            workflow=test_workflow,
+            last_status=status,
+            last_step="Modify",
+            started_at=started,
+            last_modified_at=started + timedelta(minutes=10),
+            assignee=assignee,
+            is_task=is_task,
+        )
+
+        init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
+        db.session.add(process)
+
+        if subscription_id:
+            insert_step = ProcessStepTable(
+                pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": subscription_id}
+            )
+            check_step = ProcessStepTable(
+                pid=pid,
+                name="Test that it is a string now",
+                status="success",
+                state={"subscription_id": subscription_id},
+            )
+            step = ProcessStepTable(
+                pid=pid, name="Modify", status="suspend", state={"subscription_id": subscription_id}
+            )
+
+            process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=subscription_id)
+
+            db.session.add(init_step)
+            db.session.add(insert_step)
+            db.session.add(check_step)
+            db.session.add(step)
+            db.session.add(process_subscription)
+        db.session.commit()
+
+        return pid
+
+    return [
+        mock_process(generic_subscription_1, "api_unavailable", first_datetime, is_task=True),
+        mock_process(
+            generic_subscription_1, "suspended", first_datetime + timedelta(days=1), assignee="NOC", is_task=True
+        ),
+        mock_process(generic_subscription_2, "completed", first_datetime + timedelta(days=2), is_task=True),
+        mock_process(generic_subscription_2, "running", first_datetime + timedelta(days=2), is_task=True),
+        mock_process(generic_subscription_2, "failed", first_datetime + timedelta(days=3), is_task=True),
+        mock_process(generic_subscription_1, "inconsistent_data", first_datetime + timedelta(days=1), is_task=True),
+        mock_process(generic_subscription_2, "failed", first_datetime + timedelta(days=2), is_task=False),
+        mock_process(None, "running", first_datetime + timedelta(days=4), is_task=True),
+    ]

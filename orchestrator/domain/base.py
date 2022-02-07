@@ -39,7 +39,6 @@ from orchestrator.db import (
 from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
-    SAFE_PARENT_TRANSITIONS_FOR_STATUS,
     State,
     SubscriptionLifecycle,
     UUIDstr,
@@ -872,15 +871,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         if subscription_instance:
             # Make sure we do not use a mapped session.
             db.session.refresh(subscription_instance)
-            # Block unsafe status changes on domain models that have Subscription instances with parent relations
-            for parent in subscription_instance.parents:
-                if (
-                    parent.subscription != self.subscription
-                    and parent.subscription.status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[status]
-                ):
-                    raise ValueError(
-                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
-                    )
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
             if self.subscription and subscription_instance.subscription_id != subscription_id:
@@ -1015,14 +1005,14 @@ class SubscriptionModel(DomainModel):
         product_db = ProductTable.query.get(product_id)
 
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
-        product_blocks_types_in_model = cls._get_child_product_block_types().values()
-        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
-        else:
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
+        # product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        # if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
+        #     product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
+        # else:
+        #     product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
 
-        missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
-        missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
+        # missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
+        # missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
         fixed_inputs_model = set(cls._non_product_block_fields_)
         fixed_inputs_in_db = {fi.name for fi in product_db.fixed_inputs} if product_db else set()
 
@@ -1033,27 +1023,27 @@ class SubscriptionModel(DomainModel):
             "ProductTable blocks diff",
             product_block_db=product_db.name if product_db else None,
             product_blocks_in_db=product_blocks_in_db,
-            product_blocks_in_model=product_blocks_in_model,
+            # product_blocks_in_model=product_blocks_in_model,
             fixed_inputs_in_db=fixed_inputs_in_db,
             fixed_inputs_model=fixed_inputs_model,
-            missing_product_blocks_in_db=missing_product_blocks_in_db,
-            missing_product_blocks_in_model=missing_product_blocks_in_model,
+            # missing_product_blocks_in_db=missing_product_blocks_in_db,
+            # missing_product_blocks_in_model=missing_product_blocks_in_model,
             missing_fixed_inputs_in_db=missing_fixed_inputs_in_db,
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        missing_data_children: Dict[str, Any] = {}
-        for product_block_in_model in product_blocks_types_in_model:
-            missing_data_children.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
+        # missing_data_children: Dict[str, Any] = {}
+        # for product_block_in_model in product_blocks_types_in_model:
+        #     missing_data_children.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
 
         diff = {
             k: v
             for k, v in {
-                "missing_product_blocks_in_db": missing_product_blocks_in_db,
-                "missing_product_blocks_in_model": missing_product_blocks_in_model,
+                # "missing_product_blocks_in_db": missing_product_blocks_in_db,
+                # "missing_product_blocks_in_model": missing_product_blocks_in_model,
                 "missing_fixed_inputs_in_db": missing_fixed_inputs_in_db,
                 "missing_fixed_inputs_in_model": missing_fixed_inputs_in_model,
-                "missing_in_children": missing_data_children,
+                # "missing_in_children": missing_data_children,
             }.items()
             if v
         }

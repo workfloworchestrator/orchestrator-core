@@ -114,3 +114,7 @@ class ProcessListItemSchema(OrchestratorBaseModel):
     workflow_target: Optional[Target]
     is_task: bool
     subscriptions: List[SubscriptionSchema]
+
+
+class ProcessResumeAllSchema(OrchestratorBaseModel):
+    count: int

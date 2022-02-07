@@ -46,12 +46,21 @@ from orchestrator.db import (
 from orchestrator.schemas import (
     ProcessIdSchema,
     ProcessListItemSchema,
+    ProcessResumeAllSchema,
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
 )
 from orchestrator.security import oidc_user
-from orchestrator.services.processes import SYSTEM_USER, abort_process, load_process, resume_process, start_process
+from orchestrator.services.processes import (
+    SYSTEM_USER,
+    _async_resume_processes,
+    _get_process,
+    abort_process,
+    load_process,
+    resume_process,
+    start_process,
+)
 from orchestrator.types import JSON
 from orchestrator.utils.show_process import show_process
 from orchestrator.websocket import WS_CHANNELS, websocket_enabled, websocket_manager
@@ -60,18 +69,6 @@ from orchestrator.workflow import ProcessStatus
 router = APIRouter()
 
 logger = structlog.get_logger(__name__)
-
-
-def _get_process(pid: UUID) -> ProcessTable:
-    process = ProcessTable.query.options(
-        joinedload(ProcessTable.steps),
-        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-    ).get(pid)
-
-    if not process:
-        raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
-
-    return process
 
 
 @router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
@@ -112,6 +109,41 @@ def resume_process_endpoint(
     user_name = user.user_name if user else SYSTEM_USER
 
     resume_process(process, user=user_name, user_inputs=json_data)
+
+
+@router.put("/resume-all", response_model=ProcessResumeAllSchema)
+async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
+    """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
+
+    The retry is started in the background, returning status 200 and number of processes in message.
+    When it is already running, refuse and return status 409 instead.
+    """
+    check_global_lock()
+
+    user_name = user.user_name if user else SYSTEM_USER
+
+    # Retrieve processes eligible for resuming
+    processes_to_resume = (
+        ProcessTable.query.filter(
+            ProcessTable.last_status.in_(
+                [
+                    ProcessStatus.FAILED,
+                    ProcessStatus.WAITING,
+                    ProcessStatus.API_UNAVAILABLE,
+                    ProcessStatus.INCONSISTENT_DATA,
+                ]
+            )
+        )
+        .filter(ProcessTable.is_task.is_(True))
+        .all()
+    )
+
+    if not await _async_resume_processes(processes_to_resume, user_name):
+        raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
+
+    logger.info("Resuming all processes", count=len(processes_to_resume))
+
+    return {"count": len(processes_to_resume)}
 
 
 @router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
