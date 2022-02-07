@@ -49,19 +49,23 @@ def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = Non
 
     An example, showing the creation of a backup for 2 subscriptions during the initial form step :
 
-    >>> subscription = YOUR_DOMAIN_MODEL.from_subscription(subscription_id)
-    >>> subscription_backup = {}
-    >>> subscription_backup[subscription.subscription_id] = deepcopy(subscription.dict())
-    >>> subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.dict())
-    >>> return {..., "__old_subscriptions__": subscription_backup }
+    ```
+    subscription = YOUR_DOMAIN_MODEL.from_subscription(subscription_id)
+    subscription_backup = {}
+    subscription_backup[subscription.subscription_id] = deepcopy(subscription.dict())
+    subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.dict())
+    return {..., "__old_subscriptions__": subscription_backup }
+    ```
 
     It's also possible to make the backup for a subscription that doesn't have a domain model:
 
-    >>> from orchestrator.utils.json import to_serializable
-    >>> subscription = subscriptions.get_subscription(subscription_id)
-    >>> subscription_backup = {subscription_id: to_serializable(subscription)}
-    >>> Do your changes here ...
-    >>> return {..., "subscription": to_serializable(subscription), "__old_subscriptions__": subscription_backup }
+    ```
+    from orchestrator.utils.json import to_serializable
+    subscription = subscriptions.get_subscription(subscription_id)
+    subscription_backup = {subscription_id: to_serializable(subscription)}
+    Do your changes here ...
+    return {..., "subscription": to_serializable(subscription), "__old_subscriptions__": subscription_backup }
+    ```
 
     """
     try:
