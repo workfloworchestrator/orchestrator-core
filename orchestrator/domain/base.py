@@ -125,7 +125,7 @@ class DomainModel(BaseModel):
                     if is_union_type(
                         product_block_field_type
                     ):  # added to support a list with union of multiple product blocks.
-                        product_block_field_type = tuple(get_args(product_block_field_type))
+                        product_block_field_type = get_args(product_block_field_type)  # type: ignore
 
                     if isinstance(product_block_field_type, tuple):
                         for field_type in product_block_field_type:
@@ -302,7 +302,7 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             filter_func = match_domain_model_attr_if_possible(product_block_field_name)
 
-            product_block_model = product_block_field_type
+            product_block_model: Any = product_block_field_type
             if is_list_type(product_block_field_type):
                 product_block_model = one(get_args(product_block_field_type))
             elif is_optional_type(product_block_field_type):
@@ -335,7 +335,7 @@ class DomainModel(BaseModel):
                     raise ValueError("Required subscription instance is missing in database")
                 elif is_optional_type(product_block_field_type) and instance is None:
                     instances[product_block_field_name] = None
-                else:
+                elif instance:
                     assert (  # noqa: S101
                         len(possible_product_block_types) is not None
                     ), "Product block model has not been resolved. Unable to continue"
@@ -360,19 +360,16 @@ class DomainModel(BaseModel):
                     data[field_name].append(
                         possible_product_block_types[item.name]._from_other_lifecycle(item, status, subscription_id)
                     )
-            elif is_optional_type(field_type):
-                field_type = first(get_args(field_type))
-                if value:
-                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
-                else:
-                    data[field_name] = None
-            elif is_union_type(field_type) and not is_optional_type(field_type):
-                field_types = get_args(field_type)
-                for f_type in field_types:
-                    if f_type.name == value.name:
-                        field_type = f_type
-                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
             else:
+                if is_optional_type(field_type):
+                    data[field_name] = None
+                    field_type = first(get_args(field_type))
+                elif is_union_type(field_type):
+                    field_types = get_args(field_type)
+                    for f_type in field_types:
+                        if f_type.name == value.name:
+                            field_type = f_type
+
                 data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
