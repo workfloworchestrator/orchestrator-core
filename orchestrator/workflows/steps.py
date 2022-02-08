@@ -14,6 +14,7 @@ from copy import deepcopy
 from typing import Optional
 
 import structlog
+from pydantic import ValidationError
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
@@ -70,7 +71,7 @@ def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = Non
     """
     try:
         subscription = SubscriptionModel.from_subscription(subscription_id)
-    except:  # noqa
+    except ValidationError:
         subscription = get_subscription(subscription_id)  # type: ignore
 
     # Handle backup if needed

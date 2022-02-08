@@ -389,6 +389,7 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
     Returns:
         True if the resume-all operation has been started.
         False if it has not been started because it is already running.
+
     """
     lock_expiration = max(30, len(processes) // 10)
     if not (lock := await distlock_manager.get_lock("resume-all", lock_expiration)):
