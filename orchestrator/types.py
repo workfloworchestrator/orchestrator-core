@@ -235,7 +235,7 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     return False
 
 
-def get_possible_product_block_types(list_field_type: Any) -> dict[str, Any]:
+def get_possible_product_block_types(list_field_type: Any) -> dict:
     possible_product_block_types = {}
     if is_union_type(list_field_type):
         for list_item_field_type in get_args(list_field_type):
