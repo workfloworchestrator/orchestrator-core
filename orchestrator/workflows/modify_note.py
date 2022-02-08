@@ -11,13 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from orchestrator.db import db
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import LongText
 from orchestrator.services import subscriptions
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, UUIDstr
+from orchestrator.utils.json import to_serializable
 from orchestrator.workflow import StepList, done, init, workflow
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import wrap_modify_initial_input_form
@@ -25,6 +25,7 @@ from orchestrator.workflows.utils import wrap_modify_initial_input_form
 
 def initial_input_form(subscription_id: UUIDstr) -> FormGenerator:
     subscription = subscriptions.get_subscription(subscription_id)
+    subscription_backup = {subscription_id: to_serializable(subscription)}
     old_note = subscription.note
 
     class ModifyNoteForm(FormPage):
@@ -33,7 +34,12 @@ def initial_input_form(subscription_id: UUIDstr) -> FormGenerator:
     user_input = yield ModifyNoteForm
     subscription.note = user_input.note
     db.session.add(subscription)
-    return {"old_note": old_note, "note": user_input.note}
+    return {
+        "old_note": old_note,
+        "note": user_input.note,
+        "subscription": to_serializable(subscription),
+        "__old_subscriptions__": subscription_backup,
+    }
 
 
 @workflow("Modify Note", initial_input_form=wrap_modify_initial_input_form(initial_input_form), target=Target.MODIFY)
