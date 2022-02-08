@@ -305,8 +305,6 @@ class DomainModel(BaseModel):
             product_block_model = product_block_field_type
             if is_list_type(product_block_field_type):
                 product_block_model = one(get_args(product_block_field_type))
-                if is_union_type(product_block_model):
-                    product_block_model = get_args(product_block_model)
             elif is_optional_type(product_block_field_type):
                 product_block_model = first(get_args(product_block_field_type))
             elif is_union_type(product_block_field_type):
@@ -317,7 +315,7 @@ class DomainModel(BaseModel):
             filtered_instances = flatten([grouped_instances.get(name, []) for name in field_type_names])
             instance_list = list(filter(filter_func, filtered_instances))
 
-            if not is_list_type(product_block_field_type):
+            if is_list_type(product_block_field_type):
                 if product_block_field_name not in grouped_instances:
                     product_block_model_list = []
                     if _is_constrained_list_type(product_block_field_type):
