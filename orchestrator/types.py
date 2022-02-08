@@ -158,7 +158,11 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
             return False  # Literal cannot contain lists see pep 586
         elif issubclass(get_origin(t), list):  # type: ignore
             if test_type and get_args(t):
-                return is_of_type(get_args(t)[0], test_type)
+                first_arg = get_args(t)[0]
+                # To support a list with union of multiple product blocks.
+                if is_union_type(first_arg) and get_args(first_arg):
+                    first_arg = get_args(first_arg)[0]
+                return is_of_type(first_arg, test_type)
             else:
                 return True
 
@@ -229,3 +233,14 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
                 return True
 
     return False
+
+
+def get_possible_product_block_types(list_field_type: Any) -> dict:
+    possible_product_block_types = {}
+    if is_union_type(list_field_type):
+        for list_item_field_type in get_args(list_field_type):
+            if list_item_field_type.name not in possible_product_block_types:
+                possible_product_block_types[list_item_field_type.name] = list_item_field_type
+    else:
+        possible_product_block_types = {list_field_type.name: list_field_type}
+    return possible_product_block_types
