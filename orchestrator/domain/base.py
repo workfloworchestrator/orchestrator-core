@@ -36,12 +36,18 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.domain.lifecycle import ProductLifecycle, lookup_specialized_type, register_specialized_type
+from orchestrator.domain.lifecycle import (
+    ProductLifecycle,
+    lookup_specialized_type,
+    register_specialized_type,
+    validate_lifecycle_status,
+)
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
     State,
     SubscriptionLifecycle,
     UUIDstr,
+    get_possible_product_block_types,
     is_list_type,
     is_of_type,
     is_optional_type,
@@ -116,19 +122,16 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._get_child_product_block_types().items():
             if lifecycle:
                 for lifecycle_status in lifecycle:
+                    if is_union_type(
+                        product_block_field_type
+                    ):  # added to support a list with union of multiple product blocks.
+                        product_block_field_type = tuple(get_args(product_block_field_type))
+
                     if isinstance(product_block_field_type, tuple):
                         for field_type in product_block_field_type:
-                            specialized_type = lookup_specialized_type(field_type, lifecycle_status)
-                            if not issubclass(field_type, specialized_type):
-                                raise AssertionError(
-                                    f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
-                                )
+                            validate_lifecycle_status(product_block_field_name, field_type, lifecycle_status)
                     else:
-                        specialized_type = lookup_specialized_type(product_block_field_type, lifecycle_status)
-                        if not issubclass(product_block_field_type, specialized_type):
-                            raise AssertionError(
-                                f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {product_block_field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
-                            )
+                        validate_lifecycle_status(product_block_field_name, product_block_field_type, lifecycle_status)
 
     @classmethod
     def _get_child_product_block_types(
@@ -298,76 +301,49 @@ class DomainModel(BaseModel):
 
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             filter_func = match_domain_model_attr_if_possible(product_block_field_name)
+
+            product_block_model = product_block_field_type
             if is_list_type(product_block_field_type):
+                product_block_model = one(get_args(product_block_field_type))
+                if is_union_type(product_block_model):
+                    product_block_model = get_args(product_block_model)
+            elif is_optional_type(product_block_field_type):
+                product_block_model = first(get_args(product_block_field_type))
+            elif is_union_type(product_block_field_type):
+                product_block_model = get_args(product_block_field_type)
+
+            possible_product_block_types = get_possible_product_block_types(product_block_model)
+            field_type_names = list(possible_product_block_types.keys())
+            filtered_instances = flatten([grouped_instances.get(name, []) for name in field_type_names])
+            instance_list = list(filter(filter_func, filtered_instances))
+
+            if not is_list_type(product_block_field_type):
                 if product_block_field_name not in grouped_instances:
+                    product_block_model_list = []
                     if _is_constrained_list_type(product_block_field_type):
                         product_block_model_list = product_block_field_type()
-                    else:
-                        product_block_model_list = []
 
-                product_block_model = one(get_args(product_block_field_type))
-                instance_list: List[SubscriptionInstanceTable] = list(
-                    filter(
-                        filter_func, flatten(grouped_instances.get(name, []) for name in product_block_model.__names__)
-                    )
-                )
                 product_block_model_list.extend(
-                    product_block_model.from_db(subscription_instance=instance, status=status)
+                    possible_product_block_types[instance.product_block.name].from_db(
+                        subscription_instance=instance, status=status
+                    )
                     for instance in instance_list
                 )
 
                 instances[product_block_field_name] = product_block_model_list
-            elif is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
-                instance = only(
-                    list(
-                        filter(
-                            filter_func,
-                            flatten(
-                                grouped_instances.get(field_type.name, [])
-                                for field_type in get_args(product_block_field_type)
-                            ),
-                        )
-                    )
-                )
-                product_block_model = None
-
-                if instance is None:
-                    raise ValueError("Required subscription instance is missing in the database")
-
-                for field_type in get_args(product_block_field_type):
-                    if instance.product_block.name == field_type.name:
-                        product_block_model = field_type
-
-                assert (  # noqa: S101
-                    product_block_model is not None
-                ), "Product block model has not been resolved. Unable to continue"
-                instances[product_block_field_name] = product_block_model.from_db(
-                    subscription_instance=instance, status=status
-                )
-
             else:
-                product_block_model = product_block_field_type
-                if is_optional_type(product_block_field_type):
-                    product_block_model = first(get_args(product_block_model))
-
-                instance = only(
-                    list(
-                        filter(
-                            filter_func,
-                            flatten(grouped_instances.get(name, []) for name in product_block_model.__names__),
-                        )
-                    )
-                )
-
-                if is_optional_type(product_block_field_type) and instance is None:
-                    instances[product_block_field_name] = None
-                elif not is_optional_type(product_block_field_type) and instance is None:
+                instance = only(instance_list)
+                if not is_optional_type(product_block_field_type) and instance is None:
                     raise ValueError("Required subscription instance is missing in database")
+                elif is_optional_type(product_block_field_type) and instance is None:
+                    instances[product_block_field_name] = None
                 else:
-                    instances[product_block_field_name] = product_block_model.from_db(
-                        subscription_instance=instance, status=status
-                    )
-
+                    assert (  # noqa: S101
+                        len(possible_product_block_types) is not None
+                    ), "Product block model has not been resolved. Unable to continue"
+                    instances[product_block_field_name] = possible_product_block_types[
+                        instance.product_block.name
+                    ].from_db(subscription_instance=instance, status=status)
         return instances
 
     @classmethod
@@ -375,29 +351,31 @@ class DomainModel(BaseModel):
         data = other.dict()
 
         for field_name, field_type in cls._product_block_fields_.items():
+            value = getattr(other, field_name)
+
             if is_list_type(field_type):
                 data[field_name] = []
-                for item in getattr(other, field_name):
-                    data[field_name].append(
-                        one(get_args(field_type))._from_other_lifecycle(item, status, subscription_id)
-                    )
-            else:
-                value = getattr(other, field_name)
-                if is_optional_type(field_type):
-                    field_type = first(get_args(field_type))
-                    if value:
-                        data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
-                    else:
-                        data[field_name] = None
+                list_field_type = one(get_args(field_type))
+                possible_product_block_types = get_possible_product_block_types(list_field_type)
 
-                elif is_union_type(field_type) and not is_optional_type(field_type):
-                    field_types = get_args(field_type)
-                    for f_type in field_types:
-                        if f_type.name == value.name:
-                            field_type = f_type
+                for item in value:
+                    data[field_name].append(
+                        possible_product_block_types[item.name]._from_other_lifecycle(item, status, subscription_id)
+                    )
+            elif is_optional_type(field_type):
+                field_type = first(get_args(field_type))
+                if value:
                     data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
                 else:
-                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                    data[field_name] = None
+            elif is_union_type(field_type) and not is_optional_type(field_type):
+                field_types = get_args(field_type)
+                for f_type in field_types:
+                    if f_type.name == value.name:
+                        field_type = f_type
+                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+            else:
+                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
     def _save_instances(
