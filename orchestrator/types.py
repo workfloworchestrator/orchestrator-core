@@ -148,6 +148,16 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     >>> is_list_type(Literal[1,2,3])
     False
+    >>> is_list_type(List[Union[str, int]])
+    True
+    >>> is_list_type(List[Union[str, int]], Union[str, int])
+    True
+    >>> is_list_type(List[Union[str, int]], str)
+    True
+    >>> is_list_type(List[Union[str, int]], int)
+    False
+    >>> is_list_type(List[Union[str, int]], Union[int, int])
+    False
     """
     if get_origin(t):
         if is_optional_type(t) or is_union_type(t):
@@ -160,7 +170,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
             if test_type and get_args(t):
                 first_arg = get_args(t)[0]
                 # To support a list with union of multiple product blocks.
-                if is_union_type(first_arg) and get_args(first_arg):
+                if is_union_type(first_arg) and get_args(first_arg) and not is_union_type(test_type):
                     first_arg = get_args(first_arg)[0]
                 return is_of_type(first_arg, test_type)
             else:
