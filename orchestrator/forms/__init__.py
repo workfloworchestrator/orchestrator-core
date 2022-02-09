@@ -61,7 +61,7 @@ class FormValidationError(FormException):
         no_errors = len(self.errors)
         return (
             f'{no_errors} validation error{"" if no_errors == 1 else "s"} for {self.validator_name}\n'
-            f"{display_errors(cast(List[Dict[str, Any]], self.errors))}"  # type: ignore
+            f"{display_errors(cast(List[ErrorDict], self.errors))}"  # type: ignore
         )
 
 
@@ -104,7 +104,7 @@ def post_process(form_generator: Optional[StateInputFormGenerator], state: State
             try:
                 form_validated_data = generated_form(**user_input)
             except ValidationError as e:
-                raise FormValidationError(e.model.__name__, e.errors()) from e  # type: ignore
+                raise FormValidationError(e.model.__name__, cast(List[ErrorDict]), e.errors()) from e  # type: ignore
 
             # Update state with validated_data
             current_state.update(form_validated_data.dict())
