@@ -19,9 +19,9 @@ from uuid import UUID, uuid4
 
 import structlog
 from deepmerge import Merger
+from nwastdlib.ex import show_ex
 from sqlalchemy.orm import joinedload
 
-from nwastdlib.ex import show_ex
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
