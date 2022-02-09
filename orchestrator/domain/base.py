@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional,
 from uuid import UUID, uuid4
 
 import structlog
-from more_itertools import first, flatten, one, only
+from more_itertools import first, flatten, last, one, only
 from pydantic import BaseModel, Field, ValidationError
 from pydantic.fields import PrivateAttr
 from pydantic.main import ModelMetaclass
@@ -218,6 +218,8 @@ class DomainModel(BaseModel):
             if is_list_type(product_block_field_type):
                 if _is_constrained_list_type(product_block_field_type):
                     product_block_model = one(get_args(product_block_field_type))
+                    if is_union_type(product_block_model):
+                        product_block_model = last(get_args(product_block_model))
                     default_value = product_block_field_type()
                     # if constrainedlist has minimum, return that minimum else empty list
                     if product_block_field_type.min_items:
