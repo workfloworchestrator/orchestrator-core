@@ -78,7 +78,7 @@ def _is_constrained_list_type(type: Type) -> bool:
 
         # Strip generic arguments, it still might be a subclass
         if get_origin(type):
-            return _is_constrained_list_type(get_origin(cast(Type[Any], type)))  # type: ignore
+            return _is_constrained_list_type(get_origin(type))  # type: ignore
         else:
             return False
 
@@ -161,13 +161,14 @@ class DomainModel(BaseModel):
 
         if version_info.minor < 10:
             annotations = cls.__dict__.get("__annotations__", {})
-        elif TYPE_CHECKING:
-            annotations = {}
         else:
-            # Only available in python > 3.10
-            from inspect import get_annotations
+            if TYPE_CHECKING:
+                annotations = {}
+            else:
+                # Only available in python > 3.10
+                from inspect import get_annotations
 
-            annotations = get_annotations(cls)
+                annotations = get_annotations(cls)
 
         for field_name, field_type in annotations.items():
             if field_name.startswith("_"):
@@ -401,10 +402,10 @@ class DomainModel(BaseModel):
                     saved_instances.extend(saved)
                 child_instances[product_block_field] = field_instance_list
             elif (
-                not is_optional_type(product_block_field_type)
-                and not is_union_type(product_block_field_type)
-                or product_block_models is not None
-            ):
+                is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
+            ) and product_block_models is None:
+                pass
+            else:
                 saved, child = product_block_models.save(subscription_id=subscription_id, status=status)
                 child_instances[product_block_field] = [child]
                 saved_instances.extend(saved)
@@ -787,14 +788,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                             subscription_instance_values.append(
                                 SubscriptionInstanceValueTable(resource_type=resource_type, value=str(val))
                             )
-            elif field_name in current_values_dict:
-                current_value = current_values_dict[field_name][0]
-                current_value.value = str(value)
-                subscription_instance_values.append(current_value)
             else:
-                subscription_instance_values.append(
-                    SubscriptionInstanceValueTable(resource_type=resource_type, value=str(value))
-                )
+                if field_name in current_values_dict:
+                    current_value = current_values_dict[field_name][0]
+                    current_value.value = str(value)
+                    subscription_instance_values.append(current_value)
+                else:
+                    subscription_instance_values.append(
+                        SubscriptionInstanceValueTable(resource_type=resource_type, value=str(value))
+                    )
         return subscription_instance_values
 
     def _set_instance_domain_model_attrs(

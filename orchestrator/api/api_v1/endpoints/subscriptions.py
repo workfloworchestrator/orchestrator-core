@@ -20,10 +20,10 @@ from uuid import UUID
 import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
-from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import _query_with_filters
 from orchestrator.db import (
@@ -79,9 +79,9 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()
 
-    s = SubscriptionModel.from_subscription(subscription_id)
-    subscription = s.dict()
+    subscription = SubscriptionModel.from_subscription(subscription_id).dict()
     subscription["customer_descriptions"] = customer_descriptions
+
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
     return subscription
