@@ -371,8 +371,8 @@ class DomainModel(BaseModel):
                     for f_type in field_types:
                         if f_type.name == value.name:
                             field_type = f_type
-
-                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                if value:
+                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
     def _save_instances(
