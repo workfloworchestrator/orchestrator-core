@@ -13,7 +13,7 @@
 
 
 from copy import deepcopy
-from typing import Any, Generator, Optional, TypedDict, Union, cast
+from typing import Any, Dict, Generator, List, Optional, TypedDict, Union, cast
 
 import structlog
 from pydantic.error_wrappers import ValidationError, display_errors
@@ -42,31 +42,31 @@ class FormNotCompleteError(FormException):
 
 
 class PydanticErrorDict(TypedDict):
-    loc: list[Union[str, int]]
+    loc: List[Union[str, int]]
     type: str
     msg: str
-    ctx: dict[str, Any]
+    ctx: Dict[str, Any]
 
 
 class FormValidationError(FormException):
     validator_name: str
-    errors: list[PydanticErrorDict]
+    errors: List[PydanticErrorDict]
 
-    def __init__(self, validator_name: str, errors: list[dict[str, Any]]):
+    def __init__(self, validator_name: str, errors: List[Dict[str, Any]]):
         super().__init__(validator_name, errors)
         self.validator_name = validator_name
-        self.errors = cast(list[PydanticErrorDict], errors)
+        self.errors = cast(List[PydanticErrorDict], errors)
 
     def __str__(self) -> str:
         no_errors = len(self.errors)
         return (
             f'{no_errors} validation error{"" if no_errors == 1 else "s"} for {self.validator_name}\n'
-            f"{display_errors(cast(list[dict[str, Any]], self.errors))}"  # type: ignore
+            f"{display_errors(cast(List[Dict[str, Any]], self.errors))}"  # type: ignore
         )
 
 
 def generate_form(
-    form_generator: Optional[StateInputFormGenerator], state: State, user_inputs: list[State]
+    form_generator: Optional[StateInputFormGenerator], state: State, user_inputs: List[State]
 ) -> Optional[InputForm]:
     """Generate form using form generator as defined by a workflow."""
     try:
@@ -80,7 +80,7 @@ def generate_form(
     return None
 
 
-def post_process(form_generator: Optional[StateInputFormGenerator], state: State, user_inputs: list[State]) -> State:
+def post_process(form_generator: Optional[StateInputFormGenerator], state: State, user_inputs: List[State]) -> State:
     """Post process user_input based on form definition from workflow."""
 
     # there is no form_generator so we return no validated data
