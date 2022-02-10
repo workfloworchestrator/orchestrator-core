@@ -3,7 +3,7 @@ name: Scheduled build and test
 on:
   workflow_dispatch:  # Manual run
   schedule:  # Targets the default branch
-    - cron: '0 7 * * MON%2'
+    - cron: '0 7 * * MON'  # TODO github's cron pattern doesn't support modulo, so it runs every week. Add a job that silently stops the workflow every uneven week
 
 env:
   CHANNEL: ${{ env.CI_SLACK_NOTIFICATION_CHANNEL }}
