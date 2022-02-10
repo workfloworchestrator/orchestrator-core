@@ -266,6 +266,7 @@ def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, st
     return uuids
 
 
+# Todo: check
 def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Dict) -> None:
     """Create new resource types and link them to existing product_blocks by product_block name.
 
