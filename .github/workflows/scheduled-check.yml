@@ -26,7 +26,7 @@ jobs:
     if: ${{ failure() }}
     uses: ./.github/workflows/slack-notify.yml
     with:
-      message: "Build failed"
+      message: "Build failed "
       success: false
       channel: ${{ env.CHANNEL }}
     secrets:
