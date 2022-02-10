@@ -14,13 +14,11 @@ on:
       success:
         required: true
         type: boolean
-      channel:
-        required: true
-        type: string
     secrets:
       CI_SLACK_WEBHOOK_URL:
         required: true
-
+      CHANNEL:
+        required: true
 
 jobs:
   notify:
@@ -29,9 +27,9 @@ jobs:
       - run: echo ::set-env name=REPOSITORY_NAME::$(echo "$GITHUB_REPOSITORY" | cut -d '/' -f2-)
       - run: wget --quiet https://raw.githubusercontent.com/workfloworchestrator/nitpick-style/main/ci/scripts/slack.sh
       - run: chmod +x slack.sh
-      - run: ./slack.sh "${{ inputs.channel }}" "${{ inputs.message }} for $REPOSITORY_NAME $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" zap "${{ inputs.username }}"
+      - run: ./slack.sh "${{ secrets.CHANNEL }}" "${{ inputs.message }} for $REPOSITORY_NAME $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" zap "${{ inputs.username }}"
         if: ${{ inputs.success == true }}
-      - run: ./slack.sh "${{ inputs.channel }}" "${{ inputs.message }} for $REPOSITORY_NAME $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" white_check_mark "${{ inputs.username }}"
+      - run: ./slack.sh "${{ secrets.CHANNEL }}" "${{ inputs.message }} for $REPOSITORY_NAME $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" white_check_mark "${{ inputs.username }}"
         if: ${{ inputs.success == false }}
     env:
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}

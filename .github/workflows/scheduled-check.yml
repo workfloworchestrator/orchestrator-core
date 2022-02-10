@@ -27,8 +27,8 @@ jobs:
     with:
       message: "Build failed "
       success: false
-      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
     secrets:
+      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
 
   notify_test_failed:
@@ -38,8 +38,8 @@ jobs:
     with:
       message: "Successful build but failed test"
       success: false
-      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
     secrets:
+      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
 
   notify_test_success:
@@ -49,6 +49,6 @@ jobs:
     with:
       message: "Successful build but failed test"
       success: true
-      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
     secrets:
+      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
