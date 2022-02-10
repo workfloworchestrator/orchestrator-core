@@ -9,7 +9,7 @@ on:
       - "1256-schedule-build-and-notify" # TODO remove
 
 env:
-  CHANNEL: ${{ env.CI_SLACK_NOTIFICATION_CHANNEL }}
+  CHANNEL: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
   CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
 
 
