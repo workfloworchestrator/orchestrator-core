@@ -24,7 +24,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - run: echo ::set-env name=REPOSITORY_NAME::$(echo "$GITHUB_REPOSITORY" | cut -d '/' -f2-)
+      - run: echo "REPOSITORY_NAME=$(echo "$GITHUB_REPOSITORY" | cut -d '/' -f2-)" >> $GITHUB_ENV
       - run: wget --quiet https://raw.githubusercontent.com/workfloworchestrator/nitpick-style/main/ci/scripts/slack.sh
       - run: chmod +x slack.sh
       - run: ./slack.sh "${{ secrets.CHANNEL }}" "${{ inputs.message }} for $REPOSITORY_NAME $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" zap "${{ inputs.username }}"
