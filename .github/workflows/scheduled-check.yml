@@ -1,0 +1,52 @@
+name: Scheduled build and test
+
+on:
+  workflow_dispatch:  # Manual run
+  schedule:  # Targets the default branch
+    - cron: '0 7 * * MON%2'
+
+env:
+  CHANNEL: ${{ env.CI_SLACK_NOTIFICATION_CHANNEL }}
+  CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
+
+
+jobs:
+  run_build:
+    uses: ./.github/workflows/run-linting-tests.yml
+
+  run_tests:
+    uses: ./.github/workflows/run-unit-tests.yml
+    needs: [run_build]
+
+  notify_build_failed:
+    needs: [run_build]
+    if: ${{ failure() }}
+    uses: ./.github/workflows/slack-notify.yml
+      with:
+        message: "Build failed"
+        success: false
+        channel: ${{ env.CHANNEL }}
+      secrets:
+        CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
+
+  notify_test_failed:
+    needs: [run_tests]
+    if: ${{ failure() }}
+    uses: ./.github/workflows/slack-notify.yml
+      with:
+        message: "Successful build but failed test"
+        success: false
+        channel: ${{ env.CHANNEL }}
+      secrets:
+        CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
+
+  notify_test_success:
+    needs: [run_tests]
+    if: ${{ success() }}
+    uses: ./.github/workflows/slack-notify.yml
+      with:
+        message: "Successful build but failed test"
+        success: true
+        channel: ${{ env.CHANNEL }}
+      secrets:
+        CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
