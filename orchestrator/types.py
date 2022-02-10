@@ -121,6 +121,7 @@ def is_of_type(t: Any, test_type: Any) -> bool:
         return False
 
 
+# TODO #1330: Fix comparison of is_of_type(Union[str, int], Union[int, str]), it returns False but it should be True
 def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     """Check if `t` is list type.
 
