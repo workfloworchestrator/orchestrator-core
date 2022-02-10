@@ -33,5 +33,5 @@ jobs:
         if: ${{ inputs.success == true }}
       - run: ./slack.sh "${{ inputs.channel }}" "${{ inputs.message }} for $REPOSITORY_NAME $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" white_check_mark "${{ inputs.username }}"
         if: ${{ inputs.success == false }}
-  env:
-    CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
+    env:
+      CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
