@@ -29,10 +29,10 @@ jobs:
   #   needs: [run_build]
 
   slack:
-      needs: [run_build]
+      needs: [check_week, run_build]
       # needs: [run_tests]
       runs-on: ubuntu-latest
-      if: ${{ jobs.check_week.outputs.should_cancel != '0' }}  # TODO change back to 1
+      if: ${{ needs.check_week.outputs.should_cancel != '0' }}  # TODO change back to 1
       steps:
         - uses: technote-space/workflow-conclusion-action@v2
         - run: echo "ICON=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo white_check_mark || echo zap)" >> $GITHUB_ENV
