@@ -37,8 +37,10 @@ jobs:
         - run: echo "MSG=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo "Successful build" || echo "Build failed")" >> $GITHUB_ENV
         - run: echo "CI_JOB_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> $GITHUB_ENV
         - run: wget --quiet https://raw.githubusercontent.com/workfloworchestrator/nitpick-style/main/ci/scripts/slack.sh && chmod +x slack.sh
-        - run: ./slack.sh "${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}" "$MSG $REPO $CI_JOB_URL" $ICON "Github Pipeline"
+        - run: ./slack.sh "${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}" "$WORKFLOW_CONCLUSION $MSG $REPO $CI_JOB_URL" $ICON "Github Pipeline"
           if: ${{ contains(fromJson('["failure", "timed_out", "success"]'), env.WORKFLOW_CONCLUSION) }}  # notify on success, failure, timeout
+          env:
+            SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
         # - uses: 8398a7/action-slack@v3
         #   with:
         #     status: ${{ env.WORKFLOW_CONCLUSION }} # neutral, success, skipped, cancelled, timed_out, action_required, failure
