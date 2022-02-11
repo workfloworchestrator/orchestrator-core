@@ -3,21 +3,25 @@ name: Send Slack Notification
 on:
   workflow_call:
     inputs:
+      message:
+        description: 'The message to post'
+        type: string
+        required: true
+      success:
+        description: 'Indicates success of the calling workflow'
+        type: boolean
+        required: true
       username:
         description: 'Slack notification is posted as this user'
         type: string
         default: 'Github Pipeline'
         required: false
-      message:
-        required: true
-        type: string
-      success:
-        required: true
-        type: boolean
     secrets:
-      CI_SLACK_WEBHOOK_URL:
-        required: true
       CHANNEL:
+        description: 'Channel to post in'
+        required: true
+      CI_SLACK_WEBHOOK_URL:
+        description: 'Valid Slack webhook URL'
         required: true
 
 jobs:

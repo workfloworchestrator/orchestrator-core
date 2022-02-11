@@ -7,10 +7,6 @@ on:
     branches:
       - "1256-schedule-build-and-notify" # TODO remove
 
-env:
-  CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
-
-
 jobs:
   run_build:
     uses: ./.github/workflows/run-linting-tests.yml
@@ -22,32 +18,32 @@ jobs:
   notify_build_failed:
     needs: [run_build]
     if: ${{ failure() }}
-    uses: ./.github/workflows/slack-notify.yml
+    uses: ./.github/workflows/utils/slack-notify.yml
     with:
       message: "Build failed for"
       success: false
     secrets:
-      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
+      CHANNEL: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
 
   notify_test_failed:
     needs: [run_tests]
     if: ${{ failure() }}
-    uses: ./.github/workflows/slack-notify.yml
+    uses: ./.github/workflows/utils/slack-notify.yml
     with:
       message: "Successful build but failed test"
       success: false
     secrets:
-      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
+      CHANNEL: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
 
   notify_test_success:
     needs: [run_tests]
     if: ${{ success() }}
-    uses: ./.github/workflows/slack-notify.yml
+    uses: ./.github/workflows/utils/slack-notify.yml
     with:
       message: "Successfully built and tested"
       success: true
     secrets:
-      channel: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
+      CHANNEL: ${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}
       CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
