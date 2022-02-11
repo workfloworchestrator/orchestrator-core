@@ -24,13 +24,12 @@ jobs:
     uses: ./.github/workflows/run-linting-tests.yml
     needs: [check_week]
 
-  # run_tests: # TODO ENABLE
-  #   uses: ./.github/workflows/run-unit-tests.yml
-  #   needs: [run_build]
+  run_tests:
+    uses: ./.github/workflows/run-unit-tests.yml
+    needs: [run_build]
 
   slack:
-      needs: [check_week, run_build]
-      # needs: [run_tests]
+      needs: [check_week, run_tests]
       runs-on: ubuntu-latest
       if: ${{ needs.check_week.outputs.should_cancel != '1' }}
       steps:
@@ -40,7 +39,7 @@ jobs:
         - run: echo "MSG=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo "Successful build" || echo "Build failed")" >> $GITHUB_ENV
         - run: echo "CI_JOB_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> $GITHUB_ENV
         - run: wget --quiet https://raw.githubusercontent.com/workfloworchestrator/nitpick-style/main/ci/scripts/slack.sh && chmod +x slack.sh
-        - run: ./slack.sh "${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}" "$WORKFLOW_CONCLUSION $MSG $REPO $CI_JOB_URL" $ICON "Github Pipeline"
+        - run: ./slack.sh "${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}" "$MSG $REPO $CI_JOB_URL" $ICON "Github Pipeline"
           if: ${{ contains(fromJson('["failure", "timed_out", "success"]'), env.WORKFLOW_CONCLUSION) }}  # notify on success, failure, timeout
           env:
             CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
