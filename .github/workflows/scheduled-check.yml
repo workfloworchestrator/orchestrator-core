@@ -14,7 +14,7 @@ jobs:
 
   run_build:
     uses: ./.github/workflows/run-linting-tests.yml
-    needs: [check_week]
+    # needs: [check_week]
 
   run_tests:
     uses: ./.github/workflows/run-unit-tests.yml
