@@ -2,7 +2,8 @@ import pytest
 
 from orchestrator.db import FixedInputTable, ProductTable, db
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import ProductLifecycle, ProductModel, SubscriptionModel
+from orchestrator.domain.base import ProductModel, SubscriptionModel
+from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
 
 

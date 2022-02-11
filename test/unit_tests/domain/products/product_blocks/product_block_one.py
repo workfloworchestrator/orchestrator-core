@@ -4,7 +4,8 @@ import pytest
 from pydantic import Field
 
 from orchestrator.db import ProductBlockTable, db
-from orchestrator.domain.base import ProductBlockModel, ProductLifecycle, ProductModel
+from orchestrator.domain.base import ProductBlockModel, ProductModel
+from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
 
 
