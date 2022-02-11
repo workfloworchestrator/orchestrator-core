@@ -18,7 +18,7 @@ jobs:
   notify_build_failed:
     needs: [run_build]
     if: ${{ failure() }}
-    uses: ./.github/workflows/utils/slack-notify.yml
+    uses: ./.github/workflows/slack-notify.yml
     with:
       message: "Build failed for"
       success: false
@@ -29,7 +29,7 @@ jobs:
   notify_test_failed:
     needs: [run_tests]
     if: ${{ failure() }}
-    uses: ./.github/workflows/utils/slack-notify.yml
+    uses: ./.github/workflows/slack-notify.yml
     with:
       message: "Successful build but failed test"
       success: false
@@ -40,7 +40,7 @@ jobs:
   notify_test_success:
     needs: [run_tests]
     if: ${{ success() }}
-    uses: ./.github/workflows/utils/slack-notify.yml
+    uses: ./.github/workflows/slack-notify.yml
     with:
       message: "Successfully built and tested"
       success: true
