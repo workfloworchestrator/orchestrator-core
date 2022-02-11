@@ -14,7 +14,7 @@ jobs:
       - run: echo "WEEK_MODULO=$(expr `date +%W` % 2)" >> $GITHUB_ENV
       - name: Cancel workflow every other week
         uses: andymckay/cancel-action@0.2
-        if: ${{ env.WEEK_MODULO == "1" }}
+        if: ${{ env.WEEK_MODULO == '1' }}
 
   run_build:
     uses: ./.github/workflows/run-linting-tests.yml
