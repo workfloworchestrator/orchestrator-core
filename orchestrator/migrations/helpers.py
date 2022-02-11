@@ -896,12 +896,14 @@ def delete(conn: sa.engine.Connection, obsolete: Dict) -> None:
         for workflow in obsolete["workflows"]:
             delete_workflow(conn, workflow)
 
+
 #
 # Helpers for migrating to the new domain model relations as introduced in 0.3.3
 #
 
+
 def convert_resource_type_relations_to_instance_relations(
-        conn: sa.engine.Connection, resource_type_id: str, domain_model_attr: str, cleanup: bool = True
+    conn: sa.engine.Connection, resource_type_id: str, domain_model_attr: str, cleanup: bool = True
 ) -> None:
     """Move resouce type relations to instance type relations using resource type id.
 
@@ -952,7 +954,7 @@ def convert_resource_type_relations_to_instance_relations(
 
 
 def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
-        conn: sa.engine.Connection, domain_model_attr: str, resource_type_id: str, cleanup: bool = True
+    conn: sa.engine.Connection, domain_model_attr: str, resource_type_id: str, cleanup: bool = True
 ) -> None:
     """Move instance type relations to resouce type relations by domain model attribute.
 
