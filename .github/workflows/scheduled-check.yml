@@ -9,6 +9,7 @@ on:
 
 jobs:
   check_week:
+    runs-on: ubuntu-latest
     # Custom check as github does not support modulo syntax from gitlab ("0 7 * * MON%2")
     steps:
       - run: echo "WEEK_MODULO=$(expr `date +%W` % 2)" >> $GITHUB_ENV
