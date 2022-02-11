@@ -3,9 +3,6 @@ name: Scheduled build and test
 on:
   schedule:  # Targets the default branch
     - cron: '0 6 * * MON'  # This is UTC, no TZ option yet unfortunately
-  push:
-    branches:
-      - "1256-schedule-build-and-notify" # TODO remove
 
 jobs:
   check_week:
