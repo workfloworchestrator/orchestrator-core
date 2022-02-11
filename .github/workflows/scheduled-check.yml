@@ -30,7 +30,6 @@ jobs:
           # You can get conclusion via env (env.WORKFLOW_CONCLUSION)
         - uses: technote-space/workflow-conclusion-action@v2
         - run: echo "ICON=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo white_check_mark || echo zap)" >> $GITHUB_ENV
-          shell: bash
         - uses: 8398a7/action-slack@v3
           with:
             status: ${{ env.WORKFLOW_CONCLUSION }} # neutral, success, skipped, cancelled, timed_out, action_required, failure
@@ -40,7 +39,7 @@ jobs:
           env:
             # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
-          if: ${{ contains(["failure", "success"], env.WORKFLOW_CONCLUSION) }}  # notify on success or failure
+          if: ${{ contains(fromJson('["failure", "success"]'), env.WORKFLOW_CONCLUSION) }}  # notify on success or failure
 
   # notify_build_failed:
   #   needs: [run_build]
