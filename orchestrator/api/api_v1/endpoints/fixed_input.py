@@ -16,13 +16,16 @@ from typing import Any, Dict
 
 from fastapi.routing import APIRouter
 from more_itertools import first_true, one
+from sqlalchemy.exc import NoResultFound
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.schemas import FixedInputConfigurationSchema
 from orchestrator.services import products
+import structlog
 
 router = APIRouter()
 
+logger = structlog.get_logger(__name__)
 
 @router.get("/configuration", response_model=FixedInputConfigurationSchema)
 def fi_configuration() -> Dict[str, Any]:
@@ -33,7 +36,11 @@ def fi_configuration() -> Dict[str, Any]:
         data["by_tag"][tag] = []
 
     for product_name, model in SUBSCRIPTION_MODEL_REGISTRY.items():
-        product = products.get_product_by_name(product_name)
+        try:
+            product = products.get_product_by_name(product_name)
+        except NoResultFound:
+            logger.error("Error while fetching fixed_inputs for product", product_name=product_name)
+
         for fi_name, fi_type in model._non_product_block_fields_.items():
             fi_data = first_true(data["fixed_inputs"], None, lambda i: i["name"] == fi_name)
             if not fi_data:
