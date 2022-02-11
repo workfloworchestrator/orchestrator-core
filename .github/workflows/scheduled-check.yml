@@ -18,7 +18,7 @@ jobs:
         id: week-modulo
       - name: Cancel workflow every other week
         uses: andymckay/cancel-action@0.2
-        if: ${{ steps.week-modulo.outputs.should_cancel == '0' }} # TODO change back to 1
+        if: ${{ steps.week-modulo.outputs.should_cancel == '1' }}
 
   run_build:
     uses: ./.github/workflows/run-linting-tests.yml
@@ -32,7 +32,7 @@ jobs:
       needs: [check_week, run_build]
       # needs: [run_tests]
       runs-on: ubuntu-latest
-      if: ${{ needs.check_week.outputs.should_cancel != '0' }}  # TODO change back to 1
+      if: ${{ needs.check_week.outputs.should_cancel != '1' }}
       steps:
         - uses: technote-space/workflow-conclusion-action@v2
         - run: echo "ICON=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo white_check_mark || echo zap)" >> $GITHUB_ENV
