@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Union
 from uuid import UUID
 
 import sqlalchemy as sa
+from orchestrator.types import UUIDstr
 
 
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
@@ -36,17 +37,17 @@ def get_product_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     return [x for (x,) in result.fetchall()][0]
 
 
-def get_product_name_by_id(conn: sa.engine.Connection, id: UUID) -> str:
+def get_product_name_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> str:
     result = conn.execute(sa.text("SELECT name FROM products WHERE product_id=:id"), id=id)
     return [x for (x,) in result.fetchall()][0]
 
 
-def get_product_by_id(conn: sa.engine.Connection, id: UUID) -> dict:
+def get_product_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> dict:
     result = conn.execute(sa.text("SELECT * FROM products WHERE product_id=:id"), id=id)
     return result.fetchall()[0]
 
 
-def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: UUID) -> Sequence:
+def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> Sequence:
     result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), id=id)
     return result.fetchall()
 
@@ -63,7 +64,7 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
     )
 
 
-def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[UUID, str]]:
+def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[str, Union[UUID, UUIDstr, str]]]:
     """Return a list, with dicts containing keys `product_id` and `name` of active products."""
     result = conn.execute(sa.text("SELECT product_id, name  FROM products WHERE status='active'"))
     return [{"product_id": row[0], "name": row[1]} for row in result.fetchall()]
@@ -184,7 +185,7 @@ def create_workflows(conn: sa.engine.Connection, new: Dict) -> None:
         )
 
 
-def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) -> Dict[str, str]:
+def create_fixed_inputs(conn: sa.engine.Connection, product_id: Union[UUID, UUIDstr], new: Dict) -> Dict[str, str]:
     """Create fixed inputs for a given product.
 
     Args:
@@ -214,7 +215,7 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: str, new: Dict) 
     return uuids
 
 
-def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
+def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, UUIDstr]:
     """Create new products with their fixed inputs.
 
     Args:
@@ -275,7 +276,7 @@ def create_products(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
     return uuids
 
 
-def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, str]:
+def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, UUIDstr]:
     """Create new product blocks.
 
     Args:
@@ -603,7 +604,7 @@ def remove_products_from_workflow_by_product_tag(
 
 
 def add_product_block_relation_between_products_by_id(
-    conn: sa.engine.Connection, parent_id: int, child_id: str
+    conn: sa.engine.Connection, parent_id: Union[UUID, UUIDstr], child_id: Union[UUID, UUIDstr]
 ) -> None:
     """Add product block relation by product block id.
 
@@ -633,7 +634,7 @@ def add_product_block_relation_between_products_by_id(
 
 
 def remove_product_block_relation_between_products_by_id(
-    conn: sa.engine.Connection, parent_id: str, child_id: str
+    conn: sa.engine.Connection, parent_id: Union[UUID, UUIDstr], child_id: Union[UUID, UUIDstr]
 ) -> None:
     """Remove product block relation by id.
 
@@ -662,7 +663,7 @@ def remove_product_block_relation_between_products_by_id(
     )
 
 
-def delete_resource_type_by_id(conn: sa.engine.Connection, id: str) -> None:
+def delete_resource_type_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> None:
     """Delete resource type by resource type id.
 
     Args:
@@ -906,7 +907,7 @@ def delete(conn: sa.engine.Connection, obsolete: Dict) -> None:
 
 
 def convert_resource_type_relations_to_instance_relations(
-    conn: sa.engine.Connection, resource_type_id: str, domain_model_attr: str, cleanup: bool = True
+    conn: sa.engine.Connection, resource_type_id: Union[UUID, UUIDstr], domain_model_attr: str, cleanup: bool = True
 ) -> None:
     """Move resouce type relations to instance type relations using resource type id.
 
@@ -957,7 +958,7 @@ def convert_resource_type_relations_to_instance_relations(
 
 
 def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
-    conn: sa.engine.Connection, domain_model_attr: str, resource_type_id: str, cleanup: bool = True
+    conn: sa.engine.Connection, domain_model_attr: str, resource_type_id: Union[UUID, UUIDstr], cleanup: bool = True
 ) -> None:
     """Move instance type relations to resouce type relations by domain model attribute.
 
