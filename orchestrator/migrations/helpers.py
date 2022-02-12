@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Sequence
+from typing import Dict, List, Sequence
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -70,7 +70,7 @@ def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[UUI
 
 
 def create_missing_modify_note_workflows(conn: sa.engine.Connection) -> None:
-    """Add a `modify_note` workflow to all products that don't have one yet
+    """Add a `modify_note` workflow to all products that don't have one yet.
 
     When you use the subscription note field there is a workflow in the core that can be used to modify
     the note via a workflow. By doing this with a workflow you can find all previous changes to this field by
@@ -328,7 +328,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
     Returns:
         List of resource type ids in order of insertion
 
-    Usage exampels:
+    Usage examples:
         >>> new_stuff = {
             "ProductBlockName1": {
                 "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
@@ -340,7 +340,8 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
         }
         >>> create_resource_types(conn, new_stuff)
 
-        without extra ID's you don't need the tuple.
+    without extra ID's you don't need the tuple:
+
         >>> new_stuff = {
             "ProductBlockName1": {
                 "resource_type1": "Resource description"
@@ -350,7 +351,9 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
                 "resource_type1": "Resource description"
             }
         }
+
         >>> create_resource_types_for_product_blocks(conn, new_stuff)
+
     """
     insert_resource_type_with_id = sa.text(
         """INSERT INTO resource_types (resource_type_id, resource_type, description)
