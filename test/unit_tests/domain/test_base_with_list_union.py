@@ -130,7 +130,7 @@ def test_product_model_with_list_union_type_directly_below_with_relation_overlap
         )
 
 
-def test_list_union_productblock_as_sub(
+def test_list_union_product_block_as_sub(
     test_product_sub_list_union,
     test_product_type_sub_list_union,
     test_product_block_with_list_union,
@@ -174,14 +174,15 @@ def test_list_union_productblock_as_sub(
     assert list_union_sub_from_database.test_block.int_field == list_union_subscription.test_block.int_field
     assert list_union_sub_from_database.test_block.str_field == list_union_subscription.test_block.str_field
 
-    instance_ids_from_db = [
-        block.subscription_instance_id for block in list_union_sub_from_database.test_block.list_union_blocks
-    ]
-    instance_ids_from_subs = [
-        sub_one_subscription_1.test_block.subscription_instance_id,
-        sub_two_subscription_1.test_block.subscription_instance_id,
-    ]
-    assert instance_ids_from_db.sort() == instance_ids_from_subs.sort()
+    sorted_db_list = sorted(
+        list_union_sub_from_database.test_block.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
+    )
+    sorted_sub_list = sorted(
+        list_union_subscription_inactive.test_block.list_union_blocks,
+        key=lambda x: x.owner_subscription_id,
+        reverse=True,
+    )
+    assert sorted_db_list == sorted_sub_list
 
     # TODO #1321: uncomment test code below after SAFE_PARENT_TRANSITIONS_FOR_STATUS check has been re-done
     # sub_one_subscription_terminated = ProductSubOne.from_other_lifecycle(

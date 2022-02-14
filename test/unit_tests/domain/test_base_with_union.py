@@ -56,7 +56,7 @@ def test_product_model_with_union_type_directly_below(
         )
 
 
-def test_union_productblock_as_sub(
+def test_union_product_block_as_sub(
     test_union_sub_product,
     test_union_type_sub_product,
     test_product_block_with_union,
