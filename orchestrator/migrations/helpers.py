@@ -315,6 +315,16 @@ def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, UU
             ),
             product_block,
         )
+        if "resource_types" in product_block:
+            block_resource_types = {name: product_block["resource_types"]}
+            create_resource_types_for_product_blocks(conn, block_resource_types)
+
+        if "parent_relations" in product_block:
+            for parent_name in product_block["parent_relations"]:
+                parent_block_id = get_product_block_id_by_name(conn, parent_name)
+                add_product_block_relation_between_products_by_id(
+                    conn, str(parent_block_id), str(product_block["product_block_id"])
+                )
 
     return uuids
 
