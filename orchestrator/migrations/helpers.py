@@ -26,6 +26,11 @@ def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     return [x for (x,) in result.fetchall()][0]
 
 
+def get_fixed_input_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
+    result = conn.execute(sa.text("SELECT fixed_input_id FROM fixed_inputs WHERE fixed_inputs.name=:name"), name=name)
+    return [x for (x,) in result.fetchall()][0]
+
+
 def get_product_block_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     result = conn.execute(
         sa.text("SELECT product_block_id FROM product_blocks WHERE product_blocks.name=:name"), name=name
@@ -195,24 +200,47 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: Union[UUID, UUID
         new: an dict of your workflow data
 
     Example:
+        >>> product_id = "id"
         >>> new = {
                 "fixed_input_1": ("value", "f6a4f529-ad17-4ad8-b8ba-45684e2354ba"),
                 "fixed_input_2": ("value", "5a67321d-45d5-4921-aa93-b8708b5d74c6")
             }
+        >>> create_resource_types(conn, product_id, new)
+
+    without extra ID's you don't need the tuple:
+
+        >>> product_id = "id"
+        >>> new = {
+            "fixed_input_1": "value",
+            "fixed_input_2": "value",
+        }
+        >>> create_fixed_inputs(conn, product_id, new)
+
     """
+    insert_fixed_input_with_id = sa.text(
+        """INSERT INTO fixed_inputs (fixed_input_id, name, value, created_at, product_id)
+        VALUES (:fixed_input_id, :key, :value, now(), :product_id)
+        ON CONFLICT DO NOTHING;"""
+    )
+    insert_fixed_input_without_id = sa.text(
+        """INSERT INTO fixed_inputs (name, value, created_at, product_id)
+        VALUES (:key, :value, now(), :product_id)
+        ON CONFLICT DO NOTHING;"""
+    )
+
     uuids = {}
-    for key, (value, fixed_input_id) in new.items():
-        uuids[key] = fixed_input_id
-        conn.execute(
-            sa.text(
-                """
-                INSERT INTO fixed_inputs (fixed_input_id, name, value, created_at, product_id)
-                VALUES (:fixed_input_id, :key, :value, now(), :product_id)
-                ON CONFLICT DO NOTHING;
-            """
-            ),
-            {"fixed_input_id": fixed_input_id, "key": key, "value": value, "product_id": product_id},
-        )
+    for key, values in new.items():
+        if isinstance(values, tuple):
+            value, fixed_input_id = values
+            uuids[key] = fixed_input_id
+            conn.execute(
+                insert_fixed_input_with_id,
+                {"fixed_input_id": fixed_input_id, "key": key, "value": value, "product_id": product_id},
+            )
+        else:
+            conn.execute(insert_fixed_input_without_id, key=key, value=values, product_id=product_id)
+            uuids[key] = get_fixed_input_id_by_name(conn, key)
+
     return uuids
 
 
