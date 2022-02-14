@@ -1,5 +1,7 @@
 name: Unit tests
-on: push
+on:
+  push:
+  workflow_call:
 
 jobs:
   container_job:

@@ -1,0 +1,42 @@
+name: Scheduled build and test
+
+on:
+  schedule:  # Targets the default branch
+    - cron: '0 6 * * MON'  # This is UTC, no TZ option yet unfortunately
+
+jobs:
+  check_week:
+    runs-on: ubuntu-latest
+    # Custom check as github does not support modulo syntax from gitlab ("0 7 * * MON%2")
+    outputs:
+      should_cancel: ${{ steps.week-modulo.outputs.should_cancel }}
+    steps:
+      - run: echo "::set-output name=should_cancel::$(expr `date +%W` % 2)"
+        id: week-modulo
+      - name: Cancel workflow every other week
+        uses: andymckay/cancel-action@0.2
+        if: ${{ steps.week-modulo.outputs.should_cancel == '1' }}
+
+  run_build:
+    uses: ./.github/workflows/run-linting-tests.yml
+    needs: [check_week]
+
+  run_tests:
+    uses: ./.github/workflows/run-unit-tests.yml
+    needs: [run_build]
+
+  slack:
+      needs: [check_week, run_tests]
+      runs-on: ubuntu-latest
+      if: ${{ needs.check_week.outputs.should_cancel != '1' }}
+      steps:
+        - uses: technote-space/workflow-conclusion-action@v2
+        - run: echo "ICON=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo white_check_mark || echo zap)" >> $GITHUB_ENV
+        - run: echo "REPO=$(echo "$GITHUB_REPOSITORY" | cut -d '/' -f2-)" >> $GITHUB_ENV
+        - run: echo "MSG=$([ \"$WORKFLOW_CONCLUSION\" == \"success\" ] && echo "Successful build" || echo "Build failed")" >> $GITHUB_ENV
+        - run: echo "CI_JOB_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> $GITHUB_ENV
+        - run: wget --quiet https://raw.githubusercontent.com/workfloworchestrator/nitpick-style/main/ci/scripts/slack.sh && chmod +x slack.sh
+        - run: ./slack.sh "${{ secrets.CI_SLACK_NOTIFICATION_CHANNEL }}" "$MSG $REPO $CI_JOB_URL" $ICON "Github Pipeline"
+          if: ${{ contains(fromJson('["failure", "timed_out", "success"]'), env.WORKFLOW_CONCLUSION) }}  # notify on success, failure, timeout
+          env:
+            CI_SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}

@@ -310,7 +310,7 @@ class DomainModel(BaseModel):
             elif is_optional_type(product_block_field_type):
                 product_block_model = first(get_args(product_block_field_type))
             elif is_union_type(product_block_field_type):
-                product_block_model = get_args(product_block_field_type)
+                product_block_model = product_block_field_type
 
             possible_product_block_types = get_possible_product_block_types(product_block_model)
             field_type_names = list(possible_product_block_types.keys())
