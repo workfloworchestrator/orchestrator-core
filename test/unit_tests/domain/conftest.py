@@ -22,6 +22,10 @@ from test.unit_tests.domain.products.product_types.product_type_list_union impor
     test_product_list_union,
     test_product_type_list_union,
 )
+from test.unit_tests.domain.products.product_types.product_type_list_union_overlap import (  # noqa: F401
+    test_product_list_union_overlap,
+    test_product_type_list_union_overlap,
+)
 from test.unit_tests.domain.products.product_types.product_type_one import (  # noqa: F401
     test_product_model,
     test_product_one,

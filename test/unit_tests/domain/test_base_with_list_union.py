@@ -10,30 +10,71 @@ from orchestrator.types import SubscriptionLifecycle
 def test_product_model_with_list_union_type_directly_below(
     test_product_list_union,
     test_product_type_list_union,
-    test_product_sub_one,
-    test_product_type_sub_one,
-    test_product_sub_block_one,
-    test_product_block_one,
+    test_product_sub_block_two,
+    sub_two_subscription_1,
 ):
     ProductListUnionInactive, _, ProductListUnion = test_product_type_list_union
-    ProductSubOneInactive, _, ProductSubOne = test_product_type_sub_one
-    SubBlockOneForTestInactive, _, SubBlockOneForTest = test_product_sub_block_one
-    ProductBlockOneForTestInactive, _, _ = test_product_block_one
-
-    sub_subscription_inactive = ProductSubOneInactive.from_product_id(
-        product_id=test_product_sub_one, customer_id=uuid4()
-    )
-    sub_subscription_inactive.test_block = SubBlockOneForTestInactive.new(
-        subscription_id=sub_subscription_inactive.subscription_id, int_field=1, str_field="blah"
-    )
-    sub_subscription_inactive.save()
-    sub_subscription_active = ProductSubOne.from_other_lifecycle(
-        sub_subscription_inactive, SubscriptionLifecycle.ACTIVE
-    )
-    sub_subscription_active.save()
+    _, _, SubBlockTwoForTest = test_product_sub_block_two
 
     list_union_subscription_inactive = ProductListUnionInactive.from_product_id(
         product_id=test_product_list_union, customer_id=uuid4()
+    )
+
+    with pytest.raises(ValidationError):
+        ProductListUnion.from_other_lifecycle(list_union_subscription_inactive, SubscriptionLifecycle.ACTIVE)
+
+    new_sub_block_1 = SubBlockTwoForTest.new(
+        subscription_id=list_union_subscription_inactive.subscription_id, int_field_2=1
+    )
+    new_sub_block_2 = SubBlockTwoForTest.new(
+        subscription_id=list_union_subscription_inactive.subscription_id, int_field_2=2
+    )
+    list_union_subscription_inactive.list_union_blocks = [new_sub_block_1, new_sub_block_2]
+    list_union_subscription_inactive.save()
+
+    assert (
+        list_union_subscription_inactive.diff_product_in_database(list_union_subscription_inactive.product.product_id)
+        == {}
+    )
+    list_union_subscription = ProductListUnion.from_other_lifecycle(
+        list_union_subscription_inactive, SubscriptionLifecycle.ACTIVE
+    )
+    list_union_subscription.save()
+
+    list_union_sub_from_database = ProductListUnion.from_subscription(list_union_subscription.subscription_id)
+    assert type(list_union_sub_from_database) == type(list_union_subscription)
+
+    sorted_db_list = sorted(
+        list_union_sub_from_database.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
+    )
+    sorted_sub_list = sorted(
+        list_union_subscription.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
+    )
+    assert sorted_db_list == sorted_sub_list
+
+    list_union_subscription.list_union_blocks = [sub_two_subscription_1.test_block]
+
+    with pytest.raises(ValueError) as exc:
+        list_union_subscription.save()
+        assert (
+            str(exc)
+            == "Attempting to save a Foreign `Subscription Instance` directly below a subscription. This is not allowed."
+        )
+
+
+def test_product_model_with_list_union_type_directly_below_with_relation_overlap(
+    test_product_list_union_overlap,
+    test_product_type_list_union_overlap,
+    test_product_sub_block_one,
+    test_product_block_one,
+    sub_one_subscription_1,
+):
+    ProductListUnionInactive, _, ProductListUnion = test_product_type_list_union_overlap
+    SubBlockOneForTestInactive, _, _ = test_product_sub_block_one
+    ProductBlockOneForTestInactive, _, _ = test_product_block_one
+
+    list_union_subscription_inactive = ProductListUnionInactive.from_product_id(
+        product_id=test_product_list_union_overlap, customer_id=uuid4()
     )
 
     list_union_subscription_inactive.test_block = ProductBlockOneForTestInactive.new(
@@ -52,10 +93,13 @@ def test_product_model_with_list_union_type_directly_below(
     with pytest.raises(ValidationError):
         ProductListUnion.from_other_lifecycle(list_union_subscription_inactive, SubscriptionLifecycle.ACTIVE)
 
-    new_sub_block = SubBlockOneForTest.new(
-        subscription_id=list_union_subscription_inactive.subscription_id, int_field=1, str_field="2"
+    new_sub_block_1 = SubBlockOneForTestInactive.new(
+        subscription_id=list_union_subscription_inactive.subscription_id, int_field=11, str_field="111"
     )
-    list_union_subscription_inactive.list_union_blocks = [new_sub_block]
+    new_sub_block_2 = SubBlockOneForTestInactive.new(
+        subscription_id=list_union_subscription_inactive.subscription_id, int_field=12, str_field="121"
+    )
+    list_union_subscription_inactive.list_union_blocks = [new_sub_block_1, new_sub_block_2]
     list_union_subscription_inactive.save()
 
     assert (
@@ -65,8 +109,18 @@ def test_product_model_with_list_union_type_directly_below(
     list_union_subscription = ProductListUnion.from_other_lifecycle(
         list_union_subscription_inactive, SubscriptionLifecycle.ACTIVE
     )
+    list_union_subscription.save()
 
-    list_union_subscription.list_union_blocks = [sub_subscription_active.test_block]
+    list_union_sub_from_database = ProductListUnion.from_subscription(list_union_subscription.subscription_id)
+    assert type(list_union_sub_from_database) == type(list_union_subscription)
+    assert list_union_sub_from_database.test_block == list_union_subscription.test_block
+
+    sorted_db_list_len = len(list_union_sub_from_database.list_union_blocks)
+    sorted_sub_list_len = len(list_union_subscription.list_union_blocks)
+    assert sorted_db_list_len != sorted_sub_list_len
+    assert sorted_db_list_len == 5  # 3 were made with test_block, which also get included.
+
+    list_union_subscription.list_union_blocks = [sub_one_subscription_1.test_block]
 
     with pytest.raises(ValueError) as exc:
         list_union_subscription.save()
@@ -114,14 +168,14 @@ def test_list_union_productblock_as_sub(
     db.session.commit()
     assert list_union_subscription.diff_product_in_database(test_product_sub_list_union) == {}
 
-    union_subscription_from_database = ProductSubListUnion.from_subscription(list_union_subscription.subscription_id)
+    list_union_sub_from_database = ProductSubListUnion.from_subscription(list_union_subscription.subscription_id)
 
-    assert type(union_subscription_from_database) == type(list_union_subscription)
-    assert union_subscription_from_database.test_block.int_field == list_union_subscription.test_block.int_field
-    assert union_subscription_from_database.test_block.str_field == list_union_subscription.test_block.str_field
+    assert type(list_union_sub_from_database) == type(list_union_subscription)
+    assert list_union_sub_from_database.test_block.int_field == list_union_subscription.test_block.int_field
+    assert list_union_sub_from_database.test_block.str_field == list_union_subscription.test_block.str_field
 
     instance_ids_from_db = [
-        block.subscription_instance_id for block in union_subscription_from_database.test_block.list_union_blocks
+        block.subscription_instance_id for block in list_union_sub_from_database.test_block.list_union_blocks
     ]
     instance_ids_from_subs = [
         sub_one_subscription_1.test_block.subscription_instance_id,
