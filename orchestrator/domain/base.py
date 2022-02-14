@@ -514,7 +514,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         exclude_none: bool = False,
     ) -> Dict[str, Any]:
         res = super().dict()
-        res["parent_ids"] = [parent_id for parent_id in self.parent_ids if parent_id != self.owner_subscription_id]
+        res["parent_ids"] = self.parent_ids
         return res
 
     def __init_subclass__(
@@ -908,7 +908,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
     @property
     def parent_ids(self) -> List[SubscriptionInstanceTable]:
-        return [c.subscription_id for c in self.parents]
+        return [c.subscription_id for c in self.parents if c.subscription_id != self.owner_subscription_id]
 
     @property
     def children(self) -> List[SubscriptionInstanceTable]:
