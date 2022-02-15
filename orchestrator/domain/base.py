@@ -515,16 +515,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         exclude_none: bool = False,
     ) -> Dict[str, Any]:
         res = super().dict()
-        parent_ids = []
-        try:
-            for parent in self.parents:
-                if parent and parent.subscription_id != self.owner_subscription_id:
-                    parent_ids.append(parent.subscription_id)
-        except DetachedInstanceError:
-            pass
-            # if self.parents.col[0].parent_id != self.owner_subscription_id:
-            #     parent_ids.append(self.parents.col[0].parent_id)
-        res["parent_ids"] = parent_ids
+        res["parent_ids"] = self.parent_ids
         return res
 
     def __init_subclass__(
@@ -915,6 +906,17 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def parents(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.parents
+
+    @property
+    def parent_ids(self) -> List[Optional[Union[UUID, UUIDstr]]]:
+        p_ids: List[Optional[Union[UUID, UUIDstr]]] = []
+        if len(self.parents) > 0:
+            p_ids.extend(
+                self.parents.col[idx].parent_id  # type: ignore
+                for idx, ob in enumerate(self.parents.col)  # type: ignore
+                if ob.parent_id != self.owner_subscription_id
+            )
+        return p_ids
 
     @property
     def children(self) -> List[SubscriptionInstanceTable]:
