@@ -155,7 +155,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_list_type(List[Union[str, int]])
     True
     >>> is_list_type(List[Union[str, int]], Union[str, int])
-    True
+    False
     >>> is_list_type(List[Union[str, int]], str)
     True
     >>> is_list_type(List[Union[str, int]], int)
