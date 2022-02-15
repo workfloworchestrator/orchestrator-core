@@ -103,7 +103,7 @@ def is_of_type(t: Any, test_type: Any) -> bool:
     """
 
     if is_union_type(test_type):
-         return any(get_origin(t) is get_origin(arg) for arg in get_args(test_type))
+        return any(get_origin(t) is get_origin(arg) for arg in get_args(test_type))
 
     if (
         get_origin(t)
