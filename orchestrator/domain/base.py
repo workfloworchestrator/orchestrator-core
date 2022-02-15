@@ -26,6 +26,7 @@ from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
 from pydantic.typing import get_args, get_origin
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from orchestrator.db import (
     ProductBlockTable,
@@ -514,7 +515,16 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         exclude_none: bool = False,
     ) -> Dict[str, Any]:
         res = super().dict()
-        res["parent_ids"] = self.parent_ids
+        parent_ids = []
+        try:
+            for parent in self.parents:
+                if parent and parent.subscription_id != self.owner_subscription_id:
+                    parent_ids.append(parent.subscription_id)
+        except DetachedInstanceError:
+            pass
+            # if self.parents.col[0].parent_id != self.owner_subscription_id:
+            #     parent_ids.append(self.parents.col[0].parent_id)
+        res["parent_ids"] = parent_ids
         return res
 
     def __init_subclass__(
@@ -905,10 +915,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def parents(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.parents
-
-    @property
-    def parent_ids(self) -> List[SubscriptionInstanceTable]:
-        return [c.subscription_id for c in self.parents if c.subscription_id != self.owner_subscription_id]
 
     @property
     def children(self) -> List[SubscriptionInstanceTable]:
