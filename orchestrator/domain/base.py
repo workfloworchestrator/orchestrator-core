@@ -26,7 +26,6 @@ from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
 from pydantic.typing import get_args, get_origin
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm.exc import DetachedInstanceError
 
 from orchestrator.db import (
     ProductBlockTable,
