@@ -1,8 +1,5 @@
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
-
-import pytest
-
-from orchestrator.types import is_list_type, is_of_type
+from typing import List, Union
+from orchestrator.types import is_of_type
 
 
 def test_is_of_type():
