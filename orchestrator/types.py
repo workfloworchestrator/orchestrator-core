@@ -102,6 +102,9 @@ def is_of_type(t: Any, test_type: Any) -> bool:
     False
     """
 
+    if is_union_type(test_type):
+        return any(get_origin(t) is get_origin(arg) for arg in get_args(test_type))
+
     if (
         get_origin(t)
         and get_origin(test_type)
@@ -152,7 +155,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_list_type(List[Union[str, int]])
     True
     >>> is_list_type(List[Union[str, int]], Union[str, int])
-    True
+    False
     >>> is_list_type(List[Union[str, int]], str)
     True
     >>> is_list_type(List[Union[str, int]], int)
