@@ -354,6 +354,13 @@ def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, UU
                     conn, str(parent_block_id), str(product_block["product_block_id"])
                 )
 
+        if "child_relations" in product_block:
+            for child_name in product_block["child_relations"]:
+                child_block_id = get_product_block_id_by_name(conn, child_name)
+                add_product_block_relation_between_products_by_id(
+                    conn, str(product_block["product_block_id"]), str(child_block_id)
+                )
+
     return uuids
 
 
