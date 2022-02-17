@@ -60,8 +60,8 @@ class SubscriptionInstanceBase(OrchestratorBaseModel):
     product_block_id: UUID
     subscription_instance_id: UUID
     values: List[SubscriptionInstanceValueBaseSchema]
-    parent_relations: List[SubscriptionRelationSchema]
-    children_relations: List[SubscriptionRelationSchema]
+    in_use_by_block_relations: List[SubscriptionRelationSchema]
+    dependent_on_block_relations: List[SubscriptionRelationSchema]
     product_block: ProductBlockSchema
 
     class Config:

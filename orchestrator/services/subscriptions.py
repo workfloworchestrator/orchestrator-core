@@ -360,7 +360,7 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
     child_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
         SubscriptionTable.query.join(parent_instances.subscription)
-        .join(parent_instances.children_relations)
+        .join(parent_instances.dependent_on_block_relations)
         .join(child_instances, SubscriptionInstanceRelationTable.child)
         .filter(child_instances.subscription_id == subscription_id)
         .filter(parent_instances.subscription_id != subscription_id)
@@ -396,7 +396,7 @@ def query_child_subscriptions(subscription_id: UUID) -> Query:
     child_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
         SubscriptionTable.query.join(child_instances.subscription)
-        .join(child_instances.parent_relations)
+        .join(child_instances.in_use_by_block_relations)
         .join(parent_instances, SubscriptionInstanceRelationTable.parent)
         .filter(parent_instances.subscription_id == subscription_id)
         .filter(child_instances.subscription_id != subscription_id)
@@ -447,14 +447,14 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     parent_query = query_parent_subscriptions(subscription.subscription_id)
 
     unterminated_parents = _terminated_filter(parent_query)
-    locked_parent_relations = _in_sync_filter(parent_query)
+    locked_in_use_by_block_relations = _in_sync_filter(parent_query)
 
     query = query_child_subscriptions(subscription.subscription_id)
 
     locked_child_relations = _in_sync_filter(query)
 
     result = {
-        "locked_relations": locked_parent_relations + locked_child_relations,
+        "locked_relations": locked_in_use_by_block_relations + locked_child_relations,
         "unterminated_parents": unterminated_parents,
     }
 

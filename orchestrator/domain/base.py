@@ -292,7 +292,9 @@ class DomainModel(BaseModel):
                     return True
 
                 attr_names = {
-                    relation.domain_model_attr for relation in instance.parent_relations if relation.domain_model_attr
+                    relation.domain_model_attr
+                    for relation in instance.in_use_by_block_relations
+                    if relation.domain_model_attr
                 }
 
                 # We can assume true is no domain_model_attr is set.
@@ -559,7 +561,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         product_block_db = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one_or_none()
 
-        product_blocks_in_db = {pb.name for pb in product_block_db.children} if product_block_db else set()
+        product_blocks_in_db = {pb.name for pb in product_block_db.dependent_on_blocks} if product_block_db else set()
         product_blocks_types_in_model = cls._get_child_product_block_types().values()
 
         if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
@@ -732,7 +734,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         label = subscription_instance.label
 
         instance_values = cls._load_instances_values(subscription_instance.values)
-        sub_instances = cls._load_instances(subscription_instance.children, status)
+        sub_instances = cls._load_instances(subscription_instance.dependent_on_blocks, status)
 
         try:
             model = cls(
@@ -815,7 +817,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             None
 
         """
-        children_relations = []
+        dependent_on_block_relations = []
         # Set the domain_model_attrs in the database
         for domain_model_attr, instances in subscription_instance_mapping.items():
             instance: SubscriptionInstanceTable
@@ -826,8 +828,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                     order_id=index,
                     domain_model_attr=domain_model_attr,
                 )
-                children_relations.append(relation)
-        subscription_instance.children_relations = children_relations
+                dependent_on_block_relations.append(relation)
+        subscription_instance.dependent_on_block_relations = dependent_on_block_relations
 
     def save(
         self,
@@ -885,10 +887,10 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_instance.product_block, subscription_instance.values
         )
 
-        sub_instances, children = self._save_instances(subscription_id, status)
+        sub_instances, dependent_on_blocks = self._save_instances(subscription_id, status)
 
         # Save the subscription instances relations.
-        self._set_instance_domain_model_attrs(subscription_instance, children)
+        self._set_instance_domain_model_attrs(subscription_instance, dependent_on_blocks)
 
         return sub_instances + [subscription_instance], subscription_instance
 
@@ -901,23 +903,23 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return self._db_model
 
     @property
-    def parents(self) -> List[SubscriptionInstanceTable]:
-        return self._db_model.parents
+    def in_use_by_blocks(self) -> List[SubscriptionInstanceTable]:
+        return self._db_model.in_use_by_blocks
+        
+    @property
+    def dependent_on_blocks(self) -> List[SubscriptionInstanceTable]:
+        return self._db_model.dependent_on_blocks
 
     @property
-    def parent_ids(self) -> List[Optional[Union[UUID, UUIDstr]]]:
+    def in_use_by_block_ids(self) -> List[Optional[Union[UUID, UUIDstr]]]:
         p_ids: List[Optional[Union[UUID, UUIDstr]]] = []
-        if len(self.parents) > 0:
+        if len(self.in_use_by_blocks) > 0:
             p_ids.extend(
-                self.parents.col[idx].parent_id  # type: ignore
-                for idx, ob in enumerate(self.parents.col)  # type: ignore
-                if ob.parent_id != self.owner_subscription_id
+                self.in_use_by_blocks.col[idx].in_use_by_id  # type: ignore
+                for idx, ob in enumerate(self.in_use_by_blocks.col)  # type: ignore
+                if ob.in_use_by_id != self.owner_subscription_id
             )
         return p_ids
-
-    @property
-    def children(self) -> List[SubscriptionInstanceTable]:
-        return self._db_model.children
 
 
 class ProductModel(BaseModel):
@@ -1152,7 +1154,7 @@ class SubscriptionModel(DomainModel):
             selectinload(SubscriptionTable.instances)
             .selectinload(SubscriptionInstanceTable.product_block)
             .selectinload(ProductBlockTable.resource_types),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.parent_relations),
+            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.in_use_by_block_relations),
             selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
         ).get(subscription_id)
 

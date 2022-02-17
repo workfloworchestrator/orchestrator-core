@@ -163,7 +163,7 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
     return list(
         filter(
             lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {parent.subscription_id for parent in subscription_instance.parents},
+            {parent.subscription_id for parent in subscription_instance.in_use_by_blocks},
         )
     )
 

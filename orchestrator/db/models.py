@@ -268,7 +268,7 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
-    children_relations = relationship(
+    dependent_on_block_relations = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -277,7 +277,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.parent_id]",
     )
 
-    parent_relations = relationship(
+    in_use_by_block_relations = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -286,11 +286,11 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.child_id]",
     )
 
-    parents = association_proxy(
-        "parent_relations", "parent", creator=lambda parent: ProductBlockRelationTable(parent=parent)
+    in_use_by_blocks = association_proxy(
+        "in_use_by_block_relations", "parent", creator=lambda parent: ProductBlockRelationTable(parent=parent)
     )
-    children = association_proxy(
-        "children_relations", "child", creator=lambda child: ProductBlockRelationTable(child=child)
+    dependent_on_blocks = association_proxy(
+        "dependent_on_block_relations", "child", creator=lambda child: ProductBlockRelationTable(child=child)
     )
 
     @staticmethod
@@ -401,7 +401,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
     label = Column(String(255))
 
-    children_relations = relationship(
+    dependent_on_block_relations = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -412,7 +412,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.parent_id]",
     )
 
-    parent_relations = relationship(
+    in_use_by_block_relations = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -421,11 +421,11 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.child_id]",
     )
 
-    parents = association_proxy(
-        "parent_relations", "parent", creator=lambda parent: SubscriptionInstanceRelationTable(parent=parent)
+    in_use_by_blocks = association_proxy(
+        "in_use_by_block_relations", "parent", creator=lambda parent: SubscriptionInstanceRelationTable(parent=parent)
     )
-    children = association_proxy(
-        "children_relations", "child", creator=lambda child: SubscriptionInstanceRelationTable(child=child)
+    dependent_on_blocks = association_proxy(
+        "dependent_on_block_relations", "child", creator=lambda child: SubscriptionInstanceRelationTable(child=child)
     )
 
     def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:

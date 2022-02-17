@@ -48,7 +48,7 @@ def test_product_block_with_union_db(
     )
     product_union_sub_block.resource_types = [resource_type_int, resource_type_str, resource_type_list]
     db.session.add(product_union_sub_block)
-    product_block.children.append(product_union_sub_block)
+    product_block.dependent_on_blocks.append(product_union_sub_block)
     db.session.commit()
 
     return product_block, product_sub_block, product_union_sub_block
