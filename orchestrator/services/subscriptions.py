@@ -361,7 +361,7 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
     relation_relations = (
         SubscriptionTable.query.join(parent_instances.subscription)
         .join(parent_instances.dependent_on_block_relations)
-        .join(child_instances, SubscriptionInstanceRelationTable.child)
+        .join(child_instances, SubscriptionInstanceRelationTable.dependent_on)
         .filter(child_instances.subscription_id == subscription_id)
         .filter(parent_instances.subscription_id != subscription_id)
         .with_entities(SubscriptionTable.subscription_id)
@@ -397,7 +397,7 @@ def query_child_subscriptions(subscription_id: UUID) -> Query:
     relation_relations = (
         SubscriptionTable.query.join(child_instances.subscription)
         .join(child_instances.in_use_by_block_relations)
-        .join(parent_instances, SubscriptionInstanceRelationTable.parent)
+        .join(parent_instances, SubscriptionInstanceRelationTable.in_use_by)
         .filter(parent_instances.subscription_id == subscription_id)
         .filter(child_instances.subscription_id != subscription_id)
         .with_entities(SubscriptionTable.subscription_id)

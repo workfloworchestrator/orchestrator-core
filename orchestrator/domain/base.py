@@ -823,8 +823,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             instance: SubscriptionInstanceTable
             for index, instance in enumerate(instances):
                 relation = SubscriptionInstanceRelationTable(
-                    parent_id=subscription_instance.subscription_instance_id,
-                    child_id=instance.subscription_instance_id,
+                    in_use_by_id=subscription_instance.subscription_instance_id,
+                    dependent_on_id=instance.subscription_instance_id,
                     order_id=index,
                     domain_model_attr=domain_model_attr,
                 )

@@ -616,15 +616,15 @@ def test_domain_model_attrs_saving_loading(test_product_one, test_product_type_o
     db.session.commit()
 
     relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.child_id == test_model.block.sub_block.subscription_instance_id
+        SubscriptionInstanceRelationTable.dependent_on_id == test_model.block.sub_block.subscription_instance_id
     ).one()
     assert relation.domain_model_attr == "sub_block"
     relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.child_id == test_model.block.sub_block_2.subscription_instance_id
+        SubscriptionInstanceRelationTable.dependent_on_id == test_model.block.sub_block_2.subscription_instance_id
     ).one()
     assert relation.domain_model_attr == "sub_block_2"
     relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.child_id == test_model.block.sub_block_list[0].subscription_instance_id
+        SubscriptionInstanceRelationTable.dependent_on_id == test_model.block.sub_block_list[0].subscription_instance_id
     ).one()
     assert relation.domain_model_attr == "sub_block_list"
     test_model_2 = ProductTypeOneForTestInactive.from_subscription(test_model.subscription_id)
@@ -641,7 +641,7 @@ def test_removal_of_domain_attrs(test_product_one, test_product_type_one, test_p
     test_model.save()
     db.session.commit()
     relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.child_id == test_model.block.sub_block.subscription_instance_id
+        SubscriptionInstanceRelationTable.dependent_on_id == test_model.block.sub_block.subscription_instance_id
     ).one()
     relation.domain_model_attr = None
     db.session.commit()
@@ -654,7 +654,7 @@ def test_simple_model_with_no_attrs(generic_subscription_1, generic_product_type
     model = GenericProductOne.from_subscription(subscription_id=generic_subscription_1)
     with pytest.raises(NoResultFound):
         SubscriptionInstanceRelationTable.query.filter(
-            SubscriptionInstanceRelationTable.child_id == model.pb_1.subscription_instance_id
+            SubscriptionInstanceRelationTable.dependent_on_id == model.pb_1.subscription_instance_id
         ).one()
 
 

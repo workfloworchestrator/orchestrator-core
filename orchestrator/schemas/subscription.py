@@ -35,8 +35,8 @@ class PortMode(strEnum):
 
 class SubscriptionRelationSchema(OrchestratorBaseModel):
     domain_model_attr: Optional[str]
-    child_id: UUID
-    parent_id: UUID
+    in_use_by_id: UUID
+    dependent_on_id: UUID
     order_id: int
 
     class Config:

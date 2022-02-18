@@ -273,8 +273,8 @@ class ProductBlockTable(BaseModel):
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        backref=backref("parent", lazy=True),
-        foreign_keys="[ProductBlockRelationTable.parent_id]",
+        backref=backref("in_use_by", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
     in_use_by_block_relations = relationship(
@@ -282,15 +282,19 @@ class ProductBlockTable(BaseModel):
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        backref=backref("child", lazy=True),
-        foreign_keys="[ProductBlockRelationTable.child_id]",
+        backref=backref("dependent_on", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.dependent_on_id]",
     )
 
     in_use_by_blocks = association_proxy(
-        "in_use_by_block_relations", "parent", creator=lambda parent: ProductBlockRelationTable(parent=parent)
+        "in_use_by_block_relations",
+        "in_use_by",
+        creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
     dependent_on_blocks = association_proxy(
-        "dependent_on_block_relations", "child", creator=lambda child: ProductBlockRelationTable(child=child)
+        "dependent_on_block_relations",
+        "dependent_on",
+        creator=lambda dependent_on: ProductBlockRelationTable(dependent_on=dependent_on),
     )
 
     @staticmethod
@@ -313,9 +317,11 @@ class ProductBlockTable(BaseModel):
 
 class ProductBlockRelationTable(BaseModel):
     __tablename__ = "product_block_relations"
-    parent_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+    in_use_by_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
 
-    child_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+    dependent_on_id = Column(
+        UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
+    )
 
     min = Column(Integer())
     max = Column(Integer())
@@ -323,8 +329,8 @@ class ProductBlockRelationTable(BaseModel):
 
 product_block_relation_index = Index(
     "product_block_relation_p_c_ix",
-    ProductBlockRelationTable.parent_id,
-    ProductBlockRelationTable.child_id,
+    ProductBlockRelationTable.in_use_by_id,
+    ProductBlockRelationTable.dependent_on_id,
     unique=True,
 )
 
@@ -358,11 +364,11 @@ class WorkflowTable(BaseModel):
 
 class SubscriptionInstanceRelationTable(BaseModel):
     __tablename__ = "subscription_instance_relations"
-    parent_id = Column(
+    in_use_by_id = Column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
-    child_id = Column(
+    dependent_on_id = Column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
@@ -375,8 +381,8 @@ class SubscriptionInstanceRelationTable(BaseModel):
 
 subscription_relation_index = Index(
     "subscription_relation_p_c_o_ix",
-    SubscriptionInstanceRelationTable.parent_id,
-    SubscriptionInstanceRelationTable.child_id,
+    SubscriptionInstanceRelationTable.in_use_by_id,
+    SubscriptionInstanceRelationTable.dependent_on_id,
     SubscriptionInstanceRelationTable.order_id,
     unique=True,
 )
@@ -408,8 +414,8 @@ class SubscriptionInstanceTable(BaseModel):
         passive_deletes=True,
         order_by=SubscriptionInstanceRelationTable.order_id,
         collection_class=ordering_list("order_id"),
-        backref=backref("parent", lazy=True),
-        foreign_keys="[SubscriptionInstanceRelationTable.parent_id]",
+        backref=backref("in_use_by", lazy=True),
+        foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
     in_use_by_block_relations = relationship(
@@ -417,15 +423,19 @@ class SubscriptionInstanceTable(BaseModel):
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        backref=backref("child", lazy=True),
-        foreign_keys="[SubscriptionInstanceRelationTable.child_id]",
+        backref=backref("dependent_on", lazy=True),
+        foreign_keys="[SubscriptionInstanceRelationTable.dependent_on_id]",
     )
 
     in_use_by_blocks = association_proxy(
-        "in_use_by_block_relations", "parent", creator=lambda parent: SubscriptionInstanceRelationTable(parent=parent)
+        "in_use_by_block_relations",
+        "in_use_by",
+        creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
     dependent_on_blocks = association_proxy(
-        "dependent_on_block_relations", "child", creator=lambda child: SubscriptionInstanceRelationTable(child=child)
+        "dependent_on_block_relations",
+        "dependent_on",
+        creator=lambda dependent_on: SubscriptionInstanceRelationTable(dependent_on=dependent_on),
     )
 
     def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:
