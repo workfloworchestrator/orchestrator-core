@@ -485,6 +485,8 @@ WF_USABLE_MAP: Dict[str, List[str]] = {}
 
 WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
 
+WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
+
 
 def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
     """
@@ -524,7 +526,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
     }
 
     for workflow in subscription.product.workflows:
-        if workflow.name in ["modify_note"] or workflow.target == Target.SYSTEM:
+        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.target == Target.SYSTEM:
             # validations and modify note are also possible with: not in sync or locked relations
             workflow_json = {"name": workflow.name, "description": workflow.description}
         else:
