@@ -515,7 +515,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         exclude_none: bool = False,
     ) -> Dict[str, Any]:
         res = super().dict()
-        res["parent_ids"] = self.parent_ids
+        res["in_use_by_block_ids"] = self.in_use_by_block_ids
         return res
 
     def __init_subclass__(
@@ -905,7 +905,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def in_use_by_blocks(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.in_use_by_blocks
-        
+
     @property
     def dependent_on_blocks(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.dependent_on_blocks
