@@ -89,7 +89,7 @@ TRANSLATIONS = {
     "subscription.not_in_sync": "Subscription already has a running process or task",
     "subscription.relations_not_in_sync": "This subscription can not be modified because some related subscriptions are not insync",
     "subscription.no_modify_invalid_status": "This subscription can not be modified because of the status it has",
-    "subscription.no_modify_parent_subscription": "This subscription can not be modified as it is used in other subscriptions",
+    "subscription.no_modify_subscription_in_use_by_others": "This subscription can not be modified as it is used in other subscriptions",
     "subscription.no_modify_auto_negotiation": "This workflow is not valid for this subscription",
 }
 

@@ -827,7 +827,7 @@ def test_diff_in_db(test_product_one, test_product_type_one):
         }
         != {
             "TestProductOne": {
-                "missing_in_children": {
+                "missing_in_dependent_on_blocks": {
                     "ProductBlockOneForTest": {"missing_product_blocks_in_db": {"SubBlockOneForTest"}}
                 },
                 "missing_product_blocks_in_model": {"SubBlockOneForTest"},
@@ -851,7 +851,7 @@ def test_diff_in_db_missing_in_db(test_product_type_one):
     assert ProductTypeOneForTestInactive.diff_product_in_database(product.product_id) == {
         "TestProductEmpty": {
             "missing_fixed_inputs_in_db": {"test_fixed_input"},
-            "missing_in_children": {
+            "missing_in_dependent_on_blocks": {
                 "ProductBlockOneForTest": {
                     "missing_product_blocks_in_db": {"SubBlockOneForTest"},
                     "missing_resource_types_in_db": {"int_field", "list_field", "str_field"},

@@ -46,7 +46,7 @@ class WorkflowListItemSchema(OrchestratorBaseModel):
     status: Optional[str]
     action: Optional[str]
     locked_relations: Optional[List[UUID]]
-    unterminated_parents: Optional[List[UUID]]
+    unterminated_dependent_subscriptions: Optional[List[UUID]]
 
 
 class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):

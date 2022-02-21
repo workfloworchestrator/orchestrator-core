@@ -118,8 +118,8 @@ class DomainModel(BaseModel):
                 kwargs=kwargs.keys(),
             )
 
-        # Check if child subscription instance models conform to the same lifecycle
-        for product_block_field_name, product_block_field_type in cls._get_child_product_block_types().items():
+        # Check if dependency subscription instance models conform to the same lifecycle
+        for product_block_field_name, product_block_field_type in cls._get_dependent_on_product_block_types().items():
             if lifecycle:
                 for lifecycle_status in lifecycle:
                     if is_union_type(
@@ -134,7 +134,7 @@ class DomainModel(BaseModel):
                         validate_lifecycle_status(product_block_field_name, product_block_field_type, lifecycle_status)
 
     @classmethod
-    def _get_child_product_block_types(
+    def _get_dependent_on_product_block_types(
         cls,
     ) -> Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]:
         """Return all the product block model types.
@@ -184,7 +184,7 @@ class DomainModel(BaseModel):
                 # issubclass does not work on typing types
                 is_product_block_field = False
 
-            # We only want fields that are on this class and not on the parent
+            # We only want fields that are on this class and not on the related product blocks
             if is_product_block_field:
                 cls._product_block_fields_[field_name] = field_type
             else:
@@ -281,13 +281,13 @@ class DomainModel(BaseModel):
                 to filter through instances depending on that attribute.
 
                 Args:
-                    instance: child instance
+                    instance: dependent on subscription instance
 
                 Returns:
                     Boolean of match.
 
                 """
-                # We don't match on the product_blocks directly under subscriptions. They don't have parent relations to those
+                # We don't match on the product_blocks directly under subscriptions. They don't have in_use_by relations to those
                 if not match_domain_attr:
                     return True
 
@@ -381,37 +381,37 @@ class DomainModel(BaseModel):
     ) -> Tuple[List[SubscriptionInstanceTable], Dict[str, List[SubscriptionInstanceTable]]]:
         """Save subscription instances for this domain model.
 
-        When a domain model is saved to the database we need to save all child subscription instances for it.
+        When a domain model is saved to the database we need to save all dependent_on subscription instances for it.
 
         Args:
             subscription_id: The subscription id
             status: SubscriptionLifecycle of subscription to check if models match
 
         Returns:
-            A list with instances which are saved and a dict with direct children
+            A list with instances which are saved and a dict with direct dependent_on relations.
 
         """
         saved_instances: List[SubscriptionInstanceTable] = []
-        child_instances: Dict[str, List[SubscriptionInstanceTable]] = {}
+        dependent_on_instances: Dict[str, List[SubscriptionInstanceTable]] = {}
         for product_block_field, product_block_field_type in self._product_block_fields_.items():
             product_block_models = getattr(self, product_block_field)
             if is_list_type(product_block_field_type):
                 field_instance_list = []
                 for product_block_model in product_block_models:
-                    saved, child = product_block_model.save(subscription_id=subscription_id, status=status)
-                    field_instance_list.append(child)
+                    saved, dependent_on = product_block_model.save(subscription_id=subscription_id, status=status)
+                    field_instance_list.append(dependent_on)
                     saved_instances.extend(saved)
-                child_instances[product_block_field] = field_instance_list
+                dependent_on_instances[product_block_field] = field_instance_list
             elif (
                 not is_optional_type(product_block_field_type)
                 and not is_union_type(product_block_field_type)
                 or product_block_models is not None
             ):
                 saved, child = product_block_models.save(subscription_id=subscription_id, status=status)
-                child_instances[product_block_field] = [child]
+                dependent_on_instances[product_block_field] = [child]
                 saved_instances.extend(saved)
 
-        return saved_instances, child_instances
+        return saved_instances, dependent_on_instances
 
 
 class ProductBlockModelMeta(ModelMetaclass):
@@ -562,7 +562,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         product_block_db = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one_or_none()
 
         product_blocks_in_db = {pb.name for pb in product_block_db.dependent_on_blocks} if product_block_db else set()
-        product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        product_blocks_types_in_model = cls._get_dependent_on_product_block_types().values()
 
         if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
             # There may only be one in the type if it is a Tuple
@@ -1004,7 +1004,7 @@ class SubscriptionModel(DomainModel):
         product_db = ProductTable.query.get(product_id)
 
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
-        # product_blocks_types_in_model = cls._get_child_product_block_types().values()
+        # product_blocks_types_in_model = cls._get_dependent_on_product_block_types().values()
         # if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
         #     product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
         # else:
@@ -1031,9 +1031,9 @@ class SubscriptionModel(DomainModel):
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        # missing_data_children: Dict[str, Any] = {}
+        # missing_data_dependent_on_blocks: Dict[str, Any] = {}
         # for product_block_in_model in product_blocks_types_in_model:
-        #     missing_data_children.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
+        #     missing_data_dependent_on_blocks.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
 
         diff = {
             k: v
@@ -1042,7 +1042,7 @@ class SubscriptionModel(DomainModel):
                 # "missing_product_blocks_in_model": missing_product_blocks_in_model,
                 "missing_fixed_inputs_in_db": missing_fixed_inputs_in_db,
                 "missing_fixed_inputs_in_model": missing_fixed_inputs_in_model,
-                # "missing_in_children": missing_data_children,
+                # "missing_in_dependent_on_blocks": missing_data_dependent_on_blocks,
             }.items()
             if v
         }
@@ -1300,9 +1300,9 @@ class SubscriptionModel(DomainModel):
 
         old_instances_dict = {instance.subscription_instance_id: instance for instance in sub.instances}
 
-        saved_instances, child_instances = self._save_instances(self.subscription_id, self.status)
+        saved_instances, dependent_on_instances = self._save_instances(self.subscription_id, self.status)
 
-        for instances in child_instances.values():
+        for instances in dependent_on_instances.values():
             for instance in instances:
                 if instance.subscription_id != self.subscription_id:
                     raise ValueError(

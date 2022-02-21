@@ -40,8 +40,8 @@ from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSche
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     get_subscription,
-    query_child_subscriptions,
-    query_parent_subscriptions,
+    query_dependent_on_subscriptions,
+    query_in_use_by_subscriptions,
     subscription_workflows,
 )
 from orchestrator.settings import app_settings
@@ -102,14 +102,14 @@ def delete_subscription(subscription_id: UUID) -> None:
         return None
 
 
-@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
-def parent_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_parent_subscriptions(subscription_id).all()
+@router.get("/in_use_by_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
+def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_in_use_by_subscriptions(subscription_id).all()
 
 
-@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
-def child_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_child_subscriptions(subscription_id).all()
+@router.get("/dependent_on_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
+def dependent_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_dependent_on_subscriptions(subscription_id).all()
 
 
 @router.get("/", response_model=List[SubscriptionSchema])
@@ -154,7 +154,7 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
 
 
 @router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
-def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
+def subscription_instance_in_use_by(subscription_instance_id: UUID) -> List[UUID]:
     subscription_instance = SubscriptionInstanceTable.query.get(subscription_instance_id)
 
     if not subscription_instance:
@@ -163,7 +163,7 @@ def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
     return list(
         filter(
             lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {parent.subscription_id for parent in subscription_instance.in_use_by_blocks},
+            {in_use_by_block.subscription_id for in_use_by_block in subscription_instance.in_use_by_blocks},
         )
     )
 
