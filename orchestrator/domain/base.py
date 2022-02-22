@@ -907,7 +907,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def parent_ids(self) -> List[Optional[Union[UUID, UUIDstr]]]:
         p_ids: List[Optional[Union[UUID, UUIDstr]]] = []
-        if len(self.parents) > 0:
+        if "parents" in self and len(self.parents) > 0:
             p_ids.extend(
                 self.parents.col[idx].parent_id  # type: ignore
                 for idx, ob in enumerate(self.parents.col)  # type: ignore
