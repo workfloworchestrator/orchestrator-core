@@ -15,7 +15,21 @@ from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from sys import version_info
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 from uuid import UUID, uuid4
 
 import structlog
@@ -169,7 +183,13 @@ class DomainModel(BaseModel):
 
             annotations = get_annotations(cls)
 
-        for field_name, field_type in annotations.items():
+        # Retrieve type hints with evaluated ForwardRefs (for nested blocks)
+        type_hints = get_type_hints(cls, localns={cls.__name__: cls})
+
+        # But this also returns inherited fields so cross-check against the annotations
+        final_annotations = {k: type_hints[k] for k in annotations}
+
+        for field_name, field_type in final_annotations.items():
             if field_name.startswith("_"):
                 continue
 
