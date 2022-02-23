@@ -26,6 +26,10 @@ from orchestrator.domain.base import (
 )
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.domain.products.product_blocks.product_block_one_nested import (
+    ProductBlockOneNestedForTest,
+    ProductBlockOneNestedForTestInactive,
+)
 
 
 def test_product_block_metadata(test_product_block_one, test_product_one, test_product_block_one_db):
@@ -42,6 +46,131 @@ def test_product_block_metadata(test_product_block_one, test_product_one, test_p
     assert ProductBlockOneForTestInactive.description == "Test Block"
     assert ProductBlockOneForTestInactive.product_block_id == product_block.product_block_id
     assert ProductBlockOneForTestInactive.tag == "TEST"
+
+
+def test_product_block_nested(test_product_model_nested, test_product_type_one_nested):
+    """Test the behavior of nesting (self-referencing) product blocks.
+
+    Notes:
+        - nesting only works when each block is attached to a different subscription
+    """
+    ProductTypeOneNestedForTestInactive, _, ProductTypeOneNestedForTest = test_product_type_one_nested
+
+    customer_id = uuid4()
+    # Create productblock 30 that will be nested in block 20
+    model30 = ProductTypeOneNestedForTestInactive.from_product_id(
+        product_id=test_product_model_nested.product_id,
+        customer_id=customer_id,
+        insync=True,
+        start_date=None,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+    model30.block = ProductBlockOneNestedForTestInactive.new(
+        subscription_id=model30.subscription_id,
+        int_field=30,
+        sub_block=None,
+    )
+    model30 = SubscriptionModel.from_other_lifecycle(model30, SubscriptionLifecycle.ACTIVE)
+    model30.save()
+    db.session.commit()
+
+    # Create productblock 20 that refers to block 30, and will be nested in block 10
+    model20 = ProductTypeOneNestedForTestInactive.from_product_id(
+        product_id=test_product_model_nested.product_id,
+        customer_id=customer_id,
+        insync=True,
+        start_date=None,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+    model20.block = ProductBlockOneNestedForTest.new(
+        subscription_id=model20.subscription_id,
+        int_field=20,
+        sub_block=model30.block,
+    )
+    model20 = SubscriptionModel.from_other_lifecycle(model20, SubscriptionLifecycle.ACTIVE)
+    model20.save()
+    db.session.commit()
+
+    # Create productblock 10 that refers to block 20
+    model10 = ProductTypeOneNestedForTestInactive.from_product_id(
+        product_id=test_product_model_nested.product_id,
+        customer_id=customer_id,
+        insync=True,
+        start_date=None,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+    model10.block = ProductBlockOneNestedForTestInactive.new(
+        subscription_id=model10.subscription_id, int_field=10, sub_block=model20.block
+    )
+    model10 = SubscriptionModel.from_other_lifecycle(model10, SubscriptionLifecycle.ACTIVE)
+    model10.save()
+    db.session.commit()
+
+    # Load block 10 and verify the nested blocks
+    newmodel10 = ProductTypeOneNestedForTest.from_subscription(model10.subscription_id)
+    assert newmodel10.block.int_field == 10
+    assert newmodel10.block.sub_block.int_field == 20
+    assert newmodel10.block.sub_block.sub_block.int_field == 30
+    assert newmodel10.block.sub_block.sub_block.sub_block is None
+
+    # Load block 20 and verify the nested block
+    newmodel20 = ProductTypeOneNestedForTest.from_subscription(model20.subscription_id)
+    assert newmodel20.block.int_field == 20
+    assert newmodel20.block.sub_block.int_field == 30
+    assert newmodel20.block.sub_block.sub_block is None
+
+    # Create productblock 11 that also refers to block 20
+    model11 = ProductTypeOneNestedForTestInactive.from_product_id(
+        product_id=test_product_model_nested.product_id,
+        customer_id=customer_id,
+        insync=True,
+        start_date=None,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+    model11.block = ProductBlockOneNestedForTestInactive.new(
+        subscription_id=model11.subscription_id, int_field=11, sub_block=model20.block
+    )
+    model11 = SubscriptionModel.from_other_lifecycle(model11, SubscriptionLifecycle.ACTIVE)
+    model11.save()
+    db.session.commit()
+
+    # Load block 11 and verify the nested blocks
+    newmodel11 = ProductTypeOneNestedForTest.from_subscription(model11.subscription_id)
+    assert newmodel11.block.int_field == 11
+    assert newmodel11.block.sub_block.int_field == 20
+    assert newmodel11.block.sub_block.sub_block.int_field == 30
+    assert newmodel11.block.sub_block.sub_block.sub_block is None
+
+    # (again) Load block 10 and verify the nested blocks are same as before
+    newmodel10 = ProductTypeOneNestedForTest.from_subscription(model10.subscription_id)
+    assert newmodel10.block.int_field == 10
+    assert newmodel10.block.sub_block.int_field == 20
+    assert newmodel10.block.sub_block.sub_block.int_field == 30
+    assert newmodel10.block.sub_block.sub_block.sub_block is None
+
+    # Below part might not be interesting to test, or better off in a separate testcase.
+    # I was just curious what happens when we delete things.
+
+    # Remove block 20 from block 10
+    model10.block.sub_block = None
+    model10.save()
+    db.session.commit()
+
+    # Load block 10 and verify the nested block is removed
+    newmodel10 = ProductTypeOneNestedForTest.from_subscription(model10.subscription_id)
+    assert newmodel10.block.int_field == 10
+    assert newmodel10.block.sub_block is None
+
+    # Load block 11 and verify the nested blocks still exist
+    newmodel11 = ProductTypeOneNestedForTest.from_subscription(model11.subscription_id)
+    assert newmodel11.block.int_field == 11
+    assert newmodel11.block.sub_block.int_field == 20
+    assert newmodel11.block.sub_block.sub_block.int_field == 30
+    assert newmodel11.block.sub_block.sub_block.sub_block is None
+
+
+# TODO add test for List of nested blocks
+# def test_product_block_nested_list(test_product_model_nested, test_product_type_one_nested):
 
 
 def test_lifecycle(test_product_model, test_product_type_one, test_product_block_one):
