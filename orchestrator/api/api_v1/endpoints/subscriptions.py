@@ -21,10 +21,10 @@ from uuid import UUID
 import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
+from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
-from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import _query_with_filters
 from orchestrator.db import (
