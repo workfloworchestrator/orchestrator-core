@@ -21,10 +21,10 @@ from uuid import UUID
 import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
-from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import _query_with_filters
 from orchestrator.db import (
@@ -102,15 +102,15 @@ def _getattr_in(obj: Any, attr: str, *args: List[Any]) -> Any:
     """Get an instance attribute value by path."""
 
     def _getattr(obj: object, attr: str) -> Any:
-        return getattr(obj, attr, *args)
+        return getattr(obj, attr, None, *args)
 
     return functools.reduce(_getattr, [obj] + attr.split("."))
 
 
-def _updateattr_in(obj: Any, attr: str, val: Any) -> None:
-    """Set an instance attribute value by path."""
-    pre, _, post = attr.rpartition(".")
-    return setattr(_getattr_in(obj, pre) if pre else obj, post, val)
+# def _updateattr_in(obj: Any, attr: str, val: Any) -> None:
+#     """Set an instance attribute value by path."""
+#     pre, _, post = attr.rpartition(".")
+#     return setattr(_getattr_in(obj, pre) if pre else obj, post, val)
 
 
 def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
