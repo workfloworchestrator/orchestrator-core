@@ -7,10 +7,8 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
 
-# TODO also test List
 class ProductBlockOneNestedForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneNestedForTest"):
     sub_block: Optional["ProductBlockOneNestedForTestInactive"] = None
-    # sub_block_list: List[ForwardRef("ProductBlockOneNestedForTestInactive")] = []
     int_field: Optional[int] = None
 
 
@@ -18,13 +16,11 @@ class ProductBlockOneNestedForTestProvisioning(
     ProductBlockOneNestedForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     sub_block: Optional["ProductBlockOneNestedForTestProvisioning"] = None
-    # sub_block_list: List[ForwardRef("ProductBlockOneNestedForTestProvisioning")]
     int_field: int
 
 
 class ProductBlockOneNestedForTest(ProductBlockOneNestedForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     sub_block: Optional["ProductBlockOneNestedForTest"] = None
-    # sub_block_list: List[ForwardRef("ProductBlockOneNestedForTest")]
     int_field: int
 
 
