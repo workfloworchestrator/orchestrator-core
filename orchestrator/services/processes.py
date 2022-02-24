@@ -68,7 +68,7 @@ def shutdown_thread_pool() -> None:
     """Gracefully shutdown existing ThreadPoolExecutor and delete it."""
     global _workflow_executor
     if isinstance(_workflow_executor, ThreadPoolExecutor):
-        _workflow_executor.shutdown(wait=True, cancel_futures=False)
+        _workflow_executor.shutdown(wait=True)
         _workflow_executor = None
 
 
