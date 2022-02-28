@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from nwastdlib.url import URL
 
-from orchestrator.api.api_v1.endpoints.subscriptions import product_block_paths
+from orchestrator.api.helpers import product_block_paths
 from orchestrator.db import (
     FixedInputTable,
     ProcessSubscriptionTable,
