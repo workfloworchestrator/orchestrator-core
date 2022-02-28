@@ -13,9 +13,8 @@
 
 """Module that implements subscription related API endpoints."""
 
-import functools
 from http import HTTPStatus
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
@@ -26,7 +25,7 @@ from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters
+from orchestrator.api.helpers import _query_with_filters, getattr_in, product_block_paths, update_in
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
@@ -74,50 +73,6 @@ def subscriptions_all() -> List[SubscriptionTable]:
     return SubscriptionTable.query.all()
 
 
-def _update_in(dct: Union[dict, list], path: str, value: Any, sep: str = ".") -> None:
-    """Update a value in a dict or list based on a path."""
-    for x in path.split(sep):
-        prev: Union[dict, list]
-        if x.isdigit() and isinstance(dct, list):
-            prev = dct
-            dct = dct[int(x)]
-        else:
-            prev = dct
-            dct = dict(dct).setdefault(x, {})
-    prev[x] = value  # type: ignore
-
-
-def _get_in(dct: Union[dict, list], path: str, sep: str = ".") -> Any:
-    """Get a value in a dict or list using the path and get the resulting key's value."""
-    prev: Union[dict, list]
-    for x in path.split(sep):
-        if x.isdigit() and isinstance(dct, list):
-            prev, dct = dct, dct[int(x)]
-        else:
-            prev, dct = dct, dict(dct).get(x)  # type: ignore
-    return prev[x]  # type: ignore
-
-
-def _getattr_in(obj: Any, attr: str, *args: List[Any]) -> Any:
-    """Get an instance attribute value by path."""
-
-    def _getattr(obj: object, attr: str) -> Any:
-        return getattr(obj, attr, None, *args)
-
-    return functools.reduce(_getattr, [obj] + attr.split("."))
-
-
-def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
-    def get_dict_items(d: dict) -> Generator:
-        for k, v in d.items():
-            if isinstance(v, dict):
-                for k1, v1 in get_dict_items(v):
-                    yield (f"{k}.{k1}", v1)
-                yield (k, v)
-
-    return [c[0] for c in get_dict_items(subscription.dict())]
-
-
 @router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
 def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[str, Any]:
     customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
@@ -128,14 +83,14 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
     subscription = subs_obj.dict()
     # find all product blocks, check if they have parents and inject the parent_ids into the subscription dict.
     for path in product_block_paths(subs_obj):
-        if parents := _getattr_in(subs_obj, f"{path}.parents"):
+        if parents := getattr_in(subs_obj, f"{path}.parents"):
             p_ids: List[Optional[UUID]] = []
             p_ids.extend(
                 parents.col[idx].parent_id
                 for idx, ob in enumerate(parents.col)
                 if ob.parent_id != subs_obj.subscription_id
             )
-            _update_in(subscription, f"{path}.parent_ids", p_ids)
+            update_in(subscription, f"{path}.parent_ids", p_ids)
 
     subscription["customer_descriptions"] = customer_descriptions
 
