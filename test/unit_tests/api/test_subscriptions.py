@@ -16,6 +16,8 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.api.api_v1.endpoints.subscriptions import product_block_paths
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import RELATION_RESOURCE_TYPES, unsync
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.config import (
@@ -589,3 +591,10 @@ def test_try_set_failed_task_in_sync(seed, test_client):
 
     subscription = SubscriptionTable.query.get(subscription_id)
     assert not subscription.insync
+
+
+def test_product_block_paths(generic_subscription_1, generic_subscription_2):
+    subscription_1 = SubscriptionModel.from_subscription(generic_subscription_1)
+    subscription_2 = SubscriptionModel.from_subscription(generic_subscription_2)
+    assert product_block_paths(subscription_1) == ['product', 'pb_1', 'pb_2']
+    assert product_block_paths(subscription_2) == ['product', 'pb_3']
