@@ -72,6 +72,7 @@ requires = [
     "nwa-stdlib==1.3.0",
     "oauth2-lib==1.0.12",
     "markupsafe==2.0.1",
+    "bandit==1.7.2",
 ]
 description-file = "README.md"
 requires-python = ">=3.7,<3.11"
