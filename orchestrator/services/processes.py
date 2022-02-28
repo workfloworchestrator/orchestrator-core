@@ -64,6 +64,14 @@ def get_thread_pool() -> ThreadPoolExecutor:
     return _workflow_executor
 
 
+def shutdown_thread_pool() -> None:
+    """Gracefully shutdown existing ThreadPoolExecutor and delete it."""
+    global _workflow_executor
+    if isinstance(_workflow_executor, ThreadPoolExecutor):
+        _workflow_executor.shutdown(wait=True)
+        _workflow_executor = None
+
+
 def _db_create_process(stat: ProcessStat) -> None:
     p = ProcessTable(
         pid=stat.pid,
