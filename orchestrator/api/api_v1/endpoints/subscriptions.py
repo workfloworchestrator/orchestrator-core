@@ -25,7 +25,7 @@ from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters
+from orchestrator.api.helpers import _query_with_filters, getattr_in, product_block_paths, update_in
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
@@ -79,7 +79,19 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()
 
-    subscription = SubscriptionModel.from_subscription(subscription_id).dict()
+    subs_obj = SubscriptionModel.from_subscription(subscription_id)
+    subscription = subs_obj.dict()
+    # find all product blocks, check if they have parents and inject the parent_ids into the subscription dict.
+    for path in product_block_paths(subs_obj):
+        if parents := getattr_in(subs_obj, f"{path}.parents"):
+            p_ids: List[Optional[UUID]] = []
+            p_ids.extend(
+                parents.col[idx].parent_id
+                for idx, ob in enumerate(parents.col)
+                if ob.parent_id != subs_obj.subscription_id
+            )
+            update_in(subscription, f"{path}.parent_ids", p_ids)
+
     subscription["customer_descriptions"] = customer_descriptions
 
     if not subscription:
