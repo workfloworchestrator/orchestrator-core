@@ -102,12 +102,22 @@ def delete_subscription(subscription_id: UUID) -> None:
         return None
 
 
-@router.get("/in_use_by_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
+@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
+def parent_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_in_use_by_subscriptions(subscription_id).all()
+
+
+@router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
 def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
     return query_in_use_by_subscriptions(subscription_id).all()
 
 
-@router.get("/dependent_on_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
+@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
+def child_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_dependent_on_subscriptions(subscription_id).all()
+
+
+@router.get("/dependent_on/{subscription_id}", response_model=List[SubscriptionSchema])
 def dependent_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
     return query_dependent_on_subscriptions(subscription_id).all()
 
