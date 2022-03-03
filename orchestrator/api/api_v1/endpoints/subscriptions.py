@@ -166,16 +166,20 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
 
 
 @router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
-def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
-    subscription_instance = SubscriptionInstanceTable.query.get(subscription_instance_id)
+def subscription_instance_parents(subscription_instance_id: UUID, filter_statuses: Optional[str] = None) -> List[UUID]:
+    subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(subscription_instance_id)
 
     if not subscription_instance:
         raise_status(HTTPStatus.NOT_FOUND)
 
+    parent_subs = subscription_instance.parents
+    if filter_statuses:
+        parent_subs = [sub for sub in parent_subs if sub.subscription.status in filter_statuses]
+
     return list(
         filter(
             lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {parent.subscription_id for parent in subscription_instance.parents},
+            {parent.subscription_id for parent in parent_subs},
         )
     )
 
