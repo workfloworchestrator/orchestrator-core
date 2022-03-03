@@ -17,6 +17,7 @@ from orchestrator.db import (
     WorkflowTable,
     db,
 )
+from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
@@ -460,6 +461,9 @@ def test_resume_all_processes_multiple_calls(test_client, mocked_processes_resum
     assert responses[0].status_code == HTTPStatus.OK
     assert responses[0].json()["count"] == 3
     assert all(response.status_code == HTTPStatus.CONFLICT for response in responses[1:])
+
+    # Wait for async tasks to finish to prevent DB session conflicts
+    shutdown_thread_pool()
 
 
 def test_resume_all_processes_nothing_to_do(test_client):

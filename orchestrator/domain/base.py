@@ -15,7 +15,21 @@ from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from sys import version_info
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 from uuid import UUID, uuid4
 
 import structlog
@@ -161,15 +175,22 @@ class DomainModel(BaseModel):
 
         if version_info.minor < 10:
             annotations = cls.__dict__.get("__annotations__", {})
-        elif TYPE_CHECKING:
-            annotations = {}
         else:
-            # Only available in python > 3.10
-            from inspect import get_annotations
+            if TYPE_CHECKING:
+                annotations = {}
+            else:
+                # Only available in python > 3.10
+                from inspect import get_annotations
 
-            annotations = get_annotations(cls)
+                annotations = get_annotations(cls)
 
-        for field_name, field_type in annotations.items():
+        # Retrieve type hints with evaluated ForwardRefs (for nested blocks)
+        type_hints = get_type_hints(cls, localns={cls.__name__: cls})
+
+        # But this also returns inherited fields so cross-check against the annotations
+        final_annotations = {k: type_hints[k] for k in annotations}
+
+        for field_name, field_type in final_annotations.items():
             if field_name.startswith("_"):
                 continue
 
@@ -403,10 +424,10 @@ class DomainModel(BaseModel):
                     saved_instances.extend(saved)
                 dependent_on_instances[product_block_field] = field_instance_list
             elif (
-                not is_optional_type(product_block_field_type)
-                and not is_union_type(product_block_field_type)
-                or product_block_models is not None
-            ):
+                is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
+            ) and product_block_models is None:
+                pass
+            else:
                 saved, child = product_block_models.save(subscription_id=subscription_id, status=status)
                 dependent_on_instances[product_block_field] = [child]
                 saved_instances.extend(saved)
@@ -503,21 +524,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     owner_subscription_id: UUID
     label: Optional[str] = None
 
-    def dict(
-        self,
-        *,
-        include: Optional[Any] = None,
-        exclude: Optional[Any] = None,
-        by_alias: bool = False,
-        skip_defaults: bool = False,
-        exclude_unset: bool = False,
-        exclude_defaults: bool = False,
-        exclude_none: bool = False,
-    ) -> Dict[str, Any]:
-        res = super().dict()
-        res["in_use_by_block_ids"] = self.in_use_by_block_ids
-        return res
-
     def __init_subclass__(
         cls,
         *,
@@ -600,7 +606,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             for product_block_in_model in product_blocks_types_in_model:
                 missing_data.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
 
-        if diff := {
+        diff = {
             k: v
             for k, v in {
                 "missing_product_blocks_in_db": missing_product_blocks_in_db,
@@ -609,7 +615,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                 "missing_resource_types_in_model": missing_resource_types_in_model,
             }.items()
             if v
-        }:
+        }
+
+        if diff:
             missing_data[cls.name] = diff
 
         return missing_data
@@ -789,14 +797,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                             subscription_instance_values.append(
                                 SubscriptionInstanceValueTable(resource_type=resource_type, value=str(val))
                             )
-            elif field_name in current_values_dict:
-                current_value = current_values_dict[field_name][0]
-                current_value.value = str(value)
-                subscription_instance_values.append(current_value)
             else:
-                subscription_instance_values.append(
-                    SubscriptionInstanceValueTable(resource_type=resource_type, value=str(value))
-                )
+                if field_name in current_values_dict:
+                    current_value = current_values_dict[field_name][0]
+                    current_value.value = str(value)
+                    subscription_instance_values.append(current_value)
+                else:
+                    subscription_instance_values.append(
+                        SubscriptionInstanceValueTable(resource_type=resource_type, value=str(value))
+                    )
         return subscription_instance_values
 
     def _set_instance_domain_model_attrs(
@@ -909,17 +918,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     @property
     def dependent_on_blocks(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.dependent_on_blocks
-
-    @property
-    def in_use_by_block_ids(self) -> List[Optional[Union[UUID, UUIDstr]]]:
-        p_ids: List[Optional[Union[UUID, UUIDstr]]] = []
-        if len(self.in_use_by_blocks) > 0:
-            p_ids.extend(
-                self.in_use_by_blocks.col[idx].in_use_by_id  # type: ignore
-                for idx, ob in enumerate(self.in_use_by_blocks.col)  # type: ignore
-                if ob.in_use_by_id != self.owner_subscription_id
-            )
-        return p_ids
 
 
 class ProductModel(BaseModel):

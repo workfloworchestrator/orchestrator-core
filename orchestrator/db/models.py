@@ -427,12 +427,12 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.dependent_on_id]",
     )
 
-    in_use_by_blocks = association_proxy(
+    in_use_by_blocks: list[SubscriptionInstanceTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
-    dependent_on_blocks = association_proxy(
+    dependent_on_blocks: list[SubscriptionInstanceTable] = association_proxy(
         "dependent_on_block_relations",
         "dependent_on",
         creator=lambda dependent_on: SubscriptionInstanceRelationTable(dependent_on=dependent_on),
