@@ -421,10 +421,10 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.child_id]",
     )
 
-    parents = association_proxy(
+    parents: list[SubscriptionInstanceTable] = association_proxy(
         "parent_relations", "parent", creator=lambda parent: SubscriptionInstanceRelationTable(parent=parent)
     )
-    children = association_proxy(
+    children: list[SubscriptionInstanceTable] = association_proxy(
         "children_relations", "child", creator=lambda child: SubscriptionInstanceRelationTable(child=child)
     )
 
