@@ -565,9 +565,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             # This is a superclass we can't check that
             return {}
 
-        product_block_db = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one_or_none()
+        product_block_db: ProductBlockTable = ProductBlockTable.query.filter(
+            ProductBlockTable.name == cls.name
+        ).one_or_none()
 
-        product_blocks_in_db = {pb.name for pb in product_block_db.dependent_on_blocks} if product_block_db else set()
+        product_blocks_in_db = {pb.name for pb in product_block_db.dependent_on} if product_block_db else set()
         product_blocks_types_in_model = cls._get_dependent_on_product_block_types().values()
 
         if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
@@ -742,7 +744,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         label = subscription_instance.label
 
         instance_values = cls._load_instances_values(subscription_instance.values)
-        sub_instances = cls._load_instances(subscription_instance.dependent_on_blocks, status)
+        sub_instances = cls._load_instances(subscription_instance.dependent_on, status)
 
         try:
             model = cls(
@@ -896,10 +898,10 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_instance.product_block, subscription_instance.values
         )
 
-        sub_instances, dependent_on_blocks = self._save_instances(subscription_id, status)
+        sub_instances, dependent_on_instances = self._save_instances(subscription_id, status)
 
         # Save the subscription instances relations.
-        self._set_instance_domain_model_attrs(subscription_instance, dependent_on_blocks)
+        self._set_instance_domain_model_attrs(subscription_instance, dependent_on_instances)
 
         return sub_instances + [subscription_instance], subscription_instance
 
@@ -912,12 +914,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return self._db_model
 
     @property
-    def in_use_by_blocks(self) -> List[SubscriptionInstanceTable]:
-        return self._db_model.in_use_by_blocks
+    def in_use_by(self) -> List[SubscriptionInstanceTable]:
+        return self._db_model.in_use_by
 
     @property
-    def dependent_on_blocks(self) -> List[SubscriptionInstanceTable]:
-        return self._db_model.dependent_on_blocks
+    def dependent_on(self) -> List[SubscriptionInstanceTable]:
+        return self._db_model.dependent_on
 
 
 class ProductModel(BaseModel):

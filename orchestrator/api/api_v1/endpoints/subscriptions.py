@@ -176,14 +176,14 @@ def subscription_instance_in_use_by(
     if not subscription_instance:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    in_use_by_subs = subscription_instance.in_use_by_blocks
+    in_use_by_instances = subscription_instance.in_use_by
     if filter_statuses:
-        in_use_by_subs = [sub for sub in in_use_by_subs if sub.subscription.status in filter_statuses]
+        in_use_by_instances = [sub for sub in in_use_by_instances if sub.subscription.status in filter_statuses]
 
     return list(
         filter(
             lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {sub.subscription_id for sub in in_use_by_subs},
+            {sub.subscription_id for sub in in_use_by_instances},
         )
     )
 

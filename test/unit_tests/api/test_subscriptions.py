@@ -444,7 +444,7 @@ def test_insync_invalid_tagged(seed, test_client):
 
 
 def test_in_use_by_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/in_use_by_subscriptions/{PORT_A_SUBSCRIPTION_ID}")
+    response = test_client.get(f"/api/subscriptions/in_use_by/{PORT_A_SUBSCRIPTION_ID}")
     dependent_subs = response.json()
     assert len(dependent_subs) == 1
     assert SERVICE_SUBSCRIPTION_ID == dependent_subs[0]["subscription_id"]
@@ -475,7 +475,7 @@ def test_in_use_by_subscriptions_insync(seed, test_client):
 
 
 def test_dependent_on_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/dependent_on_subscriptions/{SERVICE_SUBSCRIPTION_ID}")
+    response = test_client.get(f"/api/subscriptions/dependent_on/{SERVICE_SUBSCRIPTION_ID}")
     dependent_on_subs = list(map(lambda sub: sub["subscription_id"], response.json()))
     assert len(dependent_on_subs) == 2
 

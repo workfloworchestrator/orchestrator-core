@@ -451,10 +451,10 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
 
     dependent_on_query = query_dependent_on_subscriptions(subscription.subscription_id)
 
-    locked_dependent_on_relations = _in_sync_filter(dependent_on_query)
+    locked_dependent_on_block_relations = _in_sync_filter(dependent_on_query)
 
     result = {
-        "locked_relations": locked_in_use_by_block_relations + locked_dependent_on_relations,
+        "locked_relations": locked_in_use_by_block_relations + locked_dependent_on_block_relations,
         "unterminated_dependent_subscriptions": unterminated_dependent_subscriptions,
     }
 

@@ -268,7 +268,7 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
-    dependent_on_block_relations = relationship(
+    dependent_on_block_relations: list[ProductBlockRelationTable] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -277,7 +277,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
-    in_use_by_block_relations = relationship(
+    in_use_by_block_relations: list[ProductBlockRelationTable] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -286,12 +286,12 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.dependent_on_id]",
     )
 
-    in_use_by_blocks = association_proxy(
+    in_use_by: list[ProductBlockTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
-    dependent_on_blocks = association_proxy(
+    dependent_on: list[ProductBlockTable] = association_proxy(
         "dependent_on_block_relations",
         "dependent_on",
         creator=lambda dependent_on: ProductBlockRelationTable(dependent_on=dependent_on),
@@ -407,7 +407,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
     label = Column(String(255))
 
-    dependent_on_block_relations = relationship(
+    dependent_on_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -418,7 +418,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
-    in_use_by_block_relations = relationship(
+    in_use_by_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -427,12 +427,12 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.dependent_on_id]",
     )
 
-    in_use_by_blocks: list[SubscriptionInstanceTable] = association_proxy(
+    in_use_by: list[SubscriptionInstanceTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
-    dependent_on_blocks: list[SubscriptionInstanceTable] = association_proxy(
+    dependent_on: list[SubscriptionInstanceTable] = association_proxy(
         "dependent_on_block_relations",
         "dependent_on",
         creator=lambda dependent_on: SubscriptionInstanceRelationTable(dependent_on=dependent_on),
