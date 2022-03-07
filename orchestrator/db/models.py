@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 
 import sqlalchemy
 import structlog
+from deprecated import deprecated  # type: ignore
 from more_itertools import first_true
 from sqlalchemy import (
     TIMESTAMP,
@@ -268,15 +269,6 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
-    dependent_on_block_relations: list[ProductBlockRelationTable] = relationship(
-        "ProductBlockRelationTable",
-        lazy="subquery",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        backref=backref("in_use_by", lazy=True),
-        foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
-    )
-
     in_use_by_block_relations: list[ProductBlockRelationTable] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
@@ -286,16 +278,46 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.dependent_on_id]",
     )
 
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_block_relations")
+    def parent_relations(self) -> list[ProductBlockRelationTable]:
+        return self.in_use_by_block_relations
+
+    dependent_on_block_relations: list[ProductBlockRelationTable] = relationship(
+        "ProductBlockRelationTable",
+        lazy="subquery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        backref=backref("in_use_by", lazy=True),
+        foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
+    )
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to dependent_on_block_relations")
+    def children_relations(self) -> list[ProductBlockRelationTable]:
+        return self.dependent_on_block_relations
+
     in_use_by: list[ProductBlockTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by")
+    def parents(self) -> list[ProductBlockTable]:
+        return self.in_use_by
+
     dependent_on: list[ProductBlockTable] = association_proxy(
         "dependent_on_block_relations",
         "dependent_on",
         creator=lambda dependent_on: ProductBlockRelationTable(dependent_on=dependent_on),
     )
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to dependent_on")
+    def children(self) -> list[ProductBlockTable]:
+        return self.dependent_on
 
     @staticmethod
     def find_by_name(name: str) -> ProductBlockTable:
@@ -315,20 +337,37 @@ class ProductBlockTable(BaseModel):
         )
 
 
+ProductBlockTable.parent_relations = ProductBlockTable.in_use_by_block_relations
+ProductBlockTable.children_relations = ProductBlockTable.dependent_on_block_relations
+
+
 class ProductBlockRelationTable(BaseModel):
     __tablename__ = "product_block_relations"
     in_use_by_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_id")  # typing: ignore
+    def parent_id(self) -> Column:
+        return self.in_use_by_id
 
     dependent_on_id = Column(
         UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
     )
 
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to dependent_on_id")  # typing: ignore
+    def child_id(self) -> Column:
+        return self.dependent_on_id
+
     min = Column(Integer())
     max = Column(Integer())
 
 
+ProductBlockRelationTable.parent_id = ProductBlockRelationTable.in_use_by_id
+ProductBlockRelationTable.child_id = ProductBlockRelationTable.dependent_on_id
+
 product_block_relation_index = Index(
-    "product_block_relation_p_c_ix",
+    "product_block_relation_i_d_ix",
     ProductBlockRelationTable.in_use_by_id,
     ProductBlockRelationTable.dependent_on_id,
     unique=True,
@@ -368,9 +407,19 @@ class SubscriptionInstanceRelationTable(BaseModel):
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_id")
+    def parent_id(self) -> Column:
+        return self.in_use_by_id
+
     dependent_on_id = Column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to dependent_on_id")
+    def child_id(self) -> Column:
+        return self.dependent_on_id
 
     order_id = Column(Integer(), primary_key=True)
 
@@ -379,8 +428,11 @@ class SubscriptionInstanceRelationTable(BaseModel):
     domain_model_attr = Column(Text())
 
 
+SubscriptionInstanceRelationTable.parent_id = SubscriptionInstanceRelationTable.in_use_by_id
+SubscriptionInstanceRelationTable.child_id = SubscriptionInstanceRelationTable.dependent_on_id
+
 subscription_relation_index = Index(
-    "subscription_relation_p_c_o_ix",
+    "subscription_relation_i_d_o_ix",
     SubscriptionInstanceRelationTable.in_use_by_id,
     SubscriptionInstanceRelationTable.dependent_on_id,
     SubscriptionInstanceRelationTable.order_id,
@@ -407,6 +459,20 @@ class SubscriptionInstanceTable(BaseModel):
     )
     label = Column(String(255))
 
+    in_use_by_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
+        "SubscriptionInstanceRelationTable",
+        lazy="subquery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        backref=backref("dependent_on", lazy=True),
+        foreign_keys="[SubscriptionInstanceRelationTable.dependent_on_id]",
+    )
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_block_relations")
+    def parent_relations(self) -> list[SubscriptionInstanceRelationTable]:
+        return self.in_use_by_block_relations
+
     dependent_on_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
@@ -418,29 +484,40 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
-    in_use_by_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
-        "SubscriptionInstanceRelationTable",
-        lazy="subquery",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        backref=backref("dependent_on", lazy=True),
-        foreign_keys="[SubscriptionInstanceRelationTable.dependent_on_id]",
-    )
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to dependent_on_block_relations")
+    def children_relations(self) -> list[SubscriptionInstanceRelationTable]:
+        return self.dependent_on_block_relations
 
     in_use_by: list[SubscriptionInstanceTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
+
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by")
+    def parents(self) -> list[SubscriptionInstanceTable]:
+        return self.in_use_by
+
     dependent_on: list[SubscriptionInstanceTable] = association_proxy(
         "dependent_on_block_relations",
         "dependent_on",
         creator=lambda dependent_on: SubscriptionInstanceRelationTable(dependent_on=dependent_on),
     )
 
+    @property  # type: ignore
+    @deprecated(version="0.4.0", reason="Has been renamed to dependent_on")
+    def children(self) -> list[SubscriptionInstanceTable]:
+        return self.dependent_on
+
     def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:
         value = first_true(self.values, None, lambda x: x.resource_type.resource_type == name)
         return value
+
+
+SubscriptionInstanceTable.parent_relations = SubscriptionInstanceTable.in_use_by_block_relations
+SubscriptionInstanceTable.children_relations = SubscriptionInstanceTable.dependent_on_block_relations
 
 
 subscription_instance_s_pb_ix = Index(

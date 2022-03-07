@@ -20,6 +20,7 @@ from uuid import UUID
 
 import more_itertools
 import structlog
+from deprecated import deprecated  # type: ignore
 from sqlalchemy import Text, cast, not_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
@@ -375,6 +376,11 @@ def query_in_use_by_subscriptions(subscription_id: UUID) -> Query:
     )
 
 
+@deprecated("Has been renamed to query_in_use_by_subscriptions")
+def query_parent_subscriptions(subscription_id: UUID) -> Query:
+    return query_in_use_by_subscriptions(subscription_id)
+
+
 def query_dependent_on_subscriptions(subscription_id: UUID) -> Query:
     """
     Return a query with all subscriptions -dependent_on- that this subscription is dependent on with resource_type or direct relation.
@@ -409,6 +415,11 @@ def query_dependent_on_subscriptions(subscription_id: UUID) -> Query:
             SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
         )
     )
+
+
+@deprecated("Has been renamed to query_dependent_on_subscriptions")
+def query_child_subscriptions(subscription_id: UUID) -> Query:
+    return query_dependent_on_subscriptions(subscription_id)
 
 
 def _terminated_filter(query: Query) -> List[UUID]:
@@ -455,6 +466,8 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
 
     result = {
         "locked_relations": locked_in_use_by_block_relations + locked_dependent_on_block_relations,
+        # unterminated_parents deprecated since "0.4.0", renamed to unterminated_dependent_subscriptions
+        "unterminated_parents": unterminated_dependent_subscriptions,
         "unterminated_dependent_subscriptions": unterminated_dependent_subscriptions,
     }
 
@@ -483,6 +496,8 @@ TARGET_DEFAULT_USABLE_MAP: Dict[Target, List[str]] = {
 
 WF_USABLE_MAP: Dict[str, List[str]] = {}
 
+# WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS
+WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
 WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS: Dict[str, bool] = {}
 
 WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
@@ -548,8 +563,16 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
             blocked_by_dependent_subscriptions = WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS.get(
                 workflow.name, workflow.target == Target.TERMINATE
             )
+
+            # WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS
+            if not blocked_by_dependent_subscriptions:
+                blocked_by_dependent_subscriptions = WF_BLOCKED_BY_PARENTS.get(
+                    workflow.name, workflow.target == Target.TERMINATE
+                )
             if blocked_by_dependent_subscriptions and data["unterminated_dependent_subscriptions"]:
                 workflow_json["reason"] = "subscription.no_modify_subscription_in_use_by_others"
+                # unterminated_parents deprecated since "0.4.0", renamed to unterminated_dependent_subscriptions
+                workflow_json["unterminated_parents"] = data["unterminated_parents"]
                 workflow_json["unterminated_dependent_subscriptions"] = data["unterminated_dependent_subscriptions"]
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
