@@ -20,7 +20,7 @@ from uuid import UUID
 
 import more_itertools
 import structlog
-from deprecated import deprecated  # type: ignore
+from deprecated import deprecated
 from sqlalchemy import Text, cast, not_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload

@@ -33,7 +33,7 @@ from typing import (
 from uuid import UUID, uuid4
 
 import structlog
-from deprecated import deprecated  # type: ignore
+from deprecated import deprecated
 from more_itertools import first, flatten, last, one, only
 from pydantic import BaseModel, Field, ValidationError
 from pydantic.fields import PrivateAttr

@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 
 import sqlalchemy
 import structlog
-from deprecated import deprecated  # type: ignore
+from deprecated import deprecated
 from more_itertools import first_true
 from sqlalchemy import (
     TIMESTAMP,
