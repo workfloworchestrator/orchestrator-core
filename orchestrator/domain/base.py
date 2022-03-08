@@ -420,8 +420,10 @@ class DomainModel(BaseModel):
             if is_list_type(product_block_field_type):
                 field_instance_list = []
                 for product_block_model in product_block_models:
-                    saved, dependent_on = product_block_model.save(subscription_id=subscription_id, status=status)
-                    field_instance_list.append(dependent_on)
+                    saved, dependent_on_instance = product_block_model.save(
+                        subscription_id=subscription_id, status=status
+                    )
+                    field_instance_list.append(dependent_on_instance)
                     saved_instances.extend(saved)
                 dependent_on_instances[product_block_field] = field_instance_list
             elif (
@@ -429,8 +431,8 @@ class DomainModel(BaseModel):
             ) and product_block_models is None:
                 pass
             else:
-                saved, child = product_block_models.save(subscription_id=subscription_id, status=status)
-                dependent_on_instances[product_block_field] = [child]
+                saved, dependent_on_instance = product_block_models.save(subscription_id=subscription_id, status=status)
+                dependent_on_instances[product_block_field] = [dependent_on_instance]
                 saved_instances.extend(saved)
 
         return saved_instances, dependent_on_instances

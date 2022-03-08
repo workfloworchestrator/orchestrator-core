@@ -81,16 +81,16 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
 
     subs_obj = SubscriptionModel.from_subscription(subscription_id)
     subscription = subs_obj.dict()
-    # find all product blocks, check if they have parents and inject the parent_ids into the subscription dict.
+    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
     for path in product_block_paths(subs_obj):
-        if parents := getattr_in(subs_obj, f"{path}.parents"):
-            p_ids: List[Optional[UUID]] = []
-            p_ids.extend(
-                parents.col[idx].parent_id
-                for idx, ob in enumerate(parents.col)
-                if ob.parent_id != subs_obj.subscription_id
+        if in_use_by_subs := getattr_in(subs_obj, f"{path}.in_use_by"):
+            i_ids: List[Optional[UUID]] = []
+            i_ids.extend(
+                in_use_by_subs.col[idx].in_use_by_id
+                for idx, ob in enumerate(in_use_by_subs.col)
+                if ob.in_use_by_id != subs_obj.subscription_id
             )
-            update_in(subscription, f"{path}.parent_ids", p_ids)
+            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
 
     subscription["customer_descriptions"] = customer_descriptions
 
