@@ -49,7 +49,7 @@ def test_product_block_one_db(resource_type_list, resource_type_int, resource_ty
     )
 
     product_block.resource_types = [resource_type_int, resource_type_str, resource_type_list]
-    product_block.children = [test_product_sub_block_one_db]
+    product_block.dependent_on = [test_product_sub_block_one_db]
 
     db.session.add(product_block)
     db.session.commit()

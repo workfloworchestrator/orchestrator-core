@@ -189,6 +189,6 @@ def test_list_union_product_block_as_sub(
     #     sub_one_subscription_1, SubscriptionLifecycle.TERMINATED
     # )
 
-    # # Do not allow subscriptions that have a parent make an unsafe transition.
+    # # Do not allow subscriptions that have are in use by other subscriptions make an unsafe transition.
     # with pytest.raises(ValueError):
     #     sub_one_subscription_terminated.save()

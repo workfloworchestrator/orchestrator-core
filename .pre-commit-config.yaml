@@ -51,6 +51,7 @@ repos:
           - types-pytz
           - types-python-dateutil
           - types-requests
+          - types-Deprecated
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators

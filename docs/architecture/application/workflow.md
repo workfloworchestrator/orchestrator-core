@@ -128,7 +128,7 @@ These workflows have more in common with each other than not, it's mostly a matt
 By default, the associated workflow can only be run on a subscription with a lifecycle state set to `ACTIVE`. This behavior can be changed in the following data structure in the `workflows/__init__.py` file:
 
 ```python
-from orchestrator.services.subscriptions import WF_BLOCKED_BY_PARENTS
+from orchestrator.services.subscriptions import WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS
 
 WF_USABLE_MAP.update(
     {

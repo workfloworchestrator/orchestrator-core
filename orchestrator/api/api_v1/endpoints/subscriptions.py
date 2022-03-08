@@ -40,8 +40,8 @@ from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSche
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     get_subscription,
-    query_child_subscriptions,
-    query_parent_subscriptions,
+    query_dependent_on_subscriptions,
+    query_in_use_by_subscriptions,
     subscription_workflows,
 )
 from orchestrator.settings import app_settings
@@ -81,16 +81,16 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
 
     subs_obj = SubscriptionModel.from_subscription(subscription_id)
     subscription = subs_obj.dict()
-    # find all product blocks, check if they have parents and inject the parent_ids into the subscription dict.
+    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
     for path in product_block_paths(subs_obj):
-        if parents := getattr_in(subs_obj, f"{path}.parents"):
-            p_ids: List[Optional[UUID]] = []
-            p_ids.extend(
-                parents.col[idx].parent_id
-                for idx, ob in enumerate(parents.col)
-                if ob.parent_id != subs_obj.subscription_id
+        if in_use_by_subs := getattr_in(subs_obj, f"{path}.in_use_by"):
+            i_ids: List[Optional[UUID]] = []
+            i_ids.extend(
+                in_use_by_subs.col[idx].in_use_by_id
+                for idx, ob in enumerate(in_use_by_subs.col)
+                if ob.in_use_by_id != subs_obj.subscription_id
             )
-            update_in(subscription, f"{path}.parent_ids", p_ids)
+            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
 
     subscription["customer_descriptions"] = customer_descriptions
 
@@ -114,14 +114,16 @@ def delete_subscription(subscription_id: UUID) -> None:
         return None
 
 
-@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
-def parent_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_parent_subscriptions(subscription_id).all()
+@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
+@router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
+def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_in_use_by_subscriptions(subscription_id).all()
 
 
-@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
-def child_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_child_subscriptions(subscription_id).all()
+@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
+@router.get("/dependent_on/{subscription_id}", response_model=List[SubscriptionSchema])
+def dependent_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_dependent_on_subscriptions(subscription_id).all()
 
 
 @router.get("/", response_model=List[SubscriptionSchema])
@@ -166,20 +168,22 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
 
 
 @router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
-def subscription_instance_parents(subscription_instance_id: UUID, filter_statuses: Optional[str] = None) -> List[UUID]:
+def subscription_instance_in_use_by(
+    subscription_instance_id: UUID, filter_statuses: Optional[str] = None
+) -> List[UUID]:
     subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(subscription_instance_id)
 
     if not subscription_instance:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    parent_subs = subscription_instance.parents
+    in_use_by_instances = subscription_instance.in_use_by
     if filter_statuses:
-        parent_subs = [sub for sub in parent_subs if sub.subscription.status in filter_statuses]
+        in_use_by_instances = [sub for sub in in_use_by_instances if sub.subscription.status in filter_statuses]
 
     return list(
         filter(
             lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {parent.subscription_id for parent in parent_subs},
+            {sub.subscription_id for sub in in_use_by_instances},
         )
     )
 

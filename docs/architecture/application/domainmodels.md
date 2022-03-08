@@ -62,12 +62,12 @@ the developer to be more `Type safe` whilst developing.
 When transitioning from `Initial` -> `Provisioning` -> `Active` -> `Terminated` in the Subscription Lifecycle
 the domain model definitions make sure that all resource types and product blocks are assigned correctly. Typically
 the `Initial` status is less strict compared to the `Active` lifecycle. When assigning product blocks from other subscriptions
-as children to a product blocks from the a subscription that is being modified, the domain-models respect Subscription
-boundaries and do not update variables and resources in the child Subscription product block.
+as dependent on a product block from the subscription that is being modified, the domain-models respect Subscription
+boundaries and do not update variables and resources in the related Subscription product block.
 
 ### Enforcing Hierarchy
-When defining and modelling products it often is necessary to model resources that are parents or children of other product blocks.
-It may even be the case that a subscription product block needs a child product block from another subscription.
+When defining and modelling products it often is necessary to model resources that are in use by or dependent on other product blocks.
+It may even be the case that a subscription product block is dependent on a product block from another subscription.
 
 !!! Example
     In networking when creating a layer 2 circuit, one needs at least two interfaces and VLAN configuration to create
