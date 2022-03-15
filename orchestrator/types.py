@@ -208,12 +208,6 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     >>> is_optional_type(Optional[State], State)
     True
-    >>> is_optional_type(int)
-    False
-    >>> is_optional_type(int|None)
-    True
-    >>> is_optional_type(int|str)
-    False
     """
     union_types = [Union, UnionType] if UnionType else [Union]
     if get_origin(t) and get_origin(t) in union_types and None.__class__ in get_args(t):
@@ -238,8 +232,6 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     True
     >>> is_union_type(int)
     False
-    >>> is_union_type(int|str)
-    True
     """
     union_types = [Union, UnionType] if UnionType else [Union]
     if not get_origin(t) or get_origin(t) not in union_types:
