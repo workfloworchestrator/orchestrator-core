@@ -13,15 +13,15 @@
 
 from enum import Enum
 from http import HTTPStatus
+from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 
 try:
     # python3.10 introduces types.UnionType for the new union and optional type defs.
     from types import UnionType  # type: ignore
-except ImportError:
-    # UnionType is set to None, it is needed later to check for union/optional types.
-    UnionType = None
 
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
+    union_types = [Union, UnionType]
+except ImportError:
+    union_types = [Union]
 
 from pydantic import BaseModel
 from pydantic.typing import get_args, get_origin
@@ -211,7 +211,6 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_optional_type(Optional[State], State)
     True
     """
-    union_types = [Union, UnionType] if UnionType else [Union]
     if get_origin(t) in union_types and None.__class__ in get_args(t):
         for arg in get_args(t):
             if arg is None.__class__:
@@ -235,7 +234,6 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_union_type(int)
     False
     """
-    union_types = [Union, UnionType] if UnionType else [Union]
     if get_origin(t) not in union_types:
         return False
     if not test_type:
