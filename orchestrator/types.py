@@ -209,16 +209,12 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_optional_type(int|str)
     False
     """
-    if get_origin(t):
-        if get_origin(t).__name in ["Union", "UnionType"] and None.__class__ in get_args(t):  # type:ignore
-            for arg in get_args(t):
-                if arg is None.__class__:
-                    continue
+    if get_origin(t) and get_origin(t).__name in ["Union", "UnionType"] and None.__class__ in get_args(t):
+        for arg in get_args(t):
+            if arg is None.__class__:
+                continue
 
-                if test_type:
-                    return is_of_type(arg, test_type)
-                else:
-                    return True
+            return is_of_type(arg, test_type) if test_type else True
     return False
 
 
@@ -238,19 +234,19 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_union_type(int|str)
     True
     """
-    if get_origin(t):
-        if get_origin(t).__name__ in ["Union", "UnionType"]:  # type: ignore
-            if test_type:
-                if is_of_type(t, test_type):
-                    return True
-                for arg in get_args(t):
-                    result = is_of_type(arg, test_type)
-                    if result:
-                        return result
-                return False
-            else:
-                return True
+    if not get_origin(t) or get_origin(t).__name__ not in [
+        "Union",
+        "UnionType",
+    ]:
+        return False
+    if not test_type:
+        return True
 
+    if is_of_type(t, test_type):
+        return True
+    for arg in get_args(t):
+        if result := is_of_type(arg, test_type):
+            return result
     return False
 
 
