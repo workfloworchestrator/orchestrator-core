@@ -242,7 +242,8 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     if is_of_type(t, test_type):
         return True
     for arg in get_args(t):
-        if result := is_of_type(arg, test_type):
+        result = is_of_type(arg, test_type)
+        if result:
             return result
     return False
 
