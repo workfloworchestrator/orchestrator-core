@@ -15,8 +15,10 @@ from enum import Enum
 from http import HTTPStatus
 
 try:
+    # python3.10 introduces types.UnionType for the new union and optional type defs.
     from types import UnionType  # type: ignore
 except ImportError:
+    # UnionType is set to None, it is needed later to check for union/optional types.
     UnionType = None
 
 from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
@@ -210,12 +212,12 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     True
     """
     union_types = [Union, UnionType] if UnionType else [Union]
-    if get_origin(t) and get_origin(t) in union_types and None.__class__ in get_args(t):
+    if get_origin(t) in union_types and None.__class__ in get_args(t):
         for arg in get_args(t):
             if arg is None.__class__:
                 continue
 
-            return is_of_type(arg, test_type) if test_type else True
+            return not test_type or is_of_type(arg, test_type)
     return False
 
 
@@ -234,7 +236,7 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     """
     union_types = [Union, UnionType] if UnionType else [Union]
-    if not get_origin(t) or get_origin(t) not in union_types:
+    if get_origin(t) not in union_types:
         return False
     if not test_type:
         return True
