@@ -59,7 +59,7 @@ def test_product_block_with_list_union_db(
         name="ProductBlockWithListUnionForTest", description="Test Union Sub Block", tag="TEST", status="active"
     )
     product_block_with_list_union.resource_types = [resource_type_int, resource_type_str, resource_type_list]
-    product_block_with_list_union.dependent_on = [product_sub_block_one, product_sub_block_two]
+    product_block_with_list_union.depends_on = [product_sub_block_one, product_sub_block_two]
     db.session.add(product_block_with_list_union)
     db.session.commit()
 

@@ -474,16 +474,16 @@ def test_in_use_by_subscriptions_insync(seed, test_client):
     assert "locked_relations" not in insync_info
 
 
-def test_dependent_on_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/dependent_on/{SERVICE_SUBSCRIPTION_ID}")
-    dependent_on_subs = list(map(lambda sub: sub["subscription_id"], response.json()))
-    assert len(dependent_on_subs) == 2
+def test_depends_on_subscriptions(seed, test_client):
+    response = test_client.get(f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}")
+    depends_on_subs = list(map(lambda sub: sub["subscription_id"], response.json()))
+    assert len(depends_on_subs) == 2
 
-    assert PORT_A_SUBSCRIPTION_ID in dependent_on_subs
-    assert SSP_SUBSCRIPTION_ID in dependent_on_subs
+    assert PORT_A_SUBSCRIPTION_ID in depends_on_subs
+    assert SSP_SUBSCRIPTION_ID in depends_on_subs
 
 
-def test_dependent_on_subscriptions_not_insync(seed, test_client):
+def test_depends_on_subscriptions_not_insync(seed, test_client):
     # ensure that the dependent subscription of the LP is out of sync
     msp = SubscriptionTable.query.with_for_update().get(PORT_A_SUBSCRIPTION_ID)
     msp.insync = False
@@ -498,7 +498,7 @@ def test_dependent_on_subscriptions_not_insync(seed, test_client):
     assert insync_info["locked_relations"][0] == PORT_A_SUBSCRIPTION_ID
 
 
-def test_dependent_on_subscriptions_insync(seed, test_client):
+def test_depends_on_subscriptions_insync(seed, test_client):
     response = test_client.get(f"/api/subscriptions/workflows/{SERVICE_SUBSCRIPTION_ID}")
     assert response.status_code == HTTPStatus.OK
 

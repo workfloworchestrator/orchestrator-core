@@ -354,11 +354,11 @@ def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, UU
                     conn, str(in_use_by_block_id), str(product_block["product_block_id"])
                 )
 
-        if "dependent_on_block_relations" in product_block:
-            for dependent_on_block_name in product_block["dependent_on_block_relations"]:
-                dependent_on_block_id = get_product_block_id_by_name(conn, dependent_on_block_name)
+        if "depends_on_block_relations" in product_block:
+            for depends_on_block_name in product_block["depends_on_block_relations"]:
+                depends_on_block_id = get_product_block_id_by_name(conn, depends_on_block_name)
                 add_product_block_relation_between_products_by_id(
-                    conn, str(product_block["product_block_id"]), str(dependent_on_block_id)
+                    conn, str(product_block["product_block_id"]), str(depends_on_block_id)
                 )
 
     return uuids
@@ -650,50 +650,50 @@ def remove_products_from_workflow_by_product_tag(
 
 
 def add_product_block_relation_between_products_by_id(
-    conn: sa.engine.Connection, in_use_by_id: Union[UUID, UUIDstr], dependent_on_id: Union[UUID, UUIDstr]
+    conn: sa.engine.Connection, in_use_by_id: Union[UUID, UUIDstr], depends_on_id: Union[UUID, UUIDstr]
 ) -> None:
     """Add product block relation by product block id.
 
     Args:
         conn: DB connection as available in migration main file.
         in_use_by_id: ID of the product block that uses another product block.
-        dependent_on_id: ID of the product block that is used as dependency.
+        depends_on_id: ID of the product block that is used as dependency.
 
     Usage:
     ```python
     in_use_by_id = "in_use_by_id"
-    dependent_on_id = "dependent_on_id"
-    add_product_block_relation_between_products_by_id(conn, in_use_by_id, dependent_on_id)
+    depends_on_id = "depends_on_id"
+    add_product_block_relation_between_products_by_id(conn, in_use_by_id, depends_on_id)
     ```
     """
 
     conn.execute(
         sa.text(
             """
-                INSERT INTO product_block_relations (in_use_by_id, dependent_on_id)
-                VALUES (:in_use_by_id, :dependent_on_id)
+                INSERT INTO product_block_relations (in_use_by_id, depends_on_id)
+                VALUES (:in_use_by_id, :depends_on_id)
             """
         ),
         in_use_by_id=in_use_by_id,
-        dependent_on_id=dependent_on_id,
+        depends_on_id=depends_on_id,
     )
 
 
 def remove_product_block_relation_between_products_by_id(
-    conn: sa.engine.Connection, in_use_by_id: Union[UUID, UUIDstr], dependent_on_id: Union[UUID, UUIDstr]
+    conn: sa.engine.Connection, in_use_by_id: Union[UUID, UUIDstr], depends_on_id: Union[UUID, UUIDstr]
 ) -> None:
     """Remove product block relation by id.
 
     Args:
         conn: DB connection as available in migration main file.
         in_use_by_id: ID of the product block that uses another product block.
-        dependent_on_id: ID of the product block that is used as dependency.
+        depends_on_id: ID of the product block that is used as dependency.
 
     Usage:
         >>> in_use_by_id = "in_use_by_id"
-        >>> dependent_on_id = "dependent_on_id"
+        >>> depends_on_id = "depends_on_id"
         >>> remove_product_block_relation_between_products_by_id(
-            conn, in_use_by_id, dependent_on_id
+            conn, in_use_by_id, depends_on_id
         )
     """
 
@@ -701,11 +701,11 @@ def remove_product_block_relation_between_products_by_id(
         sa.text(
             """
                 DELETE FROM product_block_relations
-                WHERE in_use_by_id=:in_use_by_id AND dependent_on_id=:dependent_on_id
+                WHERE in_use_by_id=:in_use_by_id AND depends_on_id=:depends_on_id
             """
         ),
         in_use_by_id=in_use_by_id,
-        dependent_on_id=dependent_on_id,
+        depends_on_id=depends_on_id,
     )
 
 
@@ -975,14 +975,14 @@ def convert_resource_type_relations_to_instance_relations(
     conn.execute(
         sa.text(
             """
-            INSERT INTO subscription_instance_relations (in_use_by_id, dependent_on_id, order_id, domain_model_attr)
+            INSERT INTO subscription_instance_relations (in_use_by_id, depends_on_id, order_id, domain_model_attr)
             WITH dependencies AS (
                 SELECT siv.value as subscription_id, siv.subscription_instance_id as in_use_by_instance_id, si.product_block_id
                 FROM subscription_instance_values AS siv
                 left join subscription_instances as si on siv.subscription_instance_id = si.subscription_instance_id
                 WHERE siv.resource_type_id=:resource_type_id
             )
-            SELECT in_use_by_instance_id AS in_use_by_id, si.subscription_instance_id AS dependent_on_id, '0' AS order_id, :domain_model_attr AS domain_model_attr
+            SELECT in_use_by_instance_id AS in_use_by_id, si.subscription_instance_id AS depends_on_id, '0' AS order_id, :domain_model_attr AS domain_model_attr
             FROM subscription_instances AS si
             INNER JOIN dependencies AS dep ON si.subscription_id=uuid(dep.subscription_id)
             """
@@ -1028,12 +1028,12 @@ def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
             """
                 INSERT INTO subscription_instance_values (subscription_instance_id, resource_type_id, value)
                 WITH instance_relations AS (
-                    SELECT in_use_by_id, dependent_on_id FROM subscription_instance_relations
+                    SELECT in_use_by_id, depends_on_id FROM subscription_instance_relations
                     WHERE domain_model_attr=:domain_model_attr
                 )
                 SELECT ir.in_use_by_id AS subscription_instance_id, :resource_type_id AS resource_type_id, si.subscription_id AS value
                 from subscription_instances as si
-                inner join instance_relations as ir on si.subscription_instance_id=ir.dependent_on_id
+                inner join instance_relations as ir on si.subscription_instance_id=ir.depends_on_id
             """
         ),
         domain_model_attr=domain_model_attr,
