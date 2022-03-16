@@ -358,12 +358,12 @@ def query_in_use_by_subscriptions(subscription_id: UUID) -> Query:
 
     # Find relations through instance hierarchy
     in_use_by_instances = aliased(SubscriptionInstanceTable)
-    dependent_on_instances = aliased(SubscriptionInstanceTable)
+    depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
         SubscriptionTable.query.join(in_use_by_instances.subscription)
-        .join(in_use_by_instances.dependent_on_block_relations)
-        .join(dependent_on_instances, SubscriptionInstanceRelationTable.dependent_on)
-        .filter(dependent_on_instances.subscription_id == subscription_id)
+        .join(in_use_by_instances.depends_on_block_relations)
+        .join(depends_on_instances, SubscriptionInstanceRelationTable.depends_on)
+        .filter(depends_on_instances.subscription_id == subscription_id)
         .filter(in_use_by_instances.subscription_id != subscription_id)
         .with_entities(SubscriptionTable.subscription_id)
     )
@@ -381,9 +381,9 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
     return query_in_use_by_subscriptions(subscription_id)
 
 
-def query_dependent_on_subscriptions(subscription_id: UUID) -> Query:
+def query_depends_on_subscriptions(subscription_id: UUID) -> Query:
     """
-    Return a query with all subscriptions -dependent_on- that this subscription is dependent on with resource_type or direct relation.
+    Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
     """
@@ -399,13 +399,13 @@ def query_dependent_on_subscriptions(subscription_id: UUID) -> Query:
 
     # Find relations through instance hierarchy
     in_use_by_instances = aliased(SubscriptionInstanceTable)
-    dependent_on_instances = aliased(SubscriptionInstanceTable)
+    depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
-        SubscriptionTable.query.join(dependent_on_instances.subscription)
-        .join(dependent_on_instances.in_use_by_block_relations)
+        SubscriptionTable.query.join(depends_on_instances.subscription)
+        .join(depends_on_instances.in_use_by_block_relations)
         .join(in_use_by_instances, SubscriptionInstanceRelationTable.in_use_by)
         .filter(in_use_by_instances.subscription_id == subscription_id)
-        .filter(dependent_on_instances.subscription_id != subscription_id)
+        .filter(depends_on_instances.subscription_id != subscription_id)
         .with_entities(SubscriptionTable.subscription_id)
     )
 
@@ -417,9 +417,9 @@ def query_dependent_on_subscriptions(subscription_id: UUID) -> Query:
     )
 
 
-@deprecated("Has been renamed to query_dependent_on_subscriptions")
+@deprecated("Has been renamed to query_depends_on_subscriptions")
 def query_child_subscriptions(subscription_id: UUID) -> Query:
-    return query_dependent_on_subscriptions(subscription_id)
+    return query_depends_on_subscriptions(subscription_id)
 
 
 def _terminated_filter(query: Query) -> List[UUID]:
@@ -447,7 +447,7 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     This call will be used by the client to determine if it's safe to
     start a modify or terminate workflow. There are 4 cases:
 
-    1) The subscription is a IP, LightPath or ELAN: the dependent_on subscriptions are checked for not 'insync' instances.
+    1) The subscription is a IP, LightPath or ELAN: the depends_on subscriptions are checked for not 'insync' instances.
     2) The subscription is a ServicePort: in_use_by subscriptions are checked for not 'insync' instances and for in_use_by
        services that are not terminated.
     3) The subscription is a Node: Related Core link subscriptions are checked that there are no active instances
@@ -460,12 +460,12 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     unterminated_dependent_subscriptions = _terminated_filter(in_use_by_query)
     locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
 
-    dependent_on_query = query_dependent_on_subscriptions(subscription.subscription_id)
+    depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
 
-    locked_dependent_on_block_relations = _in_sync_filter(dependent_on_query)
+    locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
 
     result = {
-        "locked_relations": locked_in_use_by_block_relations + locked_dependent_on_block_relations,
+        "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
         # unterminated_parents deprecated since "0.4.0", renamed to unterminated_dependent_subscriptions
         "unterminated_parents": unterminated_dependent_subscriptions,
         "unterminated_dependent_subscriptions": unterminated_dependent_subscriptions,
