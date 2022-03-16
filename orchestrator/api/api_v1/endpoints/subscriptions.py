@@ -40,7 +40,7 @@ from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSche
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     get_subscription,
-    query_dependent_on_subscriptions,
+    query_depends_on_subscriptions,
     query_in_use_by_subscriptions,
     subscription_workflows,
 )
@@ -121,9 +121,9 @@ def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
 
 
 @router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
-@router.get("/dependent_on/{subscription_id}", response_model=List[SubscriptionSchema])
-def dependent_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_dependent_on_subscriptions(subscription_id).all()
+@router.get("/depends_on/{subscription_id}", response_model=List[SubscriptionSchema])
+def depends_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_depends_on_subscriptions(subscription_id).all()
 
 
 @router.get("/", response_model=List[SubscriptionSchema])

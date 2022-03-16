@@ -19,9 +19,9 @@ def upgrade() -> None:
     op.drop_constraint("product_block_relations_parent_id_fkey", "product_block_relations", type_="foreignkey")
     op.drop_constraint("product_block_relations_child_id_fkey", "product_block_relations", type_="foreignkey")
     op.alter_column("product_block_relations", "parent_id", new_column_name="in_use_by_id")
-    op.alter_column("product_block_relations", "child_id", new_column_name="dependent_on_id")
+    op.alter_column("product_block_relations", "child_id", new_column_name="depends_on_id")
     op.create_index(
-        "product_block_relation_i_d_ix", "product_block_relations", ["in_use_by_id", "dependent_on_id"], unique=True
+        "product_block_relation_i_d_ix", "product_block_relations", ["in_use_by_id", "depends_on_id"], unique=True
     )
     op.create_foreign_key(
         "product_block_relations_in_use_by_id_fkey",
@@ -32,10 +32,10 @@ def upgrade() -> None:
         ondelete="CASCADE",
     )
     op.create_foreign_key(
-        "product_block_relations_dependent_on_id_fkey",
+        "product_block_relations_depends_on_id_fkey",
         "product_block_relations",
         "product_blocks",
-        ["dependent_on_id"],
+        ["depends_on_id"],
         ["product_block_id"],
         ondelete="CASCADE",
     )
@@ -48,11 +48,11 @@ def upgrade() -> None:
         "subscription_instance_relations_child_id_fkey", "subscription_instance_relations", type_="foreignkey"
     )
     op.alter_column("subscription_instance_relations", "parent_id", new_column_name="in_use_by_id")
-    op.alter_column("subscription_instance_relations", "child_id", new_column_name="dependent_on_id")
+    op.alter_column("subscription_instance_relations", "child_id", new_column_name="depends_on_id")
     op.create_index(
         "subscription_relation_i_d_o_ix",
         "subscription_instance_relations",
-        ["in_use_by_id", "dependent_on_id", "order_id"],
+        ["in_use_by_id", "depends_on_id", "order_id"],
         unique=True,
     )
     op.create_foreign_key(
@@ -64,10 +64,10 @@ def upgrade() -> None:
         ondelete="CASCADE",
     )
     op.create_foreign_key(
-        "subscription_instance_relations_dependent_on_id_fkey",
+        "subscription_instance_relations_depends_on_id_fkey",
         "subscription_instance_relations",
         "subscription_instances",
-        ["dependent_on_id"],
+        ["depends_on_id"],
         ["subscription_instance_id"],
         ondelete="CASCADE",
     )
@@ -76,9 +76,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("product_block_relation_i_d_ix", table_name="product_block_relations")
     op.drop_constraint("product_block_relations_in_use_by_id_fkey", "product_block_relations", type_="foreignkey")
-    op.drop_constraint("product_block_relations_dependent_on_id_fkey", "product_block_relations", type_="foreignkey")
+    op.drop_constraint("product_block_relations_depends_on_id_fkey", "product_block_relations", type_="foreignkey")
     op.alter_column("product_block_relations", "in_use_by_id", new_column_name="parent_id")
-    op.alter_column("product_block_relations", "dependent_on_id", new_column_name="child_id")
+    op.alter_column("product_block_relations", "depends_on_id", new_column_name="child_id")
     op.create_index("product_block_relation_p_c_ix", "product_block_relations", ["parent_id", "child_id"], unique=True)
     op.create_foreign_key(
         "product_block_relations_parent_id_fkey",
@@ -102,10 +102,10 @@ def downgrade() -> None:
         "subscription_instance_relations_in_use_by_id_fkey", "subscription_instance_relations", type_="foreignkey"
     )
     op.drop_constraint(
-        "subscription_instance_relations_dependent_on_id_fkey", "subscription_instance_relations", type_="foreignkey"
+        "subscription_instance_relations_depends_on_id_fkey", "subscription_instance_relations", type_="foreignkey"
     )
     op.alter_column("subscription_instance_relations", "in_use_by_id", new_column_name="parent_id")
-    op.alter_column("subscription_instance_relations", "dependent_on_id", new_column_name="child_id")
+    op.alter_column("subscription_instance_relations", "depends_on_id", new_column_name="child_id")
     op.create_index(
         "subscription_relation_p_c_o_ix",
         "subscription_instance_relations",
