@@ -36,14 +36,14 @@ def test_product_type_list_nested():
 
 
 @pytest.fixture
-def test_product_list_nested(test_product_block_list_nested_db_parent):
+def test_product_list_nested(test_product_block_list_nested_db_in_use_by_block):
     product = ProductTable(
         name="TestProductListNested", description="Test ProductTable", product_type="Test", tag="TEST", status="active"
     )
 
     fixed_input = FixedInputTable(name="test_fixed_input", value="False")
 
-    product_block = test_product_block_list_nested_db_parent
+    product_block = test_product_block_list_nested_db_in_use_by_block
     product.fixed_inputs = [fixed_input]
     product.product_blocks = [product_block]
 

@@ -58,7 +58,7 @@ def seed():
         name="LightpathProduct",
         description="Service product that lives on ports",
         product_type="LightPath",
-        tag="LightPath",  # This is special since parent/child subscription code handles specific tags
+        tag="LightPath",  # This is special since in_use_by/depends_on subscription code handles specific tags
         status="active",
         product_blocks=product_blocks,
         fixed_inputs=fixed_inputs,
@@ -68,7 +68,7 @@ def seed():
         name="PortAProduct",
         description="Port A description",
         product_type="Port",
-        tag="SP",  # This is special since parent/child subscription code handles specific tags
+        tag="SP",  # This is special since in_use_by/depends_on subscription code handles specific tags
         status="active",
         product_blocks=product_blocks,
         fixed_inputs=fixed_inputs,
@@ -445,9 +445,9 @@ def test_insync_invalid_tagged(seed, test_client):
 
 def test_in_use_by_subscriptions(seed, test_client):
     response = test_client.get(f"/api/subscriptions/in_use_by/{PORT_A_SUBSCRIPTION_ID}")
-    dependent_subs = response.json()
-    assert len(dependent_subs) == 1
-    assert SERVICE_SUBSCRIPTION_ID == dependent_subs[0]["subscription_id"]
+    depends_subs = response.json()
+    assert len(depends_subs) == 1
+    assert SERVICE_SUBSCRIPTION_ID == depends_subs[0]["subscription_id"]
 
 
 def test_in_use_by_subscriptions_not_insync(seed, test_client):
@@ -484,7 +484,7 @@ def test_depends_on_subscriptions(seed, test_client):
 
 
 def test_depends_on_subscriptions_not_insync(seed, test_client):
-    # ensure that the dependent subscription of the LP is out of sync
+    # ensure that the depends on subscription of the LP is out of sync
     msp = SubscriptionTable.query.with_for_update().get(PORT_A_SUBSCRIPTION_ID)
     msp.insync = False
     db.session.commit()

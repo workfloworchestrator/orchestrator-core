@@ -457,7 +457,7 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     """
     in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
-    unterminated_dependent_subscriptions = _terminated_filter(in_use_by_query)
+    unterminated_depends_on_subscriptions = _terminated_filter(in_use_by_query)
     locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
 
     depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
@@ -466,9 +466,9 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
 
     result = {
         "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
-        # unterminated_parents deprecated since "0.4.0", renamed to unterminated_dependent_subscriptions
-        "unterminated_parents": unterminated_dependent_subscriptions,
-        "unterminated_dependent_subscriptions": unterminated_dependent_subscriptions,
+        # unterminated_parents deprecated since "0.4.0", renamed to unterminated_depends_on_subscriptions
+        "unterminated_parents": unterminated_depends_on_subscriptions,
+        "unterminated_depends_on_subscriptions": unterminated_depends_on_subscriptions,
     }
 
     logger.debug(
@@ -496,9 +496,9 @@ TARGET_DEFAULT_USABLE_MAP: Dict[Target, List[str]] = {
 
 WF_USABLE_MAP: Dict[str, List[str]] = {}
 
-# WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS
+# WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_DEPENDS_ON_SUBSCRIPTIONS
 WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
-WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS: Dict[str, bool] = {}
+WF_BLOCKED_BY_DEPENDS_ON_SUBSCRIPTIONS: Dict[str, bool] = {}
 
 WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
 
@@ -560,20 +560,20 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
             # Check if this workflow is blocked because there are unterminated relations
-            blocked_by_dependent_subscriptions = WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS.get(
+            blocked_by_depends_on_subscriptions = WF_BLOCKED_BY_DEPENDS_ON_SUBSCRIPTIONS.get(
                 workflow.name, workflow.target == Target.TERMINATE
             )
 
-            # WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_DEPENDENT_SUBSCRIPTIONS
-            if not blocked_by_dependent_subscriptions:
-                blocked_by_dependent_subscriptions = WF_BLOCKED_BY_PARENTS.get(
+            # WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_DEPENDS_ON_SUBSCRIPTIONS
+            if not blocked_by_depends_on_subscriptions:
+                blocked_by_depends_on_subscriptions = WF_BLOCKED_BY_PARENTS.get(
                     workflow.name, workflow.target == Target.TERMINATE
                 )
-            if blocked_by_dependent_subscriptions and data["unterminated_dependent_subscriptions"]:
+            if blocked_by_depends_on_subscriptions and data["unterminated_depends_on_subscriptions"]:
                 workflow_json["reason"] = "subscription.no_modify_subscription_in_use_by_others"
-                # unterminated_parents deprecated since "0.4.0", renamed to unterminated_dependent_subscriptions
+                # unterminated_parents deprecated since "0.4.0", renamed to unterminated_depends_on_subscriptions
                 workflow_json["unterminated_parents"] = data["unterminated_parents"]
-                workflow_json["unterminated_dependent_subscriptions"] = data["unterminated_dependent_subscriptions"]
+                workflow_json["unterminated_depends_on_subscriptions"] = data["unterminated_depends_on_subscriptions"]
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
         workflows[workflow.target.lower()].append(workflow_json)

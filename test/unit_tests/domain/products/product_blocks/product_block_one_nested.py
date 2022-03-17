@@ -32,13 +32,13 @@ def test_product_block_one_nested():
 
 
 @pytest.fixture
-def test_product_block_one_nested_db_parent(resource_type_list, resource_type_int, resource_type_str):
-    parent_block = ProductBlockTable(
+def test_product_block_one_nested_db_in_use_by_block(resource_type_list, resource_type_int, resource_type_str):
+    in_use_by_block = ProductBlockTable(
         name="ProductBlockOneNestedForTest", description="Test Block Parent", tag="TEST", status="active"
     )
-    parent_block.resource_types = [resource_type_int]
+    in_use_by_block.resource_types = [resource_type_int]
 
-    db.session.add(parent_block)
+    db.session.add(in_use_by_block)
     db.session.commit()
 
-    return parent_block
+    return in_use_by_block
