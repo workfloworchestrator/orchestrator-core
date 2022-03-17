@@ -303,7 +303,7 @@ class DomainModel(BaseModel):
                 to filter through instances depending on that attribute.
 
                 Args:
-                    instance: dependent on subscription instance
+                    instance: depends on subscription instance
 
                 Returns:
                     Boolean of match.
