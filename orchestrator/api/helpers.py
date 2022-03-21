@@ -92,19 +92,19 @@ def _query_with_filters(
                         query = query.filter(cast(SubscriptionTable.__dict__[field], String).ilike("%" + value + "%"))
 
     if sort is not None and len(sort) >= 2:
-        for sort in chunked(sort, 2):
-            if sort and len(sort) == 2:
-                if sort[0] in ["product", "tag"]:
-                    field = "name" if sort[0] == "product" else "tag"
-                    if sort[1].upper() == "DESC":
+        for item in chunked(sort, 2):
+            if item and len(item) == 2:
+                if item[0] in ["product", "tag"]:
+                    field = "name" if item[0] == "product" else "tag"
+                    if item[1].upper() == "DESC":
                         query = query.order_by(expression.desc(ProductTable.__dict__[field]))
                     else:
                         query = query.order_by(expression.asc(ProductTable.__dict__[field]))
                 else:
-                    if sort[1].upper() == "DESC":
-                        query = query.order_by(expression.desc(SubscriptionTable.__dict__[sort[0]]))
+                    if item[1].upper() == "DESC":
+                        query = query.order_by(expression.desc(SubscriptionTable.__dict__[item[0]]))
                     else:
-                        query = query.order_by(expression.asc(SubscriptionTable.__dict__[sort[0]]))
+                        query = query.order_by(expression.asc(SubscriptionTable.__dict__[item[0]]))
 
     if range is not None and len(range) == 2:
         try:
