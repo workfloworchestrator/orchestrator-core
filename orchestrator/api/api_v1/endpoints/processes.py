@@ -307,10 +307,10 @@ def processes_filterable(
                     raise_status(HTTPStatus.BAD_REQUEST, f"Invalid filter '{field}'")
 
     if _sort is not None and len(_sort) >= 2:
-        for _sort in chunked(_sort, 2):
-            if _sort and len(_sort) == 2 and _sort[0] in VALID_SORT_KEYS:
-                sort_key = VALID_SORT_KEYS[_sort[0]]
-                if _sort[1].upper() == "DESC":
+        for item in chunked(_sort, 2):
+            if item and len(item) == 2 and item[0] in VALID_SORT_KEYS:
+                sort_key = VALID_SORT_KEYS[item[0]]
+                if item[1].upper() == "DESC":
                     query = query.order_by(expression.desc(ProcessTable.__dict__[sort_key]))
                 else:
                     query = query.order_by(expression.asc(ProcessTable.__dict__[sort_key]))
