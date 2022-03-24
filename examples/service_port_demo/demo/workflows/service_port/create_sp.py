@@ -1,27 +1,21 @@
-from typing import Optional
-from uuid import uuid4, UUID
+from uuid import UUID, uuid4
 
 import structlog
-from more_itertools import one
+from demo.products.product_blocks.sp import PortMode
+from demo.products.product_types.sp import ServicePortInactive, ServicePortProvisioning
+from demo.workflows.workflow import create_workflow
 
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Choice, ContactPersonList, Divider, Label, OrganisationId
-from orchestrator.services import products, subscriptions
+from orchestrator.forms.validators import Choice, ContactPersonList
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 
-from demo.products.product_blocks.sp import PortMode
-from demo.products.product_types.sp import ServicePortInactive, ServicePortProvisioning
-from demo.workflows.workflow import create_workflow
-
 logger = structlog.get_logger(__name__)
 
 
 def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGenerator:
-    _product = products.get_product_by_id(product)
-    port_speed = int(_product.fixed_input_value("port_speed"))
     PortEnum = Choice("PortEnum", zip(["untagged", "tagged"], ["untagged", "tagged"]))
 
     class ServicePortCreateForm(FormPage):
@@ -61,6 +55,7 @@ def construct_sp_model(
         "subscription_id": sp.subscription_id,
         "subscription_description": sp.description,
     }
+
 
 @create_workflow("Create Service Port", initial_input_form=initial_input_form_generator)
 def create_sp() -> StepList:

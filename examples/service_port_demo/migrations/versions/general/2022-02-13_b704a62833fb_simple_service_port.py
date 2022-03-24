@@ -9,9 +9,9 @@ from typing import Any
 
 import sqlalchemy as sa
 from alembic import op
-from orchestrator.targets import Target
 
 from migrations.helpers import create_missing_modify_note_workflows
+from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
 revision = 'b704a62833fb'
@@ -63,7 +63,6 @@ def upgrade() -> None:
         name=product["name"],
     )
     product_id = result.fetchone()[0]
-    print(product_id)
 
     for block in product_blocks:
         conn.execute(

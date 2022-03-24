@@ -1,17 +1,10 @@
-from typing import Optional
-from uuid import UUID
-
 from enum import IntEnum
+from typing import Optional
+
+from demo.products.product_blocks.sp import ServicePortBlock, ServicePortBlockInactive, ServicePortBlockProvisioning
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-
-from demo.products.product_blocks.sp import (
-    PortMode,
-    ServicePortBlock,
-    ServicePortBlockInactive,
-    ServicePortBlockProvisioning,
-)
 
 
 class PortSpeed(IntEnum):
@@ -38,4 +31,3 @@ class ServicePortProvisioning(
 class ServicePort(ServicePortProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     port_speed: PortSpeed
     port: ServicePortBlock
-
