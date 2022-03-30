@@ -984,7 +984,7 @@ def convert_resource_type_relations_to_instance_relations(
             )
             SELECT in_use_by_instance_id AS in_use_by_id, si.subscription_instance_id AS depends_on_id, '0' AS order_id, :domain_model_attr AS domain_model_attr
             FROM subscription_instances AS si
-            INNER JOIN dependencies AS dep ON si.subscription_id=uuid(dep.subscription_id)
+            INNER JOIN dependencies AS dep ON si.subscription_id=uuid(dep.subscription_id) ON CONFLICT DO NOTHING
             """
         ),
         resource_type_id=resource_type_id,
