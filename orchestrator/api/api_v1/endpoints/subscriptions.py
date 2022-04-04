@@ -121,7 +121,7 @@ def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
     return query_in_use_by_subscriptions(subscription_id).all()
 
 
-@router.post("/subscriptions_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
+@router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
 def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, SubscriptionSchema]:
     subscriptions = {}
     for id in data:
