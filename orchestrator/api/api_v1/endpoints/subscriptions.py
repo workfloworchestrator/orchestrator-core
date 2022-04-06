@@ -22,6 +22,7 @@ from fastapi import Depends
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 from oauth2_lib.fastapi import OIDCUserModel
+from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
@@ -123,15 +124,21 @@ def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
 
 @router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
 def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, SubscriptionSchema]:
-    subscriptions = {}
-    for id in data:
-        subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(id)
-        if subscription_instance:
-            subscription = SubscriptionTable.query.get(subscription_instance.subscription_id)
-            subscriptions[id] = subscription
-        else:
-            logger.error("Subscription instance id not found. Skipping one.", subscription_intance_id=id)
-    return subscriptions
+    res = db.session.execute(
+        select(SubscriptionInstanceTable.subscription_instance_id, SubscriptionTable)
+            .filter(
+            SubscriptionTable.subscription_id.in_(
+                select(SubscriptionInstanceTable.subscription_id)
+                    .filter(SubscriptionInstanceTable.subscription_instance_id.in_(data))
+                    .subquery()
+            )
+        )
+
+    ).all()
+    result = {row[0]: row[1] for row in res if row[0] in data}
+    if len(result.keys()) != len(data):
+        logger.warning("Not all subscription_instance_id's could be resolved.", unresolved_ids=list(set(data) - set(result.keys())))
+    return result
 
 
 @router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
