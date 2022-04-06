@@ -19,6 +19,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import Depends
+from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
@@ -118,6 +119,19 @@ def delete_subscription(subscription_id: UUID) -> None:
 @router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
 def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
     return query_in_use_by_subscriptions(subscription_id).all()
+
+
+@router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
+def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, SubscriptionSchema]:
+    subscriptions = {}
+    for id in data:
+        subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(id)
+        if subscription_instance:
+            subscription = SubscriptionTable.query.get(subscription_instance.subscription_id)
+            subscriptions[id] = subscription
+        else:
+            logger.error("Subscription instance id not found. Skipping one.", subscription_intance_id=id)
+    return subscriptions
 
 
 @router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)

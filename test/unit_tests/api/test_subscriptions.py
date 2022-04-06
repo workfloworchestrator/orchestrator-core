@@ -450,6 +450,24 @@ def test_in_use_by_subscriptions(seed, test_client):
     assert SERVICE_SUBSCRIPTION_ID == depends_subs[0]["subscription_id"]
 
 
+def test_subscriptions_for_in_used_by_ids(seed, test_client, caplog):
+    instance_id = str(SubscriptionInstanceTable.query.first().subscription_instance_id)
+    response = test_client.post("/api/subscriptions/subscriptions_for_in_used_by_ids", json=[instance_id])
+    depends_subs = response.json()
+    assert depends_subs[instance_id]
+    assert depends_subs[instance_id]["product"]["product_type"] == "IP_PREFIX"
+    assert "Subscription instance id not found." not in caplog.text
+
+
+def test_subscriptions_for_in_used_by_ids_with_wrong_instance_ids(seed, test_client, caplog):
+    response = test_client.post(
+        "/api/subscriptions/subscriptions_for_in_used_by_ids", json=["5373600d-c9ee-4ceb-96bd-1d3256baccec"]
+    )
+    depends_subs = response.json()
+    assert len(depends_subs) == 0
+    assert "Subscription instance id not found." in caplog.text
+
+
 def test_in_use_by_subscriptions_not_insync(seed, test_client):
     # ensure that the used subscription of the MSP is out of sync
     service = SubscriptionTable.query.get(SERVICE_SUBSCRIPTION_ID)
