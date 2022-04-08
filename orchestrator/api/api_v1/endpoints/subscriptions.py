@@ -124,19 +124,16 @@ def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
 
 @router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
 def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, SubscriptionSchema]:
-    res = db.session.execute(
-        select(SubscriptionInstanceTable.subscription_instance_id, SubscriptionTable).filter(
-            SubscriptionTable.subscription_id.in_(
-                select(SubscriptionInstanceTable.subscription_id)
-                .filter(SubscriptionInstanceTable.subscription_instance_id.in_(data))
-                .subquery()
-            )
-        )
+    rows = db.session.execute(
+        select(SubscriptionInstanceTable)
+        .join(SubscriptionTable)
+        .filter(SubscriptionInstanceTable.subscription_instance_id.in_(data))
     ).all()
-    result = {row[0]: row[1] for row in res if row[0] in data}
-    if len(result.keys()) != len(data):
+    result = {row[0].subscription_instance_id: row[0].subscription for row in rows}
+    if len(rows) != len(data):
         logger.warning(
-            "Not all subscription_instance_id's could be resolved.", unresolved_ids=list(set(data) - set(result.keys()))
+            "Not all subscription_instance_id's could be resolved.",
+            unresolved_ids=list(set(data) - set(result.keys())),
         )
     return result
 
