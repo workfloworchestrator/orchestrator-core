@@ -59,7 +59,8 @@ from orchestrator.domain.lifecycle import (
 )
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
-    SAFE_PARENT_TRANSITIONS_FOR_STATUS, State,
+    SAFE_PARENT_TRANSITIONS_FOR_STATUS,
+    State,
     SubscriptionLifecycle,
     UUIDstr,
     get_possible_product_block_types,
