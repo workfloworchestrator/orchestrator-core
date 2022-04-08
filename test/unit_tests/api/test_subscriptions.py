@@ -456,7 +456,7 @@ def test_subscriptions_for_in_used_by_ids(seed, test_client, caplog):
     depends_subs = response.json()
     assert depends_subs[instance_id]
     assert depends_subs[instance_id]["product"]["product_type"] == "IP_PREFIX"
-    assert "Subscription instance id not found." not in caplog.text
+    assert "Not all subscription_instance_id's could be resolved." not in caplog.text
 
 
 def test_subscriptions_for_in_used_by_ids_with_wrong_instance_ids(seed, test_client, caplog):
@@ -465,7 +465,8 @@ def test_subscriptions_for_in_used_by_ids_with_wrong_instance_ids(seed, test_cli
     )
     depends_subs = response.json()
     assert len(depends_subs) == 0
-    assert "Subscription instance id not found." in caplog.text
+    assert "Not all subscription_instance_id's could be resolved." in caplog.text
+    assert "[UUID('5373600d-c9ee-4ceb-96bd-1d3256baccec')]" in caplog.text
 
 
 def test_in_use_by_subscriptions_not_insync(seed, test_client):
