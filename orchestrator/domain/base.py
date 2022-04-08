@@ -59,7 +59,7 @@ from orchestrator.domain.lifecycle import (
 )
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
-    State,
+    SAFE_PARENT_TRANSITIONS_FOR_STATUS, State,
     SubscriptionLifecycle,
     UUIDstr,
     get_possible_product_block_types,
@@ -876,15 +876,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
             # TODO #1321: old code that protected against unsafe changes in subs
             # Block unsafe status changes on domain models that have Subscription instances with parent relations
-            # for parent in subscription_instance.parents:
-            #     if (
-            #         parent.subscription != self.subscription
-            #         and parent.subscription.status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[status]
-            #     ):
-            #         raise ValueError(
-            #             f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
-            #         )
-
+            for parent in subscription_instance.parents:
+                if (
+                    parent.subscription != self.subscription
+                    and parent.subscription.status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[status]
+                ):
+                    raise ValueError(
+                        f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
+                    )
 
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
