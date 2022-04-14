@@ -191,3 +191,5 @@ def test_list_union_product_block_as_sub(
     # Do not allow subscriptions that are in use by other subscriptions make an unsafe transition.
     with pytest.raises(ValueError):
         sub_one_subscription_terminated.save()
+
+    sub_one_subscription_terminated.save(skip_relation_check=True)
