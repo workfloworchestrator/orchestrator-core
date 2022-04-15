@@ -76,7 +76,7 @@ class AcceptItemType(strEnum):
 
 # TODO #1321: old code that protected against unsafe changes in subs
 # The key is the Parent subscription life cycle status. The keys are lists of safe transitions for child subscriptions.
-SAFE_PARENT_TRANSITIONS_FOR_STATUS = {
+SAFE_USED_BY_TRANSITIONS_FOR_STATUS = {
     SubscriptionLifecycle.INITIAL: [
         SubscriptionLifecycle.INITIAL,
     ],

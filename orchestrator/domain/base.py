@@ -59,7 +59,7 @@ from orchestrator.domain.lifecycle import (
 )
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
-    SAFE_PARENT_TRANSITIONS_FOR_STATUS,
+    SAFE_USED_BY_TRANSITIONS_FOR_STATUS,
     State,
     SubscriptionLifecycle,
     UUIDstr,
@@ -880,12 +880,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             # TODO #1321: old code that protected against unsafe changes in subs
             # Block unsafe status changes on domain models that have Subscription instances with parent relations
             if not skip_relation_check:
-                for parent in subscription_instance.parents:
+                for parent in subscription_instance.in_use_by:
                     logger.debug("Checking the parent relations", parent_status=parent.subscription.status, parent_description=parent.subscription.description,
                                 self_status=self.subscription.status, self_description=self.subscription.description)
                     if (
                         parent.subscription != self.subscription
-                        and parent.subscription.status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[status]
+                        and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
                     ):
                         # pass
                         raise ValueError(
