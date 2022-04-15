@@ -432,7 +432,9 @@ class DomainModel(BaseModel):
             ) and product_block_models is None:
                 pass
             else:
-                saved, depends_on_instance = product_block_models.save(subscription_id=subscription_id, status=status, skip_relation_check=skip_relation_check)
+                saved, depends_on_instance = product_block_models.save(
+                    subscription_id=subscription_id, status=status, skip_relation_check=skip_relation_check
+                )
                 depends_on_instances[product_block_field] = [depends_on_instance]
                 saved_instances.extend(saved)
 
@@ -847,11 +849,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         subscription_instance.depends_on_block_relations = depends_on_block_relations
 
     def save(
-        self,
-        *,
-        subscription_id: UUID,
-        status: SubscriptionLifecycle,
-        skip_relation_check: bool = False
+        self, *, subscription_id: UUID, status: SubscriptionLifecycle, skip_relation_check: bool = False
     ) -> Tuple[List[SubscriptionInstanceTable], SubscriptionInstanceTable]:
         """Save the current model instance to the database.
 
@@ -877,12 +875,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             # Make sure we do not use a mapped session.
             db.session.refresh(subscription_instance)
 
-            # TODO #1321: old code that protected against unsafe changes in subs
-            # Block unsafe status changes on domain models that have Subscription instances with parent relations
             if not skip_relation_check:
                 for parent in subscription_instance.in_use_by:
-                    logger.debug("Checking the parent relations", parent_status=parent.subscription.status, parent_description=parent.subscription.description,
-                                self_status=self.subscription.status, self_description=self.subscription.description)
+                    logger.debug(
+                        "Checking the parent relations",
+                        parent_status=parent.subscription.status,
+                        parent_description=parent.subscription.description,
+                        self_status=self.subscription.status,
+                        self_description=self.subscription.description,
+                    )
                     if (
                         parent.subscription != self.subscription
                         and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
@@ -891,19 +892,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                         raise ValueError(
                             f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
                         )
-
-            # Implementing what's noted in the comment of SAFE_PARENT_TRANSITIONS_FOR_STATUS
-            # for parent in subscription_instance.parents:
-            #     for parent in subscription_instance.parents:
-            #         logger.info("Checking the parent relations", parent_status=parent.subscription.status, parent_description=parent.subscription.description,
-            #                     self_status=self.subscription.status, self_description=self.subscription.description)
-            #     if (
-            #             parent.subscription != self.subscription
-            #             and status not in SAFE_PARENT_TRANSITIONS_FOR_STATUS[parent.subscription.status]
-            #     ):
-            #         raise ValueError(
-            #             f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
-            #         )
 
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
@@ -933,7 +921,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_instance.product_block, subscription_instance.values
         )
 
-        sub_instances, depends_on_instances = self._save_instances(subscription_id, status, skip_relation_check=skip_relation_check)
+        sub_instances, depends_on_instances = self._save_instances(
+            subscription_id, status, skip_relation_check=skip_relation_check
+        )
 
         # Save the subscription instances relations.
         self._set_instance_domain_model_attrs(subscription_instance, depends_on_instances)
@@ -1196,7 +1186,6 @@ class SubscriptionModel(DomainModel):
         return model
 
     # Some common functions shared by from_other_product and from_subscription
-
     @classmethod
     def _get_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> Any:
         return SubscriptionTable.query.options(
@@ -1316,7 +1305,7 @@ class SubscriptionModel(DomainModel):
             )
             raise
 
-    def save(self, skip_relation_check=False) -> None:
+    def save(self, skip_relation_check: bool = False) -> None:
         """Save the subscription to the database."""
         specialized_type = lookup_specialized_type(self.__class__, self.status)
         if specialized_type and not isinstance(self, specialized_type):
@@ -1351,7 +1340,9 @@ class SubscriptionModel(DomainModel):
 
         old_instances_dict = {instance.subscription_instance_id: instance for instance in sub.instances}
 
-        saved_instances, depends_on_instances = self._save_instances(self.subscription_id, self.status, skip_relation_check=skip_relation_check)
+        saved_instances, depends_on_instances = self._save_instances(
+            self.subscription_id, self.status, skip_relation_check=skip_relation_check
+        )
 
         for instances in depends_on_instances.values():
             for instance in instances:
