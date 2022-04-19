@@ -34,6 +34,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
+from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
@@ -58,7 +59,7 @@ class OrchestratorCore(FastAPI):
         openapi_url: str = "/api/openapi.json",
         docs_url: str = "/api/docs",
         redoc_url: str = "/api/redoc",
-        version: str = "1.0.0",
+        version: str = __version__,
         default_response_class: Type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
