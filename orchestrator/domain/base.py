@@ -888,7 +888,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                         parent.subscription != self.subscription
                         and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
                     ):
-                        # pass
                         raise ValueError(
                             f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
                         )
