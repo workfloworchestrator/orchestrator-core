@@ -875,22 +875,22 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             # Make sure we do not use a mapped session.
             db.session.refresh(subscription_instance)
 
-            if not skip_relation_check:
-                for parent in subscription_instance.in_use_by:
-                    logger.debug(
-                        "Checking the parent relations",
-                        parent_status=parent.subscription.status,
-                        parent_description=parent.subscription.description,
-                        self_status=self.subscription.status,
-                        self_description=self.subscription.description,
-                    )
-                    if (
-                        parent.subscription != self.subscription
-                        and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
-                    ):
-                        raise ValueError(
-                            f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
-                        )
+            # if not skip_relation_check:
+            #     for parent in subscription_instance.in_use_by:
+            #         logger.debug(
+            #             "Checking the parent relations",
+            #             parent_status=parent.subscription.status,
+            #             parent_description=parent.subscription.description,
+            #             self_status=self.subscription.status,
+            #             self_description=self.subscription.description,
+            #         )
+            #         if (
+            #             parent.subscription != self.subscription
+            #             and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
+            #         ):
+            #             raise ValueError(
+            #                 f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: instance.subscription.description, subscription_instance.parents))}"
+            #             )
 
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
@@ -1173,6 +1173,62 @@ class SubscriptionModel(DomainModel):
 
         data = cls._data_from_lifecycle(other, status, other.subscription_id)
 
+        # traverse blocks and look for wrong transitions
+        for product_block_field, product_block_field_type in other._product_block_fields_.items():
+            product_block_models = getattr(other, product_block_field)
+            if is_list_type(product_block_field_type):
+
+                # refactor to separate function
+                for product_block_model in product_block_models:
+                    # if not skip_relation_check:
+                    for parent in product_block_model.in_use_by:
+                        logger.debug(
+                            "Checking the parent relations",
+                            parent_status=parent.subscription.status,
+                            parent_description=parent.subscription.description,
+                            self_status=status,
+                            self_description=other.description,
+                        )
+                        if (
+                            parent.subscription != product_block_model.subscription
+                            and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
+                        ):
+                            raise ValueError(
+                                f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: other.description, product_block_model.parents))}"
+                            )
+                # end refactor
+            elif (
+                is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
+            ) and product_block_models is None:
+                pass
+            else:
+                # refactor to separate function
+                for parent in product_block_models.in_use_by:
+                    logger.debug(
+                        "Checking the parent relations",
+                        parent_status=parent.subscription.status,
+                        parent_description=parent.subscription.description,
+                        self_status=status,
+                        self_description=other.description,
+                    )
+                    if (
+                        parent.subscription != product_block_models.subscription
+                        and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
+                    ):
+                        raise ValueError(
+                            f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: other.description, product_block_models.parents))}"
+                        )
+                # end refactor
+
+                pass
+                # saved, depends_on_instance = product_block_models.save(
+                #     subscription_id=subscription_id, status=status, skip_relation_check=skip_relation_check
+                # )
+                # depends_on_instances[product_block_field] = [depends_on_instance]
+                # saved_instances.extend(saved)
+
+        # traverse product blocks to find out if they have parents with wrong state
+
         data["status"] = status
         if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:
             data["start_date"] = nowtz()
@@ -1328,6 +1384,7 @@ class SubscriptionModel(DomainModel):
         sub.product_id = self.product.product_id
         sub.customer_id = self.customer_id
         sub.description = self.description
+        # Todo 1321: it might be better to init a sub with INITIAL and do further update only via lifecycle function
         sub.status = self.status.value
         sub.insync = self.insync
         sub.start_date = self.start_date
