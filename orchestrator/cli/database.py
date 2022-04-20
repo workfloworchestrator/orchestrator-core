@@ -173,3 +173,22 @@ def revision(
 
     """
     command.revision(alembic_cfg(), message, autogenerate=autogenerate, head=head)
+
+
+@app.command()
+def history(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
+    indicate_current: bool = typer.Option(False, "--current", "-c", help="Indicate current revision"),
+) -> None:
+    """
+    List changeset scripts in chronological order.
+
+    Args:
+        verbose: Verbose output
+        indicate_current: Indicate current revision
+
+    Returns:
+        None
+
+    """
+    command.history(alembic_cfg(), verbose=verbose, indicate_current=indicate_current)
