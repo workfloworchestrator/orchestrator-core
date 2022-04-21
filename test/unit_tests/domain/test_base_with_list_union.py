@@ -187,6 +187,3 @@ def test_list_union_product_block_as_sub(
     # Do not allow subscriptions that are in use by other subscriptions make an unsafe transition.
     with pytest.raises(ValueError):
         ProductSubOne.from_other_lifecycle(sub_one_subscription_1, SubscriptionLifecycle.TERMINATED)
-
-    # Todo 1321: implement a `skip_relation_check=True` for the lifecycle?
-    # sub_one_subscription_terminated.save(skip_relation_check=True)
