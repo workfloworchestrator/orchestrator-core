@@ -1142,7 +1142,9 @@ class SubscriptionModel(DomainModel):
             product_block_models = getattr(other, product_block_field)
             if is_list_type(product_block_field_type):
                 for product_block_model in product_block_models:
-                    for parent in product_block_model.in_use_by:
+                    # TODO 1321: remove duplicated code and name it better
+                    parents = (parent for parent in product_block_model.in_use_by if parent)
+                    for parent in parents:
                         logger.debug(
                             "Checking the parent relations",
                             parent_status=parent.subscription.status,
@@ -1162,7 +1164,9 @@ class SubscriptionModel(DomainModel):
             ) and product_block_models is None:
                 pass
             else:
-                for parent in product_block_models.in_use_by:
+                # TODO 1321: remove duplicated code and name it better
+                parents = (parent for parent in product_block_models.in_use_by if parent)
+                for parent in parents:
                     logger.debug(
                         "Checking the parent relations",
                         parent_status=parent.subscription.status,
