@@ -1133,7 +1133,10 @@ class SubscriptionModel(DomainModel):
         return model
 
     @staticmethod
-    def validate_lifecycle_change(other, status):
+    def validate_lifecycle_change(
+        other: "SubscriptionModel",
+        status: SubscriptionLifecycle,
+    ) -> None:
         # traverse blocks and look for wrong transitions
         for product_block_field, product_block_field_type in other._product_block_fields_.items():
             product_block_models = getattr(other, product_block_field)
