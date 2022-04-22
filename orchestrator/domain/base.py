@@ -1132,62 +1132,6 @@ class SubscriptionModel(DomainModel):
         model._db_model = subscription
         return model
 
-    @staticmethod
-    def validate_lifecycle_change(
-        other: "SubscriptionModel",
-        status: SubscriptionLifecycle,
-    ) -> None:
-        # traverse blocks and look for wrong transitions
-        for product_block_field, product_block_field_type in other._product_block_fields_.items():
-            product_block_models = getattr(other, product_block_field)
-            if is_list_type(product_block_field_type):
-                for product_block_model in product_block_models:
-                    # TODO 1321: remove duplicated code and name it better
-                    parents = (parent for parent in product_block_model.in_use_by if parent)
-                    for parent in parents:
-                        logger.debug(
-                            "Checking the parent relations",
-                            parent_status=parent.subscription.status,
-                            parent_description=parent.subscription.description,
-                            self_status=status,
-                            self_description=other.description,
-                        )
-                        if (
-                            parent.subscription != product_block_model.subscription
-                            and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
-                        ):
-                            raise ValueError(
-                                f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: other.description, product_block_model.parents))}"
-                            )
-            elif (
-                is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
-            ) and product_block_models is None:
-                pass
-            else:
-                # TODO 1321: remove duplicated code and name it better
-                parents = (parent for parent in product_block_models.in_use_by if parent)
-                for parent in parents:
-                    logger.debug(
-                        "Checking the parent relations",
-                        parent_status=parent.subscription.status,
-                        parent_description=parent.subscription.description,
-                        self_status=status,
-                        self_description=other.description,
-                    )
-                    if (
-                        parent.subscription != product_block_models.subscription
-                        and parent.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
-                    ):
-                        raise ValueError(
-                            f"Unsafe status change of Subscription with depending subscriptions: {list(map(lambda instance: other.description, product_block_models.parents))}"
-                        )
-        logger.info(
-            "Lifecycle validation check ok",
-            subscription_id=other.subscription_id,
-            subscription_description=other.description,
-            status=status,
-        )
-
     @classmethod
     def from_other_lifecycle(
         cls: Type[S],
@@ -1206,7 +1150,7 @@ class SubscriptionModel(DomainModel):
             cls = lookup_specialized_type(cls, status)
 
         # this will raise ValueError when wrong lifecycle transitions are detected in the new domain model
-        cls.validate_lifecycle_change(other, status)
+        validate_lifecycle_change(other, status)
 
         data = cls._data_from_lifecycle(other, status, other.subscription_id)
         data["status"] = status
@@ -1383,7 +1327,8 @@ class SubscriptionModel(DomainModel):
             for instance in instances:
                 if instance.subscription_id != self.subscription_id:
                     raise ValueError(
-                        "Attempting to save a Foreign `Subscription Instance` directly below a subscription. This is not allowed."
+                        "Attempting to save a Foreign `Subscription Instance` directly below a subscription. "
+                        "This is not allowed."
                     )
         sub.instances = saved_instances
 
@@ -1401,6 +1346,68 @@ class SubscriptionModel(DomainModel):
     @property
     def db_model(self) -> SubscriptionTable:
         return self._db_model
+
+
+def _validate_lifecycle_change_for_product_block(
+    used_by: SubscriptionInstanceTable,
+    product_block_model: ProductBlockModel,
+    status: SubscriptionLifecycle,
+    description: str,
+) -> None:
+    """Validate if a lifecycle change for a single product model is possible."""
+
+    logger.debug(
+        "Checking the parent relations",
+        parent_status=used_by.subscription.status,
+        parent_description=used_by.subscription.description,
+        self_status=status,
+        self_description=description,
+    )
+    if (
+        used_by.subscription != product_block_model.subscription
+        and used_by.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
+    ):
+        raise ValueError(
+            f"Unsafe status change of Subscription with depending subscriptions: "
+            f"{list(map(lambda instance: description, product_block_model.in_use_by))}"
+        )
+
+
+def validate_lifecycle_change(
+    other: "SubscriptionModel",
+    status: SubscriptionLifecycle,
+) -> None:
+    """Validate if a lifecycle change for a subscription model is possible.
+
+    It will traverse all product blocks and check the `in_use_by` status to ensure that the lifecycle change
+    is allowed.
+
+    Note: A `ValueError` will be raised when a unsafe status change is found
+    """
+    for product_block_field, product_block_field_type in other._product_block_fields_.items():
+        product_block_models = getattr(other, product_block_field)
+        if is_list_type(product_block_field_type):
+            for product_block_model in product_block_models:
+                used_by_generator = (used_by for used_by in product_block_model.in_use_by if used_by)
+                for used_by in used_by_generator:
+                    _validate_lifecycle_change_for_product_block(
+                        used_by, product_block_model, status, other.description
+                    )
+        elif (
+            is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
+        ) and product_block_models is None:
+            pass
+        else:
+            used_by_generator = (used_by for used_by in product_block_models.in_use_by if used_by)
+            for used_by in used_by_generator:
+                _validate_lifecycle_change_for_product_block(used_by, product_block_models, status, other.description)
+
+    logger.info(
+        "Lifecycle validation check ok",
+        subscription_id=other.subscription_id,
+        subscription_description=other.description,
+        status=status,
+    )
 
 
 SI = TypeVar("SI")  # pragma: no mutate
