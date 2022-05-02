@@ -15,7 +15,7 @@ from typing import Dict, List, Sequence, Union
 from uuid import UUID
 
 import sqlalchemy as sa
-
+from orchestrator.settings import app_settings
 from orchestrator.types import UUIDstr
 
 
@@ -76,33 +76,32 @@ def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[str
     return [{"product_id": row[0], "name": row[1]} for row in result.fetchall()]
 
 
-def create_missing_modify_note_workflows(conn: sa.engine.Connection) -> None:
-    """Add a `modify_note` workflow to all products that don't have one yet.
-
-    When you use the subscription note field there is a workflow in the core that can be used to modify
-    the note via a workflow. By doing this with a workflow you can find all previous changes to this field by
-    looking at the processes that modified a subscription in the GUI.
-    """
+def ensure_default_workflows(conn: sa.engine.Connection) -> None:
     products = get_all_active_products_and_ids(conn)
 
-    workflow_id = conn.execute(sa.text("SELECT workflow_id FROM workflows WHERE name = 'modify_note'"))
-    workflow_id = workflow_id.fetchone()[0]
+    default_workflow_ids = []
+    for product in app_settings.DEFAULT_PRODUCT_WORKFLOWS:
+        workflow_id = conn.execute(sa.text(f"SELECT workflow_id FROM workflows WHERE name = '{product}'"))
+        workflow_id = workflow_id.fetchone()[0]
+        default_workflow_ids.append(workflow_id)
 
     for product in products:
-        # check if product <-> workflow relation already exists
-        workflows_products_id = conn.execute(
-            sa.text(
-                "SELECT workflow_id FROM products_workflows WHERE workflow_id=:workflow_id AND product_id=:product_id"
-            ),
-            workflow_id=workflow_id,
-            product_id=product["product_id"],
-        )
-        if not workflows_products_id.fetchone():
-            conn.execute(
-                sa.text("INSERT INTO products_workflows VALUES (:product_id, :workflow_id) ON CONFLICT DO NOTHING"),
-                workflow_id=workflow_id,
+        for id in default_workflow_ids:
+            # check if product <-> workflow relation already exists
+            workflows_products_id = conn.execute(
+                sa.text(
+                    "SELECT workflow_id FROM products_workflows WHERE workflow_id=:workflow_id AND product_id=:product_id"
+                ),
+                workflow_id=id,
                 product_id=product["product_id"],
             )
+            # if it doesn't, make it so
+            if not workflows_products_id.fetchone():
+                conn.execute(
+                    sa.text("INSERT INTO products_workflows VALUES (:product_id, :workflow_id) ON CONFLICT DO NOTHING"),
+                    workflow_id=id,
+                    product_id=product["product_id"],
+                )
 
 
 def create_workflow(conn: sa.engine.Connection, workflow: Dict) -> None:
@@ -501,7 +500,7 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
                         "tag": "ProductType",
                         "status": "active",
                         "resources": {
-                            "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878"),
+                            "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
                             "resource_type2": ("Resource description", "dffe1890-e0f8-4ed5-8d0b-e769c3f726cc")
                         }
                     },
@@ -570,6 +569,9 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
     # Create defined workflows
     if "workflows" in new:
         create_workflows(conn, new["workflows"])
+
+    # Ensure default workflows exist for all products
+    ensure_default_workflows(conn)
 
 
 def add_products_to_workflow_by_product_tag(

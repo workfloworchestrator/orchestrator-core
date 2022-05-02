@@ -239,3 +239,11 @@ def load_subscription_info(state: State) -> FormGenerator:
     node = get_detailed_node(subscription["ne"]["esdb_node_id"])
     return {"subscription": subscription, "node_name": node.get("name")}
 ```
+
+## Default Workflows
+
+A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products. To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration. 
+
+Alternatively, be sure to execute `ensure_default_workflows()` within the migration if using `helpers.create()` is not desirable.
+
+By default, `DEFAULT_PRODUCT_WORKFLOWS` is set to `['modify_note']`.

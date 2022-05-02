@@ -62,6 +62,7 @@ class AppSettings(BaseSettings):
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
+    DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
 
 
 class Oauth2Settings(BaseSettings):
