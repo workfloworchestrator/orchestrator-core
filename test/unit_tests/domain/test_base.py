@@ -756,6 +756,8 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
             "product_type": "Test",
             "status": ProductLifecycle.ACTIVE,
             "tag": "TEST",
+            "created_at": test_product_model.created_at,
+            "end_date": None,
         },
         "start_date": datetime(2021, 1, 1, 1, 1, 1, tzinfo=pytz.utc),
         "status": SubscriptionLifecycle.INITIAL,
