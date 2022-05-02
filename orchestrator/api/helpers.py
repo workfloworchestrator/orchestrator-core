@@ -242,6 +242,9 @@ def getattr_in(obj: Any, attr: str, *args: List[Any]) -> Any:
     """Get an instance attribute value by path."""
 
     def _getattr(obj: object, attr: str) -> Any:
+        if isinstance(obj, list):
+            return obj[int(attr)]
+
         return getattr(obj, attr, None, *args)
 
     return functools.reduce(_getattr, [obj] + attr.split("."))
@@ -254,5 +257,8 @@ def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
                 for k1, v1 in get_dict_items(v):
                     yield (f"{k}.{k1}", v1)
                 yield (k, v)
+            if isinstance(v, list):
+                for index, list_item in enumerate(v):
+                    yield (f"{k}.{index}", list_item)
 
     return [c[0] for c in get_dict_items(subscription.dict())]

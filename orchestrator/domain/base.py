@@ -949,6 +949,8 @@ class ProductModel(BaseModel):
     product_type: str
     tag: str
     status: ProductLifecycle
+    created_at: Optional[datetime] = None
+    end_date: Optional[datetime] = None
 
 
 class SubscriptionModel(DomainModel):
@@ -1088,6 +1090,8 @@ class SubscriptionModel(DomainModel):
             product_type=product_db.product_type,
             tag=product_db.tag,
             status=product_db.status,
+            created_at=product_db.created_at,
+            end_date=product_db.end_date,
         )
 
         if description is None:
@@ -1180,6 +1184,8 @@ class SubscriptionModel(DomainModel):
             product_type=product.product_type,
             tag=product.tag,
             status=product.status,
+            created_at=product.created_at if product.created_at else None,
+            end_date=product.end_date if product.end_date else None,
         )
 
     @classmethod

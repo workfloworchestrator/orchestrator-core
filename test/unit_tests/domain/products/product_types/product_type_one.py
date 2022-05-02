@@ -50,6 +50,8 @@ def test_product_one(test_product_block_one_db):
 
 @pytest.fixture
 def test_product_model(test_product_one):
+    product = ProductTable.query.filter(ProductTable.product_id == test_product_one).one()
+
     return ProductModel(
         product_id=test_product_one,
         name="TestProductOne",
@@ -57,4 +59,5 @@ def test_product_model(test_product_one):
         product_type="Test",
         tag="TEST",
         status=ProductLifecycle.ACTIVE,
+        created_at=product.created_at,
     )
