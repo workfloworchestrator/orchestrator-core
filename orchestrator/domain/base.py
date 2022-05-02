@@ -1162,7 +1162,6 @@ class SubscriptionModel(DomainModel):
         model = cls(**data)
         model._db_model = other._db_model
 
-        # TODO 1321: We might implement an explicit save() here?
         return model
 
     # Some common functions shared by from_other_product and from_subscription
@@ -1309,7 +1308,6 @@ class SubscriptionModel(DomainModel):
         sub.product_id = self.product.product_id
         sub.customer_id = self.customer_id
         sub.description = self.description
-        # Todo 1321: it might be better to init a sub with INITIAL and do further update only via lifecycle function
         sub.status = self.status.value
         sub.insync = self.insync
         sub.start_date = self.start_date

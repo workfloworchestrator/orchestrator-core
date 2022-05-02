@@ -1092,7 +1092,6 @@ def test_is_constrained_list_type():
     assert _is_constrained_list_type(List[int]) is False
 
 
-# TODO 1321: Unskip test after updating diff_product_in_database function
 @pytest.mark.skip
 def test_diff_in_db(test_product_one, test_product_type_one):
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
