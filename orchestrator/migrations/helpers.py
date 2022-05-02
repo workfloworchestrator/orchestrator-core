@@ -82,7 +82,9 @@ def ensure_default_workflows(conn: sa.engine.Connection) -> None:
 
     default_workflow_ids = []
     for product in app_settings.DEFAULT_PRODUCT_WORKFLOWS:
-        workflow_id = conn.execute(sa.text(f"SELECT workflow_id FROM workflows WHERE name = '{product}'"))
+        workflow_id = conn.execute(
+            sa.text("SELECT workflow_id FROM workflows WHERE name = (:product)"), {"product": product}
+        )
         workflow_id = workflow_id.fetchone()[0]
         default_workflow_ids.append(workflow_id)
 
