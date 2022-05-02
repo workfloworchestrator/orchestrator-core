@@ -83,14 +83,19 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
 
     subs_obj = SubscriptionModel.from_subscription(subscription_id)
     subscription = subs_obj.dict()
+    sub_instance_ids = [subs_obj.subscription_id]
+    paths = product_block_paths(subs_obj)
+    for path in paths:
+        sub_instance_ids.append(getattr_in(subs_obj, f"{path}.subscription_instance_id"))
+
     # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
-    for path in product_block_paths(subs_obj):
+    for path in paths:
         if in_use_by_subs := getattr_in(subs_obj, f"{path}.in_use_by"):
             i_ids: List[Optional[UUID]] = []
             i_ids.extend(
                 in_use_by_subs.col[idx].in_use_by_id
                 for idx, ob in enumerate(in_use_by_subs.col)
-                if ob.in_use_by_id != subs_obj.subscription_id
+                if ob.in_use_by_id not in sub_instance_ids
             )
             update_in(subscription, f"{path}.in_use_by_ids", i_ids)
 
