@@ -78,33 +78,28 @@ def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[str
 
 
 def ensure_default_workflows(conn: sa.engine.Connection) -> None:
-    products = get_all_active_products_and_ids(conn)
+    """Ensure products_workflows table contains a link between all 'active' workflows and the set of workflows identified in the DEFAULT_PRODUCT_WORKFLOWS app_setting.
 
-    default_workflow_ids = []
-    for product in app_settings.DEFAULT_PRODUCT_WORKFLOWS:
-        workflow_id = conn.execute(
-            sa.text("SELECT workflow_id FROM workflows WHERE name = (:product)"), {"product": product}
-        )
-        workflow_id = workflow_id.fetchone()[0]
-        default_workflow_ids.append(workflow_id)
+    Note that the 0th element of the uuids are taken when generating product_workflow_table_rows because sqlalchemy returns a row tuple even if selecting for a single column.
+    """
+    products = sa.Table("products", sa.MetaData(), autoload_with=conn)
+    workflows = sa.Table("workflows", sa.MetaData(), autoload_with=conn)
+    product_workflows_table = sa.Table("products_workflows", sa.MetaData(), autoload_with=conn)
 
-    for product in products:
-        for id in default_workflow_ids:
-            # check if product <-> workflow relation already exists
-            workflows_products_id = conn.execute(
-                sa.text(
-                    "SELECT workflow_id FROM products_workflows WHERE workflow_id=:workflow_id AND product_id=:product_id"
-                ),
-                workflow_id=id,
-                product_id=product["product_id"],
-            )
-            # if it doesn't, make it so
-            if not workflows_products_id.fetchone():
-                conn.execute(
-                    sa.text("INSERT INTO products_workflows VALUES (:product_id, :workflow_id) ON CONFLICT DO NOTHING"),
-                    workflow_id=id,
-                    product_id=product["product_id"],
-                )
+    all_product_uuids = conn.execute(sa.select(products.c.product_id)).fetchall()
+    default_workflow_ids = conn.execute(
+        sa.select(workflows.c.workflow_id).where(workflows.c.name.in_(app_settings.DEFAULT_PRODUCT_WORKFLOWS))
+    ).fetchall()
+    product_workflow_table_rows = [
+        (product_uuid[0], workflow_uuid[0])
+        for product_uuid in all_product_uuids
+        for workflow_uuid in default_workflow_ids
+    ]
+    conn.execute(
+        sa.dialects.postgresql.insert(product_workflows_table, bind=conn)
+        .values(product_workflow_table_rows)
+        .on_conflict_do_nothing(index_elements=("product_id", "workflow_id"))
+    )
 
 
 def create_workflow(conn: sa.engine.Connection, workflow: Dict) -> None:
@@ -366,7 +361,7 @@ def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, UU
     return uuids
 
 
-def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Dict) -> list[UUID]:
+def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Dict) -> List[UUID]:
     """Create new resource types and link them to existing product_blocks by product_block name.
 
     Note: If the resource type already exists it will still add the resource type to the provided Product Blocks.
