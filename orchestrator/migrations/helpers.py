@@ -378,7 +378,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
                 "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
             },
             "ProductBlockName2": {
-                "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
+                "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878"),
                 "resource_type2": ("Resource description", "dffe1890-e0f8-4ed5-8d0b-e769c3f726cc")
             }
         }
@@ -498,7 +498,7 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
                         "tag": "ProductType",
                         "status": "active",
                         "resources": {
-                            "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
+                            "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878"),
                             "resource_type2": ("Resource description", "dffe1890-e0f8-4ed5-8d0b-e769c3f726cc")
                         }
                     },
