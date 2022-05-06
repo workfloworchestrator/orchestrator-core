@@ -162,3 +162,13 @@ So if you have the core and your own orchestrator project repo in the same folde
 ```shell
 flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
 ```
+
+# Increasing the version number for a (pre) release.
+
+When your PR is accepted you will get a version number.
+
+You can do the necessary change with a clean, e.g. every change committed, branch: 
+
+```shell
+bumpversion patch --new-version 0.4.1-rc3
+```
