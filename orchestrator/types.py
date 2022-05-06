@@ -15,6 +15,14 @@ from enum import Enum
 from http import HTTPStatus
 from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 
+try:
+    # python3.10 introduces types.UnionType for the new union and optional type defs.
+    from types import UnionType  # type: ignore
+
+    union_types = [Union, UnionType]
+except ImportError:
+    union_types = [Union]
+
 from pydantic import BaseModel
 from pydantic.typing import get_args, get_origin
 
@@ -40,7 +48,7 @@ class strEnum(str, Enum):
 
     @classmethod
     def values(cls) -> List:
-        return list(map(lambda obj: obj.value, cls))  # type: ignore
+        return [obj.value for obj in cls]
 
 
 class SubscriptionLifecycle(strEnum):
@@ -50,39 +58,6 @@ class SubscriptionLifecycle(strEnum):
     DISABLED = "disabled"
     TERMINATED = "terminated"
     PROVISIONING = "provisioning"
-
-
-# The key is the Parent subscription life cycle status. The keys are lists of safe transitions for child subscriptions.
-SAFE_PARENT_TRANSITIONS_FOR_STATUS = {
-    SubscriptionLifecycle.INITIAL: [
-        SubscriptionLifecycle.INITIAL,
-    ],
-    SubscriptionLifecycle.ACTIVE: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.PROVISIONING,
-        SubscriptionLifecycle.MIGRATING,
-        SubscriptionLifecycle.ACTIVE,
-        SubscriptionLifecycle.TERMINATED,
-        SubscriptionLifecycle.DISABLED,
-    ],
-    SubscriptionLifecycle.MIGRATING: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.MIGRATING,
-        SubscriptionLifecycle.TERMINATED,
-    ],
-    SubscriptionLifecycle.PROVISIONING: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.PROVISIONING,
-        SubscriptionLifecycle.ACTIVE,
-        SubscriptionLifecycle.TERMINATED,
-    ],
-    SubscriptionLifecycle.TERMINATED: [SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.TERMINATED],
-    SubscriptionLifecycle.DISABLED: [
-        SubscriptionLifecycle.INITIAL,
-        SubscriptionLifecycle.DISABLED,
-        SubscriptionLifecycle.TERMINATED,
-    ],
-}
 
 
 class AcceptItemType(strEnum):
@@ -135,6 +110,9 @@ def is_of_type(t: Any, test_type: Any) -> bool:
     False
     """
 
+    if is_union_type(test_type):
+        return any(get_origin(t) is get_origin(arg) for arg in get_args(test_type))
+
     if (
         get_origin(t)
         and get_origin(test_type)
@@ -154,6 +132,7 @@ def is_of_type(t: Any, test_type: Any) -> bool:
         return False
 
 
+# TODO #1330: Fix comparison of is_of_type(Union[str, int], Union[int, str]), it returns False but it should be True
 def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     """Check if `t` is list type.
 
@@ -181,6 +160,16 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     >>> is_list_type(Literal[1,2,3])
     False
+    >>> is_list_type(List[Union[str, int]])
+    True
+    >>> is_list_type(List[Union[str, int]], Union[str, int])
+    False
+    >>> is_list_type(List[Union[str, int]], str)
+    True
+    >>> is_list_type(List[Union[str, int]], int)
+    False
+    >>> is_list_type(List[Union[str, int]], Union[int, int])
+    False
     """
     if get_origin(t):
         if is_optional_type(t) or is_union_type(t):
@@ -191,7 +180,11 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
             return False  # Literal cannot contain lists see pep 586
         elif issubclass(get_origin(t), list):  # type: ignore
             if test_type and get_args(t):
-                return is_of_type(get_args(t)[0], test_type)
+                first_arg = get_args(t)[0]
+                # To support a list with union of multiple product blocks.
+                if is_union_type(first_arg) and get_args(first_arg) and not is_union_type(test_type):
+                    first_arg = get_args(first_arg)[0]
+                return is_of_type(first_arg, test_type)
             else:
                 return True
 
@@ -217,19 +210,13 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     >>> is_optional_type(Optional[State], State)
     True
-    >>> is_optional_type(int)
-    False
     """
-    if get_origin(t):
-        if get_origin(t) == Union and None.__class__ in get_args(t):  # type:ignore
-            for arg in get_args(t):
-                if arg is None.__class__:
-                    continue
+    if get_origin(t) in union_types and None.__class__ in get_args(t):
+        for arg in get_args(t):
+            if arg is None.__class__:
+                continue
 
-                if test_type:
-                    return is_of_type(arg, test_type)
-                else:
-                    return True
+            return not test_type or is_of_type(arg, test_type)
     return False
 
 
@@ -246,19 +233,27 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     True
     >>> is_union_type(int)
     False
-
     """
-    if get_origin(t):
-        if get_origin(t) == Union:  # type: ignore
-            if test_type:
-                if is_of_type(t, test_type):
-                    return True
-                for arg in get_args(t):
-                    result = is_of_type(arg, test_type)
-                    if result:
-                        return result
-                return False
-            else:
-                return True
+    if get_origin(t) not in union_types:
+        return False
+    if not test_type:
+        return True
 
+    if is_of_type(t, test_type):
+        return True
+    for arg in get_args(t):
+        result = is_of_type(arg, test_type)
+        if result:
+            return result
     return False
+
+
+def get_possible_product_block_types(list_field_type: Any) -> dict:
+    possible_product_block_types = {}
+    if is_union_type(list_field_type):
+        for list_item_field_type in get_args(list_field_type):
+            if list_item_field_type.name not in possible_product_block_types:
+                possible_product_block_types[list_item_field_type.name] = list_item_field_type
+    else:
+        possible_product_block_types = {list_field_type.name: list_field_type}
+    return possible_product_block_types

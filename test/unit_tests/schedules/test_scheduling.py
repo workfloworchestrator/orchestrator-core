@@ -13,7 +13,7 @@ def test_scheduling_with_period(capsys, monkeypatch):
     @scheduler(name="test", time_unit="second", period=1)
     def test_scheduler():
         ref["called"] = True
-        print("I've run")  # noqa: T001
+        print("I've run")  # noqa: T001, T201
         return schedule.CancelJob
 
     ALL_SCHEDULERS.clear()

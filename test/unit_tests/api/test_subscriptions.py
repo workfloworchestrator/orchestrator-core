@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 from nwastdlib.url import URL
 
+from orchestrator.api.helpers import product_block_paths
 from orchestrator.db import (
     FixedInputTable,
     ProcessSubscriptionTable,
@@ -16,13 +17,13 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import RELATION_RESOURCE_TYPES, unsync
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
     INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
     IPAM_PREFIX_ID,
-    NODE_SUBSCRIPTION_ID,
     PARENT_IP_PREFIX_SUBSCRIPTION_ID,
     PEER_GROUP_SUBSCRIPTION_ID,
     PORT_SUBSCRIPTION_ID,
@@ -57,7 +58,7 @@ def seed():
         name="LightpathProduct",
         description="Service product that lives on ports",
         product_type="LightPath",
-        tag="LightPath",  # This is special since parent/child subscription code handles specific tags
+        tag="LightPath",  # This is special since in_use_by/depends_on subscription code handles specific tags
         status="active",
         product_blocks=product_blocks,
         fixed_inputs=fixed_inputs,
@@ -67,7 +68,7 @@ def seed():
         name="PortAProduct",
         description="Port A description",
         product_type="Port",
-        tag="SP",  # This is special since parent/child subscription code handles specific tags
+        tag="SP",  # This is special since in_use_by/depends_on subscription code handles specific tags
         status="active",
         product_blocks=product_blocks,
         fixed_inputs=fixed_inputs,
@@ -236,7 +237,6 @@ def seed():
             IP_PREFIX_SUBSCRIPTION_ID,
             INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
             PARENT_IP_PREFIX_SUBSCRIPTION_ID,
-            NODE_SUBSCRIPTION_ID,
             PEER_GROUP_SUBSCRIPTION_ID,
         ]
     )
@@ -443,15 +443,34 @@ def test_insync_invalid_tagged(seed, test_client):
     }
 
 
-def test_parent_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/parent_subscriptions/{PORT_A_SUBSCRIPTION_ID}")
-    parents = response.json()
-    assert len(parents) == 1
-    assert SERVICE_SUBSCRIPTION_ID == parents[0]["subscription_id"]
+def test_in_use_by_subscriptions(seed, test_client):
+    response = test_client.get(f"/api/subscriptions/in_use_by/{PORT_A_SUBSCRIPTION_ID}")
+    depends_subs = response.json()
+    assert len(depends_subs) == 1
+    assert SERVICE_SUBSCRIPTION_ID == depends_subs[0]["subscription_id"]
 
 
-def test_parent_not_insync(seed, test_client):
-    # ensure that the parent of the MSP is out of sync
+def test_subscriptions_for_in_used_by_ids(seed, test_client, caplog):
+    instance_id = str(SubscriptionInstanceTable.query.first().subscription_instance_id)
+    response = test_client.post("/api/subscriptions/subscriptions_for_in_used_by_ids", json=[instance_id])
+    depends_subs = response.json()
+    assert depends_subs[instance_id]
+    assert depends_subs[instance_id]["product"]["product_type"] == "IP_PREFIX"
+    assert "Not all subscription_instance_id's could be resolved." not in caplog.text
+
+
+def test_subscriptions_for_in_used_by_ids_with_wrong_instance_ids(seed, test_client, caplog):
+    response = test_client.post(
+        "/api/subscriptions/subscriptions_for_in_used_by_ids", json=["5373600d-c9ee-4ceb-96bd-1d3256baccec"]
+    )
+    depends_subs = response.json()
+    assert len(depends_subs) == 0
+    assert "Not all subscription_instance_id's could be resolved." in caplog.text
+    assert "[UUID('5373600d-c9ee-4ceb-96bd-1d3256baccec')]" in caplog.text
+
+
+def test_in_use_by_subscriptions_not_insync(seed, test_client):
+    # ensure that the used subscription of the MSP is out of sync
     service = SubscriptionTable.query.get(SERVICE_SUBSCRIPTION_ID)
     service.insync = False
     db.session.commit()
@@ -465,7 +484,7 @@ def test_parent_not_insync(seed, test_client):
     assert insync_info["locked_relations"][0] == SERVICE_SUBSCRIPTION_ID
 
 
-def test_parent_insync(seed, test_client):
+def test_in_use_by_subscriptions_insync(seed, test_client):
     response = test_client.get(f"/api/subscriptions/workflows/{PORT_A_SUBSCRIPTION_ID}")
     assert response.status_code == HTTPStatus.OK
 
@@ -474,17 +493,17 @@ def test_parent_insync(seed, test_client):
     assert "locked_relations" not in insync_info
 
 
-def test_child_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/child_subscriptions/{SERVICE_SUBSCRIPTION_ID}")
-    parents = list(map(lambda sub: sub["subscription_id"], response.json()))
-    assert len(parents) == 2
+def test_depends_on_subscriptions(seed, test_client):
+    response = test_client.get(f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}")
+    depends_on_subs = list(map(lambda sub: sub["subscription_id"], response.json()))
+    assert len(depends_on_subs) == 2
 
-    assert PORT_A_SUBSCRIPTION_ID in parents
-    assert SSP_SUBSCRIPTION_ID in parents
+    assert PORT_A_SUBSCRIPTION_ID in depends_on_subs
+    assert SSP_SUBSCRIPTION_ID in depends_on_subs
 
 
-def test_child_not_insync(seed, test_client):
-    # ensure that the child of the LP is out of sync
+def test_depends_on_subscriptions_not_insync(seed, test_client):
+    # ensure that the depends on subscription of the LP is out of sync
     msp = SubscriptionTable.query.with_for_update().get(PORT_A_SUBSCRIPTION_ID)
     msp.insync = False
     db.session.commit()
@@ -498,7 +517,7 @@ def test_child_not_insync(seed, test_client):
     assert insync_info["locked_relations"][0] == PORT_A_SUBSCRIPTION_ID
 
 
-def test_child_insync(seed, test_client):
+def test_depends_on_subscriptions_insync(seed, test_client):
     response = test_client.get(f"/api/subscriptions/workflows/{SERVICE_SUBSCRIPTION_ID}")
     assert response.status_code == HTTPStatus.OK
 
@@ -591,3 +610,10 @@ def test_try_set_failed_task_in_sync(seed, test_client):
 
     subscription = SubscriptionTable.query.get(subscription_id)
     assert not subscription.insync
+
+
+def test_product_block_paths(generic_subscription_1, generic_subscription_2):
+    subscription_1 = SubscriptionModel.from_subscription(generic_subscription_1)
+    subscription_2 = SubscriptionModel.from_subscription(generic_subscription_2)
+    assert product_block_paths(subscription_1) == ["product", "pb_1", "pb_2"]
+    assert product_block_paths(subscription_2) == ["product", "pb_3"]

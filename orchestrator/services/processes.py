@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
 from http import HTTPStatus
@@ -20,10 +20,12 @@ from uuid import UUID, uuid4
 import structlog
 from deepmerge import Merger
 from nwastdlib.ex import show_ex
+from sqlalchemy.orm import joinedload
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db
+from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -60,6 +62,14 @@ def get_thread_pool() -> ThreadPoolExecutor:
     if _workflow_executor is None:
         _workflow_executor = ThreadPoolExecutor(max_workers=app_settings.MAX_WORKERS)
     return _workflow_executor
+
+
+def shutdown_thread_pool() -> None:
+    """Gracefully shutdown existing ThreadPoolExecutor and delete it."""
+    global _workflow_executor
+    if isinstance(_workflow_executor, ThreadPoolExecutor):
+        _workflow_executor.shutdown(wait=True)
+        _workflow_executor = None
 
 
 def _db_create_process(stat: ProcessStat) -> None:
@@ -226,6 +236,18 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
         raise
 
 
+def _get_process(pid: UUID) -> ProcessTable:
+    process = ProcessTable.query.options(
+        joinedload(ProcessTable.steps),
+        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+    ).get(pid)
+
+    if not process:
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
+
+    return process
+
+
 def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
         """
@@ -363,6 +385,53 @@ def resume_process(
     db.session.commit()
 
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep))
+
+
+async def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> bool:
+    """Asynchronously resume multiple failed processes.
+
+    Args:
+        processes: Processes from database
+        user_name: User who requested resuming the processes
+
+    Returns:
+        True if the resume-all operation has been started.
+        False if it has not been started because it is already running.
+
+    """
+    lock_expiration = max(30, len(processes) // 10)
+    if not (lock := await distlock_manager.get_lock("resume-all", lock_expiration)):
+        return False
+
+    def run() -> None:
+        try:
+            for _proc in processes:
+                try:
+                    process = _get_process(_proc.pid)
+                    if process.last_status == ProcessStatus.RUNNING:
+                        # Process has been started by something else in the meantime
+                        logger.info("Cannot resume a running process", pid=_proc.pid)
+                        continue
+                    resume_process(process, user=user_name)
+                except Exception:
+                    logger.exception("Failed to resume process", pid=_proc.pid)
+            logger.info("Completed resuming processes")
+        finally:
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(distlock_manager.release_lock(lock))
+            try:
+                loop.close()
+            except Exception:  # noqa: S110
+                pass
+
+    workflow_executor = get_thread_pool()
+
+    process_handle = workflow_executor.submit(run)
+
+    if app_settings.TESTING:
+        process_handle.result()
+
+    return True
 
 
 def abort_process(process: ProcessTable, user: str) -> WFProcess:

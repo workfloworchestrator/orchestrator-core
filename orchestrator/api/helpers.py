@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Any, Generator, List, Optional, Union
 from uuid import UUID
 
 from more_itertools import chunked, first
@@ -26,6 +27,7 @@ from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.domain.base import SubscriptionModel
 
 logger = get_logger(__name__)
 
@@ -90,19 +92,19 @@ def _query_with_filters(
                         query = query.filter(cast(SubscriptionTable.__dict__[field], String).ilike("%" + value + "%"))
 
     if sort is not None and len(sort) >= 2:
-        for sort in chunked(sort, 2):
-            if sort and len(sort) == 2:
-                if sort[0] in ["product", "tag"]:
-                    field = "name" if sort[0] == "product" else "tag"
-                    if sort[1].upper() == "DESC":
+        for item in chunked(sort, 2):
+            if item and len(item) == 2:
+                if item[0] in ["product", "tag"]:
+                    field = "name" if item[0] == "product" else "tag"
+                    if item[1].upper() == "DESC":
                         query = query.order_by(expression.desc(ProductTable.__dict__[field]))
                     else:
                         query = query.order_by(expression.asc(ProductTable.__dict__[field]))
                 else:
-                    if sort[1].upper() == "DESC":
-                        query = query.order_by(expression.desc(SubscriptionTable.__dict__[sort[0]]))
+                    if item[1].upper() == "DESC":
+                        query = query.order_by(expression.desc(SubscriptionTable.__dict__[item[0]]))
                     else:
-                        query = query.order_by(expression.asc(SubscriptionTable.__dict__[sort[0]]))
+                        query = query.order_by(expression.asc(SubscriptionTable.__dict__[item[0]]))
 
     if range is not None and len(range) == 2:
         try:
@@ -210,3 +212,53 @@ def enrich_process(p: ProcessTable) -> _ProcessListItem:
         workflow_target=first([ps.workflow_target for ps in p.process_subscriptions], None),
         is_task=p.is_task,
     )
+
+
+def update_in(dct: Union[dict, list], path: str, value: Any, sep: str = ".") -> None:
+    """Update a value in a dict or list based on a path."""
+    for x in path.split(sep):
+        prev: Union[dict, list]
+        if x.isdigit() and isinstance(dct, list):
+            prev = dct
+            dct = dct[int(x)]
+        else:
+            prev = dct
+            dct = dict(dct).setdefault(x, {})
+    prev[x] = value  # type: ignore
+
+
+def get_in(dct: Union[dict, list], path: str, sep: str = ".") -> Any:
+    """Get a value in a dict or list using the path and get the resulting key's value."""
+    prev: Union[dict, list]
+    for x in path.split(sep):
+        if x.isdigit() and isinstance(dct, list):
+            prev, dct = dct, dct[int(x)]
+        else:
+            prev, dct = dct, dict(dct).get(x)  # type: ignore
+    return prev[x]  # type: ignore
+
+
+def getattr_in(obj: Any, attr: str, *args: List[Any]) -> Any:
+    """Get an instance attribute value by path."""
+
+    def _getattr(obj: object, attr: str) -> Any:
+        if isinstance(obj, list):
+            return obj[int(attr)]
+
+        return getattr(obj, attr, None, *args)
+
+    return functools.reduce(_getattr, [obj] + attr.split("."))
+
+
+def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
+    def get_dict_items(d: dict) -> Generator:
+        for k, v in d.items():
+            if isinstance(v, dict):
+                for k1, v1 in get_dict_items(v):
+                    yield (f"{k}.{k1}", v1)
+                yield (k, v)
+            if isinstance(v, list):
+                for index, list_item in enumerate(v):
+                    yield (f"{k}.{index}", list_item)
+
+    return [c[0] for c in get_dict_items(subscription.dict())]

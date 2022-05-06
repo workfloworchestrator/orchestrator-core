@@ -21,7 +21,7 @@ UNPROTECTED_MSP_SSP_ID = uuid4()
 PROTECTED_MSP_SSP_ID = uuid4()
 REDUNDANT_MSP_SSP_ID = uuid4()
 SUBSCRIPTION_ID = uuid4()
-CHILD_SUBSCRIPTION_ID = uuid4()
+depends_on_SUBSCRIPTION_ID = uuid4()
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def seed():
     )
 
     port_subscription_id = ResourceTypeTable(resource_type=PORT_SUBSCRIPTION_ID, description="Port Subscription Id")
-    values = [SubscriptionInstanceValueTable(resource_type=port_subscription_id, value=str(CHILD_SUBSCRIPTION_ID))]
+    values = [SubscriptionInstanceValueTable(resource_type=port_subscription_id, value=str(depends_on_SUBSCRIPTION_ID))]
     subscription = SubscriptionTable(
         subscription_id=SUBSCRIPTION_ID,
         description="desc",
@@ -83,8 +83,8 @@ def seed():
         customer_id=uuid4(),
         instances=[SubscriptionInstanceTable(product_block=product_blocks[0], values=values)],
     )
-    child_subscription = SubscriptionTable(
-        subscription_id=CHILD_SUBSCRIPTION_ID,
+    depends_on_subscription = SubscriptionTable(
+        subscription_id=depends_on_SUBSCRIPTION_ID,
         description="desc",
         status="active",
         insync=True,
@@ -118,7 +118,7 @@ def seed():
     db.session.add(lp_product("protected", PROTECTED_MSP_SSP_ID, speed="250"))
     db.session.add(lp_product("unprotected", UNPROTECTED_MSP_SSP_ID))
     db.session.add(subscription)
-    db.session.add(child_subscription)
+    db.session.add(depends_on_subscription)
     db.session.add(product_no_workflow)
     db.session.commit()
 

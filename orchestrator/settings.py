@@ -49,6 +49,8 @@ class AppSettings(BaseSettings):
     MAIL_STARTTLS: bool = False
     CACHE_HOST: str = "127.0.0.1"
     CACHE_PORT: int = 6379
+    ENABLE_DISTLOCK_MANAGER: bool = True
+    DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
     SERVICE_NAME: str = "orchestrator-core"
     LOGGING_HOST: str = "localhost"
@@ -59,6 +61,7 @@ class AppSettings(BaseSettings):
     TRANSLATIONS_DIR: Optional[Path] = None
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
     ENABLE_WEBSOCKETS: bool = True
+    DISABLE_INSYNC_CHECK: bool = False
 
 
 class Oauth2Settings(BaseSettings):

@@ -17,6 +17,9 @@ def test_modify_note(responses, generic_subscription_1):
     state = extract_state(result)
     assert state["old_note"] is None
     assert state["note"] == TEST
+    assert state["__old_subscriptions__"].get(generic_subscription_1)
+    assert state["__old_subscriptions__"][generic_subscription_1]["note"] is None
+    assert state["__old_subscriptions__"][generic_subscription_1]["description"] == "Generic Subscription One"
 
     # assert subscription for correctness
     subscription = get_subscription(generic_subscription_1)

@@ -20,6 +20,7 @@ from uuid import UUID
 
 import more_itertools
 import structlog
+from deprecated import deprecated
 from sqlalchemy import Text, cast, not_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
@@ -338,9 +339,9 @@ def find_values_for_resource_types(
     return rt2v
 
 
-def query_parent_subscriptions(subscription_id: UUID) -> Query:
+def query_in_use_by_subscriptions(subscription_id: UUID) -> Query:
     """
-    Return a query with all subscriptions -parents- that use this subscription_id with resource_type.
+    Return a query with all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
     """
@@ -356,14 +357,14 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
     )
 
     # Find relations through instance hierarchy
-    parent_instances = aliased(SubscriptionInstanceTable)
-    child_instances = aliased(SubscriptionInstanceTable)
+    in_use_by_instances = aliased(SubscriptionInstanceTable)
+    depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
-        SubscriptionTable.query.join(parent_instances.subscription)
-        .join(parent_instances.children_relations)
-        .join(child_instances, SubscriptionInstanceRelationTable.child)
-        .filter(child_instances.subscription_id == subscription_id)
-        .filter(parent_instances.subscription_id != subscription_id)
+        SubscriptionTable.query.join(in_use_by_instances.subscription)
+        .join(in_use_by_instances.depends_on_block_relations)
+        .join(depends_on_instances, SubscriptionInstanceRelationTable.depends_on)
+        .filter(depends_on_instances.subscription_id == subscription_id)
+        .filter(in_use_by_instances.subscription_id != subscription_id)
         .with_entities(SubscriptionTable.subscription_id)
     )
 
@@ -375,9 +376,14 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
     )
 
 
-def query_child_subscriptions(subscription_id: UUID) -> Query:
+@deprecated("Has been renamed to query_in_use_by_subscriptions")
+def query_parent_subscriptions(subscription_id: UUID) -> Query:
+    return query_in_use_by_subscriptions(subscription_id)
+
+
+def query_depends_on_subscriptions(subscription_id: UUID) -> Query:
     """
-    Return a query with all subscriptions -children- that are used by this subscription in resource_type.
+    Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
     """
@@ -392,14 +398,14 @@ def query_child_subscriptions(subscription_id: UUID) -> Query:
     )
 
     # Find relations through instance hierarchy
-    parent_instances = aliased(SubscriptionInstanceTable)
-    child_instances = aliased(SubscriptionInstanceTable)
+    in_use_by_instances = aliased(SubscriptionInstanceTable)
+    depends_on_instances = aliased(SubscriptionInstanceTable)
     relation_relations = (
-        SubscriptionTable.query.join(child_instances.subscription)
-        .join(child_instances.parent_relations)
-        .join(parent_instances, SubscriptionInstanceRelationTable.parent)
-        .filter(parent_instances.subscription_id == subscription_id)
-        .filter(child_instances.subscription_id != subscription_id)
+        SubscriptionTable.query.join(depends_on_instances.subscription)
+        .join(depends_on_instances.in_use_by_block_relations)
+        .join(in_use_by_instances, SubscriptionInstanceRelationTable.in_use_by)
+        .filter(in_use_by_instances.subscription_id == subscription_id)
+        .filter(depends_on_instances.subscription_id != subscription_id)
         .with_entities(SubscriptionTable.subscription_id)
     )
 
@@ -409,6 +415,11 @@ def query_child_subscriptions(subscription_id: UUID) -> Query:
             SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
         )
     )
+
+
+@deprecated("Has been renamed to query_depends_on_subscriptions")
+def query_child_subscriptions(subscription_id: UUID) -> Query:
+    return query_depends_on_subscriptions(subscription_id)
 
 
 def _terminated_filter(query: Query) -> List[UUID]:
@@ -431,31 +442,33 @@ RELATION_RESOURCE_TYPES: List[str] = []
 
 
 def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
-    """Return info about locked children or parents.
+    """Return info about locked subscription dependencies.
 
     This call will be used by the client to determine if it's safe to
     start a modify or terminate workflow. There are 4 cases:
 
-    1) The subscription is a IP, LightPath or ELAN: the child subscriptions are checked for not 'insync' instances.
-    2) The subscription is a ServicePort: parent subscription are checked for not 'insync' instances and for parent
+    1) The subscription is a IP, LightPath or ELAN: the depends_on subscriptions are checked for not 'insync' instances.
+    2) The subscription is a ServicePort: in_use_by subscriptions are checked for not 'insync' instances and for in_use_by
        services that are not terminated.
     3) The subscription is a Node: Related Core link subscriptions are checked that there are no active instances
        This is only used for the terminate workflow and ignored for modify
     4) IP_prefix cannot be terminated when in use
 
     """
-    parent_query = query_parent_subscriptions(subscription.subscription_id)
+    in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
-    unterminated_parents = _terminated_filter(parent_query)
-    locked_parent_relations = _in_sync_filter(parent_query)
+    unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
+    locked_in_use_by_block_relations = _in_sync_filter(in_use_by_query)
 
-    query = query_child_subscriptions(subscription.subscription_id)
+    depends_on_query = query_depends_on_subscriptions(subscription.subscription_id)
 
-    locked_child_relations = _in_sync_filter(query)
+    locked_depends_on_block_relations = _in_sync_filter(depends_on_query)
 
     result = {
-        "locked_relations": locked_parent_relations + locked_child_relations,
-        "unterminated_parents": unterminated_parents,
+        "locked_relations": locked_in_use_by_block_relations + locked_depends_on_block_relations,
+        # unterminated_parents deprecated since "0.4.0", renamed to unterminated_in_use_by_subscriptions
+        "unterminated_parents": unterminated_in_use_by_subscriptions,
+        "unterminated_in_use_by_subscriptions": unterminated_in_use_by_subscriptions,
     }
 
     logger.debug(
@@ -483,7 +496,11 @@ TARGET_DEFAULT_USABLE_MAP: Dict[Target, List[str]] = {
 
 WF_USABLE_MAP: Dict[str, List[str]] = {}
 
+# WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
 WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
+WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS: Dict[str, bool] = {}
+
+WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
 
 
 def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
@@ -524,7 +541,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
     }
 
     for workflow in subscription.product.workflows:
-        if workflow.name in ["modify_note"] or workflow.target == Target.SYSTEM:
+        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.target == Target.SYSTEM:
             # validations and modify note are also possible with: not in sync or locked relations
             workflow_json = {"name": workflow.name, "description": workflow.description}
         else:
@@ -543,10 +560,20 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
             # Check if this workflow is blocked because there are unterminated relations
-            blocked_by_parents = WF_BLOCKED_BY_PARENTS.get(workflow.name, workflow.target == Target.TERMINATE)
-            if blocked_by_parents and data["unterminated_parents"]:
-                workflow_json["reason"] = "subscription.no_modify_parent_subscription"
+            blocked_by_depends_on_subscriptions = WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.get(
+                workflow.name, workflow.target == Target.TERMINATE
+            )
+
+            # WF_BLOCKED_BY_PARENTS deprecated since "0.4.0", renamed to WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
+            if not blocked_by_depends_on_subscriptions:
+                blocked_by_depends_on_subscriptions = WF_BLOCKED_BY_PARENTS.get(
+                    workflow.name, workflow.target == Target.TERMINATE
+                )
+            if blocked_by_depends_on_subscriptions and data["unterminated_in_use_by_subscriptions"]:
+                workflow_json["reason"] = "subscription.no_modify_subscription_in_use_by_others"
+                # unterminated_parents deprecated since "0.4.0", renamed to unterminated_in_use_by_subscriptions
                 workflow_json["unterminated_parents"] = data["unterminated_parents"]
+                workflow_json["unterminated_in_use_by_subscriptions"] = data["unterminated_in_use_by_subscriptions"]
                 workflow_json["action"] = "terminated" if workflow.target == Target.TERMINATE else "modified"
 
         workflows[workflow.target.lower()].append(workflow_json)

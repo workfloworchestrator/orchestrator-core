@@ -34,11 +34,13 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
+from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
+from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormException
@@ -57,12 +59,13 @@ class OrchestratorCore(FastAPI):
         openapi_url: str = "/api/openapi.json",
         docs_url: str = "/api/docs",
         redoc_url: str = "/api/redoc",
-        version: str = "1.0.0",
+        version: str = __version__,
         default_response_class: Type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
         websocket_manager = init_websocket_manager(base_settings)
+        distlock_manager = init_distlock_manager(base_settings)
         super().__init__(
             title=title,
             description=description,
@@ -71,8 +74,12 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
-            on_startup=[websocket_manager.connect_redis],
-            on_shutdown=[websocket_manager.disconnect_redis, websocket_manager.disconnect_all],
+            on_startup=[websocket_manager.connect_redis, distlock_manager.connect_redis],
+            on_shutdown=[
+                websocket_manager.disconnect_redis,
+                websocket_manager.disconnect_all,
+                distlock_manager.disconnect_redis,
+            ],
             **kwargs,
         )
 

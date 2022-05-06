@@ -19,13 +19,15 @@ from uuid import UUID
 
 import structlog
 from fastapi import Depends
+from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 from oauth2_lib.fastapi import OIDCUserModel
+from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters
+from orchestrator.api.helpers import _query_with_filters, getattr_in, product_block_paths, update_in
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
@@ -40,10 +42,11 @@ from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSche
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     get_subscription,
-    query_child_subscriptions,
-    query_parent_subscriptions,
+    query_depends_on_subscriptions,
+    query_in_use_by_subscriptions,
     subscription_workflows,
 )
+from orchestrator.settings import app_settings
 
 router = APIRouter()
 
@@ -78,7 +81,24 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()
 
-    subscription = SubscriptionModel.from_subscription(subscription_id).dict()
+    subs_obj = SubscriptionModel.from_subscription(subscription_id)
+    subscription = subs_obj.dict()
+    sub_instance_ids = [subs_obj.subscription_id]
+    paths = product_block_paths(subs_obj)
+    for path in paths:
+        sub_instance_ids.append(getattr_in(subs_obj, f"{path}.subscription_instance_id"))
+
+    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
+    for path in paths:
+        if in_use_by_subs := getattr_in(subs_obj, f"{path}.in_use_by"):
+            i_ids: List[Optional[UUID]] = []
+            i_ids.extend(
+                in_use_by_subs.col[idx].in_use_by_id
+                for idx, ob in enumerate(in_use_by_subs.col)
+                if ob.in_use_by_id not in sub_instance_ids
+            )
+            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
+
     subscription["customer_descriptions"] = customer_descriptions
 
     if not subscription:
@@ -101,14 +121,32 @@ def delete_subscription(subscription_id: UUID) -> None:
         return None
 
 
-@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
-def parent_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_parent_subscriptions(subscription_id).all()
+@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
+@router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
+def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_in_use_by_subscriptions(subscription_id).all()
 
 
-@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema])
-def child_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_child_subscriptions(subscription_id).all()
+@router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
+def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, SubscriptionSchema]:
+    rows = db.session.execute(
+        select(SubscriptionInstanceTable)
+        .join(SubscriptionTable)
+        .filter(SubscriptionInstanceTable.subscription_instance_id.in_(data))
+    ).all()
+    result = {row[0].subscription_instance_id: row[0].subscription for row in rows}
+    if len(rows) != len(data):
+        logger.warning(
+            "Not all subscription_instance_id's could be resolved.",
+            unresolved_ids=list(set(data) - set(result.keys())),
+        )
+    return result
+
+
+@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
+@router.get("/depends_on/{subscription_id}", response_model=List[SubscriptionSchema])
+def depends_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
+    return query_depends_on_subscriptions(subscription_id).all()
 
 
 @router.get("/", response_model=List[SubscriptionSchema])
@@ -153,30 +191,40 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
 
 
 @router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
-def subscription_instance_parents(subscription_instance_id: UUID) -> List[UUID]:
-    subscription_instance = SubscriptionInstanceTable.query.get(subscription_instance_id)
+def subscription_instance_in_use_by(
+    subscription_instance_id: UUID, filter_statuses: Optional[str] = None
+) -> List[UUID]:
+    subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(subscription_instance_id)
 
     if not subscription_instance:
         raise_status(HTTPStatus.NOT_FOUND)
 
+    in_use_by_instances = subscription_instance.in_use_by
+    if filter_statuses:
+        in_use_by_instances = [sub for sub in in_use_by_instances if sub.subscription.status in filter_statuses]
+
     return list(
         filter(
             lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {parent.subscription_id for parent in subscription_instance.parents},
+            {sub.subscription_id for sub in in_use_by_instances},
         )
     )
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
 def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
-    def failed_processes() -> list:
-        return (
+    def failed_processes() -> List[str]:
+        if app_settings.DISABLE_INSYNC_CHECK:
+            return []
+        _failed_processes = (
             ProcessSubscriptionTable.query.join(ProcessTable)
             .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
             .filter(~ProcessTable.is_task)
             .filter(ProcessTable.last_status != "completed")
+            .filter(ProcessTable.last_status != "aborted")
             .all()
         )
+        return [str(p.pid) for p in _failed_processes]
 
     try:
         subscription = get_subscription(subscription_id, for_update=True)
@@ -184,13 +232,16 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
             logger.info(
                 "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
             )
-
-            if not failed_processes():
-                subscription.insync = True
+            failed_processes = failed_processes()  # type: ignore
+            if not failed_processes:
+                subscription.insync = True  # type: ignore
                 db.session.commit()
                 logger.info("Subscription set in sync", user=current_user)
             else:
-                raise_status(HTTPStatus.UNPROCESSABLE_ENTITY, f"Subscription {subscription_id} has still failed tasks")
+                raise_status(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    f"Subscription {subscription_id} has still failed processes with id's: {failed_processes}",
+                )
         else:
             logger.info("Subscription already in sync")
     except ValueError as e:
