@@ -19,8 +19,9 @@ Together with [ESnet](https://www.es.net) this project has been opensourced in [
 to help facilitate collaboration. We invite all who are interested to take a look and to contribute!__
 
 ## Orchestration
-When do you orchestrate and when do you automate. The answer is you probably need both. Automation helps you execute repetetive
-tasks reliably and easily, Orchestration adds a layer and allows you to add more intelligence to the tasks you need to automate.
+When do you orchestrate and when do you automate? The answer is you probably need both. Automation helps you execute repetetive
+tasks reliably and easily, Orchestration adds a layer and allows you to add more intelligence to the tasks you need to automate and 
+to have a complete audit log of changes.
 
 > #### Orchestrate[*](https://www.lexico.com/en/definition/orchestrate) - Transitive Verb
 > /ˈôrkəˌstrāt/ /ˈɔrkəˌstreɪt/

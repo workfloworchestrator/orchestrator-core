@@ -59,6 +59,7 @@ from orchestrator.domain.lifecycle import (
 )
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
+    SAFE_USED_BY_TRANSITIONS_FOR_STATUS,
     State,
     SubscriptionLifecycle,
     UUIDstr,
@@ -460,8 +461,8 @@ class ProductBlockModelMeta(ModelMetaclass):
         if not self.name:
             raise ValueError(f"Cannot create instance of abstract class. Use one of {self.__names__}")
 
-        # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we cant access the db
-        # So now we do it just before we instantiate the instance
+        # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we can't
+        # access the db. So now we do it just before we instantiate the instance
         if not hasattr(self, "product_block_id"):
             product_block = ProductBlockTable.query.filter(ProductBlockTable.name == self.name).one()
             self.product_block_id = product_block.product_block_id
@@ -846,10 +847,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         subscription_instance.depends_on_block_relations = depends_on_block_relations
 
     def save(
-        self,
-        *,
-        subscription_id: UUID,
-        status: SubscriptionLifecycle,
+        self, *, subscription_id: UUID, status: SubscriptionLifecycle
     ) -> Tuple[List[SubscriptionInstanceTable], SubscriptionInstanceTable]:
         """Save the current model instance to the database.
 
@@ -873,6 +871,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         if subscription_instance:
             # Make sure we do not use a mapped session.
             db.session.refresh(subscription_instance)
+
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
             if self.subscription and subscription_instance.subscription_id != subscription_id:
@@ -1150,8 +1149,10 @@ class SubscriptionModel(DomainModel):
             cls = SUBSCRIPTION_MODEL_REGISTRY.get(other.product.name, cls)  # type:ignore
             cls = lookup_specialized_type(cls, status)
 
-        data = cls._data_from_lifecycle(other, status, other.subscription_id)
+        # this will raise ValueError when wrong lifecycle transitions are detected in the new domain model
+        validate_lifecycle_change(other, status)
 
+        data = cls._data_from_lifecycle(other, status, other.subscription_id)
         data["status"] = status
         if data["start_date"] is None and status == SubscriptionLifecycle.ACTIVE:
             data["start_date"] = nowtz()
@@ -1164,7 +1165,6 @@ class SubscriptionModel(DomainModel):
         return model
 
     # Some common functions shared by from_other_product and from_subscription
-
     @classmethod
     def _get_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> Any:
         return SubscriptionTable.query.options(
@@ -1325,7 +1325,8 @@ class SubscriptionModel(DomainModel):
             for instance in instances:
                 if instance.subscription_id != self.subscription_id:
                     raise ValueError(
-                        "Attempting to save a Foreign `Subscription Instance` directly below a subscription. This is not allowed."
+                        "Attempting to save a Foreign `Subscription Instance` directly below a subscription. "
+                        "This is not allowed."
                     )
         sub.instances = saved_instances
 
@@ -1343,6 +1344,68 @@ class SubscriptionModel(DomainModel):
     @property
     def db_model(self) -> SubscriptionTable:
         return self._db_model
+
+
+def _validate_lifecycle_change_for_product_block(
+    used_by: SubscriptionInstanceTable,
+    product_block_model: ProductBlockModel,
+    status: SubscriptionLifecycle,
+    description: str,
+) -> None:
+    """Validate if a lifecycle change for a single product model is possible."""
+
+    logger.debug(
+        "Checking the parent relations",
+        parent_status=used_by.subscription.status,
+        parent_description=used_by.subscription.description,
+        self_status=status,
+        self_description=description,
+    )
+    if (
+        used_by.subscription != product_block_model.subscription
+        and used_by.subscription.status not in SAFE_USED_BY_TRANSITIONS_FOR_STATUS[status]
+    ):
+        raise ValueError(
+            f"Unsafe status change of Subscription with depending subscriptions: "
+            f"{list(map(lambda instance: description, product_block_model.in_use_by))}"
+        )
+
+
+def validate_lifecycle_change(
+    other: "SubscriptionModel",
+    status: SubscriptionLifecycle,
+) -> None:
+    """Validate if a lifecycle change for a subscription model is possible.
+
+    It will traverse all product blocks and check the `in_use_by` status to ensure that the lifecycle change
+    is allowed.
+
+    Note: A `ValueError` will be raised when a unsafe status change is found
+    """
+    for product_block_field, product_block_field_type in other._product_block_fields_.items():
+        product_block_models = getattr(other, product_block_field)
+        if is_list_type(product_block_field_type):
+            for product_block_model in product_block_models:
+                used_by_generator = (used_by for used_by in product_block_model.in_use_by if used_by)
+                for used_by in used_by_generator:
+                    _validate_lifecycle_change_for_product_block(
+                        used_by, product_block_model, status, other.description
+                    )
+        elif (
+            is_optional_type(product_block_field_type) or is_union_type(product_block_field_type)
+        ) and product_block_models is None:
+            pass
+        else:
+            used_by_generator = (used_by for used_by in product_block_models.in_use_by if used_by)
+            for used_by in used_by_generator:
+                _validate_lifecycle_change_for_product_block(used_by, product_block_models, status, other.description)
+
+    logger.info(
+        "Lifecycle validation check ok",
+        subscription_id=other.subscription_id,
+        subscription_description=other.description,
+        status=status,
+    )
 
 
 SI = TypeVar("SI")  # pragma: no mutate
