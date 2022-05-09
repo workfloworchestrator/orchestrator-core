@@ -99,12 +99,6 @@ def test_union_product_block_as_sub(
         union_subscription_from_database.test_block.union_block.subscription_instance_id
         == sub_one_subscription_1.test_block.subscription_instance_id
     )
-
-    # TODO #1321: uncomment test code below after SAFE_PARENT_TRANSITIONS_FOR_STATUS check has been re-done
-    # sub_subscription_terminated = ProductSubOne.from_other_lifecycle(
-    #     sub_one_subscription_1, SubscriptionLifecycle.TERMINATED
-    # )
-
-    # # Do not allow subscriptions that have are in use by other subscriptions make an unsafe transition.
-    # with pytest.raises(ValueError):
-    #     sub_subscription_terminated.save()
+    # Do not allow subscriptions that are in use by other subscriptions make an unsafe transition.
+    with pytest.raises(ValueError):
+        ProductSubOne.from_other_lifecycle(sub_one_subscription_1, SubscriptionLifecycle.TERMINATED)

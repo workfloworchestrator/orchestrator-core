@@ -74,6 +74,40 @@ class AcceptItemType(strEnum):
     MARGIN = "margin"
 
 
+# TODO #1321: old code that protected against unsafe changes in subs
+# The key is the Parent subscription life cycle status. The keys are lists of safe transitions for child subscriptions.
+SAFE_USED_BY_TRANSITIONS_FOR_STATUS = {
+    SubscriptionLifecycle.INITIAL: [
+        SubscriptionLifecycle.INITIAL,
+    ],
+    SubscriptionLifecycle.ACTIVE: [
+        SubscriptionLifecycle.INITIAL,
+        SubscriptionLifecycle.PROVISIONING,
+        SubscriptionLifecycle.MIGRATING,
+        SubscriptionLifecycle.ACTIVE,
+        SubscriptionLifecycle.TERMINATED,
+        SubscriptionLifecycle.DISABLED,
+    ],
+    SubscriptionLifecycle.MIGRATING: [
+        SubscriptionLifecycle.INITIAL,
+        SubscriptionLifecycle.MIGRATING,
+        SubscriptionLifecycle.TERMINATED,
+    ],
+    SubscriptionLifecycle.PROVISIONING: [
+        SubscriptionLifecycle.INITIAL,
+        SubscriptionLifecycle.PROVISIONING,
+        SubscriptionLifecycle.ACTIVE,
+        SubscriptionLifecycle.TERMINATED,
+    ],
+    SubscriptionLifecycle.TERMINATED: [SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.TERMINATED],
+    SubscriptionLifecycle.DISABLED: [
+        SubscriptionLifecycle.INITIAL,
+        SubscriptionLifecycle.DISABLED,
+        SubscriptionLifecycle.TERMINATED,
+    ],
+}
+
+
 AcceptData = List[Union[Tuple[str, AcceptItemType], Tuple[str, AcceptItemType, Dict]]]
 
 InputForm = Type[BaseModel]

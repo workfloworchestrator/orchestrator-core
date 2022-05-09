@@ -61,16 +61,25 @@ the developer to be more `Type safe` whilst developing.
 ### Lifecycle transitions
 When transitioning from `Initial` -> `Provisioning` -> `Active` -> `Terminated` in the Subscription Lifecycle
 the domain model definitions make sure that all resource types and product blocks are assigned correctly. Typically
-the `Initial` status is less strict compared to the `Active` lifecycle. When assigning product blocks from other subscriptions
-as dependent on a product block from the subscription that is being modified, the domain-models respect Subscription
-boundaries and do not update variables and resources in the related Subscription product block.
+the `Initial` status is less strict compared to the `Active` lifecycle. When assigning product blocks from other
+subscriptions as dependent on a product block from the subscription that is being modified, the domain-models respect
+Subscription boundaries and do not update variables and resources in the related Subscription product block.
 
 ### Enforcing Hierarchy
-When defining and modelling products it often is necessary to model resources that are in use by or dependent on other product blocks.
-It may even be the case that a subscription product block is dependent on a product block from another subscription.
+When defining and modelling products it's often necessary to model resources that are in use by or dependent on other
+product blocks. A product block of subscription can also be dependent on a product block from another
+subscription. So it's possible to build a hierarchy of your network subscriptions. The GUI will detect when you use
+subscription ID's in product blocks and will offer ways to navigate logically through your tree of network topology.
 
-!!! Example
-    In networking when creating a layer 2 circuit, one needs at least two interfaces and VLAN configuration to create
+#### A couple of Examples of subscription hierarchies
+
+We will describe some practical examples to explain how you can deal with complex customers requirements, and how to
+layer subscriptions to represent a complex portfolio of network services.
+
+    1. Consider the relation between a Node and a Port: When you create Node and Port subscriptions. You should not be
+    allowed to Terminate the Node subscriptions when the Port subscriptions are still being used by customers.
+
+    2. Consider a scenario for networking with a layer 2 circuit, one needs at least two interfaces and VLAN configuration to create
     the circuit. The interfaces may be owned by different customers than the owner of the circuit. Typically we assign a
     subscription to a customer which contains the interface resource. That interface resource is then used again
     in the circuit subscription, as a resource.
