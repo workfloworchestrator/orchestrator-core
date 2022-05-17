@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from orchestrator.db import db
 from orchestrator.types import SubscriptionLifecycle
@@ -34,8 +35,9 @@ def test_product_model_with_union_type_directly_below(
         ),
     )
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ValidationError) as error:
         UnionProduct.from_other_lifecycle(union_subscription_inactive, SubscriptionLifecycle.ACTIVE)
+    assert error.value.errors()[0]["msg"] == "none is not an allowed value"
 
     new_sub_block = SubBlockOneForTest.new(
         subscription_id=union_subscription_inactive.subscription_id, int_field=1, str_field="2"

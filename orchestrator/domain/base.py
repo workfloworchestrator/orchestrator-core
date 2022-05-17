@@ -387,13 +387,15 @@ class DomainModel(BaseModel):
                         possible_product_block_types[item.name]._from_other_lifecycle(item, status, subscription_id)
                     )
             else:
-                if is_optional_type(field_type):
+                if is_optional_type(field_type) and not is_union_type(field_type):
                     data[field_name] = None
                     field_type = first(get_args(field_type))
                 elif is_union_type(field_type):
+                    if is_optional_type(field_type):
+                        data[field_name] = None
                     field_types = get_args(field_type)
                     for f_type in field_types:
-                        if f_type.name == value.name:
+                        if value and not isinstance(None, f_type) and f_type.name == value.name:
                             field_type = f_type
                 if value:
                     data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
