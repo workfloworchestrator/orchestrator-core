@@ -856,6 +856,12 @@ def test_subscription_detail_with_domain_model(test_client, generic_subscription
     assert response.json()["pb_1"]["rt_1"] == "Value1"
 
 
+def test_subscription_detail_with_domain_model_does_not_exist(test_client, generic_subscription_1):
+    # test with a subscription that has domain model and without
+    response = test_client.get(URL("api/subscriptions/domain-model") / uuid4())
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
 def test_other_subscriptions(test_client, generic_subscription_2, generic_product_type_2):
     _, GenericProductTwo = generic_product_type_2
     response = test_client.get(URL("api/subscriptions/instance/other_subscriptions/") / uuid4())

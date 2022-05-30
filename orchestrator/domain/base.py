@@ -1247,6 +1247,8 @@ class SubscriptionModel(DomainModel):
     def from_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
         subscription = cls._get_subscription(subscription_id)
+        if subscription is None:
+            raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
         product = cls._to_product_model(subscription.product)
 
         status = SubscriptionLifecycle(subscription.status)

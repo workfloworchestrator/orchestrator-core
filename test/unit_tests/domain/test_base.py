@@ -53,6 +53,7 @@ def test_product_block_one_nested(test_product_model_nested, test_product_type_o
 
     Notes:
         - nesting only works when each block is attached to a different subscription
+
     """
     ProductTypeOneNestedForTestInactive, _, ProductTypeOneNestedForTest = test_product_type_one_nested
 
@@ -174,6 +175,7 @@ def test_product_block_list_nested(test_product_model_list_nested, test_product_
 
     Notes:
         - nesting only works when each block is attached to a different subscription
+
     """
     ProductTypeListNestedForTestInactive, _, ProductTypeListNestedForTest = test_product_type_list_nested
 

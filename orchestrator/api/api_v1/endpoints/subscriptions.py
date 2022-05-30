@@ -80,8 +80,14 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
     customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()
+    try:
+        subs_obj = SubscriptionModel.from_subscription(subscription_id)
+    except ValueError as e:
+        if str(e) == f"Subscription with id: {subscription_id}, does not exist":
+            raise_status(HTTPStatus.NOT_FOUND)
+        else:
+            raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
-    subs_obj = SubscriptionModel.from_subscription(subscription_id)
     subscription = subs_obj.dict()
     sub_instance_ids = [subs_obj.subscription_id]
     paths = product_block_paths(subs_obj)
@@ -102,7 +108,7 @@ def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[
     subscription["customer_descriptions"] = customer_descriptions
 
     if not subscription:
-        raise_status(HTTPStatus.NOT_FOUND)
+        raise_status(HTTPStatus.NOT_FOUND, f"Subscription with if: {subscription_id}, not found")
     return subscription
 
 
