@@ -16,6 +16,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 
+from orchestrator.settings import app_settings
 from orchestrator.types import UUIDstr
 
 
@@ -76,33 +77,29 @@ def get_all_active_products_and_ids(conn: sa.engine.Connection) -> List[Dict[str
     return [{"product_id": row[0], "name": row[1]} for row in result.fetchall()]
 
 
-def create_missing_modify_note_workflows(conn: sa.engine.Connection) -> None:
-    """Add a `modify_note` workflow to all products that don't have one yet.
+def ensure_default_workflows(conn: sa.engine.Connection) -> None:
+    """Ensure products_workflows table contains a link between all 'active' workflows and the set of workflows identified in the DEFAULT_PRODUCT_WORKFLOWS app_setting.
 
-    When you use the subscription note field there is a workflow in the core that can be used to modify
-    the note via a workflow. By doing this with a workflow you can find all previous changes to this field by
-    looking at the processes that modified a subscription in the GUI.
+    Note that the 0th element of the uuids are taken when generating product_workflow_table_rows because sqlalchemy returns a row tuple even if selecting for a single column.
     """
-    products = get_all_active_products_and_ids(conn)
+    products = sa.Table("products", sa.MetaData(), autoload_with=conn)
+    workflows = sa.Table("workflows", sa.MetaData(), autoload_with=conn)
+    product_workflows_table = sa.Table("products_workflows", sa.MetaData(), autoload_with=conn)
 
-    workflow_id = conn.execute(sa.text("SELECT workflow_id FROM workflows WHERE name = 'modify_note'"))
-    workflow_id = workflow_id.fetchone()[0]
-
-    for product in products:
-        # check if product <-> workflow relation already exists
-        workflows_products_id = conn.execute(
-            sa.text(
-                "SELECT workflow_id FROM products_workflows WHERE workflow_id=:workflow_id AND product_id=:product_id"
-            ),
-            workflow_id=workflow_id,
-            product_id=product["product_id"],
-        )
-        if not workflows_products_id.fetchone():
-            conn.execute(
-                sa.text("INSERT INTO products_workflows VALUES (:product_id, :workflow_id) ON CONFLICT DO NOTHING"),
-                workflow_id=workflow_id,
-                product_id=product["product_id"],
-            )
+    all_product_uuids = conn.execute(sa.select(products.c.product_id)).fetchall()
+    default_workflow_ids = conn.execute(
+        sa.select(workflows.c.workflow_id).where(workflows.c.name.in_(app_settings.DEFAULT_PRODUCT_WORKFLOWS))
+    ).fetchall()
+    product_workflow_table_rows = [
+        (product_uuid[0], workflow_uuid[0])
+        for product_uuid in all_product_uuids
+        for workflow_uuid in default_workflow_ids
+    ]
+    conn.execute(
+        sa.dialects.postgresql.insert(product_workflows_table, bind=conn)
+        .values(product_workflow_table_rows)
+        .on_conflict_do_nothing(index_elements=("product_id", "workflow_id"))
+    )
 
 
 def create_workflow(conn: sa.engine.Connection, workflow: Dict) -> None:
@@ -364,7 +361,7 @@ def create_product_blocks(conn: sa.engine.Connection, new: Dict) -> Dict[str, UU
     return uuids
 
 
-def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Dict) -> list[UUID]:
+def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Dict) -> List[UUID]:
     """Create new resource types and link them to existing product_blocks by product_block name.
 
     Note: If the resource type already exists it will still add the resource type to the provided Product Blocks.
@@ -381,7 +378,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
                 "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
             },
             "ProductBlockName2": {
-                "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878")
+                "resource_type1": ("Resource description", "a47a3f96-c32f-4e4d-8e8c-11596451e878"),
                 "resource_type2": ("Resource description", "dffe1890-e0f8-4ed5-8d0b-e769c3f726cc")
             }
         }
@@ -570,6 +567,9 @@ def create(conn: sa.engine.Connection, new: Dict) -> None:
     # Create defined workflows
     if "workflows" in new:
         create_workflows(conn, new["workflows"])
+
+    # Ensure default workflows exist for all products
+    ensure_default_workflows(conn)
 
 
 def add_products_to_workflow_by_product_tag(
