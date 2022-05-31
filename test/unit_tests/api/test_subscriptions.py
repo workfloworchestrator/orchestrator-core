@@ -723,12 +723,20 @@ def test_in_use_by_subscriptions_insync(seed, test_client):
 
 
 def test_depends_on_subscriptions(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}")
+    response = test_client.get(
+        f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}?filter_statuses=initial,provisioning,active"
+    )
     depends_on_subs = list(map(lambda sub: sub["subscription_id"], response.json()))
     assert len(depends_on_subs) == 2
 
     assert PORT_A_SUBSCRIPTION_ID in depends_on_subs
     assert SSP_SUBSCRIPTION_ID in depends_on_subs
+
+
+def test_depends_on_subscriptions_bogus_status(seed, test_client):
+    response = test_client.get(f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}?filter_statuses=NOT_VALID")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Status NOT_VALID, is not a valid `SubscriptionLifecycle`"
 
 
 def test_depends_on_subscriptions_not_insync(seed, test_client):
@@ -796,7 +804,9 @@ def test_in_use_by_subscriptions_insync_direct_relations(seed_with_direct_relati
 
 
 def test_depends_on_subscriptions_direct_relations(seed_with_direct_relations, test_client):
-    response = test_client.get(f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}")
+    response = test_client.get(
+        f"/api/subscriptions/depends_on/{SERVICE_SUBSCRIPTION_ID}?filter_statuses=initial,provisioning,active"
+    )
     depends_on_subs = list(map(lambda sub: sub["subscription_id"], response.json()))
     assert len(depends_on_subs) == 2
 

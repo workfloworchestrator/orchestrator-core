@@ -24,6 +24,7 @@ from fastapi.routing import APIRouter
 from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, defer, joinedload
+from starlette.exceptions import HTTPException
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
@@ -47,6 +48,7 @@ from orchestrator.services.subscriptions import (
     subscription_workflows,
 )
 from orchestrator.settings import app_settings
+from orchestrator.types import SubscriptionLifecycle
 
 router = APIRouter()
 
@@ -67,6 +69,31 @@ def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptio
         ProcessTable.query.filter(ProcessTable.pid == pid).delete()
         subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).first()
         _delete_subscription_tree(subscription)
+
+
+def _filter_statuses(filter_statuses: Optional[str] = None) -> List[str]:
+    """
+    Check valid filter statuses.
+
+    Args:
+        filter_statuses: the filters.
+
+    Returns:
+        list of filters
+
+    """
+    if not filter_statuses:
+        return []
+
+    logger.debug("Filters to query subscription on.", filter_statuses=filter_statuses)
+    statuses = filter_statuses.split(",")
+    for status in statuses:
+        if status not in SubscriptionLifecycle.values():
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=f"Status {status}, is not a valid `SubscriptionLifecycle`",
+            )
+    return statuses
 
 
 @router.get("/all", response_model=List[SubscriptionSchema])
@@ -129,8 +156,21 @@ def delete_subscription(subscription_id: UUID) -> None:
 
 @router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
 @router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
-def in_use_by_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_in_use_by_subscriptions(subscription_id).all()
+def in_use_by_subscriptions(
+    subscription_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
+) -> List[SubscriptionTable]:
+    """
+    Retrieve subscriptions that are in use by this subscription.
+
+    Args:
+        subscription_id: Subscription to query
+        filter_statuses: List of filters
+
+    Returns:
+        list of subscriptions
+
+    """
+    return query_in_use_by_subscriptions(subscription_id, filter_statuses).all()
 
 
 @router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
@@ -151,8 +191,22 @@ def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, 
 
 @router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
 @router.get("/depends_on/{subscription_id}", response_model=List[SubscriptionSchema])
-def depends_on_subscriptions(subscription_id: UUID) -> List[SubscriptionTable]:
-    return query_depends_on_subscriptions(subscription_id).all()
+def depends_on_subscriptions(
+    subscription_id: UUID,
+    filter_statuses: List[str] = Depends(_filter_statuses),
+) -> List[SubscriptionTable]:
+    """
+    Retrieve dependant subscriptions.
+
+    Args:
+        subscription_id: The subscription id
+        filter_statuses: the status of dependant subscriptions
+
+    Returns:
+        List of dependant subscriptions.
+
+    """
+    return query_depends_on_subscriptions(subscription_id, filter_statuses).all()
 
 
 @router.get("/", response_model=List[SubscriptionSchema])
@@ -198,7 +252,7 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
 
 @router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
 def subscription_instance_in_use_by(
-    subscription_instance_id: UUID, filter_statuses: Optional[str] = None
+    subscription_instance_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
 ) -> List[UUID]:
     subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(subscription_instance_id)
 
