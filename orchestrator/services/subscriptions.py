@@ -36,7 +36,7 @@ from orchestrator.db import (
 )
 from orchestrator.db.models import SubscriptionInstanceRelationTable
 from orchestrator.targets import Target
-from orchestrator.types import UUIDstr
+from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
 
 logger = structlog.get_logger(__name__)
@@ -339,7 +339,7 @@ def find_values_for_resource_types(
     return rt2v
 
 
-def query_in_use_by_subscriptions(subscription_id: UUID) -> Query:
+def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: Optional[List[str]] = None) -> Query:
     """
     Return a query with all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
 
@@ -372,7 +372,8 @@ def query_in_use_by_subscriptions(subscription_id: UUID) -> Query:
         or_(
             SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
             SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
-        )
+        ),
+        SubscriptionTable.status.in_(filter_statuses if filter_statuses else SubscriptionLifecycle.values()),
     )
 
 
@@ -381,7 +382,7 @@ def query_parent_subscriptions(subscription_id: UUID) -> Query:
     return query_in_use_by_subscriptions(subscription_id)
 
 
-def query_depends_on_subscriptions(subscription_id: UUID) -> Query:
+def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: Optional[List[str]] = None) -> Query:
     """
     Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
@@ -413,7 +414,8 @@ def query_depends_on_subscriptions(subscription_id: UUID) -> Query:
         or_(
             SubscriptionTable.subscription_id.in_(resource_type_relations.scalar_subquery()),
             SubscriptionTable.subscription_id.in_(relation_relations.scalar_subquery()),
-        )
+        ),
+        SubscriptionTable.status.in_(filter_statuses if filter_statuses else SubscriptionLifecycle.values()),
     )
 
 
