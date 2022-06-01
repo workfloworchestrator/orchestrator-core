@@ -45,7 +45,9 @@ def test_product_model_with_union_type_directly_below(
     union_subscription_inactive.union_block = new_sub_block
     union_subscription_inactive.save()
 
-    assert union_subscription_inactive.diff_product_in_database(union_subscription_inactive.product.product_id) == {}
+    assert union_subscription_inactive.diff_product_in_database(union_subscription_inactive.product.product_id) == {
+        "UnionProduct": {"missing_product_blocks_in_model": {"SubBlockOneForTest"}}
+    }
     union_subscription = UnionProduct.from_other_lifecycle(union_subscription_inactive, SubscriptionLifecycle.ACTIVE)
 
     union_subscription.union_block = sub_one_subscription_1.test_block
@@ -90,7 +92,18 @@ def test_union_product_block_as_sub(
 
     # This needs to happen in the test due to the fact it is using cached objects.
     db.session.commit()
-    assert union_subscription.diff_product_in_database(test_union_sub_product) == {}
+    assert union_subscription.diff_product_in_database(test_union_sub_product) == {
+        "UnionProductSub": {
+            "missing_in_depends_on_blocks": {
+                "ProductBlockWithUnionForTest": {
+                    "missing_product_blocks_in_db": {"SubBlockOneForTest", "SubBlockTwoForTest"}
+                },
+                "SubBlockTwoForTest": {"missing_resource_types_in_db": {"int_field_2"}},
+            },
+            "missing_product_blocks_in_db": {"ProductBlockWithUnionForTest"},
+            "missing_product_blocks_in_model": {"ProductBlockOneForTest"},
+        },
+    }
 
     union_subscription_from_database = UnionProductSub.from_subscription(union_subscription.subscription_id)
 

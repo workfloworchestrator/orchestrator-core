@@ -37,7 +37,7 @@ def test_product_type_list_union(test_product_sub_block_one, test_product_sub_bl
 
 
 @pytest.fixture
-def test_product_list_union(test_product_block_one_db, test_product_sub_block_one_db, test_product_sub_block_two_db):
+def test_product_list_union(test_product_sub_block_one_db, test_product_sub_block_two_db):
     product = ProductTable(
         name="ProductListUnion",
         description="Test List Union Product",
@@ -48,9 +48,8 @@ def test_product_list_union(test_product_block_one_db, test_product_sub_block_on
 
     fixed_input = FixedInputTable(name="test_fixed_input", value="False")
 
-    product_block, _ = test_product_block_one_db
     product.fixed_inputs = [fixed_input]
-    product.product_blocks = [product_block, test_product_sub_block_one_db, test_product_sub_block_two_db]
+    product.product_blocks = [test_product_sub_block_one_db, test_product_sub_block_two_db]
     db.session.add(product)
     db.session.commit()
     return product.product_id
