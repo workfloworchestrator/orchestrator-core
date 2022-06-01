@@ -161,7 +161,10 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
                 field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(product_block_field_type)  # type: ignore
-            elif is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
+            # exclude non-Optional Unions as they contain more than one useful element.
+            elif is_list_type(product_block_field_type) or (
+                is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
+            ):
                 field_type = first(get_args(product_block_field_type))
             else:
                 field_type = product_block_field_type
@@ -1039,7 +1042,8 @@ class SubscriptionModel(DomainModel):
         for product_block_type in product_blocks_in_model.values():
             if is_union_type(product_block_type):
                 for union_product_block_type in get_args(product_block_type):  # type: ignore
-                    product_blocks_types_in_model.append(union_product_block_type)
+                    if not isinstance(None, union_product_block_type):
+                        product_blocks_types_in_model.append(union_product_block_type)
             else:
                 product_blocks_types_in_model.append(product_block_type)
 
