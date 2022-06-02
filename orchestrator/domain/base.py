@@ -620,7 +620,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         missing_data: Dict[str, Any] = {}
         if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            for product_block_model in one(product_blocks_types_in_model):  # type: ignore
+            for product_block_model in one(product_blocks_types_in_model):
                 if product_block_model.name == cls.name or product_block_model.name in missing_data:
                     continue
                 missing_data.update(product_block_model.diff_product_block_in_database())
@@ -628,7 +628,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             for product_block_model in product_blocks_types_in_model:
                 if product_block_model.name == cls.name or product_block_model.name in missing_data:
                     continue
-                missing_data.update(product_block_model.diff_product_block_in_database())  # type: ignore
+                missing_data.update(product_block_model.diff_product_block_in_database())
 
         diff = {
             k: v
@@ -1076,7 +1076,7 @@ class SubscriptionModel(DomainModel):
 
         missing_data_depends_on_blocks: Dict[str, Any] = {}
         for product_block_in_model in product_blocks_types_in_model:
-            missing_data_depends_on_blocks.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
+            missing_data_depends_on_blocks.update(product_block_in_model.diff_product_block_in_database())
 
         diff = {
             k: v
