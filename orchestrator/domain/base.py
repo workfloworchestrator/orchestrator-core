@@ -161,7 +161,10 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
                 field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(product_block_field_type)  # type: ignore
-            elif is_list_type(product_block_field_type) or is_optional_type(product_block_field_type):
+            # exclude non-Optional Unions as they contain more than one useful element.
+            elif is_list_type(product_block_field_type) or (
+                is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
+            ):
                 field_type = first(get_args(product_block_field_type))
             else:
                 field_type = product_block_field_type
@@ -574,18 +577,27 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         product_block_db: ProductBlockTable = ProductBlockTable.query.filter(
             ProductBlockTable.name == cls.name
         ).one_or_none()
-
         product_blocks_in_db = {pb.name for pb in product_block_db.depends_on} if product_block_db else set()
-        product_blocks_types_in_model = cls._get_depends_on_product_block_types().values()
+
+        product_blocks_in_model = cls._get_depends_on_product_block_types()
+        product_blocks_types_in_model = []
+
+        # expand Union types for comparison to the DB
+        for product_block_type in product_blocks_in_model.values():
+            if is_union_type(product_block_type):
+                for union_product_block_type in get_args(product_block_type):  # type: ignore
+                    product_blocks_types_in_model.append(union_product_block_type)
+            else:
+                product_blocks_types_in_model.append(product_block_type)
 
         if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
             # There may only be one in the type if it is a Tuple
             product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
         else:
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
 
-        missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
-        missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
+        missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
+        missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
 
         resource_types_model = set(cls._non_product_block_fields_)
         resource_types_db = {rt.resource_type for rt in product_block_db.resource_types} if product_block_db else set()
@@ -608,11 +620,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         missing_data: Dict[str, Any] = {}
         if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            for product_block_model in one(product_blocks_types_in_model):  # type: ignore
+            for product_block_model in one(product_blocks_types_in_model):
+                if product_block_model.name == cls.name or product_block_model.name in missing_data:
+                    continue
                 missing_data.update(product_block_model.diff_product_block_in_database())
         else:
-            for product_block_in_model in product_blocks_types_in_model:
-                missing_data.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
+            for product_block_model in product_blocks_types_in_model:
+                if product_block_model.name == cls.name or product_block_model.name in missing_data:
+                    continue
+                missing_data.update(product_block_model.diff_product_block_in_database())
 
         diff = {
             k: v
@@ -1018,16 +1034,27 @@ class SubscriptionModel(DomainModel):
         This is only needed to check if the domain model and database models match which would be done during testing...
         """
         product_db = ProductTable.query.get(product_id)
-
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
-        # product_blocks_types_in_model = cls._get_depends_on_product_block_types().values()
-        # if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-        #     product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
-        # else:
-        #     product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))
 
-        # missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db
-        # missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model
+        product_blocks_in_model = cls._get_depends_on_product_block_types()
+        product_blocks_types_in_model = []
+        # expand Union types for comparison to the DB
+        for product_block_type in product_blocks_in_model.values():
+            if is_union_type(product_block_type):
+                for union_product_block_type in get_args(product_block_type):  # type: ignore
+                    if not isinstance(None, union_product_block_type):
+                        product_blocks_types_in_model.append(union_product_block_type)
+            else:
+                product_blocks_types_in_model.append(product_block_type)
+
+        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
+        else:
+            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+
+        missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
+        missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
+
         fixed_inputs_model = set(cls._non_product_block_fields_)
         fixed_inputs_in_db = {fi.name for fi in product_db.fixed_inputs} if product_db else set()
 
@@ -1038,27 +1065,27 @@ class SubscriptionModel(DomainModel):
             "ProductTable blocks diff",
             product_block_db=product_db.name if product_db else None,
             product_blocks_in_db=product_blocks_in_db,
-            # product_blocks_in_model=product_blocks_in_model,
+            product_blocks_in_model=product_blocks_in_model,
             fixed_inputs_in_db=fixed_inputs_in_db,
             fixed_inputs_model=fixed_inputs_model,
-            # missing_product_blocks_in_db=missing_product_blocks_in_db,
-            # missing_product_blocks_in_model=missing_product_blocks_in_model,
+            missing_product_blocks_in_db=missing_product_blocks_in_db,
+            missing_product_blocks_in_model=missing_product_blocks_in_model,
             missing_fixed_inputs_in_db=missing_fixed_inputs_in_db,
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        # missing_data_depends_on_blocks: Dict[str, Any] = {}
-        # for product_block_in_model in product_blocks_types_in_model:
-        #     missing_data_depends_on_blocks.update(product_block_in_model.diff_product_block_in_database())  # type: ignore
+        missing_data_depends_on_blocks: Dict[str, Any] = {}
+        for product_block_in_model in product_blocks_types_in_model:
+            missing_data_depends_on_blocks.update(product_block_in_model.diff_product_block_in_database())
 
         diff = {
             k: v
             for k, v in {
-                # "missing_product_blocks_in_db": missing_product_blocks_in_db,
-                # "missing_product_blocks_in_model": missing_product_blocks_in_model,
+                "missing_product_blocks_in_db": missing_product_blocks_in_db,
+                "missing_product_blocks_in_model": missing_product_blocks_in_model,
                 "missing_fixed_inputs_in_db": missing_fixed_inputs_in_db,
                 "missing_fixed_inputs_in_model": missing_fixed_inputs_in_model,
-                # "missing_in_depends_on_blocks": missing_data_depends_on_blocks,
+                "missing_in_depends_on_blocks": missing_data_depends_on_blocks,
             }.items()
             if v
         }

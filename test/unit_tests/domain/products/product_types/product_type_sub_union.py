@@ -39,8 +39,8 @@ def test_union_sub_product(test_product_block_with_union_db):
         product_type="Test",
         status="active",
     )
-    product_block, _, _ = test_product_block_with_union_db
-    product.product_blocks = [product_block]
+    _, _, product_union_sub_block = test_product_block_with_union_db
+    product.product_blocks = [product_union_sub_block]
     db.session.add(product)
     db.session.commit()
 
