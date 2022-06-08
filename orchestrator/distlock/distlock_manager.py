@@ -14,7 +14,7 @@ from typing import Optional, Tuple, Union
 
 from orchestrator.distlock.managers.memory_distlock_manager import Lock as MemoryLock
 from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
-from orchestrator.distlock.managers.redis_distlock_manager import Lock as RedisLock
+from orchestrator.distlock.managers.redis_distlock_manager import AIORedlock as RedisLock
 from orchestrator.distlock.managers.redis_distlock_manager import RedisDistLockManager
 
 DistLock = Union[MemoryLock, RedisLock]
