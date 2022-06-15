@@ -259,6 +259,8 @@ def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
                 yield (k, v)
             if isinstance(v, list):
                 for index, list_item in enumerate(v):
+                    for list_item_key, list_item_value in get_dict_items(list_item):
+                        yield (f"{k}.{index}.{list_item_key}", list_item_value)
                     yield (f"{k}.{index}", list_item)
 
     return [c[0] for c in get_dict_items(subscription.dict())]
