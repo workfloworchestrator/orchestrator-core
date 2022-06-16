@@ -5,7 +5,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductModel, SubscriptionModel
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.domain.products.product_blocks.product_block_one_nested import (
+from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (
     ProductBlockOneNestedForTest,
     ProductBlockOneNestedForTestInactive,
     ProductBlockOneNestedForTestProvisioning,
