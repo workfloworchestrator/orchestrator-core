@@ -25,6 +25,86 @@ from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.json import json_dumps
+from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (  # noqa: F401
+    test_product_block_list_nested,
+    test_product_block_list_nested_db_in_use_by_block,
+)
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import (  # noqa: F401
+    test_product_block_one,
+    test_product_block_one_db,
+)
+from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (  # noqa: F401
+    test_product_block_one_nested,
+    test_product_block_one_nested_db_in_use_by_block,
+)
+from test.unit_tests.fixtures.products.product_blocks.product_block_with_list_union import (  # noqa: F401
+    test_product_block_with_list_union,
+    test_product_block_with_list_union_db,
+)
+from test.unit_tests.fixtures.products.product_blocks.product_block_with_union import (  # noqa: F401
+    test_product_block_with_union,
+    test_product_block_with_union_db,
+)
+from test.unit_tests.fixtures.products.product_blocks.product_sub_block_one import (  # noqa: F401
+    test_product_sub_block_one,
+    test_product_sub_block_one_db,
+)
+from test.unit_tests.fixtures.products.product_blocks.product_sub_block_two import (  # noqa: F401
+    test_product_sub_block_two,
+    test_product_sub_block_two_db,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_list_nested import (  # noqa: F401
+    test_product_list_nested,
+    test_product_model_list_nested,
+    test_product_type_list_nested,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_list_union import (  # noqa: F401
+    test_product_list_union,
+    test_product_type_list_union,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_list_union_overlap import (  # noqa: F401
+    sub_list_union_overlap_subscription_1,
+    test_product_list_union_overlap,
+    test_product_type_list_union_overlap,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_one import (  # noqa: F401
+    test_product_model,
+    test_product_one,
+    test_product_type_one,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_one_nested import (  # noqa: F401
+    test_product_model_nested,
+    test_product_one_nested,
+    test_product_type_one_nested,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_sub_list_union import (  # noqa: F401
+    test_product_sub_list_union,
+    test_product_type_sub_list_union,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_sub_one import (  # noqa: F401
+    sub_one_subscription_1,
+    test_product_sub_one,
+    test_product_type_sub_one,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_sub_two import (  # noqa: F401
+    sub_two_subscription_1,
+    test_product_sub_two,
+    test_product_type_sub_two,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_sub_union import (  # noqa: F401
+    test_union_sub_product,
+    test_union_type_sub_product,
+)
+from test.unit_tests.fixtures.products.product_types.product_type_union import (  # noqa: F401
+    test_union_product,
+    test_union_type_product,
+)
+from test.unit_tests.fixtures.products.resource_types import (  # noqa: F401
+    resource_type_int,
+    resource_type_int_2,
+    resource_type_list,
+    resource_type_str,
+)
 from test.unit_tests.workflows import WorkflowInstanceForTests
 from test.unit_tests.workflows.shared.test_validate_subscriptions import validation_workflow
 

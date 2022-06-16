@@ -26,10 +26,12 @@ from orchestrator.domain.base import (
 )
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.domain.products.product_blocks.product_block_list_nested import (
+from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
     ProductBlockListNestedForTestInactive,
 )
-from test.unit_tests.domain.products.product_blocks.product_block_one_nested import ProductBlockOneNestedForTestInactive
+from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (
+    ProductBlockOneNestedForTestInactive,
+)
 
 
 def test_product_block_metadata(test_product_block_one, test_product_one, test_product_block_one_db):
