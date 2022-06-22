@@ -334,10 +334,6 @@ class DomainModel(BaseModel):
             product_block_model: Any = product_block_field_type
             if is_list_type(product_block_field_type):
                 product_block_model = one(get_args(product_block_field_type))
-            elif is_optional_type(product_block_field_type):
-                product_block_model = first(get_args(product_block_field_type))
-            elif is_union_type(product_block_field_type):
-                product_block_model = product_block_field_type
 
             possible_product_block_types = get_possible_product_block_types(product_block_model)
             field_type_names = list(possible_product_block_types.keys())
@@ -390,10 +386,7 @@ class DomainModel(BaseModel):
                         possible_product_block_types[item.name]._from_other_lifecycle(item, status, subscription_id)
                     )
             else:
-                if is_optional_type(field_type) and not is_union_type(field_type):
-                    data[field_name] = None
-                    field_type = first(get_args(field_type))
-                elif is_union_type(field_type):
+                if is_union_type(field_type):
                     if is_optional_type(field_type):
                         data[field_name] = None
                     field_types = get_args(field_type)
