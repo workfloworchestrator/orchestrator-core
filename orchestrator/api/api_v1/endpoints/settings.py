@@ -37,7 +37,7 @@ router = APIRouter()
 @router.delete("/cache/{name}", status_code=HTTPStatus.NO_CONTENT)
 async def clear_cache(name: str, background_tasks: BackgroundTasks) -> None:
     cache = Cache(Cache.REDIS, endpoint=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
-    # TODO: this try/except wrap temporarily fixes an issue in the aiocache issue, resulting in an TypeError if
+    # TODO: this try/except wrap temporarily fixes an issue in the aiocache library, resulting in an TypeError if
     # there are no keys in Redis with the given namespace. This is solved on the main branch in aoicache but is not
     # yet released (23 June 2022).
     try:
