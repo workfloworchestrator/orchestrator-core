@@ -49,6 +49,7 @@ from orchestrator.services.subscriptions import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
+from orchestrator.utils.redis import from_redis
 
 router = APIRouter()
 
@@ -104,6 +105,8 @@ def subscriptions_all() -> List[SubscriptionTable]:
 
 @router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
 def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[str, Any]:
+    if domain_model := from_redis(subscription_id):
+        return domain_model
     customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
     ).all()

@@ -49,6 +49,7 @@ class AppSettings(BaseSettings):
     MAIL_STARTTLS: bool = False
     CACHE_HOST: str = "127.0.0.1"
     CACHE_PORT: int = 6379
+    CACHE_DOMAIN_MODELS: bool = False
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0

@@ -11,18 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Optional, Set, Union
+from uuid import UUID
 
 import structlog
 from pydantic import ValidationError
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
-from orchestrator.domain.base import SubscriptionModel
+from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.services.subscriptions import get_subscription
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.json import to_serializable
+from orchestrator.utils.redis import to_redis
 from orchestrator.workflow import Step, step
 
 logger = structlog.get_logger(__name__)
@@ -132,3 +134,54 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
     _set_status.__doc__ = f"Set subscription to '{status}'."
     return _set_status
+
+
+@step("Cache Subscription and related subscriptions")
+def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionModel] = None) -> State:
+    """
+    Attempt to cache all Subscriptions once they have been touched once.
+
+    Args:
+        workflow_name: The Workflow Name
+        subscription:  The Subscription if it exists.
+
+    Returns:
+        Returns State.
+
+    """
+    cached_subscription_ids: Set[UUID] = set()
+    if not subscription:
+        logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
+        return {"cached_subscription_ids": cached_subscription_ids}
+
+    def _cache_other_subscriptions(product_block: ProductBlockModel) -> None:
+        for field in product_block.__fields__:
+            # subscription_instance is a ProductBlockModel or an arbitrary type
+            subscription_instance: Union[ProductBlockModel, Any] = getattr(product_block, field)
+            # If subscription_instance is a list, we need to step into it and loop.
+            if isinstance(subscription_instance, list):
+                for item in subscription_instance:
+                    if isinstance(item, ProductBlockModel):
+                        _cache_other_subscriptions(item)
+
+            # If subscription_instance is a ProductBlockModel check the owner_subscription_id to decide the cache
+            elif isinstance(subscription_instance, ProductBlockModel):
+                _cache_other_subscriptions(subscription_instance)
+                if not subscription_instance.owner_subscription_id == subscription.subscription_id:  # type: ignore
+                    cached_subscription_ids.add(subscription_instance.owner_subscription_id)
+
+    for field in subscription.__fields__:
+        # There always is a single Root Product Block, it cannot be a list, so no need to check.
+        instance: Union[ProductBlockModel, Any] = getattr(subscription, field)
+        if isinstance(instance, ProductBlockModel):
+            _cache_other_subscriptions(instance)
+
+    # Cache all the sub subscriptions
+    for subscription_id in cached_subscription_ids:
+        to_redis(SubscriptionModel.from_subscription(subscription_id))
+
+    # Cache the main subscription
+    to_redis(subscription)
+    cached_subscription_ids.add(subscription.subscription_id)
+
+    return {"cached_subscription_ids": cached_subscription_ids}
