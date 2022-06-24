@@ -44,7 +44,7 @@ class BroadcastWebsocketManager:
             )
         except Exception:  # noqa: S110
             pass
-        self.connected.remove(websocket)
+        self.remove_ws_from_connected_list(websocket)
 
     async def disconnect(
         self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: Union[Dict, str, None] = None
@@ -52,12 +52,12 @@ class BroadcastWebsocketManager:
         if reason:
             await websocket.send_text(json_dumps(reason))
         await websocket.close(code)
-        self.connected.remove(websocket)
+        self.remove_ws_from_connected_list(websocket)
 
     async def disconnect_all(self) -> None:
         for websocket in self.connected:
             websocket.close(status.WS_1000_NORMAL_CLOSURE)
-            self.connected.remove(websocket)
+            self.remove_ws_from_connected_list(websocket)
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
@@ -79,3 +79,7 @@ class BroadcastWebsocketManager:
         for channel in channels:
             await self.pub_broadcast.publish(channel, message=json_dumps(data))
         await self.pub_broadcast.disconnect()
+
+    def remove_ws_from_connected_list(self, websocket: WebSocket) -> None:
+        if websocket in self.connected:
+            self.connected.remove(websocket)
