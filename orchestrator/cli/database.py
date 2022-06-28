@@ -157,6 +157,7 @@ def downgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upg
 @app.command()
 def revision(
     message: str = typer.Option(None, "--message", "-m", help="The revision message"),
+    version_path: str = typer.Option(None, "--version-path", help="Specify specific path from config for version file"),
     autogenerate: bool = typer.Option(False, help="Detect schema changes and add migrations"),
     head: str = typer.Option(None, help="Determine the head the head you need to add your migration to."),
 ) -> None:
@@ -165,6 +166,7 @@ def revision(
 
     Args:
         message: The revision message
+        version_path: Specify specific path from config for version file
         autogenerate: Whether to detect schema changes.
         head: To which head the migration applies
 
@@ -172,7 +174,7 @@ def revision(
         None
 
     """
-    command.revision(alembic_cfg(), message, autogenerate=autogenerate, head=head)
+    command.revision(alembic_cfg(), message, version_path=version_path, autogenerate=autogenerate, head=head)
 
 
 @app.command()

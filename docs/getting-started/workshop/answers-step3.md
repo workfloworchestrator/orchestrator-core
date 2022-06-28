@@ -1,8 +1,9 @@
 # Step 3 - Answers
 
-First generate the revision file.
+First generate the revision file. Specify the folder created by
+`python main.py db init` to store this new revision.
 ```console
-$ PYTHONPATH=. python main.py db revision --message "My descriptive revision description" --head=data@head
+$ PYTHONPATH=. python main.py db revision --message "My descriptive revision description" --version-path migrations/versions/schema
 ```
 
 An example database migration.
