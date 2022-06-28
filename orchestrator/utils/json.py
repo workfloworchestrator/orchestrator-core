@@ -79,7 +79,7 @@ from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Set, Tuple, Union
 from uuid import UUID
 
 import rapidjson as json
@@ -134,6 +134,8 @@ def to_serializable(o: Any) -> Any:
         return o.to_dict()
     if isinstance(o, BaseModel):
         return o.dict()
+    if isinstance(o, Set):
+        return list(o)
     raise TypeError(f"Could not serialize object of type {o.__class__.__name__} to JSON")
 
 
