@@ -28,12 +28,11 @@ from starlette.exceptions import HTTPException
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters, getattr_in, product_block_paths, update_in
+from orchestrator.api.helpers import _query_with_filters
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
-    SubscriptionCustomerDescriptionTable,
     SubscriptionInstanceTable,
     SubscriptionTable,
     db,
@@ -42,6 +41,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
+    build_extendend_domain_model,
     get_subscription,
     query_depends_on_subscriptions,
     query_in_use_by_subscriptions,
@@ -107,39 +107,14 @@ def subscriptions_all() -> List[SubscriptionTable]:
 def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[str, Any]:
     if domain_model := from_redis(subscription_id):
         return domain_model
-    customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
-        SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
-    ).all()
     try:
-        subs_obj = SubscriptionModel.from_subscription(subscription_id)
+        subscription_model = SubscriptionModel.from_subscription(subscription_id)
+        return build_extendend_domain_model(subscription_model)
     except ValueError as e:
         if str(e) == f"Subscription with id: {subscription_id}, does not exist":
-            raise_status(HTTPStatus.NOT_FOUND)
+            raise_status(HTTPStatus.NOT_FOUND, f"Subscription with if: {subscription_id}, not found")
         else:
             raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
-
-    subscription = subs_obj.dict()
-    sub_instance_ids = [subs_obj.subscription_id]
-    paths = product_block_paths(subs_obj)
-    for path in paths:
-        sub_instance_ids.append(getattr_in(subs_obj, f"{path}.subscription_instance_id"))
-
-    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
-    for path in paths:
-        if in_use_by_subs := getattr_in(subs_obj, f"{path}.in_use_by"):
-            i_ids: List[Optional[UUID]] = []
-            i_ids.extend(
-                in_use_by_subs.col[idx].in_use_by_id
-                for idx, ob in enumerate(in_use_by_subs.col)
-                if ob.in_use_by_id not in sub_instance_ids
-            )
-            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
-
-    subscription["customer_descriptions"] = customer_descriptions
-
-    if not subscription:
-        raise_status(HTTPStatus.NOT_FOUND, f"Subscription with if: {subscription_id}, not found")
-    return subscription
 
 
 @router.delete("/{subscription_id}", response_model=None)
