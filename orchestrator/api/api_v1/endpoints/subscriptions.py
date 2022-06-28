@@ -12,7 +12,6 @@
 # limitations under the License.
 
 """Module that implements subscription related API endpoints."""
-
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
@@ -25,15 +24,15 @@ from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.exceptions import HTTPException
+from starlette.requests import Request
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters, getattr_in, product_block_paths, update_in
+from orchestrator.api.helpers import _query_with_filters
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
-    SubscriptionCustomerDescriptionTable,
     SubscriptionInstanceTable,
     SubscriptionTable,
     db,
@@ -42,6 +41,8 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
+    _generate_etag,
+    build_extendend_domain_model,
     get_subscription,
     query_depends_on_subscriptions,
     query_in_use_by_subscriptions,
@@ -49,6 +50,7 @@ from orchestrator.services.subscriptions import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
+from orchestrator.utils.redis import from_redis
 
 router = APIRouter()
 
@@ -103,40 +105,29 @@ def subscriptions_all() -> List[SubscriptionTable]:
 
 
 @router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
-def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[str, Any]:
-    customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
-        SubscriptionCustomerDescriptionTable.subscription_id == subscription_id
-    ).all()
+def subscription_details_by_id_with_domain_model(
+    request: Request, subscription_id: UUID, response: Response
+) -> Optional[Dict[str, Any]]:
+    def _build_response(model: dict, etag: str) -> Optional[Dict[str, Any]]:
+        if etag == request.headers.get("If-None-Match"):
+            response.status_code = HTTPStatus.NOT_MODIFIED
+            return None
+        response.headers["ETag"] = etag
+        return model
+
+    if cache_responsed := from_redis(subscription_id):
+        return _build_response(*cache_responsed)
+
     try:
-        subs_obj = SubscriptionModel.from_subscription(subscription_id)
+        subscription_model = SubscriptionModel.from_subscription(subscription_id)
+        extended_model = build_extendend_domain_model(subscription_model)
+        etag = _generate_etag(extended_model)
+        return _build_response(extended_model, etag)
     except ValueError as e:
         if str(e) == f"Subscription with id: {subscription_id}, does not exist":
-            raise_status(HTTPStatus.NOT_FOUND)
+            raise_status(HTTPStatus.NOT_FOUND, f"Subscription with id: {subscription_id}, not found")
         else:
             raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
-
-    subscription = subs_obj.dict()
-    sub_instance_ids = [subs_obj.subscription_id]
-    paths = product_block_paths(subs_obj)
-    for path in paths:
-        sub_instance_ids.append(getattr_in(subs_obj, f"{path}.subscription_instance_id"))
-
-    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
-    for path in paths:
-        if in_use_by_subs := getattr_in(subs_obj, f"{path}.in_use_by"):
-            i_ids: List[Optional[UUID]] = []
-            i_ids.extend(
-                in_use_by_subs.col[idx].in_use_by_id
-                for idx, ob in enumerate(in_use_by_subs.col)
-                if ob.in_use_by_id not in sub_instance_ids
-            )
-            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
-
-    subscription["customer_descriptions"] = customer_descriptions
-
-    if not subscription:
-        raise_status(HTTPStatus.NOT_FOUND, f"Subscription with if: {subscription_id}, not found")
-    return subscription
 
 
 @router.delete("/{subscription_id}", response_model=None)

@@ -52,6 +52,7 @@ repos:
           - types-python-dateutil
           - types-requests
           - types-Deprecated
+          - types-redis
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators

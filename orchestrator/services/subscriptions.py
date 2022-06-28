@@ -12,9 +12,10 @@
 # limitations under the License.
 
 """Module that provides service functions on subscriptions."""
-
+import pickle  # noqa: S403
 from collections import defaultdict
 from datetime import datetime
+from hashlib import md5
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar, Union, overload
 from uuid import UUID
 
@@ -26,6 +27,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
 from sqlalchemy.sql.expression import or_
 
+from orchestrator.api.helpers import getattr_in, product_block_paths, update_in
 from orchestrator.db import (
     ProductTable,
     ResourceTypeTable,
@@ -34,7 +36,8 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionInstanceRelationTable
+from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionInstanceRelationTable
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
@@ -581,3 +584,35 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         workflows[workflow.target.lower()].append(workflow_json)
 
     return {**workflows, **default_json}
+
+
+def _generate_etag(model: dict) -> str:
+    encoded = pickle.dumps(model)
+    return md5(encoded).hexdigest()  # noqa: S303
+
+
+def build_extendend_domain_model(subscription_model: SubscriptionModel) -> dict:
+    customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
+        SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
+    ).all()
+
+    subscription = subscription_model.dict()
+    sub_instance_ids = [subscription_model.subscription_id]
+    paths = product_block_paths(subscription_model)
+    for path in paths:
+        sub_instance_ids.append(getattr_in(subscription_model, f"{path}.subscription_instance_id"))
+
+    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
+    for path in paths:
+        if in_use_by_subs := getattr_in(subscription_model, f"{path}.in_use_by"):
+            i_ids: List[Optional[UUID]] = []
+            i_ids.extend(
+                in_use_by_subs.col[idx].in_use_by_id
+                for idx, ob in enumerate(in_use_by_subs.col)
+                if ob.in_use_by_id not in sub_instance_ids
+            )
+            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
+
+    subscription["customer_descriptions"] = customer_descriptions
+
+    return subscription
