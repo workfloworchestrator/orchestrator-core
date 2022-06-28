@@ -13,12 +13,13 @@
 
 from os import getenv
 from pickle import dumps, loads  # noqa: S403
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from redis import Redis
 from structlog import get_logger
 
+from orchestrator.services.subscriptions import _generate_etag
 from orchestrator.settings import app_settings
 
 logger = get_logger(__name__)
@@ -29,12 +30,15 @@ cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
 def to_redis(subscription: Dict[str, Any]) -> None:
     if getenv("AIOCACHE_DISABLE", 0) == 0 and app_settings.CACHE_DOMAIN_MODELS:
         logger.info("Setting cache for subscription.", subscription=subscription["subscription_id"])
-        cache.set(f"domain:{subscription['subscription_id']}", dumps(subscription), ex=3600 * 24 * 7)  # one week
+        etag = _generate_etag(subscription)
+        cache.set(
+            f"domain:{subscription['subscription_id']}", dumps((subscription, etag)), ex=3600 * 24 * 7
+        )  # one week
     else:
         logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
 
 
-def from_redis(subscription_id: UUID) -> Optional[Dict[str, Any]]:
+def from_redis(subscription_id: UUID) -> Optional[Tuple[Dict[str, Any], str]]:
     if getenv("AIOCACHE_DISABLE", 0) == 0 and app_settings.CACHE_DOMAIN_MODELS:
         logger.info("Retrieving subscription from cache", subscription=subscription_id)
         if obj := cache.get(f"domain:{subscription_id}"):

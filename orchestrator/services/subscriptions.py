@@ -12,9 +12,10 @@
 # limitations under the License.
 
 """Module that provides service functions on subscriptions."""
-
+import pickle  # noqa: S403
 from collections import defaultdict
 from datetime import datetime
+from hashlib import md5
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar, Union, overload
 from uuid import UUID
 
@@ -583,6 +584,11 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         workflows[workflow.target.lower()].append(workflow_json)
 
     return {**workflows, **default_json}
+
+
+def _generate_etag(model: dict) -> str:
+    encoded = pickle.dumps(model)
+    return md5(encoded).hexdigest()  # noqa: S303
 
 
 def build_extendend_domain_model(subscription_model: SubscriptionModel) -> dict:

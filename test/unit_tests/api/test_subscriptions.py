@@ -1,8 +1,11 @@
+import pickle  # noqa: S403
 from http import HTTPStatus
+from os import getenv
 from uuid import uuid4
 
 import pytest
 from nwastdlib.url import URL
+from redis import Redis
 
 from orchestrator.api.helpers import product_block_paths
 from orchestrator.db import (
@@ -19,7 +22,14 @@ from orchestrator.db import (
 )
 from orchestrator.db.models import SubscriptionInstanceRelationTable
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.services.subscriptions import RELATION_RESOURCE_TYPES, unsync
+from orchestrator.services.subscriptions import (
+    RELATION_RESOURCE_TYPES,
+    _generate_etag,
+    build_extendend_domain_model,
+    unsync,
+)
+from orchestrator.settings import app_settings
+from orchestrator.utils.redis import to_redis
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
@@ -870,6 +880,56 @@ def test_subscription_detail_with_domain_model_does_not_exist(test_client, gener
     # test with a subscription that has domain model and without
     response = test_client.get(URL("api/subscriptions/domain-model") / uuid4())
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_subscription_detail_with_domain_model_etag(test_client, generic_subscription_1):
+    # test with a subscription that has domain model and without
+    response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+    assert response.status_code == HTTPStatus.OK
+    subscription = SubscriptionModel.from_subscription(generic_subscription_1)
+    extended_model = build_extendend_domain_model(subscription)
+    etag = _generate_etag(extended_model)
+    assert etag == response.headers["ETag"]
+    # Check hierarchy
+    assert response.json()["pb_1"]["rt_1"] == "Value1"
+
+
+def test_subscription_detail_with_domain_model_if_none_match(test_client, generic_subscription_1):
+    # test with a subscription that has domain model and without
+    subscription = SubscriptionModel.from_subscription(generic_subscription_1)
+    extended_model = build_extendend_domain_model(subscription)
+    etag = _generate_etag(extended_model)
+    response = test_client.get(
+        URL("api/subscriptions/domain-model") / generic_subscription_1, headers={"If-None-Match": etag}
+    )
+    assert response.status_code == HTTPStatus.NOT_MODIFIED
+
+
+@pytest.mark.skipif(
+    not getenv("AIOCACHE_DISABLE", 0) == 0, reason="AIOCACHE must be enabled for this test to do anything"
+)
+def test_subscription_detail_with_domain_model_cache(test_client, generic_subscription_1):
+    # test with a subscription that has domain model and without
+    subscription = SubscriptionModel.from_subscription(generic_subscription_1)
+    extended_model = build_extendend_domain_model(subscription)
+    etag = _generate_etag(extended_model)
+
+    app_settings.CACHE_DOMAIN_MODELS = True
+
+    to_redis(extended_model)
+
+    response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+
+    cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
+    result = cache.get(f"domain:{generic_subscription_1}")
+    cached_model, cached_etag = pickle.loads(result)  # noqa: S301
+    assert cached_model == extended_model
+    assert cached_etag == etag
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["subscription_id"] == generic_subscription_1
+    app_settings.CACHE_DOMAIN_MODELS = False
+    cache.delete(f"domain:{generic_subscription_1}")
 
 
 def test_other_subscriptions(test_client, generic_subscription_2, generic_product_type_2):

@@ -12,7 +12,6 @@
 # limitations under the License.
 
 """Module that implements subscription related API endpoints."""
-
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
@@ -25,6 +24,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.exceptions import HTTPException
+from starlette.requests import Request
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
@@ -41,6 +41,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
+    _generate_etag,
     build_extendend_domain_model,
     get_subscription,
     query_depends_on_subscriptions,
@@ -104,12 +105,28 @@ def subscriptions_all() -> List[SubscriptionTable]:
 
 
 @router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
-def subscription_details_by_id_with_domain_model(subscription_id: UUID) -> Dict[str, Any]:
-    if domain_model := from_redis(subscription_id):
+def subscription_details_by_id_with_domain_model(
+    request: Request, subscription_id: UUID, response: Response
+) -> Optional[Dict[str, Any]]:
+    if_none_match = request.headers.get("If-None-Match")
+    if cache_response := from_redis(subscription_id):
+        domain_model, etag = cache_response
+        if etag == if_none_match:
+            response.status_code = HTTPStatus.NOT_MODIFIED
+            return None
+        response.headers["ETag"] = _generate_etag(domain_model)
         return domain_model
+
     try:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        return build_extendend_domain_model(subscription_model)
+        extended_model = build_extendend_domain_model(subscription_model)
+        etag = _generate_etag(extended_model)
+
+        if etag == if_none_match:
+            response.status_code = HTTPStatus.NOT_MODIFIED
+            return None
+        response.headers["ETag"] = etag
+        return extended_model
     except ValueError as e:
         if str(e) == f"Subscription with id: {subscription_id}, does not exist":
             raise_status(HTTPStatus.NOT_FOUND, f"Subscription with if: {subscription_id}, not found")
