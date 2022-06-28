@@ -8,7 +8,7 @@ file_template = %%(year)d-%%(month).2d-%%(day).2d_%%(rev)s_%%(slug)s
 # the 'revision' command, regardless of autogenerate
 # revision_environment = false
 script_location = {{ migrations_dir }}
-version_locations = {{ migrations_dir }}/versions/general
+version_locations = %(here)s/{{ migrations_dir }}/versions/schema
 # Logging configuration
 [loggers]
 keys = root,sqlalchemy,alembic
