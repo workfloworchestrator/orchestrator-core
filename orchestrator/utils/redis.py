@@ -26,20 +26,26 @@ logger = get_logger(__name__)
 
 cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
 
+ONE_WEEK = 3600 * 24 * 7
+
+
+def caching_models_enabled() -> bool:
+    return getenv("AIOCACHE_DISABLE", 0) == 0 and app_settings.CACHE_DOMAIN_MODELS
+
 
 def to_redis(subscription: Dict[str, Any]) -> None:
-    if getenv("AIOCACHE_DISABLE", 0) == 0 and app_settings.CACHE_DOMAIN_MODELS:
+    if caching_models_enabled():
         logger.info("Setting cache for subscription.", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
         cache.set(
-            f"domain:{subscription['subscription_id']}", dumps((subscription, etag)), ex=3600 * 24 * 7
+            f"domain:{subscription['subscription_id']}", dumps((subscription, etag)), ex=ONE_WEEK
         )  # one week
     else:
         logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
 
 
 def from_redis(subscription_id: UUID) -> Optional[Tuple[Dict[str, Any], str]]:
-    if getenv("AIOCACHE_DISABLE", 0) == 0 and app_settings.CACHE_DOMAIN_MODELS:
+    if caching_models_enabled():
         logger.info("Retrieving subscription from cache", subscription=subscription_id)
         if obj := cache.get(f"domain:{subscription_id}"):
             return loads(obj)  # noqa: S301

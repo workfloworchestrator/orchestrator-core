@@ -108,28 +108,24 @@ def subscriptions_all() -> List[SubscriptionTable]:
 def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response
 ) -> Optional[Dict[str, Any]]:
-    if_none_match = request.headers.get("If-None-Match")
-    if cache_response := from_redis(subscription_id):
-        domain_model, etag = cache_response
-        if etag == if_none_match:
+    def _build_response(model: dict, etag: str) -> Optional[Dict[str, Any]]:
+        if etag == request.headers.get("If-None-Match"):
             response.status_code = HTTPStatus.NOT_MODIFIED
             return None
-        response.headers["ETag"] = _generate_etag(domain_model)
-        return domain_model
+        response.headers["ETag"] = etag
+        return model
+
+    if cache_responsed := from_redis(subscription_id):
+        return _build_response(*cache_responsed)
 
     try:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
         extended_model = build_extendend_domain_model(subscription_model)
         etag = _generate_etag(extended_model)
-
-        if etag == if_none_match:
-            response.status_code = HTTPStatus.NOT_MODIFIED
-            return None
-        response.headers["ETag"] = etag
-        return extended_model
+        return _build_response(extended_model, etag)
     except ValueError as e:
         if str(e) == f"Subscription with id: {subscription_id}, does not exist":
-            raise_status(HTTPStatus.NOT_FOUND, f"Subscription with if: {subscription_id}, not found")
+            raise_status(HTTPStatus.NOT_FOUND, f"Subscription with id: {subscription_id}, not found")
         else:
             raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
