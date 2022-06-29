@@ -109,6 +109,7 @@ def json_dumps(obj: PY_JSON_TYPES) -> str:
             option=json.OPT_PASSTHROUGH_DATETIME | json.OPT_OMIT_MICROSECONDS | json.OPT_NON_STR_KEYS,
         ).decode("utf8")
     except TypeError as e:
+        # When Recursion limit is not configurable in orjson, falling back to the next best lib.
         if str(e) == "default serializer exceeds recursion limit":
             return rjson.dumps(obj, default=to_serializable)
         else:
