@@ -22,8 +22,8 @@ class JSONSubSchema(TypedDict, total=False):
     pattern: str
     const: Any
     default: Any
-    uniforms: dict[str, Any]
-    enum: list[Any]
+    uniforms: dict
+    enum: list
     allOf: list
 
 
@@ -59,7 +59,7 @@ def resolve_all_of(input_field: JSONSchema) -> None:
 
     Example:
         >>> field = {"allOf": [{"type": "string"}]}
-        >>> resolve_allof(field)
+        >>> resolve_all_of(field)
         >>> field
         {'allOf': [{'type': 'string'}], 'type': 'string'}
     """
@@ -121,7 +121,7 @@ class Populator:
             map(lambda wf: wf["name"], filter(lambda wf: wf["target"] == "MODIFY", self._product.get("workflows", [])))
         )
 
-    def update_headers(self, headers: dict[str, str]) -> None:
+    def update_headers(self, headers: dict) -> None:
         self.session.headers.update(headers)
 
     def add_default_values(self) -> None:
@@ -131,7 +131,7 @@ class Populator:
         values. Please ensure that you call super().add_default_values() in that case.
         """
 
-    def _get_product_by_name(self, product_name: str) -> dict[str, Any]:
+    def _get_product_by_name(self, product_name: str) -> dict:
         """
         Fetch all active products.
 
@@ -297,7 +297,9 @@ class Populator:
         product_id = self._product.get("product_id")
         return self._start_workflow(self.create_workflow, product=product_id, **kwargs)
 
-    def start_modify_workflow(self, workflow_name: str, subscription_id: UUIDstr | UUID, **kwargs: Any) -> UUIDstr:
+    def start_modify_workflow(
+        self, workflow_name: str, subscription_id: Union[UUIDstr, UUID], **kwargs: Any
+    ) -> UUIDstr:
         """
         Start a modify workflow for the provided name and subscription_id.
 
@@ -314,13 +316,13 @@ class Populator:
         self.log.info("Started modify workflow")
         return self._start_workflow(workflow_name, subscription_id=subscription_id, **kwargs)
 
-    def start_verify_workflow(self, workflow_name: str, subscription_id: UUIDstr | UUID) -> UUIDstr:
+    def start_verify_workflow(self, workflow_name: str, subscription_id: Union[UUIDstr, UUID]) -> UUIDstr:
         subscription_id = str(subscription_id)
         self.log = self.log.bind(subscription_id=subscription_id)
         self.log.info("Started verify workflow")
         return self._start_workflow(workflow_name, subscription_id=subscription_id)
 
-    def start_terminate_workflow(self, subscription_id: UUIDstr | UUID, **kwargs: Any) -> UUIDstr:
+    def start_terminate_workflow(self, subscription_id: Union[UUIDstr, UUID], **kwargs: Any) -> UUIDstr:
         """
         Start a terminate workflow for the provided subscription_id.
 
@@ -369,11 +371,11 @@ class Populator:
             self.log.error("Cowardly quitting due to unknown status", status=self.last_state["status"])
             raise Exception(f"Unknown status: {status}")
 
-    def get_current_form(self) -> JSONSchema | None:
+    def get_current_form(self) -> Union[JSONSchema, None]:
         self.log.info("Current form.", form=self.last_state.get("form"))
         return copy.deepcopy(self.last_state.get("form"))
 
-    def provide_user_input(self, method: str, url: URL, form: JSONSchema | None = None) -> requests.Response:
+    def provide_user_input(self, method: str, url: URL, form: Union[JSONSchema, None] = None) -> requests.Response:
         """Provide input for steps that normally require a user."""
         self.log.info("Providing user input.")
 
