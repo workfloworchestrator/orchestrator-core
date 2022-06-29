@@ -418,7 +418,7 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
             logger.info("Completed resuming processes")
         finally:
             loop = asyncio.new_event_loop()
-            loop.run_until_complete(distlock_manager.release_lock(lock))
+            loop.run_until_complete(distlock_manager.release_lock(lock))  # type: ignore
             try:
                 loop.close()
             except Exception:  # noqa: S110

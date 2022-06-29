@@ -12,9 +12,9 @@
 # limitations under the License.
 from typing import Optional, Tuple
 
-from pottery import AIORedlock
-from pottery.exceptions import QuorumIsImpossible, ReleaseUnlockedLock
 from redis.asyncio import Redis as AIORedis
+from redis.asyncio.errors import LockError
+from redis.asyncio.lock import Lock
 from structlog import get_logger
 
 logger = get_logger(__name__)
@@ -39,39 +39,39 @@ class RedisDistLockManager:
         if self.redis_conn:
             await self.redis_conn.close()
 
-    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[AIORedlock]:
+    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[Lock]:
         if not self.redis_conn:
             return None
 
         key = f"{self.namespace}:{resource}"
         try:
-            lock: AIORedlock = AIORedlock(
-                key=key,
-                masters={self.redis_conn},
-                raise_on_redis_errors=True,
-                auto_release_time=float(expiration_seconds),
+            lock: Lock = Lock(
+                redis=self.redis_conn,
+                name=key,
+                timeout=float(expiration_seconds),
+                blocking=False,
             )
-            if await lock.acquire(blocking=False, raise_on_redis_errors=True):
+            if await lock.acquire():
                 return lock
             else:
                 # normal behavior (lock acquired by something else)
                 return None
-        except QuorumIsImpossible:
+        except LockError:
             # Unexpected behavior, possibly a problem with Redis
             logger.Exception("Could not acquire lock for resource", resource=key)
             return None
 
-    async def release_lock(self, lock: AIORedlock) -> None:
+    async def release_lock(self, lock: Lock) -> None:
         if not self.redis_conn:
             return None
 
         try:
-            await lock.release(raise_on_redis_errors=True)
-        except ReleaseUnlockedLock:
-            logger.Exception("Could not release lock for resource", resource=lock.key)
+            await lock.release()
+        except LockError:
+            logger.Exception("Could not release lock for resource", resource=lock.name)
 
 
 __all__ = [
     "RedisDistLockManager",
-    "AIORedlock",
+    "Lock",
 ]

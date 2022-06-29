@@ -14,7 +14,7 @@ from typing import Optional, Tuple, Union
 
 from orchestrator.distlock.managers.memory_distlock_manager import Lock as MemoryLock
 from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
-from orchestrator.distlock.managers.redis_distlock_manager import AIORedlock as RedisLock
+from orchestrator.distlock.managers.redis_distlock_manager import Lock as RedisLock
 from orchestrator.distlock.managers.redis_distlock_manager import RedisDistLockManager
 
 DistLock = Union[MemoryLock, RedisLock]
@@ -55,4 +55,4 @@ class DistLockManager:
         return await self._backend.get_lock(resource, expiration_seconds)
 
     async def release_lock(self, resource: DistLock) -> None:
-        await self._backend.release_lock(resource)
+        await self._backend.release_lock(resource)  # type: ignore
