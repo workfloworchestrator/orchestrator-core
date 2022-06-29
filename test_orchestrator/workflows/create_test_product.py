@@ -1,4 +1,5 @@
 from ipaddress import IPv4Address, IPv6Address
+from uuid import UUID
 
 from structlog import get_logger
 
@@ -52,7 +53,7 @@ def construct_subscription_model(
     test_product.testproduct.an_int = an_int
     test_product.testproduct.a_str = a_str
     test_product.testproduct.a_bool = a_bool
-    test_product.testproduct.an_uuid = an_uuid
+    test_product.testproduct.an_uuid = UUID(an_uuid)
     test_product.testproduct.an_ipv4 = an_ipv4
     test_product.testproduct.an_ipv6 = an_ipv6
     test_product.save()
