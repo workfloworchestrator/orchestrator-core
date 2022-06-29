@@ -52,6 +52,7 @@ def test_to_serializable():
     assert to_serializable(ipaddress.ip_network("10.0.0.0/24")) == "10.0.0.0/24"
     assert to_serializable(ipaddress.ip_network("fd00::0/64")) == "fd00::/64"
     assert to_serializable(datetime(2021, 7, 28, 1, 1, 1)) == "2021-07-28T01:01:01"
+    assert to_serializable({3, 4, 5, 5, 6}) == [3, 4, 5, 6]
 
     @dataclass
     class Foo:

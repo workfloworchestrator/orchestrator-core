@@ -53,6 +53,7 @@ repos:
           - types-requests
           - types-Deprecated
           - types-redis
+          - types-orjson
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators

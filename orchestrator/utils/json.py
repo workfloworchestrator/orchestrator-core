@@ -74,7 +74,7 @@ decoding functions differently then `default` and `object_hook` is that they are
 :func:`json.dumps` and :func:`json.loads`.
 
 """
-
+import re
 from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
@@ -82,7 +82,7 @@ from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Any, Dict, List, Sequence, Set, Tuple, Union
 from uuid import UUID
 
-import rapidjson as json
+import orjson as json
 import structlog
 from pydantic import BaseModel
 
@@ -94,11 +94,16 @@ logger = structlog.get_logger(__name__)
 
 
 def json_loads(s: Union[str, bytes, bytearray]) -> PY_JSON_TYPES:
-    return json.loads(s, object_hook=from_serializable)
+    o = json.loads(s)
+    if isinstance(o, list):
+        return [from_serializable(dikt) for dikt in o]
+    return from_serializable(o)
 
 
 def json_dumps(obj: PY_JSON_TYPES) -> str:
-    return json.dumps(obj, default=to_serializable)
+    return json.dumps(
+        obj, default=to_serializable, option=json.OPT_PASSTHROUGH_DATETIME | json.OPT_OMIT_MICROSECONDS
+    ).decode("utf8")
 
 
 def to_serializable(o: Any) -> Any:
@@ -140,6 +145,7 @@ def to_serializable(o: Any) -> Any:
 
 
 ISO_FORMAT_STR_LEN = len("2019-05-18T15:17:00+00:00")  # assume 'seconds' precision
+UUID_PATTERN = re.compile(r"^[\da-f]{8}-([\da-f]{4}-){3}[\da-f]{12}$", re.IGNORECASE)
 
 
 def from_serializable(dct: Dict[str, Any]) -> Dict[str, Any]:

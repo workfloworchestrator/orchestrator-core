@@ -1,4 +1,3 @@
-import pickle  # noqa: S403
 from http import HTTPStatus
 from os import getenv
 from uuid import uuid4
@@ -29,6 +28,7 @@ from orchestrator.services.subscriptions import (
     unsync,
 )
 from orchestrator.settings import app_settings
+from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.utils.redis import to_redis
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.config import (
@@ -922,9 +922,10 @@ def test_subscription_detail_with_domain_model_cache(test_client, generic_subscr
 
     cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
     result = cache.get(f"domain:{generic_subscription_1}")
-    cached_model, cached_etag = pickle.loads(result)  # noqa: S301
-    assert cached_model == extended_model
-    assert cached_etag == etag
+    cached_model = json_dumps(json_loads(result))
+    cached_etag = cache.get(f"domain:etag:{generic_subscription_1}")
+    assert cached_model == json_dumps(extended_model)
+    assert cached_etag.decode("utf-8") == etag
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()["subscription_id"] == generic_subscription_1

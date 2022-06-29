@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from os import getenv
-from pickle import dumps, loads  # noqa: S403
 from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
@@ -21,6 +20,7 @@ from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
 from orchestrator.settings import app_settings
+from orchestrator.utils.json import json_dumps, json_loads
 
 logger = get_logger(__name__)
 
@@ -37,18 +37,19 @@ def to_redis(subscription: Dict[str, Any]) -> None:
     if caching_models_enabled():
         logger.info("Setting cache for subscription.", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
-        cache.set(
-            f"domain:{subscription['subscription_id']}", dumps((subscription, etag)), ex=ONE_WEEK
-        )  # one week
+        cache.set(f"domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
+        cache.set(f"domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
     else:
         logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
 
 
-def from_redis(subscription_id: UUID) -> Optional[Tuple[Dict[str, Any], str]]:
+def from_redis(subscription_id: UUID) -> Optional[Tuple[Any, str]]:
     if caching_models_enabled():
         logger.info("Retrieving subscription from cache", subscription=subscription_id)
-        if obj := cache.get(f"domain:{subscription_id}"):
-            return loads(obj)  # noqa: S301
+        obj = cache.get(f"domain:{subscription_id}")
+        etag = cache.get(f"domain:etag:{subscription_id}")
+        if obj and etag:
+            return json_loads(obj), etag.decode("utf-8")
         else:
             return None
     else:
