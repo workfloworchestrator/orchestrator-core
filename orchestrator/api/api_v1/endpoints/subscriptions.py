@@ -115,8 +115,8 @@ def subscription_details_by_id_with_domain_model(
         response.headers["ETag"] = etag
         return model
 
-    if cache_responsed := from_redis(subscription_id):
-        return _build_response(*cache_responsed)
+    if cache_response := from_redis(subscription_id):
+        return _build_response(*cache_response)
 
     try:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
