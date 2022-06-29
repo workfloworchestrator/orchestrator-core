@@ -13,8 +13,8 @@
 from typing import Optional, Tuple
 
 from redis.asyncio import Redis as AIORedis
-from redis.asyncio.errors import LockError
 from redis.asyncio.lock import Lock
+from redis.exceptions import LockError
 from structlog import get_logger
 
 logger = get_logger(__name__)
