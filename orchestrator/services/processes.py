@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
 from http import HTTPStatus
@@ -417,12 +416,7 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
                     logger.exception("Failed to resume process", pid=_proc.pid)
             logger.info("Completed resuming processes")
         finally:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(distlock_manager.release_lock(lock))  # type: ignore
-            try:
-                loop.close()
-            except Exception:  # noqa: S110
-                pass
+            distlock_manager.release_sync(lock)  # type: ignore
 
     workflow_executor = get_thread_pool()
 

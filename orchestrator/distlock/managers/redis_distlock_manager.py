@@ -12,9 +12,11 @@
 # limitations under the License.
 from typing import Optional, Tuple
 
+from redis import Redis
 from redis.asyncio import Redis as AIORedis
 from redis.asyncio.lock import Lock
 from redis.exceptions import LockError
+from redis.lock import Lock as SyncLock
 from structlog import get_logger
 
 logger = get_logger(__name__)
@@ -50,6 +52,7 @@ class RedisDistLockManager:
                 name=key,
                 timeout=float(expiration_seconds),
                 blocking=False,
+                thread_local=False,
             )
             if await lock.acquire():
                 return lock
@@ -69,6 +72,26 @@ class RedisDistLockManager:
             await lock.release()
         except LockError:
             logger.Exception("Could not release lock for resource", resource=lock.name)
+
+    # https://github.com/aio-libs/aioredis-py/issues/1273
+    def release_sync(self, lock: Lock) -> None:
+        redis_conn: Optional[Redis] = None
+        try:
+            redis_conn = Redis(host=self.redis_address[0], port=self.redis_address[1])
+            sync_lock: SyncLock = SyncLock(
+                redis=redis_conn,
+                name=lock.name,
+                timeout=lock.timeout,
+                blocking=False,
+                thread_local=False,
+            )
+            sync_lock.local = lock.local
+            sync_lock.release()
+        except LockError:
+            logger.Exception("Could not release lock for resource", resource=lock.name)
+        finally:
+            if redis_conn:
+                redis_conn.close()
 
 
 __all__ = [

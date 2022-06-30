@@ -56,3 +56,6 @@ class DistLockManager:
 
     async def release_lock(self, resource: DistLock) -> None:
         await self._backend.release_lock(resource)  # type: ignore
+
+    def release_sync(self, resource: DistLock) -> None:
+        self._backend.release_sync(resource)  # type: ignore
