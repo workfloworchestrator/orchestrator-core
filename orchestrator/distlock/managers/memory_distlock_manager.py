@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 from threading import Lock, Thread
 from time import sleep, time
 from typing import Dict, Optional, Tuple
@@ -62,6 +63,9 @@ class MemoryDistLockManager(Thread):
                     break
             del self.locks[name]
             logger.debug("Successfully unlocked resource", resource=name)
+
+    def release_sync(self, lock: Lock) -> None:
+        asyncio.run(self.release_lock(lock))
 
     def run(self) -> None:
         while True:
