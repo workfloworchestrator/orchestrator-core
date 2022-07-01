@@ -152,6 +152,8 @@ class Accept(str):
 
 
 class Choice(strEnum):
+    """Let the user choose from an enum and submit the label."""
+
     label: ClassVar[str]
 
     def __new__(cls, value: str, label: Optional[str] = None) -> "Choice":
@@ -166,6 +168,30 @@ class Choice(strEnum):
         kwargs = {}
 
         options = dict(map(lambda i: (i.value, i.label), cls.__members__.values()))
+
+        if not all(map(lambda o: o[0] == o[1], options.items())):
+            kwargs["options"] = options
+
+        field_schema.update(type="string", **kwargs)
+
+
+class ChoiceValue(strEnum):
+    """Let the user choose from an enum and submit the value."""
+
+    label: ClassVar[str]
+
+    def __new__(cls, value: str, label: Optional[str] = None) -> "Choice":
+        obj = str.__new__(cls, value)
+        obj._value_ = value
+        obj.label = label or value  # type:ignore
+        return obj
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+
+        kwargs = {}
+        values = list(cls.__members__.items())
+        options = {o[0]: o[1].value for o in values}
 
         if not all(map(lambda o: o[0] == o[1], options.items())):
             kwargs["options"] = options
