@@ -10,14 +10,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
+import queue
+import threading
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
+from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 from uuid import UUID, uuid4
 
 import structlog
 from deepmerge import Merger
+from fastapi import Request
 from nwastdlib.ex import show_ex
 from sqlalchemy.orm import joinedload
 
@@ -31,7 +36,13 @@ from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.websocket import create_process_websocket_data, send_process_data_to_websocket, websocket_manager
+from orchestrator.websocket import (
+    WS_CHANNELS,
+    create_process_websocket_data,
+    send_process_data_to_websocket,
+    websocket_manager,
+)
+from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import Failed
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
@@ -83,7 +94,12 @@ def _db_create_process(stat: ProcessStat) -> None:
     db.session.commit()
 
 
-def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFProcess:
+def _db_log_step(
+    stat: ProcessStat,
+    step: Step,
+    process_state: WFProcess,
+    broadcast_func: Optional[Callable] = None,
+) -> WFProcess:
     """Write the current step to the db.
 
     Args:
@@ -179,13 +195,18 @@ def _db_log_step(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFP
     if websocket_manager.enabled:
         new_pStat = load_process(p)
         websocket_data = create_process_websocket_data(p, new_pStat)
-        send_process_data_to_websocket(p.pid, websocket_data)
+        send_process_data_to_websocket(p.pid, websocket_data, broadcast_func=broadcast_func)
 
     # Return the state as stored in the database
     return process_state.__class__(current_step.state)
 
 
-def _safe_logstep(stat: ProcessStat, step: Step, process_state: WFProcess) -> WFProcess:
+def _safe_logstep(
+    stat: ProcessStat,
+    step: Step,
+    process_state: WFProcess,
+    broadcast_func: Optional[Callable] = None,
+) -> WFProcess:
     """Log step and handle failures in logging.
 
     We need to be robust in failures to write steps to database. If that happens we try again with the failure.
@@ -193,14 +214,14 @@ def _safe_logstep(stat: ProcessStat, step: Step, process_state: WFProcess) -> WF
     """
 
     try:
-        return _db_log_step(stat, step, process_state)
+        return _db_log_step(stat, step, process_state, broadcast_func=broadcast_func)
     except Exception as e:
         logger.exception("Failed to save step", stat=stat, step=step, process_state=process_state)
         failure = Failed(error_state_to_dict(e))
 
         # Try writing the failure, but return the original exception on success
         # on a second failure the exception should be handled higher
-        return _db_log_step(stat, step, failure)
+        return _db_log_step(stat, step, failure, broadcast_func=broadcast_func)
 
 
 def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
@@ -299,6 +320,7 @@ def start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
+    broadcast_func: Optional[Callable] = None,
 ) -> Tuple[UUID, Future]:
     """Start a process for workflow.
 
@@ -341,11 +363,16 @@ def start_process(
 
     _db_create_process(pstat)
 
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep))
+    _safe_logstep_withfunc = partial(_safe_logstep, broadcast_func=broadcast_func)
+    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_withfunc))
 
 
 def resume_process(
-    process: ProcessTable, *, user_inputs: Optional[List[State]] = None, user: Optional[str] = None
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]] = None,
+    user: Optional[str] = None,
+    broadcast_func: Optional[Callable] = None,
 ) -> Tuple[UUID, Future]:
     """Resume a failed or suspended process.
 
@@ -383,10 +410,13 @@ def resume_process(
     db.session.add(process)
     db.session.commit()
 
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep))
+    _safe_logstep_prep = partial(_safe_logstep, broadcast_func=broadcast_func)
+    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
 
 
-async def _async_resume_processes(processes: List[ProcessTable], user_name: str) -> bool:
+async def _async_resume_processes(
+    processes: List[ProcessTable], user_name: str, broadcast_func: Optional[Callable] = None
+) -> bool:
     """Asynchronously resume multiple failed processes.
 
     Args:
@@ -411,7 +441,7 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", pid=_proc.pid)
                         continue
-                    resume_process(process, user=user_name)
+                    resume_process(process, user=user_name, broadcast_func=broadcast_func)
                 except Exception:
                     logger.exception("Failed to resume process", pid=_proc.pid)
             logger.info("Completed resuming processes")
@@ -428,11 +458,11 @@ async def _async_resume_processes(processes: List[ProcessTable], user_name: str)
     return True
 
 
-def abort_process(process: ProcessTable, user: str) -> WFProcess:
+def abort_process(process: ProcessTable, user: str, broadcast_func: Optional[Callable] = None) -> WFProcess:
     pstat = load_process(process)
 
     pstat.update(current_user=user)
-    return abort_wf(pstat, _safe_logstep)
+    return abort_wf(pstat, partial(_safe_logstep, broadcast_func=broadcast_func))
 
 
 def _recoverwf(wf: Workflow, log: List[WFProcess]) -> Tuple[WFProcess, StepList]:
@@ -475,3 +505,61 @@ def load_process(process: ProcessTable) -> ProcessStat:
     pstate, remaining = _recoverwf(workflow, log)
 
     return ProcessStat(pid=process.pid, workflow=workflow, state=pstate, log=remaining, current_user=SYSTEM_USER)
+
+
+class ProcessDataBroadcastThread(threading.Thread):
+    def __init__(self, _websocket_manager: WebSocketManager, *args, **kwargs) -> None:  # type: ignore
+        super().__init__(*args, **kwargs)
+        self.shutdown = False
+        self.queue: queue.Queue = queue.Queue()
+        self.websocket_manager = _websocket_manager
+
+    def run(self) -> None:
+        logger.info("Starting ProcessDataBroadcastThread")
+        try:
+            loop = asyncio.new_event_loop()  # Create an eventloop specifically for this thread
+
+            while not self.shutdown:
+                try:
+                    pid, data = self.queue.get(block=True, timeout=1)
+                except queue.Empty:
+                    continue
+                logger.debug(
+                    "Threadsafe broadcast data through websocket manager",
+                    process_id=pid,
+                    where="ProcessDataBroadcastThread",
+                    channels=WS_CHANNELS.ALL_PROCESSES,
+                )
+                loop.run_until_complete(self.websocket_manager.broadcast_data([WS_CHANNELS.ALL_PROCESSES], data))
+
+            loop.close()
+            logger.info("Shutdown ProcessDataBroadcastThread")
+        except Exception:
+            logger.exception("Unhandled exception in ProcessDataBroadcastThread, exiting")
+
+    def stop(self) -> None:
+        logger.debug("Sending shutdown signal to ProcessDataBroadcastThread")
+        self.shutdown = True
+        self.join(timeout=5)
+        self.is_alive()
+
+
+def api_broadcast_process_data(request: Request) -> Callable:
+    """Given a FastAPI request, creates a threadsafe callable for broadcasting process data.
+
+    The callable should be created in API endpoints and provided to start_process,
+    resume_process, etc. through the `broadcast_func` param.
+
+    TODO
+     - similar solution for scheduler
+     - test with multiple workers (Should be fine)
+     - use this in unit-tests as well
+     - test resume-all
+     - typing for the callable?
+    """
+    broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
+
+    def _queue_put(pid: UUID, data: Dict) -> None:
+        broadcast_queue.put((str(pid), data))
+
+    return _queue_put

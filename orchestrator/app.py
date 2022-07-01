@@ -44,6 +44,7 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormException
+from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
@@ -66,6 +67,7 @@ class OrchestratorCore(FastAPI):
     ) -> None:
         websocket_manager = init_websocket_manager(base_settings)
         distlock_manager = init_distlock_manager(base_settings)
+        self.broadcast_thread = ProcessDataBroadcastThread(websocket_manager)
         super().__init__(
             title=title,
             description=description,
@@ -74,8 +76,13 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
-            on_startup=[websocket_manager.connect_redis, distlock_manager.connect_redis],
+            on_startup=[
+                websocket_manager.connect_redis,
+                distlock_manager.connect_redis,
+                self.broadcast_thread.start,
+            ],
             on_shutdown=[
+                self.broadcast_thread.stop,
                 websocket_manager.disconnect_redis,
                 websocket_manager.disconnect_all,
                 distlock_manager.disconnect_redis,

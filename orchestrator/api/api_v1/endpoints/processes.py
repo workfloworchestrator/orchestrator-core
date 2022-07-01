@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
-from fastapi import Query, WebSocket
+from fastapi import Query, Request, WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
@@ -57,6 +57,7 @@ from orchestrator.services.processes import (
     _async_resume_processes,
     _get_process,
     abort_process,
+    api_broadcast_process_data,
     load_process,
     resume_process,
     start_process,
@@ -84,20 +85,22 @@ def delete(pid: UUID) -> None:
 @router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
 def new_process(
     workflow_key: str,
+    request: Request,
     json_data: Optional[List[Dict[str, Any]]] = Body(...),
     user: Optional[OIDCUserModel] = Depends(oidc_user),
 ) -> Dict[str, UUID]:
     check_global_lock()
 
     user_name = user.user_name if user else SYSTEM_USER
-    pid = start_process(workflow_key, user_inputs=json_data, user=user_name)[0]
+    broadcast_func = api_broadcast_process_data(request)
+    pid = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)[0]
 
     return {"id": pid}
 
 
 @router.put("/{pid}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def resume_process_endpoint(
-    pid: UUID, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    pid: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> None:
     check_global_lock()
 
@@ -108,11 +111,14 @@ def resume_process_endpoint(
 
     user_name = user.user_name if user else SYSTEM_USER
 
-    resume_process(process, user=user_name, user_inputs=json_data)
+    broadcast_func = api_broadcast_process_data(request)
+    resume_process(process, user=user_name, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
 @router.put("/resume-all", response_model=ProcessResumeAllSchema)
-async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
+async def resume_all_processess_endpoint(
+    request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> Dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -138,7 +144,8 @@ async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends
         .all()
     )
 
-    if not await _async_resume_processes(processes_to_resume, user_name):
+    broadcast_func = api_broadcast_process_data(request)
+    if not await _async_resume_processes(processes_to_resume, user_name, broadcast_func=broadcast_func):
         raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
 
     logger.info("Resuming all processes", count=len(processes_to_resume))
@@ -147,13 +154,13 @@ async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends
 
 
 @router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(pid: UUID, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
+def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
     process = _get_process(pid)
 
     user_name = user.user_name if user else SYSTEM_USER
-
+    broadcast_func = api_broadcast_process_data(request)
     try:
-        abort_process(process, user_name)
+        abort_process(process, user_name, broadcast_func=broadcast_func)
         return None
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
