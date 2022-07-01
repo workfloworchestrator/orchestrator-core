@@ -547,7 +547,7 @@ class ProcessDataBroadcastThread(threading.Thread):
         self.is_alive()
 
 
-def api_broadcast_process_data(request: Request) -> BroadcastFunc:
+def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
     """Given a FastAPI request, creates a threadsafe callable for broadcasting process data.
 
     The callable should be created in API endpoints and provided to start_process,
@@ -555,8 +555,11 @@ def api_broadcast_process_data(request: Request) -> BroadcastFunc:
 
     TODO
      - use this in unit-tests as well
-     - test resume-all
     """
+    if websocket_manager.broadcaster_type != "redis":
+        # Don't use the thread for in-memory broadcasting
+        return None
+
     broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
 
     def _queue_put(pid: UUID, data: Dict) -> None:
