@@ -552,14 +552,7 @@ def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
 
     The callable should be created in API endpoints and provided to start_process,
     resume_process, etc. through the `broadcast_func` param.
-
-    TODO
-     - use this in unit-tests as well
     """
-    if websocket_manager.broadcaster_type != "redis":
-        # Don't use the thread for in-memory broadcasting
-        return None
-
     broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
 
     def _queue_put(pid: UUID, data: Dict) -> None:

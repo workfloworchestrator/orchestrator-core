@@ -235,7 +235,10 @@ def db_session(database):
 def fastapi_app(database, db_uri):
     app_settings.DATABASE_URI = db_uri
     app = OrchestratorCore(base_settings=app_settings)
-    return app
+    # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
+    app.broadcast_thread.start()
+    yield app
+    app.broadcast_thread.stop()
 
 
 @pytest.fixture(scope="session")

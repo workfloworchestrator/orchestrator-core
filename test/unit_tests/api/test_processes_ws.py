@@ -285,6 +285,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
 
 
 def test_websocket_process_list_multiple_workflows(test_client, test_workflow, test_workflow_2):
+    # This tests the ProcessDataBroadcastThread as well
     if websocket_manager.broadcaster_type != "memory":
         pytest.skip("test does not work with redis")
 
