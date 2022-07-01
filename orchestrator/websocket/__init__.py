@@ -12,7 +12,7 @@
 # limitations under the License.
 from asyncio import new_event_loop
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, cast
+from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -20,6 +20,7 @@ from structlog import get_logger
 
 from orchestrator.db import ProcessTable
 from orchestrator.settings import AppSettings, app_settings
+from orchestrator.types import BroadcastFunc
 from orchestrator.utils.show_process import show_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStat, ProcessStatus
@@ -84,7 +85,7 @@ def is_process_active(p: Dict) -> bool:
 def send_process_data_to_websocket(
     pid: UUID,
     data: Dict,
-    broadcast_func: Optional[Callable] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
     if broadcast_func:

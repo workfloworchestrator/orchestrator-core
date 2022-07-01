@@ -14,6 +14,7 @@
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
+from uuid import UUID
 
 try:
     # python3.10 introduces types.UnionType for the new union and optional type defs.
@@ -40,6 +41,7 @@ ErrorState = Union[str, Exception, Tuple[str, Union[int, HTTPStatus]]]
 ErrorDict = Dict[str, Union[str, int, List[Dict[str, Any]], "InputForm", None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
+BroadcastFunc = Callable[[UUID, Dict], None]
 
 
 class strEnum(str, Enum):

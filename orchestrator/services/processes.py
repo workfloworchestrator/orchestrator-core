@@ -33,7 +33,7 @@ from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import State
+from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.websocket import (
@@ -98,7 +98,7 @@ def _db_log_step(
     stat: ProcessStat,
     step: Step,
     process_state: WFProcess,
-    broadcast_func: Optional[Callable] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
 ) -> WFProcess:
     """Write the current step to the db.
 
@@ -106,6 +106,7 @@ def _db_log_step(
         stat: ProcessStat of process
         step: Current step
         process_state: State of process after current step
+        broadcast_func: Optional function to broadcast process data
 
     Returns:
         WFProcess
@@ -205,7 +206,7 @@ def _safe_logstep(
     stat: ProcessStat,
     step: Step,
     process_state: WFProcess,
-    broadcast_func: Optional[Callable] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
 ) -> WFProcess:
     """Log step and handle failures in logging.
 
@@ -320,7 +321,7 @@ def start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
-    broadcast_func: Optional[Callable] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
 ) -> Tuple[UUID, Future]:
     """Start a process for workflow.
 
@@ -328,6 +329,7 @@ def start_process(
         workflow_key: name of workflow
         user_inputs: List of form inputs from frontend
         user: User who starts this process
+        broadcast_func: Optional function to broadcast process data
 
     Returns:
         process id
@@ -372,7 +374,7 @@ def resume_process(
     *,
     user_inputs: Optional[List[State]] = None,
     user: Optional[str] = None,
-    broadcast_func: Optional[Callable] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
 ) -> Tuple[UUID, Future]:
     """Resume a failed or suspended process.
 
@@ -380,6 +382,7 @@ def resume_process(
         process: Process from database
         user_inputs: Optional user input from forms
         user: user who resumed this process
+        broadcast_func: Optional function to broadcast process data
 
     Returns:
         process id
@@ -544,18 +547,15 @@ class ProcessDataBroadcastThread(threading.Thread):
         self.is_alive()
 
 
-def api_broadcast_process_data(request: Request) -> Callable:
+def api_broadcast_process_data(request: Request) -> BroadcastFunc:
     """Given a FastAPI request, creates a threadsafe callable for broadcasting process data.
 
     The callable should be created in API endpoints and provided to start_process,
     resume_process, etc. through the `broadcast_func` param.
 
     TODO
-     - similar solution for scheduler
-     - test with multiple workers (Should be fine)
      - use this in unit-tests as well
      - test resume-all
-     - typing for the callable?
     """
     broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
 
