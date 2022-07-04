@@ -563,7 +563,12 @@ def test_safe_logstep():
         assert result == mock.sentinel.result
         mock__db_log_step.assert_has_calls(
             [
-                mock.call(pstat, step, state),
+                mock.call(
+                    pstat,
+                    step,
+                    state,
+                    None,  # broadcast_func, which is None for in-memory broadcasting
+                ),
                 mock.call(
                     pstat,
                     step,
@@ -574,6 +579,7 @@ def test_safe_logstep():
                             "traceback": mock.ANY,
                         }
                     ),
+                    None,  # broadcast_func, which is None for in-memory broadcasting
                 ),
             ]
         )

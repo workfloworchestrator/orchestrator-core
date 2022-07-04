@@ -146,7 +146,9 @@ def check_db_fixed_input_config() -> State:
     for tag in product_tags:
         data["by_tag"][tag] = []
     for fi in fixed_inputs:
-        fi_data: Dict = first_true(fixed_input_configuration["fixed_inputs"], {}, lambda i: i["name"] == fi.name)
+        fi_data: Dict = first_true(
+            fixed_input_configuration["fixed_inputs"], {}, lambda i: i["name"] == fi.name  # noqa: B023
+        )
         if not fi_data:
             errors.append(fi)
 

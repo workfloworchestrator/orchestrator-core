@@ -65,7 +65,9 @@ def test_db_fixed_input_config():
         data["by_tag"][tag] = []
 
     for fi in fixed_inputs:
-        fi_data = first_true(fixed_input_configuration["fixed_inputs"], None, lambda i: i["name"] == fi.name)
+        fi_data = first_true(
+            fixed_input_configuration["fixed_inputs"], None, lambda i: i["name"] == fi.name  # noqa: B023
+        )
         assert fi_data, fi
         assert fi.value in fi_data["values"], fi
 
