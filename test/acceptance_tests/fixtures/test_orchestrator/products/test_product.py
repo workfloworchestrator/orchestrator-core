@@ -12,13 +12,14 @@
 # limitations under the License.
 
 
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import SubscriptionLifecycle
 from test_orchestrator.product_blocks.test_product_blocks import (
     TestProductBlock,
     TestProductBlockInactive,
     TestProductBlockProvisioning,
 )
+
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.types import SubscriptionLifecycle
 
 
 class TestProductInactive(SubscriptionModel, is_base=True):

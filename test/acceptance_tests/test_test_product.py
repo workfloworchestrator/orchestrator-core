@@ -3,7 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from test_orchestrator.devtools.populator.test_product_populator import TestProductPopulator
+from test.acceptance_tests.fixtures.test_orchestrator.devtools.populator.test_product_populator import (
+    TestProductPopulator,
+)
 
 
 @pytest.mark.acceptance
