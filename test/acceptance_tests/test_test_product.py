@@ -19,10 +19,3 @@ def test_test_product(new_test_product):
 
     populator.start_create_workflow()
     populator.run()
-
-    # validate = "validate_test_product"
-    # populator.start_verify_workflow(validate, subscription_id)
-    # populator.run()
-
-    # populator.start_terminate_workflow(subscription_id)
-    # populator.run()

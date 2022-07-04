@@ -56,18 +56,6 @@ new_workflows = [
         "description": "Create Test Product",
         "product_type": "TestProduct",
     },
-    # {
-    #    "name": "terminate_test_product",
-    #    "target": Target.TERMINATE,
-    #    "description": "Terminate Test Product",
-    #    "product_type": "TestProduct",
-    # },
-    # {
-    #    "name": "validate_test_product",
-    #    "target": Target.SYSTEM,
-    #    "description": "Validate Test Product",
-    #    "product_type": "TestProduct",
-    # },
 ]
 
 
