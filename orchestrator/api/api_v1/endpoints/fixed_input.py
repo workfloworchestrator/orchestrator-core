@@ -46,7 +46,7 @@ def fi_configuration() -> Dict[str, Any]:
             )
 
         for fi_name, fi_type in model._non_product_block_fields_.items():
-            fi_data = first_true(data["fixed_inputs"], None, lambda i: i["name"] == fi_name)
+            fi_data = first_true(data["fixed_inputs"], None, lambda i: i["name"] == fi_name)  # noqa: B023
             if not fi_data:
                 if issubclass(fi_type, Enum):
                     data["fixed_inputs"].append(
@@ -59,7 +59,7 @@ def fi_configuration() -> Dict[str, Any]:
                 else:
                     raise ValueError(f"{fi_name} of {product_name} should be an enum.")
 
-            if not first_true(data["by_tag"][product.tag], None, lambda i: fi_name in i):
+            if not first_true(data["by_tag"][product.tag], None, lambda i: fi_name in i):  # noqa: B023
                 data["by_tag"][product.tag].append({fi_name: True})
 
     # Check if required
