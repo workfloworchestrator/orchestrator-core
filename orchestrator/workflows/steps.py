@@ -24,7 +24,7 @@ from orchestrator.services.subscriptions import build_extendend_domain_model, ge
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.json import to_serializable
-from orchestrator.utils.redis import to_redis
+from orchestrator.utils.redis import delete_from_redis, to_redis
 from orchestrator.workflow import Step, step
 
 logger = structlog.get_logger(__name__)
@@ -134,6 +134,27 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
     _set_status.__doc__ = f"Set subscription to '{status}'."
     return _set_status
+
+
+@step("Remove domain model from cache")
+def remove_domain_model_from_cache(workflow_name: str, subscription: Optional[SubscriptionModel] = None) -> State:
+    """
+    Remove the domain model from the cache if it exists.
+
+    Args:
+        workflow_name: The workflow name
+        subscription: Subscription Model
+
+    Returns:
+        State
+
+    """
+    if not subscription:
+        logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
+        return {"deleted_subscription_id": None}
+
+    delete_from_redis(subscription.subscription_id)
+    return {"deleted_subscription_id": subscription.subscription_id}
 
 
 @step("Cache Subscription and related subscriptions")

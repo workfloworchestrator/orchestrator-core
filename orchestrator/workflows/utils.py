@@ -27,7 +27,13 @@ from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
 from orchestrator.utils.state import form_inject_args
 from orchestrator.workflow import StepList, Workflow, conditional, done, init, make_workflow, step
-from orchestrator.workflows.steps import cache_domain_models, resync, store_process_subscription, unsync_unchecked
+from orchestrator.workflows.steps import (
+    cache_domain_models,
+    remove_domain_model_from_cache,
+    resync,
+    store_process_subscription,
+    unsync_unchecked,
+)
 
 
 def _generate_new_subscription_form(workflow_target: str, workflow_name: str) -> InputForm:
@@ -189,6 +195,7 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
         steplist = (
             init
             >> store_process_subscription(Target.SYSTEM)
+            >> push_subscriptions(remove_domain_model_from_cache)
             >> unsync_unchecked
             >> f()
             >> resync

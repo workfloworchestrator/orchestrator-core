@@ -55,3 +55,12 @@ def from_redis(subscription_id: UUID) -> Optional[Tuple[Any, str]]:
     else:
         logger.warning("Caching disabled, not loading subscription", subscription=subscription_id)
         return None
+
+
+def delete_from_redis(subscription_id: UUID) -> None:
+    if caching_models_enabled():
+        logger.info("Deleting subscription object from cache", subscription_id=subscription_id)
+        cache.delete(f"domain:{subscription_id}")
+        cache.delete(f"domain:etag:{subscription_id}")
+    else:
+        logger.warning("Caching disabled, not deleting subscription", subscription=subscription_id)
