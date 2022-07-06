@@ -137,24 +137,31 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
 
 @step("Remove domain model from cache")
-def remove_domain_model_from_cache(workflow_name: str, subscription: Optional[SubscriptionModel] = None) -> State:
+def remove_domain_model_from_cache(
+    workflow_name: str, subscription: Optional[SubscriptionModel] = None, subscription_id: Optional[UUID] = None
+) -> State:
     """
     Remove the domain model from the cache if it exists.
 
     Args:
         workflow_name: The workflow name
         subscription: Subscription Model
+        subscription_id: The subscription id
 
     Returns:
         State
 
     """
-    if not subscription:
+
+    if not subscription or not subscription_id:
         logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
         return {"deleted_subscription_id": None}
+    elif subscription:
+        delete_from_redis(subscription.subscription_id)
+    elif subscription_id:
+        delete_from_redis(subscription_id)
 
-    delete_from_redis(subscription.subscription_id)
-    return {"deleted_subscription_id": subscription.subscription_id}
+    return {"deleted_subscription_id": subscription_id or subscription.subscription_id}
 
 
 @step("Cache Subscription and related subscriptions")
