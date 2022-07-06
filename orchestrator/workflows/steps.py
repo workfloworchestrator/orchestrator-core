@@ -153,7 +153,7 @@ def remove_domain_model_from_cache(
 
     """
 
-    if not subscription or not subscription_id:
+    if not (subscription or subscription_id):
         logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
         return {"deleted_subscription_id": None}
     elif subscription:
@@ -161,7 +161,7 @@ def remove_domain_model_from_cache(
     elif subscription_id:
         delete_from_redis(subscription_id)
 
-    return {"deleted_subscription_id": subscription_id or subscription.subscription_id}
+    return {"deleted_subscription_id": subscription_id or subscription.subscription_id}  # type: ignore[union-attr]
 
 
 @step("Cache Subscription and related subscriptions")
