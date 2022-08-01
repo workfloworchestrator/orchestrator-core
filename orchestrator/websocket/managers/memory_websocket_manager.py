@@ -30,6 +30,7 @@ class MemoryWebsocketManager:
             self.connections_by_pid[channel] = [websocket]
         else:
             self.connections_by_pid[channel].append(websocket)
+        self.log_amount_of_connections()
 
         try:
             while True:
@@ -38,6 +39,7 @@ class MemoryWebsocketManager:
                     await websocket.send_text("__pong__")
         except WebSocketDisconnect:
             pass
+        await self.remove_ws(websocket, channel)
 
     async def disconnect(
         self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: Union[Dict, str, None] = None
@@ -48,26 +50,31 @@ class MemoryWebsocketManager:
 
     async def disconnect_all(self) -> None:
         for channel in self.connections_by_pid:
-            for connection in self.connections_by_pid[channel]:
-                await self.disconnect(connection)
-                self.remove(connection, channel)
-
-    def remove(self, websocket: WebSocket, channel: str) -> None:
-        if channel in self.connections_by_pid:
-            self.connections_by_pid[channel].remove(websocket)
-            if len(self.connections_by_pid[channel]):
-                del self.connections_by_pid[channel]
+            for websocket in self.connections_by_pid[channel]:
+                await self.remove_ws(websocket, channel)
 
     async def broadcast_data(self, channels: List[str], data: Dict) -> None:
         try:
             for channel in channels:
                 if channel in self.connections_by_pid:
-                    for connection in self.connections_by_pid[channel]:
-                        await connection.send_text(json_dumps(data))
+                    for websocket in self.connections_by_pid[channel]:
+                        await websocket.send_text(json_dumps(data))
                         if "close" in data and data["close"]:
-                            await self.disconnect(connection)
+                            await self.remove_ws(websocket, channel)
         except (RuntimeError, ValueError):
             pass
+
+    async def remove_ws(self, websocket: WebSocket, channel: str) -> None:
+        await self.disconnect(websocket)
+        if channel in self.connections_by_pid:
+            self.connections_by_pid[channel].remove(websocket)
+            if len(self.connections_by_pid[channel]):
+                del self.connections_by_pid[channel]
+        self.log_amount_of_connections()
+
+    def log_amount_of_connections(self) -> None:
+        amount = sum(len(channel) for channel in self.connections_by_pid.values())
+        logger.info("Websocket Connections: %s", amount)
 
     async def connect_redis(self) -> None:
         pass

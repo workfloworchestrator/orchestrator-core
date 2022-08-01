@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from asyncio import new_event_loop
-from functools import wraps
 from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -106,24 +105,11 @@ async def empty_handler() -> None:
     return
 
 
-def websocket_enabled(handler: Any) -> Any:
-    @wraps(handler)
-    @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
-        if websocket_manager.enabled:
-            return await handler(*args, **kwargs)
-        else:
-            return await empty_handler()
-
-    return wrapper
-
-
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
     "create_process_websocket_data",
     "is_process_active",
     "send_process_data_to_websocket",
-    "websocket_enabled",
     "WS_CHANNELS",
 ]

@@ -37,6 +37,7 @@ class BroadcastWebsocketManager:
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         self.connected.append(websocket)
+        self.log_amount_of_connections()
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
@@ -56,8 +57,7 @@ class BroadcastWebsocketManager:
 
     async def disconnect_all(self) -> None:
         for websocket in self.connected:
-            websocket.close(status.WS_1000_NORMAL_CLOSURE)
-            self.remove_ws_from_connected_list(websocket)
+            self.disconnect(websocket)
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
@@ -83,3 +83,7 @@ class BroadcastWebsocketManager:
     def remove_ws_from_connected_list(self, websocket: WebSocket) -> None:
         if websocket in self.connected:
             self.connected.remove(websocket)
+        self.log_amount_of_connections()
+
+    def log_amount_of_connections(self) -> None:
+        logger.info("Websocket Connections: %s", len(self.connected))
