@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type
 
 import sentry_sdk
 import structlog
@@ -68,6 +68,15 @@ class OrchestratorCore(FastAPI):
         websocket_manager = init_websocket_manager(base_settings)
         distlock_manager = init_distlock_manager(base_settings)
         self.broadcast_thread = ProcessDataBroadcastThread(websocket_manager)
+
+        startup_functions: list[Callable] = [distlock_manager.connect_redis]
+        shutdown_functions: list[Callable] = [distlock_manager.disconnect_redis]
+        if websocket_manager.enabled:
+            startup_functions.extend([websocket_manager.connect_redis, self.broadcast_thread.start])
+            shutdown_functions.extend(
+                [websocket_manager.disconnect_all, self.broadcast_thread.stop, websocket_manager.disconnect_redis]
+            )
+
         super().__init__(
             title=title,
             description=description,
@@ -76,17 +85,8 @@ class OrchestratorCore(FastAPI):
             redoc_url=redoc_url,
             version=version,
             default_response_class=default_response_class,
-            on_startup=[
-                websocket_manager.connect_redis,
-                distlock_manager.connect_redis,
-                self.broadcast_thread.start,
-            ],
-            on_shutdown=[
-                self.broadcast_thread.stop,
-                websocket_manager.disconnect_redis,
-                websocket_manager.disconnect_all,
-                distlock_manager.disconnect_redis,
-            ],
+            on_startup=startup_functions,
+            on_shutdown=shutdown_functions,
             **kwargs,
         )
 

@@ -45,7 +45,12 @@ class WrappedWebSocketManager:
 
     def update(self, wrappee: WebSocketManager) -> None:
         self.wrapped_websocket_manager = wrappee
-        logger.warning("WebSocketManager object configured, all methods referencing `websocket_manager` should work.")
+        if self.wrapped_websocket_manager.enabled:
+            logger.warning(
+                "WebSocketManager object configured, all methods referencing `websocket_manager` should work."
+            )
+        else:
+            logger.warning("WebSocketManager object not configured, ENABLE_WEBSOCKETS is false.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
@@ -87,6 +92,9 @@ def send_process_data_to_websocket(
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
+    if not websocket_manager.enabled:
+        return None
+
     if broadcast_func:
         logger.debug("Broadcast process data through broadcast_func", pid=str(pid))
         broadcast_func(pid, data)

@@ -57,7 +57,7 @@ class BroadcastWebsocketManager:
 
     async def disconnect_all(self) -> None:
         for websocket in self.connected:
-            self.disconnect(websocket)
+            await self.disconnect(websocket)
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
