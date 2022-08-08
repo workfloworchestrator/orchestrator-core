@@ -54,6 +54,14 @@ def get_product_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> d
     return result.fetchall()[0]
 
 
+def get_product_ids_by_product_type(conn: sa.engine.Connection, product_type: str) -> list[UUID]:
+    result = conn.execute(
+        sa.text("SELECT product_id FROM products WHERE product_type=:product_type"),
+        product_type=product_type,
+    )
+    return [x for (x,) in result.fetchall()]
+
+
 def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> Sequence:
     result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), id=id)
     return result.fetchall()
