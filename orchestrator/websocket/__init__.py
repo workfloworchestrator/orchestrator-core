@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from asyncio import new_event_loop
-from functools import wraps
 from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -46,7 +45,12 @@ class WrappedWebSocketManager:
 
     def update(self, wrappee: WebSocketManager) -> None:
         self.wrapped_websocket_manager = wrappee
-        logger.warning("WebSocketManager object configured, all methods referencing `websocket_manager` should work.")
+        if self.wrapped_websocket_manager.enabled:
+            logger.warning(
+                "WebSocketManager object configured, all methods referencing `websocket_manager` should work."
+            )
+        else:
+            logger.warning("WebSocketManager object not configured, ENABLE_WEBSOCKETS is false.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
@@ -88,6 +92,9 @@ def send_process_data_to_websocket(
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
+    if not websocket_manager.enabled:
+        return None
+
     if broadcast_func:
         logger.debug("Broadcast process data through broadcast_func", pid=str(pid))
         broadcast_func(pid, data)
@@ -106,24 +113,11 @@ async def empty_handler() -> None:
     return
 
 
-def websocket_enabled(handler: Any) -> Any:
-    @wraps(handler)
-    @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
-        if websocket_manager.enabled:
-            return await handler(*args, **kwargs)
-        else:
-            return await empty_handler()
-
-    return wrapper
-
-
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
     "create_process_websocket_data",
     "is_process_active",
     "send_process_data_to_websocket",
-    "websocket_enabled",
     "WS_CHANNELS",
 ]

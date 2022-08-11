@@ -62,9 +62,10 @@ from orchestrator.services.processes import (
     resume_process,
     start_process,
 )
+from orchestrator.settings import app_settings
 from orchestrator.types import JSON
 from orchestrator.utils.show_process import show_process
-from orchestrator.websocket import WS_CHANNELS, websocket_enabled, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -359,15 +360,16 @@ def processes_filterable(
     return [asdict(enrich_process(p)) for p in results]
 
 
-@router.websocket("/all/")
-@websocket_enabled
-async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
-    error = await websocket_manager.authorize(websocket, token)
+if app_settings.ENABLE_WEBSOCKETS:
 
-    await websocket.accept()
-    if error:
-        await websocket_manager.disconnect(websocket, reason=error)
-        return
+    @router.websocket("/all/")
+    async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
+        error = await websocket_manager.authorize(websocket, token)
 
-    channel = WS_CHANNELS.ALL_PROCESSES
-    await websocket_manager.connect(websocket, channel)
+        await websocket.accept()
+        if error:
+            await websocket_manager.disconnect(websocket, reason=error)
+            return
+
+        channel = WS_CHANNELS.ALL_PROCESSES
+        await websocket_manager.connect(websocket, channel)
