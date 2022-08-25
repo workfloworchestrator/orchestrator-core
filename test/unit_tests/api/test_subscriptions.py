@@ -906,7 +906,7 @@ def test_subscription_detail_with_domain_model_if_none_match(test_client, generi
 
 
 @pytest.mark.skipif(
-    not getenv("AIOCACHE_DISABLE", 0) == 0, reason="AIOCACHE must be enabled for this test to do anything"
+    not getenv("AIOCACHE_DISABLE", "0") == "0", reason="AIOCACHE must be enabled for this test to do anything"
 )
 def test_subscription_detail_with_domain_model_cache(test_client, generic_subscription_1):
     # test with a subscription that has domain model and without
