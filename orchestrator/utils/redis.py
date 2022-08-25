@@ -30,7 +30,7 @@ ONE_WEEK = 3600 * 24 * 7
 
 
 def caching_models_enabled() -> bool:
-    return getenv("AIOCACHE_DISABLE", 0) == 0 and app_settings.CACHE_DOMAIN_MODELS
+    return getenv("AIOCACHE_DISABLE", "0") == "0" and app_settings.CACHE_DOMAIN_MODELS
 
 
 def to_redis(subscription: Dict[str, Any]) -> None:

@@ -47,7 +47,7 @@ def test_get_all_with_product_tags(test_client):
 
 
 @pytest.mark.skipif(
-    not getenv("AIOCACHE_DISABLE", 0) == 0, reason="AIOCACHE must be enabled for this test to do anything"
+    not getenv("AIOCACHE_DISABLE", "0") == "0", reason="AIOCACHE must be enabled for this test to do anything"
 )
 def test_push_subscriptions_to_cache_step(generic_subscription_1):
     push_subscription = orig(cache_domain_models)
