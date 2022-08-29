@@ -30,6 +30,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import String, cast
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql import expression
+from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
@@ -51,6 +52,7 @@ from orchestrator.schemas import (
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
 )
+from orchestrator.schemas.process import ProcessStatusCounts
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import (
     SYSTEM_USER,
@@ -204,6 +206,22 @@ def check_global_lock() -> None:
 @router.get("/statuses", response_model=List[ProcessStatus])
 def statuses() -> List[str]:
     return [status.value for status in ProcessStatus]
+
+
+@router.get("/status-counts", response_model=ProcessStatusCounts)
+def summary() -> ProcessStatusCounts:
+    """Retrieve status counts for processes and tasks."""
+    rows = (
+        ProcessTable.query.with_entities(
+            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)
+        )
+        .group_by(ProcessTable.is_task, ProcessTable.last_status)
+        .all()
+    )
+    return ProcessStatusCounts(
+        process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
+        task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},
+    )
 
 
 @router.get("/assignees", response_model=List[Assignee])
