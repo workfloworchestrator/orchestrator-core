@@ -26,7 +26,7 @@ def cache_fixture():
             try:
                 cache.delete(key)
             except Exception as exc:
-                print("failed to delete cache key", key, str(exc))  # noqa: T001
+                print("failed to delete cache key", key, str(exc))  # noqa: T001, T201
 
 
 @pytest.mark.skipif(
