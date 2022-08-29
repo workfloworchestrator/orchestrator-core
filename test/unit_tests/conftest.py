@@ -16,7 +16,14 @@ from starlette.testclient import DataType, TestClient
 from urllib3_mock import Responses
 
 from orchestrator import OrchestratorCore
-from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable, WorkflowTable, db
+from orchestrator.db import (
+    ProductBlockTable,
+    ProductTable,
+    ResourceTypeTable,
+    SubscriptionCustomerDescriptionTable,
+    WorkflowTable,
+    db,
+)
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
@@ -561,3 +568,16 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 def validation_workflow_instance():
     with WorkflowInstanceForTests(validation_workflow, "validation_workflow"):
         yield "created validation workflow"
+
+
+@pytest.fixture
+def make_customer_description():
+    def customer_description(subscription_id, customer_id, description):
+        model = SubscriptionCustomerDescriptionTable(
+            subscription_id=subscription_id, customer_id=customer_id, description=description
+        )
+        db.session.add(model)
+        db.session.commit()
+        return model
+
+    return customer_description
