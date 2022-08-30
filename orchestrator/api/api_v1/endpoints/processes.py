@@ -209,7 +209,7 @@ def statuses() -> List[str]:
 
 
 @router.get("/status-counts", response_model=ProcessStatusCounts)
-def summary() -> ProcessStatusCounts:
+def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
     rows = (
         ProcessTable.query.with_entities(
