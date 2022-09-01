@@ -10,9 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from asyncio import new_event_loop
-from functools import wraps
 from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -21,6 +19,7 @@ from structlog import get_logger
 
 from orchestrator.db import ProcessTable
 from orchestrator.settings import AppSettings, app_settings
+from orchestrator.types import BroadcastFunc
 from orchestrator.utils.show_process import show_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStat, ProcessStatus
@@ -46,7 +45,12 @@ class WrappedWebSocketManager:
 
     def update(self, wrappee: WebSocketManager) -> None:
         self.wrapped_websocket_manager = wrappee
-        logger.warning("WebSocketManager object configured, all methods referencing `websocket_manager` should work.")
+        if self.wrapped_websocket_manager.enabled:
+            logger.warning(
+                "WebSocketManager object configured, all methods referencing `websocket_manager` should work."
+            )
+        else:
+            logger.warning("WebSocketManager object not configured, ENABLE_WEBSOCKETS is false.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
@@ -82,30 +86,31 @@ def is_process_active(p: Dict) -> bool:
     return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
-def send_process_data_to_websocket(pid: UUID, data: Dict) -> None:
-    loop = new_event_loop()
-    channels = [WS_CHANNELS.ALL_PROCESSES]
-    loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
-    try:
-        loop.close()
-    except Exception:  # noqa: S110
-        pass
+def send_process_data_to_websocket(
+    pid: UUID,
+    data: Dict,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> None:
+    """Broadcast data of the current process to connected websocket clients."""
+    if not websocket_manager.enabled:
+        return None
+
+    if broadcast_func:
+        logger.debug("Broadcast process data through broadcast_func", pid=str(pid))
+        broadcast_func(pid, data)
+    else:
+        logger.debug("Broadcast process data directly to websocket_manager", pid=str(pid))
+        loop = new_event_loop()
+        channels = [WS_CHANNELS.ALL_PROCESSES]
+        loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
+        try:
+            loop.close()
+        except Exception:  # noqa: S110
+            pass
 
 
 async def empty_handler() -> None:
     return
-
-
-def websocket_enabled(handler: Any) -> Any:
-    @wraps(handler)
-    @wraps(empty_handler)
-    async def wrapper(*args: tuple, **kwargs: Dict[str, Any]) -> Any:
-        if websocket_manager.enabled:
-            return await handler(*args, **kwargs)
-        else:
-            return await empty_handler()
-
-    return wrapper
 
 
 __all__ = [
@@ -114,6 +119,5 @@ __all__ = [
     "create_process_websocket_data",
     "is_process_active",
     "send_process_data_to_websocket",
-    "websocket_enabled",
     "WS_CHANNELS",
 ]

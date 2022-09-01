@@ -118,3 +118,8 @@ class ProcessListItemSchema(OrchestratorBaseModel):
 
 class ProcessResumeAllSchema(OrchestratorBaseModel):
     count: int
+
+
+class ProcessStatusCounts(OrchestratorBaseModel):
+    process_counts: Dict[ProcessStatus, int]
+    task_counts: Dict[ProcessStatus, int]

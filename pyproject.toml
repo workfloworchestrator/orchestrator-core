@@ -34,7 +34,6 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 requires = [
-    "aiocache==0.11.1",
     "alembic==1.5.4",
     "broadcaster[redis]==0.2.0",
     "click==8.0.3",
@@ -89,7 +88,7 @@ test = [
     "black",
     "blinker",
     "deepdiff",
-    "flake8",
+    "flake8 < 5.0.0", # Due to https://github.com/tylerwince/flake8-bandit/issues/33
     "flake8-bandit",
     "flake8-bugbear",
     "flake8-comprehensions",

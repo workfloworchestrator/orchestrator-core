@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
-from fastapi import Query, WebSocket
+from fastapi import Query, Request, WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
@@ -30,6 +30,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy import String, cast
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql import expression
+from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from orchestrator.api.error_handling import raise_status
@@ -51,19 +52,22 @@ from orchestrator.schemas import (
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
 )
+from orchestrator.schemas.process import ProcessStatusCounts
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import (
     SYSTEM_USER,
     _async_resume_processes,
     _get_process,
     abort_process,
+    api_broadcast_process_data,
     load_process,
     resume_process,
     start_process,
 )
+from orchestrator.settings import app_settings
 from orchestrator.types import JSON
 from orchestrator.utils.show_process import show_process
-from orchestrator.websocket import WS_CHANNELS, websocket_enabled, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -84,20 +88,22 @@ def delete(pid: UUID) -> None:
 @router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
 def new_process(
     workflow_key: str,
+    request: Request,
     json_data: Optional[List[Dict[str, Any]]] = Body(...),
     user: Optional[OIDCUserModel] = Depends(oidc_user),
 ) -> Dict[str, UUID]:
     check_global_lock()
 
     user_name = user.user_name if user else SYSTEM_USER
-    pid = start_process(workflow_key, user_inputs=json_data, user=user_name)[0]
+    broadcast_func = api_broadcast_process_data(request)
+    pid = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)[0]
 
     return {"id": pid}
 
 
 @router.put("/{pid}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def resume_process_endpoint(
-    pid: UUID, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    pid: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> None:
     check_global_lock()
 
@@ -108,11 +114,14 @@ def resume_process_endpoint(
 
     user_name = user.user_name if user else SYSTEM_USER
 
-    resume_process(process, user=user_name, user_inputs=json_data)
+    broadcast_func = api_broadcast_process_data(request)
+    resume_process(process, user=user_name, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
 @router.put("/resume-all", response_model=ProcessResumeAllSchema)
-async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends(oidc_user)) -> Dict[str, int]:
+async def resume_all_processess_endpoint(
+    request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> Dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -138,7 +147,8 @@ async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends
         .all()
     )
 
-    if not await _async_resume_processes(processes_to_resume, user_name):
+    broadcast_func = api_broadcast_process_data(request)
+    if not await _async_resume_processes(processes_to_resume, user_name, broadcast_func=broadcast_func):
         raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
 
     logger.info("Resuming all processes", count=len(processes_to_resume))
@@ -147,13 +157,13 @@ async def resume_all_processess_endpoint(user: Optional[OIDCUserModel] = Depends
 
 
 @router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(pid: UUID, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
+def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
     process = _get_process(pid)
 
     user_name = user.user_name if user else SYSTEM_USER
-
+    broadcast_func = api_broadcast_process_data(request)
     try:
-        abort_process(process, user_name)
+        abort_process(process, user_name, broadcast_func=broadcast_func)
         return None
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
@@ -196,6 +206,22 @@ def check_global_lock() -> None:
 @router.get("/statuses", response_model=List[ProcessStatus])
 def statuses() -> List[str]:
     return [status.value for status in ProcessStatus]
+
+
+@router.get("/status-counts", response_model=ProcessStatusCounts)
+def status_counts() -> ProcessStatusCounts:
+    """Retrieve status counts for processes and tasks."""
+    rows = (
+        ProcessTable.query.with_entities(
+            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)
+        )
+        .group_by(ProcessTable.is_task, ProcessTable.last_status)
+        .all()
+    )
+    return ProcessStatusCounts(
+        process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
+        task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},
+    )
 
 
 @router.get("/assignees", response_model=List[Assignee])
@@ -352,15 +378,16 @@ def processes_filterable(
     return [asdict(enrich_process(p)) for p in results]
 
 
-@router.websocket("/all/")
-@websocket_enabled
-async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
-    error = await websocket_manager.authorize(websocket, token)
+if app_settings.ENABLE_WEBSOCKETS:
 
-    await websocket.accept()
-    if error:
-        await websocket_manager.disconnect(websocket, reason=error)
-        return
+    @router.websocket("/all/")
+    async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
+        error = await websocket_manager.authorize(websocket, token)
 
-    channel = WS_CHANNELS.ALL_PROCESSES
-    await websocket_manager.connect(websocket, channel)
+        await websocket.accept()
+        if error:
+            await websocket_manager.disconnect(websocket, reason=error)
+            return
+
+        channel = WS_CHANNELS.ALL_PROCESSES
+        await websocket_manager.connect(websocket, channel)
