@@ -27,6 +27,7 @@ classifiers = [
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.8",
@@ -39,7 +40,7 @@ requires = [
     "click==8.0.3",
     "deepmerge==0.1.0",
     "deprecated==1.2.12",
-    "fastapi~=0.78.0",
+    "fastapi~=0.81.0",
     "fastapi-etag==0.2.2",
     "more-itertools~=8.7.0",
     "itsdangerous==1.1.0",
@@ -54,9 +55,9 @@ requires = [
     "opentelemetry-instrumentation-sqlalchemy==0.28b1",
     "opentelemetry-instrumentation-wsgi==0.28b1",
     "opentelemetry-sdk==1.9.1",
-    "orjson==3.7.5",
+    "orjson==3.8.0",
     "psycopg2-binary==2.9.1",
-    "pydantic[email]==1.9.0",
+    "pydantic[email]==1.10.1",
     "python-dateutil==2.8.2",
     "python-rapidjson==1.0",
     "pytz==2020.5",
@@ -77,7 +78,7 @@ requires = [
     "redis==4.3.1",
 ]
 description-file = "README.md"
-requires-python = ">=3.7,<3.11"
+requires-python = ">=3.7,<3.12"
 
 [tool.flit.metadata.urls]
 Documentation = "https://workfloworchestrator.org/orchestrator-core/"
