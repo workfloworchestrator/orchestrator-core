@@ -18,6 +18,7 @@ from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
     EngineSettingsTable,
     FixedInputTable,
+    MinimalImpactNotificationTable,
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
@@ -89,4 +90,5 @@ __all__ = [
     "UtcTimestampException",
     "db",
     "init_database",
+    "MinimalImpactNotificationTable",
 ]

@@ -13,6 +13,10 @@
 
 from orchestrator.schemas.engine_settings import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
 from orchestrator.schemas.fixed_input import FixedInputConfigurationSchema, FixedInputSchema
+from orchestrator.schemas.minimal_impact_notifications import (
+    MinimalImpactNotificationBaseSchema,
+    MinimalImpactNotificationSchema,
+)
 from orchestrator.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.schemas.process import (
     ProcessBaseSchema,
@@ -62,4 +66,6 @@ __all__ = (
     "ResourceTypeBaseSchema",
     "WorkflowSchema",
     "WorkflowWithProductTagsSchema",
+    "MinimalImpactNotificationBaseSchema",
+    "MinimalImpactNotificationSchema",
 )

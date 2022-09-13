@@ -19,6 +19,7 @@ from fastapi.routing import APIRouter
 from orchestrator.api.api_v1.endpoints import (
     fixed_input,
     health,
+    minimal_impact_notifications,
     processes,
     product_blocks,
     products,
@@ -68,6 +69,12 @@ api_router.include_router(
     subscription_customer_descriptions.router,
     prefix="/subscription_customer_descriptions",
     tags=["Core", "Subscription Customer Descriptions"],
+    dependencies=[Depends(opa_security_default)],
+)
+api_router.include_router(
+    minimal_impact_notifications.router,
+    prefix="/minimal_impact_notifications",
+    tags=["Core", "Minimal Impact Notifications"],
     dependencies=[Depends(opa_security_default)],
 )
 api_router.include_router(

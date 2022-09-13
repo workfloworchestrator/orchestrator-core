@@ -14,26 +14,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Dict, List, Optional
 
 import sqlalchemy
 import structlog
 from deprecated import deprecated
 from more_itertools import first_true
-from sqlalchemy import (
-    TIMESTAMP,
-    Boolean,
-    CheckConstraint,
-    Column,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Table,
-    Text,
-    TypeDecorator,
-    text,
-)
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, Column
+from sqlalchemy import Enum as DbEnum
+from sqlalchemy import ForeignKey, Index, Integer, String, Table, Text, TypeDecorator, text
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
@@ -608,6 +598,13 @@ class SubscriptionTable(BaseModel):
         passive_deletes=True,
         back_populates="subscription",
     )
+    minimal_impact_notifications = relationship(
+        "MinimalImpactNotificationTable",
+        lazy="select",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="subscription",
+    )
     processes = relationship("ProcessSubscriptionTable", lazy=True, back_populates="subscription")
 
     @staticmethod
@@ -641,3 +638,39 @@ class EngineSettingsTable(BaseModel):
     global_lock = Column(Boolean(), default=False, nullable=False, primary_key=True)
     running_processes = Column(Integer(), default=0, nullable=False)
     __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
+
+
+class ImpactNotificationLevel(Enum):
+    REDUCED_REDUNDANCY = "Reduced Redundancy"
+    LOSS_OF_RESILIENCY = "Loss of Resiliency"
+    DOWN_TIME = "Down time"
+    NEVER = "Never"
+
+
+class MinimalImpactNotificationTable(BaseModel):
+    __tablename__ = "minimal_impact_notification"
+    id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    subscription_id = Column(
+        UUIDType,
+        ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        unique=UniqueConstraint("customer_id", "subscription_id"),
+    )
+    subscription = relationship("SubscriptionTable")
+    customer_id = Column(
+        UUIDType, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id")
+    )
+    impact = Column(
+        DbEnum(ImpactNotificationLevel, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=ImpactNotificationLevel.REDUCED_REDUNDANCY.value,
+    )
+    created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    last_modified = Column(UtcTimestamp, server_default=text("current_timestamp()"), onupdate=nowtz, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "customer_id", "subscription_id", name="uniq_customer_subscription_minimal_impact_notification"
+        ),
+    )
