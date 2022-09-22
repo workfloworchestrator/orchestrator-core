@@ -76,14 +76,13 @@ logger = structlog.get_logger(__name__)
 
 
 @router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def delete(request: Request, pid: UUID) -> None:
+def delete(pid: UUID) -> None:
     process = ProcessTable.query.filter_by(pid=pid).one_or_none()
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    broadcast_func = api_broadcast_process_data(request)
     websocket_data = {"process": {"id": process.pid, "status": ProcessStatus.ABORTED}}
-    send_process_data_to_websocket(process.pid, websocket_data, broadcast_func=broadcast_func)
+    send_process_data_to_websocket(process.pid, websocket_data)
 
     ProcessTable.query.filter_by(pid=pid).delete()
     db.session.commit()
