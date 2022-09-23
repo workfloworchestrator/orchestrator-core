@@ -67,7 +67,7 @@ from orchestrator.services.processes import (
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON
 from orchestrator.utils.show_process import show_process
-from orchestrator.websocket import WS_CHANNELS, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -77,12 +77,15 @@ logger = structlog.get_logger(__name__)
 
 @router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete(pid: UUID) -> None:
-    count = ProcessTable.query.filter_by(pid=pid).delete()
-    db.session.commit()
-    if count > 0:
-        return None
-    else:
+    process = ProcessTable.query.filter_by(pid=pid).one_or_none()
+    if not process:
         raise_status(HTTPStatus.NOT_FOUND)
+
+    websocket_data = {"process": {"id": process.pid, "status": ProcessStatus.ABORTED}}
+    send_process_data_to_websocket(process.pid, websocket_data)
+
+    ProcessTable.query.filter_by(pid=pid).delete()
+    db.session.commit()
 
 
 @router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
