@@ -27,7 +27,7 @@ from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from starlette.middleware.cors import CORSMiddleware
@@ -140,9 +140,8 @@ class OrchestratorCore(FastAPI):
             server_name=server_name,
             environment=environment,
             release=f"orchestrator@{release}",
-            integrations=[SqlalchemyIntegration(), RedisIntegration()],
+            integrations=[SqlalchemyIntegration(), RedisIntegration(), FastApiIntegration(transaction_style="url")],
         )
-        self.add_middleware(SentryAsgiMiddleware)
 
     @staticmethod
     def register_subscription_models(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
