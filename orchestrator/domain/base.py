@@ -75,6 +75,10 @@ from orchestrator.utils.docs import make_product_block_docstring, make_subscript
 logger = structlog.get_logger(__name__)
 
 
+class ProductNotInRegistryException(Exception):
+    pass
+
+
 def _is_constrained_list_type(type: Type) -> bool:
     """Check if type is a constained list type.
 
@@ -1277,7 +1281,12 @@ class SubscriptionModel(DomainModel):
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-            cls = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name, cls)  # type:ignore
+            try:
+                cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type:ignore
+            except KeyError:
+                raise ProductNotInRegistryException(
+                    f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
+                )
             cls = lookup_specialized_type(cls, status)
         elif not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for lifecycle {status}")
