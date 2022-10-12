@@ -11,9 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from shutil import copyfile
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import jinja2
 import typer
@@ -22,6 +23,7 @@ from alembic.config import Config
 from structlog import get_logger
 
 import orchestrator
+from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
 
 logger = get_logger(__name__)
 
@@ -194,3 +196,49 @@ def history(
 
     """
     command.history(alembic_cfg(), verbose=verbose, indicate_current=indicate_current)
+
+
+@app.command(help="Create revision based on diff_product_in_database.")
+def migrate_domain_models(
+    message: Optional[str] = typer.Option("update domain models", help="Migration name"),
+    test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+    inputs: Optional[str] = typer.Option("{}", help="stringified dict to prefill inputs"),
+) -> Union[Tuple[List[str], List[str]], None]:
+    """Create migration file based on SubscriptionModel.diff_product_in_database. BACKUP DATABASE BEFORE USING THE MIGRATION!.
+
+    You will be prompted with inputs for new models and resource type updates.
+
+    with the above feature, inputs is mostly for testing to prefill the given inputs, but here examples:
+        - new product: `inputs = { "new_product": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
+        - new product fixed input: `inputs = { "new_fixed_input_name": { "description": "add description", "value": "add value" }}`
+        - new product block: `inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }`
+        - new resource type: `inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value" }}`
+            - `value` is inserted as default for all existing instances it is added to
+        - updating a resource type to a new resource type: `inputs = { "old_resource_type_name": { "update": "y" }, "new_resource_type_name": { "description": "add description" }}`
+        - updating a resource type to existing resource type: `inputs = {"old_resource_type_name": { "update": "y" }}`
+    """
+
+    inputs_dict = json.loads(inputs) if isinstance(inputs, str) else {}
+    sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict)
+
+    if test:
+        print("--- TEST DOES NOT GENERATE SQL MIGRATION ---")  # noqa: T001, T201
+        return sql_upgrade_stmts, sql_downgrade_stmts
+
+    print("--- GENERATING SQL MIGRATION FILE ---")  # noqa: T001, T201
+
+    sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
+    sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
+
+    migration = command.revision(alembic_cfg(), message, head="data@head")
+
+    with open(migration.path) as f:
+        file_data = f.read()
+
+    new_file_data = file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_upgrade_str}", 1)
+    new_file_data = new_file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_downgrade_str}", 1)
+    with open(migration.path, "w") as f:
+        f.write(new_file_data)
+
+    print("--- MIGRATION GENERATED (DON'T FORGET TO BACKUP DATABASE BEFORE MIGRATING!) ---")  # noqa: T001, T201
+    return None
