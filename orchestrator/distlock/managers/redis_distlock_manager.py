@@ -80,7 +80,7 @@ class RedisDistLockManager:
             redis_conn = Redis(host=self.redis_address[0], port=self.redis_address[1])
             sync_lock: SyncLock = SyncLock(
                 redis=redis_conn,
-                name=lock.name,
+                name=lock.name,  # type: ignore
                 timeout=lock.timeout,
                 blocking=False,
                 thread_local=False,
