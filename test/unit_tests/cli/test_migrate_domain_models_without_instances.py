@@ -512,60 +512,10 @@ def test_migrate_domain_models_remove_resource_type(
     assert len(downgrade_sql) == 0
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
-    assert (
-        before_diff
-        == {
-            "TestProductOne": {
-                "missing_in_depends_on_blocks": {
-                    "ProductBlockOneForTest": {"missing_resource_types_in_model": {"list_field"}}
-                }
-            }
-        }
-        != {"TestProductOne": {"missing_product_blocks_in_model": {"ProductBlockOneForTest"}}}
-    )
-
-    for stmt in upgrade_sql:
-        db.session.execute(stmt)
-    db.session.commit()
-
-    before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
-    assert before_diff == {}
-
-    for stmt in downgrade_sql:
-        db.session.execute(stmt)
-    db.session.commit()
-
-
-def test_migrate_domain_models_remove_resource_type_from_block(
-    test_product_one, test_product_type_one, test_product_block_one, test_product_sub_block_one
-):
-    _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
-    _, ProductBlockOneForTestProvisioning, _ = test_product_block_one
-    _, _, SubBlockOneForTest = test_product_sub_block_one
-
-    class ProductBlockOneForTest(ProductBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-        sub_block: SubBlockOneForTest
-        sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
-        int_field: int
-        list_field: List[int]
-
-    class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-        test_fixed_input: bool
-        block: ProductBlockOneForTest
-
-    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
-
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True)
-
-    assert len(upgrade_sql) == 2
-    assert len(downgrade_sql) == 0
-
-    before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert before_diff == {
         "TestProductOne": {
             "missing_in_depends_on_blocks": {
-                "ProductBlockOneForTest": {"missing_resource_types_in_model": {"str_field"}}
+                "ProductBlockOneForTest": {"missing_resource_types_in_model": {"list_field"}}
             }
         }
     }
