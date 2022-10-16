@@ -13,7 +13,7 @@ def generic_mapper(prop_name: str, model_diffs: Dict[str, Dict[str, Set[str]]]) 
     model_by_resource = [
         (prop_name_value, model_name)
         for model_name, diff in model_diffs.items()
-        for prop_name_value in diff.get(prop_name, [])  # type: ignore
+        for prop_name_value in diff.get(prop_name, [])
     ]
     grouped = groupby(model_by_resource, lambda x: x[0])
     return {k: {val[1] for val in v} for k, v in grouped}

@@ -621,16 +621,10 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         )
 
         missing_data: Dict[str, Any] = {}
-        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            for product_block_model in one(product_blocks_types_in_model):
-                if product_block_model.name == cls.name or product_block_model.name in missing_data:
-                    continue
-                missing_data.update(product_block_model.diff_product_block_in_database())
-        else:
-            for product_block_model in product_blocks_types_in_model:
-                if product_block_model.name == cls.name or product_block_model.name in missing_data:
-                    continue
-                missing_data.update(product_block_model.diff_product_block_in_database())
+        for product_block_model in product_blocks_types_in_model:
+            if product_block_model.name == cls.name or product_block_model.name in missing_data:
+                continue
+            missing_data.update(product_block_model.diff_product_block_in_database())
 
         diff: Dict[str, Set[str]] = {
             k: v

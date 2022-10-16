@@ -190,7 +190,7 @@ def generate_create_resource_type_relations_sql(
             return [block_relations, subscription_block_relations]
         return [block_relations]
 
-    return flatten([create_resource_type_relation(*item) for item in resource_types.items()])
+    return list(flatten([create_resource_type_relation(*item) for item in resource_types.items()]))
 
 
 def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str, Set[str]]) -> List[str]:
@@ -217,4 +217,4 @@ def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str,
             ),
         ]
 
-    return flatten([delete_resource_type_relation(*item) for item in delete_resource_types.items()])
+    return list(flatten([delete_resource_type_relation(*item) for item in delete_resource_types.items()]))
