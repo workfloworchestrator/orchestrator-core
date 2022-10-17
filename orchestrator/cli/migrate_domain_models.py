@@ -117,6 +117,7 @@ def map_differences_unique(
     """Create a unique map for products and product block differences from the database.
 
     Args:
+        - registered_products: Dict with product models by product name.
         - existing_products: List with tuples of product name and its uuid that exist in the database.
 
     Returns a dict with product and product block differences from the database without duplicates.

@@ -13,8 +13,8 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
     """Map fixed inputs to update.
 
     Args:
-        - block_diffs: Dict with product block differences.
-            - key: product block name
+        - product_diffs: Dict with product differences.
+            - key: product name
             - value: Dict with differences between model and database.
                 - key: difference name, 'missing_fixed_inputs_in_model' and 'missing_fixed_inputs_in_db' are used to check if a fixed input can be renamed.
                 - value: Set of fixed input names.

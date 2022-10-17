@@ -208,7 +208,7 @@ def migrate_domain_models(
 
     You will be prompted with inputs for new models and resource type updates.
 
-    with the above feature, inputs is mostly for testing to prefill the given inputs, but here examples:
+    The inputs argument is mostly used for testing the prefill of given inputs, here examples:
         - new product: `inputs = { "new_product": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
         - new product fixed input: `inputs = { "new_fixed_input_name": { "description": "add description", "value": "add value" }}`
         - new product block: `inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }`
