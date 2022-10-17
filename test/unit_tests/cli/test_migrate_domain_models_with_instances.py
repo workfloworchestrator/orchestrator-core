@@ -5,10 +5,59 @@ from sqlalchemy.exc import IntegrityError
 
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
-from orchestrator.db.models import ResourceTypeTable
+from orchestrator.db.models import ResourceTypeTable, SubscriptionInstanceValueTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
+
+
+def test_migrate_domain_models_new_product_block(
+    test_product_type_one, test_product_block_one, product_one_subscription_1
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+    _, _, ProductBlockOneForTest = test_product_block_one
+
+    class TestBlock(ProductBlockModel, product_block_name="test block", lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+
+    class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        new_block: TestBlock
+        block: ProductBlockOneForTest
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps(
+        {
+            "test block": {"description": "test block description", "tag": "test_block_tag"},
+            "str_field": {"test block": "test"},
+        }
+    )
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+
+    def test_expected_before_upgrade():
+        subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+        assert "new_block" not in subscription.block.dict()
+
+    test_expected_before_upgrade()
+
+    assert len(upgrade_sql) == 5
+    assert len(downgrade_sql) == 5
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
+    assert new_model.new_block
+    assert new_model.new_block.str_field
+    assert new_model.new_block.str_field == "test"
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    test_expected_before_upgrade()
 
 
 def test_migrate_domain_models_new_resource_type(
@@ -333,6 +382,15 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
 
     subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
     assert subscription.block
+    assert subscription.block.int_field
+
+    int_field_resource: List[ResourceTypeTable] = ResourceTypeTable.query.where(
+        ResourceTypeTable.resource_type == "int_field"
+    ).all()
+    int_field_instance_values = SubscriptionInstanceValueTable.query.where(
+        SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
+    ).all()
+    assert len(int_field_instance_values) == 3
 
     for stmt in upgrade_sql:
         db.session.execute(stmt)
@@ -340,6 +398,11 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert "block" not in subscription.dict()
+
+    int_field_instance_values = SubscriptionInstanceValueTable.query.where(
+        SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
+    ).all()
+    assert len(int_field_instance_values) == 0
 
     for stmt in downgrade_sql:
         db.session.execute(stmt)

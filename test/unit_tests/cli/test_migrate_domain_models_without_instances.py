@@ -23,7 +23,7 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
     )
     upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs)
 
-    assert len(upgrade_sql) == 9
+    assert len(upgrade_sql) == 12
     assert len(downgrade_sql) == 14
 
     product_id = (
@@ -118,7 +118,7 @@ def test_migrate_domain_models_new_product_block(test_product_one, test_product_
         }
     }
 
-    assert len(upgrade_sql) == 3
+    assert len(upgrade_sql) == 4
     assert len(downgrade_sql) == 5
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -172,7 +172,7 @@ def test_migrate_domain_models_new_resource_type(
         }
     }
 
-    assert len(upgrade_sql) == 2
+    assert len(upgrade_sql) == 3
     assert len(downgrade_sql) == 4
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -297,7 +297,7 @@ def test_migrate_domain_models_create_and_update_resource_type(
         }
     }
 
-    assert len(upgrade_sql) == 2
+    assert len(upgrade_sql) == 3
     assert [sql_stmt for sql_stmt in upgrade_sql if "UPDATE" in sql_stmt]
     assert len(downgrade_sql) == 3
     assert [sql_stmt for sql_stmt in downgrade_sql if "UPDATE" in sql_stmt]
@@ -376,7 +376,7 @@ def test_migrate_domain_models_create_and_delete_and_update_resource_type(
         }
     }
 
-    assert len(upgrade_sql) == 4
+    assert len(upgrade_sql) == 5
     assert [sql_stmt for sql_stmt in upgrade_sql if "UPDATE" in sql_stmt]
     assert len(downgrade_sql) == 3
     assert [sql_stmt for sql_stmt in downgrade_sql if "UPDATE" in sql_stmt]

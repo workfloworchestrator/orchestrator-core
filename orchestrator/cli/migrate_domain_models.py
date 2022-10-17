@@ -25,6 +25,7 @@ from orchestrator.cli.domain_gen_helpers.helpers import (
     map_delete_resource_type_relations,
 )
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import (
+    generate_create_product_block_instance_relations_sql,
     generate_create_product_block_relations_sql,
     generate_create_product_blocks_sql,
     generate_delete_product_block_relations_sql,
@@ -34,6 +35,7 @@ from orchestrator.cli.domain_gen_helpers.product_block_helpers import (
     map_product_block_additional_relations,
 )
 from orchestrator.cli.domain_gen_helpers.product_helpers import (
+    generate_create_product_instance_relations_sql,
     generate_create_product_relations_sql,
     generate_create_products_sql,
     generate_delete_product_relations_sql,
@@ -41,6 +43,7 @@ from orchestrator.cli.domain_gen_helpers.product_helpers import (
     map_product_additional_relations,
 )
 from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
+    generate_create_resource_type_instance_relations_sql,
     generate_create_resource_type_relations_sql,
     generate_create_resource_types_sql,
     generate_delete_resource_type_relations_sql,
@@ -145,6 +148,19 @@ def map_changes(
     db_product_names: List[str],
     inputs: Dict[str, Dict[str, str]],
 ) -> DomainModelChanges:
+    """Map changes that need to be made to fix differences between models and database.
+
+    Args:
+        - model_diffs: Dict with product and product block differences.
+            - products: Dict with product differences.
+            - blocks: Dict with product block differences.
+        - products: Dict with product model by product name.
+        - product_blocks: Dict with product block model by product name.
+        - db_product_names: Product names out of the database.
+        - inputs: Optional Dict with prefilled values.
+
+    Returns: Mapped changes.
+    """
     create_products = {name: model for name, model in products.items() if name not in db_product_names}
     delete_products = [name for name in db_product_names if name not in SUBSCRIPTION_MODEL_REGISTRY.keys()]
 
@@ -184,6 +200,14 @@ def map_changes(
 
 
 def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str, str]]) -> List[str]:
+    """Generate upgrade SQL with mapped changes.
+
+    Args:
+        - changes: Mapping of model changes.
+        - inputs: Optional Dict with prefilled values.
+
+    Returns: List of SQL strings to upgrade the database.
+    """
     return [
         *generate_update_fixed_inputs_sql(changes.update_product_fixed_inputs),
         *generate_update_resource_types_sql(changes.update_resource_types),
@@ -199,12 +223,24 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
         *generate_create_product_blocks_sql(changes.create_product_blocks, inputs),
         *generate_create_resource_types_sql(changes.create_resource_types, inputs),
         *generate_create_product_relations_sql(changes.create_product_to_block_relations),
-        *generate_create_resource_type_relations_sql(changes.create_resource_type_relations, inputs),
         *generate_create_product_block_relations_sql(changes.create_product_block_relations),
+        *generate_create_resource_type_relations_sql(changes.create_resource_type_relations),
+        *generate_create_product_instance_relations_sql(changes.create_product_to_block_relations),
+        *generate_create_product_block_instance_relations_sql(changes.create_product_block_relations),
+        *generate_create_resource_type_instance_relations_sql(changes.create_resource_type_relations, inputs),
     ]
 
 
 def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
+    """Generate downgrade SQL with mapped changes.
+
+    Does not revert deleted subscription instances and subscription instance values!
+
+    Args:
+        - changes: Mapping of model changes.
+
+    Returns: List of SQL strings to downgrade the database back before upgrade SQL.
+    """
     sql_revert_create_fixed_inputs = generate_delete_fixed_inputs_sql(changes.create_product_fixed_inputs)
 
     update_revert_map = {
@@ -276,6 +312,7 @@ def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tup
     changes = map_changes(model_diffs, products, product_blocks, db_product_names, inputs)
 
     logger.debug("create_products", create_products=changes.create_products)
+    logger.debug("delete_products", delete_products=changes.delete_products)
     logger.debug("create_product_fixed_inputs", create_product_fixed_inputs=changes.create_product_fixed_inputs)
     logger.debug("update_product_fixed_inputs", update_product_fixed_inputs=changes.update_product_fixed_inputs)
     logger.debug("delete_product_fixed_inputs", delete_product_fixed_inputs=changes.delete_product_fixed_inputs)
