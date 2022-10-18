@@ -23,7 +23,7 @@ def get_user_input(text: str, default: Optional[str] = None) -> Optional[str]:
     while True:
         answer = input(text)
         if answer or default:
-            return answer or default
+            return answer.strip() or default
 
 
 def map_create_fixed_inputs(model_diffs: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Set[str]]:

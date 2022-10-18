@@ -200,7 +200,7 @@ def history(
 
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
-    message: Optional[str] = typer.Option("update domain models", help="Migration name"),
+    message: str = typer.Argument("update domain models", help="Migration name"),
     test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
     inputs: Optional[str] = typer.Option("{}", help="stringified dict to prefill inputs"),
 ) -> Union[Tuple[List[str], List[str]], None]:

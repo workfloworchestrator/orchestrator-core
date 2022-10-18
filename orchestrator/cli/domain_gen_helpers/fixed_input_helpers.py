@@ -48,7 +48,7 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
 def generate_create_fixed_inputs_sql(
     fixed_inputs: Dict[str, Set[str]], inputs: Dict[str, Dict[str, str]], revert: bool = False
 ) -> List[str]:
-    """Generate sql strings to create product blocks.
+    """Generate SQL to create fixed inputs.
 
     Args:
         - fixed_inputs: Dict with product names by fixed input.
@@ -59,9 +59,9 @@ def generate_create_fixed_inputs_sql(
             - value: Dict with prefilled value.
                 - key: 'value' as key.
                 - value: prefilled value.
-        - revert: boolean to create sql string with value filled by the database.
+        - revert: boolean to create SQL string with value filled by the database.
 
-    Returns: List of sql strings to create fixed inputs.
+    Returns: List of SQL to create fixed inputs.
     """
 
     def create_fixed_input(fixed_input: str, product_names: Set[str]) -> str:

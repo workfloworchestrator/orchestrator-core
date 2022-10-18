@@ -43,7 +43,7 @@ from orchestrator.cli.domain_gen_helpers.product_helpers import (
     map_product_additional_relations,
 )
 from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
-    generate_create_resource_type_instance_relations_sql,
+    generate_create_resource_type_instance_values_sql,
     generate_create_resource_type_relations_sql,
     generate_create_resource_types_sql,
     generate_delete_resource_type_relations_sql,
@@ -82,16 +82,14 @@ def map_product_blocks_in_class(
         model_class._get_depends_on_product_block_types()
     )
 
-    new_blocks = {
-        block.name: block for block in product_blocks_types_in_model if block.name not in product_blocks.keys()
-    }
+    new_blocks = {block.name: block for block in product_blocks_types_in_model if block.name not in product_blocks}
     product_blocks = {**product_blocks, **new_blocks}
 
     blocks_map = {
         name: block_cls
         for block in new_blocks.values()
         for name, block_cls in map_product_blocks_in_class(block, product_blocks).items()
-        if block_cls.name not in product_blocks.keys()
+        if block_cls.name not in product_blocks
     }
     return {**product_blocks, **blocks_map}
 
@@ -125,20 +123,19 @@ def map_differences_unique(
     model_diffs: Dict[str, Dict[str, Dict[str, Set[str]]]] = {"products": {}, "blocks": {}}
 
     for product_name, product_id in existing_products:
-        if should_skip(product_name) or product_name not in registered_products.keys():
+        if should_skip(product_name) or product_name not in registered_products:
             continue
 
         product_class = registered_products[product_name]
         if diff := product_class.diff_product_in_database(product_id):
-            model_diffs["products"][product_name] = {**diff[product_name], "missing_in_depends_on_blocks": []}  # type: ignore
+            model_diffs["products"][product_name] = {k: v for k, v in diff[product_name].items() if isinstance(v, set)}
 
             if missing_in_depends_on_blocks := diff[product_name].get("missing_in_depends_on_blocks"):
-                model_diff_keys = model_diffs["blocks"].keys()
                 # since missing_in_depends_on_blocks is always a dict the type is ignored.
-                new_model_diffs = {
-                    name: diff for name, diff in missing_in_depends_on_blocks.items() if name not in model_diff_keys  # type: ignore
+                new_model_diffs: Dict[str, Dict[str, Set[str]]] = {
+                    name: diff for name, diff in missing_in_depends_on_blocks.items() if name not in model_diffs["blocks"]  # type: ignore
                 }
-                model_diffs["blocks"] = {**model_diffs["blocks"], **new_model_diffs}  # type: ignore
+                model_diffs["blocks"] = {**model_diffs["blocks"], **new_model_diffs}
     return model_diffs
 
 
@@ -163,7 +160,7 @@ def map_changes(
     Returns: Mapped changes.
     """
     create_products = {name: model for name, model in products.items() if name not in db_product_names}
-    delete_products = [name for name in db_product_names if name not in SUBSCRIPTION_MODEL_REGISTRY.keys()]
+    delete_products = [name for name in db_product_names if name not in SUBSCRIPTION_MODEL_REGISTRY]
 
     # updates need to go before create or deletes.
     update_product_fixed_inputs = map_update_fixed_inputs(model_diffs["products"])
@@ -228,7 +225,7 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
         *generate_create_resource_type_relations_sql(changes.create_resource_type_relations),
         *generate_create_product_instance_relations_sql(changes.create_product_to_block_relations),
         *generate_create_product_block_instance_relations_sql(changes.create_product_block_relations),
-        *generate_create_resource_type_instance_relations_sql(changes.create_resource_type_relations, inputs),
+        *generate_create_resource_type_instance_values_sql(changes.create_resource_type_relations, inputs),
     ]
 
 
@@ -286,7 +283,7 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
 
 
 def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tuple[List[str], List[str]]:
-    """Create tuple with list for upgrade and downgrade sql statements based on SubscriptionModel.diff_product_in_database.
+    """Create tuple with list for upgrade and downgrade SQL statements based on SubscriptionModel.diff_product_in_database.
 
     You will be prompted with inputs for new models and resource type updates.
 
@@ -294,8 +291,8 @@ def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tup
         - inputs: dict with pre-defined input values
 
     Returns tuple:
-        - list of upgrade sql statements in string format.
-        - list of downgrade sql statements in string format.
+        - list of upgrade SQL statements in string format.
+        - list of downgrade SQL statements in string format.
     """
 
     if not app_settings.TESTING:

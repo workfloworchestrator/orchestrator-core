@@ -45,9 +45,8 @@ def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
 
     Returns: List of product block names to delete.
     """
-    product_blocks_names = product_blocks.keys()
     existing_product_blocks = ProductBlockTable.query.with_entities(ProductBlockTable.name).all()
-    return [name[0] for name in existing_product_blocks if name[0] not in product_blocks_names]
+    return [name[0] for name in existing_product_blocks if name[0] not in product_blocks]
 
 
 def map_product_block_additional_relations(changes: DomainModelChanges) -> DomainModelChanges:
@@ -80,7 +79,7 @@ def map_product_block_additional_relations(changes: DomainModelChanges) -> Domai
 def generate_create_product_blocks_sql(
     create_product_blocks: Dict[str, Any], inputs: Dict[str, Dict[str, str]]
 ) -> List[str]:
-    """Generate sql strings to create product blocks.
+    """Generate SQL to create product blocks.
 
     Args:
         - create_product_blocks: List of product block names.
@@ -90,7 +89,7 @@ def generate_create_product_blocks_sql(
                 - key: product block property.
                 - value: value for the property.
 
-    Returns: List of sql strings to create product blocks.
+    Returns: List of SQL to create product blocks.
     """
 
     def create_product_block(name: str) -> str:
@@ -109,16 +108,16 @@ def generate_create_product_blocks_sql(
             )
         )
 
-    return [create_product_block(name) for name in create_product_blocks.keys()]
+    return [create_product_block(name) for name in create_product_blocks]
 
 
 def generate_delete_product_blocks_sql(delete_product_blocks: List[str]) -> List[str]:
-    """Generate sql strings to delete product blocks.
+    """Generate SQL to delete product blocks.
 
     Args:
         - delete_product_blocks: List of product block names.
 
-    Returns: List of sql strings to delete product blocks.
+    Returns: List of SQL to delete product blocks.
     """
 
     if not delete_product_blocks:
@@ -134,14 +133,14 @@ def generate_delete_product_blocks_sql(delete_product_blocks: List[str]) -> List
 
 
 def generate_create_product_block_relations_sql(create_block_relations: Dict[str, Set[str]]) -> List[str]:
-    """Generate sql strings to create product block to product block relations.
+    """Generate SQL to create product block to product block relations.
 
     Args:
         - create_block_relations: Dict with product blocks by product block
             - key: product block name.
             - value: Set of product block names to relate with.
 
-    Returns: List of sql strings to create relation between product blocks.
+    Returns: List of SQL to create relation between product blocks.
     """
 
     def create_block_relation(depends_block_name: str, block_names: Set[str]) -> str:
@@ -158,7 +157,7 @@ def generate_create_product_block_relations_sql(create_block_relations: Dict[str
 
 
 def generate_create_product_block_instance_relations_sql(product_block_relations: Dict[str, Set[str]]) -> List[str]:
-    """Generate sql strings strings to create resource type instance values for existing instances.
+    """Generate SQL to create resource type instance values for existing instances.
 
     Args:
         - product_block_relations: Dict with product blocks by resource type
@@ -222,14 +221,14 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
 
 
 def generate_delete_product_block_relations_sql(delete_block_relations: Dict[str, Set[str]]) -> List[str]:
-    """Generate sql strings to delete product block to product blocks relations.
+    """Generate SQL to delete product block to product blocks relations.
 
     Args:
         - delete_block_relations: Dict with product blocks by product block
             - key: Product block name.
             - value: Set of product block names to relate with.
 
-    Returns: List of sql strings to delete relations between product blocks.
+    Returns: List of SQL to delete relations between product blocks.
     """
 
     def delete_block_relation(delete_block_name: str, block_names: Set[str]) -> str:

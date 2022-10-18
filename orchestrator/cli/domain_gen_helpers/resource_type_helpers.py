@@ -57,7 +57,7 @@ def find_resource_within_blocks(
 
     Returns: List of the resource_type_names that are found within product blocks.
     """
-    keys = list(flatten([product_block._non_product_block_fields_.keys() for product_block in product_blocks.values()]))
+    keys = flatten([product_block._non_product_block_fields_.keys() for product_block in product_blocks.values()])
     return {field_name for field_name in keys if field_name in resource_type_names}
 
 
@@ -108,16 +108,16 @@ def map_update_resource_types(
                     updates[db_props[0]] = model_props[0]
 
     for name, diff in block_diffs.items():
-        db_props = list(diff.get("missing_resource_types_in_model", set()))
-        model_props = list(diff.get("missing_resource_types_in_db", set()))
+        db_props_set = diff.get("missing_resource_types_in_model", set())
+        model_props_set = diff.get("missing_resource_types_in_db", set())
 
         for key, value in updates.items():
-            if key in db_props and value in model_props:
-                db_props.remove(key)
-                model_props.remove(value)
+            if key in db_props_set and value in model_props_set:
+                db_props_set.remove(key)
+                model_props_set.remove(value)
 
-        block_diffs[name]["missing_resource_types_in_model"] = set(db_props)
-        block_diffs[name]["missing_resource_types_in_db"] = set(model_props)
+        block_diffs[name]["missing_resource_types_in_model"] = db_props_set
+        block_diffs[name]["missing_resource_types_in_db"] = model_props_set
     return updates
 
 
@@ -250,7 +250,7 @@ def generate_create_resource_type_relations_sql(resource_types: Dict[str, Set[st
     return [create_resource_type_relation(*item) for item in resource_types.items()]
 
 
-def generate_create_resource_type_instance_relations_sql(
+def generate_create_resource_type_instance_values_sql(
     resource_types: Dict[str, Set[str]], inputs: Dict[str, Dict[str, str]]
 ) -> List[str]:
     """Generate SQL to create resource type instance values for existing instances.
