@@ -60,6 +60,65 @@ def test_migrate_domain_models_new_product_block(
     test_expected_before_upgrade()
 
 
+def test_migrate_domain_models_new_product_block_on_product_block(
+    test_product_type_one, test_product_block_one, product_one_subscription_1, test_product_sub_block_one
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+    _, _, SubBlockOneForTest = test_product_sub_block_one
+
+    class TestBlock(ProductBlockModel, product_block_name="test block", lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+
+    class ProductBlockOneForTestUpdated(
+        ProductBlockModel, product_block_name="ProductBlockOneForTest", lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        sub_block: SubBlockOneForTest
+        sub_block_2: SubBlockOneForTest
+        sub_block_list: List[SubBlockOneForTest]
+        str_field: str
+        int_field: int
+        list_field: List[int]
+        new_block: TestBlock
+
+    class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        block: ProductBlockOneForTestUpdated
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps(
+        {
+            "test block": {"description": "test block description", "tag": "test_block_tag"},
+            "str_field": {"test block": "test"},
+        }
+    )
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+
+    def test_expected_before_upgrade():
+        subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+        assert "new_block" not in subscription.block.dict()
+
+    test_expected_before_upgrade()
+
+    assert len(upgrade_sql) == 6
+    assert len(downgrade_sql) == 5
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
+    assert new_model.block.new_block
+    assert new_model.block.new_block.str_field
+    assert new_model.block.new_block.str_field == "test"
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    test_expected_before_upgrade()
+
+
 def test_migrate_domain_models_new_resource_type(
     test_product_type_one, test_product_sub_block_one, product_one_subscription_1
 ):
@@ -105,6 +164,58 @@ def test_migrate_domain_models_new_resource_type(
     updated_subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert updated_subscription.block
     assert updated_subscription.block.new_int_field == 1
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    test_expected_before_upgrade()
+
+
+def test_migrate_domain_models_new_product_block_and_resource_type(
+    test_product_type_one, test_product_block_one, product_one_subscription_1
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+    _, _, ProductBlockOneForTest = test_product_block_one
+
+    class TestBlock(ProductBlockModel, product_block_name="test block", lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+        new_str_field: str
+
+    class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        new_block: TestBlock
+        block: ProductBlockOneForTest
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps(
+        {
+            "test block": {"description": "test block description", "tag": "test_block_tag"},
+            "str_field": {"test block": "test"},
+            "new_str_field": {"description": "new str field desc", "test block": "new test"},
+        }
+    )
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+
+    def test_expected_before_upgrade():
+        subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+        assert "new_block" not in subscription.block.dict()
+
+    test_expected_before_upgrade()
+
+    assert len(upgrade_sql) == 8
+    assert len(downgrade_sql) == 9
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
+    assert new_model.new_block
+    assert new_model.new_block.str_field
+    assert new_model.new_block.str_field == "test"
+    assert new_model.new_block.new_str_field == "new test"
 
     for stmt in downgrade_sql:
         db.session.execute(stmt)

@@ -1,12 +1,18 @@
 from itertools import groupby
 from typing import Dict, Optional, Set
 
+import structlog
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Query
 
+logger = structlog.get_logger(__name__)
+
 
 def sql_compile(sql: Query) -> str:
-    return str(sql.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})).replace("\n", "")
+    sql_string = str(sql.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    sql_string = sql_string.replace("\n", "")
+    logger.debug("generated SQL", sql_string=sql_string)
+    return sql_string
 
 
 def generic_mapper(prop_name: str, model_diffs: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Set[str]]:
@@ -23,7 +29,7 @@ def get_user_input(text: str, default: Optional[str] = None) -> Optional[str]:
     while True:
         answer = input(text)
         if answer or default:
-            return answer.strip() or default
+            return answer.strip() if answer else default
 
 
 def map_create_fixed_inputs(model_diffs: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Set[str]]:

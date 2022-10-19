@@ -1,6 +1,6 @@
-from typing import Dict, List, Set, Type, Union
+from itertools import chain
+from typing import Dict, Generator, List, Set, Type, Union
 
-from more_itertools import flatten
 from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import Delete, Insert
 
@@ -41,7 +41,7 @@ def map_product_additional_relations(changes: DomainModelChanges) -> DomainModel
 
     for product_name, product_class in changes.create_products.items():
         for field_name in product_class._non_product_block_fields_.keys():
-            if field_name not in changes.create_resource_types:
+            if field_name not in changes.create_product_fixed_inputs:
                 changes.create_product_fixed_inputs[field_name] = set()
             changes.create_product_fixed_inputs[field_name].add(product_name)
 
@@ -147,37 +147,33 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: D
     Returns: List of SQL strings to create subscription instances.
     """
 
-    def create_subscription_instance_relations(block_name: str, product_names: Set[str]) -> str:
+    def create_subscription_instance_relations(block_name: str, product_names: Set[str]) -> Generator[str, None, None]:
         product_block_id = get_product_block_id(block_name)
 
-        def map_subscription_instance_relations(product_name: str) -> List[Dict[str, Union[str, Query]]]:
+        def map_subscription_instance_relations(
+            product_name: str,
+        ) -> Generator[Dict[str, Union[str, Query]], None, None]:
             product_id_sql = get_product_id(product_name)
             subscription_ids = (
                 SubscriptionTable.query.where(SubscriptionTable.product_id.in_(product_id_sql))
                 .with_entities(SubscriptionTable.subscription_id)
                 .all()
             )
-            if not subscription_ids:
-                return []
-            return [
-                {"subscription_id": subscription_id[0], "product_block_id": product_block_id}
-                for subscription_id in subscription_ids
-            ]
+
+            for subscription_id in subscription_ids:
+                yield {"subscription_id": subscription_id[0], "product_block_id": product_block_id}
 
         subscription_relation_dicts = list(
-            flatten([map_subscription_instance_relations(block_name) for block_name in product_names])
+            chain.from_iterable(map_subscription_instance_relations(block_name) for block_name in product_names)
         )
-        subscription_block_relations = ""
         if subscription_relation_dicts:
-            subscription_block_relations = sql_compile(
-                Insert(SubscriptionInstanceTable).values(subscription_relation_dicts)
-            )
-        return subscription_block_relations
+            yield sql_compile(Insert(SubscriptionInstanceTable).values(subscription_relation_dicts))
 
-    create_subscription_instance_sqls = [
-        create_subscription_instance_relations(*item) for item in product_to_block_relations.items()
-    ]
-    return [sub_instance_sql for sub_instance_sql in create_subscription_instance_sqls if sub_instance_sql]
+    return list(
+        chain.from_iterable(
+            create_subscription_instance_relations(*item) for item in product_to_block_relations.items()
+        )
+    )
 
 
 def generate_delete_product_relations_sql(delete_block_relations: Dict[str, Set[str]]) -> List[str]:

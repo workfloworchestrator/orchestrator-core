@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Set, Type, Union
+from itertools import chain
+from typing import Any, Dict, Generator, List, Set, Type, Union
 
 from more_itertools import flatten
 from sqlalchemy.orm import Query
@@ -6,7 +7,12 @@ from sqlalchemy.sql.expression import Delete, Insert
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
-from orchestrator.db.models import ProductBlockRelationTable, ProductBlockTable, SubscriptionInstanceTable
+from orchestrator.db.models import (
+    ProductBlockRelationTable,
+    ProductBlockTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionInstanceTable,
+)
 from orchestrator.domain.base import ProductBlockModel, get_depends_on_product_block_type_list
 
 
@@ -22,6 +28,18 @@ def get_product_block_ids(block_names: Union[List[str], Set[str]]) -> Query:
     )
 
 
+def get_subscription_instance(subscription_id: str, product_block_id: Query) -> Query:
+    return (
+        SubscriptionInstanceTable.query.where(
+            SubscriptionInstanceTable.product_block_id.in_(product_block_id),
+            SubscriptionInstanceTable.subscription_id == subscription_id,
+        )
+        .with_entities(SubscriptionInstanceTable.subscription_instance_id)
+        .limit(1)
+        .as_scalar()
+    )
+
+
 def map_create_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]) -> Dict[str, Type[ProductBlockModel]]:
     """Map product blocks to create.
 
@@ -30,8 +48,8 @@ def map_create_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
 
     Returns: Dict of product blocks by product block name to create.
     """
-    existing_product_blocks = ProductBlockTable.query.with_entities(ProductBlockTable.name).all()
-    existing_product_blocks = [block_name[0] for block_name in existing_product_blocks]
+    _existing_product_blocks = ProductBlockTable.query.with_entities(ProductBlockTable.name).all()
+    existing_product_blocks = {block_name[0] for block_name in _existing_product_blocks}
     return {
         block_name: block for block_name, block in product_blocks.items() if block_name not in existing_product_blocks
     }
@@ -167,57 +185,52 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
     Returns: .
     """
 
-    def create_subscription_instance_relations(depends_block_name: str, block_names: Set[str]) -> List[str]:
+    def create_subscription_instance_relations(
+        depends_block_name: str, block_names: Set[str]
+    ) -> Generator[str, None, None]:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def map_subscription_instances(block_name: str) -> List[Dict[str, Union[str, Query]]]:
+        def map_subscription_instances(block_name: str) -> Dict[str, List[Dict[str, Union[str, Query]]]]:
             in_use_by_id_sql = get_product_block_id(block_name)
-            subscription_ids: list[SubscriptionInstanceTable] = (
+            subscription_instances: list[SubscriptionInstanceTable] = (
                 SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
-                .with_entities(SubscriptionInstanceTable.subscription_id)
+                .with_entities(
+                    SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id
+                )
                 .all()
             )
-            if not subscription_ids:
-                return []
-            return [
-                {"subscription_id": subscription_instance.subscription_id, "product_block_id": in_use_by_id_sql}
-                for subscription_instance in subscription_ids
+            if not subscription_instances:
+                subscription_instances = []
+
+            instance_list = [
+                {"subscription_id": instance.subscription_id, "product_block_id": depends_block_id_sql}
+                for instance in subscription_instances
+            ]
+            instance_relation_list = [
+                {
+                    "in_use_by_id": instance.subscription_instance_id,
+                    "depends_on_id": get_subscription_instance(instance.subscription_id, depends_block_id_sql),
+                    "order_id": 0,
+                }
+                for instance in subscription_instances
             ]
 
-        def map_subscription_instance_relations(block_name: str) -> List[Dict[str, Union[str, Query]]]:
-            block_id_sql = get_product_block_id(block_name)
-            subscription_instance_ids: list[SubscriptionInstanceTable] = (
-                SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id.in_(block_id_sql))
-                .with_entities(SubscriptionInstanceTable.subscription_instance_id)
-                .all()
-            )
-            if not subscription_instance_ids:
-                return []
-            return [
-                {"in_use_by_id": instance_id.subscription_instance_id, "depends_on_id": depends_block_id_sql}
-                for instance_id in subscription_instance_ids
-            ]
+            return {"instance_list": instance_list, "instance_relation_list": instance_relation_list}
 
-        subscription_instance_dicts = list(
-            flatten([map_subscription_instances(block_name) for block_name in block_names])
-        )
-        subscription_relation_dicts = list(
-            flatten([map_subscription_instance_relations(block_name) for block_name in block_names])
-        )
+        create_instance_list = [map_subscription_instances(block_name) for block_name in block_names]
 
-        subscription_instances = ""
+        subscription_instance_dicts = list(flatten(item["instance_list"] for item in create_instance_list))
+        subscription_relation_dicts = list(flatten(item["instance_relation_list"] for item in create_instance_list))
+
+        if subscription_instance_dicts:
+            yield sql_compile(Insert(SubscriptionInstanceTable).values(subscription_instance_dicts))
+
         if subscription_relation_dicts:
-            subscription_instances = sql_compile(Insert(SubscriptionInstanceTable).values(subscription_instance_dicts))
+            yield sql_compile(Insert(SubscriptionInstanceRelationTable).values(subscription_relation_dicts))
 
-        subscription_block_relations = ""
-        if subscription_relation_dicts:
-            subscription_block_relations = sql_compile(
-                Insert(SubscriptionInstanceTable).values(subscription_instance_dicts)
-            )
-        return [subscription_instances, subscription_block_relations]
-
-    rt_relations = flatten(create_subscription_instance_relations(*item) for item in product_block_relations.items())
-    return [rt_relation for rt_relation in rt_relations if rt_relation]
+    return list(
+        chain.from_iterable(create_subscription_instance_relations(*item) for item in product_block_relations.items())
+    )
 
 
 def generate_delete_product_block_relations_sql(delete_block_relations: Dict[str, Set[str]]) -> List[str]:
@@ -234,6 +247,7 @@ def generate_delete_product_block_relations_sql(delete_block_relations: Dict[str
     def delete_block_relation(delete_block_name: str, block_names: Set[str]) -> str:
         in_use_by_ids_sql = get_product_block_ids(block_names)
         delete_block_id_sql = get_product_block_id(delete_block_name)
+
         return sql_compile(
             Delete(ProductBlockRelationTable).where(
                 ProductBlockRelationTable.in_use_by_id.in_(in_use_by_ids_sql),

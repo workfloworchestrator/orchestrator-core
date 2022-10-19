@@ -11,17 +11,15 @@ from orchestrator.types import SubscriptionLifecycle
 
 def test_migrate_domain_models_new_product(test_product_type_one, test_product_sub_block_one_db):
     _, _, ProductTypeOneForTest = test_product_type_one
-    inputs = json.dumps(
-        {
-            "TestProductOne": {"description": "test description", "tag": "test_tag", "product_type": "test_type"},
-            "test_fixed_input": {"value": "test value"},
-            "ProductBlockOneForTest": {"description": "product block description", "tag": "test_block_tag"},
-            "int_field": {"ProductBlockOneForTest": "1"},
-            "str_field": {"ProductBlockOneForTest": "test"},
-            "list_field": {"description": "list field desc", "ProductBlockOneForTest": "list test"},
-        }
-    )
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs)
+    inputs = {
+        "TestProductOne": {"description": "test description", "tag": "test_tag", "product_type": "test_type"},
+        "test_fixed_input": {"value": "test value"},
+        "ProductBlockOneForTest": {"description": "product block description", "tag": "test_block_tag"},
+        "int_field": {"ProductBlockOneForTest": "1"},
+        "str_field": {"ProductBlockOneForTest": "test"},
+        "list_field": {"description": "list field desc", "ProductBlockOneForTest": "list test"},
+    }
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=json.dumps(inputs))
 
     assert len(upgrade_sql) == 12
     assert len(downgrade_sql) == 14
@@ -30,6 +28,35 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
         ProductTable.query.where(ProductTable.name == "TestProductOne").with_entities(ProductTable.product_id).all()
     )
     assert not product_id
+
+    temp_product = ProductTable(
+        name="TestProductOne",
+        description=inputs["TestProductOne"]["description"],
+        product_type=inputs["TestProductOne"]["product_type"],
+        tag=inputs["TestProductOne"]["tag"],
+        status="active",
+    )
+    db.session.add(temp_product)
+    db.session.commit()
+
+    expected_old_diff = {
+        "TestProductOne": {
+            "missing_fixed_inputs_in_db": {"test_fixed_input"},
+            "missing_in_depends_on_blocks": {
+                "ProductBlockOneForTest": {
+                    "missing_product_blocks_in_db": {"SubBlockOneForTest"},
+                    "missing_resource_types_in_db": {"int_field", "list_field", "str_field"},
+                }
+            },
+            "missing_product_blocks_in_db": {"ProductBlockOneForTest"},
+        }
+    }
+
+    diff = ProductTypeOneForTest.diff_product_in_database(temp_product.product_id)
+    assert diff == expected_old_diff
+
+    db.session.delete(temp_product)
+    db.session.commit()
 
     for stmt in upgrade_sql:
         db.session.execute(stmt)
@@ -115,6 +142,70 @@ def test_migrate_domain_models_new_product_block(test_product_one, test_product_
         "TestProductOne": {
             "missing_in_depends_on_blocks": {"test block": {"missing_resource_types_in_db": {"str_field"}}},
             "missing_product_blocks_in_db": {"test block"},
+        }
+    }
+
+    assert len(upgrade_sql) == 4
+    assert len(downgrade_sql) == 5
+
+    before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert before_diff == expected_old_diff
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert upgrade_diff == {}
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert downgrade_diff == expected_old_diff
+
+
+def test_migrate_domain_models_new_product_block_on_product_block(
+    test_product_one, test_product_type_one, test_product_block_one, test_product_sub_block_one
+):
+    _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
+    _, _, ProductBlockOneForTest = test_product_block_one
+
+    _, _, SubBlockOneForTest = test_product_sub_block_one
+
+    class TestBlock(ProductBlockModel, product_block_name="test block", lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        str_field: str
+
+    class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        sub_block: SubBlockOneForTest
+        sub_block_2: SubBlockOneForTest
+        sub_block_list: List[SubBlockOneForTest]
+        str_field: str
+        int_field: int
+        list_field: List[int]
+        new_block: TestBlock
+
+    class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        block: ProductBlockOneForTestUpdated
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps(
+        {
+            "test block": {"description": "test block description", "tag": "test_block_tag"},
+            "str_field": {"test block": "test"},
+        }
+    )
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+
+    expected_old_diff = {
+        "TestProductOne": {
+            "missing_in_depends_on_blocks": {
+                "ProductBlockOneForTest": {"missing_product_blocks_in_db": {"test block"}},
+                "test block": {"missing_resource_types_in_db": {"str_field"}},
+            }
         }
     }
 
