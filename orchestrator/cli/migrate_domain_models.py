@@ -206,27 +206,27 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
 
     Returns: List of SQL strings to upgrade the database.
     """
-    return [
-        *generate_update_fixed_inputs_sql(changes.update_product_fixed_inputs),
-        *generate_update_resource_types_sql(changes.update_resource_types),
-        *generate_delete_resource_type_relations_sql(changes.delete_resource_type_relations),
-        *generate_delete_product_block_relations_sql(changes.delete_product_block_relations),
-        *generate_delete_product_relations_sql(changes.delete_product_to_block_relations),
-        *generate_delete_resource_types_sql(changes.delete_resource_types),
-        *generate_delete_product_blocks_sql(changes.delete_product_blocks),
-        *generate_delete_fixed_inputs_sql(changes.delete_product_fixed_inputs),
-        *generate_delete_products_sql(changes.delete_products),
-        *generate_create_products_sql(changes.create_products, inputs),
-        *generate_create_fixed_inputs_sql(changes.create_product_fixed_inputs, inputs),
-        *generate_create_product_blocks_sql(changes.create_product_blocks, inputs),
-        *generate_create_resource_types_sql(changes.create_resource_types, inputs),
-        *generate_create_product_relations_sql(changes.create_product_to_block_relations),
-        *generate_create_product_block_relations_sql(changes.create_product_block_relations),
-        *generate_create_resource_type_relations_sql(changes.create_resource_type_relations),
-        *generate_create_product_instance_relations_sql(changes.create_product_to_block_relations),
-        *generate_create_product_block_instance_relations_sql(changes.create_product_block_relations),
-        *generate_create_resource_type_instance_values_sql(changes.create_resource_type_relations, inputs),
-    ]
+    return (
+        generate_update_fixed_inputs_sql(changes.update_product_fixed_inputs)
+        + generate_update_resource_types_sql(changes.update_resource_types)
+        + generate_delete_resource_type_relations_sql(changes.delete_resource_type_relations)
+        + generate_delete_product_block_relations_sql(changes.delete_product_block_relations)
+        + generate_delete_product_relations_sql(changes.delete_product_to_block_relations)
+        + generate_delete_resource_types_sql(changes.delete_resource_types)
+        + generate_delete_product_blocks_sql(changes.delete_product_blocks)
+        + generate_delete_fixed_inputs_sql(changes.delete_product_fixed_inputs)
+        + generate_delete_products_sql(changes.delete_products)
+        + generate_create_products_sql(changes.create_products, inputs)
+        + generate_create_fixed_inputs_sql(changes.create_product_fixed_inputs, inputs)
+        + generate_create_product_blocks_sql(changes.create_product_blocks, inputs)
+        + generate_create_resource_types_sql(changes.create_resource_types, inputs)
+        + generate_create_product_relations_sql(changes.create_product_to_block_relations)
+        + generate_create_product_block_relations_sql(changes.create_product_block_relations)
+        + generate_create_resource_type_relations_sql(changes.create_resource_type_relations)
+        + generate_create_product_instance_relations_sql(changes.create_product_to_block_relations)
+        + generate_create_product_block_instance_relations_sql(changes.create_product_block_relations)
+        + generate_create_resource_type_instance_values_sql(changes.create_resource_type_relations, inputs)
+    )
 
 
 def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
@@ -268,18 +268,18 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
     sql_revert_create_product_blocks = generate_delete_product_blocks_sql(list(changes.create_product_blocks.keys()))
     sql_revert_create_products = generate_delete_products_sql(list(changes.create_products.keys()))
 
-    return [
-        *sql_revert_create_resource_type_relations,
-        *sql_revert_create_resource_types,
-        *sql_revert_create_product_product_block_relations,
-        *sql_revert_create_product_block_depends_blocks,
-        *sql_revert_create_fixed_inputs,
-        *sql_revert_create_product_blocks,
-        *sql_revert_create_products,
-        *sql_revert_delete_fixed_inputs,
-        *sql_revert_update_resource_types,
-        *sql_revert_update_fixed_inputs,
-    ]
+    return (
+        sql_revert_create_resource_type_relations
+        + sql_revert_create_resource_types
+        + sql_revert_create_product_product_block_relations
+        + sql_revert_create_product_block_depends_blocks
+        + sql_revert_create_fixed_inputs
+        + sql_revert_create_product_blocks
+        + sql_revert_create_products
+        + sql_revert_delete_fixed_inputs
+        + sql_revert_update_resource_types
+        + sql_revert_update_fixed_inputs
+    )
 
 
 def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tuple[List[str], List[str]]:
