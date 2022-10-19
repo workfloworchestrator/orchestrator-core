@@ -42,7 +42,7 @@ def map_create_resource_types(resource_types: Dict[str, Set[str]], updated_resou
         .with_entities(ResourceTypeTable.resource_type)
         .all()
     )
-    existing_resource_types = [*[r_type[0] for r_type in existing_resource_types], *updated_resource_types.values()]
+    existing_resource_types = {*[r_type[0] for r_type in existing_resource_types], *updated_resource_types.values()}
     return [rt for rt in resource_type_names if rt not in existing_resource_types]
 
 
@@ -142,10 +142,10 @@ def map_delete_resource_types(
         .all()
     )
     existing_names = [r_type[0] for r_type in existing_resource_types if r_type[0] in resource_type_names]
-    rt_with_existing_instances = [
+    rt_with_existing_instances = {
         *find_resource_within_blocks(existing_names, product_blocks),
         *updated_resource_types,
-    ]
+    }
     return [name for name in existing_names if name not in rt_with_existing_instances]
 
 
