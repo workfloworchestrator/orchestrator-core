@@ -25,7 +25,7 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
             - key: old fixed input name.
             - value: new fixed input name.
     """
-    print("--- UPDATE FIXED INPUT DECISIONS ---")  # noqa: T001, T201
+    print("--- UPDATE FIXED INPUT DECISIONS ('N'= create and delete) ---")  # noqa: T001, T201
 
     def should_rename(product_name: str, product_diff: Dict[str, Set[str]]) -> Dict[str, str]:
         db_props = list(product_diff.get("missing_fixed_inputs_in_model", []))

@@ -87,7 +87,7 @@ def map_update_resource_types(
     """
 
     updates = {}
-    print("--- UPDATE RESOURCE TYPE DECISIONS ---")  # noqa: T001, T201
+    print("--- UPDATE RESOURCE TYPE DECISIONS ('No'= create and delete) ---")  # noqa: T001, T201
     for diff in block_diffs.values():
         db_props = list(diff.get("missing_resource_types_in_model", set()))
         model_props = list(diff.get("missing_resource_types_in_db", set()))
