@@ -309,34 +309,26 @@ def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tup
 
     changes = map_changes(model_diffs, products, product_blocks, db_product_names, inputs)
 
-    logger.debug("create_products", create_products=changes.create_products)
-    logger.debug("delete_products", delete_products=changes.delete_products)
-    logger.debug("create_product_fixed_inputs", create_product_fixed_inputs=changes.create_product_fixed_inputs)
-    logger.debug("update_product_fixed_inputs", update_product_fixed_inputs=changes.update_product_fixed_inputs)
-    logger.debug("delete_product_fixed_inputs", delete_product_fixed_inputs=changes.delete_product_fixed_inputs)
-    logger.debug(
+    logger.info("create_products", create_products=changes.create_products)
+    logger.info("delete_products", delete_products=changes.delete_products)
+    logger.info("create_product_fixed_inputs", create_product_fixed_inputs=changes.create_product_fixed_inputs)
+    logger.info("update_product_fixed_inputs", update_product_fixed_inputs=changes.update_product_fixed_inputs)
+    logger.info("delete_product_fixed_inputs", delete_product_fixed_inputs=changes.delete_product_fixed_inputs)
+    logger.info(
         "create_product_to_block_relations", create_product_to_block_relations=changes.create_product_to_block_relations
     )
-    logger.debug(
+    logger.info(
         "delete_product_to_block_relations", delete_product_to_block_relations=changes.delete_product_to_block_relations
     )
-    logger.debug("create_resource_types", create_resource_types=changes.create_resource_types)
-    logger.debug("update_resource_types", update_resource_types=changes.update_resource_types)
-    logger.debug("delete_resource_types", delete_resource_types=changes.delete_resource_types)
-    logger.debug(
-        "create_resource_type_relations", create_resource_type_relations=changes.create_resource_type_relations
-    )
-    logger.debug(
-        "delete_resource_type_relations", delete_resource_type_relations=changes.delete_resource_type_relations
-    )
-    logger.debug("create_product_blocks", create_blocks=changes.create_product_blocks)
-    logger.debug("delete_product_blocks", delete_blocks=changes.delete_product_blocks)
-    logger.debug(
-        "create_product_block_relations", create_product_block_relations=changes.create_product_block_relations
-    )
-    logger.debug(
-        "delete_product_block_relations", delete_product_block_relations=changes.delete_product_block_relations
-    )
+    logger.info("create_resource_types", create_resource_types=changes.create_resource_types)
+    logger.info("rename_resource_types", rename_resource_types=changes.update_resource_types)
+    logger.info("delete_resource_types", delete_resource_types=changes.delete_resource_types)
+    logger.info("create_resource_type_relations", create_resource_type_relations=changes.create_resource_type_relations)
+    logger.info("delete_resource_type_relations", delete_resource_type_relations=changes.delete_resource_type_relations)
+    logger.info("create_product_blocks", create_blocks=changes.create_product_blocks)
+    logger.info("delete_product_blocks", delete_blocks=changes.delete_product_blocks)
+    logger.info("create_product_block_relations", create_product_block_relations=changes.create_product_block_relations)
+    logger.info("delete_product_block_relations", delete_product_block_relations=changes.delete_product_block_relations)
 
     sql_upgrade_stmts = generate_upgrade_sql(changes, inputs)
     sql_downgrade_stmts = generate_downgrade_sql(changes)

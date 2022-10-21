@@ -12,8 +12,12 @@ from orchestrator.types import SubscriptionLifecycle
 def test_migrate_domain_models_new_product(test_product_type_one, test_product_sub_block_one_db):
     _, _, ProductTypeOneForTest = test_product_type_one
     inputs = {
-        "TestProductOne": {"description": "test description", "tag": "test_tag", "product_type": "test_type"},
-        "test_fixed_input": {"value": "test value"},
+        "TestProductOne": {
+            "description": "test description",
+            "tag": "test_tag",
+            "product_type": "test_type",
+            "test_fixed_input": "test value",
+        },
         "ProductBlockOneForTest": {"description": "product block description", "tag": "test_block_tag"},
         "int_field": {"ProductBlockOneForTest": "1"},
         "str_field": {"ProductBlockOneForTest": "test"},
@@ -90,7 +94,7 @@ def test_migrate_domain_models_new_fixed_input(test_product_one, test_product_ty
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
 
-    inputs = json.dumps({"new_fixed_input": {"value": "test"}})
+    inputs = json.dumps({"TestProductOne": {"new_fixed_input": "test"}})
     upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
 
     expected_old_diff = {"TestProductOne": {"missing_fixed_inputs_in_db": {"new_fixed_input"}}}

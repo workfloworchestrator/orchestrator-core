@@ -42,7 +42,8 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
                 return {db_props[0]: model_props[0]}
         return {}
 
-    return {name: should_rename(name, diff) for name, diff in product_diffs.items()}
+    updates = {name: should_rename(name, diff) for name, diff in product_diffs.items()}
+    return {k: v for k, v in updates.items() if v}
 
 
 def generate_create_fixed_inputs_sql(
@@ -78,7 +79,7 @@ def generate_create_fixed_inputs_sql(
                 )[0]
             else:
                 print(f"--- PRODUCT ['{product_name}'] FIXED INPUT ['{fixed_input}'] ---")  # noqa: T001, T201
-                value = inputs.get(fixed_input, {}).get("value") or get_user_input("Fixed input value: ")
+                value = inputs.get(product_name, {}).get(fixed_input) or get_user_input("Fixed input value: ")
 
             return {"name": fixed_input, "value": value, "product_id": product_id_sql}
 

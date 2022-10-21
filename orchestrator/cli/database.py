@@ -20,6 +20,7 @@ import jinja2
 import typer
 from alembic import command
 from alembic.config import Config
+from alembic.util.exc import CommandError
 from structlog import get_logger
 
 import orchestrator
@@ -200,7 +201,7 @@ def history(
 
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
-    message: str = typer.Argument("update domain models", help="Migration name"),
+    message: str = typer.Argument(..., help="Migration name"),
     test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
     inputs: Optional[str] = typer.Option("{}", help="stringified dict to prefill inputs"),
 ) -> Union[Tuple[List[str], List[str]], None]:
@@ -209,11 +210,12 @@ def migrate_domain_models(
     You will be prompted with inputs for new models and resource type updates.
 
     The inputs argument is mostly used for testing the prefill of given inputs, here examples:
-        - new product: `inputs = { "new_product": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
-        - new product fixed input: `inputs = { "new_fixed_input_name": { "description": "add description", "value": "add value" }}`
+        - new product: `inputs = { "new_product_name": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
+        - new product fixed input: `inputs = { "new_product_name": { "new_fixed_input_name": "value" }}`
         - new product block: `inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }`
-        - new resource type: `inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value" }}`
-            - `value` is inserted as default for all existing instances it is added to
+        - new resource type: `inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value", "new_product_block_name": "add default value" }}`
+            - `new_product_block_name` prop inserts value specifically for that block.
+            - `value` prop is inserted as default for all existing instances it is added to.
         - updating a resource type to a new resource type: `inputs = { "old_resource_type_name": { "update": "y" }, "new_resource_type_name": { "description": "add description" }}`
         - updating a resource type to existing resource type: `inputs = {"old_resource_type_name": { "update": "y" }}`
     """
@@ -230,7 +232,23 @@ def migrate_domain_models(
     sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
     sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
 
-    migration = command.revision(alembic_cfg(), message, head="data@head")
+    alembic_config = alembic_cfg()
+    non_venv_location = " ".join(
+        [
+            location
+            for location in alembic_config.get_main_option("version_locations").split(" ")
+            if "venv" not in location
+        ]
+    )
+    try:
+        migration = command.revision(
+            alembic_config,
+            message,
+            branch_label="data",
+            version_path=non_venv_location,
+        )
+    except CommandError:
+        migration = command.revision(alembic_config, message, head="data@head", version_path=non_venv_location)
 
     with open(migration.path) as f:
         file_data = f.read()

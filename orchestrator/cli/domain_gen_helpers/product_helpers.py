@@ -75,7 +75,6 @@ def generate_create_products_sql(
 
     def create_product(name: str) -> str:
         values = inputs.get(name, {})
-
         print(f"--- PRODUCT ['{name}'] INPUTS ---")  # noqa: T001, T201
         description = values.get("description") or get_user_input("Product description: ")
         product_type = values.get("product_type") or get_user_input("Product type: ")
