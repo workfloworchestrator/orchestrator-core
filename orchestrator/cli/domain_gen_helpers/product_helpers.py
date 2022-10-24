@@ -41,17 +41,12 @@ def map_product_additional_relations(changes: DomainModelChanges) -> DomainModel
 
     for product_name, product_class in changes.create_products.items():
         for field_name in product_class._non_product_block_fields_.keys():
-            if field_name not in changes.create_product_fixed_inputs:
-                changes.create_product_fixed_inputs[field_name] = set()
-            changes.create_product_fixed_inputs[field_name].add(product_name)
+            changes.create_product_fixed_inputs.setdefault(field_name, set()).add(product_name)
 
         product_blocks_in_model = product_class._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
         for product_block in product_blocks_types_in_model:
-            depends_on_block_name = product_block.name
-            if depends_on_block_name not in changes.create_product_to_block_relations:
-                changes.create_product_to_block_relations[depends_on_block_name] = set()
-            changes.create_product_to_block_relations[depends_on_block_name].add(product_name)
+            changes.create_product_to_block_relations.setdefault(product_block.name, set()).add(product_name)
     return changes
 
 

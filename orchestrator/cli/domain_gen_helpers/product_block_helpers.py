@@ -80,17 +80,12 @@ def map_product_block_additional_relations(changes: DomainModelChanges) -> Domai
 
     for block_name, block_class in changes.create_product_blocks.items():
         for field_name in block_class._non_product_block_fields_.keys():
-            if field_name not in changes.create_resource_type_relations:
-                changes.create_resource_type_relations[field_name] = set()
-            changes.create_resource_type_relations[field_name].add(block_name)
+            changes.create_resource_type_relations.setdefault(field_name, set()).add(block_name)
 
         product_blocks_in_model = block_class._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
         for product_block in product_blocks_types_in_model:
-            depends_on_block_name = product_block.name
-            if depends_on_block_name not in changes.create_product_block_relations:
-                changes.create_product_block_relations[depends_on_block_name] = set()
-            changes.create_product_block_relations[depends_on_block_name].add(block_name)
+            changes.create_product_block_relations.setdefault(product_block.name, set()).add(block_name)
     return changes
 
 
