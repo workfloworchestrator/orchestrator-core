@@ -54,7 +54,7 @@ requires = [
     "opentelemetry-instrumentation-sqlalchemy==0.28b1",
     "opentelemetry-instrumentation-wsgi==0.28b1",
     "opentelemetry-sdk==1.9.1",
-    "orjson==3.7.5",
+    "orjson==3.8.0",
     "psycopg2-binary==2.9.1",
     "pydantic[email]==1.9.0",
     "python-dateutil==2.8.2",
