@@ -77,7 +77,7 @@ requires = [
     "redis==4.3.1",
 ]
 description-file = "README.md"
-requires-python = ">=3.7,<3.11"
+requires-python = ">=3.7,<3.12"
 
 [tool.flit.metadata.urls]
 Documentation = "https://workfloworchestrator.org/orchestrator-core/"
