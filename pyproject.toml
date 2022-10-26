@@ -69,7 +69,7 @@ requires = [
     "typer==0.4.0",
     "uvicorn[standard]~=0.16.0",
     "nwa-stdlib==1.3.0; python_version < '3.10'",
-    "nwa-stdlib==1.4.0; python_version >= '3.10'",
+    "nwa-stdlib==1.4.2; python_version >= '3.10'",
     "oauth2-lib==1.0.12; python_version < '3.10'",
     "oauth2-lib==1.0.13; python_version >= '3.10'",
     "markupsafe==2.0.1",
@@ -101,7 +101,7 @@ test = [
     "flake8-rst-docstrings",
     "flake8-tidy-imports",
     "isort",
-    "structlog~=20.2.0",
+    "structlog",
     "jsonref",
     "mypy==0.910",
     "pytest",
@@ -151,7 +151,7 @@ known_first_party = ["migrations", "test"]
 
 [tool.black]
 line-length = 120
-target-version = ["py39"]
+target-version = ["py310"]
 exclude = '''
 (
   /(

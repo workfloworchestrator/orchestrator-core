@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 from typing import Any, Callable, Dict, Optional, Type
 
 import sentry_sdk
@@ -20,6 +21,11 @@ import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from nwastdlib.logging import initialise_logging
+
+# This is needed to avoid having a maintenance version of nwa-stdlib for py<3.10
+if sys.version_info >= (3, 10):
+    from nwastdlib.logging import ClearStructlogContextASGIMiddleware
+
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -96,6 +102,9 @@ class OrchestratorCore(FastAPI):
 
         init_database(base_settings)
 
+        # This is needed to avoid having a maintenance version of nwa-stdlib for py<3.10
+        if sys.version_info >= (3, 10):
+            self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
         self.add_middleware(DBSessionMiddleware, database=db)
         origins = base_settings.CORS_ORIGINS.split(",")
