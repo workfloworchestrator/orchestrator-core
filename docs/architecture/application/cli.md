@@ -11,7 +11,9 @@ It will inspect your DB and the existing domain models, analyse the differences 
 Features:
 - detect a new Domain Model attribute / resource type
 - detect a renamed Domain Model attribute / resource type
+- detect a removed Domain Model attribute / resource type
 - detect a new Domain Model
+- detect a removed Domain Model
 - ability to ask for human input when needed
 - Below in the documentation these features are discussed in more detail.
 
@@ -206,28 +208,15 @@ The command will first go through all products and map the differences with the 
 ```
 
 You will be prompted with inputs when updates are found.
-- new product example:
+- rename of fixed input input (renaming `affiliation` to `affiliationing` in User Product):
     ``` bash
-    --- PRODUCT ['User group'] INPUTS ---
-    Product description: User group product
-    Product type: UserGroup
-    Product tag: GROUP
+    --- UPDATE FIXED INPUT DECISIONS ('N'= create and delete) ---
+    rename fixed input ['affiliation'] to ['affiliationing'] for product ['User internal'] (y/N):
     ```
-- new product block:
+- rename of resource type input(renaming `age` to `user_age` in User Block), only works when the resource type is renamed in all Blocks:
     ``` bash
-    --- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---
-    Product block description: User group settings
-    Product block tag: UGS
-    ```
-- new fixed input (the type isn't checked, so typing an incorrect value will insert in db):
-    ``` bash
-    --- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---
-    Fixed input value: internal
-    ```
-- new resource type:
-    ``` bash
-    --- RESOURCE TYPE ['group_name'] ---
-    Resource type description: Unique name of user group
+    --- UPDATE RESOURCE TYPE DECISIONS ('No'= create and delete) ---
+    Change resource type ['age'] to ['user_age'] (y/N):
     ```
 
 it will log the differences on info level:
