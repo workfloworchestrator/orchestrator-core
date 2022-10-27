@@ -1,5 +1,6 @@
 from typing import Dict, List, Set, Type, Union
 
+import structlog
 from more_itertools import flatten
 from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import Delete, Insert, Update
@@ -13,6 +14,8 @@ from orchestrator.db.models import (
     product_block_resource_type_association,
 )
 from orchestrator.domain.base import ProductBlockModel
+
+logger = structlog.get_logger(__name__)
 
 
 def get_resource_type(resource_type: str) -> Query:
@@ -283,8 +286,9 @@ def generate_create_resource_type_instance_values_sql(
                     CROSS JOIN subscription_instance_ids
                     WHERE resource_types.resource_type = '{1}'
             """
-
-            return query.format(block_name, resource_type, value)
+            sql_string = query.format(block_name, resource_type, value)
+            logger.debug("generated SQL", sql_string=sql_string)
+            return sql_string
 
         return [map_subscription_instance_relations(block_name) for block_name in block_names]
 

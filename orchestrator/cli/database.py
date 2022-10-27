@@ -212,19 +212,30 @@ def migrate_domain_models(
     You will be prompted with inputs for new models and resource type updates.
     Resource type updates are only handled when it's renamed in all product blocks.
 
-    The inputs and updates argument is mostly used for testing the prefill of given inputs, here examples:
+    Args:
+    - `message`: Message/description of the generated migration.
+    - `--test`: Optional boolean if you don't want to generate a migration file.
+    - `--inputs`: stringified dict to prefill inputs.
+        The inputs and updates argument is mostly used for testing, prefilling the given inputs, here examples:
         - new product: `inputs = { "new_product_name": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
         - new product fixed input: `inputs = { "new_product_name": { "new_fixed_input_name": "value" }}`
         - new product block: `inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }`
         - new resource type: `inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value", "new_product_block_name": "add default value for block" }}`
             - `new_product_block_name` prop inserts value specifically for that block.
             - `value` prop is inserted as default for all existing instances it is added to.
-        - updating a fixed input:
+
+    - `--updates`: stringified dict to prefill inputs.
+        - renaming a fixed input:
             - `updates = { "fixed_inputs": { "product_name": { "old_fixed_input_name": "new_fixed_input_name" } } }`
-        - updating a resource type to a new resource type:
+        - renaming a resource type to a new resource type:
             - `inputs = { "new_resource_type_name": { "description": "add description" }}`
             - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
-        - updating a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
+        - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
+
+    Returns None unless `--test` is used, in which case it returns:
+        - tuple:
+            - list of upgrade SQL statements in string format.
+            - list of downgrade SQL statements in string format.
     """
 
     inputs_dict = json.loads(inputs) if isinstance(inputs, str) else {}
