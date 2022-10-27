@@ -30,7 +30,7 @@ BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
 ### Example
 
-You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator]()):
+You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/hanstrompert/example-orchestrator)):
 - UserGroup Block:
     ```python
     from orchestrator.domain.base import SubscriptionModel, ProductBlockModel
