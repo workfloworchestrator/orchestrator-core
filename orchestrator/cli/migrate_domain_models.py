@@ -133,7 +133,9 @@ def map_differences_unique(
             if missing_in_depends_on_blocks := diff[product_name].get("missing_in_depends_on_blocks"):
                 # since missing_in_depends_on_blocks is always a dict the type is ignored.
                 new_model_diffs: Dict[str, Dict[str, Set[str]]] = {
-                    name: diff for name, diff in missing_in_depends_on_blocks.items() if name not in model_diffs["blocks"]  # type: ignore
+                    name: diff  # type: ignore
+                    for name, diff in missing_in_depends_on_blocks.items()  # type: ignore
+                    if name not in model_diffs["blocks"]
                 }
                 model_diffs["blocks"] = {**model_diffs["blocks"], **new_model_diffs}
     return model_diffs
