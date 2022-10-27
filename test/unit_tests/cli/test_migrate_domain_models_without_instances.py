@@ -120,6 +120,47 @@ def test_migrate_domain_models_new_fixed_input(test_product_one, test_product_ty
     assert downgrade_diff == expected_old_diff
 
 
+def test_migrate_domain_models_rename_fixed_input(test_product_one, test_product_type_one, test_product_block_one):
+    _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
+    _, _, ProductBlockOneForTest = test_product_block_one
+
+    class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        changed_fixed_input: bool
+        block: ProductBlockOneForTest
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    updates = json.dumps({"fixed_inputs": {"TestProductOne": {"test_fixed_input": "changed_fixed_input"}}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, updates=updates)
+
+    expected_old_diff = {
+        "TestProductOne": {
+            "missing_fixed_inputs_in_db": {"changed_fixed_input"},
+            "missing_fixed_inputs_in_model": {"test_fixed_input"},
+        }
+    }
+
+    assert len(upgrade_sql) == 1
+    assert len(downgrade_sql) == 1
+
+    before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert before_diff == expected_old_diff
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert upgrade_diff == {}
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert downgrade_diff == expected_old_diff
+
+
 def test_migrate_domain_models_new_product_block(test_product_one, test_product_type_one, test_product_block_one):
     _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
     _, _, ProductBlockOneForTest = test_product_block_one
@@ -288,7 +329,7 @@ def test_migrate_domain_models_new_resource_type(
     assert downgrade_diff == expected_old_diff
 
 
-def test_migrate_domain_models_update_resource_type(
+def test_migrate_domain_models_rename_resource_type(
     test_product_one, test_product_type_one, test_product_block_one, test_product_sub_block_one
 ):
     _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
@@ -309,8 +350,8 @@ def test_migrate_domain_models_update_resource_type(
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
 
-    inputs = json.dumps({"list_field": {"update": "y"}})
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+    updates = json.dumps({"resource_types": {"list_field": "new_list_field"}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, updates=updates)
 
     expected_old_diff = {
         "TestProductOne": {
@@ -346,7 +387,7 @@ def test_migrate_domain_models_update_resource_type(
     assert downgrade_diff == expected_old_diff
 
 
-def test_migrate_domain_models_create_and_update_resource_type(
+def test_migrate_domain_models_rename_and_relate_resource_type(
     test_product_one, test_product_type_one, test_product_block_one, test_product_sub_block_one
 ):
     _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
@@ -356,7 +397,7 @@ def test_migrate_domain_models_create_and_update_resource_type(
     class SubBlockOneForTestNewResource(SubBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         int_field: int
         str_field: str
-        new_list_field: List[int]
+        new_list_field: List[int]  # add/relate renamed resource type to block
 
     class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTestNewResource
@@ -364,7 +405,7 @@ def test_migrate_domain_models_create_and_update_resource_type(
         sub_block_list: List[SubBlockOneForTestNewResource]
         str_field: str
         int_field: int
-        new_list_field: List[int]
+        new_list_field: List[int]  # renamed from 'list_field'
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -372,13 +413,9 @@ def test_migrate_domain_models_create_and_update_resource_type(
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
 
-    inputs = json.dumps(
-        {
-            "new_list_field": {"SubBlockOneForTest": "test"},
-            "list_field": {"update": "y"},
-        }
-    )
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+    inputs = json.dumps({"new_list_field": {"SubBlockOneForTest": "test"}})
+    updates = json.dumps({"resource_types": {"list_field": "new_list_field"}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs, updates)
 
     expected_old_diff = {
         "TestProductOne": {
@@ -415,7 +452,7 @@ def test_migrate_domain_models_create_and_update_resource_type(
     assert downgrade_diff == expected_old_diff
 
 
-def test_migrate_domain_models_create_and_delete_and_update_resource_type(
+def test_migrate_domain_models_rename_and_relate_and_remove_resource_type(
     test_product_sub_list_union,
     test_product_type_sub_list_union,
     test_product_block_with_list_union,
@@ -447,13 +484,9 @@ def test_migrate_domain_models_create_and_delete_and_update_resource_type(
 
     SUBSCRIPTION_MODEL_REGISTRY["ProductSubListUnion"] = ProductSubListUnionTest
 
-    inputs = json.dumps(
-        {
-            "changed_int_field": {"SubBlockOneForTest": "test", "SubBlockTwoForTest": "test"},
-            "int_field": {"update": "y"},
-        }
-    )
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+    inputs = json.dumps({"changed_int_field": {"SubBlockOneForTest": "test", "SubBlockTwoForTest": "test"}})
+    updates = json.dumps({"resource_types": {"int_field": "changed_int_field"}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs, updates)
 
     expected_old_diff = {
         "ProductSubListUnion": {

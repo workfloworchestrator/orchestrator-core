@@ -27,7 +27,7 @@ def get_resource_types(resource_types: Union[List[str], Set[str]]) -> Query:
     )
 
 
-def map_create_resource_types(resource_types: Dict[str, Set[str]], updated_resource_types: Dict[str, str]) -> List[str]:
+def map_create_resource_types(resource_type_names: Set[str], updated_resource_types: Set[str]) -> Set[str]:
     """Map resource types to create.
 
     Args:
@@ -36,14 +36,13 @@ def map_create_resource_types(resource_types: Dict[str, Set[str]], updated_resou
 
     Returns: List of resource type names that can be created.
     """
-    resource_type_names = resource_types.keys()
     existing_resource_types = (
         ResourceTypeTable.query.where(ResourceTypeTable.resource_type.in_(resource_type_names))
         .with_entities(ResourceTypeTable.resource_type)
         .all()
     )
-    existing_resource_types = {*[r_type[0] for r_type in existing_resource_types], *updated_resource_types.values()}
-    return [rt for rt in resource_type_names if rt not in existing_resource_types]
+    existing_resource_types = {*[r_type[0] for r_type in existing_resource_types], *updated_resource_types}
+    return {rt for rt in resource_type_names if rt not in existing_resource_types}
 
 
 def find_resource_within_blocks(
@@ -106,18 +105,6 @@ def map_update_resource_types(
                 )
                 if should_update == "y":
                     updates[db_props[0]] = model_props[0]
-
-    for name, diff in block_diffs.items():
-        db_props_set = diff.get("missing_resource_types_in_model", set())
-        model_props_set = diff.get("missing_resource_types_in_db", set())
-
-        for key, value in updates.items():
-            if key in db_props_set and value in model_props_set:
-                db_props_set.remove(key)
-                model_props_set.remove(value)
-
-        block_diffs[name]["missing_resource_types_in_model"] = db_props_set
-        block_diffs[name]["missing_resource_types_in_db"] = model_props_set
     return updates
 
 
@@ -125,7 +112,7 @@ def map_delete_resource_types(
     resource_types: Dict[str, Set[str]],
     updated_resource_types: List[str],
     product_blocks: Dict[str, Type[ProductBlockModel]],
-) -> List[str]:
+) -> Set[str]:
     """Map resource types to delete.
 
     Args:
@@ -146,11 +133,11 @@ def map_delete_resource_types(
         *find_resource_within_blocks(existing_names, product_blocks),
         *updated_resource_types,
     }
-    return [name for name in existing_names if name not in rt_with_existing_instances]
+    return {name for name in existing_names if name not in rt_with_existing_instances}
 
 
 def generate_create_resource_types_sql(
-    resource_types: List[str], inputs: Dict[str, Dict[str, str]], revert: bool = False
+    resource_types: Set[str], inputs: Dict[str, Dict[str, str]], revert: bool = False
 ) -> List[str]:
     """Generate SQL to create resource types.
 
@@ -185,7 +172,7 @@ def generate_create_resource_types_sql(
     return [create_resource_type(resource_type) for resource_type in resource_types]
 
 
-def generate_update_resource_types_sql(resource_types: Dict[str, str]) -> List[str]:
+def generate_rename_resource_types_sql(resource_types: Dict[str, str]) -> List[str]:
     """Generate SQL to update resource types.
 
     Args:
@@ -206,7 +193,7 @@ def generate_update_resource_types_sql(resource_types: Dict[str, str]) -> List[s
     return [update_resource_type(*item) for item in resource_types.items()]
 
 
-def generate_delete_resource_types_sql(resource_types: List[str]) -> List[str]:
+def generate_delete_resource_types_sql(resource_types: Set[str]) -> List[str]:
     """Generate SQL to delete resource types.
 
     Args:

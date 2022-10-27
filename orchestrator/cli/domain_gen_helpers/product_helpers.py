@@ -89,7 +89,7 @@ def generate_create_products_sql(
     return [create_product(name) for name in create_products.keys()]
 
 
-def generate_delete_products_sql(delete_products: List[str]) -> List[str]:
+def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
     """Generate SQL to delete products.
 
     Args:

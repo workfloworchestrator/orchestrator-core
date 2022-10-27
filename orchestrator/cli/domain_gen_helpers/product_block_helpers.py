@@ -55,7 +55,7 @@ def map_create_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
     }
 
 
-def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]) -> List[str]:
+def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]) -> Set[str]:
     """Map product blocks to delete.
 
     Args:
@@ -64,7 +64,7 @@ def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
     Returns: List of product block names to delete.
     """
     existing_product_blocks = ProductBlockTable.query.with_entities(ProductBlockTable.name).all()
-    return [name[0] for name in existing_product_blocks if name[0] not in product_blocks]
+    return {name[0] for name in existing_product_blocks if name[0] not in product_blocks}
 
 
 def map_product_block_additional_relations(changes: DomainModelChanges) -> DomainModelChanges:
@@ -124,7 +124,7 @@ def generate_create_product_blocks_sql(
     return [create_product_block(name) for name in create_product_blocks]
 
 
-def generate_delete_product_blocks_sql(delete_product_blocks: List[str]) -> List[str]:
+def generate_delete_product_blocks_sql(delete_product_blocks: Set[str]) -> List[str]:
     """Generate SQL to delete product blocks.
 
     Args:

@@ -5,7 +5,7 @@
 $ PYTHONPATH=. python bin/list_workflows
 
 """
-from typing import Dict, List, Set, Tuple, Type, Union
+from typing import Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
 import structlog
@@ -48,12 +48,12 @@ from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
     generate_create_resource_types_sql,
     generate_delete_resource_type_relations_sql,
     generate_delete_resource_types_sql,
-    generate_update_resource_types_sql,
+    generate_rename_resource_types_sql,
     map_create_resource_types,
     map_delete_resource_types,
     map_update_resource_types,
 )
-from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
+from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges, ModelUpdates
 from orchestrator.db import init_database
 from orchestrator.db.models import ProductTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
@@ -139,12 +139,40 @@ def map_differences_unique(
     return model_diffs
 
 
+def remove_updated_properties(
+    updates: ModelUpdates, model_diffs: Dict[str, Dict[str, Dict[str, Set[str]]]]
+) -> Dict[str, Dict[str, Dict[str, Set[str]]]]:
+    for product_name, updated_fixed_inputs in updates.fixed_inputs.items():
+        product_diffs = model_diffs["products"][product_name]
+        product_diffs["missing_fixed_inputs_in_model"] = product_diffs.get(
+            "missing_fixed_inputs_in_model", set()
+        ) - set(updated_fixed_inputs.keys())
+        product_diffs["missing_fixed_inputs_in_db"] = product_diffs.get("missing_fixed_inputs_in_db", set()) - set(
+            updated_fixed_inputs.values()
+        )
+        model_diffs["products"][product_name] = product_diffs
+    for block_name, diffs in model_diffs["blocks"].items():
+        missing_rt_in_model = diffs.get("missing_resource_types_in_model", set())
+        missing_rt_in_db = diffs.get("missing_resource_types_in_db", set())
+
+        rt_updates = {
+            k: v for k, v in updates.resource_types.items() if k in missing_rt_in_model and v in missing_rt_in_db
+        }
+        updated_old_rts = set(rt_updates.keys())
+        updated_new_rts = set(rt_updates.values())
+        diffs["missing_resource_types_in_model"] = missing_rt_in_model - updated_old_rts
+        diffs["missing_resource_types_in_db"] = missing_rt_in_db - updated_new_rts
+        model_diffs["blocks"][block_name] = diffs
+    return model_diffs
+
+
 def map_changes(
     model_diffs: Dict[str, Dict[str, Dict[str, Set[str]]]],
     products: Dict[str, Type[SubscriptionModel]],
     product_blocks: Dict[str, Type[ProductBlockModel]],
     db_product_names: List[str],
     inputs: Dict[str, Dict[str, str]],
+    updates: Optional[ModelUpdates],
 ) -> DomainModelChanges:
     """Map changes that need to be made to fix differences between models and database.
 
@@ -160,12 +188,17 @@ def map_changes(
     Returns: Mapped changes.
     """
     create_products = {name: model for name, model in products.items() if name not in db_product_names}
-    delete_products = [name for name in db_product_names if name not in SUBSCRIPTION_MODEL_REGISTRY]
+    delete_products = {name for name in db_product_names if name not in SUBSCRIPTION_MODEL_REGISTRY}
 
     # updates need to go before create or deletes.
-    update_product_fixed_inputs = map_update_fixed_inputs(model_diffs["products"])
-    update_resource_types = map_update_resource_types(model_diffs["blocks"], product_blocks, inputs)
+    if not updates:
+        renamed_resource_types = map_update_resource_types(model_diffs["blocks"], product_blocks, inputs)
+        updates = ModelUpdates(
+            fixed_inputs=map_update_fixed_inputs(model_diffs["products"]),
+            resource_types=renamed_resource_types,
+        )
 
+    model_diffs = remove_updated_properties(updates, model_diffs)
     create_resource_type_relations = map_create_resource_type_relations(model_diffs["blocks"])
     delete_resource_type_relations = map_delete_resource_type_relations(model_diffs["blocks"])
 
@@ -173,13 +206,13 @@ def map_changes(
         create_products=create_products,
         delete_products=delete_products,
         create_product_fixed_inputs=map_create_fixed_inputs(model_diffs["products"]),
-        update_product_fixed_inputs=update_product_fixed_inputs,
+        update_product_fixed_inputs=updates.fixed_inputs,
         delete_product_fixed_inputs=map_delete_fixed_inputs(model_diffs["products"]),
         create_product_to_block_relations=map_create_product_block_relations(model_diffs["products"]),
         delete_product_to_block_relations=map_delete_product_block_relations(model_diffs["products"]),
-        update_resource_types=update_resource_types,
+        rename_resource_types=updates.resource_types,
         delete_resource_types=map_delete_resource_types(
-            delete_resource_type_relations, list(update_resource_types.keys()), product_blocks
+            delete_resource_type_relations, list(updates.resource_types.keys()), product_blocks
         ),
         create_resource_type_relations=create_resource_type_relations,
         delete_resource_type_relations=delete_resource_type_relations,
@@ -191,9 +224,10 @@ def map_changes(
 
     changes = map_product_additional_relations(changes)
     changes = map_product_block_additional_relations(changes)
-    changes.create_resource_types = map_create_resource_types(
-        changes.create_resource_type_relations, update_resource_types
-    )
+    related_resource_type_names = set(changes.create_resource_type_relations.keys())
+    existing_renamed_rts = set(changes.rename_resource_types.values())
+    changes.create_resource_types = map_create_resource_types(related_resource_type_names, existing_renamed_rts)
+
     return changes
 
 
@@ -208,7 +242,7 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
     """
     return (
         generate_update_fixed_inputs_sql(changes.update_product_fixed_inputs)
-        + generate_update_resource_types_sql(changes.update_resource_types)
+        + generate_rename_resource_types_sql(changes.rename_resource_types)
         + generate_delete_resource_type_relations_sql(changes.delete_resource_type_relations)
         + generate_delete_product_block_relations_sql(changes.delete_product_block_relations)
         + generate_delete_product_relations_sql(changes.delete_product_to_block_relations)
@@ -254,8 +288,8 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
         changes.create_resource_type_relations
     )
     sql_revert_create_resource_types = generate_delete_resource_types_sql(changes.create_resource_types)
-    sql_revert_update_resource_types = generate_update_resource_types_sql(
-        {new: old for old, new in changes.update_resource_types.items()}
+    sql_revert_update_resource_types = generate_rename_resource_types_sql(
+        {new: old for old, new in changes.rename_resource_types.items()}
     )
 
     sql_revert_create_product_product_block_relations = generate_delete_product_relations_sql(
@@ -265,8 +299,8 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
         changes.create_product_block_relations
     )
 
-    sql_revert_create_product_blocks = generate_delete_product_blocks_sql(list(changes.create_product_blocks.keys()))
-    sql_revert_create_products = generate_delete_products_sql(list(changes.create_products.keys()))
+    sql_revert_create_product_blocks = generate_delete_product_blocks_sql(set(changes.create_product_blocks.keys()))
+    sql_revert_create_products = generate_delete_products_sql(set(changes.create_products.keys()))
 
     return (
         sql_revert_create_resource_type_relations
@@ -282,7 +316,10 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
     )
 
 
-def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tuple[List[str], List[str]]:
+def create_domain_models_migration_sql(
+    inputs: Dict[str, Dict[str, str]],
+    updates: Optional[ModelUpdates],
+) -> Tuple[List[str], List[str]]:
     """Create tuple with list for upgrade and downgrade SQL statements based on SubscriptionModel.diff_product_in_database.
 
     You will be prompted with inputs for new models and resource type updates.
@@ -307,7 +344,7 @@ def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tup
     product_blocks = map_product_blocks(list(SUBSCRIPTION_MODEL_REGISTRY.values()))
     model_diffs = map_differences_unique(products, existing_products)
 
-    changes = map_changes(model_diffs, products, product_blocks, db_product_names, inputs)
+    changes = map_changes(model_diffs, products, product_blocks, db_product_names, inputs, updates)
 
     logger.info("create_products", create_products=changes.create_products)
     logger.info("delete_products", delete_products=changes.delete_products)
@@ -321,7 +358,7 @@ def create_domain_models_migration_sql(inputs: Dict[str, Dict[str, str]]) -> Tup
         "delete_product_to_block_relations", delete_product_to_block_relations=changes.delete_product_to_block_relations
     )
     logger.info("create_resource_types", create_resource_types=changes.create_resource_types)
-    logger.info("rename_resource_types", rename_resource_types=changes.update_resource_types)
+    logger.info("rename_resource_types", rename_resource_types=changes.rename_resource_types)
     logger.info("delete_resource_types", delete_resource_types=changes.delete_resource_types)
     logger.info("create_resource_type_relations", create_resource_type_relations=changes.create_resource_type_relations)
     logger.info("delete_resource_type_relations", delete_resource_type_relations=changes.delete_resource_type_relations)
