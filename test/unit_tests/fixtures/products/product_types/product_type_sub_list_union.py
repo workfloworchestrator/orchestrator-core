@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import uuid4
 
 import pytest
 
@@ -45,3 +46,38 @@ def test_product_sub_list_union(test_product_block_with_list_union_db):
     db.session.commit()
 
     return product.product_id
+
+
+@pytest.fixture
+def product_sub_list_union_subscription_1(
+    test_product_sub_list_union,
+    test_product_type_sub_list_union,
+    test_product_block_with_list_union,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+):
+    ProductSubListUnionInactive, _, ProductSubListUnion = test_product_type_sub_list_union
+    ProductListUnionBlockForTestInactive, _, _ = test_product_block_with_list_union
+
+    model = ProductSubListUnionInactive.from_product_id(
+        product_id=test_product_sub_list_union,
+        customer_id=uuid4(),
+        status=SubscriptionLifecycle.INITIAL,
+        insync=True,
+        description="product sub list union sub description",
+    )
+    model.test_block = ProductListUnionBlockForTestInactive.new(subscription_id=model.subscription_id)
+    model.test_block.int_field = 1
+    model.test_block.str_field = "blah"
+    model.test_block.list_field = [2]
+    model.test_block.list_union_blocks = [
+        sub_one_subscription_1.test_block,
+        sub_two_subscription_1.test_block,
+    ]
+
+    model = ProductSubListUnion.from_other_lifecycle(model, status=SubscriptionLifecycle.ACTIVE)
+    model.save()
+
+    db.session.commit()
+
+    return model.subscription_id

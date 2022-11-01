@@ -75,6 +75,7 @@ from test.unit_tests.fixtures.products.product_types.product_type_list_union_ove
     test_product_type_list_union_overlap,
 )
 from test.unit_tests.fixtures.products.product_types.product_type_one import (  # noqa: F401
+    product_one_subscription_1,
     test_product_model,
     test_product_one,
     test_product_type_one,
@@ -85,6 +86,7 @@ from test.unit_tests.fixtures.products.product_types.product_type_one_nested imp
     test_product_type_one_nested,
 )
 from test.unit_tests.fixtures.products.product_types.product_type_sub_list_union import (  # noqa: F401
+    product_sub_list_union_subscription_1,
     test_product_sub_list_union,
     test_product_type_sub_list_union,
 )
