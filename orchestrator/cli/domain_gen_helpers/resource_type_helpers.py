@@ -1,4 +1,5 @@
 from typing import Dict, List, Set, Type, Union
+from uuid import UUID
 
 import structlog
 from more_itertools import flatten
@@ -7,10 +8,14 @@ from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id, get_product_block_ids
+from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.db.models import (
+    ProductBlockTable,
+    ProductTable,
     ResourceTypeTable,
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
+    SubscriptionTable,
     product_block_resource_type_association,
 )
 from orchestrator.domain.base import ProductBlockModel
@@ -137,6 +142,54 @@ def map_delete_resource_types(
         *updated_resource_types,
     }
     return {name for name in existing_names if name not in rt_with_existing_instances}
+
+
+def get_product_instance_count(product_id: UUID) -> int:
+    return SubscriptionTable.query.where(SubscriptionTable.product_id == product_id).count()
+
+
+def get_block_instance_count(product_block_id: UUID) -> int:
+    return SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id == product_block_id).count()
+
+
+def _has_product_existing_instances(product_name: str) -> bool:
+    product: ProductTable = ProductTable.query.where(ProductTable.name == product_name).first()
+    return bool(product and get_product_instance_count(product.product_id))
+
+
+def _find_new_relations(block_name: str, relations: Dict[str, Set[str]]) -> Set[str]:
+    return set(flatten((list(v) for k, v in relations.items() if block_name in k)))
+
+
+def map_create_resource_type_instances(changes: DomainModelChanges) -> Dict[str, Set[str]]:
+    """Map resource types that need a default value.
+
+    Resource types need a default value when the related product block is used in an existing instance or will be used in an existing instance.
+
+    Args:
+        - changes: DomainModelChanges class with all changes.
+
+    Returns: Dict with resource types that need a default value.
+        - key: resource type name.
+        - value: set of product block names.
+    """
+
+    def _has_existing_instances(block_name: str) -> bool:
+        block: ProductBlockTable = ProductBlockTable.query.where(ProductBlockTable.name == block_name).first()
+        if block and get_block_instance_count(block.product_block_id):
+            return True
+
+        related_block_names = _find_new_relations(block_name, changes.create_product_block_relations)
+        if related_block_names:
+            return any(_has_existing_instances(name) for name in related_block_names)
+
+        related_product_names = _find_new_relations(block_name, changes.create_product_to_block_relations)
+        return any(_has_product_existing_instances(name) for name in related_product_names)
+
+    return {
+        resource_name: {name for name in block_names if _has_existing_instances(name)}
+        for resource_name, block_names in changes.create_resource_type_relations.items()
+    }
 
 
 def generate_create_resource_types_sql(
@@ -290,7 +343,8 @@ def generate_create_resource_type_instance_values_sql(
             logger.debug("generated SQL", sql_string=sql_string)
             return sql_string
 
-        return [map_subscription_instance_relations(block_name) for block_name in block_names]
+        instance_values_sqls = [map_subscription_instance_relations(block_name) for block_name in block_names]
+        return [sql for sql in instance_values_sqls if sql]
 
     return list(flatten([create_resource_type_instance_relations(*item) for item in resource_types.items()]))
 
