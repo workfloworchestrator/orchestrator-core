@@ -1,42 +1,40 @@
-# Debian 11 (bullseye) installation instructions
+# MacOS version 12 (Monterey) installation instructions
 
-How to install the orchestrator-core and orchestrator-core-gui on Debian 11 
-(Bullseye) is described in the following steps.
+How to install the orchestrator-core and orchestrator-core-gui on MacOS version
+12 (Monterey) is described in the following steps.
 
 ### Step 1 - Install dependencies
 
-First make sure the debian install is up to date. Then install the following
-software dependencies:
+This installation instruction assumes the use of [Homebrew](https://brew.sh/).
+The following software dependencies need to be installed:
 
+* Python 3.9
 * PostgreSQL (version >=11)
-* Git
-* virtualenvwrapper
+* virtualenvwrapper (or use any other tool to create virtual Python 
+  environments)
 * Node.js (version 14)
+* yarn
 
 ``` shell
-sudo apt update
-sudo apt upgrade --yes
-curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
-sudo apt-get install --yes postgresql git virtualenvwrapper nodejs
+brew install python@3.9 postgresql@13 virtualenvwrapper node@14 yarn
 ```
 
 ### Step 2 - Database setup
 
-In step 1 the database server is already started as part of the apt
-installation procedure. If the database server was previously installed and
-stopped then start it again. Create the database with the following commands,
+Start the database server and create the database with the following commands,
 use `nwa` as password:
 
 ``` shell
-sudo -u postgres createuser -sP nwa
-sudo -u postgres createdb orchestrator-core -O nwa
+brew services start postgresql@13
+createuser -sP nwa
+createdb orchestrator-core -O nwa
 ```
 
-For debug purposes, interact directly with the database by starting the 
+For debug purposes, interact directly with the database by starting the
 PostgresSQL interactive terminal:
 
 ``` shell
-sudo -u postgres psql orchestrator-core
+psql orchestrator-core
 ```
 
 ### Step 3 - Install orchestrator
@@ -47,7 +45,7 @@ install the orchestrator-core:
 ```shell
 mkdir beginner-workshop
 cd beginner-workshop
-source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+source virtualenvwrapper.sh
 mkvirtualenv --python python3.9 beginner-workshop
 pip install orchestrator-core
 ```
@@ -56,7 +54,7 @@ The next time in a new shell only activate the existing Python virtual
 environment:
 
 ```shell
-source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+source virtualenvwrapper.sh
 workon beginner-workshop
 ```
 
@@ -107,13 +105,13 @@ cd ..
 git clone https://github.com/workfloworchestrator/orchestrator-core-gui.git
 ```
 
-Install the Yarn package manager and use it to install the orchestrator 
-client dependencies:
+When multiple version of Node.js are installed, make sure node@14 is being
+used, this can be achieved by explicitly prepending it to the shell PATH.  Use
+the Yarn package manager to install the orchestrator client dependencies:
 
 ```shell
 cd orchestrator-core-gui/
-sudo npm install --global yarn
-sudo npm install --global --save-dev npm-run-all
+export PATH="/usr/local/opt/node@14/bin:$PATH"
 yarn install
 ```
 
@@ -124,11 +122,12 @@ Use the supplied environment variable defaults:
 ```shell
 cp .env.local.example .env.local
 ```
+
 And make the following changes:
 
 ```shell
 # change the existing REACT_APP_BACKEND_URL variable value into:
-REACT_APP_BACKEND_URL=http://your_ip_address_here:3000
+REACT_APP_BACKEND_URL=http://127.0.0.1:3000
 # and add the following:
 DANGEROUSLY_DISABLE_HOST_CHECK=true
 ```

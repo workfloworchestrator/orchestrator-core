@@ -17,6 +17,8 @@ the variables from `.env.local` and start the client:
 
 ```
 source .env.local
+# on MacOS make sure node@14 is being used
+export PATH="/usr/local/opt/node@14/bin:$PATH"
 yarn start
 ```
 

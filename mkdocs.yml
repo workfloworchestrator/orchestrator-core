@@ -64,6 +64,7 @@ nav:
     - Beginner:
       - Installation:
           - Debian: workshops/beginner/installation/debian.md
+          - MacOS: workshops/beginner/installation/macos.md
       - Start applications: workshops/beginner/starting-orchestrator-and-client.md
     - Old:
         - Getting Started:
