@@ -1,8 +1,8 @@
 from typing import Dict, List, Set, Union
 
 from more_itertools import flatten
-from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import Delete, Insert, Update
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
 from orchestrator.cli.domain_gen_helpers.product_helpers import get_product_id, get_product_ids
@@ -66,7 +66,7 @@ def generate_create_fixed_inputs_sql(
     """
 
     def create_fixed_input(fixed_input: str, product_names: Set[str]) -> str:
-        def create_product_insert_dict(product_name: str) -> Dict[str, Union[str, Query]]:
+        def create_product_insert_dict(product_name: str) -> Dict[str, Union[str, ScalarSelect]]:
             product_id_sql = get_product_id(product_name)
 
             if revert:

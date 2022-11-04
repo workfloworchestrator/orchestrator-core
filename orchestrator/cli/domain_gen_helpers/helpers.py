@@ -3,12 +3,12 @@ from typing import Dict, Optional, Set
 
 import structlog
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import Query
+from sqlalchemy.sql.selectable import ScalarSelect
 
 logger = structlog.get_logger(__name__)
 
 
-def sql_compile(sql: Query) -> str:
+def sql_compile(sql: ScalarSelect) -> str:
     sql_string = str(sql.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
     sql_string = sql_string.replace("\n", "")
     logger.debug("generated SQL", sql_string=sql_string)

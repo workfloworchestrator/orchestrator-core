@@ -2,8 +2,8 @@ from typing import Dict, List, Set, Type, Union
 
 import structlog
 from more_itertools import flatten
-from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import Delete, Insert, Update
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id, get_product_block_ids
@@ -18,11 +18,11 @@ from orchestrator.domain.base import ProductBlockModel
 logger = structlog.get_logger(__name__)
 
 
-def get_resource_type(resource_type: str) -> Query:
+def get_resource_type(resource_type: str) -> ScalarSelect:
     return get_resource_types([resource_type])
 
 
-def get_resource_types(resource_types: Union[List[str], Set[str]]) -> Query:
+def get_resource_types(resource_types: Union[List[str], Set[str]]) -> ScalarSelect:
     return (
         ResourceTypeTable.query.where(ResourceTypeTable.resource_type.in_(resource_types))
         .with_entities(ResourceTypeTable.resource_type_id)
@@ -230,7 +230,7 @@ def generate_create_resource_type_relations_sql(resource_types: Dict[str, Set[st
     def create_resource_type_relation(resource_type: str, block_names: Set[str]) -> str:
         resource_type_id_sql = get_resource_type(resource_type)
 
-        def create_block_relation_dict(block_name: str) -> Dict[str, Union[str, Query]]:
+        def create_block_relation_dict(block_name: str) -> Dict[str, Union[str, ScalarSelect]]:
             block_id_sql = get_product_block_id(block_name)
             return {"resource_type_id": resource_type_id_sql, "product_block_id": block_id_sql}
 

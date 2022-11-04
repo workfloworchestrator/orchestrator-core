@@ -2,8 +2,8 @@ from itertools import chain
 from typing import Any, Dict, Generator, List, Set, Type, Union
 
 from more_itertools import flatten
-from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import Delete, Insert
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
@@ -16,11 +16,11 @@ from orchestrator.db.models import (
 from orchestrator.domain.base import ProductBlockModel, get_depends_on_product_block_type_list
 
 
-def get_product_block_id(block_name: str) -> Query:
+def get_product_block_id(block_name: str) -> ScalarSelect:
     return get_product_block_ids([block_name])
 
 
-def get_product_block_ids(block_names: Union[List[str], Set[str]]) -> Query:
+def get_product_block_ids(block_names: Union[List[str], Set[str]]) -> ScalarSelect:
     return (
         ProductBlockTable.query.where(ProductBlockTable.name.in_(block_names))
         .with_entities(ProductBlockTable.product_block_id)
@@ -28,7 +28,7 @@ def get_product_block_ids(block_names: Union[List[str], Set[str]]) -> Query:
     )
 
 
-def get_subscription_instance(subscription_id: str, product_block_id: Query) -> Query:
+def get_subscription_instance(subscription_id: str, product_block_id: ScalarSelect) -> ScalarSelect:
     return (
         SubscriptionInstanceTable.query.where(
             SubscriptionInstanceTable.product_block_id.in_(product_block_id),
@@ -159,7 +159,7 @@ def generate_create_product_block_relations_sql(create_block_relations: Dict[str
     def create_block_relation(depends_block_name: str, block_names: Set[str]) -> str:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def create_block_relation_dict(block_name: str) -> Dict[str, Query]:
+        def create_block_relation_dict(block_name: str) -> Dict[str, ScalarSelect]:
             block_id_sql = get_product_block_id(block_name)
             return {"in_use_by_id": block_id_sql, "depends_on_id": depends_block_id_sql}
 
@@ -185,7 +185,7 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
     ) -> Generator[str, None, None]:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def map_subscription_instances(block_name: str) -> Dict[str, List[Dict[str, Union[str, Query]]]]:
+        def map_subscription_instances(block_name: str) -> Dict[str, List[Dict[str, Union[str, ScalarSelect]]]]:
             in_use_by_id_sql = get_product_block_id(block_name)
             subscription_instances: list[SubscriptionInstanceTable] = (
                 SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
