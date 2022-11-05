@@ -62,10 +62,19 @@ nav:
     - Development setup: getting-started/development.md
   - Workshops:
     - Beginner:
+      - Overview: workshops/beginner/overview.md
       - Installation:
-          - Debian: workshops/beginner/installation/debian.md
-          - MacOS: workshops/beginner/installation/macos.md
-      - Start applications: workshops/beginner/starting-orchestrator-and-client.md
+          - Debian: workshops/beginner/debian.md
+          - MacOS: workshops/beginner/macos.md
+      - Start applications: workshops/beginner/start-applications.md
+      - Products:
+          - Scenario: workshops/beginner/scenario.md
+          - Domain models: workshops/beginner/domain-models.md
+          - Database migration: workshops/beginner/database-migration.md
+      - Workflows:
+          - Create: workshops/beginner/create.md
+          - Modify: workshops/beginner/modify.md
+          - Terminate: workshops/beginner/terminate.md
     - Old:
         - Getting Started:
           - Base Application: getting-started/base.md
@@ -81,7 +90,7 @@ nav:
 
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
-    - Orchestration Philosofy: architecture/orchestration/philosophy.md
+    - Orchestration Philosophy: architecture/orchestration/philosophy.md
     - How do Workflows work?: architecture/application/workflow.md
     - What are tasks?: architecture/application/tasks.md
     - Validating input through forms: architecture/application/forms.md
