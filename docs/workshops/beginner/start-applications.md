@@ -24,5 +24,5 @@ yarn start
 
 Point a web browser to the URL `$REACT_APP_BACKEND_URL`. Once opened in the
 browser, ignore the message about the CRM not being responsive, this workshop
-does not include the setup of an interface to a CRM, the rest of the workshop
-will use fake customers IDs.
+does not include the setup of an interface to a CRM, this workshop will use
+fake customers IDs.
