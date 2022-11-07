@@ -104,7 +104,7 @@ def subscriptions_all() -> List[SubscriptionTable]:
     return SubscriptionTable.query.all()
 
 
-@router.get("/domain-model/{subscription_id}", response_model=SubscriptionDomainModelSchema)
+@router.get("/domain-model/{subscription_id}", response_model=Optional[SubscriptionDomainModelSchema])
 def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response
 ) -> Optional[Dict[str, Any]]:
