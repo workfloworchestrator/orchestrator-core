@@ -650,6 +650,7 @@ def test_read_only_field_schema():
         "properties": {
             "read_only": {
                 "const": 1,
+                "default": 1,
                 "title": "Read Only",
                 "type": "integer",
                 "uniforms": {"disabled": True, "value": 1},
