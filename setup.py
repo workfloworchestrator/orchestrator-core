@@ -9,7 +9,7 @@ setup_variables = toml.load("pyproject.toml")["tool"]["flit"]["metadata"]
 
 setup(
     name=setup_variables["dist-name"],
-    version=str(version.__version__),  # type: ignore
+    version=str(version.__version__),
     classifiers=setup_variables["classifiers"],
     author=setup_variables["author"],
     author_email=setup_variables["author-email"],

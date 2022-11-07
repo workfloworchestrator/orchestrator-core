@@ -41,7 +41,7 @@ def _generate_new_subscription_form(workflow_target: str, workflow_name: str) ->
         product: ProductId
 
         @validator("product", allow_reuse=True)
-        def product_validator(cls, v: UUID) -> UUID:
+        def product_validator(cls, v: UUID) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
             product = ProductTable.query.get(v)
             if product is None:
@@ -110,7 +110,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         subscription_id: UUID
 
         @validator("subscription_id", allow_reuse=True)
-        def subscription_validator(cls, v: UUID, values: Dict) -> UUID:
+        def subscription_validator(cls, v: UUID, values: Dict) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
             subscription = SubscriptionTable.query.get(v)
             if subscription is None:

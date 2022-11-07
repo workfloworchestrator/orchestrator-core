@@ -278,7 +278,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.depends_on_id]",
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_block_relations")
     def parent_relations(self) -> list[ProductBlockRelationTable]:
         return self.in_use_by_block_relations
@@ -292,7 +292,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on_block_relations")
     def children_relations(self) -> list[ProductBlockRelationTable]:
         return self.depends_on_block_relations
@@ -303,7 +303,7 @@ class ProductBlockTable(BaseModel):
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by")
     def parents(self) -> list[ProductBlockTable]:
         return self.in_use_by
@@ -314,7 +314,7 @@ class ProductBlockTable(BaseModel):
         creator=lambda depends_on: ProductBlockRelationTable(depends_on=depends_on),
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on")
     def children(self) -> list[ProductBlockTable]:
         return self.depends_on
@@ -345,7 +345,7 @@ class ProductBlockRelationTable(BaseModel):
     __tablename__ = "product_block_relations"
     in_use_by_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_id")  # typing: ignore
     def parent_id(self) -> Column:
         return self.in_use_by_id
@@ -354,7 +354,7 @@ class ProductBlockRelationTable(BaseModel):
         UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on_id")  # typing: ignore
     def child_id(self) -> Column:
         return self.depends_on_id
@@ -407,7 +407,7 @@ class SubscriptionInstanceRelationTable(BaseModel):
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_id")
     def parent_id(self) -> Column:
         return self.in_use_by_id
@@ -416,7 +416,7 @@ class SubscriptionInstanceRelationTable(BaseModel):
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on_id")
     def child_id(self) -> Column:
         return self.depends_on_id
@@ -468,7 +468,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.depends_on_id]",
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by_block_relations")
     def parent_relations(self) -> list[SubscriptionInstanceRelationTable]:
         return self.in_use_by_block_relations
@@ -484,7 +484,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on_block_relations")
     def children_relations(self) -> list[SubscriptionInstanceRelationTable]:
         return self.depends_on_block_relations
@@ -495,7 +495,7 @@ class SubscriptionInstanceTable(BaseModel):
         creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by")
     def parents(self) -> list[SubscriptionInstanceTable]:
         return self.in_use_by
@@ -506,7 +506,7 @@ class SubscriptionInstanceTable(BaseModel):
         creator=lambda depends_on: SubscriptionInstanceRelationTable(depends_on=depends_on),
     )
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on")
     def children(self) -> list[SubscriptionInstanceTable]:
         return self.depends_on

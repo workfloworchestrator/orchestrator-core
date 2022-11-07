@@ -471,7 +471,7 @@ class ProductBlockModelMeta(ModelMetaclass):
             self.description = product_block.description
             self.tag = product_block.tag
 
-    def __call__(self, *args: Any, **kwargs: Any) -> B:
+    def __call__(self, *args: Any, **kwargs: Any) -> B:  # type: ignore
         self._fix_pb_data()
 
         kwargs["name"] = self.name
@@ -934,7 +934,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     def in_use_by(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.in_use_by
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to in_use_by")
     def parents(self) -> List[SubscriptionInstanceTable]:
         return self.in_use_by
@@ -943,7 +943,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     def depends_on(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.depends_on
 
-    @property  # type: ignore
+    @property
     @deprecated(version="0.4.0", reason="Has been renamed to depends_on")
     def children(self) -> List[SubscriptionInstanceTable]:
         return self.depends_on
@@ -1153,7 +1153,7 @@ class SubscriptionModel(DomainModel):
             end_date=end_date,
             note=note,
             **fixed_inputs,
-            **instances,  # type: ignore
+            **instances,
         )
         model._db_model = subscription
         return model
@@ -1257,7 +1257,7 @@ class SubscriptionModel(DomainModel):
                 end_date=subscription.end_date,
                 note=subscription.note,
                 **fixed_inputs,
-                **instances,  # type: ignore
+                **instances,
             )
             model._db_model = subscription
             return model
@@ -1307,7 +1307,7 @@ class SubscriptionModel(DomainModel):
                 end_date=subscription.end_date,
                 note=subscription.note,
                 **fixed_inputs,
-                **instances,  # type: ignore
+                **instances,
             )
             model._db_model = subscription
             return model
@@ -1448,7 +1448,7 @@ class SubscriptionInstanceList(ConstrainedList, List[SI]):
     """Shorthand to create constrained lists of product blocks."""
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)  # type:ignore
+        super().__init_subclass__(**kwargs)
 
         # Copy generic argument (SI) if not set explicitly
         # This makes a lot of assumptions about the internals of `typing`

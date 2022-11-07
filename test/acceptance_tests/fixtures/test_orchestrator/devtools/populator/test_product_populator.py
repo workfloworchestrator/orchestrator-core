@@ -51,9 +51,9 @@ class TestProductPopulator(Populator):
         super().add_default_values()
         self.default_input_values.update(
             {
-                "an_int": self.an_int,
+                "an_int": self.an_int,  # type: ignore
                 "a_str": self.a_str,
-                "a_bool": self.a_bool,
+                "a_bool": self.a_bool,  # type: ignore
                 "an_uuid": self.an_uuid,
                 "an_ipv4": self.an_ipv4,
                 "an_ipv6": self.an_ipv6,
