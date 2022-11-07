@@ -1,8 +1,8 @@
 from itertools import chain
 from typing import Dict, Generator, List, Set, Type, Union
 
-from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import Delete, Insert
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id
@@ -16,11 +16,11 @@ from orchestrator.db.models import (
 from orchestrator.domain.base import SubscriptionModel, get_depends_on_product_block_type_list
 
 
-def get_product_id(product_name: str) -> Query:
+def get_product_id(product_name: str) -> ScalarSelect:
     return get_product_ids([product_name])
 
 
-def get_product_ids(product_names: Union[List[str], Set[str]]) -> Query:
+def get_product_ids(product_names: Union[List[str], Set[str]]) -> ScalarSelect:
     return (
         ProductTable.query.where(ProductTable.name.in_(product_names))
         .with_entities(ProductTable.product_id)
@@ -118,7 +118,7 @@ def generate_create_product_relations_sql(create_block_relations: Dict[str, Set[
     def create_block_relation(block_name: str, product_names: Set[str]) -> str:
         block_id_sql = get_product_block_id(block_name)
 
-        def create_block_relation_dict(product_name: str) -> Dict[str, Query]:
+        def create_block_relation_dict(product_name: str) -> Dict[str, ScalarSelect]:
             product_id_sql = get_product_id(product_name)
             return {"product_block_id": block_id_sql, "product_id": product_id_sql}
 
@@ -146,7 +146,7 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: D
 
         def map_subscription_instance_relations(
             product_name: str,
-        ) -> Generator[Dict[str, Union[str, Query]], None, None]:
+        ) -> Generator[Dict[str, Union[str, ScalarSelect]], None, None]:
             product_id_sql = get_product_id(product_name)
             subscription_ids = (
                 SubscriptionTable.query.where(SubscriptionTable.product_id.in_(product_id_sql))

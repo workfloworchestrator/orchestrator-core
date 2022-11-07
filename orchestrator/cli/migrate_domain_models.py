@@ -49,6 +49,7 @@ from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
     generate_delete_resource_type_relations_sql,
     generate_delete_resource_types_sql,
     generate_rename_resource_types_sql,
+    map_create_resource_type_instances,
     map_create_resource_types,
     map_delete_resource_types,
     map_update_resource_types,
@@ -229,6 +230,7 @@ def map_changes(
     related_resource_type_names = set(changes.create_resource_type_relations.keys())
     existing_renamed_rts = set(changes.rename_resource_types.values())
     changes.create_resource_types = map_create_resource_types(related_resource_type_names, existing_renamed_rts)
+    changes.create_resource_type_instance_relations = map_create_resource_type_instances(changes)
 
     return changes
 
@@ -261,7 +263,7 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
         + generate_create_resource_type_relations_sql(changes.create_resource_type_relations)
         + generate_create_product_instance_relations_sql(changes.create_product_to_block_relations)
         + generate_create_product_block_instance_relations_sql(changes.create_product_block_relations)
-        + generate_create_resource_type_instance_values_sql(changes.create_resource_type_relations, inputs)
+        + generate_create_resource_type_instance_values_sql(changes.create_resource_type_instance_relations, inputs)
     )
 
 
@@ -363,6 +365,10 @@ def create_domain_models_migration_sql(
     logger.info("rename_resource_types", rename_resource_types=changes.rename_resource_types)
     logger.info("delete_resource_types", delete_resource_types=changes.delete_resource_types)
     logger.info("create_resource_type_relations", create_resource_type_relations=changes.create_resource_type_relations)
+    logger.info(
+        "create_resource_type_instance_relations",
+        create_resource_type_instance_relations=changes.create_resource_type_instance_relations,
+    )
     logger.info("delete_resource_type_relations", delete_resource_type_relations=changes.delete_resource_type_relations)
     logger.info("create_product_blocks", create_blocks=changes.create_product_blocks)
     logger.info("delete_product_blocks", delete_blocks=changes.delete_product_blocks)

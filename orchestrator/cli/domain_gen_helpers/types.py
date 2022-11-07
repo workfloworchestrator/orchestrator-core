@@ -21,6 +21,7 @@ class DomainModelChanges(BaseModel):
     rename_resource_types: Dict[str, str] = {}
     delete_resource_types: Set[str] = set()
     create_resource_type_relations: Dict[str, Set[str]] = {}
+    create_resource_type_instance_relations: Dict[str, Set[str]] = {}
     delete_resource_type_relations: Dict[str, Set[str]] = {}
 
 
