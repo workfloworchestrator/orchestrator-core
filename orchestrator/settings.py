@@ -64,6 +64,7 @@ class AppSettings(BaseSettings):
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
+    SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
 
 
 class Oauth2Settings(BaseSettings):

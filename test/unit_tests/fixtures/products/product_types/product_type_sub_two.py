@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from orchestrator.db import ProductTable, db
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
@@ -21,7 +22,9 @@ def test_product_type_sub_two(test_product_sub_block_two):
     class ProductSubTwo(ProductSubTwoProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_block: SubBlockTwoForTest
 
-    return ProductSubTwoInactive, ProductSubTwoProvisioning, ProductSubTwo
+    SUBSCRIPTION_MODEL_REGISTRY["ProductSubTwo"] = ProductSubTwo
+    yield ProductSubTwoInactive, ProductSubTwoProvisioning, ProductSubTwo
+    del SUBSCRIPTION_MODEL_REGISTRY["ProductSubTwo"]
 
 
 @pytest.fixture

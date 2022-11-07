@@ -478,6 +478,23 @@ class ProductBlockModelMeta(ModelMetaclass):
         return super().__call__(*args, **kwargs)
 
 
+def get_depends_on_product_block_type_list(
+    product_block_types: Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]
+) -> List[Type["ProductBlockModel"]]:
+    product_blocks_types_in_model = []
+    for product_block_type in product_block_types.values():
+        if is_union_type(product_block_type):
+            for union_product_block_type in get_args(product_block_type):  # type: ignore
+                if not isinstance(None, union_product_block_type):
+                    product_blocks_types_in_model.append(union_product_block_type)
+        else:
+            product_blocks_types_in_model.append(product_block_type)
+
+    if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
+        return one(product_blocks_types_in_model)
+    return product_blocks_types_in_model
+
+
 class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     r"""Base class for all product block models.
 
@@ -561,7 +578,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         cls.__doc__ = make_product_block_docstring(cls, lifecycle)
 
     @classmethod
-    def diff_product_block_in_database(cls) -> Dict[str, Any]:
+    def diff_product_block_in_database(cls) -> Dict[str, Set[str]]:
         """Return any differences between the attrs defined on the domain model and those on product blocks in the database.
 
         This is only needed to check if the domain model and database models match which would be done during testing...
@@ -576,21 +593,9 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         product_blocks_in_db = {pb.name for pb in product_block_db.depends_on} if product_block_db else set()
 
         product_blocks_in_model = cls._get_depends_on_product_block_types()
-        product_blocks_types_in_model = []
+        product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        # expand Union types for comparison to the DB
-        for product_block_type in product_blocks_in_model.values():
-            if is_union_type(product_block_type):
-                for union_product_block_type in get_args(product_block_type):  # type: ignore
-                    product_blocks_types_in_model.append(union_product_block_type)
-            else:
-                product_blocks_types_in_model.append(product_block_type)
-
-        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            # There may only be one in the type if it is a Tuple
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
-        else:
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -615,18 +620,12 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         )
 
         missing_data: Dict[str, Any] = {}
-        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            for product_block_model in one(product_blocks_types_in_model):
-                if product_block_model.name == cls.name or product_block_model.name in missing_data:
-                    continue
-                missing_data.update(product_block_model.diff_product_block_in_database())
-        else:
-            for product_block_model in product_blocks_types_in_model:
-                if product_block_model.name == cls.name or product_block_model.name in missing_data:
-                    continue
-                missing_data.update(product_block_model.diff_product_block_in_database())
+        for product_block_model in product_blocks_types_in_model:
+            if product_block_model.name == cls.name or product_block_model.name in missing_data:
+                continue
+            missing_data.update(product_block_model.diff_product_block_in_database())
 
-        diff = {
+        diff: Dict[str, Set[str]] = {
             k: v
             for k, v in {
                 "missing_product_blocks_in_db": missing_product_blocks_in_db,
@@ -1014,7 +1013,7 @@ class SubscriptionModel(DomainModel):
         cls.__doc__ = make_subscription_model_docstring(cls, lifecycle)
 
     @classmethod
-    def diff_product_in_database(cls, product_id: UUID) -> Dict[str, Any]:
+    def diff_product_in_database(cls, product_id: UUID) -> Dict[str, Dict[str, Union[Set[str], Dict[str, Set[str]]]]]:
         """Return any differences between the attrs defined on the domain model and those on product blocks in the database.
 
         This is only needed to check if the domain model and database models match which would be done during testing...
@@ -1023,20 +1022,9 @@ class SubscriptionModel(DomainModel):
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
 
         product_blocks_in_model = cls._get_depends_on_product_block_types()
-        product_blocks_types_in_model = []
-        # expand Union types for comparison to the DB
-        for product_block_type in product_blocks_in_model.values():
-            if is_union_type(product_block_type):
-                for union_product_block_type in get_args(product_block_type):  # type: ignore
-                    if not isinstance(None, union_product_block_type):
-                        product_blocks_types_in_model.append(union_product_block_type)
-            else:
-                product_blocks_types_in_model.append(product_block_type)
+        product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), one(product_blocks_types_in_model))))  # type: ignore
-        else:
-            product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1060,11 +1048,11 @@ class SubscriptionModel(DomainModel):
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        missing_data_depends_on_blocks: Dict[str, Any] = {}
+        missing_data_depends_on_blocks: Dict[str, Set[str]] = {}
         for product_block_in_model in product_blocks_types_in_model:
             missing_data_depends_on_blocks.update(product_block_in_model.diff_product_block_in_database())
 
-        diff = {
+        diff: Dict[str, Union[Set[str], Dict[str, Set[str]]]] = {
             k: v
             for k, v in {
                 "missing_product_blocks_in_db": missing_product_blocks_in_db,
@@ -1076,7 +1064,7 @@ class SubscriptionModel(DomainModel):
             if v
         }
 
-        missing_data = {}
+        missing_data: Dict[str, Dict[str, Union[Set[str], Dict[str, Set[str]]]]] = {}
         if diff:
             missing_data[product_db.name] = diff
 
