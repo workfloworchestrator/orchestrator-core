@@ -33,7 +33,6 @@ from typing import (
 from uuid import UUID, uuid4
 
 import structlog
-from deprecated import deprecated
 from more_itertools import first, flatten, last, one, only
 from pydantic import BaseModel, Field, ValidationError
 from pydantic.fields import PrivateAttr
@@ -935,18 +934,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         return self._db_model.in_use_by
 
     @property
-    @deprecated(version="0.4.0", reason="Has been renamed to in_use_by")
-    def parents(self) -> List[SubscriptionInstanceTable]:
-        return self.in_use_by
-
-    @property
     def depends_on(self) -> List[SubscriptionInstanceTable]:
         return self._db_model.depends_on
-
-    @property
-    @deprecated(version="0.4.0", reason="Has been renamed to depends_on")
-    def children(self) -> List[SubscriptionInstanceTable]:
-        return self.depends_on
 
 
 class ProductModel(BaseModel):

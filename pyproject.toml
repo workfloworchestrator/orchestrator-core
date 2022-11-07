@@ -39,7 +39,6 @@ requires = [
     "broadcaster[redis]==0.2.0",
     "click==8.0.3",
     "deepmerge==0.1.0",
-    "deprecated==1.2.12",
     "fastapi~=0.86.0",
     "fastapi-etag==0.2.2",
     "more-itertools~=8.7.0",

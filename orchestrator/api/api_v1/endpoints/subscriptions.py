@@ -145,7 +145,6 @@ def delete_subscription(subscription_id: UUID) -> None:
         return None
 
 
-@router.get("/parent_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
 @router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
 def in_use_by_subscriptions(
     subscription_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
@@ -180,7 +179,6 @@ def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, 
     return result
 
 
-@router.get("/child_subscriptions/{subscription_id}", response_model=List[SubscriptionSchema], deprecated=True)
 @router.get("/depends_on/{subscription_id}", response_model=List[SubscriptionSchema])
 def depends_on_subscriptions(
     subscription_id: UUID,
