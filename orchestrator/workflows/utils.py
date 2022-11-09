@@ -41,7 +41,7 @@ def _generate_new_subscription_form(workflow_target: str, workflow_name: str) ->
         product: ProductId
 
         @validator("product", allow_reuse=True)
-        def product_validator(cls, v: UUID) -> UUID:
+        def product_validator(cls, v: UUID) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
             product = ProductTable.query.get(v)
             if product is None:
@@ -96,7 +96,6 @@ TRANSLATIONS = {
     "subscription.not_in_sync": "Subscription already has a running process or task",
     "subscription.relations_not_in_sync": "This subscription can not be modified because some related subscriptions are not insync",
     "subscription.no_modify_invalid_status": "This subscription can not be modified because of the status it has",
-    # no_modify_parent_subscription deprecated since "0.4.0", renamed to no_modify_subscription_in_use_by_others
     "subscription.no_modify_parent_subscription": "This subscription can not be modified as it is used in other subscriptions",
     "subscription.no_modify_subscription_in_use_by_others": "This subscription can not be modified as it is used in other subscriptions",
     "subscription.no_modify_auto_negotiation": "This workflow is not valid for this subscription",
@@ -110,7 +109,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         subscription_id: UUID
 
         @validator("subscription_id", allow_reuse=True)
-        def subscription_validator(cls, v: UUID, values: Dict) -> UUID:
+        def subscription_validator(cls, v: UUID, values: Dict) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
             subscription = SubscriptionTable.query.get(v)
             if subscription is None:

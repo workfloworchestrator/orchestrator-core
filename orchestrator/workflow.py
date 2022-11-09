@@ -981,10 +981,10 @@ class Process(Generic[S]):
         next_state = self._fold(Success, Success, Success, Success, Abort, Success, Complete)
 
         if self.issuspend():
-            result = resume_suspend(next_state)
+            result = resume_suspend(next_state)  # type: ignore
             return result
 
-        return next_state
+        return next_state  # type: ignore
 
 
 class Success(Process[S]):

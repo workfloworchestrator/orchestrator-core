@@ -49,7 +49,7 @@ def from_redis(subscription_id: UUID) -> Optional[Tuple[Any, str]]:
         obj = cache.get(f"domain:{subscription_id}")
         etag = cache.get(f"domain:etag:{subscription_id}")
         if obj and etag:
-            return json_loads(obj), etag.decode("utf-8")  # type: ignore
+            return json_loads(obj), etag.decode("utf-8")
         else:
             return None
     else:

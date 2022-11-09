@@ -54,7 +54,7 @@ class UniqueConstrainedList(ConstrainedList, List[T]):
         return v
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)  # type:ignore
+        super().__init_subclass__(**kwargs)
 
         # Copy generic argument (T) if not set explicitly
         # This makes a lot of assuptions about the internals of `typing`
