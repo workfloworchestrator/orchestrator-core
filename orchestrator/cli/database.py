@@ -13,6 +13,7 @@
 
 import json
 import os
+import re
 from shutil import copyfile
 from typing import Any, List, Optional, Tuple, Union
 
@@ -204,16 +205,14 @@ def history(
 
 
 def remove_core_as_down_revision(migration: Any) -> None:
-    f = open(migration.path, "r")
-    lines = f.readlines()
-    # n is the line number you want to edit; subtract 1 as indexing of list starts from 0.
-    lines[4 - 1] = "Revises:\n"
-    lines[13 - 1] = "down_revision = None\n"
-    f.close()
+    with open(migration.path) as f:
+        text = f.read()
 
-    f = open(migration.path, "w")
-    f.writelines(lines)
-    f.close()
+    text = re.sub(r"\nRevises: [0-9a-z]+\n", r"\nRevises:\n", text, count=1)
+    text = re.sub(r"\ndown_revision = ['\"][0-9a-z]+['\"]'\n", r"\ndown_revision = None\n", text, count=1)
+
+    with open(migration.path, "w") as f:
+        f.write(text)
 
 
 @app.command(help="Create revision based on diff_product_in_database.")
