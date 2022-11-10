@@ -285,6 +285,7 @@ def migrate_domain_models(
     )
 
     try:
+        # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
         script = ScriptDirectory.from_config(alembic_config)
         core_head = script.get_current_head()
         migration = command.revision(
