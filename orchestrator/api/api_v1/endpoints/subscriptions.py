@@ -281,9 +281,9 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
             logger.info(
                 "Subscription not in sync, trying to change..", subscription_id=subscription_id, user=current_user
             )
-            failed_processes = failed_processes()  # type: ignore
-            if not failed_processes:
-                subscription.insync = True  # type: ignore
+            failed_processes_list = failed_processes()
+            if not failed_processes_list:
+                subscription.insync = True
                 db.session.commit()
                 logger.info("Subscription set in sync", user=current_user)
             else:
