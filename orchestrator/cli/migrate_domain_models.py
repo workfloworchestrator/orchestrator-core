@@ -55,7 +55,6 @@ from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
     map_update_resource_types,
 )
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges, ModelUpdates
-from orchestrator.db import init_database
 from orchestrator.db.models import ProductTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel, get_depends_on_product_block_type_list
@@ -335,10 +334,6 @@ def create_domain_models_migration_sql(
         - list of upgrade SQL statements in string format.
         - list of downgrade SQL statements in string format.
     """
-
-    if not app_settings.TESTING:
-        init_database(app_settings)
-
     existing_products: List[Tuple[str, UUID]] = list(
         ProductTable.query.with_entities(ProductTable.name, ProductTable.product_id)
     )
