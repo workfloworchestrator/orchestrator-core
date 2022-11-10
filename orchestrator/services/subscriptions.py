@@ -582,20 +582,13 @@ def build_extendend_domain_model(subscription_model: SubscriptionModel) -> dict:
     ).all()
 
     subscription = subscription_model.dict()
-    sub_instance_ids = [subscription_model.subscription_id]
     paths = product_block_paths(subscription_model)
-    for path in paths:
-        sub_instance_ids.append(getattr_in(subscription_model, f"{path}.subscription_instance_id"))
 
     # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
     for path in paths:
         if in_use_by_subs := getattr_in(subscription_model, f"{path}.in_use_by"):
             i_ids: List[Optional[UUID]] = []
-            i_ids.extend(
-                in_use_by_subs.col[idx].in_use_by_id
-                for idx, ob in enumerate(in_use_by_subs.col)
-                if ob.in_use_by_id not in sub_instance_ids
-            )
+            i_ids.extend(in_use_by_subs.col[idx].in_use_by_id for idx, _ in enumerate(in_use_by_subs.col))
             update_in(subscription, f"{path}.in_use_by_ids", i_ids)
 
     subscription["customer_descriptions"] = customer_descriptions
