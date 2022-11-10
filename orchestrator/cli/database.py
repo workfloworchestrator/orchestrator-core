@@ -13,19 +13,23 @@
 
 import json
 import os
+import re
 from shutil import copyfile
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import jinja2
 import typer
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
 from structlog import get_logger
 
 import orchestrator
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
+from orchestrator.db import init_database
+from orchestrator.settings import app_settings
 
 logger = get_logger(__name__)
 
@@ -200,6 +204,17 @@ def history(
     command.history(alembic_cfg(), verbose=verbose, indicate_current=indicate_current)
 
 
+def remove_core_as_down_revision(migration: Any) -> None:
+    with open(migration.path) as f:
+        text = f.read()
+
+    text = re.sub(r"\nRevises: [0-9a-z]+\n", r"\nRevises:\n", text, count=1)
+    text = re.sub(r"\ndown_revision = ['\"][0-9a-z]+['\"]'\n", r"\ndown_revision = None\n", text, count=1)
+
+    with open(migration.path, "w") as f:
+        f.write(text)
+
+
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
     message: str = typer.Argument(..., help="Migration name"),
@@ -237,6 +252,8 @@ def migrate_domain_models(
             - list of upgrade SQL statements in string format.
             - list of downgrade SQL statements in string format.
     """
+    if not app_settings.TESTING:
+        init_database(app_settings)
 
     inputs_dict = json.loads(inputs) if isinstance(inputs, str) else {}
     updates_dict = json.loads(updates) if isinstance(updates, str) else {}
@@ -262,18 +279,37 @@ def migrate_domain_models(
         [
             location
             for location in alembic_config.get_main_option("version_locations").split(" ")
-            if "venv" not in location
+            if "site-packages" not in location
         ]
     )
+
     try:
+        # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
+        script = ScriptDirectory.from_config(alembic_config)
+        core_head = script.get_current_head()
         migration = command.revision(
             alembic_config,
             message,
             branch_label="data",
             version_path=non_venv_location,
+            depends_on=core_head,
         )
-    except CommandError:
-        migration = command.revision(alembic_config, message, head="data@head", version_path=non_venv_location)
+
+        remove_core_as_down_revision(migration)
+    except CommandError as err:
+        error_str = str(err)
+        if ("Branch name 'data'" in error_str and "already used by revision" in error_str) or (
+            "The script directory has multiple heads" in error_str
+        ):
+            try:
+                migration = command.revision(alembic_config, message, head="data@head", version_path=non_venv_location)
+            except CommandError:
+                if "Branch name 'data'" in error_str and "already used by revision" in error_str:
+                    raise CommandError("Database not up to date with latest revision")
+                else:
+                    raise CommandError("Database head 'data' already exists but no revision/migration file found")
+        else:
+            raise err
 
     with open(migration.path) as f:
         file_data = f.read()
