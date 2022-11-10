@@ -588,7 +588,7 @@ def build_extendend_domain_model(subscription_model: SubscriptionModel) -> dict:
     for path in paths:
         if in_use_by_subs := getattr_in(subscription_model, f"{path}.in_use_by"):
             i_ids: List[Optional[UUID]] = []
-            i_ids.extend(in_use_by_subs.col[idx].in_use_by_id for idx in enumerate(in_use_by_subs.col))
+            i_ids.extend(in_use_by_subs.col[idx].in_use_by_id for idx, _ in enumerate(in_use_by_subs.col))
             update_in(subscription, f"{path}.in_use_by_ids", i_ids)
 
     subscription["customer_descriptions"] = customer_descriptions
