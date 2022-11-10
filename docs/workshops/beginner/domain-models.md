@@ -39,26 +39,129 @@ references to a product block, and a product block as a container for resources
 types and (optional) references to other product blocks. Product block
 references may be nested as deep as needed.
 
-Now read the [Domain
+## Exercise 1: create UserGroup product block
+
+Read the [Domain
 models](/orchestrator-core/architecture/application/domainmodels/) section of
 the orchestrator core documentation to learn more about domain models and how
-they are defined.
-
-## Exercise 1: create UserGroup product block
+they are defined. For now, skip the code examples *Product Model a.k.a
+SubscriptionModel* and *Advanced Use Cases*.
 
 Use the following skeleton to create the file `user_group.py` in the
 `product_blocks` folder of the `example-orchestrator` and define the
 `UserGroupBlockInactive`, `UserGroupBlockProvisioning` and `UserGroupBlock`
-user group product blocks in their different lifecycle states:
+domain models describing the user group product block in the lifecycle states
+`INITIAL`, `PROVISIONING` and `ACTIVE`:
 
-```
+```python
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
+# UserGroupBlockInactive with all resource types optional
 ...
+
+# UserGroupBlockProvisioning with only resource type group_id optional
+...
+
+# UserGroupBlock with all resource types mandatory
+... 
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
 group product
 block](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_blocks/user_group.py)
 
+## Exercise 2: create UserGroup product
+
+Return to the [Domain
+models](/orchestrator-core/architecture/application/domainmodels/) section of
+the orchestrator core documentation look at the code example *Product Model a.
+k.a 
+SubscriptionModel*.
+
+Use the following skeleton to create the file `user.py` in the `product_types`
+folder of the `example-orchestrator` and define the `UserGroupInactive`,
+`UserGroupProvisioning` and `UserGroup` domain models describing the user group
+product in its different lifecycle states:
+
+```python
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.types import SubscriptionLifecycle
+
+from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockInactive, UserGroupBlockProvisioning
+
+# UserGroupInactive
+...
+
+# UserGroupProvisioning
+...
+
+# UserGroup
+...
+```
+
+**Spoiler**: for inspiration look at an example implementation of the [user
+group product
+](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_types/user_group.py)
+
+## Exercise 3: create User product block
+
+Use the following skeleton to create the file `user.py` in the `product_blocks`
+folder of the `example-orchestrator` and define the `UserBlockInactive`,
+`UserBlockProvisioning` and `UserBlock` domain models describing the user group
+product block in its different lifecycle states:
+
+```python
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SubscriptionLifecycle
+
+from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockInactive, UserGroupBlockProvisioning
+
+# UserBlockInactive with only product block reference group mandatory
+...
+
+# UserBlockProvisioning with only resource type user_id and age optional
+...
+
+# UserBlock with only resource type age optional
+...
+```
+
+**Spoiler**: for inspiration look at an example implementation of the [user
+product
+block](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_blocks/user.py)
+
+## Exercise 4: create User product
+
+Use the following skeleton to create the file `user.py` in the `product_types`
+folder of the `example-orchestrator` and define the `UserInactive`,
+`UserProvisioning` and `User` domain models describing the user product in its
+different lifecycle states.
+
+Note that the `strEnum` type from the orchestrator is used, which uses the
+standard python module `enum` to describe an enumeration of strings, to create
+a type to be used for the fixed input `affiliation`.
+
+```python
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.types import SubscriptionLifecycle, strEnum
+
+from products.product_blocks.user import UserBlock, UserBlockInactive, UserBlockProvisioning
+
+class Affiliation(strEnum):
+    internal = "internal"
+    external = "external"
+
+# UserInactive(SubscriptionModel
+...
+
+# UserProvisioning
+...
+
+# User
+...
+```
+
+**Spoiler**: for inspiration look at an example implementation of the [user
+product
+](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_types/user.py)
