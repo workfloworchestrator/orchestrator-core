@@ -71,7 +71,7 @@ def orig(func: Callable) -> Callable:
     """
     f = func
     while hasattr(f, "__wrapped__"):
-        f = f.__wrapped__  # type:ignore
+        f = f.__wrapped__
 
     return f
 

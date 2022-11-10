@@ -16,7 +16,7 @@ def test_product_type_list_union_overlap(test_product_block_one, test_product_su
 
     T = TypeVar("T", covariant=True)
 
-    class ListOfPorts(SubscriptionInstanceList[T]):
+    class ListOfPorts(SubscriptionInstanceList[T]):  # type: ignore
         min_items = 1
 
     class ProductListUnionInactive(SubscriptionModel, is_base=True):
