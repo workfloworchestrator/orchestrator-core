@@ -204,12 +204,35 @@ def history(
     command.history(alembic_cfg(), verbose=verbose, indicate_current=indicate_current)
 
 
+def remove_down_revision_from_text(text: str) -> str:
+    r"""Remove down revision from text.
+
+    >>> text = "Revises: bed6bc0b197a"
+    >>> remove_down_revision_from_text(text)
+    'Revises:'
+
+    >>> text = "down_revision = 'bed6bc0b197a'"
+    >>> remove_down_revision_from_text(text)
+    'down_revision = None'
+
+    >>> text = "initial\n\nRevises: bed6bc0b197a\n\ndown_revision = 'bed6bc0b197a'\n\ntesting"
+    >>> remove_down_revision_from_text(text)
+    'initial\n\nRevises:\n\ndown_revision = None\n\ntesting'
+
+    >>> text = "initial\n\nRevises: bed6bc0b197a\n\ndown_revision='bed6bc0b197a'\n\ntesting"
+    >>> remove_down_revision_from_text(text)
+    "initial\n\nRevises:\n\ndown_revision='bed6bc0b197a'\n\ntesting"
+
+    """
+    text = re.sub(r"Revises: [0-9a-z]+", r"Revises:", text, count=1)
+    return re.sub(r"down_revision = ['\"][0-9a-z]+['\"]", r"down_revision = None", text, count=1)
+
+
 def remove_core_as_down_revision(migration: Any) -> None:
     with open(migration.path) as f:
         text = f.read()
 
-    text = re.sub(r"\nRevises: [0-9a-z]+\n", r"\nRevises:\n", text, count=1)
-    text = re.sub(r"\ndown_revision = ['\"][0-9a-z]+['\"]'\n", r"\ndown_revision = None\n", text, count=1)
+    text = remove_down_revision_from_text(text)
 
     with open(migration.path, "w") as f:
         f.write(text)
