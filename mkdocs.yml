@@ -72,6 +72,8 @@ nav:
           - Domain models: workshops/beginner/domain-models.md
           - Database migration: workshops/beginner/database-migration.md
       - Workflows:
+          - Introduction: workshops/beginner/workflow-introduction.md
+          - Input forms: workshops/beginner/input-forms.md
           - Create: workshops/beginner/create.md
           - Modify: workshops/beginner/modify.md
           - Terminate: workshops/beginner/terminate.md
