@@ -71,15 +71,12 @@ beginner-workshop
 │           ├── modify_user_group.py
 │           └── terminate_user_group.py
 │
-├── orchestrator-core
-│   └── ...
-│
 └── orchestrator-core-gui
     └── ...
 ```
 
-The `orchestrator-core` and `orchestrator-core-gui` folders will be cloned from
-their respective GitHub repositories. The `example-orchestrator` folder will be
-used for the orchestrator that is build during this workshop.  Although any
-layout of the latter folder will work, it is encouraged to use the suggested
-folder layout and filenames during this workshop.
+The `orchestrator-core-gui` folder will be cloned from GitHub. The
+`example-orchestrator` folder will be used for the orchestrator that is build
+during this workshop.  Although any layout of the latter folder will work, it
+is encouraged to use the suggested folder layout and filenames during this
+workshop.

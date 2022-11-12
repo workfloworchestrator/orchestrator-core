@@ -141,11 +141,11 @@ Resource type description: **id of the user**
 
 ## Exercise 3: perform database migration
 
-The only thing to be done at this stage is applying the database migration
-created above.  One way to do this is to explicitly upgrade the database with
-`db upgrade <revision>` to the revision that was just created. Another way is
-to just upgrade to the latest heads again, as was done during the
-initialisation of the database.
+To create a representation of the products in the database that matches the 
+domain models, the database migration created above is executed. One way to do 
+this is to explicitly upgrade the database with `db upgrade <revision>` to 
+the revision that was just created. Another way is to upgrade to the latest
+heads again, as was done during the initialisation of the database.
 
 ```shell
 PYTHONPATH=. python main.py db upgrade heads
