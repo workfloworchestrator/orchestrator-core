@@ -24,20 +24,18 @@ can for example be used to validate subscriptions against external OSS and BSS.
 The same workflow step can be used in multiple workflows, and a set of 
 workflow steps can be combined in a step list and can be reused as well.  
 
-Ideally workflow steps are idempotent, in case a workflow step fails this 
-allows for save retry functionality without possible unwanted side effects 
-or new failures. This is especially important when a step is used to 
-communicate 
-with external OSS and BSS, but in practice it will not always be possible to 
-make a step one hundred percent idempotent, requiring manual intervention 
-before a step can be retried. Note that the workflow steps created in this 
-beginner workshop 
-will not always be idempotent. 
+Ideally workflow steps are idempotent, in case a workflow step fails this
+allows for save retry functionality without possible unwanted side effects or
+new failures. This is especially important when a step is used to communicate
+with external OSS and BSS, but in practice it will not always be possible to
+make a step one hundred percent idempotent, requiring manual intervention
+before a step can be retried. Note that the workflow steps created in this
+beginner workshop will not always be idempotent. 
 
-The `workflow` decorator takes an description, initial input form, and a 
-target as input and turns a function into a workflow that returns a step 
-list to be executed by the workflow engine in a workflow process. A minimal 
-workflow looks like this:
+The `workflow` decorator takes an description, initial input form, and a target
+as input and turns a function into a workflow that returns a step list to be
+executed by the workflow engine in a workflow process. A minimal workflow looks
+like this:
 
 ```python
 @workflow(
@@ -49,18 +47,15 @@ def create_product_subscription():
     return init >> create_subscription >> done
 ```
 
-Information between workflow steps is passed using `State`, which is nothing 
+Information between workflow steps is passed using `State`, which is nothing
 more than a collection of key/value pairs, in Python represented by a `Dict`,
-with string keys and arbitrary JSON values. The `step` decorator is used
-to turn 
-a function into a workflow step, all arguments to the step function will 
-automatically be initialised with the value from the matching key in the 
-`State`. In turn the step function will return a `Dict` of new and/or 
-modified key/value pairs that will be merged into the `State` to be consumed 
-by the next step. The serialization and deserialization between JSON and the 
-indicated Python types is done automatically. A minimal 
-workflow 
-step looks as follows:
+with string keys and arbitrary JSON values. The `step` decorator is used to
+turn a function into a workflow step, all arguments to the step function will
+automatically be initialised with the value from the matching key in the
+`State`. In turn the step function will return a `Dict` of new and/or modified
+key/value pairs that will be merged into the `State` to be consumed by the next
+step. The serialization and deserialization between JSON and the indicated
+Python types is done automatically. A minimal workflow step looks as follows:
 
 ```python
 @step("Create subscription")
@@ -72,6 +67,10 @@ def create_subscription(
     return {"subscription": subscription}
 ```
 
-The `product` and `user_input` arguments are filled from the corresponding 
-key/value pairs in the `State`, and the new `subscription` key/value is 
-added to the state to be used by one of the following step.
+The `product` and `user_input` arguments are filled from the corresponding
+key/value pairs in the `State`, and the new `subscription` key/value is added
+to the state to be used by one of the following step.
+
+Every workflow starts with the builtin step `init` and ends with the builtin
+step `done`, with an arbitrary list of other builtin steps or custom steps in
+between. 
