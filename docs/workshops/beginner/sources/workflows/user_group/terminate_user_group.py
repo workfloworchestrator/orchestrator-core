@@ -1,7 +1,7 @@
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Label
 from orchestrator.targets import Target
-from orchestrator.types import InputForm, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import InputForm, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import done, init, step, workflow
 from orchestrator.workflows.steps import resync, set_status, store_process_subscription, unsync
 from orchestrator.workflows.utils import wrap_modify_initial_input_form
@@ -13,7 +13,7 @@ def initial_input_form_generator(subscription_id: UUIDstr, organisation: UUIDstr
     subscription = UserGroup.from_subscription(subscription_id)
 
     class TerminateForm(FormPage):
-        are_you_sure: Label = f"Are you sure you want to remove {subscription.description}?"
+        are_you_sure: Label = f"Are you sure you want to remove {subscription.description}?"  # type:ignore
 
     return TerminateForm
 
@@ -23,7 +23,7 @@ def _deprovision_in_group_management_system(user_id: int) -> int:
 
 
 @step("Deprovision user group")
-def deprovision_user_group(subscription: UserGroup) -> State:
+def deprovision_user_group(subscription: UserGroup) -> None:
     _deprovision_in_group_management_system(subscription.user_group.group_id)
 
 
