@@ -73,6 +73,7 @@ nav:
           - Database migration: workshops/beginner/database-migration.md
       - Workflows:
           - Introduction: workshops/beginner/workflow-introduction.md
+          - Register workflows: workshops/beginner/register-workflows.md
           - Input forms: workshops/beginner/input-forms.md
           - Create UserGroup: workshops/beginner/create-user-group.md
           - Modify UserGroup: workshops/beginner/modify-user-group.md
