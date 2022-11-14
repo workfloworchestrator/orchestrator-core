@@ -21,10 +21,10 @@ extra.
 The products and product blocks for this workshop will be modelled as follows:
 
 * product **UserGroup**
-    * product block reference **settings** (UserGroupBlock)
+    * product block reference **user_group** (UserGroupBlock)
 * product **User**
     * fixed input **affiliation**
-    * product block reference **settings** (UserBlock)
+    * product block reference **user** (UserBlock)
 * product block **UserGroupBlock**
     * resource type **group_name**
     * resource type **group_id**
@@ -42,7 +42,7 @@ references may be nested as deep as needed.
 ## Exercise 1: create UserGroup product block
 
 Read the [Domain
-models](/orchestrator-core/architecture/application/domainmodels/) section of
+models](../../architecture/application/domainmodels.md) section of
 the orchestrator core documentation to learn more about domain models and how
 they are defined. For now, skip the code examples *Product Model a.k.a
 SubscriptionModel* and *Advanced Use Cases*.
@@ -68,16 +68,14 @@ from orchestrator.types import SubscriptionLifecycle
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group product
-block](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_blocks/user_group.py)
+group product block](sources/products/product_blocks/user_group.py)
 
 ## Exercise 2: create UserGroup product
 
 Return to the [Domain
-models](/orchestrator-core/architecture/application/domainmodels/) section of
-the orchestrator core documentation look at the code example *Product Model a.
-k.a 
-SubscriptionModel*.
+models](../../architecture/application/domainmodels.md) section of
+the orchestrator core documentation look at the code example *Product Model
+a.k.a SubscriptionModel*.
 
 Use the following skeleton to create the file `user.py` in the `product_types`
 folder of the `example-orchestrator` and define the `UserGroupInactive`,
@@ -101,8 +99,7 @@ from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockIna
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group product
-](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_types/user_group.py)
+group product ](sources/products/product_types/user_group.py)
 
 ## Exercise 3: create User product block
 
@@ -128,8 +125,7 @@ from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockIna
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-product
-block](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_blocks/user.py)
+product block](sources/products/product_blocks/user.py)
 
 ## Exercise 4: create User product
 
@@ -163,5 +159,4 @@ class Affiliation(strEnum):
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-product
-](https://github.com/hanstrompert/example-orchestrator/blob/master/products/product_types/user.py)
+product ](sources/products/product_types/user.py)

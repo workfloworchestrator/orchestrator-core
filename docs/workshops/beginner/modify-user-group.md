@@ -73,5 +73,4 @@ from products.product_types.user_group import UserGroup
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group modfiy workflow
-](https://github.com/hanstrompert/example-orchestrator/blob/master/workflows/user_group/modify_user_group.py)
+group modfiy workflow ](sources/workflows/user_group/modify_user_group.py)

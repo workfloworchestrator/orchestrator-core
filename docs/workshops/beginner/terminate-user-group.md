@@ -74,5 +74,4 @@ from products import UserGroup
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group terminate workflow
-](https://github.com/hanstrompert/example-orchestrator/blob/master/workflows/user_group/terminate_user_group.py)
+group terminate workflow ](sources/workflows/user_group/terminate_user_group.py)

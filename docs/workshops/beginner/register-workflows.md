@@ -84,3 +84,6 @@ created as part of the workflow package initialization:
 ```python
 import workflows
 ```
+
+**Spoiler**: for inspiration look at an example implementation of the [lazy
+workflow instances ](sources/workflows/__init__.py)
