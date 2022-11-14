@@ -4,14 +4,14 @@ The create workflow will produce a subscription for a specific customer on the
 UserGroup product. This is done by executing the following workflow steps:
 
 ```python
-        init
-        >> create_subscription
-        >> store_process_subscription(Target.CREATE)
-        >> initialize_subscription
-        >> provision_user_group
-        >> set_status(SubscriptionLifecycle.ACTIVE)
-        >> resync
-        >> done
+init
+>> create_subscription
+>> store_process_subscription(Target.CREATE)
+>> initialize_subscription
+>> provision_user_group
+>> set_status(SubscriptionLifecycle.ACTIVE)
+>> resync
+>> done
 ```
 
 The builtin steps `init` and `done` are always part of a workflow and mark the
@@ -57,7 +57,7 @@ The three remaining steps are custom to this workflow:
     Every product has the standard method `from_product_id()` that takes two
     mandatory arguments: `product_id` and `customer_id`. Use this method on the
     `UserGroupInactive` product to create a subscription in state
-    `SubscriptionLifecycle.ACTIVE`. Because there is no CRM being used During
+    `SubscriptionLifecycle.ACTIVE`. Because there is no CRM used during
     this beginner workshop the customer UUID can be faked.
 
     Make sure that this step returns a `Dict` with at least the key
@@ -91,7 +91,7 @@ The three remaining steps are custom to this workflow:
     key `'subscription'` to merge the modified subscription into the workflow
     state.
 
-The only thing left that is needed is an initial input form generator function
+The only needed thing left is an initial input form generator function
 with one string input field asks the user for the name of the user group.
 
 Use the skeleton below to create the file
@@ -126,5 +126,7 @@ from products.product_types.user_group import UserGroupInactive, UserGroupProvis
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group product
+group create workflow
 ](https://github.com/hanstrompert/example-orchestrator/blob/master/workflows/user_group/create_user_group.py)
+
+
