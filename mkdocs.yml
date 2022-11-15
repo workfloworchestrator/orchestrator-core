@@ -81,6 +81,7 @@ nav:
           - Create User: workshops/beginner/create-user.md
           - Modify User: workshops/beginner/modify-user.md
           - Terminate User: workshops/beginner/terminate-user.md
+      - Explore: workshops/beginner/explore.md
     - Old:
         - Getting Started:
           - Base Application: getting-started/base.md
