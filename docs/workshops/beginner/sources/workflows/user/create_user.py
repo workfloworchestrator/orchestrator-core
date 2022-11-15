@@ -1,6 +1,6 @@
+from typing import List
 from uuid import uuid4
 
-import structlog
 from orchestrator.db.models import ProductTable, SubscriptionTable
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Choice, choice_list
@@ -12,8 +12,6 @@ from orchestrator.workflows.utils import wrap_create_initial_input_form
 
 from products.product_types.user import UserInactive, UserProvisioning
 from products.product_types.user_group import UserGroup
-
-logger = structlog.get_logger(__name__)
 
 
 def user_group_selector() -> list:
@@ -48,7 +46,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         username: str
         age: int | None
-        user_group_id: user_group_selector()  # type:ignore
+        user_group_ids: user_group_selector()  # type:ignore
 
     user_input = yield CreateUserForm
 
@@ -68,10 +66,10 @@ def create_subscription(product: UUIDstr) -> State:
 
 
 @step("Initialize subscription")
-def initialize_subscription(subscription: UserInactive, username: str, age: int, user_group_id: str) -> State:
+def initialize_subscription(subscription: UserInactive, username: str, age: int, user_group_ids: List[str]) -> State:
     subscription.user.username = username
     subscription.user.age = age
-    subscription.user.group = UserGroup.from_subscription(user_group_id[0]).user_group
+    subscription.user.group = UserGroup.from_subscription(user_group_ids[0]).user_group
     subscription.description = (
         f"User {username} from group {subscription.user.group.group_name} ({subscription.affiliation})"
     )
