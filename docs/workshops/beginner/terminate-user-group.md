@@ -38,7 +38,7 @@ from orchestrator.forms.validators import Label
 ...
 ```
 
-Remeber that you can use the standard product method `from_subscription()` to
+Remember that you can use the standard product method `from_subscription()` to
 fetch the subscription from the database.
 
 Besides the question if the user really wants to terminate the subscription,
