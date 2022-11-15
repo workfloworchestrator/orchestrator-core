@@ -45,9 +45,7 @@ def modify_user_subscription(
         f"User {username} from group {subscription.user.group.group_name} ({subscription.affiliation})"
     )
 
-    return {
-        "subscription": subscription,
-    }
+    return {"subscription": subscription}
 
 
 @workflow(
@@ -56,8 +54,5 @@ def modify_user_subscription(
     target=Target.MODIFY,
 )
 def modify_user():
-    step_list = (
-        init >> store_process_subscription(Target.MODIFY) >> unsync >> modify_user_subscription >> resync >> done
-    )
 
-    return step_list
+    return init >> store_process_subscription(Target.MODIFY) >> unsync >> modify_user_subscription >> resync >> done

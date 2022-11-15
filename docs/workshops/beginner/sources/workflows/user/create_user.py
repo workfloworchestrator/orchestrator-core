@@ -61,26 +61,23 @@ def _provision_in_user_management_system(username: str, age: int) -> int:
 
 
 @step("Create subscription")
-def create_subscription(
-    product: UUIDstr,
-    username: str,
-    age: int,
-    user_group_id: str,
-) -> State:
-    subscription = UserInactive.from_product_id(product, uuid4())  # TODO mock organizations endpoint
+def create_subscription(product: UUIDstr) -> State:
+    subscription = UserInactive.from_product_id(product, uuid4())
+
+    return {"subscription": subscription, "subscription_id": subscription.subscription_id}
+
+
+@step("Initialize subscription")
+def initialize_subscription(subscription: UserInactive, username: str, age: int, user_group_id: str) -> State:
     subscription.user.username = username
     subscription.user.age = age
     subscription.user.group = UserGroup.from_subscription(user_group_id[0]).user_group
-    subscription = UserProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
     subscription.description = (
         f"User {username} from group {subscription.user.group.group_name} ({subscription.affiliation})"
     )
+    subscription = UserProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
 
-    return {
-        "subscription": subscription,
-        "subscription_id": subscription.subscription_id,
-        "subscription_description": subscription.description,
-    }
+    return {"subscription": subscription}
 
 
 @step("Provision user")
@@ -88,7 +85,7 @@ def provision_user(subscription: UserProvisioning, username: str, age: int) -> S
     user_id = _provision_in_user_management_system(username, age)
     subscription.user.user_id = user_id
 
-    return {"subscription": subscription, "user_id": user_id}
+    return {"subscription": subscription}
 
 
 @workflow(
@@ -97,14 +94,14 @@ def provision_user(subscription: UserProvisioning, username: str, age: int) -> S
     target=Target.CREATE,
 )
 def create_user():
-    step_list = (
+
+    return (
         init
         >> create_subscription
         >> store_process_subscription(Target.CREATE)
+        >> initialize_subscription
         >> provision_user
         >> set_status(SubscriptionLifecycle.ACTIVE)
         >> resync
         >> done
     )
-
-    return step_list

@@ -29,7 +29,7 @@ def _provision_in_group_management_system(user_group: str) -> int:
 
 @step("Create subscription")
 def create_subscription(product: UUIDstr) -> State:
-    subscription = UserGroupInactive.from_product_id(product, uuid4())  # TODO mock organizations endpoint
+    subscription = UserGroupInactive.from_product_id(product, uuid4())
 
     return {"subscription": subscription, "subscription_id": subscription.subscription_id}
 
