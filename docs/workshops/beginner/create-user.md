@@ -1,0 +1,123 @@
+# Create User workflow
+
+The create User workflow is very simular to the create UserGroup workflow, 
+the major difference is the increased number of user inputs needed to 
+initialize the subscription. This workflow uses the following steps: 
+
+```python
+init
+>> create_subscription
+>> store_process_subscription(Target.CREATE)
+>> initialize_subscription
+>> provision_user
+>> set_status(SubscriptionLifecycle.ACTIVE)
+>> resync
+>> done
+```
+
+There is one important difference, one of the user inputs is special: the 
+selection of the user group the user belongs to. It 
+is not just an integer or a string, but the user must be able to select a 
+user group out of a list of already provisioned user groups. For this the 
+database will be queried to obtain a list of active user group 
+susbscriptions, and a special input field type is used to display a dropdown 
+input field on the input form. 
+
+In the orchestrator all access to the database is implemented using 
+SQLAlchemy, and queries can be formulated using the classes from 
+`orchestrator.db.models` that map to the tables in the database. The 
+following query is all that is needed to get a list
+of `active` `UserGroup` subscriptions:
+
+```python
+from orchestrator.db.models import ProductTable, SubscriptionTable
+
+...
+        SubscriptionTable.query.join(ProductTable)
+        .filter(
+            ProductTable.product_type == "UserGroup",
+            SubscriptionTable.status == "active",
+        )
+        .with_entities(SubscriptionTable.subscription_id, SubscriptionTable.description)
+        .all()
+...
+```
+
+The `orchestrator.forms.validators` package provides a standard input component 
+called `choice_list` that will 
+create the indicated enumeration and expects an iterator that returns tuples 
+containing a key and a value. The iterator is created making use of the 
+standard Python `zip` function. This input 
+component will show a dropdown with all values and returns a list of chosen 
+keys. The amount of entries that may be chosen is controlled by the 
+`min_items` and `max_items` arguments.  Putting everything together the user 
+group selector looks like this:
+
+```python
+def user_group_selector() -> list:
+    user_group_subscriptions = {}
+    for user_group_id, user_group_description in (
+        SubscriptionTable.query.join(ProductTable)
+        .filter(
+            ProductTable.product_type == "UserGroup",
+            SubscriptionTable.status == "active",
+        )
+        .with_entities(SubscriptionTable.subscription_id, SubscriptionTable.description)
+        .all()
+    ):
+        user_group_subscriptions[str(user_group_id)] = user_group_description
+
+    return choice_list(
+        Choice("UserGroupEnum", zip(user_group_subscriptions.keys(), user_group_subscriptions.items())),
+        min_items=1,
+        max_items=1,
+    )
+```
+
+And can now be used in the input form as follows:
+
+```python
+user_group_id: user_group_selector()
+```
+
+Use the skeleton below to create the file
+`workflows/user/create_user.py`:
+
+```python
+from uuid import uuid4
+
+import structlog
+from orchestrator.db.models import ProductTable, SubscriptionTable
+from orchestrator.forms import FormPage
+from orchestrator.forms.validators import Choice, choice_list
+from orchestrator.targets import Target
+from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.workflow import done, init, step, workflow
+from orchestrator.workflows.steps import resync, set_status, store_process_subscription
+from orchestrator.workflows.utils import wrap_create_initial_input_form
+
+from products.product_types.user import UserInactive, UserProvisioning
+from products.product_types.user_group import UserGroup
+
+# user group selector
+...
+
+# initial input form generator
+...
+
+# create subscription step
+...
+
+# initialize subscription step
+...
+
+# provision user step
+...
+
+# create user workflow
+...
+```
+
+**Spoiler**: for inspiration look at an example implementation of the [user 
+create workflow ](sources/workflows/user/create_user.py)
+

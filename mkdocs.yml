@@ -78,6 +78,9 @@ nav:
           - Create UserGroup: workshops/beginner/create-user-group.md
           - Modify UserGroup: workshops/beginner/modify-user-group.md
           - Terminate UserGroup: workshops/beginner/terminate-user-group.md
+          - Create User: workshops/beginner/create-user.md
+          - Modify User: workshops/beginner/modify-user.md
+          - Terminate User: workshops/beginner/terminate-user.md
     - Old:
         - Getting Started:
           - Base Application: getting-started/base.md
