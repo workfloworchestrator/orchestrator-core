@@ -4,7 +4,6 @@ The architecture of how the orchestrator-core is setup can be split in two secti
 workflows are setup and run, and how the application can be used to define products that can be subscribed to by customers.
 
 ## Application architecture
-If you follow the examples in the examples directory and Getting started you should be up and running in a short while.
 
 The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI, pydantic
 and asyncio python.

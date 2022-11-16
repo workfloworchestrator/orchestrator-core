@@ -66,23 +66,26 @@ subscriptions as dependent on a product block from the subscription that is bein
 Subscription boundaries and do not update variables and resources in the related Subscription product block.
 
 ### Enforcing Hierarchy
-When defining and modelling products it's often necessary to model resources that are in use by or dependent on other
-product blocks. A product block of subscription can also be dependent on a product block from another
-subscription. So it's possible to build a hierarchy of your network subscriptions. The GUI will detect when you use
-subscription ID's in product blocks and will offer ways to navigate logically through your tree of network topology.
+
+When defining and modelling products it's often necessary to model resources
+that are in use by or dependent on other product blocks. A product block of a
+subscription can also be dependent on a product block from another
+subscription. This way a hierarchy of product blocks from all subscriptions
+can be build where the ownership of any product block is determined by the
+subscription it belongs to.
 
 #### A couple of Examples of subscription hierarchies
 
 We will describe some practical examples to explain how you can deal with complex customers requirements, and how to
 layer subscriptions to represent a complex portfolio of network services.
 
-    1. Consider the relation between a Node and a Port: When you create Node and Port subscriptions. You should not be
-    allowed to Terminate the Node subscriptions when the Port subscriptions are still being used by customers.
+1. Consider the relation between a Node and a Port: When you create Node and Port subscriptions. You should not be
+allowed to Terminate the Node subscriptions when the Port subscriptions are still being used by customers.
 
-    2. Consider a scenario for networking with a layer 2 circuit, one needs at least two interfaces and VLAN configuration to create
-    the circuit. The interfaces may be owned by different customers than the owner of the circuit. Typically we assign a
-    subscription to a customer which contains the interface resource. That interface resource is then used again
-    in the circuit subscription, as a resource.
+2. Consider a scenario for networking with a layer 2 circuit, one needs at least two interfaces and VLAN configuration to create
+the circuit. The interfaces may be owned by different customers than the owner of the circuit. Typically we assign a
+subscription to a customer which contains the interface resource. That interface resource is then used again
+in the circuit subscription, as a resource.
 
 
 ## Code examples

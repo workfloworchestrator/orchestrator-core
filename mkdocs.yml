@@ -20,7 +20,6 @@ theme:
   - search.suggest
   - search.highlight
   - navigation.sections
-  - navigation.expand
   - navigation.tracking
   - navigation.instant
   - navigation.indexes
@@ -60,23 +59,36 @@ nav:
   - Getting Started:
     - Base Application: getting-started/base.md
     - Development setup: getting-started/development.md
-  - Workshop - Hello World:
-    - Goal of the workshop: getting-started/workshop/goal.md
-    - Step 1 - Installation: getting-started/workshop/step1.md
-    - Step 2 - App start up: getting-started/workshop/step2.md
-    - Step 3 - Create a product: getting-started/workshop/step3.md
-    - Step 3 - Answer: getting-started/workshop/answers-step3.md
-    - Step 4 - Define a domain model: getting-started/workshop/step4.md
-    - Step 5 - Create a workflow: getting-started/workshop/step5.md
-
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
-    - Orchestration Philosofy: architecture/orchestration/philosophy.md
+    - Orchestration Philosophy: architecture/orchestration/philosophy.md
     - How do Workflows work?: architecture/application/workflow.md
     - What are tasks?: architecture/application/tasks.md
     - Validating input through forms: architecture/application/forms.md
     - Domain Models: architecture/application/domainmodels.md
     - Api Docs: architecture/application/api.md
+  - Workshops:
+    - Beginner:
+      - Overview: workshops/beginner/overview.md
+      - Installation:
+          - Debian: workshops/beginner/debian.md
+          - MacOS: workshops/beginner/macos.md
+      - Start applications: workshops/beginner/start-applications.md
+      - Products:
+          - Scenario: workshops/beginner/scenario.md
+          - Domain models: workshops/beginner/domain-models.md
+          - Database migration: workshops/beginner/database-migration.md
+      - Workflows:
+          - Introduction: workshops/beginner/workflow-introduction.md
+          - Register workflows: workshops/beginner/register-workflows.md
+          - Input forms: workshops/beginner/input-forms.md
+          - Create UserGroup: workshops/beginner/create-user-group.md
+          - Modify UserGroup: workshops/beginner/modify-user-group.md
+          - Terminate UserGroup: workshops/beginner/terminate-user-group.md
+          - Create User: workshops/beginner/create-user.md
+          - Modify User: workshops/beginner/modify-user.md
+          - Terminate User: workshops/beginner/terminate-user.md
+      - Explore: workshops/beginner/explore.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
