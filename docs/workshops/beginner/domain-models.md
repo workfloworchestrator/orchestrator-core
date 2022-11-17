@@ -68,7 +68,7 @@ from orchestrator.types import SubscriptionLifecycle
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group product block](sources/products/product_blocks/user_group.py)
+group product block](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user_group.py)
 
 ## Exercise 2: create UserGroup product
 
@@ -99,7 +99,7 @@ from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockIna
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group product ](sources/products/product_types/user_group.py)
+group product ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user_group.py)
 
 ## Exercise 3: create User product block
 
@@ -125,7 +125,7 @@ from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockIna
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-product block](sources/products/product_blocks/user.py)
+product block](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user.py)
 
 ## Exercise 4: create User product
 
@@ -159,4 +159,4 @@ class Affiliation(strEnum):
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-product ](sources/products/product_types/user.py)
+product ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user.py)

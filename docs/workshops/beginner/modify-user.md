@@ -57,4 +57,4 @@ from workflows.user.create_user import user_group_selector
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-modfiy workflow ](sources/workflows/user/modify_user.py)
+modfiy workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user/modify_user.py)

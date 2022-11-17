@@ -86,4 +86,4 @@ import workflows
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [lazy
-workflow instances ](sources/workflows/__init__.py)
+workflow instances ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py)
