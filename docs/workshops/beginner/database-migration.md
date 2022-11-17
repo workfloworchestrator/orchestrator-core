@@ -3,23 +3,29 @@
 ## Introduction
 
 The orchestrator uses SQLAlchemy, the Python SQL toolkit and Object Relational
-Mapper, as interface to the database. For the creation, management, and
-invocation of change management scripts Alembic is being used.  Alembic is part
-of SQLAlchemy.
+Mapper, as interface to the database. Alembic, which is part of SQLAlchemy, is
+used for the creation, management, and invocation of database change management
+scripts.  
 
-Now that the product and product block domain models have been created it is
+Now that the product and product block domain models have been created, it is
 time to create an Alembic database migration to insert this information into
 the database. All the SQL statements needed for this migration can be written
-by hand, or created by making use of the helper functions from
-`orchestrator/migrations/helpers.py`, or use the orchestrators ability to
-detect differences between the database and the registered product domain
-models and create all needed SQL statements for you. Below we will make use of
-the ability of the orchestrator to create database migrations for us.
+by hand, but knowledge about the database tables and how they are used is
+required to write correct statements. Luckily, the orchestrator comes with
+helper functions, located at `orchestrator/migrations/helpers`, that produce
+the needed SQL statements.  These helper function make use of a set of simple
+data structures that describe the domain models and workflows that need to be
+added to the database. Recently a third option was added, the orchestrator is
+now able to detect differences between the database and the registered product
+domain models and create all needed SQL statements for you.
+
+Below we will make use of the ability of the orchestrator to create database
+migrations for us.
 
 ## Exercise 1: add products to registry
 
 In order to use the products that were defined earlier, the orchestrator needs
-to know about there existence. This is done by adding the products with a
+to know about their existence. This is done by adding the products with a
 description to the `SUBSCRIPTION_MODEL_REGISTRY`.
 
 The products can be added to the registry in `main.py`, but for this exercise
@@ -110,10 +116,10 @@ Resource type description: **id of the user**
 
 ## Exercise 3: perform database migration
 
-To create a representation of the products in the database that matches the 
-domain models, the database migration created above is executed. One way to do 
-this is to explicitly upgrade the database with `db upgrade <revision>` to 
-the revision that was just created. Another way is to upgrade to the latest
+To create a representation of the products in the database that matches the
+domain models, the database migration created above is executed. One way to do
+this is to explicitly upgrade the database to the revision that was just
+created  with `db upgrade <revision>`. Another way is to upgrade to the latest
 heads again, as was done during the initialisation of the database.
 
 ```shell
@@ -141,3 +147,9 @@ http://localhost:3000/metadata/products
 
 or all of the above.
 
+!!! example
+
+    if the database migration is incorrect, use this example 
+    [Add User and UserGroup products
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/example_migrations/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py)
+    migration

@@ -3,14 +3,15 @@
 ## Intended audience
 
 This workshop is intended for everybody who is new to the workflow orchestrator
-and wants to learn how to install and run the applications and create a first
+and wants to learn how to install and run the applications, and create a first
 working set of products and associated workflows.
 
 ## Topics
 
 * **Installation**  
-  This part will show how to prepare your environment and install the
-  orchestrator and GUI. Instructions for both Debian and MacOS are included.
+  Detailed instructions are given on how to prepare your environment and
+  install the orchestrator and GUI. Instructions for both Debian and MacOS are
+  included.
 * **Start applications**  
   Shows a simple way of starting the orchestrator and GUI. 
 * **Create User and User Group products**  
@@ -21,8 +22,8 @@ working set of products and associated workflows.
        hierarchy of products, product blocks, fixed inputs and resource
        types is used to create product subscriptions for customers.
      * **Database migration**  
-      Use the orchestrator to create a Alembic database migration based on the 
-      created products and product blocks.
+      Use the orchestrator to create an Alembic database migration based on the 
+      domain models that describe the created products and product blocks.
 * **Create User and User Group workflows**  
   For both the User And User Group products a set of create, modify and 
   terminate workflows will be created. The use of input forms is explained 
