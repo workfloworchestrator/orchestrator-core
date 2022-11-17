@@ -75,69 +75,38 @@ PYTHONPATH=. python main.py db migrate-domain-models "Add User and UserGroup pro
 When finished have a look at the migration created in the folder
 `migrations/versions/schema`.
 
-> --- PRODUCT ['User Group'] INPUTS ---
-<br>
-Product description: **user group administration**
-<br>
-Product type: **UserGroup**
-<br>
-Product tag: **GROUP**
-<br>
---- PRODUCT ['User internal'] INPUTS ---
-<br>
-Product description: **user administration - internal**
-<br>
-Product type: **User**
-<br>
-Product tag: **USER_INT**
-<br>
---- PRODUCT ['User external'] INPUTS ---
-<br>
-Product description: **user administration - external**
-<br>
-Product type: **User**
-<br>
-Product tag: **USER_EXT**
-<br>
---- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---
-<br>
-Fixed input value: **internal**
-<br>
---- PRODUCT ['User external'] FIXED INPUT ['affiliation'] ---
-<br>
-Fixed input value: **external**
-<br>
---- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---
-<br>
-Product block description: **user group block**
-<br>
-Product block tag: **UGB**
-<br>
---- PRODUCT BLOCK ['UserBlock'] INPUTS ---
-<br>
-Product block description: **user block**
-<br>
-Product block tag: **UB**
-<br>
---- RESOURCE TYPE ['group_name'] ---
-<br>
-Resource type description: **name of the user group**
-<br>
---- RESOURCE TYPE ['group_id'] ---
-<br>
-Resource type description: **id of the user group**
-<br>
---- RESOURCE TYPE ['username'] ---
-<br>
-Resource type description: **name of the user**
-<br>
---- RESOURCE TYPE ['age'] ---
-<br>
-Resource type description: **age of the user**
-<br>
---- RESOURCE TYPE ['user_id'] ---
-<br>
-Resource type description: **id of the user**
+> --- PRODUCT ['User Group'] INPUTS   
+Product description: **user group administration**  
+Product type: **UserGroup**  
+Product tag: **GROUP**  
+--- PRODUCT ['User internal'] INPUTS ---  
+Product description: **user administration - internal**  
+Product type: **User**  
+Product tag: **USER_INT**  
+--- PRODUCT ['User external'] INPUTS ---  
+Product description: **user administration - external**  
+Product type: **User**  
+Product tag: **USER_EXT**  
+--- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---  
+Fixed input value: **internal**  
+--- PRODUCT ['User external'] FIXED INPUT ['affiliation'] ---  
+Fixed input value: **external**  
+--- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---  
+Product block description: **user group block**  
+Product block tag: **UGB**  
+--- PRODUCT BLOCK ['UserBlock'] INPUTS ---  
+Product block description: **user block**  
+Product block tag: **UB**  
+--- RESOURCE TYPE ['group_name'] ---  
+Resource type description: **name of the user group**  
+--- RESOURCE TYPE ['group_id'] ---  
+Resource type description: **id of the user group**  
+--- RESOURCE TYPE ['username'] ---  
+Resource type description: **name of the user**  
+--- RESOURCE TYPE ['age'] ---  
+Resource type description: **age of the user**  
+--- RESOURCE TYPE ['user_id'] ---  
+Resource type description: **id of the user**  
 
 ## Exercise 3: perform database migration
 
