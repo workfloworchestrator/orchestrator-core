@@ -2,7 +2,7 @@
 
 ### Start orchestrator
 
-From the `beginner-workshop` folder, use Uvicorn to start the orchestrator:
+From the `example-orchestrator` folder, use Uvicorn to start the orchestrator:
 
 ```shell
 uvicorn --host 127.0.0.1 --port 8080 main:app

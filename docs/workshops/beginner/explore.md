@@ -14,7 +14,7 @@ cd example-orchestrator-beginner
 echo 'drop database "orchestrator-core";' | psql postgres
 createdb orchestrator-core -O nwa
 source virtualenvwrapper.sh
-mkvirtualenv --python python3.9 beginner-workshop
+workon example-orchestrator || mkvirtualenv --python python3.9 example-orchestrator
 pip install orchestrator-core
 PYTHONPATH=. python main.py db init
 cp -av example_migrations/* migrations/versions/schema

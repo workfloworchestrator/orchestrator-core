@@ -45,10 +45,10 @@ The minimal version of Python is 3.9. Create a Python virtual environment and
 install the orchestrator-core:
 
 ```shell
-mkdir beginner-workshop
-cd beginner-workshop
+mkdir example-orchestrator
+cd example-orchestrator
 source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-mkvirtualenv --python python3.9 beginner-workshop
+mkvirtualenv --python python3.9 example-orchestrator
 pip install orchestrator-core
 ```
 
@@ -57,7 +57,7 @@ environment:
 
 ```shell
 source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-workon beginner-workshop
+workon example-orchestrator
 ```
 
 ### Step 4 - Init orchestrator:

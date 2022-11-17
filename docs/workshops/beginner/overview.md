@@ -53,11 +53,9 @@ beginner-workshop
 │   ├── products
 │   │   ├── __init__.py
 │   │   ├── product_blocks
-│   │   │   ├── __init__.py
 │   │   │   ├── user.py
 │   │   │   └── user_group.py
 │   │   └── product_types
-│   │       ├── __init__.py
 │   │       ├── user.py
 │   │       └── user_group.py
 │   └── workflows
@@ -76,7 +74,7 @@ beginner-workshop
 ```
 
 The `orchestrator-core-gui` folder will be cloned from GitHub. The
-`example-orchestrator` folder will be used for the orchestrator that is build
+`example-orchestrator` folder will be used for the orchestrator that is created
 during this workshop.  Although any layout of the latter folder will work, it
 is encouraged to use the suggested folder layout and filenames during this
 workshop.
