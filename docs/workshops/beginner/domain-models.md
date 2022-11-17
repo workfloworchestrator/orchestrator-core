@@ -54,6 +54,8 @@ domain models describing the user group product block in the lifecycle states
 `INITIAL`, `PROVISIONING` and `ACTIVE`:
 
 ```python
+from typing import Optional
+
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
@@ -109,6 +111,8 @@ folder of the `example-orchestrator` and define the `UserBlockInactive`,
 product block in its different lifecycle states:
 
 ```python
+from typing import Optional
+
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
