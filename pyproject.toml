@@ -145,7 +145,7 @@ dev = [
 [tool.isort]
 profile = "black"
 line_length = 120
-skip = ["src", "venv", "sources"]
+skip = ["src", "venv"]
 known_third_party = ["pynso", "pydantic"]
 known_first_party = ["migrations", "test"]
 

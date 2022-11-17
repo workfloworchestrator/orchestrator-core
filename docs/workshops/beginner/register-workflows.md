@@ -62,10 +62,18 @@ Run the migration with the following command:
 PYTHONPATH=. python main.py db upgrade heads
 ```
 
+!!! example
+
+    for inspiration, have a look at this example 
+    [Add User and UserGroup workflows
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/example_migrations/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py)
+    migration
+
+
 The second stage of the registration process consists of telling the
 orchestrator where to find the workflow functions that are registered in the
 database. This is done by creating the appropriate `LazyWorkflowInstance`
-instances that maps a workflow function to the Python package where it is
+instance that maps a workflow function to the Python package where it is
 defined.
 
 For example, the `LazyWorkflowInstance` for the `UserGroup` create workflow
@@ -85,5 +93,7 @@ created as part of the workflow package initialization:
 import workflows
 ```
 
-**Spoiler**: for inspiration look at an example implementation of the [lazy
-workflow instances ](sources/workflows/__init__.py)
+!!! example
+
+    for inspiration look at an example implementation of the [lazy
+    workflow instances ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py)

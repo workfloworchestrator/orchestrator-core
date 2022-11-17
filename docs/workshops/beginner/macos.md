@@ -39,23 +39,29 @@ psql orchestrator-core
 
 ### Step 3 - Install orchestrator
 
-The minimal version of Python is 3.9. Create a Python virtual environment and
-install the orchestrator-core:
+The minimal version of Python is 3.9. Before the orchestrator core and all its
+dependencies are installed, a Python virtual environment is created:
 
 ```shell
-mkdir beginner-workshop
-cd beginner-workshop
+mkdir example-orchestrator
+cd example-orchestrator
 source virtualenvwrapper.sh
-mkvirtualenv --python python3.9 beginner-workshop
+mkvirtualenv --python python3.9 example-orchestrator
+```
+
+Make sure that the just created Python virtual environment is active before
+installing the orchestrator-core:
+
+```shell
 pip install orchestrator-core
 ```
 
-The next time in a new shell only activate the existing Python virtual
-environment:
+A next time in a new shell, be sure to activate the Python virtual environment
+again:
 
 ```shell
 source virtualenvwrapper.sh
-workon beginner-workshop
+workon example-orchestrator
 ```
 
 ### Step 4 - Init orchestrator:
@@ -76,18 +82,15 @@ if __name__ == "__main__":
 Commit the just created main.py to git:
 
 ```shell
-git init
-# in case git was never used before, configure default branch, email and name
-git config init.defaultBranch main
-git config user.email "you@example.com"
-git config user.name "Your Name"
-# add and commit main.py
+git init --initial-branch main
+git config --local user.email "you@example.com"
+git config --local user.name "Your Name"
 git add main.py
 git commit -m "Initial commit"
 ```
 
-Note that your local git must contain at least one commit because otherwise the
-`db init` below will fail.
+Note that your local git must contain at least one commit, otherwise the `db
+init` below will fail.
 
 Initialize the database and run all the database migrations:
 
@@ -98,7 +101,8 @@ PYTHONPATH=. python main.py db upgrade heads
 
 ### Step 5 - Install orchestrator client
 
-Install the orchestrator client in the parent directory of the orchestrator:
+Install the orchestrator client in the parent directory of the 
+example-orchestrator:
 
 ```shell
 cd ..
@@ -123,7 +127,7 @@ Use the supplied environment variable defaults:
 cp .env.local.example .env.local
 ```
 
-And make the following changes:
+And make the following changes to `.env.local`:
 
 ```shell
 # change the existing REACT_APP_BACKEND_URL variable value into:

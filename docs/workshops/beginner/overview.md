@@ -3,37 +3,28 @@
 ## Intended audience
 
 This workshop is intended for everybody who is new to the workflow orchestrator
-and wants to learn how to install and run the applications and create a first
+and wants to learn how to install and run the applications, and create a first
 working set of products and associated workflows.
 
 ## Topics
 
-* **Installation**
-  <br>
-  This part will show how to prepare your environment and install the
-  orchestrator and GUI. Instructions for both Debian and MacOS are included.
-
-* **Start applications**
-  <br>
+* **Installation**  
+  Detailed instructions are given on how to prepare your environment and
+  install the orchestrator and GUI. Instructions for both Debian and MacOS are
+  included.
+* **Start applications**  
   Shows a simple way of starting the orchestrator and GUI. 
-
-* **Create User and User Group products**
-  <br>
+* **Create User and User Group products**  
   Through a simple user and group management scenario a set of products is 
   created showing how domain models are defined.
-    * **Domain models**
-       <br>
+    * **Domain models**  
        Explains the benefits of the use of domain models and shows how the 
-       hierarchy of products, product blocks, fixed inputs and resources 
+       hierarchy of products, product blocks, fixed inputs and resource
        types is used to create product subscriptions for customers.
-
-    * **Database migration**
-      <br>
-      Use the orchestrator to create a Alembic database migration based on the 
-      created products and product blocks.
-
-* **Create User and User Group workflows**
-  <br>
+     * **Database migration**  
+      Use the orchestrator to create an Alembic database migration based on the 
+      domain models that describe the created products and product blocks.
+* **Create User and User Group workflows**  
   For both the User And User Group products a set of create, modify and 
   terminate workflows will be created. The use of input forms is explained 
   as part of defining the create workflow. This will show how a simple 
@@ -53,11 +44,9 @@ beginner-workshop
 │   ├── products
 │   │   ├── __init__.py
 │   │   ├── product_blocks
-│   │   │   ├── __init__.py
 │   │   │   ├── user.py
 │   │   │   └── user_group.py
 │   │   └── product_types
-│   │       ├── __init__.py
 │   │       ├── user.py
 │   │       └── user_group.py
 │   └── workflows
@@ -76,7 +65,7 @@ beginner-workshop
 ```
 
 The `orchestrator-core-gui` folder will be cloned from GitHub. The
-`example-orchestrator` folder will be used for the orchestrator that is build
+`example-orchestrator` folder will be used for the orchestrator that is created
 during this workshop.  Although any layout of the latter folder will work, it
 is encouraged to use the suggested folder layout and filenames during this
 workshop.

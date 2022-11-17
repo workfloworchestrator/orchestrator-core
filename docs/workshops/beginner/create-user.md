@@ -124,5 +124,5 @@ from products.product_types.user_group import UserGroup
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-create workflow ](sources/workflows/user/create_user.py)
+create workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user/create_user.py)
 

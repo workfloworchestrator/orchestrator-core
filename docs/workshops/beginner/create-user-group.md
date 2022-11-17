@@ -126,6 +126,6 @@ from products.product_types.user_group import UserGroupInactive, UserGroupProvis
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-group create workflow ](sources/workflows/user_group/create_user_group.py)
+group create workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user_group/create_user_group.py)
 
 

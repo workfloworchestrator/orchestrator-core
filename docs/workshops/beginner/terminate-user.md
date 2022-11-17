@@ -39,4 +39,4 @@ from products import User
 ```
 
 **Spoiler**: for inspiration look at an example implementation of the [user
-terminate workflow ](sources/workflows/user/terminate_user.py)
+terminate workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user/terminate_user.py)

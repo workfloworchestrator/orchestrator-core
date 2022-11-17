@@ -3,7 +3,7 @@
 ## Introduction
 
 First read the [Architecture; TLDR](/orchestrator-core/architecture/tldr/)
-section of the orchestrator core documentation to get a first overview of the
+section of the orchestrator core documentation to get an overview of the
 concepts that will be covered.
 
 To put a part of the terminology in context, products are modeled using a set
@@ -15,7 +15,7 @@ An example of an immutable attribute is for example the speed of a network
 interface, which is a physical property of the interface, and cannot be changed
 without a field engineer swapping the interface with one with a different
 speed. Another example is an attribute that is linked to the price of a
-product, one is not allowed to just upgrade such a product without paying
+product, one is not allowed to just upgrade such a product without first paying
 extra.
 
 The products and product blocks for this workshop will be modelled as follows:
@@ -41,19 +41,20 @@ references may be nested as deep as needed.
 
 ## Exercise 1: create UserGroup product block
 
-Read the [Domain
-models](../../architecture/application/domainmodels.md) section of
-the orchestrator core documentation to learn more about domain models and how
-they are defined. For now, skip the code examples *Product Model a.k.a
-SubscriptionModel* and *Advanced Use Cases*.
+Read the [Domain models](../../architecture/application/domainmodels.md)
+section of the orchestrator core documentation to learn more about domain
+models and how they are defined. For now, skip the code examples *Product Model
+a.k.a SubscriptionModel* and *Advanced Use Cases*.
 
 Use the following skeleton to create the file `user_group.py` in the
-`product_blocks` folder of the `example-orchestrator` and define the
-`UserGroupBlockInactive`, `UserGroupBlockProvisioning` and `UserGroupBlock`
-domain models describing the user group product block in the lifecycle states
-`INITIAL`, `PROVISIONING` and `ACTIVE`:
+`products/product_blocks` folder and define the `UserGroupBlockInactive`,
+`UserGroupBlockProvisioning` and `UserGroupBlock` domain models describing the
+user group product block in the lifecycle states `INITIAL`, `PROVISIONING` and
+`ACTIVE`:
 
 ```python
+from typing import Optional
+
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
@@ -67,18 +68,19 @@ from orchestrator.types import SubscriptionLifecycle
 ... 
 ```
 
-**Spoiler**: for inspiration look at an example implementation of the [user
-group product block](sources/products/product_blocks/user_group.py)
+!!! example
+
+    for inspiration look at an example implementation of the [user group product block
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user_group.py)
 
 ## Exercise 2: create UserGroup product
 
-Return to the [Domain
-models](../../architecture/application/domainmodels.md) section of
-the orchestrator core documentation look at the code example *Product Model
-a.k.a SubscriptionModel*.
+Return to the [Domain models](../../architecture/application/domainmodels.md)
+section of the orchestrator core documentation and look at the code example
+*Product Model a.k.a SubscriptionModel*.
 
-Use the following skeleton to create the file `user.py` in the `product_types`
-folder of the `example-orchestrator` and define the `UserGroupInactive`,
+Use the following skeleton to create the file `user.py` in the
+`products/product_types` folder and define the `UserGroupInactive`,
 `UserGroupProvisioning` and `UserGroup` domain models describing the user group
 product in its different lifecycle states:
 
@@ -98,17 +100,21 @@ from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockIna
 ...
 ```
 
-**Spoiler**: for inspiration look at an example implementation of the [user
-group product ](sources/products/product_types/user_group.py)
+!!! example
+
+    for inspiration look at an example implementation of the [user group product
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user_group.py)
 
 ## Exercise 3: create User product block
 
-Use the following skeleton to create the file `user.py` in the `product_blocks`
-folder of the `example-orchestrator` and define the `UserBlockInactive`,
+Use the following skeleton to create the file `user.py` in the
+`products/product_blocks` folder and define the `UserBlockInactive`,
 `UserBlockProvisioning` and `UserBlock` domain models describing the user group
 product block in its different lifecycle states:
 
 ```python
+from typing import Optional
+
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
@@ -124,19 +130,21 @@ from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockIna
 ...
 ```
 
-**Spoiler**: for inspiration look at an example implementation of the [user
-product block](sources/products/product_blocks/user.py)
+!!! example
+
+    for inspiration look at an example implementation of the [user product block
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_blocks/user.py)
 
 ## Exercise 4: create User product
 
-Use the following skeleton to create the file `user.py` in the `product_types`
-folder of the `example-orchestrator` and define the `UserInactive`,
+Use the following skeleton to create the file `user.py` in the
+`products/product_types` folder and define the `UserInactive`,
 `UserProvisioning` and `User` domain models describing the user product in its
 different lifecycle states.
 
 Note that the `strEnum` type from the orchestrator is used, which uses the
-standard python module `enum` to describe an enumeration of strings, to create
-a type to be used for the fixed input `affiliation`.
+standard python module `enum` to define an enumeration of strings, to create a
+type to be used for the fixed input `affiliation`.
 
 ```python
 from orchestrator.domain.base import SubscriptionModel
@@ -158,5 +166,7 @@ class Affiliation(strEnum):
 ...
 ```
 
-**Spoiler**: for inspiration look at an example implementation of the [user
-product ](sources/products/product_types/user.py)
+!!! example
+
+    for inspiration look at an example implementation of the [user product
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/products/product_types/user.py)
