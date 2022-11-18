@@ -33,10 +33,10 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 ```
 
 All forms use `FormPage` as base and can be extended with the form input fields
-needed. In this case a text input field will be shown, the text entered will be
-assigned to `user_input`. All inputs from all input fields are then returned as
-a `Dict` and will be merged into the `State`. The `product_name` argument comes
-from the initial state. 
+needed. In this case a string input field will be shown, the text entered will
+be assigned to `user_input`. All inputs from all input fields are then returned
+as a `Dict` and will be merged into the `State`. The `product_name` argument
+comes from the initial `State`. 
 
 The optional `Config` class can be used to pass configuration information to
 Uniforms. In this case Uniforms is asked to show a input form page with the
@@ -44,7 +44,7 @@ name of the product as title.
 
 The helper functions `wrap_create_initial_input_form`, for create workflows,
 and `wrap_modify_initial_input_form`, for modify and terminate workflows, are
-used to integrate the input form into the workflow and handle all needed
+used to integrate the input form into the workflow and perform all needed
 `State` management. A common pattern used is:
 
 ```python
@@ -58,54 +58,54 @@ def create_product_subscription():
 ```
 
 
-Looking at the `State`, for a create workflow it functionally works like this:
+The `wrap_*` helper functions pre-populates the `State` with information needed
+by the initial input form. For the create workflow the `product` ID and
+`product_name` are added to the `State`:
 
-```text
-+----------------------------+
-|      workflow start        |
-+----------------------------+
-              |
-           product
-        product_name
-              |
-              V
-+----------------------------+
-|       input form(s)        |
-+----------------------------+
-              |
-           product
-        product_name
-          user_input
-              |
-              V
-+----------------------------+
-|      create workflow       |
-+----------------------------+
-```
+<pre style="text-align:center">
+┌───────────────────────────┐
+│      workflow start       │
+└─────────────┬─────────────┘
+│
+product
+product_name
+│
+┌─────────────▼─────────────┐
+│       input form(s)       │
+└─────────────┬─────────────┘
+│
+product
+product_name
+user_input
+│
+┌─────────────▼─────────────┐
+│      create workflow      │
+└───────────────────────────┘
+</pre>
 
-And for a modify and terminate workflows:
+And for the modify and terminate workflows the `product` ID, `organisation` 
+ID and
+`subscription_id` are added to the `State`
 
-```text
-+----------------------------+
-|      workflow start        |
-+----------------------------+
-              |
-           product
-         organisation
-       subscription_id
-              |
-              V
-+----------------------------+
-|       input form(s)        |
-+----------------------------+
-              |
-           product
-         organisation
-       subscription_id
-          user_input
-              |
-              V
-+----------------------------+
-| modify/terminate workflow  |
-+----------------------------+
-```
+<pre style="text-align:center">
+┌───────────────────────────┐
+│      workflow start       │
+└─────────────┬─────────────┘
+│
+product
+organisation
+subscription_id
+│
+┌─────────────▼─────────────┐
+│       input form(s)       │
+└─────────────┬─────────────┘
+│
+product
+organisation
+subscription_id
+user_input
+│
+┌─────────────▼─────────────┐
+│ modify/terminate workflow │
+└───────────────────────────┘
+</pre>

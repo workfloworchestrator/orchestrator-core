@@ -2,7 +2,7 @@
 
 The terminate workflow is intended to end an subscription on a product for a
 customer, releasing all provisioned resources.  The terminate workflow for the
-`UserGroup` product uses  following steps:
+`UserGroup` product uses the following steps:
 
 ```python
 init

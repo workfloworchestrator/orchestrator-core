@@ -16,24 +16,26 @@ init
 
 The builtin steps `init` and `done` are always part of a workflow and mark the
 begin and end of the workflow. Three other builtin steps are being used here
-that are almost always part of the create workflow:
+that are almost always part of a create workflow:
 
 *   **store_process_subscription** 
 
-    The orchestrator keeps track of all processes, workflows that have been run
-    to create, modify or terminate a subscription, so there is an
-    administrative trail of what happened to which subscription and when.  This
-    step is used to enter this information into the database. The argument
-    `Target.CREATE` indicates that this is a create workflow. The reason that
-    this step is not the first step directly after `init` is because we need to
-    know the subscription ID that is not yet known at that point in the
-    workflow.
+    The orchestrator executes a workflow in a process, and keeps track of all
+    workflows that have been run to create, modify or terminate a subscription,
+    so there is an administrative trail of what happened to each subscription
+    and when.  This step is used to enter this information into the database.
+    The argument `Target.CREATE` indicates that this is a create workflow. The
+    reason that this step is not the first step directly after `init` is
+    because we need to know the subscription ID that is not yet known at that
+    point in the workflow.
 
 *   **set_status**
 
-    At the end of the workflow, after the subscription has been created and the
-    interaction with all OSS and BSS was successfully finished, the
-    subscription state is set to `SubscriptionLifecycle.ACTIVE`.
+    At the end of the workflow, after the subscription has been created, and
+    the interaction with all OSS and BSS was successfully finished, the
+    subscription state is set to `SubscriptionLifecycle.ACTIVE`. From this
+    moment on the modify and terminate workflows can be started on this
+    subscription.
 
 *   **resync**
 
@@ -51,48 +53,47 @@ The three remaining steps are custom to this workflow:
 
 *   **create_subscription**
 
-    This step will create the subscription for this product, and will
-    initialize the resource types based on the input from the user.
-
-    Every product has the standard method `from_product_id()` that takes two
-    mandatory arguments: `product_id` and `customer_id`. Use this method on the
+    This step will create a new virgin subscription on a product. Every product
+    has the standard method `from_product_id()` that takes two mandatory
+    arguments: `product_id` and `customer_id`. Use this method on the
     `UserGroupInactive` product to create a subscription in state
-    `SubscriptionLifecycle.ACTIVE`. Because there is no CRM used during
-    this beginner workshop the customer UUID can be faked.
+    `SubscriptionLifecycle.INITIAL`. Because there is no CRM used during this
+    beginner workshop the customer UUID can be faked.
 
-    Make sure that this step returns a `Dict` with at least the key
-    `'subscription'` to merge the created subscription into the workflow state,
-    and the key `'subscription_id'` that is needed by the
-    `store_process_subscription` step.
+    Make sure that this step returns a `Dict` with at least the keys
+    `'subscription'` and `'subscription_id'` to make the orchestrator merge
+    these keys into the workflow `State`. When leaving a step the orchestrator
+    will also automatically commit the `'subscription'` to the database. The
+    `'subscription_id'` key is needed by the `store_process_subscription` step.
 
 *   **initialize_subscription**
 
     This step will initialize the resource types based on the input from the
     user. In this case only the name of the group needs to be assigned. Also
     set the subscription description to something meaningful at this stage.
-    After this, the subscription can be transitioned to provisioning, at that
-    time checks will be performed to make sure that all mandatory resource
-    types present. Every product has the standard method
-    `from_other_lifecycle()` to accomplish this, which takes the original
-    subscription and the targe lifecycle state as arguments.
+    After this, the subscription can be transitioned to
+    `SubscriptionLifecycle.PROVISIONING`, this will trigger checks to make sure
+    that all mandatory resource types are present for that lifecycle state.
+    Every product has the standard method `from_other_lifecycle()` to
+    accomplish this, this method takes the original subscription and the targe
+    lifecycle state as arguments.
 
     Make sure that this step returns a `Dict` with also at least the key
-    `'subscription'` to merge the modified subscription into the workflow
-    state.
+    `'subscription'` to merge the modified subscription into the workflow state
+    and have the orchestrator commit the subscription changes to the database.
 
 *  **provision_user_group**
 
     Now the user group can be provisioned in all OSS and BSS as necessary.  As
-    there is no actual user group provisioning system this interaction is being
-    faked. The returned (fake) group ID is assigned to the intended resource
-    type.
+    there is no actual user group provisioning system during this workshop,
+    this interaction is being faked. The returned (fake) group ID is assigned
+    to the intended resource type.
 
-    Yet again make sure that this step returns a `Dict` with also at least the
-    key `'subscription'` to merge the modified subscription into the workflow
-    state.
+    Yet again make sure that this step returns a `Dict` with at least the key
+    `'subscription'`.
 
-The only needed thing left is an initial input form generator function
-with one string input field asks the user for the name of the user group.
+The only thing left that is needed is an initial input form generator function
+with one string input field to ask the user for the name of the user group.
 
 Use the skeleton below to create the file
 `workflows/user_group/create_user_group.py`:

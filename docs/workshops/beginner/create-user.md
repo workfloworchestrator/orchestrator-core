@@ -1,8 +1,8 @@
 # Create User workflow
 
-The create User workflow is very simular to the create UserGroup workflow, the
-major difference is the increased number of user inputs needed to initialize
-the subscription. This workflow uses the following steps: 
+The create `User` workflow is very simular to the create `UserGroup` workflow,
+the major difference is the increased number of user inputs needed to
+initialize the subscription. This workflow uses the following steps: 
 
 ```python
 init
@@ -15,17 +15,18 @@ init
 >> done
 ```
 
-There is one important difference, one of the user inputs is special: the
-selection of the user group the user belongs to. It is not just an integer or a
-string, but the user must be able to select a user group out of a list of
-already provisioned user groups. For this the database will be queried to
-obtain a list of active user group susbscriptions, and a special input field
-type is used to display a dropdown input field on the input form. 
+There is one important difference though, one of the user inputs on the input
+form is special: the selection of the user group the user belongs to. It is not
+just an integer or a string, but the user must be able to select a user group
+out of a list of already provisioned user groups. For this the database will be
+queried to obtain a list of active user group susbscriptions, and a special
+input field type is used to display a dropdown input field on the input form. 
 
-In the orchestrator all access to the database is implemented using SQLAlchemy,
-and queries can be formulated using the classes from `orchestrator.db.models`
-that map to the tables in the database. The following query is all that is
-needed to get a list of `active` `UserGroup` subscriptions:
+In the orchestrator, all access to the database is implemented using
+SQLAlchemy, and queries can be formulated using the classes from
+`orchestrator.db.models` that map to the tables in the database. The following
+query is all that is needed to get a list of `active` `UserGroup`
+subscriptions:
 
 ```python
 from orchestrator.db.models import ProductTable, SubscriptionTable
@@ -43,12 +44,13 @@ from orchestrator.db.models import ProductTable, SubscriptionTable
 
 The `orchestrator.forms.validators` package provides a standard input component
 called `choice_list` that will create the indicated enumeration and expects an
-iterator that returns tuples containing a key and a value. The iterator is
+iterator that returns tuples containing a label and a value. The iterator is
 created making use of the standard Python `zip` function. This input component
-will show a dropdown with all values and returns a list of chosen keys. The
-amount of entries that may be chosen is controlled by the `min_items` and
-`max_items` arguments.  Putting everything together the user group selector
-looks like this:
+will show a dropdown with all labels and returns a list of associated chosen
+keys.  The amount of entries that may be chosen is controlled by the
+`min_items` and `max_items` arguments.
+
+Putting everything together, the user group selector looks like this:
 
 ```python
 def user_group_selector() -> list:
@@ -74,7 +76,7 @@ def user_group_selector() -> list:
 And can now be used in the input form as follows:
 
 ```python
-user_group_id: user_group_selector()
+user_group_ids: user_group_selector()
 ```
 
 In the subscription initialization step the `group` resource type of the
@@ -82,11 +84,10 @@ In the subscription initialization step the `group` resource type of the
 `UserGroup` subscription:
 
 ```python
-subscription.user.group = UserGroup.from_subscription(user_group_id[0]).user_group
+subscription.user.group = UserGroup.from_subscription(user_group_ids[0]).user_group
 ```
 
-Use the skeleton below to create the file
-`workflows/user/create_user.py`:
+Use the skeleton below to create the file `workflows/user/create_user.py`:
 
 ```python
 from typing import List

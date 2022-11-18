@@ -21,16 +21,15 @@ that is needed. Luckily, every instantiated product block has an attribute
 owning this product block instance.
 
 The `choice_list` input both returns a list as result and expects a list of
-keys that it uses to display the currently selected item(s). The following will
-display a dropdown showing the currently selected user group: 
+values that it uses to display the currently selected item(s). The following
+will display a dropdown showing the currently selected user group: 
 
 ```python
 user_group_id: user_group_selector() = [str(subscription.user.group.owner_subscription_id)]
 ```
 
-Use the skeleton below to create the file `workflows/user/modify_user.py`, 
-and note that the `user_group_selector` from the create workflow is being 
-reused:
+Use the skeleton below to create the file `workflows/user/modify_user.py`, and
+note that the `user_group_selector` from the create workflow is being reused:
 
 ```python
 from typing import List
