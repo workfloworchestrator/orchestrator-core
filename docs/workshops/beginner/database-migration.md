@@ -13,7 +13,7 @@ the database. All the SQL statements needed for this migration can be written
 by hand, but knowledge about the database tables and how they are used is
 required to write correct statements. Luckily, the orchestrator comes with
 helper functions, located at `orchestrator/migrations/helpers`, that produce
-the needed SQL statements.  These helper function make use of a set of simple
+the needed SQL statements.  These helper functions make use of a set of simple
 data structures that describe the domain models and workflows that need to be
 added to the database. Recently a third option was added, the orchestrator is
 now able to detect differences between the database and the registered product
@@ -77,6 +77,8 @@ domain models, including upper/lowercase:
 ```shell
 PYTHONPATH=. python main.py db migrate-domain-models "Add User and UserGroup products"
 ```
+
+Please note that the order of the questions/answers when running the script may be different from the order in the overview below. Therefore do not blindly copy/paste...
 
 When finished have a look at the migration created in the folder
 `migrations/versions/schema`.
@@ -144,6 +146,11 @@ or by browsing through the orchestrator meta data through the GUI at:
 ```shell
 http://localhost:3000/metadata/products
 ```
+
+The metadata/products page should look as following:
+
+![Metadata products page](../images/metadata_products.png "Metadata products page")
+
 
 or all of the above.
 

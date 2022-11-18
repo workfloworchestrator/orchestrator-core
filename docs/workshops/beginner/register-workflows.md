@@ -35,7 +35,7 @@ new_workflows = [
 This registers the workflow function `create_user_group` as a create workflow
 for the `UserGroup` product.
 
-Add a list of the create, modify and terminate workflows for both the
+Add the import as shown above and a list of the create, modify and terminate workflows for both the
 `UserGroup` and `User` products to the migration that was created above.
 
 The migration `upgrade` and `downgrade` functions will just loop through the
@@ -56,7 +56,7 @@ def downgrade() -> None:
         delete_workflow(conn, workflow["name"])
 ```
 
-Run the migration with the following command:
+Add the import and code as shown above to the migration and run the migration with the following command:
 
 ```shell
 PYTHONPATH=. python main.py db upgrade heads
