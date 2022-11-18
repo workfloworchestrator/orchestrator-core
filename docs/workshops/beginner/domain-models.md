@@ -7,7 +7,7 @@ section of the orchestrator core documentation to get an overview of the
 concepts that will be covered.
 
 To put a part of the terminology in context, products are modeled using a set
-op product blocks. The product attributes are modelled by resource types.  By
+of product blocks. The product attributes are modelled by resource types.  By
 default all resource types are mutable and can be changed over the lifetime of
 a subscription. Fixed inputs are used to model immutable attributes.
 
@@ -79,7 +79,7 @@ Return to the [Domain models](../../architecture/application/domainmodels.md)
 section of the orchestrator core documentation and look at the code example
 *Product Model a.k.a SubscriptionModel*.
 
-Use the following skeleton to create the file `user.py` in the
+Use the following skeleton to create the file `user_group.py` in the
 `products/product_types` folder and define the `UserGroupInactive`,
 `UserGroupProvisioning` and `UserGroup` domain models describing the user group
 product in its different lifecycle states:
