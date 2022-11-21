@@ -7,7 +7,7 @@ section of the orchestrator core documentation to get an overview of the
 concepts that will be covered.
 
 To put a part of the terminology in context, products are modeled using a set
-of product blocks. The product attributes are modelled by resource types.  By
+of product blocks. The product attributes are modeled by resource types.  By
 default all resource types are mutable and can be changed over the lifetime of
 a subscription. Fixed inputs are used to model immutable attributes.
 
@@ -15,10 +15,11 @@ An example of an immutable attribute is for example the speed of a network
 interface, which is a physical property of the interface, and cannot be changed
 without a field engineer swapping the interface with one with a different
 speed. Another example is an attribute that is linked to the price of a
-product, one is not allowed to just upgrade such a product without first paying
-extra.
+product, for example the greater the capacity of a product, the higher the 
+price. A customer is not allowed to increase the capacity himself, he has 
+to pay extra first.
 
-The products and product blocks for this workshop will be modelled as follows:
+The products and product blocks for this workshop will be modeled as follows:
 
 * product **UserGroup**
     * product block reference **user_group** (UserGroupBlock)

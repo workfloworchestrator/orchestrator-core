@@ -6,6 +6,9 @@ This workshop is intended for everybody who is new to the workflow orchestrator
 and wants to learn how to install and run the applications, and create a first
 working set of products and associated workflows.
 
+Knowledge of the Python programming language and the Unix command line interface
+are prerequisites to do this workshop.
+
 ## Topics
 
 * **Installation**  

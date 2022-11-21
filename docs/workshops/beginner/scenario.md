@@ -9,7 +9,7 @@ The following user and user group attributes will be stored:
 
 * **UserGroup**
     * **group_name**: name of the user group
-    * **group_id**: ID of the group in an imaginary group 
+    * **group_id**: ID of the group in an imaginary group management system 
 * **User**
     * **affiliation**: the user's affiliation (**internal** or **external**)
     * **username**: name of the user
