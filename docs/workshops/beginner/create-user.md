@@ -90,7 +90,7 @@ subscription.user.group = UserGroup.from_subscription(user_group_ids[0]).user_gr
 Use the skeleton below to create the file `workflows/user/create_user.py`:
 
 ```python
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 from orchestrator.db.models import ProductTable, SubscriptionTable

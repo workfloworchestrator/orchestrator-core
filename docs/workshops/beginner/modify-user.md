@@ -32,7 +32,7 @@ Use the skeleton below to create the file `workflows/user/modify_user.py`, and
 note that the `user_group_selector` from the create workflow is being reused:
 
 ```python
-from typing import List
+from typing import List, Optional
 
 from orchestrator.forms import FormPage
 from orchestrator.targets import Target
