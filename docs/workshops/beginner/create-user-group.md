@@ -62,7 +62,7 @@ The three remaining steps are custom to this workflow:
 
     Make sure that this step returns a `Dict` with at least the keys
     `'subscription'` and `'subscription_id'` to make the orchestrator merge
-    these keys into the workflow `State` (what are the values for subscription and subscription_id, where do these values come from??). When leaving a step the orchestrator
+    these keys into the workflow `State`. When leaving a step the orchestrator
     will also automatically commit the `'subscription'` to the database. The
     `'subscription_id'` key is needed by the `store_process_subscription` step.
 

@@ -78,43 +78,49 @@ domain models, including upper/lowercase:
 PYTHONPATH=. python main.py db migrate-domain-models "Add User and UserGroup products"
 ```
 
-Please note that the order of the questions/answers when running the script may be different from the order in the overview below. Therefore do not blindly copy/paste...
-
 When finished have a look at the migration created in the folder
 `migrations/versions/schema`.
 
-> --- PRODUCT ['User Group'] INPUTS   
-Product description: **user group administration**  
-Product type: **UserGroup**  
-Product tag: **GROUP**  
---- PRODUCT ['User internal'] INPUTS ---  
-Product description: **user administration - internal**  
-Product type: **User**  
-Product tag: **USER_INT**  
---- PRODUCT ['User external'] INPUTS ---  
-Product description: **user administration - external**  
-Product type: **User**  
-Product tag: **USER_EXT**  
---- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---  
-Fixed input value: **internal**  
---- PRODUCT ['User external'] FIXED INPUT ['affiliation'] ---  
-Fixed input value: **external**  
---- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---  
-Product block description: **user group block**  
-Product block tag: **UGB**  
---- PRODUCT BLOCK ['UserBlock'] INPUTS ---  
-Product block description: **user block**  
-Product block tag: **UB**  
---- RESOURCE TYPE ['group_name'] ---  
-Resource type description: **name of the user group**  
---- RESOURCE TYPE ['group_id'] ---  
-Resource type description: **id of the user group**  
---- RESOURCE TYPE ['username'] ---  
-Resource type description: **name of the user**  
---- RESOURCE TYPE ['age'] ---  
-Resource type description: **age of the user**  
---- RESOURCE TYPE ['user_id'] ---  
-Resource type description: **id of the user**  
+!!! note
+
+    While creating the migration, the order of the questions/answers may be 
+    different from the order in the overview below. Therefore do not blindly
+    copy/paste the answers.
+
+!!! example
+
+    --- PRODUCT ['User Group'] INPUTS   
+    Product description: **user group administration**  
+    Product type: **UserGroup**  
+    Product tag: **GROUP**  
+    --- PRODUCT ['User internal'] INPUTS ---  
+    Product description: **user administration - internal**  
+    Product type: **User**  
+    Product tag: **USER_INT**  
+    --- PRODUCT ['User external'] INPUTS ---  
+    Product description: **user administration - external**  
+    Product type: **User**  
+    Product tag: **USER_EXT**  
+    --- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---  
+    Fixed input value: **internal**  
+    --- PRODUCT ['User external'] FIXED INPUT ['affiliation'] ---  
+    Fixed input value: **external**  
+    --- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---  
+    Product block description: **user group block**  
+    Product block tag: **UGB**  
+    --- PRODUCT BLOCK ['UserBlock'] INPUTS ---  
+    Product block description: **user block**  
+    Product block tag: **UB**  
+    --- RESOURCE TYPE ['group_name'] ---  
+    Resource type description: **name of the user group**  
+    --- RESOURCE TYPE ['group_id'] ---  
+    Resource type description: **id of the user group**  
+    --- RESOURCE TYPE ['username'] ---  
+    Resource type description: **name of the user**  
+    --- RESOURCE TYPE ['age'] ---  
+    Resource type description: **age of the user**  
+    --- RESOURCE TYPE ['user_id'] ---  
+    Resource type description: **id of the user**  
 
 ## Exercise 3: perform database migration
 
@@ -147,12 +153,11 @@ or by browsing through the orchestrator meta data through the GUI at:
 http://localhost:3000/metadata/products
 ```
 
+or all of the above.
+
 The metadata/products page should look as following:
 
 ![Metadata products page](../images/metadata_products.png "Metadata products page")
-
-
-or all of the above.
 
 !!! example
 
