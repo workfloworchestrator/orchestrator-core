@@ -3,6 +3,9 @@
 The orchestrator needs to know which workflows are available for which
 products.  This is a two stage registration process. First a new database
 migration is made to add a mapping between workflow function and a product.
+Usually one would only register workflows that are already written and are 
+ready to be used, but for this workshop all workflows will be registered 
+beforehand.
 
 Create a new empty database migratrion with the following command:
 
@@ -35,8 +38,9 @@ new_workflows = [
 This registers the workflow function `create_user_group` as a create workflow
 for the `UserGroup` product.
 
-Add a list of the create, modify and terminate workflows for both the
-`UserGroup` and `User` products to the migration that was created above.
+Add a list of `Dict`s describing the create, modify and terminate workflows for 
+both the `UserGroup` and `User` products to the migration that was created 
+above.
 
 The migration `upgrade` and `downgrade` functions will just loop through the
 list:

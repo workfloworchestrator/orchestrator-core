@@ -27,7 +27,7 @@ the changed user group name. And last but not least, the user group name is
 also updated in the imaginary external user group provisioning system. Do not
 forget to return a `Dict` with a key `'subscription'` to merge the updated
 subscription into the workflow `State`, otherwise updates to the subscription
-will also not being saved to the database.
+will also not be saved to the database.
 
 The only thing remaining now is to create an initial input form generator that
 will show an input form with a string input field that shows the existing user

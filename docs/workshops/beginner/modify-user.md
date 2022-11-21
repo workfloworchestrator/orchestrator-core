@@ -1,6 +1,6 @@
 # Modify User workflow
 
-The modify `User` workflow is also very simular to the modify `UserGroup`
+The modify `User` workflow is also very similar to the modify `UserGroup`
 workflow, except for the different set of resource types that can be changed.
 This workflow uses the following steps: 
 
@@ -32,7 +32,7 @@ Use the skeleton below to create the file `workflows/user/modify_user.py`, and
 note that the `user_group_selector` from the create workflow is being reused:
 
 ```python
-from typing import List
+from typing import List, Optional
 
 from orchestrator.forms import FormPage
 from orchestrator.targets import Target

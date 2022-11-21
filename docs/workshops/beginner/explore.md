@@ -41,7 +41,7 @@ http://127.0.0.1:8080/api/docs
 And look at the products:
 
 ```shell
-curll http://127.0.0.1:8080/api/products/ | jq
+curl http://127.0.0.1:8080/api/products/ | jq
 ```
 
 Or get a list of subscriptions:

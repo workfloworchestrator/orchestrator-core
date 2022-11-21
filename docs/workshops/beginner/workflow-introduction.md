@@ -20,7 +20,8 @@ for a specific customer, `MODIFY` workflows to manipulate existing
 subscriptions, `TERMINATE` workflows to end the subscription on a product for a
 customer, and `SYSTEM` workflows that run scheduled and do not have an input
 form. The latter type of workflows is also referred to as tasks, and can for
-example be used to validate subscriptions against external OSS and BSS.  The
+example be used to validate subscriptions against external operations 
+support systems (OSS) and business support systems (BSS). The
 same workflow step can be used in multiple workflows, and a set of workflow
 steps can be combined in a step list and can be reused as well.  
 
@@ -32,7 +33,7 @@ make a step one hundred percent idempotent, thus requiring manual intervention
 before a step can be retried. Note that the workflow steps created in this
 beginner workshop are not written with idempotency in mind. 
 
-The `workflow` decorator takes an description, initial input form, and a target
+The `workflow` decorator takes a description, initial input form, and a target
 as input and turns a function into a workflow that returns a step list to be
 executed by the workflow engine in a workflow process. A minimal workflow looks
 like this:
