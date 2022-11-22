@@ -1,5 +1,7 @@
 # Register workflows
 
+## Exercise 1: register workflow in database
+
 The orchestrator needs to know which workflows are available for which
 products.  This is a two stage registration process. First a new database
 migration is made to add a mapping between workflow function and a product.
@@ -73,6 +75,7 @@ PYTHONPATH=. python main.py db upgrade heads
     ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/example_migrations/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py)
     migration
 
+## Exercise 2: map workflow function to package
 
 The second stage of the registration process consists of telling the
 orchestrator where to find the workflow functions that are registered in the

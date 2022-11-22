@@ -1,5 +1,7 @@
 # Terminate UserGroup workflow
 
+## Exercise 1: terminate UserGroup workflow
+
 The terminate workflow is intended to end an subscription on a product for a
 customer, releasing all provisioned resources.  The terminate workflow for the
 `UserGroup` product uses the following steps:
