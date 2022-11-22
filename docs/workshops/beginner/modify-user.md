@@ -1,5 +1,7 @@
 # Modify User workflow
 
+## Exercise 1: modify User workflow
+
 The modify `User` workflow is also very similar to the modify `UserGroup`
 workflow, except for the different set of resource types that can be changed.
 This workflow uses the following steps: 

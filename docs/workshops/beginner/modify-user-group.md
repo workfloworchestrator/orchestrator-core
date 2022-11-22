@@ -1,5 +1,7 @@
 # Modify UserGroup workflow
 
+## Exercise 1: modify UserGroup workflow
+
 The modify workflow can be used to change some or all of the resource types of
 an existing subscription. In this case the following workflow steps will be
 used:

@@ -1,5 +1,7 @@
 # Terminate User workflow
 
+## Exercise 1: terminate User workflow
+
 Nothing more needs to be explained at this stage, the terminate user workflow
 is almost identical to the terminate user group workflow. As a reminder, and
 for completeness, the terminate workflow for the `User` product uses  following

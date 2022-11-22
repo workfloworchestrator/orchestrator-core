@@ -1,5 +1,7 @@
 # Create User workflow
 
+## Exercise 1: create User workflow
+
 The create `User` workflow is very similar to the create `UserGroup` workflow,
 the major difference is the increased number of user inputs needed to
 initialize the subscription. This workflow uses the following steps: 

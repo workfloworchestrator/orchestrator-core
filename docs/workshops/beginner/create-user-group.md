@@ -1,5 +1,7 @@
 # Create UserGroup workflow
 
+## Exercise 1: create UserGroup workflow
+
 The create workflow will produce a subscription for a specific customer on the
 UserGroup product. This is done by executing the following workflow steps:
 
