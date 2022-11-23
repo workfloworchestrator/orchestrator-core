@@ -576,7 +576,7 @@ def _generate_etag(model: dict) -> str:
     return md5(encoded).hexdigest()  # noqa: S303
 
 
-def build_extendend_domain_model(subscription_model: SubscriptionModel) -> dict:
+def build_extendend_domain_model(subscription_model: SubscriptionModel, filter_owner_relations: bool = True) -> dict:
     customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
     ).all()
@@ -584,11 +584,21 @@ def build_extendend_domain_model(subscription_model: SubscriptionModel) -> dict:
     subscription = subscription_model.dict()
     paths = product_block_paths(subscription_model)
 
+    filter_instance_ids = []
+    if filter_owner_relations:
+        filter_instance_ids = [subscription_model.subscription_id]
+        for path in paths:
+            filter_instance_ids.append(getattr_in(subscription_model, f"{path}.subscription_instance_id"))
+
     # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
     for path in paths:
         if in_use_by_subs := getattr_in(subscription_model, f"{path}.in_use_by"):
             i_ids: List[Optional[UUID]] = []
-            i_ids.extend(in_use_by_subs.col[idx].in_use_by_id for idx, _ in enumerate(in_use_by_subs.col))
+            i_ids.extend(
+                in_use_by_subs.col[idx].in_use_by_id
+                for idx, ob in enumerate(in_use_by_subs.col)
+                if ob.in_use_by_id not in filter_instance_ids
+            )
             update_in(subscription, f"{path}.in_use_by_ids", i_ids)
 
     subscription["customer_descriptions"] = customer_descriptions

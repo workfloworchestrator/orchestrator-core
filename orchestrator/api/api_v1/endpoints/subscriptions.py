@@ -106,7 +106,7 @@ def subscriptions_all() -> List[SubscriptionTable]:
 
 @router.get("/domain-model/{subscription_id}", response_model=Optional[SubscriptionDomainModelSchema])
 def subscription_details_by_id_with_domain_model(
-    request: Request, subscription_id: UUID, response: Response
+    request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
 ) -> Optional[Dict[str, Any]]:
     def _build_response(model: dict, etag: str) -> Optional[Dict[str, Any]]:
         if etag == request.headers.get("If-None-Match"):
@@ -120,7 +120,7 @@ def subscription_details_by_id_with_domain_model(
 
     try:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        extended_model = build_extendend_domain_model(subscription_model)
+        extended_model = build_extendend_domain_model(subscription_model, filter_owner_relations)
         etag = _generate_etag(extended_model)
         return _build_response(extended_model, etag)
     except ValueError as e:

@@ -933,6 +933,20 @@ def test_subscription_detail_with_domain_model_cache(test_client, generic_subscr
     cache.delete(f"domain:{generic_subscription_1}")
 
 
+def test_subscription_detail_with_in_use_by_ids_filtered_self(test_client, product_one_subscription_1):
+    response = test_client.get(URL("api/subscriptions/domain-model") / product_one_subscription_1)
+    assert response.status_code == HTTPStatus.OK
+    assert not response.json()["block"]["sub_block"]["in_use_by_ids"]
+
+
+def test_subscription_detail_with_in_use_by_ids_not_filtered_self(test_client, product_one_subscription_1):
+    response = test_client.get(
+        URL("api/subscriptions/domain-model") / product_one_subscription_1 / "?filter_owner_relations=false"
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["block"]["sub_block"]["in_use_by_ids"]
+
+
 def test_other_subscriptions(test_client, generic_subscription_2, generic_product_type_2):
     _, GenericProductTwo = generic_product_type_2
     response = test_client.get(URL("api/subscriptions/instance/other_subscriptions/") / uuid4())
