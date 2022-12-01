@@ -2,7 +2,6 @@ FROM python:3.9-slim
 
 ENV PIP_ROOT_USER_ACTION=ignore
 
-#RUN apt-get update && apt-get upgrade --yes && apt-get install --yes git
 RUN apt-get update && apt-get install --yes git
 
 RUN pip install pip --upgrade

@@ -1,8 +1,8 @@
-name: Create and publish container image
+name: Build and push container image
 
 on:
-  push:
-    branches: ['add_build_container_action']
+  release:
+    types: [prereleased, released]
 
 env:
   REGISTRY: ghcr.io
