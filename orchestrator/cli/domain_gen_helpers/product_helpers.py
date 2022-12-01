@@ -8,6 +8,8 @@ from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_comp
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.db.models import (
+    ProcessSubscriptionTable,
+    ProcessTable,
     ProductTable,
     SubscriptionInstanceTable,
     SubscriptionTable,
@@ -97,11 +99,38 @@ def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
 
     Returns: List of SQL strings to delete products.
     """
+    if not delete_products:
+        return []
 
-    def delete_product_block(product_name: str) -> str:
-        return sql_compile(Delete(ProductTable).where(ProductTable.name == product_name))
+    def delete_product_relations_sql(product_names: Set[str]) -> List[str]:
+        product_ids = get_product_ids(product_names)
+        subscription_ids = (
+            SubscriptionTable.query.where(SubscriptionTable.product_id.in_(product_ids))
+            .with_entities(SubscriptionTable.subscription_id)
+            .scalar_subquery()
+        )
+        process_ids = (
+            ProcessSubscriptionTable.query.where(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
+            .with_entities(ProcessSubscriptionTable.pid)
+            .scalar_subquery()
+        )
+        return [
+            sql_compile(Delete(ProcessTable).where(ProcessTable.pid.in_(process_ids))),
+            sql_compile(
+                Delete(ProcessSubscriptionTable).where(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
+            ),
+            sql_compile(
+                Delete(SubscriptionInstanceTable).where(SubscriptionInstanceTable.subscription_id.in_(subscription_ids))
+            ),
+            sql_compile(Delete(SubscriptionTable).where(SubscriptionTable.product_id.in_(product_ids))),
+        ]
 
-    return [delete_product_block(product_name) for product_name in delete_products]
+    def delete_products_sql(product_names: Set[str]) -> str:
+        return sql_compile(Delete(ProductTable).where(ProductTable.name.in_(product_names)))
+
+    sql_deletes = delete_product_relations_sql(delete_products)
+    sql_deletes.append(delete_products_sql(delete_products))
+    return sql_deletes
 
 
 def generate_create_product_relations_sql(create_block_relations: Dict[str, Set[str]]) -> List[str]:

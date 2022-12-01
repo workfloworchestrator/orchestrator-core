@@ -1,8 +1,6 @@
 import json
 from typing import List, Union
 
-from sqlalchemy.exc import IntegrityError
-
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
 from orchestrator.db.models import ResourceTypeTable, SubscriptionInstanceValueTable
@@ -429,15 +427,15 @@ def test_migrate_domain_models_remove_product(test_product_type_one, product_one
 
     del SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"]
 
-    upgrade_sql, _ = migrate_domain_models("example", True)
+    inputs = json.dumps({"force_delete_products": "no"})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
 
-    try:
-        for stmt in upgrade_sql:
-            db.session.execute(stmt)
-        db.session.commit()
-        assert 1 == 0
-    except IntegrityError:
-        assert 1 == 1
+    assert len(upgrade_sql) == 7
+    assert len(downgrade_sql) == 0
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTest
 
