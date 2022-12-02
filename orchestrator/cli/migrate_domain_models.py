@@ -5,6 +5,7 @@
 $ PYTHONPATH=. python bin/list_workflows
 
 """
+import sys
 from typing import Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from orchestrator.cli.domain_gen_helpers.fixed_input_helpers import (
     map_update_fixed_inputs,
 )
 from orchestrator.cli.domain_gen_helpers.helpers import (
+    get_user_input,
     map_create_fixed_inputs,
     map_create_product_block_relations,
     map_create_resource_type_relations,
@@ -322,6 +324,7 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
 def create_domain_models_migration_sql(
     inputs: Dict[str, Dict[str, str]],
     updates: Optional[ModelUpdates],
+    is_test: bool = False,
 ) -> Tuple[List[str], List[str]]:
     """Create tuple with list for upgrade and downgrade SQL statements based on SubscriptionModel.diff_product_in_database.
 
@@ -369,6 +372,9 @@ def create_domain_models_migration_sql(
     logger.info("delete_product_blocks", delete_blocks=changes.delete_product_blocks)
     logger.info("create_product_block_relations", create_product_block_relations=changes.create_product_block_relations)
     logger.info("delete_product_block_relations", delete_product_block_relations=changes.delete_product_block_relations)
+    print("WARNING: Product deletion also deleted its Subscriptions")  # noqa: T001, T201
+    if not is_test and "y" not in get_user_input("Confirm the above actions y/N:", "no").lower():
+        sys.exit()
 
     sql_upgrade_stmts = generate_upgrade_sql(changes, inputs)
     sql_downgrade_stmts = generate_downgrade_sql(changes)

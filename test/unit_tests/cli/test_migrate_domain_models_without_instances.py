@@ -26,7 +26,7 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
     upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=json.dumps(inputs))
 
     assert len(upgrade_sql) == 9
-    assert len(downgrade_sql) == 14
+    assert len(downgrade_sql) == 18
 
     product_id = (
         ProductTable.query.where(ProductTable.name == "TestProductOne").with_entities(ProductTable.product_id).all()
@@ -530,7 +530,7 @@ def test_migrate_domain_models_remove_product(test_product_one, test_product_typ
 
     upgrade_sql, downgrade_sql = migrate_domain_models("example", True)
 
-    assert len(upgrade_sql) == 3
+    assert len(upgrade_sql) == 7
     assert len(downgrade_sql) == 0
 
     before_diff = ProductTypeOneForTest.diff_product_in_database(test_product_one)

@@ -1,5 +1,5 @@
 from itertools import groupby
-from typing import Dict, Optional, Set
+from typing import Dict, Set
 
 import structlog
 from sqlalchemy.dialects import postgresql
@@ -25,7 +25,7 @@ def generic_mapper(prop_name: str, model_diffs: Dict[str, Dict[str, Set[str]]]) 
     return {k: {val[1] for val in v} for k, v in grouped}
 
 
-def get_user_input(text: str, default: Optional[str] = None) -> Optional[str]:
+def get_user_input(text: str, default: str = "") -> str:
     while True:
         answer = input(text)
         if answer or default:

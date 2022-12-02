@@ -286,7 +286,7 @@ def migrate_domain_models(
             fixed_inputs=updates_dict.get("fixed_inputs", {}),
             resource_types=updates_dict.get("resource_types", {}),
         )
-    sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class)
+    sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class, bool(test))
 
     if test:
         print("--- TEST DOES NOT GENERATE SQL MIGRATION ---")  # noqa: T001, T201
