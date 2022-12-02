@@ -71,23 +71,25 @@ nav:
     - Beginner:
       - Overview: workshops/beginner/overview.md
       - Installation:
+        - Manual:
           - Debian: workshops/beginner/debian.md
           - MacOS: workshops/beginner/macos.md
+        - Docker compose: workshops/beginner/docker.md
       - Start applications: workshops/beginner/start-applications.md
       - Products:
-          - Scenario: workshops/beginner/scenario.md
-          - Domain models: workshops/beginner/domain-models.md
-          - Database migration: workshops/beginner/database-migration.md
+        - Scenario: workshops/beginner/scenario.md
+        - Domain models: workshops/beginner/domain-models.md
+        - Database migration: workshops/beginner/database-migration.md
       - Workflows:
-          - Introduction: workshops/beginner/workflow-introduction.md
-          - Register workflows: workshops/beginner/register-workflows.md
-          - Input forms: workshops/beginner/input-forms.md
-          - Create UserGroup: workshops/beginner/create-user-group.md
-          - Modify UserGroup: workshops/beginner/modify-user-group.md
-          - Terminate UserGroup: workshops/beginner/terminate-user-group.md
-          - Create User: workshops/beginner/create-user.md
-          - Modify User: workshops/beginner/modify-user.md
-          - Terminate User: workshops/beginner/terminate-user.md
+        - Introduction: workshops/beginner/workflow-introduction.md
+        - Register workflows: workshops/beginner/register-workflows.md
+        - Input forms: workshops/beginner/input-forms.md
+        - Create UserGroup: workshops/beginner/create-user-group.md
+        - Modify UserGroup: workshops/beginner/modify-user-group.md
+        - Terminate UserGroup: workshops/beginner/terminate-user-group.md
+        - Create User: workshops/beginner/create-user.md
+        - Modify User: workshops/beginner/modify-user.md
+        - Terminate User: workshops/beginner/terminate-user.md
       - Explore: workshops/beginner/explore.md
   - Contributing:
     - Guidelines: contributing/guidelines.md

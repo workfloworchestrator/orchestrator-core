@@ -9,7 +9,22 @@ Usually one would only register workflows that are already written and are
 ready to be used, but for this workshop all workflows will be registered 
 beforehand.
 
-Create a new empty database migratrion with the following command:
+### Docker compose
+
+Copy the example workflows migration:
+
+```shell
+(
+  cd migrations/versions/schema
+  curl --remote-name https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator-beginner/main/examples/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py
+)
+```
+
+And restart the Docker compose environment.
+
+### Manual
+
+Create a new empty database migration with the following command:
 
 ```shell
 PYTHONPATH=. python main.py db revision --head data --message "add User and UserGroup workflows"

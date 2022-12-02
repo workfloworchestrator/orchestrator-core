@@ -1,6 +1,7 @@
 # Debian 11 (bullseye) installation instructions
 
-How to install the orchestrator-core and orchestrator-core-gui on Debian 11 
+How to manually install the orchestrator-core and orchestrator-core-gui on 
+Debian 11 
 (Bullseye) is described in the following steps.
 
 ### Step 1 - Install dependencies

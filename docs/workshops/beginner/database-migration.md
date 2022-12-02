@@ -59,6 +59,23 @@ import products
 
 ## Exercise 2: create database migration
 
+To manually create a database migration a Python environment is needed, as 
+created with the manual installation steps, to run the orchestrator from the 
+command line. When using Docker compose an example migration is being used.
+
+### Docker compose
+
+Copy the example product and product block migration:
+
+```shell
+(
+  cd migrations/versions/schema
+  curl --remote-name https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator-beginner/main/examples/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py
+)
+```
+
+### Manual
+
 The orchestrator command line interface offers the `db migrate-domain-models`
 command to create a database migration based on the differences between the
 database and the registered products. In most cases this command will be able
@@ -125,8 +142,18 @@ When finished have a look at the migration created in the folder
 ## Exercise 3: perform database migration
 
 To create a representation of the products in the database that matches the
-domain models, the database migration created above is executed. One way to do
-this is to explicitly upgrade the database to the revision that was just
+domain models, the database migration created above is executed.
+
+### Docker compose
+
+The Docker compose environment contains a initialization container that will 
+always upgrade the database to the latest heads. To trigger this you only have
+to restart the environment.
+
+### Manual
+
+One way to manually migrate to the latest schemas
+is to explicitly upgrade the database to the revision that was just
 created  with `db upgrade <revision>`. Another way is to upgrade to the latest
 heads again, as was done during the initialisation of the database.
 

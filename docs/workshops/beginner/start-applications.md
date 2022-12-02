@@ -1,5 +1,7 @@
 # Start orchestrator and client
 
+## Manual
+
 ### Start orchestrator
 
 From the `example-orchestrator` folder, use Uvicorn to start the orchestrator:
@@ -22,7 +24,18 @@ export PATH="/usr/local/opt/node@14/bin:$PATH"
 yarn start
 ```
 
-Point a web browser to the URL `$REACT_APP_BACKEND_URL`.
+Point a web browser to `$REACT_APP_BACKEND_URL`.
+
+## Docker compose
+
+Using Docker compose the only thing needed to start all application is to
+run:
+
+```shell
+docker compose up
+```
+
+And point a browser to `http://localhost:3000/`.
 
 !!! note
 

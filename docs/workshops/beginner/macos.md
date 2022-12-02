@@ -1,6 +1,7 @@
 # MacOS version 12 (Monterey) installation instructions
 
-How to install the orchestrator-core and orchestrator-core-gui on MacOS version
+How to manually install the orchestrator-core and orchestrator-core-gui on 
+MacOS version
 12 (Monterey) is described in the following steps.
 
 ### Step 1 - Install dependencies
