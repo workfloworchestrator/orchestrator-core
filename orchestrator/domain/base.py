@@ -1418,7 +1418,7 @@ def validate_lifecycle_change(
     )
 
 
-SI = TypeVar("SI")  # pragma: no mutate
+SI = TypeVar("SI", covariant=True)  # pragma: no mutate
 
 
 class SubscriptionInstanceList(ConstrainedList, List[SI]):
