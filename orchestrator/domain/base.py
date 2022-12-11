@@ -1421,7 +1421,7 @@ def validate_lifecycle_change(
 SI = TypeVar("SI", covariant=True)  # pragma: no mutate
 
 
-class SubscriptionInstanceList(ConstrainedList, List[SI]):
+class SubscriptionInstanceList(ConstrainedList, List[SI]):  # type: ignore
     """Shorthand to create constrained lists of product blocks."""
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

@@ -16,7 +16,7 @@ def test_product_type_list_union(test_product_sub_block_one, test_product_sub_bl
 
     T = TypeVar("T", covariant=True)
 
-    class ListOfPorts(SubscriptionInstanceList[T]):  # type: ignore
+    class ListOfPorts(SubscriptionInstanceList[T]):
         min_items = 1
 
     class ProductListUnionInactive(SubscriptionModel, is_base=True):
