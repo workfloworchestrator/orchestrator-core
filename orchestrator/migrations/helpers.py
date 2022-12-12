@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Sequence, Union
+from typing import Dict, Iterable, List, Sequence, Union
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -768,7 +768,7 @@ def delete_resource_types_from_product_blocks(conn: sa.engine.Connection, delete
         )
 
 
-def delete_resource_types(conn: sa.engine.Connection, delete: Dict) -> None:
+def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
     """Delete a resource type and it's occurrences in product blocks.
 
     Args:
