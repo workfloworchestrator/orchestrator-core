@@ -42,7 +42,8 @@ from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSche
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     _generate_etag,
-    build_extendend_domain_model,
+    build_extended_domain_model,
+    format_extended_domain_model,
     get_subscription,
     query_depends_on_subscriptions,
     query_in_use_by_subscriptions,
@@ -113,14 +114,14 @@ def subscription_details_by_id_with_domain_model(
             response.status_code = HTTPStatus.NOT_MODIFIED
             return None
         response.headers["ETag"] = etag
-        return model
+        return format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
 
     if cache_response := from_redis(subscription_id):
         return _build_response(*cache_response)
 
     try:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        extended_model = build_extendend_domain_model(subscription_model, filter_owner_relations)
+        extended_model = build_extended_domain_model(subscription_model)
         etag = _generate_etag(extended_model)
         return _build_response(extended_model, etag)
     except ValueError as e:

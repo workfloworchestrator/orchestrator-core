@@ -24,7 +24,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
-    build_extendend_domain_model,
+    build_extended_domain_model,
     unsync,
 )
 from orchestrator.settings import app_settings
@@ -887,7 +887,7 @@ def test_subscription_detail_with_domain_model_etag(test_client, generic_subscri
     response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
     assert response.status_code == HTTPStatus.OK
     subscription = SubscriptionModel.from_subscription(generic_subscription_1)
-    extended_model = build_extendend_domain_model(subscription)
+    extended_model = build_extended_domain_model(subscription)
     etag = _generate_etag(extended_model)
     assert etag == response.headers["ETag"]
     # Check hierarchy
@@ -897,7 +897,7 @@ def test_subscription_detail_with_domain_model_etag(test_client, generic_subscri
 def test_subscription_detail_with_domain_model_if_none_match(test_client, generic_subscription_1):
     # test with a subscription that has domain model and without
     subscription = SubscriptionModel.from_subscription(generic_subscription_1)
-    extended_model = build_extendend_domain_model(subscription)
+    extended_model = build_extended_domain_model(subscription)
     etag = _generate_etag(extended_model)
     response = test_client.get(
         URL("api/subscriptions/domain-model") / generic_subscription_1, headers={"If-None-Match": etag}
@@ -911,7 +911,7 @@ def test_subscription_detail_with_domain_model_if_none_match(test_client, generi
 def test_subscription_detail_with_domain_model_cache(test_client, generic_subscription_1):
     # test with a subscription that has domain model and without
     subscription = SubscriptionModel.from_subscription(generic_subscription_1)
-    extended_model = build_extendend_domain_model(subscription)
+    extended_model = build_extended_domain_model(subscription)
     etag = _generate_etag(extended_model)
 
     app_settings.CACHE_DOMAIN_MODELS = True

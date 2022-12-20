@@ -8,7 +8,7 @@ from nwastdlib.url import URL
 from redis import Redis
 
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.services.subscriptions import build_extendend_domain_model
+from orchestrator.services.subscriptions import build_extended_domain_model
 from orchestrator.settings import app_settings
 from orchestrator.utils.redis import to_redis
 
@@ -42,7 +42,7 @@ def test_cache_update_customer_description(
         customer_id=subscription.customer_id,
         description="Original description",
     )
-    extended_model = build_extendend_domain_model(subscription)
+    extended_model = build_extended_domain_model(subscription)
 
     # Add domainmodel to cache
     to_redis(extended_model)
@@ -80,7 +80,7 @@ def test_cache_delete_customer_description(
         customer_id=subscription.customer_id,
         description="Original description",
     )
-    extended_model = build_extendend_domain_model(subscription)
+    extended_model = build_extended_domain_model(subscription)
 
     # Add domainmodel to cache
     to_redis(extended_model)
@@ -107,7 +107,7 @@ def test_cache_create_customer_description(
 ):
     """Check that creating subscription customer description is reflected in the cache."""
     subscription = SubscriptionModel.from_subscription(generic_subscription_1)
-    extended_model = build_extendend_domain_model(subscription)
+    extended_model = build_extended_domain_model(subscription)
 
     # Add domainmodel to cache
     to_redis(extended_model)
