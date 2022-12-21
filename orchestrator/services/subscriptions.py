@@ -13,6 +13,7 @@
 
 """Module that provides service functions on subscriptions."""
 import pickle  # noqa: S403
+import warnings
 from collections import defaultdict
 from datetime import datetime
 from hashlib import md5
@@ -573,34 +574,63 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
 
 def _generate_etag(model: dict) -> str:
     encoded = pickle.dumps(model)
-    return md5(encoded).hexdigest()  # noqa: S303
+    return md5(encoded).hexdigest()  # noqa: S303, S324
 
 
-def build_extendend_domain_model(subscription_model: SubscriptionModel, filter_owner_relations: bool = True) -> dict:
+def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
+    """Create a subscription dict from the SubscriptionModel with additional keys."""
     customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
     ).all()
 
     subscription = subscription_model.dict()
-    paths = product_block_paths(subscription_model)
+    paths = product_block_paths(subscription)
 
-    filter_instance_ids = []
-    if filter_owner_relations:
-        filter_instance_ids = [subscription_model.subscription_id]
-        for path in paths:
-            filter_instance_ids.append(getattr_in(subscription_model, f"{path}.subscription_instance_id"))
+    def inject_in_use_by_ids(path_to_block: str) -> None:
+        if not (in_use_by_subs := getattr_in(subscription_model, f"{path_to_block}.in_use_by")):
+            return
+        block_instance_ids = [obj.in_use_by_id for obj in in_use_by_subs.col]
+        update_in(subscription, f"{path_to_block}.in_use_by_ids", block_instance_ids)
 
     # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
     for path in paths:
-        if in_use_by_subs := getattr_in(subscription_model, f"{path}.in_use_by"):
-            i_ids: List[Optional[UUID]] = []
-            i_ids.extend(
-                in_use_by_subs.col[idx].in_use_by_id
-                for idx, ob in enumerate(in_use_by_subs.col)
-                if ob.in_use_by_id not in filter_instance_ids
-            )
-            update_in(subscription, f"{path}.in_use_by_ids", i_ids)
+        inject_in_use_by_ids(path)
 
     subscription["customer_descriptions"] = customer_descriptions
 
     return subscription
+
+
+def format_extended_domain_model(subscription: dict, filter_owner_relations: bool) -> dict:
+    """Format the subscription dict depending on filter settings.
+
+    Args:
+        subscription: result from build_extended_domain_model() or cache
+        filter_owner_relations: True to filter instance ids from the current subscription
+    """
+
+    def filter_instance_ids_on_subscription() -> None:
+        paths = product_block_paths(subscription)
+        instance_ids_to_filter = {getattr_in(subscription, f"{path}.subscription_instance_id") for path in paths}
+        instance_ids_to_filter.add(subscription["subscription_id"])
+
+        def filter_instance_ids_on_productblock(path_to_block: str) -> None:
+            if not (block_instance_ids := getattr_in(subscription, f"{path_to_block}.in_use_by_ids")):
+                return
+            filtered_instance_ids = set(block_instance_ids) - instance_ids_to_filter
+            update_in(subscription, f"{path_to_block}.in_use_by_ids", list(filtered_instance_ids))
+
+        # find all product blocks, filter instance_ids if needed
+        for path in paths:
+            filter_instance_ids_on_productblock(path)
+
+    if filter_owner_relations:
+        filter_instance_ids_on_subscription()
+
+    return subscription
+
+
+def build_extendend_domain_model(subscription_model: SubscriptionModel, filter_owner_relations: bool = False) -> dict:
+    warnings.warn("Use build_extended_domain_model() and format_extended_domain_model() instead", DeprecationWarning)
+    subscription = build_extended_domain_model(subscription_model)
+    return format_extended_domain_model(subscription, filter_owner_relations=filter_owner_relations)

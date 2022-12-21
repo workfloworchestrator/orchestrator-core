@@ -238,19 +238,24 @@ def get_in(dct: Union[dict, list], path: str, sep: str = ".") -> Any:
     return prev[x]  # type: ignore
 
 
-def getattr_in(obj: Any, attr: str, *args: List[Any]) -> Any:
+def getattr_in(obj: Any, attr: str) -> Any:
     """Get an instance attribute value by path."""
 
     def _getattr(obj: object, attr: str) -> Any:
         if isinstance(obj, list):
             return obj[int(attr)]
 
-        return getattr(obj, attr, None, *args)
+        if isinstance(obj, dict):
+            return obj.get(attr)
+
+        return getattr(obj, attr, None)
 
     return functools.reduce(_getattr, [obj] + attr.split("."))
 
 
-def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
+def product_block_paths(subscription: Union[SubscriptionModel, dict]) -> List[str]:
+    _subscription = subscription.dict() if isinstance(subscription, SubscriptionModel) else subscription
+
     def get_dict_items(d: dict) -> Generator:
         for k, v in d.items():
             if isinstance(v, dict):
@@ -264,4 +269,4 @@ def product_block_paths(subscription: SubscriptionModel) -> List[Optional[str]]:
                             yield (f"{k}.{index}.{list_item_key}", list_item_value)
                         yield (f"{k}.{index}", list_item)
 
-    return [c[0] for c in get_dict_items(subscription.dict())]
+    return [path for path, value in get_dict_items(_subscription)]

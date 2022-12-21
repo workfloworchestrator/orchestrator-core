@@ -20,7 +20,7 @@ from pydantic import ValidationError
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
-from orchestrator.services.subscriptions import build_extendend_domain_model, get_subscription
+from orchestrator.services.subscriptions import build_extended_domain_model, get_subscription
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.json import to_serializable
@@ -207,10 +207,10 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
     # Cache all the sub subscriptions
     for subscription_id in cached_subscription_ids:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        to_redis(build_extendend_domain_model(subscription_model))
+        to_redis(build_extended_domain_model(subscription_model))
 
     # Cache the main subscription
-    to_redis(build_extendend_domain_model(subscription))
+    to_redis(build_extended_domain_model(subscription))
     cached_subscription_ids.add(subscription.subscription_id)
 
     return {"cached_subscription_ids": cached_subscription_ids}
