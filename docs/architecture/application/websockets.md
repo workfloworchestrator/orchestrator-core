@@ -1,6 +1,7 @@
 # Websockets
 
 Orchestrator provides a websocket interface through which the frontend can receive real-time updates. This includes:
+
 * The process overview pages
 * The process detail page
 * Engine status
@@ -11,6 +12,7 @@ Orchestrator provides a websocket interface through which the frontend can recei
 To function properly in a scalable architecture, the websocket implentation consists of multiple layers,
 
 The main component is the `WebSocketManager` (WSM) which has the following responsibilities:
+
 1. Keep track of connected frontend clients
 2. Forward messages to all frontend clients
 3. Provide an interface to pass messages from a backend process (workflow/task)

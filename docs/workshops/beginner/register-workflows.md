@@ -87,7 +87,7 @@ PYTHONPATH=. python main.py db upgrade heads
 
     for inspiration, have a look at this example 
     [Add User and UserGroup workflows
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/example_migrations/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py)
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/examples/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py)
     migration
 
 ## Exercise 2: map workflow function to package

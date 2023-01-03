@@ -62,11 +62,15 @@ nav:
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md
-    - How do Workflows work?: architecture/application/workflow.md
-    - What are tasks?: architecture/application/tasks.md
-    - Validating input through forms: architecture/application/forms.md
-    - Domain Models: architecture/application/domainmodels.md
-    - Api Docs: architecture/application/api.md
+    - Internals:
+      - How do Workflows work?: architecture/application/workflow.md
+      - What are tasks?: architecture/application/tasks.md
+      - Validating input through forms: architecture/application/forms.md
+      - Domain Models: architecture/application/domainmodels.md
+    - Documentation:
+      - Command Line Interface: architecture/application/cli.md
+      - Web sockets: architecture/application/websockets.md
+      - Api Docs: architecture/application/api.md
   - Workshops:
     - Beginner:
       - Overview: workshops/beginner/overview.md

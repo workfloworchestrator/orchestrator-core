@@ -190,5 +190,5 @@ The metadata/products page should look as following:
 
     if the database migration is incorrect, use this example 
     [Add User and UserGroup products
-    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/example_migrations/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py)
+    ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/examples/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py)
     migration

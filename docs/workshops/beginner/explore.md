@@ -17,7 +17,7 @@ source virtualenvwrapper.sh
 workon example-orchestrator || mkvirtualenv --python python3.9 example-orchestrator
 pip install orchestrator-core
 PYTHONPATH=. python main.py db init
-cp -av example_migrations/* migrations/versions/schema
+cp -av examples/*add_user_and_usergroup* migrations/versions/schema
 PYTHONPATH=. python main.py db upgrade heads
 ENABLE_WEBSOCKETS=True uvicorn --host 127.0.0.1 --port 8080 main:app
 ```
