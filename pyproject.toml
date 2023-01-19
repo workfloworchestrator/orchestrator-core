@@ -61,7 +61,7 @@ requires = [
     "python-rapidjson==1.0",
     "pytz==2020.5",
     "rapidjson==1.0.0",
-    "redis",
+    "redis~=4.4.2",
     "schedule==1.0.0",
     "sentry-sdk[fastapi]==1.9.9",
     "SQLAlchemy==1.4.28",
