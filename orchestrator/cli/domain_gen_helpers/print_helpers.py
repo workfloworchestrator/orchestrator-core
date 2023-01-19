@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Any, Callable, Iterable
 
 from orchestrator.types import strEnum
 
@@ -27,5 +27,5 @@ def str_fmt(text: str, *, flags: Iterable[COLOR] = ()) -> str:
     return "".join(f for f in flags) + text + COLOR.RESET
 
 
-def print_fmt(text: str, *, flags: Iterable[COLOR] = (), print_fn=print, **kwargs) -> None:
+def print_fmt(text: str, *, flags: Iterable[COLOR] = (), print_fn: Callable = print, **kwargs: Any) -> None:
     print_fn(str_fmt(text, flags=flags), **kwargs)
