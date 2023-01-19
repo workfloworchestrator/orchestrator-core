@@ -34,9 +34,12 @@ def test_transactional():
     )
 
     logger.reset_mock()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as ex:
         with transactional(db, logger):
             insert_wf_error({})
+
+    # https://github.com/PyCQA/flake8-bugbear/issues/334
+    assert str(ex.value) == "Let's wreck some havoc!"
 
     logger.assert_has_calls(
         [
@@ -59,9 +62,12 @@ def test_transactional_no_commit():
 
     logger = mock.MagicMock()
 
-    with pytest.raises(Exception, match="Lets rollback"):
+    with pytest.raises(Exception, match="Lets rollback") as ex:
         with transactional(db, logger):
             insert_wf({})
+
+    # https://github.com/PyCQA/flake8-bugbear/issues/334
+    assert str(ex.value) == "Lets rollback"
 
     assert (
         db.session.query(WorkflowTable).filter(WorkflowTable.name == "Test transactional should not be committed").all()
@@ -85,7 +91,7 @@ def test_transactional_no_commit_second_thread():
         db.session.commit()
 
         # Create new database session to simulate another workflow/api handler running at the same time
-        # This is also a workaround for our disable commit wrapper but it should be reasonable obvious that
+        # This is also a workaround for our disable commit wrapper, but it should be reasonable obvious that
         # someone is fucking around if you see `with db.database_scope():` in actual production code
 
         with db.database_scope():
@@ -99,9 +105,12 @@ def test_transactional_no_commit_second_thread():
 
     logger = mock.MagicMock()
 
-    with pytest.raises(Exception, match="Lets rollback"):
+    with pytest.raises(Exception, match="Lets rollback") as ex:
         with transactional(db, logger):
             insert_wf({})
+
+    # https://github.com/PyCQA/flake8-bugbear/issues/334
+    assert str(ex.value) == "Lets rollback"
 
     assert db.session.query(WorkflowTable).filter(WorkflowTable.name == "Test transactional should be committed").one()
     assert (
