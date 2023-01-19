@@ -6,6 +6,7 @@ from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.db.models import (
     ProductBlockRelationTable,
@@ -104,12 +105,13 @@ def generate_create_product_blocks_sql(
 
     Returns: List of SQL to create product blocks.
     """
+    print_fmt("\nCreate product blocks", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
     def create_product_block(name: str) -> str:
-        print(f"--- PRODUCT BLOCK ['{name}'] INPUTS ---")  # noqa: T001, T201
+        print(f"\nProduct block: {str_fmt(name, flags=[COLOR.BOLD])}")  # noqa: T001, T201
         prefilled_values = inputs.get(name, {})
-        description = prefilled_values.get("description") or get_user_input("Product block description: ")
-        tag = prefilled_values.get("tag") or get_user_input("Product block tag: ")
+        description = prefilled_values.get("description") or get_user_input("Supply the product block description: ")
+        tag = prefilled_values.get("tag") or get_user_input("Supply the product block tag: ")
         return sql_compile(
             Insert(ProductBlockTable).values(
                 {

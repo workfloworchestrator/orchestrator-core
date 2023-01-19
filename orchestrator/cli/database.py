@@ -289,10 +289,10 @@ def migrate_domain_models(
     sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class, bool(test))
 
     if test:
-        print("--- TEST DOES NOT GENERATE SQL MIGRATION ---")  # noqa: T001, T201
+        print("Running in test mode. No migration file will be generated.\n")  # noqa: T001, T201
         return sql_upgrade_stmts, sql_downgrade_stmts
 
-    print("--- GENERATING SQL MIGRATION FILE ---")  # noqa: T001, T201
+    print("Generating migration file.\n")  # noqa: T001, T201
 
     sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
     sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
@@ -342,5 +342,5 @@ def migrate_domain_models(
     with open(migration.path, "w") as f:
         f.write(new_file_data)
 
-    print("--- MIGRATION GENERATED (DON'T FORGET TO BACKUP DATABASE BEFORE MIGRATING!) ---")  # noqa: T001, T201
+    print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
     return None

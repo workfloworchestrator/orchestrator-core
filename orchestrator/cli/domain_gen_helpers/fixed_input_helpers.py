@@ -5,6 +5,7 @@ from sqlalchemy.sql.expression import Delete, Insert, Update
 from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.cli.domain_gen_helpers.product_helpers import get_product_id, get_product_ids
 from orchestrator.db.models import FixedInputTable
 
@@ -25,16 +26,27 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
             - key: old fixed input name.
             - value: new fixed input name.
     """
-    print("--- UPDATE FIXED INPUT DECISIONS ('N'= create and delete) ---")  # noqa: T001, T201
+    print_fmt("\nUpdate fixed inputs", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
-    def should_rename(product_name: str, product_diff: Dict[str, Set[str]]) -> Dict[str, str]:
+    def rename_map(product_name: str, product_diff: Dict[str, Set[str]]) -> Dict[str, str]:
         db_props = list(product_diff.get("missing_fixed_inputs_in_model", []))
         model_props = list(product_diff.get("missing_fixed_inputs_in_db", []))
 
+        # If 1 field differs between model and db, ask if this is a renaming, otherwise delete/create all differing fields
         if len(db_props) == 1 and len(model_props) == 1:
             should_rename = get_user_input(
-                f"rename fixed input {db_props} to {model_props} for product ['{product_name}'] (y/N): ",
-                "n",
+                "".join(
+                    [
+                        "Do you wish to rename fixed input ",
+                        str_fmt(db_props[0], flags=[COLOR.CYAN]),
+                        " to ",
+                        str_fmt(model_props[0], flags=[COLOR.CYAN]),
+                        " for product ",
+                        str_fmt(product_name, flags=[COLOR.BOLD]),
+                        "? [y/N]: ",
+                    ]
+                ),
+                "N",
             )
             if should_rename == "y":
                 product_diffs[product_name]["missing_fixed_inputs_in_model"] = set()
@@ -42,7 +54,7 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
                 return {db_props[0]: model_props[0]}
         return {}
 
-    updates = {name: should_rename(name, diff) for name, diff in product_diffs.items()}
+    updates = {name: rename_map(name, diff) for name, diff in product_diffs.items()}
     return {k: v for k, v in updates.items() if v}
 
 
@@ -64,6 +76,7 @@ def generate_create_fixed_inputs_sql(
 
     Returns: List of SQL to create fixed inputs.
     """
+    print_fmt("\nCreate fixed inputs", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
     def create_fixed_input(fixed_input: str, product_names: Set[str]) -> str:
         def create_product_insert_dict(product_name: str) -> Dict[str, Union[str, ScalarSelect]]:
@@ -78,8 +91,16 @@ def generate_create_fixed_inputs_sql(
                     .one()
                 )[0]
             else:
-                print(f"--- PRODUCT ['{product_name}'] FIXED INPUT ['{fixed_input}'] ---")  # noqa: T001, T201
-                value = inputs.get(product_name, {}).get(fixed_input) or get_user_input("Fixed input value: ")
+                prompt = "".join(
+                    [
+                        "Supply fixed input value for product ",
+                        str_fmt(product_name, flags=[COLOR.BOLD]),
+                        " and fixed input ",
+                        str_fmt(fixed_input, flags=[COLOR.CYAN]),
+                        ": ",
+                    ]
+                )
+                value = inputs.get(product_name, {}).get(fixed_input) or get_user_input(prompt)
 
             return {"name": fixed_input, "value": value, "product_id": product_id_sql}
 

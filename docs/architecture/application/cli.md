@@ -9,17 +9,20 @@ The purpose of this CLI script is to automatically generate the data migrations 
 It will inspect your DB and the existing domain models, analyse the differences and it will generate an Alembic data migration in the correct folder.
 
 Features:
+
 - detect a new Domain Model attribute / resource type
 - detect a renamed Domain Model attribute / resource type
 - detect a removed Domain Model attribute / resource type
 - detect a new Domain Model
 - detect a removed Domain Model
 - ability to ask for human input when needed
-- Below in the documentation these features are discussed in more detail.
 
-BACKUP DATABASE BEFORE USING THE MIGRATION!.
+Below in the documentation these features are discussed in more detail.
+
+!!! warning "BACKUP DATABASE BEFORE USING THE MIGRATION!"
 
 ### Args:
+
 - `message`: Message/description of the generated migration.
 - `--test`: Optional boolean if you don't want to generate a migration file.
 - `--inputs`: stringified dict to prefill inputs.
@@ -40,7 +43,8 @@ BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
 ### Example
 
-You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/hanstrompert/example-orchestrator)):
+You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator-beginner)):
+
 - UserGroup Block:
     ```python
     from orchestrator.domain.base import SubscriptionModel, ProductBlockModel
@@ -187,6 +191,7 @@ You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will 
     ```
 
 Running the command:
+
 - only with a message
     ``` bash
     python main.py db migrate-domain-models "message"
@@ -208,12 +213,13 @@ The command will first go through all products and map the differences with the 
 ```
 
 You will be prompted with inputs when updates are found.
+
 - rename of fixed input input (renaming `affiliation` to `affiliationing` in User Product):
     ``` bash
     --- UPDATE FIXED INPUT DECISIONS ('N'= create and delete) ---
     rename fixed input ['affiliation'] to ['affiliationing'] for product ['User internal'] (y/N):
     ```
-- rename of resource type input(renaming `age` to `user_age` in User Block), only works when the resource type is renamed in all Blocks:
+- rename of resource type input (renaming `age` to `user_age` in User Block), only works when the resource type is renamed in all Blocks:
     ``` bash
     --- UPDATE RESOURCE TYPE DECISIONS ('No'= create and delete) ---
     Change resource type ['age'] to ['user_age'] (y/N):
