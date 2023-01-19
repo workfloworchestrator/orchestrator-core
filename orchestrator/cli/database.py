@@ -148,7 +148,7 @@ def upgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgra
 
 
 @app.command()
-def downgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgrade to")) -> None:
+def downgrade(revision: Optional[str] = typer.Argument("-1", help="Rev id to upgrade to")) -> None:
     """
     Downgrade the database.
 
