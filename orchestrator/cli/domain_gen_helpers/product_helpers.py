@@ -5,6 +5,7 @@ from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.db.models import (
@@ -69,17 +70,17 @@ def generate_create_products_sql(
 
     Returns: List of SQL strings to create products.
     """
+    print_fmt("\nCreate new products", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
-    def create_product(name: str) -> str:
-        values = inputs.get(name, {})
-        print(f"--- PRODUCT ['{name}'] INPUTS ---")  # noqa: T001, T201
-        description = values.get("description") or get_user_input("Product description: ")
-        product_type = values.get("product_type") or get_user_input("Product type: ")
-        tag = values.get("tag") or get_user_input("Product tag: ")
+    def create_product(product_name: str, product_type: str) -> str:
+        values = inputs.get(product_name, {})
+        print(f"Product: {product_type} {str_fmt(product_name, flags=[COLOR.BOLD])}")  # noqa: T001, T201
+        description = values.get("description") or get_user_input("Supply the product description: ")
+        tag = values.get("tag") or get_user_input("Supply the product tag: ")
         return sql_compile(
             Insert(ProductTable).values(
                 {
-                    "name": name,
+                    "name": product_name,
                     "description": description,
                     "product_type": product_type,
                     "tag": tag,
@@ -88,7 +89,9 @@ def generate_create_products_sql(
             )
         )
 
-    return [create_product(name) for name in create_products.keys()]
+    return [
+        create_product(product_name, product_type.__name__) for product_name, product_type in create_products.items()
+    ]
 
 
 def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:

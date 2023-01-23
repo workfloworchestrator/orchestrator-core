@@ -26,6 +26,7 @@ from orchestrator.cli.domain_gen_helpers.helpers import (
     map_delete_product_block_relations,
     map_delete_resource_type_relations,
 )
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import (
     generate_create_product_block_instance_relations_sql,
     generate_create_product_block_relations_sql,
@@ -372,8 +373,11 @@ def create_domain_models_migration_sql(
     logger.info("delete_product_blocks", delete_blocks=changes.delete_product_blocks)
     logger.info("create_product_block_relations", create_product_block_relations=changes.create_product_block_relations)
     logger.info("delete_product_block_relations", delete_product_block_relations=changes.delete_product_block_relations)
-    print("WARNING: Product deletion also deleted its Subscriptions")  # noqa: T001, T201
-    if not is_test and "y" not in get_user_input("Confirm the above actions y/N:", "no").lower():
+
+    print_fmt("\nWARNING:", flags=[COLOR.BOLD, COLOR.YELLOW], end=" ")
+    print_fmt("Deleting products will also delete its subscriptions.")
+
+    if not is_test and "y" not in get_user_input("Confirm the above actions [y/N]: ", "N").lower():
         sys.exit()
 
     sql_upgrade_stmts = generate_upgrade_sql(changes, inputs)

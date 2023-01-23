@@ -167,7 +167,7 @@ flit install --deps develop --symlink --python ../orchestrator/venv/bin/python
 
 When your PR is accepted you will get a version number.
 
-You can do the necessary change with a clean, e.g. every change committed, branch: 
+You can do the necessary change with a clean, e.g. every change committed, branch:
 
 ```shell
 bumpversion patch --new-version 0.4.1-rc3

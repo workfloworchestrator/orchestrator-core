@@ -7,6 +7,7 @@ from sqlalchemy.sql.expression import Delete, Insert, Update
 from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id, get_product_block_ids
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.db.models import (
@@ -94,7 +95,7 @@ def map_update_resource_types(
     """
 
     updates = {}
-    print("--- UPDATE RESOURCE TYPE DECISIONS ('No'= create and delete) ---")  # noqa: T001, T201
+    print_fmt("\nUpdate resource types", flags=[COLOR.BOLD, COLOR.UNDERLINE])
     for diff in block_diffs.values():
         db_props = list(diff.get("missing_resource_types_in_model", set()))
         model_props = list(diff.get("missing_resource_types_in_db", set()))
@@ -107,8 +108,16 @@ def map_update_resource_types(
                     prefilled_val
                     if prefilled_val
                     else get_user_input(
-                        f"Change resource type {db_props} to {model_props} (y/N): ",
-                        "n",
+                        "".join(
+                            [
+                                "Do you wish to rename resource type ",
+                                str_fmt(db_props[0], flags=[COLOR.MAGENTA]),
+                                " to ",
+                                str_fmt(model_props[0], flags=[COLOR.MAGENTA]),
+                                "? [y/N]: ",
+                            ]
+                        ),
+                        "N",
                     )
                 )
                 if should_update == "y":
@@ -207,6 +216,7 @@ def generate_create_resource_types_sql(
 
     Returns: List of SQL strings to create resource type.
     """
+    print_fmt("\nCreate resource types", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
     def create_resource_type(resource_type: str) -> str:
         if revert:
@@ -216,9 +226,8 @@ def generate_create_resource_types_sql(
                 .one()
             )[0]
         else:
-            print(f"--- RESOURCE TYPE ['{resource_type}'] ---")  # noqa: T001, T201
             description = inputs.get(resource_type, {}).get("description") or get_user_input(
-                "Resource type description: "
+                f"Supply description for new resource type {str_fmt(resource_type, flags=[COLOR.MAGENTA])}: "
             )
 
         return sql_compile(
@@ -310,43 +319,46 @@ def generate_create_resource_type_instance_values_sql(
 
     Returns: List of SQL strings to create subscription instance values for existing product block instances.
     """
+    print_fmt("\nCreate subscription instance values", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
-    def create_resource_type_instance_relations(resource_type: str, block_names: Set[str]) -> List[str]:
-        def map_subscription_instance_relations(block_name: str) -> str:
-            input_value = inputs.get(resource_type, {}).get(block_name) or inputs.get(resource_type, {}).get("value")
-            value = input_value or get_user_input(
-                f"Resource type ['{resource_type}'] default value for block ['{block_name}']: "
-            )
+    def map_subscription_instance_relations(resource_type: str, block_name: str) -> str:
+        input_value = inputs.get(resource_type, {}).get(block_name) or inputs.get(resource_type, {}).get("value")
+        value = input_value or get_user_input(
+            f"Supply default subscription instance value for resource type {str_fmt(resource_type, flags=[COLOR.MAGENTA])} and product block {str_fmt(block_name, flags=[COLOR.BOLD])}: "
+        )
 
-            query = """
-                    WITH subscription_instance_ids AS (
-                        SELECT subscription_instances.subscription_instance_id
-                        FROM   subscription_instances
-                        WHERE  subscription_instances.product_block_id IN (
-                            SELECT product_blocks.product_block_id
-                            FROM   product_blocks
-                            WHERE  product_blocks.name = '{0}'
-                        )
+        query = """
+                WITH subscription_instance_ids AS (
+                    SELECT subscription_instances.subscription_instance_id
+                    FROM   subscription_instances
+                    WHERE  subscription_instances.product_block_id IN (
+                        SELECT product_blocks.product_block_id
+                        FROM   product_blocks
+                        WHERE  product_blocks.name = '{0}'
                     )
+                )
 
-                    INSERT INTO
-                        subscription_instance_values (subscription_instance_id, resource_type_id, value)
-                    SELECT
-                        subscription_instance_ids.subscription_instance_id,
-                        resource_types.resource_type_id,
-                        '{2}'
-                    FROM resource_types
-                    CROSS JOIN subscription_instance_ids
-                    WHERE resource_types.resource_type = '{1}'
-            """
-            sql_string = query.format(block_name, resource_type, value)
-            logger.debug("generated SQL", sql_string=sql_string)
-            return sql_string
+                INSERT INTO
+                    subscription_instance_values (subscription_instance_id, resource_type_id, value)
+                SELECT
+                    subscription_instance_ids.subscription_instance_id,
+                    resource_types.resource_type_id,
+                    '{2}'
+                FROM resource_types
+                CROSS JOIN subscription_instance_ids
+                WHERE resource_types.resource_type = '{1}'
+        """
+        sql_string = query.format(block_name, resource_type, value)
+        logger.debug("Generated SQL", sql_string=sql_string)
+        return sql_string
 
-        instance_values_sqls = [map_subscription_instance_relations(block_name) for block_name in block_names]
-        return [sql for sql in instance_values_sqls if sql]
-
-    return list(flatten([create_resource_type_instance_relations(*item) for item in resource_types.items()]))
+    sql_statements = [
+        sql
+        for resource_type, block_names in resource_types.items()
+        for block_name in block_names
+        if (sql := map_subscription_instance_relations(resource_type, block_name))
+    ]
+    return sql_statements
 
 
 def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str, Set[str]]) -> List[str]:

@@ -1,3 +1,5 @@
+default_language_version:
+  python: python3
 repos:
   - repo: https://github.com/timothycrosley/isort
     rev: v5.11.3
@@ -7,7 +9,6 @@ repos:
     rev: 22.12.0
     hooks:
       - id: black
-        language_version: python3.9
   - repo: https://github.com/asottile/blacken-docs
     rev: v1.12.1
     hooks:
@@ -21,11 +22,10 @@ repos:
       - id: check-docstring-first
       - id: check-json
       - id: check-yaml
-        exclude: (charts/*|.gitlab-ci.yml|mkdocs.yml)
       - id: debug-statements
       - id: requirements-txt-fixer
       - id: detect-private-key
-  - repo: https://github.com/pycqa/flake8
+  - repo: https://github.com/PyCQA/flake8
     rev: 6.0.0
     hooks:
       - id: flake8
@@ -44,7 +44,6 @@ repos:
     rev: v0.991
     hooks:
       - id: mypy
-        language_version: python3.9
         additional_dependencies:
           - pydantic
           - types-toml
@@ -57,7 +56,7 @@ repos:
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
-        exclude: (test/*|migrations/*)
+        exclude: (test/.*|migrations/.*)
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.9.0
     hooks:
