@@ -26,6 +26,7 @@ from alembic.util.exc import CommandError
 from structlog import get_logger
 
 import orchestrator
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
 from orchestrator.db import init_database
@@ -148,7 +149,7 @@ def upgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgra
 
 
 @app.command()
-def downgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgrade to")) -> None:
+def downgrade(revision: Optional[str] = typer.Argument("-1", help="Rev id to upgrade to")) -> None:
     """
     Downgrade the database.
 
@@ -278,6 +279,11 @@ def migrate_domain_models(
     if not app_settings.TESTING:
         init_database(app_settings)
 
+    if test:
+        print(  # noqa: T001, T201
+            f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
+        )
+
     inputs_dict = json.loads(inputs) if isinstance(inputs, str) else {}
     updates_dict = json.loads(updates) if isinstance(updates, str) else {}
     updates_class = None
@@ -289,10 +295,9 @@ def migrate_domain_models(
     sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class, bool(test))
 
     if test:
-        print("--- TEST DOES NOT GENERATE SQL MIGRATION ---")  # noqa: T001, T201
         return sql_upgrade_stmts, sql_downgrade_stmts
 
-    print("--- GENERATING SQL MIGRATION FILE ---")  # noqa: T001, T201
+    print("Generating migration file.\n")  # noqa: T001, T201
 
     sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
     sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
@@ -342,5 +347,5 @@ def migrate_domain_models(
     with open(migration.path, "w") as f:
         f.write(new_file_data)
 
-    print("--- MIGRATION GENERATED (DON'T FORGET TO BACKUP DATABASE BEFORE MIGRATING!) ---")  # noqa: T001, T201
+    print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
     return None
