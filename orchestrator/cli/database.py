@@ -280,9 +280,9 @@ def migrate_domain_models(
         init_database(app_settings)
 
     if test:
-        print(
+        print(  # noqa: T001, T201
             f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
-        )  # noqa: T001, T201
+        )
 
     inputs_dict = json.loads(inputs) if isinstance(inputs, str) else {}
     updates_dict = json.loads(updates) if isinstance(updates, str) else {}
