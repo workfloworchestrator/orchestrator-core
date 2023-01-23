@@ -81,9 +81,9 @@ command to create a database migration based on the differences between the
 database and the registered products. In most cases this command will be able
 to detect all changes, but in more complex situations it will ask the user for
 additional input to create the correct migration. For new products it will also
-ask for user friendly descriptions for the products, product blocks, resource
+ask for user-friendly descriptions for the products, product blocks, resource
 types and fixed inputs, as well as information that is not defined in the
-domain models like product and product block types and tags, and values for the
+domain models like product and product block tags, and values for the
 fixed inputs to differentiate the products of the same product type.
 
 Create the migration with the following command, have a look at the overview
@@ -105,39 +105,37 @@ When finished have a look at the migration created in the folder
     copy/paste the answers.
 
 !!! example
+    
+    **<u>Create new products</u>**<br>
+    Product: UserGroup **User Group**<br>
+    Supply the product description: *user group administration*<br>
+    Supply the product tag: *GROUP*<br>
+    Product: User **User internal**<br>
+    Supply the product description: *user administration - internal*<br>
+    Supply the product tag: *USER_INT*<br>
+    Product: User **User external**<br>
+    Supply the product description: *user administration - external*<br>
+    Supply the product tag: *USER_EXT*<br>
+    
+    **<u>Create fixed inputs</u>**<br>
+    Supply fixed input value for product **User internal** and fixed input <span style="color:magenta">affiliation</span>: *internal*<br>
+    Supply fixed input value for product **User external** and fixed input <span style="color:magenta">affiliation</span>: *external*<br>
+    
+    **<u>Create product blocks</u>**<br>
+    Product block: **UserGroupBlock**<br>
+    Supply the product block description: *user group block*<br>
+    Supply the product block tag: *UGB*<br>
+    Product block: **UserBlock**<br>
+    Supply the product block description: *user block*<br>
+    Supply the product block tag: *UB*<br>
+    
+    **<u>Create resource types</u>**<br>
+    Supply description for new resource type <span style="color:magenta">group_name</span>: *name of the user group*<br>
+    Supply description for new resource type <span style="color:magenta">group_id</span>: *id of the user group*<br>
+    Supply description for new resource type <span style="color:magenta">username</span>: *name of the user*<br>
+    Supply description for new resource type <span style="color:magenta">age</span>: *age of the user*<br>
+    Supply description for new resource type <span style="color:magenta">user_id</span>: *id of the user*<br>
 
-    --- PRODUCT ['User Group'] INPUTS   
-    Product description: **user group administration**  
-    Product type: **UserGroup**  
-    Product tag: **GROUP**  
-    --- PRODUCT ['User internal'] INPUTS ---  
-    Product description: **user administration - internal**  
-    Product type: **User**  
-    Product tag: **USER_INT**  
-    --- PRODUCT ['User external'] INPUTS ---  
-    Product description: **user administration - external**  
-    Product type: **User**  
-    Product tag: **USER_EXT**  
-    --- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---  
-    Fixed input value: **internal**  
-    --- PRODUCT ['User external'] FIXED INPUT ['affiliation'] ---  
-    Fixed input value: **external**  
-    --- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---  
-    Product block description: **user group block**  
-    Product block tag: **UGB**  
-    --- PRODUCT BLOCK ['UserBlock'] INPUTS ---  
-    Product block description: **user block**  
-    Product block tag: **UB**  
-    --- RESOURCE TYPE ['group_name'] ---  
-    Resource type description: **name of the user group**  
-    --- RESOURCE TYPE ['group_id'] ---  
-    Resource type description: **id of the user group**  
-    --- RESOURCE TYPE ['username'] ---  
-    Resource type description: **name of the user**  
-    --- RESOURCE TYPE ['age'] ---  
-    Resource type description: **age of the user**  
-    --- RESOURCE TYPE ['user_id'] ---  
-    Resource type description: **id of the user**  
 
 ## Exercise 3: perform database migration
 
