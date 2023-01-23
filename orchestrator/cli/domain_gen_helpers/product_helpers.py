@@ -72,11 +72,10 @@ def generate_create_products_sql(
     """
     print_fmt("\nCreate new products", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
-    def create_product(product_name: str) -> str:
+    def create_product(product_name: str, product_type: str) -> str:
         values = inputs.get(product_name, {})
-        print(f"Product: {str_fmt(product_name, flags=[COLOR.BOLD])}")  # noqa: T001, T201
+        print(f"Product: {product_type} {str_fmt(product_name, flags=[COLOR.BOLD])}")  # noqa: T001, T201
         description = values.get("description") or get_user_input("Supply the product description: ")
-        product_type = values.get("product_type") or get_user_input("Supply the product type: ")
         tag = values.get("tag") or get_user_input("Supply the product tag: ")
         return sql_compile(
             Insert(ProductTable).values(
@@ -90,7 +89,9 @@ def generate_create_products_sql(
             )
         )
 
-    return [create_product(name) for name in create_products.keys()]
+    return [
+        create_product(product_name, product_type.__name__) for product_name, product_type in create_products.items()
+    ]
 
 
 def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
