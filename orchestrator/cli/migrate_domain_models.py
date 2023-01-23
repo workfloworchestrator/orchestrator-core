@@ -374,7 +374,7 @@ def create_domain_models_migration_sql(
     logger.info("create_product_block_relations", create_product_block_relations=changes.create_product_block_relations)
     logger.info("delete_product_block_relations", delete_product_block_relations=changes.delete_product_block_relations)
 
-    print_fmt("WARNING:", flags=[COLOR.BOLD, COLOR.YELLOW], end=" ")
+    print_fmt("\nWARNING:", flags=[COLOR.BOLD, COLOR.YELLOW], end=" ")
     print_fmt("Deleting products will also delete its subscriptions.")
 
     if not is_test and "y" not in get_user_input("Confirm the above actions [y/N]: ", "N").lower():

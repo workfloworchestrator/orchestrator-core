@@ -26,6 +26,7 @@ from alembic.util.exc import CommandError
 from structlog import get_logger
 
 import orchestrator
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
 from orchestrator.db import init_database
@@ -278,6 +279,11 @@ def migrate_domain_models(
     if not app_settings.TESTING:
         init_database(app_settings)
 
+    if test:
+        print(
+            f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
+        )  # noqa: T001, T201
+
     inputs_dict = json.loads(inputs) if isinstance(inputs, str) else {}
     updates_dict = json.loads(updates) if isinstance(updates, str) else {}
     updates_class = None
@@ -289,7 +295,6 @@ def migrate_domain_models(
     sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class, bool(test))
 
     if test:
-        print("Running in test mode. No migration file will be generated.\n")  # noqa: T001, T201
         return sql_upgrade_stmts, sql_downgrade_stmts
 
     print("Generating migration file.\n")  # noqa: T001, T201

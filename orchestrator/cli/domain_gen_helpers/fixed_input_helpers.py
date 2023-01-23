@@ -38,9 +38,9 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
                 "".join(
                     [
                         "Do you wish to rename fixed input ",
-                        str_fmt(db_props[0], flags=[COLOR.CYAN]),
+                        str_fmt(db_props[0], flags=[COLOR.MAGENTA]),
                         " to ",
-                        str_fmt(model_props[0], flags=[COLOR.CYAN]),
+                        str_fmt(model_props[0], flags=[COLOR.MAGENTA]),
                         " for product ",
                         str_fmt(product_name, flags=[COLOR.BOLD]),
                         "? [y/N]: ",
@@ -96,7 +96,7 @@ def generate_create_fixed_inputs_sql(
                         "Supply fixed input value for product ",
                         str_fmt(product_name, flags=[COLOR.BOLD]),
                         " and fixed input ",
-                        str_fmt(fixed_input, flags=[COLOR.CYAN]),
+                        str_fmt(fixed_input, flags=[COLOR.MAGENTA]),
                         ": ",
                     ]
                 )

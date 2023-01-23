@@ -214,18 +214,18 @@ The command will first go through all products and map the differences with the 
 
 You will be prompted with inputs when updates are found.
 
-- rename of fixed input input (renaming `affiliation` to `affiliationing` in User Product):
-    ``` bash
-    --- UPDATE FIXED INPUT DECISIONS ('N'= create and delete) ---
-    rename fixed input ['affiliation'] to ['affiliationing'] for product ['User internal'] (y/N):
-    ```
-- rename of resource type input (renaming `age` to `user_age` in User Block), only works when the resource type is renamed in all Blocks:
-    ``` bash
-    --- UPDATE RESOURCE TYPE DECISIONS ('No'= create and delete) ---
-    Change resource type ['age'] to ['user_age'] (y/N):
-    ```
+- rename of resource type input (renaming `age` to `user_age` in User Block). Only works when the resource type is renamed in all Blocks:
 
-it will log the differences on info level:
+    > <u>**Update resource types**</u><br>
+	> Do you wish to rename resource type <span style="color:magenta">age</span> to <span style="color:magenta">user_age</span>? [y/N]: 
+
+- rename of fixed input (renaming `affiliation` to `affiliationing` in User Product):
+
+    > <u>**Update fixed inputs**</u><br>
+    Do you wish to rename fixed input <span style="color:magenta">affiliation</span> to <span style="color:magenta">affiliationing</span> for product **User internal**? [y/N]: 
+
+It will log the differences on info level:
+
 ``` bash
 2022-10-27 11:45:10 [info] create_products                   [orchestrator.cli.migrate_domain_models] create_products={'User group': <class 'products.product_types.user_group.UserGroup'>, 'User internal': <class 'products.product_types.user.User'>, 'User external': <class 'products.product_types.user.User'>}
 2022-10-27 11:45:10 [info] delete_products                   [orchestrator.cli.migrate_domain_models] delete_products=set()
@@ -245,39 +245,55 @@ it will log the differences on info level:
 2022-10-27 11:45:10 [info] delete_product_block_relations    [orchestrator.cli.migrate_domain_models] delete_product_block_relations={}
 ```
 
-now it will start generating the SQL, logging the SQL on debug level and prompt user for new resources:
+You will be asked to confirm the actions in order to continue:
+> <span style="color:goldenrod">**WARNING:**</span> Deleting products will also delete its subscriptions.<br>
+> Confirm the above actions [y/N]:
+
+After confirming, it will start generating the SQL, logging the SQL on debug level and prompt the user for new resources:
+
 - new product example:
-    ``` bash
-    --- PRODUCT ['User group'] INPUTS ---
-    Product description: User group product
-    Product type: UserGroup
-    Product tag: GROUP
+
+    > <u>**Create new products**</u><br>
+    Product: UserGroup **User group**<br>
+    Supply the production description: User group product<br>
+    Supply the product tag: GROUP<br>
+    ```sql
     2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO products (name, description, product_type, tag, status) VALUES ('User group', 'User group product', 'UserGroup', 'GROUP', 'active') RETURNING products.product_id
     ```
+
+  
 - new fixed input (the type isn't checked, so typing an incorrect value will insert in db):
-    ``` bash
-    --- PRODUCT ['User internal'] FIXED INPUT ['affiliation'] ---
-    Fixed input value: internal
-    --- PRODUCT ['User external'] FIXED INPUT ['affiliation'] ---
-    Fixed input value: external]
+
+    > <u>**Create fixed inputs**</u><br>
+    Supply fixed input value for product **User internal** and fixed input <span style="color:magenta">affiliation</span>: internal<br>
+    Supply fixed input value for product **User external** and fixed input <span style="color:magenta">affiliation</span>: external<br>
+    ```sql
     2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO fixed_inputs (name, value, product_id) VALUES ('affiliation', 'internal', (SELECT products.product_id FROM products WHERE products.name IN ('User internal'))), ('affiliation', 'external', (SELECT products.product_id FROM products WHERE products.name IN ('User external')))
     ```
+
 - new product block:
-    ``` bash
-    --- PRODUCT BLOCK ['UserGroupBlock'] INPUTS ---
-    Product block description: User group settings
-    Product block tag: UGS
-    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO product_blocks (name, description, tag, status) VALUES ('UserGroupBlock', 'User group settings', 'UGS', 'active') RETURNING product_blocks.product_block_id
+
+    > <u>**Create product blocks**</u><br>
+    Product block: **UserGroupBlock**<br>
+    Supply the product block description: User group settings<br>
+    Supply the product block tag: UGS<br>
+    ```sql
+    2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=`#!sql INSERT INTO product_blocks (name, description, tag, status) VALUES ('UserGroupBlock', 'User group settings', 'UGS', 'active') RETURNING product_blocks.product_block_id`
     ```
+
 - new resource type:
-    ``` bash
-    --- RESOURCE TYPE ['group_name'] ---
-    Resource type description: Unique name of user group
+
+    > <u>**Create resource types**</u><br>
+    Supply description for new resource type <span style="color:magenta">group_name</span>: Unique name of user group
+    ```sql
     2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO resource_types (resource_type, description) VALUES ('group_name', 'Unique name of user group') RETURNING resource_types.resource_type_id
     ```
+  
 - default value for resource type per product block (necessary for adding a default value to existing instances):
-    ``` bash
-    Resource type ['group_name'] default value for block ['UserGroupBlock']: group
+
+    > <u>**Create subscription instance values**</u><br>
+    Supply default subscription instance value for resource type <span style="color:magenta">group_name</span> and product block **UserGroupBlock**: group
+    ```sql
     2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.resource_type_helpers] sql_string=
                     WITH subscription_instance_ids AS (
                         SELECT subscription_instances.subscription_instance_id
@@ -301,14 +317,11 @@ now it will start generating the SQL, logging the SQL on debug level and prompt 
     ```
 
 Last part generates the migration with the generated SQL:
-``` bash
---- GENERATING SQL MIGRATION FILE ---
+```text
+Generating migration file
 2022-10-27 11:45:10 [info] Version Locations [orchestrator.cli.database] locations=/home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema /home/tjeerddie/projects_surf/example-orchestrator/.venv/lib/python3.10/site-packages/orchestrator/migrations/versions/schema
   Generating /home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema/2022-10-27_a8946b2d1647_test.py ...  done
---- MIGRATION GENERATED (DON'T FORGET TO BACKUP DATABASE BEFORE MIGRATING!) ---
+Migration generated. Don't forget to create a database backup before migrating!
 ```
 
-when using `--test` it will instead show:
-``` bash
---- TEST DOES NOT GENERATE SQL MIGRATION ---
-```
+If you are running with `--test`, the SQL file will not be generated.

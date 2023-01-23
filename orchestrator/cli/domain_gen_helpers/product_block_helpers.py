@@ -108,7 +108,7 @@ def generate_create_product_blocks_sql(
     print_fmt("\nCreate product blocks", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
     def create_product_block(name: str) -> str:
-        print(f"\nProduct block: {str_fmt(name, flags=[COLOR.BOLD])}")  # noqa: T001, T201
+        print(f"Product block: {str_fmt(name, flags=[COLOR.BOLD])}")  # noqa: T001, T201
         prefilled_values = inputs.get(name, {})
         description = prefilled_values.get("description") or get_user_input("Supply the product block description: ")
         tag = prefilled_values.get("tag") or get_user_input("Supply the product block tag: ")

@@ -111,9 +111,9 @@ def map_update_resource_types(
                         "".join(
                             [
                                 "Do you wish to rename resource type ",
-                                str_fmt(db_props[0], flags=[COLOR.CYAN]),
+                                str_fmt(db_props[0], flags=[COLOR.MAGENTA]),
                                 " to ",
-                                str_fmt(model_props[0], flags=[COLOR.CYAN]),
+                                str_fmt(model_props[0], flags=[COLOR.MAGENTA]),
                                 "? [y/N]: ",
                             ]
                         ),
@@ -227,7 +227,7 @@ def generate_create_resource_types_sql(
             )[0]
         else:
             description = inputs.get(resource_type, {}).get("description") or get_user_input(
-                f"Supply description for new resource type {str_fmt(resource_type, flags=[COLOR.CYAN])}: "
+                f"Supply description for new resource type {str_fmt(resource_type, flags=[COLOR.MAGENTA])}: "
             )
 
         return sql_compile(
@@ -324,7 +324,7 @@ def generate_create_resource_type_instance_values_sql(
     def map_subscription_instance_relations(resource_type: str, block_name: str) -> str:
         input_value = inputs.get(resource_type, {}).get(block_name) or inputs.get(resource_type, {}).get("value")
         value = input_value or get_user_input(
-            f"Supply default subscription instance value value for resource type {str_fmt(resource_type, flags=[COLOR.CYAN])} and product block {str_fmt(block_name, flags=[COLOR.BOLD])}: "
+            f"Supply default subscription instance value for resource type {str_fmt(resource_type, flags=[COLOR.MAGENTA])} and product block {str_fmt(block_name, flags=[COLOR.BOLD])}: "
         )
 
         query = """
