@@ -61,7 +61,7 @@ requires = [
     "python-rapidjson==1.0",
     "pytz==2020.5",
     "rapidjson==1.0.0",
-    "redis",
+    "redis~=4.4.2",
     "schedule==1.0.0",
     "sentry-sdk[fastapi]==1.9.9",
     "SQLAlchemy==1.4.28",
@@ -74,7 +74,6 @@ requires = [
     "oauth2-lib==1.0.13; python_version >= '3.10'",
     "markupsafe==2.0.1",
     "bandit==1.7.2",
-    "redis==4.3.1",
 ]
 description-file = "README.md"
 requires-python = ">=3.7,<3.12"
