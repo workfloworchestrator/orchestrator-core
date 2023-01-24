@@ -50,9 +50,8 @@ class AppSettings(BaseSettings):
     CACHE_HOST: str = "127.0.0.1"
     CACHE_PORT: int = 6379
     CACHE_DOMAIN_MODELS: bool = False
-    # The key can be any length. However, the recommended size is 1024 bits. If the key is more than 128 bytes long,
-    # it is hashed (using SHA-512) to derive a 128-byte key. So 10 chars should be enough.
-    CACHE_HMAC_SECRET: str = "wl9WoQju0c"  # HMAC Signing key, used when pickling results in the cache
+    # The key can be any length. However, the recommended size is 1024 bits.
+    CACHE_HMAC_SECRET: str = "wl9WoQju0c"  # HMAC signing key, used when pickling results in the cache
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
