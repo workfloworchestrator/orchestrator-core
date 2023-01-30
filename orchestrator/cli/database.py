@@ -26,9 +26,11 @@ from alembic.util.exc import CommandError
 from structlog import get_logger
 
 import orchestrator
+import orchestrator.workflows
 from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
+from orchestrator.cli.migrate_workflows import create_workflows_migration_sql
 from orchestrator.db import init_database
 from orchestrator.settings import app_settings
 
@@ -60,7 +62,7 @@ def alembic_cfg() -> Config:
 )
 def init() -> None:
     """
-    Initialise the migrations directory.
+    Initialize the migrations directory.
 
     This command will initialize a migration directory for the orchestrator core application and setup a correct
     migration environment.
@@ -348,4 +350,39 @@ def migrate_domain_models(
         f.write(new_file_data)
 
     print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
+    return None
+
+
+@app.command(help="Create migration file based on diff workflows in db")
+def migrate_workflows(
+    message: str = typer.Argument(..., help="Migration name"),
+    test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+) -> Union[Tuple[List[str], List[str]], None]:
+    """Create a migration file based on the difference between workflows in the database and registered WorkflowInstances. BACKUP DATABASE BEFORE USING THE MIGRATION!.
+
+    You will be prompted with inputs for new models and resource type updates.
+    Resource type updates are only handled when it's renamed in all product blocks.
+
+    Args:
+    - `message`: Message/description of the generated migration.
+    - `--test`: Optional boolean if you don't want to generate a migration file.
+
+    Returns None unless `--test` is used, in which case it returns:
+        - tuple:
+            - list of upgrade SQL statements in string format.
+            - list of downgrade SQL statements in string format.
+    """
+    if not app_settings.TESTING:
+        init_database(app_settings)
+
+    if test:
+        print(  # noqa: T001, T201
+            f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
+        )
+
+    sql_upgrade_stmts, sql_downgrade_stmts = create_workflows_migration_sql(bool(test))
+    if sql_upgrade_stmts or sql_downgrade_stmts:
+        print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
+    else:
+        print("Nothing to do")
     return None
