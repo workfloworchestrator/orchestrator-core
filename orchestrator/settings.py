@@ -50,7 +50,7 @@ class AppSettings(BaseSettings):
     CACHE_HOST: str = "127.0.0.1"
     CACHE_PORT: int = 6379
     CACHE_DOMAIN_MODELS: bool = False
-    CACHE_HMAC_SECRET: str | None = None  # HMAC signing key, used when pickling results in the cache
+    CACHE_HMAC_SECRET: Optional[str] = None  # HMAC signing key, used when pickling results in the cache
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
