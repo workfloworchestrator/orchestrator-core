@@ -241,6 +241,63 @@ def remove_core_as_down_revision(migration: Any) -> None:
         f.write(text)
 
 
+def _insert_preamble(text: str, s: str) -> str:
+    lines = text.splitlines(keepends=True)
+    line_num = next((i for i, l in enumerate(lines) if "def upgrade()" in l), None)
+    return "".join(lines[:line_num]) + f"{s}\n\n" + "".join(lines[line_num:]) if line_num else text
+
+
+def create_migration_file(sql_upgrade_str: str, sql_downgrade_str: str, message: str, preamble: str = ""):
+    if not (sql_upgrade_str or sql_downgrade_str):
+        print("Nothing to do")  # noqa: Too1, T201
+        return
+
+    print("Generating migration file.\n")  # noqa: T001, T201
+
+    alembic_config = alembic_cfg()
+
+    try:
+        # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
+        script = ScriptDirectory.from_config(alembic_config)
+        core_head = script.get_current_head()
+        print("Core head", core_head)
+        migration = command.revision(
+            alembic_config,
+            message,
+            branch_label="data",
+            depends_on=core_head,
+        )
+
+        remove_core_as_down_revision(migration)
+    except CommandError as err:
+        error_str = str(err)
+        if ("Branch name 'data'" in error_str and "already used by revision" in error_str) or (
+            "The script directory has multiple heads" in error_str
+        ):
+            try:
+                migration = command.revision(alembic_config, message, head="data@head")
+            except CommandError:
+                if "Branch name 'data'" in error_str and "already used by revision" in error_str:
+                    raise CommandError("Database not up to date with latest revision")
+                else:
+                    raise CommandError("Database head 'data' already exists but no revision/migration file found")
+        else:
+            raise err
+
+    with open(migration.path) as f:
+        file_data = f.read()
+
+    if preamble:
+        file_data = _insert_preamble(file_data, preamble)
+
+    new_file_data = file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_upgrade_str}", 1)
+    new_file_data = new_file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_downgrade_str}", 1)
+    with open(migration.path, "w") as f:
+        f.write(new_file_data)
+
+    print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
+
+
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
     message: str = typer.Argument(..., help="Migration name"),
@@ -299,57 +356,9 @@ def migrate_domain_models(
     if test:
         return sql_upgrade_stmts, sql_downgrade_stmts
 
-    print("Generating migration file.\n")  # noqa: T001, T201
-
     sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
     sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
-
-    alembic_config = alembic_cfg()
-    non_venv_location = " ".join(
-        [
-            location
-            for location in alembic_config.get_main_option("version_locations").split(" ")
-            if "site-packages" not in location
-        ]
-    )
-
-    try:
-        # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
-        script = ScriptDirectory.from_config(alembic_config)
-        core_head = script.get_current_head()
-        migration = command.revision(
-            alembic_config,
-            message,
-            branch_label="data",
-            version_path=non_venv_location,
-            depends_on=core_head,
-        )
-
-        remove_core_as_down_revision(migration)
-    except CommandError as err:
-        error_str = str(err)
-        if ("Branch name 'data'" in error_str and "already used by revision" in error_str) or (
-            "The script directory has multiple heads" in error_str
-        ):
-            try:
-                migration = command.revision(alembic_config, message, head="data@head", version_path=non_venv_location)
-            except CommandError:
-                if "Branch name 'data'" in error_str and "already used by revision" in error_str:
-                    raise CommandError("Database not up to date with latest revision")
-                else:
-                    raise CommandError("Database head 'data' already exists but no revision/migration file found")
-        else:
-            raise err
-
-    with open(migration.path) as f:
-        file_data = f.read()
-
-    new_file_data = file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_upgrade_str}", 1)
-    new_file_data = new_file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_downgrade_str}", 1)
-    with open(migration.path, "w") as f:
-        f.write(new_file_data)
-
-    print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
+    create_migration_file(sql_upgrade_str, sql_downgrade_str, message)
     return None
 
 
@@ -380,9 +389,40 @@ def migrate_workflows(
             f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
         )
 
-    sql_upgrade_stmts, sql_downgrade_stmts = create_workflows_migration_sql(bool(test))
-    if sql_upgrade_stmts or sql_downgrade_stmts:
-        print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
-    else:
-        print("Nothing to do")
+    workflows_to_add, workflows_to_delete = create_workflows_migration_sql(bool(test))
+
+    # String 'template' arguments
+    import_str = "from orchestrator.migrations.helpers import create_workflow, delete_workflow\n"
+    tpl_preamble_lines = []
+    tpl_upgrade_lines = []
+    tpl_downgrade_lines = []
+
+    if workflows_to_add:
+        tpl_preamble_lines.append(f"new_workflows = {json.dumps(workflows_to_add, indent=4)}\n")
+        tpl_upgrade_lines.extend(
+            [(" " * 4) + "for workflow in new_workflows:", (" " * 8) + "create_workflow(conn, workflow)"]
+        )
+        tpl_downgrade_lines.extend(
+            [(" " * 4) + "for workflow in new_workflows:", (" " * 8) + 'delete_workflow(conn, workflow["name"])']
+        )
+
+    if workflows_to_delete:
+        tpl_preamble_lines.append(f"old_workflows = {json.dumps(workflows_to_delete, indent=4)}\n")
+        tpl_upgrade_lines.extend(
+            [(" " * 4) + "for workflow in old_workflows:", (" " * 8) + 'delete_workflow(conn, workflow["name"])']
+        )
+        tpl_downgrade_lines.extend(
+            [(" " * 4) + "for workflow in old_workflows:", (" " * 8) + "create_workflow(conn, workflow)"]
+        )
+
+    preamble = "\n".join(
+        [
+            import_str,
+            *tpl_preamble_lines,
+        ]
+    )
+    sql_upgrade_str = "\n".join(tpl_upgrade_lines)
+    sql_downgrade_str = "\n".join(tpl_downgrade_lines)
+
+    create_migration_file(sql_upgrade_str, sql_downgrade_str, message, preamble=preamble)
     return None

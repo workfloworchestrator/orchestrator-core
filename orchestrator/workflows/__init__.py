@@ -13,7 +13,7 @@
 
 
 from importlib import import_module
-from typing import Optional
+from typing import Dict, Optional
 
 from orchestrator.utils.docs import make_workflow_index_doc
 from orchestrator.workflow import Workflow
@@ -21,7 +21,7 @@ from orchestrator.workflow import Workflow
 DEFAULT_PKG = "orchestrator.workflows"
 
 
-ALL_WORKFLOWS = {}
+ALL_WORKFLOWS: Dict[str, "LazyWorkflowInstance"] = {}
 
 
 class LazyWorkflowInstance:

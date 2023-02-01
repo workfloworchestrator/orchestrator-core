@@ -28,9 +28,13 @@ logger = structlog.get_logger(__name__)
 T = TypeVar("T")
 
 
+def _enumerate_menu_keys(items: list) -> List[str]:
+    return [str(i + 1) for i in range(len(items))]
+
+
 def _prompt_user_menu(options: Iterable[Tuple[str, T]], keys: Optional[List[str]] = None, repeat=True) -> T:
     options_list = list(options)
-    keys = keys or [str(i + 1) for i in range(len(options_list))]
+    keys = keys or _enumerate_menu_keys(options_list)
     done = False
     while not done:
         for k, txt_v in zip(keys, options_list):
@@ -55,36 +59,41 @@ def _print_workflows_table(workflows: List[WorkflowTable]):
     )
 
 
-def _delete_unregistered_worfklows_sql(workflows: List[WorkflowTable]) -> List[str]:
-    if workflows:
-        print_fmt(
-            "\nThe following workflows were found in the database that do not have a corresponding LazyWorkflowInstance:\n"
-        )
-        # All workflow products have the same product_type, so we take the first product
-        # Workflows without a product (tasks) will not be listed
-        _print_workflows_table(workflows)
-        should_delete_dangling_workflows = (
-            get_user_input("Do you wish to delete all dangling workflows from the database? [Y/n]: ", "n") == "Y"
-        )
-
-        if should_delete_dangling_workflows:
-            stmt = sqlalchemy.delete(WorkflowTable).filter(WorkflowTable.name.in_([wf.name for wf in workflows])).sql()
-            return [str(stmt)]
-    return []
-
-
 def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> dict:
     print_fmt("\nAdd new workflow\n", flags=[COLOR.UNDERLINE])
-    print("Which product type should the workflow be added to?")
+
+    if not workflows:
+        print("No registered workflows found to add to the database")
+        return state
+
     registered_product_types = [
         row[0] for row in ProductTable.query.with_entities(ProductTable.product_type).distinct()
     ]
-    product_type = _prompt_user_menu((p, p) for p in registered_product_types)
+    if not registered_product_types:
+        print("No registered product types found")
+        return state
+
+    print("Which product type should the workflow be added to?")
+    product_type = _prompt_user_menu(
+        [*[(p, p) for p in registered_product_types], ("cancel", None)],
+        keys=[*_enumerate_menu_keys(registered_product_types), "q"],
+    )
+
+    if not product_type:
+        # Menu cancelled
+        return state
 
     print(f"\nAdd product type {str_fmt(product_type, flags=[COLOR.BOLD])} to which workflow?")
-    wf_name = _prompt_user_menu((wf, wf) for wf in workflows)
+
+    already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
+    wf_options = [(wf, wf) for wf in workflows if wf not in already_used_workflows]
+    wf_name = _prompt_user_menu([*wf_options, ("cancel", None)], keys=[*_enumerate_menu_keys(wf_options), "q"])
+    if not wf_name:
+        # Menu cancelled
+        return state
+
     wf_inst = get_workflow(wf_name)
-    wf_target = wf_inst.target
+    wf_target = wf_inst.target.value
     wf_description = wf_inst.description
     wf_to_add = {"name": wf_name, "target": wf_target, "description": wf_description, "product_type": product_type}
     return {**state, "workflows_to_add": [*state["workflows_to_add"], wf_to_add]}
@@ -93,10 +102,15 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
 def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
     print_fmt("\nDelete existing workflow\n", flags=[COLOR.UNDERLINE])
     items = [(wf.name, wf.target, wf.description, wf.products[0].product_type) for wf in workflows if wf.products]
+    keys = ["#", "name", "target", "description", "product_type"]
+    if not items:
+        print("No deletable workflows in database")
+        return state
+
     print_fmt(
         tabulate(
             items,
-            headers=["#", "name", "target", "description", "product_type"],
+            headers=keys,
             showindex=itertools.count(1),
         ),
         end="\n\n",
@@ -106,12 +120,36 @@ def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
         return state
     wf_num = int(wf_num)
     if 0 < wf_num < len(items) + 1:
-        return {**state, "workflows_to_delete": [*state["workflows_to_delete"], workflows[wf_num].name]}
+        item = dict(zip(keys[1:], items[wf_num]))
+        return {**state, "workflows_to_delete": [*state["workflows_to_delete"], item]}
     else:
         return state
 
 
-def create_workflows_migration_sql(is_test: bool = False) -> Tuple[List[str], List[str]]:
+def _show_state(state: dict) -> dict:
+    print_fmt("\nWorkflows to add:", flags=[COLOR.GREEN])
+    print_fmt(
+        tabulate(
+            state["workflows_to_add"],
+            headers="keys",
+            showindex=itertools.count(1),
+        ),
+        end="\n\n",
+    )
+
+    print_fmt("Workflows to delete:", flags=[COLOR.RED])
+    print_fmt(
+        tabulate(
+            state["workflows_to_delete"],
+            headers="keys",
+            showindex=itertools.count(1),
+        ),
+        end="\n\n",
+    )
+    return state
+
+
+def create_workflows_migration_sql(is_test: bool = False) -> Tuple[List[dict], List[dict]]:
     """Create tuple with list for upgrade and downgrade SQL statements based on #TODO.
 
     You will be prompted with inputs for new models and resource type updates.
@@ -135,32 +173,26 @@ def create_workflows_migration_sql(is_test: bool = False) -> Tuple[List[str], Li
     print("DATABASE", database_workflows)
     print("Unregistered", unregistered_workflows, len(unregistered_workflows))
 
-    # stmts = _delete_unregistered_worfklows_sql(unregistered_workflows)
-    stmts = []
-
     # Main menu loop
     state = {"workflows_to_add": [], "workflows_to_delete": [], "done": False}
     while not state["done"]:
-        print("State:", state)
         print_fmt("\nWhat do you want to do?\n", flags=[COLOR.UNDERLINE, COLOR.BOLD])
         choice_fn = _prompt_user_menu(
             [
                 ("Add workflow to database", lambda: _add_workflow(registered_non_system_workflows, state)),
                 ("Delete workflow from database", lambda: _delete_workflow(database_workflows, state)),
                 ("Finish and create migration file", lambda: {**state, "done": True, "abort": False}),
+                ("Show current choices", lambda: _show_state(state)),
                 ("Abort and quit without creating a migration file", lambda: {**state, "done": True, "abort": True}),
             ],
-            keys=["a", "b", "c", "q"],
+            keys=["a", "b", "c", "i", "q"],
         )
         state = choice_fn()
 
-    print("Finished main loop", state)
     if state.get("abort"):
         return [], []
 
     logger.info("Create workflows", create_workflows=state["workflows_to_add"])
     logger.info("Delete workflows", delete_workflows=state["workflows_to_delete"])
 
-    sql_upgrade_stmts = []
-    sql_downgrade_stmts = []
-    return sql_upgrade_stmts, sql_downgrade_stmts
+    return state["workflows_to_add"], state["workflows_to_delete"]  # type: ignore
