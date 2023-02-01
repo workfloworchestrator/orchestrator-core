@@ -38,12 +38,19 @@ For the redis connection you need to set the env variable with the connection ur
 export WEBSOCKET_BROADCASTER_URL="redis://localhost:6379"
 ```
 
+
 Websockets can also be turned off with:
 ```shell
 export ENABLE_WEBSOCKETS=False
 ```
 
-more broadcaster info [here](https://pypi.org/project/broadcaster/)
+More broadcaster info [here](https://pypi.org/project/broadcaster/)
+
+If you want to use pickle for CACHE serialization you will need to set the `CACHE_HMAC_SECRET`:
+```shell
+export CACHE_HMAC_SECRET="SOMESECRET"
+```
+**NOTE**: The key can be any length. However, the recommended size is 1024 bits.
 
 #### Step 4:
 Create a `main.py` file.

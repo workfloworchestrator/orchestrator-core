@@ -97,7 +97,7 @@ logger = structlog.get_logger(__name__)
 def json_loads(s: Union[str, bytes, bytearray]) -> PY_JSON_TYPES:
     o = json.loads(s)
     if isinstance(o, list):
-        return [from_serializable(dikt) for dikt in o]
+        return [from_serializable(dikt) if isinstance(dikt, dict) else dikt for dikt in o]
     return from_serializable(o)
 
 

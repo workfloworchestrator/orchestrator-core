@@ -162,7 +162,6 @@ class Choice(strEnum):
 
     @classmethod
     def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-
         kwargs = {}
 
         options = dict(map(lambda i: (i.value, i.label), cls.__members__.values()))

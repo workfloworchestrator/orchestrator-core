@@ -40,7 +40,6 @@ def long_running_workflow():
         return init >> long_running_step >> long_running_step >> done
 
     with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
-
         db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
         db.session.add(db_workflow)
         db.session.commit()

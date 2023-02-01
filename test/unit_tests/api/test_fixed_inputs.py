@@ -48,7 +48,7 @@ def test_configuration(seed, test_client):
     assert HTTPStatus.OK == response.status_code
     config = response.json()
     fixed_inputs_config = list(map(lambda x: x["name"], config["fixed_inputs"]))
-    for (tag, fixed_inputs) in config["by_tag"].items():
+    for tag, fixed_inputs in config["by_tag"].items():
         for fi in fixed_inputs:
             name = list(fi.keys())[0]
             assert name in fixed_inputs_config, f"{tag} has non-existent fixed_input: {name}"

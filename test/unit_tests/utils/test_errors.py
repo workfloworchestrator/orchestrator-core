@@ -16,7 +16,6 @@ class RESTResponse:  # From openapi-generator generated clients
 
 
 def test_error_state_to_dict():
-
     e = Exception("bla")
     assert error_state_to_dict(e) == {
         "class": "Exception",

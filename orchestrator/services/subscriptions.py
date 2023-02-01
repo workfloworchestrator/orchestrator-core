@@ -237,7 +237,7 @@ def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str,
 
     subscription = get_subscription(subscription_id, for_update=True)
 
-    for (key, value) in attrs.items():
+    for key, value in attrs.items():
         setattr(subscription, key, value)
 
     return subscription
@@ -542,7 +542,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
 
         # Simple reasons like "not in sync" and "locked_relations" are handled now. Handle special lifecycle cases:
         if "reason" not in workflow_json:
-
             default = TARGET_DEFAULT_USABLE_MAP[workflow.target]
             usable_when = WF_USABLE_MAP.get(workflow.name, default)
 

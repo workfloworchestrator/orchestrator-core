@@ -81,7 +81,6 @@ def make_field_doc(field_name: str, field_type: Any) -> str:
 def make_product_block_docstring(
     block: Type["ProductBlockModel"], lifecycle: Optional[List[SubscriptionLifecycle]] = None
 ) -> str:
-
     lifecycle_str = f"\n\nValid for statuses: {', '.join(lifecycle) if lifecycle else 'all others'}"
 
     if SubscriptionLifecycle.ACTIVE not in (lifecycle or []):

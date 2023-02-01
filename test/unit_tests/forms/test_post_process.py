@@ -16,7 +16,6 @@ class TestForm(FormPage):
 
 def test_post_process_yield():
     def input_form(state):
-
         user_input = yield TestForm
         return {**user_input.dict(), "extra": 234}
 

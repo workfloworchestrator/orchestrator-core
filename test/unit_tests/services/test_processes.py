@@ -553,7 +553,6 @@ def test_safe_logstep():
     state = Complete(state_data)
 
     with mock.patch("orchestrator.services.processes._db_log_step", spec=_db_log_step) as mock__db_log_step:
-
         mock__db_log_step.side_effect = [
             Exception("Failed to commit because of json serializable failure"),
             mock.sentinel.result,

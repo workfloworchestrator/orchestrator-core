@@ -15,7 +15,6 @@ PID = uuid.uuid4()
 
 @pytest.fixture
 def waiting_process():
-
     state = {"foo": "bar"}
 
     success_step = ProcessStepTable(pid=PID, name="generic-step", status="success", state=state, created_by="Fredje")
