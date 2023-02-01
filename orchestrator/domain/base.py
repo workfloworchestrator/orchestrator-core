@@ -94,7 +94,6 @@ def _is_constrained_list_type(type: Type) -> bool:
     try:
         is_constrained_list = issubclass(type, ConstrainedList)
     except Exception:
-
         # Strip generic arguments, it still might be a subclass
         if get_origin(type):
             return _is_constrained_list_type(get_origin(type))  # type: ignore
@@ -992,7 +991,6 @@ class SubscriptionModel(DomainModel):
     note: Optional[str] = None  # pragma: no mutate
 
     def __new__(cls, *args: Any, status: Optional[SubscriptionLifecycle] = None, **kwargs: Any) -> "SubscriptionModel":
-
         # status can be none if created during change_lifecycle
         if status and not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for status {status}")

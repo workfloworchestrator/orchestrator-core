@@ -7,7 +7,6 @@ from orchestrator.schedules.scheduling import scheduler
 
 
 def test_scheduling_with_period(capsys, monkeypatch):
-
     ref = {"called": False}
 
     @scheduler(name="test", time_unit="second", period=1)

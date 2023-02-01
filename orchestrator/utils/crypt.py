@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Tuple
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 class Cryptic:
-
     MAGIC = "$9$"
     MAGIC_SEARCH = r"\$9\$"
     FAMILY = ["QzF3n6/9CAtpu0O", "B1IREhcSyrleKvMW8LXx", "7N-dVbwsY2g4oaJZGUDj", "iHkq.mPf5T"]
