@@ -101,7 +101,12 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
 
 def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
     print_fmt("\nDelete existing workflow\n", flags=[COLOR.UNDERLINE])
-    items = [(wf.name, wf.target, wf.description, wf.products[0].product_type) for wf in workflows if wf.products]
+    already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
+    items = [
+        (wf.name, wf.target, wf.description, wf.products[0].product_type)
+        for wf in workflows
+        if wf.products and wf.name not in already_used_workflows
+    ]
     keys = ["#", "name", "target", "description", "product_type"]
     if not items:
         print("No deletable workflows in database")
@@ -118,9 +123,9 @@ def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
     wf_num = get_user_input("Which workflow do you want to delete? (q to cancel) ", "q")
     if not wf_num.isdigit():
         return state
-    wf_num = int(wf_num)
-    if 0 < wf_num < len(items) + 1:
-        item = dict(zip(keys[1:], items[wf_num]))
+    wf_index = int(wf_num) - 1
+    if 0 <= wf_index < len(items):
+        item = dict(zip(keys[1:], items[wf_index]))
         return {**state, "workflows_to_delete": [*state["workflows_to_delete"], item]}
     else:
         return state
@@ -149,29 +154,49 @@ def _show_state(state: dict) -> dict:
     return state
 
 
-def create_workflows_migration_sql(is_test: bool = False) -> Tuple[List[dict], List[dict]]:
-    """Create tuple with list for upgrade and downgrade SQL statements based on #TODO.
+def _delete_unregistered_workflows(workflows: List[WorkflowTable], state: dict) -> dict:
+    print_fmt(
+        "\nThe following workflows were found in the database that do not have a corresponding LazyWorkflowInstance:\n"
+    )
+    # All workflow products have the same product_type, so we take the first product
+    # Workflows without a product  will not be listed
+    _print_workflows_table(workflows)
+    should_delete_dangling_workflows = (
+        get_user_input("Do you wish to delete all dangling workflows from the database? [y/n]: ", "n").lower() == "y"
+    )
 
-    You will be prompted with inputs for new models and resource type updates.
+    if not should_delete_dangling_workflows:
+        print("Cancelling")
+        return state
 
-    Args:
-        - inputs: dict with pre-defined input values
+    already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
+    keys = ["name", "target", "description", "product_type"]
+    items = [
+        {
+            "name": wf.name,
+            "target": wf.target,
+            "description": wf.description,
+            "product_type": wf.products[0].product_type,
+        }
+        for k, wf in zip(keys, workflows)
+        if wf.products and wf.name not in already_used_workflows
+    ]
+    return {**state, "workflows_to_delete": [*state["workflows_to_delete"], *items]}
+
+
+def create_workflows_migration_wizard() -> Tuple[List[dict], List[dict]]:
+    """Create tuple with lists for workflows to add and delete.
 
     Returns tuple:
-        - list of upgrade SQL statements in string format.
-        - list of downgrade SQL statements in string format.
+        - list of workflow items to add in the migration
+        - list of workflow items to delete in the migration
     """
     database_workflows = WorkflowTable.query
     registered_workflows = orchestrator.workflows.ALL_WORKFLOWS
     system_workflow_names = {wf.name for wf in database_workflows if wf.target == Target.SYSTEM}
-    print("SYSTEM", system_workflow_names)
     registered_non_system_workflows = {k: v for k, v in registered_workflows.items() if k not in system_workflow_names}
 
     unregistered_workflows = [wf for wf in database_workflows if wf.name not in registered_workflows.keys()]
-
-    print("Registered", registered_workflows.keys())
-    print("DATABASE", database_workflows)
-    print("Unregistered", unregistered_workflows, len(unregistered_workflows))
 
     # Main menu loop
     state = {"workflows_to_add": [], "workflows_to_delete": [], "done": False}
@@ -181,11 +206,15 @@ def create_workflows_migration_sql(is_test: bool = False) -> Tuple[List[dict], L
             [
                 ("Add workflow to database", lambda: _add_workflow(registered_non_system_workflows, state)),
                 ("Delete workflow from database", lambda: _delete_workflow(database_workflows, state)),
+                (
+                    "Delete unregistered workflows from database",
+                    lambda: _delete_unregistered_workflows(unregistered_workflows, state),
+                ),
                 ("Finish and create migration file", lambda: {**state, "done": True, "abort": False}),
-                ("Show current choices", lambda: _show_state(state)),
-                ("Abort and quit without creating a migration file", lambda: {**state, "done": True, "abort": True}),
+                ("Show current diff", lambda: _show_state(state)),
+                ("Quit menu without creating a migration file", lambda: {**state, "done": True, "abort": True}),
             ],
-            keys=["a", "b", "c", "i", "q"],
+            keys=["a", "x", "c", "y", "d", "q"],
         )
         state = choice_fn()
 

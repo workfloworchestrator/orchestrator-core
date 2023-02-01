@@ -377,7 +377,7 @@ def create_domain_models_migration_sql(
     print_fmt("\nWARNING:", flags=[COLOR.BOLD, COLOR.YELLOW], end=" ")
     print_fmt("Deleting products will also delete its subscriptions.")
 
-    if not is_test and "y" not in get_user_input("Confirm the above actions [y/N]: ", "N").lower():
+    if not is_test and "y" not in get_user_input("Confirm the above actions [y/n]: ", "n").lower():
         sys.exit()
 
     sql_upgrade_stmts = generate_upgrade_sql(changes, inputs)

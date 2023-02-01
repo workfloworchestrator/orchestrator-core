@@ -25,12 +25,11 @@ from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
 from structlog import get_logger
 
-import orchestrator
 import orchestrator.workflows
 from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
-from orchestrator.cli.migrate_workflows import create_workflows_migration_sql
+from orchestrator.cli.migrate_workflows import create_workflows_migration_wizard
 from orchestrator.db import init_database
 from orchestrator.settings import app_settings
 
@@ -366,7 +365,7 @@ def migrate_domain_models(
 def migrate_workflows(
     message: str = typer.Argument(..., help="Migration name"),
     test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
-) -> Union[Tuple[List[str], List[str]], None]:
+) -> Union[Tuple[List[dict], List[dict]], None]:
     """Create a migration file based on the difference between workflows in the database and registered WorkflowInstances. BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
     You will be prompted with inputs for new models and resource type updates.
@@ -389,7 +388,7 @@ def migrate_workflows(
             f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
         )
 
-    workflows_to_add, workflows_to_delete = create_workflows_migration_sql(bool(test))
+    workflows_to_add, workflows_to_delete = create_workflows_migration_wizard()
 
     # String 'template' arguments
     import_str = "from orchestrator.migrations.helpers import create_workflow, delete_workflow\n"
@@ -423,6 +422,9 @@ def migrate_workflows(
     )
     sql_upgrade_str = "\n".join(tpl_upgrade_lines)
     sql_downgrade_str = "\n".join(tpl_downgrade_lines)
+
+    if test:
+        return workflows_to_add, workflows_to_delete
 
     create_migration_file(sql_upgrade_str, sql_downgrade_str, message, preamble=preamble)
     return None
