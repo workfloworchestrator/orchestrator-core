@@ -259,7 +259,6 @@ def create_migration_file(sql_upgrade_str: str, sql_downgrade_str: str, message:
         # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
         script = ScriptDirectory.from_config(alembic_config)
         core_head = script.get_current_head()
-        print("Core head", core_head)
         migration = command.revision(
             alembic_config,
             message,

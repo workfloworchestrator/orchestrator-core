@@ -1,12 +1,11 @@
 import itertools
 from typing import Dict, Iterable, List, Optional, Tuple, TypeVar
 
-import sqlalchemy
 import structlog
 from tabulate import tabulate
 
 import orchestrator.workflows
-from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
+from orchestrator.cli.domain_gen_helpers.helpers import get_user_input
 from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.targets import Target
@@ -28,6 +27,10 @@ logger = structlog.get_logger(__name__)
 T = TypeVar("T")
 
 
+def _noqa_print(s: str, **kwargs) -> None:
+    print(s, **kwargs)  # noqa: T201
+
+
 def _enumerate_menu_keys(items: list) -> List[str]:
     return [str(i + 1) for i in range(len(items))]
 
@@ -38,10 +41,10 @@ def _prompt_user_menu(options: Iterable[Tuple[str, T]], keys: Optional[List[str]
     done = False
     while not done:
         for k, txt_v in zip(keys, options_list):
-            print(f"{k}) {txt_v[0]}")
+            _noqa_print(f"{k}) {txt_v[0]}")
         choice = get_user_input("? ")
         if choice not in keys:
-            print("Invalid choice")
+            _noqa_print("Invalid choice")
             done = not repeat
         else:
             return options_list[keys.index(choice)][1]
@@ -63,17 +66,17 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
     print_fmt("\nAdd new workflow\n", flags=[COLOR.UNDERLINE])
 
     if not workflows:
-        print("No registered workflows found to add to the database")
+        _noqa_print("No registered workflows found to add to the database")
         return state
 
     registered_product_types = [
         row[0] for row in ProductTable.query.with_entities(ProductTable.product_type).distinct()
     ]
     if not registered_product_types:
-        print("No registered product types found")
+        _noqa_print("No registered product types found")
         return state
 
-    print("Which product type should the workflow be added to?")
+    _noqa_print("Which product type should the workflow be added to?")
     product_type = _prompt_user_menu(
         [*[(p, p) for p in registered_product_types], ("cancel", None)],
         keys=[*_enumerate_menu_keys(registered_product_types), "q"],
@@ -83,7 +86,7 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
         # Menu cancelled
         return state
 
-    print(f"\nAdd product type {str_fmt(product_type, flags=[COLOR.BOLD])} to which workflow?")
+    _noqa_print(f"\nAdd product type {str_fmt(product_type, flags=[COLOR.BOLD])} to which workflow?")
 
     already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
     wf_options = [(wf, wf) for wf in workflows if wf not in already_used_workflows]
@@ -109,7 +112,7 @@ def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
     ]
     keys = ["#", "name", "target", "description", "product_type"]
     if not items:
-        print("No deletable workflows in database")
+        _noqa_print("No deletable workflows in database")
         return state
 
     print_fmt(
@@ -154,7 +157,7 @@ def _show_state(state: dict) -> dict:
     return state
 
 
-def _delete_unregistered_workflows(workflows: List[WorkflowTable], state: dict) -> dict:
+def delete_dangling_workflows(workflows: List[WorkflowTable], state: dict) -> dict:
     print_fmt(
         "\nThe following workflows were found in the database that do not have a corresponding LazyWorkflowInstance:\n"
     )
@@ -166,7 +169,7 @@ def _delete_unregistered_workflows(workflows: List[WorkflowTable], state: dict) 
     )
 
     if not should_delete_dangling_workflows:
-        print("Cancelling")
+        _noqa_print("Cancelling")
         return state
 
     already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
@@ -204,19 +207,19 @@ def create_workflows_migration_wizard() -> Tuple[List[dict], List[dict]]:
         print_fmt("\nWhat do you want to do?\n", flags=[COLOR.UNDERLINE, COLOR.BOLD])
         choice_fn = _prompt_user_menu(
             [
-                ("Add workflow to database", lambda: _add_workflow(registered_non_system_workflows, state)),
-                ("Delete workflow from database", lambda: _delete_workflow(database_workflows, state)),
+                ("Add workflow to database", lambda s: _add_workflow(registered_non_system_workflows, s)),
+                ("Delete workflow from database", lambda s: _delete_workflow(database_workflows, s)),
                 (
                     "Delete unregistered workflows from database",
-                    lambda: _delete_unregistered_workflows(unregistered_workflows, state),
+                    lambda s: delete_dangling_workflows(unregistered_workflows, s),
                 ),
-                ("Finish and create migration file", lambda: {**state, "done": True, "abort": False}),
-                ("Show current diff", lambda: _show_state(state)),
-                ("Quit menu without creating a migration file", lambda: {**state, "done": True, "abort": True}),
+                ("Finish and create migration file", lambda s: {**s, "done": True, "abort": False}),
+                ("Show current diff", lambda s: _show_state(s)),
+                ("Quit menu without creating a migration file", lambda s: {**s, "done": True, "abort": True}),
             ],
             keys=["a", "x", "c", "y", "d", "q"],
         )
-        state = choice_fn()
+        state = choice_fn(state)
 
     if state.get("abort"):
         return [], []
