@@ -40,6 +40,7 @@ class AppSettings(BaseSettings):
         "ETag",
     ]
     ENVIRONMENT: str = "local"
+    EXECUTOR: str = "threadpool"
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     DATABASE_URI: str = "postgresql://nwa:nwa@localhost/orchestrator-core"

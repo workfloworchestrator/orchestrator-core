@@ -317,7 +317,27 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     return pid, process_handle
 
 
-def start_process(
+def celery_start_process(
+    workflow_key: str,
+    user_inputs: Optional[List[State]] = None,
+    user: str = SYSTEM_USER,
+) -> Tuple[UUID, Future]:
+    """Client side call of Celery."""
+    from orchestrator.services.tasks import trigger_celery_workflow, trigger_celery_task
+
+    workflow = get_workflow(workflow_key)
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    if workflow.target == Target.SYSTEM:
+        result = trigger_celery_task.delay(workflow_key, user_inputs, user)
+    else:
+        result = trigger_celery_workflow.delay(workflow_key, user_inputs, user)
+    pid = result.get()
+    return pid, None
+
+
+def thread_start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
@@ -365,8 +385,20 @@ def start_process(
 
     _db_create_process(pstat)
 
-    _safe_logstep_withfunc = partial(_safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_withfunc))
+    _safe_logstep_with_func = partial(_safe_logstep, broadcast_func=broadcast_func)
+    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_with_func))
+
+
+def start_process(
+    workflow_key: str,
+    user_inputs: Optional[List[State]] = None,
+    user: str = SYSTEM_USER,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> Tuple[UUID, Future]:
+    if app_settings.EXECUTOR == "celery":
+        return celery_start_process(workflow_key, user_inputs=user_inputs, user=user)
+    else:  # default is threadpool
+        return thread_start_process(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
 def resume_process(

@@ -36,6 +36,8 @@ classifiers = [
 requires = [
     "alembic==1.5.4",
     "broadcaster[redis]==0.2.0",
+    "celery",
+    "celery[redis]",
     "click==8.0.3",
     "deepmerge==0.1.0",
     "fastapi~=0.91.0",
