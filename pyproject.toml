@@ -86,6 +86,7 @@ test = [
     "black",
     "blinker",
     "deepdiff",
+    "flake8 < 5.0.0", # Due to https://github.com/tylerwince/flake8-bandit/issues/33
     "flake8-bandit",
     "flake8-bugbear",
     "flake8-comprehensions",
