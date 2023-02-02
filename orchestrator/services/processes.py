@@ -321,22 +321,22 @@ def celery_start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
-) -> Tuple[UUID, Future]:
+) -> UUID:
     """Client side call of Celery."""
-    from orchestrator.services.tasks import get_celery_task
+    from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
     workflow = get_workflow(workflow_key)
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     if workflow.target == Target.SYSTEM:
-        trigger_celery_task = get_celery_task("tasks.task")
+        trigger_celery_task = get_celery_task(NEW_TASK)
         result = trigger_celery_task.delay(workflow_key, user_inputs, user)
     else:
-        trigger_celery_workflow = get_celery_task("tasks.workflow")
+        trigger_celery_workflow = get_celery_task(NEW_WORKFLOW)
         result = trigger_celery_workflow.delay(workflow_key, user_inputs, user)
     pid = result.get()
-    return pid, None
+    return pid
 
 
 def thread_start_process(
@@ -345,18 +345,6 @@ def thread_start_process(
     user: str = SYSTEM_USER,
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> Tuple[UUID, Future]:
-    """Start a process for workflow.
-
-    Args:
-        workflow_key: name of workflow
-        user_inputs: List of form inputs from frontend
-        user: User who starts this process
-        broadcast_func: Optional function to broadcast process data
-
-    Returns:
-        process id
-
-    """
     # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
 
     if user_inputs is None:
@@ -396,32 +384,56 @@ def start_process(
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
     broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Future]:
-    if app_settings.EXECUTOR == "celery":
-        return celery_start_process(workflow_key, user_inputs=user_inputs, user=user)
-    else:  # default is threadpool
-        return thread_start_process(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
-
-
-def resume_process(
-    process: ProcessTable,
-    *,
-    user_inputs: Optional[List[State]] = None,
-    user: Optional[str] = None,
-    broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Future]:
-    """Resume a failed or suspended process.
+) -> Tuple[UUID, Optional[Future]]:
+    """Start a process for workflow.
 
     Args:
-        process: Process from database
-        user_inputs: Optional user input from forms
-        user: user who resumed this process
+        workflow_key: name of workflow
+        user_inputs: List of form inputs from frontend
+        user: User who starts this process
         broadcast_func: Optional function to broadcast process data
 
     Returns:
         process id
 
     """
+    if app_settings.EXECUTOR == "celery":
+        return celery_start_process(workflow_key, user_inputs=user_inputs, user=user), None
+    else:  # default is threadpool
+        return thread_start_process(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+
+
+def celery_resume_process(
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]] = None,
+    user: Optional[str] = None,
+) -> Tuple[UUID, Future]:
+    """Client side call of Celery."""
+    from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
+
+    pstat = load_process(process)
+    workflow = pstat.workflow
+
+    if workflow.target == Target.SYSTEM:
+        trigger_celery_task = get_celery_task(RESUME_TASK)
+        result = trigger_celery_task.delay(pstat.pid, user_inputs, user)
+    else:
+        trigger_celery_workflow = get_celery_task(RESUME_WORKFLOW)
+        result = trigger_celery_workflow.delay(pstat.pid, user_inputs, user)
+
+    pid = result.get()
+
+    return pid, None
+
+
+def thread_resume_process(
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]] = None,
+    user: Optional[str] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> Tuple[UUID, Future]:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
 
     if user_inputs is None:
@@ -449,6 +461,31 @@ def resume_process(
 
     _safe_logstep_prep = partial(_safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
+
+
+def resume_process(
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]] = None,
+    user: Optional[str] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> Tuple[UUID, Future]:
+    """Resume a failed or suspended process.
+
+    Args:
+        process: Process from database
+        user_inputs: Optional user input from forms
+        user: user who resumed this process
+        broadcast_func: Optional function to broadcast process data
+
+    Returns:
+        process id
+
+    """
+    if app_settings.EXECUTOR == "celery":
+        return celery_resume_process(process, user_inputs=user_inputs, user=user)
+    else:  # default is threadpool
+        return thread_resume_process(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
 async def _async_resume_processes(
