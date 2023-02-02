@@ -1,5 +1,6 @@
 import itertools
-from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar
+import operator
+from typing import Dict, Iterable, List, Optional, Tuple, TypeVar
 
 import structlog
 from tabulate import tabulate
