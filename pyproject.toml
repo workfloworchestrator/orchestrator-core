@@ -122,6 +122,7 @@ test = [
     "types-pytz",
     "types-redis",
     "types-requests",
+    "types-tabulate",
     "types-toml",
     "types-ujson",
 ]

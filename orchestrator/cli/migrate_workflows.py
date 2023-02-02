@@ -1,5 +1,5 @@
 import itertools
-from typing import Dict, Iterable, List, Optional, Tuple, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar
 
 import structlog
 from tabulate import tabulate
@@ -27,7 +27,7 @@ logger = structlog.get_logger(__name__)
 T = TypeVar("T")
 
 
-def _noqa_print(s: str, **kwargs) -> None:
+def _noqa_print(s: str, **kwargs: Any) -> None:
     print(s, **kwargs)  # noqa: T201
 
 
@@ -35,7 +35,9 @@ def _enumerate_menu_keys(items: list) -> List[str]:
     return [str(i + 1) for i in range(len(items))]
 
 
-def _prompt_user_menu(options: Iterable[Tuple[str, T]], keys: Optional[List[str]] = None, repeat=True) -> T:
+def _prompt_user_menu(
+    options: Iterable[Tuple[str, T]], keys: Optional[List[str]] = None, repeat: bool = True
+) -> Optional[T]:
     options_list = list(options)
     keys = keys or _enumerate_menu_keys(options_list)
     done = False
@@ -48,9 +50,10 @@ def _prompt_user_menu(options: Iterable[Tuple[str, T]], keys: Optional[List[str]
             done = not repeat
         else:
             return options_list[keys.index(choice)][1]
+    return None
 
 
-def _print_workflows_table(workflows: List[WorkflowTable]):
+def _print_workflows_table(workflows: List[WorkflowTable]) -> None:
     items = [(wf.name, wf.target, wf.description, wf.products[0].product_type) for wf in workflows if wf.products]
     print_fmt(
         tabulate(
@@ -96,7 +99,12 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
         return state
 
     wf_inst = get_workflow(wf_name)
-    wf_target = wf_inst.target.value
+    if wf_inst is None:
+        # Error getting workflow
+        _noqa_print("Could not load workflow")
+        return state
+
+    wf_target = wf_inst.target.value if wf_inst.target is not None else None
     wf_description = wf_inst.description
     wf_to_add = {"name": wf_name, "target": wf_target, "description": wf_description, "product_type": product_type}
     return {**state, "workflows_to_add": [*state["workflows_to_add"], wf_to_add]}
@@ -214,12 +222,13 @@ def create_workflows_migration_wizard() -> Tuple[List[dict], List[dict]]:
                     lambda s: delete_dangling_workflows(unregistered_workflows, s),
                 ),
                 ("Finish and create migration file", lambda s: {**s, "done": True, "abort": False}),
-                ("Show current diff", lambda s: _show_state(s)),
+                ("Show current diff", _show_state),
                 ("Quit menu without creating a migration file", lambda s: {**s, "done": True, "abort": True}),
             ],
             keys=["a", "x", "c", "y", "d", "q"],
         )
-        state = choice_fn(state)
+        if choice_fn:
+            state = choice_fn(state)  # type: ignore
 
     if state.get("abort"):
         return [], []

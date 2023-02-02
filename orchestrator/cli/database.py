@@ -246,7 +246,7 @@ def _insert_preamble(text: str, s: str) -> str:
     return "".join(lines[:line_num]) + f"{s}\n\n" + "".join(lines[line_num:]) if line_num else text
 
 
-def create_migration_file(sql_upgrade_str: str, sql_downgrade_str: str, message: str, preamble: str = ""):
+def create_migration_file(sql_upgrade_str: str, sql_downgrade_str: str, message: str, preamble: str = "") -> None:
     if not (sql_upgrade_str or sql_downgrade_str):
         print("Nothing to do")  # noqa: Too1, T201
         return
