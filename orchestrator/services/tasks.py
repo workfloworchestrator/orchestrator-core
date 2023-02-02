@@ -28,7 +28,8 @@ def get_celery_task(task_name: str) -> Task:
 
 def initialise_celery(celery: Celery) -> None:
     global _celery
-    assert not _celery, "You can only initialise Celery once"
+    if _celery:
+        raise AssertionError("You can only initialise Celery once")
     _celery = celery
 
     # Different routes/queues so we can assign them priorities
