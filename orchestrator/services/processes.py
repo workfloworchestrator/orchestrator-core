@@ -323,15 +323,17 @@ def celery_start_process(
     user: str = SYSTEM_USER,
 ) -> Tuple[UUID, Future]:
     """Client side call of Celery."""
-    from orchestrator.services.tasks import trigger_celery_workflow, trigger_celery_task
+    from orchestrator.services.tasks import get_celery_task
 
     workflow = get_workflow(workflow_key)
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     if workflow.target == Target.SYSTEM:
+        trigger_celery_task = get_celery_task("tasks.task")
         result = trigger_celery_task.delay(workflow_key, user_inputs, user)
     else:
+        trigger_celery_workflow = get_celery_task("tasks.workflow")
         result = trigger_celery_workflow.delay(workflow_key, user_inputs, user)
     pid = result.get()
     return pid, None
