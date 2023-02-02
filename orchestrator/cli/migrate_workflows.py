@@ -118,6 +118,7 @@ def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
         for wf in workflows
         if wf.products and wf.name not in already_used_workflows
     ]
+    items = sorted(items, key=operator.itemgetter(3, 1))
     keys = ["#", "name", "target", "description", "product_type"]
     if not items:
         _noqa_print("No deletable workflows in database")
