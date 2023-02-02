@@ -6,7 +6,7 @@ from tabulate import tabulate
 
 import orchestrator.workflows
 from orchestrator.cli.domain_gen_helpers.helpers import get_user_input
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
+from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.targets import Target
 from orchestrator.workflows import LazyWorkflowInstance, get_workflow
@@ -27,10 +27,6 @@ logger = structlog.get_logger(__name__)
 T = TypeVar("T")
 
 
-def _noqa_print(s: str, **kwargs: Any) -> None:
-    print(s, **kwargs)  # noqa: T201
-
-
 def _enumerate_menu_keys(items: list) -> List[str]:
     return [str(i + 1) for i in range(len(items))]
 
@@ -43,10 +39,10 @@ def _prompt_user_menu(
     done = False
     while not done:
         for k, txt_v in zip(keys, options_list):
-            _noqa_print(f"{k}) {txt_v[0]}")
+            noqa_print(f"{k}) {txt_v[0]}")
         choice = get_user_input("? ")
         if choice not in keys:
-            _noqa_print("Invalid choice")
+            noqa_print("Invalid choice")
             done = not repeat
         else:
             return options_list[keys.index(choice)][1]
@@ -69,17 +65,17 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
     print_fmt("\nAdd new workflow\n", flags=[COLOR.UNDERLINE])
 
     if not workflows:
-        _noqa_print("No registered workflows found to add to the database")
+        noqa_print("No registered workflows found to add to the database")
         return state
 
     registered_product_types = [
         row[0] for row in ProductTable.query.with_entities(ProductTable.product_type).distinct()
     ]
     if not registered_product_types:
-        _noqa_print("No registered product types found")
+        noqa_print("No registered product types found")
         return state
 
-    _noqa_print("Which product type should the workflow be added to?")
+    noqa_print("Which product type should the workflow be added to?")
     product_type = _prompt_user_menu(
         [*[(p, p) for p in registered_product_types], ("cancel", None)],
         keys=[*_enumerate_menu_keys(registered_product_types), "q"],
@@ -89,7 +85,7 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
         # Menu cancelled
         return state
 
-    _noqa_print(f"\nAdd product type {str_fmt(product_type, flags=[COLOR.BOLD])} to which workflow?")
+    noqa_print(f"\nAdd product type {str_fmt(product_type, flags=[COLOR.BOLD])} to which workflow?")
 
     already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
     wf_options = [(wf, wf) for wf in workflows if wf not in already_used_workflows]
@@ -101,7 +97,7 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
     wf_inst = get_workflow(wf_name)
     if wf_inst is None:
         # Error getting workflow
-        _noqa_print("Could not load workflow")
+        noqa_print("Could not load workflow")
         return state
 
     wf_target = wf_inst.target.value if wf_inst.target is not None else None
@@ -121,7 +117,7 @@ def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
     items = sorted(items, key=operator.itemgetter(3, 1))
     keys = ["#", "name", "target", "description", "product_type"]
     if not items:
-        _noqa_print("No deletable workflows in database")
+        noqa_print("No deletable workflows in database")
         return state
 
     print_fmt(
@@ -178,7 +174,7 @@ def delete_dangling_workflows(workflows: List[WorkflowTable], state: dict) -> di
     )
 
     if not should_delete_dangling_workflows:
-        _noqa_print("Cancelling")
+        noqa_print("Cancelling")
         return state
 
     already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
