@@ -16,7 +16,6 @@ from threading import BoundedSemaphore
 
 import structlog
 
-from orchestrator import app_settings
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.schedules.scheduling import scheduler
 from orchestrator.services.processes import celery_start_process, start_process, thread_start_process
@@ -45,6 +44,7 @@ def validate_subscriptions() -> None:
 
             if subscription.status in usable_when:
                 json = [{"subscription_id": str(subscription.subscription_id)}]
+                from orchestrator import app_settings
                 if app_settings.EXECUTOR == "celery":
                     celery_start_process(validation_workflow, user_inputs=json)
                     start_process(validation_workflow, json)
