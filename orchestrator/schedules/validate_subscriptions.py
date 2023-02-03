@@ -19,7 +19,7 @@ import structlog
 from orchestrator import app_settings
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.schedules.scheduling import scheduler
-from orchestrator.services.processes import start_process, celery_start_process, thread_start_process
+from orchestrator.services.processes import celery_start_process, start_process, thread_start_process
 from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
 from orchestrator.targets import Target
 
