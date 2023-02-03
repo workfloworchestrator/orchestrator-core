@@ -45,6 +45,7 @@ def validate_subscriptions() -> None:
             if subscription.status in usable_when:
                 json = [{"subscription_id": str(subscription.subscription_id)}]
                 from orchestrator import app_settings
+
                 if app_settings.EXECUTOR == "celery":
                     celery_start_process(validation_workflow, user_inputs=json)
                     start_process(validation_workflow, json)
