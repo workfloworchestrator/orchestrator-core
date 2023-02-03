@@ -99,7 +99,7 @@ def new_process(
 
     user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
-    pid = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)[0]
+    pid = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
 
     return {"id": pid}
 

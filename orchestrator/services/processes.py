@@ -336,6 +336,9 @@ def celery_start_process(
         trigger_celery_workflow = get_celery_task(NEW_WORKFLOW)
         result = trigger_celery_workflow.delay(workflow_key, user_inputs, user)
     pid = result.get()
+    if not pid:
+        raise RuntimeError("Celery worker has failed to resume process")
+
     return pid
 
 
@@ -384,7 +387,7 @@ def start_process(
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
     broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Optional[Future]]:
+) -> UUID:
     """Start a process for workflow.
 
     Args:
@@ -398,9 +401,9 @@ def start_process(
 
     """
     if app_settings.EXECUTOR == "celery":
-        return celery_start_process(workflow_key, user_inputs=user_inputs, user=user), None
+        return celery_start_process(workflow_key, user_inputs=user_inputs, user=user)
     else:  # default is threadpool
-        return thread_start_process(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+        return thread_start_process(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)[0]
 
 
 def celery_resume_process(
@@ -408,7 +411,7 @@ def celery_resume_process(
     *,
     user_inputs: Optional[List[State]] = None,
     user: Optional[str] = None,
-) -> Tuple[UUID, Future]:
+) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
 
@@ -423,8 +426,10 @@ def celery_resume_process(
         result = trigger_celery_workflow.delay(pstat.pid, user_inputs, user)
 
     pid = result.get()
+    if not pid:
+        raise RuntimeError("Celery worker has failed to resume process")
 
-    return pid, None
+    return pid
 
 
 def thread_resume_process(
@@ -469,7 +474,7 @@ def resume_process(
     user_inputs: Optional[List[State]] = None,
     user: Optional[str] = None,
     broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Future]:
+) -> UUID:
     """Resume a failed or suspended process.
 
     Args:
@@ -485,7 +490,7 @@ def resume_process(
     if app_settings.EXECUTOR == "celery":
         return celery_resume_process(process, user_inputs=user_inputs, user=user)
     else:  # default is threadpool
-        return thread_resume_process(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+        return thread_resume_process(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)[0]
 
 
 async def _async_resume_processes(
