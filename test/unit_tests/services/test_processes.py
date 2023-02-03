@@ -725,7 +725,7 @@ def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_proc
 
     mock_post_process.return_value = {"a": 1}
 
-    result, _ = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
+    result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.pid
