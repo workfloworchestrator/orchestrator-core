@@ -29,3 +29,7 @@ def str_fmt(text: str, *, flags: Iterable[COLOR] = ()) -> str:
 
 def print_fmt(text: str, *, flags: Iterable[COLOR] = (), print_fn: Callable = print, **kwargs: Any) -> None:
     print_fn(str_fmt(text, flags=flags), **kwargs)
+
+
+def noqa_print(s: str, **kwargs: Any) -> None:
+    print(s, **kwargs)  # noqa: T201

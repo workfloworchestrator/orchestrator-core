@@ -13,22 +13,21 @@
 
 import json
 import os
-import re
 from shutil import copyfile
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import jinja2
 import typer
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
-from alembic.util.exc import CommandError
 from structlog import get_logger
 
-import orchestrator
+import orchestrator.workflows
 from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
+from orchestrator.cli.migrate_workflows import create_workflows_migration_wizard
+from orchestrator.cli.migration_helpers import create_migration_file
 from orchestrator.db import init_database
 from orchestrator.settings import app_settings
 
@@ -60,7 +59,7 @@ def alembic_cfg() -> Config:
 )
 def init() -> None:
     """
-    Initialise the migrations directory.
+    Initialize the migrations directory.
 
     This command will initialize a migration directory for the orchestrator core application and setup a correct
     migration environment.
@@ -205,40 +204,6 @@ def history(
     command.history(alembic_cfg(), verbose=verbose, indicate_current=indicate_current)
 
 
-def remove_down_revision_from_text(text: str) -> str:
-    r"""Remove down revision from text.
-
-    >>> text = "Revises: bed6bc0b197a"
-    >>> remove_down_revision_from_text(text)
-    'Revises:'
-
-    >>> text = "down_revision = 'bed6bc0b197a'"
-    >>> remove_down_revision_from_text(text)
-    'down_revision = None'
-
-    >>> text = "initial\n\nRevises: bed6bc0b197a\n\ndown_revision = 'bed6bc0b197a'\n\ntesting"
-    >>> remove_down_revision_from_text(text)
-    'initial\n\nRevises:\n\ndown_revision = None\n\ntesting'
-
-    >>> text = "initial\n\nRevises: bed6bc0b197a\n\ndown_revision='bed6bc0b197a'\n\ntesting"
-    >>> remove_down_revision_from_text(text)
-    "initial\n\nRevises:\n\ndown_revision='bed6bc0b197a'\n\ntesting"
-
-    """
-    text = re.sub(r"Revises: [0-9a-z]+", r"Revises:", text, count=1)
-    return re.sub(r"down_revision = ['\"][0-9a-z]+['\"]", r"down_revision = None", text, count=1)
-
-
-def remove_core_as_down_revision(migration: Any) -> None:
-    with open(migration.path) as f:
-        text = f.read()
-
-    text = remove_down_revision_from_text(text)
-
-    with open(migration.path, "w") as f:
-        f.write(text)
-
-
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
     message: str = typer.Argument(..., help="Migration name"),
@@ -297,55 +262,76 @@ def migrate_domain_models(
     if test:
         return sql_upgrade_stmts, sql_downgrade_stmts
 
-    print("Generating migration file.\n")  # noqa: T001, T201
-
     sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
     sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
+    create_migration_file(alembic_cfg(), sql_upgrade_str, sql_downgrade_str, message)
+    return None
 
-    alembic_config = alembic_cfg()
-    non_venv_location = " ".join(
-        [
-            location
-            for location in alembic_config.get_main_option("version_locations").split(" ")
-            if "site-packages" not in location
-        ]
-    )
 
-    try:
-        # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
-        script = ScriptDirectory.from_config(alembic_config)
-        core_head = script.get_current_head()
-        migration = command.revision(
-            alembic_config,
-            message,
-            branch_label="data",
-            version_path=non_venv_location,
-            depends_on=core_head,
+@app.command(help="Create migration file based on diff workflows in db")
+def migrate_workflows(
+    message: str = typer.Argument(..., help="Migration name"),
+    test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+) -> Union[Tuple[List[dict], List[dict]], None]:
+    """Create a migration file based on the difference between workflows in the database and registered WorkflowInstances. BACKUP DATABASE BEFORE USING THE MIGRATION!.
+
+    You will be prompted with inputs for new models and resource type updates.
+    Resource type updates are only handled when it's renamed in all product blocks.
+
+    Args:
+    - `message`: Message/description of the generated migration.
+    - `--test`: Optional boolean if you don't want to generate a migration file.
+
+    Returns None unless `--test` is used, in which case it returns:
+        - tuple:
+            - list of upgrade SQL statements in string format.
+            - list of downgrade SQL statements in string format.
+    """
+    if not app_settings.TESTING:
+        init_database(app_settings)
+
+    if test:
+        print(  # noqa: T001, T201
+            f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
         )
 
-        remove_core_as_down_revision(migration)
-    except CommandError as err:
-        error_str = str(err)
-        if ("Branch name 'data'" in error_str and "already used by revision" in error_str) or (
-            "The script directory has multiple heads" in error_str
-        ):
-            try:
-                migration = command.revision(alembic_config, message, head="data@head", version_path=non_venv_location)
-            except CommandError:
-                if "Branch name 'data'" in error_str and "already used by revision" in error_str:
-                    raise CommandError("Database not up to date with latest revision")
-                else:
-                    raise CommandError("Database head 'data' already exists but no revision/migration file found")
-        else:
-            raise err
+    workflows_to_add, workflows_to_delete = create_workflows_migration_wizard()
 
-    with open(migration.path) as f:
-        file_data = f.read()
+    # String 'template' arguments
+    import_str = "from orchestrator.migrations.helpers import create_workflow, delete_workflow\n"
+    tpl_preamble_lines = []
+    tpl_upgrade_lines = []
+    tpl_downgrade_lines = []
 
-    new_file_data = file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_upgrade_str}", 1)
-    new_file_data = new_file_data.replace("    pass", f"    conn = op.get_bind()\n{sql_downgrade_str}", 1)
-    with open(migration.path, "w") as f:
-        f.write(new_file_data)
+    if workflows_to_add:
+        tpl_preamble_lines.append(f"new_workflows = {json.dumps(workflows_to_add, indent=4)}\n")
+        tpl_upgrade_lines.extend(
+            [(" " * 4) + "for workflow in new_workflows:", (" " * 8) + "create_workflow(conn, workflow)"]
+        )
+        tpl_downgrade_lines.extend(
+            [(" " * 4) + "for workflow in new_workflows:", (" " * 8) + 'delete_workflow(conn, workflow["name"])']
+        )
 
-    print("Migration generated. Don't forget to create a database backup before migrating!")  # noqa: T001, T201
+    if workflows_to_delete:
+        tpl_preamble_lines.append(f"old_workflows = {json.dumps(workflows_to_delete, indent=4)}\n")
+        tpl_upgrade_lines.extend(
+            [(" " * 4) + "for workflow in old_workflows:", (" " * 8) + 'delete_workflow(conn, workflow["name"])']
+        )
+        tpl_downgrade_lines.extend(
+            [(" " * 4) + "for workflow in old_workflows:", (" " * 8) + "create_workflow(conn, workflow)"]
+        )
+
+    preamble = "\n".join(
+        [
+            import_str,
+            *tpl_preamble_lines,
+        ]
+    )
+    sql_upgrade_str = "\n".join(tpl_upgrade_lines)
+    sql_downgrade_str = "\n".join(tpl_downgrade_lines)
+
+    if test:
+        return workflows_to_add, workflows_to_delete
+
+    create_migration_file(alembic_cfg(), sql_upgrade_str, sql_downgrade_str, message, preamble=preamble)
     return None
