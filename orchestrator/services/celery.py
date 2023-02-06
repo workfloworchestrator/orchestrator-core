@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import List, Optional
+from typing import List, Optional, Dict, Callable, Any
 from uuid import UUID
 
 from orchestrator.api.error_handling import raise_status
@@ -21,7 +21,10 @@ from orchestrator.types import State
 from orchestrator.workflows import get_workflow
 
 
-def _celery_start_process(workflow_key: str, user_inputs: Optional[List[State]], user: str, **kwargs) -> UUID:
+SYSTEM_USER = "SYSTEM"
+
+
+def _celery_start_process(workflow_key: str, user_inputs: Optional[List[State]], user: str = SYSTEM_USER, **kwargs: Any) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
@@ -45,7 +48,7 @@ def _celery_resume_process(
     *,
     user_inputs: Optional[List[State]],
     user: Optional[str],
-    **kwargs,
+    **kwargs: Any,
 ) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.processes import load_process
@@ -69,7 +72,7 @@ def _celery_validate(validation_workflow: str, json: Optional[List[State]]) -> N
     _celery_start_process(validation_workflow, user_inputs=json)
 
 
-CELERY_EXECUTION_CONTEXT = {
+CELERY_EXECUTION_CONTEXT: Dict[str, Callable] = {
     "start": _celery_start_process,
     "resume": _celery_resume_process,
     "validate": _celery_validate,

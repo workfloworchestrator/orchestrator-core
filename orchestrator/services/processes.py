@@ -428,7 +428,7 @@ def thread_validate_workflow(validation_workflow: str, json: Optional[List[State
     handle.add_done_callback(lambda _: task_semaphore.release())
 
 
-THREADPOOL_EXECUTION_CONTEXT = {
+THREADPOOL_EXECUTION_CONTEXT: Dict[str, Callable] = {
     "start": lambda args, kwargs: thread_start_process(*args, **kwargs)[0],
     "resume": lambda args, kwargs: thread_resume_process(*args, **kwargs)[0],
     "validate": thread_validate_workflow,
