@@ -95,8 +95,7 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
         # Menu cancelled
         return state
 
-    wf_inst = get_workflow(wf_name)
-    if wf_inst is None:
+    if wf_inst := get_workflow(wf_name) is None:
         # Error getting workflow
         noqa_print("Could not load workflow")
         return state
@@ -164,6 +163,10 @@ def _show_state(state: dict) -> dict:
 
 
 def delete_dangling_workflows(workflows: List[WorkflowTable], state: dict) -> dict:
+    if not workflows:
+        noqa_print("No dangling workflows found.")
+        return state
+
     print_fmt(
         "\nThe following workflows were found in the database that do not have a corresponding LazyWorkflowInstance:\n"
     )
