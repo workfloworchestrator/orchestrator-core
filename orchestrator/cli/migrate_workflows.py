@@ -95,7 +95,8 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
         # Menu cancelled
         return state
 
-    if wf_inst := get_workflow(wf_name) is None:
+    wf_inst = get_workflow(wf_name)
+    if wf_inst is None:
         # Error getting workflow
         noqa_print("Could not load workflow")
         return state
