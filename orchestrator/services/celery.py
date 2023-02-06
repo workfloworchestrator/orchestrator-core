@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import List, Optional, Dict, Callable, Any
+from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
 from orchestrator.api.error_handling import raise_status
@@ -20,11 +20,12 @@ from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.workflows import get_workflow
 
-
 SYSTEM_USER = "SYSTEM"
 
 
-def _celery_start_process(workflow_key: str, user_inputs: Optional[List[State]], user: str = SYSTEM_USER, **kwargs: Any) -> UUID:
+def _celery_start_process(
+    workflow_key: str, user_inputs: Optional[List[State]], user: str = SYSTEM_USER, **kwargs: Any
+) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
