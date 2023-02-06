@@ -56,8 +56,15 @@ StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 
 SYSTEM_USER = "SYSTEM"
 
+task_semaphore = threading.BoundedSemaphore(value=2)
 
 _workflow_executor = None
+
+
+def get_execution_context() -> Dict[str, Callable]:
+    from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+
+    return CELERY_EXECUTION_CONTEXT if app_settings.EXECUTOR == "celery" else THREADPOOL_EXECUTION_CONTEXT
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
@@ -317,31 +324,6 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     return pid, process_handle
 
 
-def celery_start_process(
-    workflow_key: str,
-    user_inputs: Optional[List[State]] = None,
-    user: str = SYSTEM_USER,
-) -> UUID:
-    """Client side call of Celery."""
-    from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
-
-    workflow = get_workflow(workflow_key)
-    if not workflow:
-        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    if workflow.target == Target.SYSTEM:
-        trigger_celery_task = get_celery_task(NEW_TASK)
-        result = trigger_celery_task.delay(workflow_key, user_inputs, user)
-    else:
-        trigger_celery_workflow = get_celery_task(NEW_WORKFLOW)
-        result = trigger_celery_workflow.delay(workflow_key, user_inputs, user)
-    pid = result.get()
-    if not pid:
-        raise RuntimeError("Celery worker has failed to resume process")
-
-    return pid
-
-
 def thread_start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
@@ -400,36 +382,8 @@ def start_process(
         process id
 
     """
-    if app_settings.EXECUTOR == "celery":
-        return celery_start_process(workflow_key, user_inputs=user_inputs, user=user)
-    else:  # default is threadpool
-        return thread_start_process(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)[0]
-
-
-def celery_resume_process(
-    process: ProcessTable,
-    *,
-    user_inputs: Optional[List[State]] = None,
-    user: Optional[str] = None,
-) -> UUID:
-    """Client side call of Celery."""
-    from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
-
-    pstat = load_process(process)
-    workflow = pstat.workflow
-
-    if workflow.target == Target.SYSTEM:
-        trigger_celery_task = get_celery_task(RESUME_TASK)
-        result = trigger_celery_task.delay(pstat.pid, user_inputs, user)
-    else:
-        trigger_celery_workflow = get_celery_task(RESUME_WORKFLOW)
-        result = trigger_celery_workflow.delay(pstat.pid, user_inputs, user)
-
-    pid = result.get()
-    if not pid:
-        raise RuntimeError("Celery worker has failed to resume process")
-
-    return pid
+    start_func = get_execution_context()["start"]
+    return start_func(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
 def thread_resume_process(
@@ -468,6 +422,19 @@ def thread_resume_process(
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
 
 
+def thread_validate_workflow(validation_workflow: str, json: Optional[List[State]]) -> None:
+    task_semaphore.acquire()
+    _, handle = thread_start_process(validation_workflow, user_inputs=json)
+    handle.add_done_callback(lambda _: task_semaphore.release())
+
+
+THREADPOOL_EXECUTION_CONTEXT = {
+    "start": lambda args, kwargs: thread_start_process(*args, **kwargs)[0],
+    "resume": lambda args, kwargs: thread_resume_process(*args, **kwargs)[0],
+    "validate": thread_validate_workflow,
+}
+
+
 def resume_process(
     process: ProcessTable,
     *,
@@ -487,10 +454,8 @@ def resume_process(
         process id
 
     """
-    if app_settings.EXECUTOR == "celery":
-        return celery_resume_process(process, user_inputs=user_inputs, user=user)
-    else:  # default is threadpool
-        return thread_resume_process(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)[0]
+    resume_func = get_execution_context()["resume"]
+    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
 async def _async_resume_processes(

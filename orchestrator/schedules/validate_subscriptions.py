@@ -18,7 +18,7 @@ import structlog
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.schedules.scheduling import scheduler
-from orchestrator.services.processes import celery_start_process, start_process, thread_start_process
+from orchestrator.services.processes import get_execution_context
 from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
 from orchestrator.targets import Target
 
@@ -44,16 +44,9 @@ def validate_subscriptions() -> None:
 
             if subscription.status in usable_when:
                 json = [{"subscription_id": str(subscription.subscription_id)}]
-                from orchestrator import app_settings
 
-                if app_settings.EXECUTOR == "celery":
-                    celery_start_process(validation_workflow, user_inputs=json)
-                    start_process(validation_workflow, json)
-                else:  # default is threadpool
-                    task_semaphore.acquire()
-                    _, handle = thread_start_process(validation_workflow, user_inputs=json)
-                    handle.add_done_callback(lambda _: task_semaphore.release())
-
+                validate_func = get_execution_context()["validate"]
+                validate_func(validation_workflow, user_inputs=json)
         else:
             logger.warning(
                 "SubscriptionTable has no validation workflow",

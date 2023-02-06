@@ -1,0 +1,76 @@
+# Copyright 2019-2020 SURF.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from http import HTTPStatus
+from typing import List, Optional
+from uuid import UUID
+
+from orchestrator.api.error_handling import raise_status
+from orchestrator.db import ProcessTable
+from orchestrator.targets import Target
+from orchestrator.types import State
+from orchestrator.workflows import get_workflow
+
+
+def _celery_start_process(workflow_key: str, user_inputs: Optional[List[State]], user: str, **kwargs) -> UUID:
+    """Client side call of Celery."""
+    from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
+
+    workflow = get_workflow(workflow_key)
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    task_name = NEW_TASK if workflow.target == Target.SYSTEM else NEW_WORKFLOW
+    trigger_task = get_celery_task(task_name)
+    result = trigger_task.delay(workflow_key, user_inputs, user)
+
+    pid = result.get()
+    if not pid:
+        raise RuntimeError("Celery worker has failed to start process")
+
+    return pid
+
+
+def _celery_resume_process(
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]],
+    user: Optional[str],
+    **kwargs,
+) -> UUID:
+    """Client side call of Celery."""
+    from orchestrator.services.processes import load_process
+    from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
+
+    pstat = load_process(process)
+    workflow = pstat.workflow
+
+    task_name = RESUME_TASK if workflow.target == Target.SYSTEM else RESUME_WORKFLOW
+    trigger_task = get_celery_task(task_name)
+    result = trigger_task.delay(pstat.pid, user_inputs, user)
+
+    pid = result.get()
+    if not pid:
+        raise RuntimeError("Celery worker has failed to resume process")
+
+    return pid
+
+
+def _celery_validate(validation_workflow: str, json: Optional[List[State]]) -> None:
+    _celery_start_process(validation_workflow, user_inputs=json)
+
+
+CELERY_EXECUTION_CONTEXT = {
+    "start": _celery_start_process,
+    "resume": _celery_resume_process,
+    "validate": _celery_validate,
+}
