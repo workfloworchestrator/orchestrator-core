@@ -429,8 +429,8 @@ def thread_validate_workflow(validation_workflow: str, json: Optional[List[State
 
 
 THREADPOOL_EXECUTION_CONTEXT: Dict[str, Callable] = {
-    "start": lambda args, kwargs: thread_start_process(*args, **kwargs)[0],
-    "resume": lambda args, kwargs: thread_resume_process(*args, **kwargs)[0],
+    "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs)[0],
+    "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs)[0],
     "validate": thread_validate_workflow,
 }
 
