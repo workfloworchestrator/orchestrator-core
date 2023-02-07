@@ -2,18 +2,18 @@ default_language_version:
   python: python3
 repos:
   - repo: https://github.com/timothycrosley/isort
-    rev: v5.11.3
+    rev: 5.12.0
     hooks:
       - id: isort
   - repo: https://github.com/psf/black
-    rev: 22.12.0
+    rev: 23.1.0
     hooks:
       - id: black
   - repo: https://github.com/asottile/blacken-docs
-    rev: v1.12.1
+    rev: 1.13.0
     hooks:
       - id: blacken-docs
-        additional_dependencies: [black==21.9b0]
+        additional_dependencies: [black==23.1.0]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
@@ -41,7 +41,7 @@ repos:
           - flake8-rst-docstrings
           - flake8-tidy-imports
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.991
+    rev: v1.0.0
     hooks:
       - id: mypy
         additional_dependencies:
@@ -53,12 +53,13 @@ repos:
           - types-Deprecated
           - types-redis
           - types-orjson
+          - types-tabulate
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
         exclude: (test/.*|migrations/.*)
   - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.9.0
+    rev: v1.10.0
     hooks:
       - id: python-check-blanket-noqa
       - id: python-use-type-annotations
