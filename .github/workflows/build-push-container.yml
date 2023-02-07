@@ -31,6 +31,15 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Override latest tag to make it so that:
+          # 'latest' -> last release
+          # 'edge'   -> last release or pre-release
+          flavor: |
+            latest=false
+          tags: |
+            type=match,pattern=\d+.\d+.\d+-rc\d+,value=edge
+            type=match,pattern=\d+.\d+.\d+,value=edge
+            type=match,pattern=\d+.\d+.\d+,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v3
@@ -39,3 +48,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}

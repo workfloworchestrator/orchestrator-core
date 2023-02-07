@@ -1,11 +1,13 @@
 FROM python:3.9-slim
 
+ARG VERSION
+
 ENV PIP_ROOT_USER_ACTION=ignore
 
 RUN apt-get update && apt-get install --yes git
 
 RUN pip install pip --upgrade
-RUN pip install orchestrator-core
+RUN pip install orchestrator-core==${VERSION}
 
 RUN useradd orchestrator
 USER orchestrator
