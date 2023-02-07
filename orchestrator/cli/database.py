@@ -23,8 +23,8 @@ from alembic.config import Config
 from structlog import get_logger
 
 import orchestrator.workflows
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
+from orchestrator.cli.helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
 from orchestrator.cli.migrate_workflows import create_workflows_migration_wizard
 from orchestrator.cli.migration_helpers import create_migration_file
@@ -256,6 +256,7 @@ def migrate_domain_models(
         updates_class = ModelUpdates(
             fixed_inputs=updates_dict.get("fixed_inputs", {}),
             resource_types=updates_dict.get("resource_types", {}),
+            block_resource_types=updates_dict.get("block_resource_types", {}),
         )
     sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class, bool(test))
 

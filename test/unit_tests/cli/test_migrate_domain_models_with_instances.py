@@ -557,3 +557,125 @@ def test_migrate_domain_models_remove_resource_type(
     for stmt in downgrade_sql:
         db.session.execute(stmt)
     db.session.commit()
+
+
+def test_migrate_domain_models_update_block_resource_type(
+    test_product_type_one, test_product_sub_block_one, product_one_subscription_1
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+    _, _, SubBlockOneForTest = test_product_sub_block_one
+
+    class ProductBlockOneForTestUpdated(
+        ProductBlockModel, product_block_name="ProductBlockOneForTest", lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        sub_block: SubBlockOneForTest
+        sub_block_2: SubBlockOneForTest
+        sub_block_list: List[SubBlockOneForTest]
+        update_str_field: str
+        int_field: int
+        list_field: List[int]
+
+    class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        block: ProductBlockOneForTestUpdated
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps(
+        {
+            "update_str_field": {"description": "test"},
+            "updates": {"block_resource_types": {"ProductBlockOneForTest": {"str_field": "update_str_field"}}},
+        }
+    )
+    updates = json.dumps({"block_resource_types": {"ProductBlockOneForTest": {"str_field": "update_str_field"}}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs, updates=updates)
+
+    def test_expected_before_upgrade():
+        subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+        assert subscription.block.str_field
+        assert "update_str_field" not in subscription.block.dict()
+
+        new_str_field_resource = ResourceTypeTable.query.where(
+            ResourceTypeTable.resource_type == "update_str_field"
+        ).all()
+        assert not new_str_field_resource
+        return subscription.block.str_field
+
+    assert len(upgrade_sql) == 3
+    assert len(downgrade_sql) == 4
+
+    str_field_value = test_expected_before_upgrade()
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
+    assert subscription.block.update_str_field == str_field_value
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    test_expected_before_upgrade()
+
+
+def test_migrate_domain_models_rename_and_update_block_resource_type(
+    test_product_type_one, test_product_sub_block_one, product_one_subscription_1
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+    _, _, SubBlockOneForTest = test_product_sub_block_one
+
+    class ProductBlockOneForTestUpdated(
+        ProductBlockModel, product_block_name="ProductBlockOneForTest", lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        sub_block: SubBlockOneForTest
+        sub_block_2: SubBlockOneForTest
+        sub_block_list: List[SubBlockOneForTest]
+        update_str_field: str
+        int_field: int
+        list_field: List[int]
+
+    class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        block: ProductBlockOneForTestUpdated
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps(
+        {
+            "update_str_field": {"description": "test"},
+            "updates": {"block_resource_types": {"ProductBlockOneForTest": {"str_field": "update_str_field"}}},
+        }
+    )
+    updates = json.dumps({"block_resource_types": {"ProductBlockOneForTest": {"str_field": "update_str_field"}}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs, updates=updates)
+
+    def test_expected_before_upgrade():
+        subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+        assert subscription.block.str_field
+        assert "update_str_field" not in subscription.block.dict()
+
+        new_str_field_resource = ResourceTypeTable.query.where(
+            ResourceTypeTable.resource_type == "update_str_field"
+        ).all()
+        assert not new_str_field_resource
+        return subscription.block.str_field
+
+    assert len(upgrade_sql) == 3
+    assert len(downgrade_sql) == 4
+
+    str_field_value = test_expected_before_upgrade()
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
+    assert subscription.block.update_str_field == str_field_value
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    test_expected_before_upgrade()

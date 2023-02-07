@@ -19,6 +19,7 @@ class DomainModelChanges(BaseModel):
     delete_product_fixed_inputs: Dict[str, Set[str]] = {}
     create_resource_types: Set[str] = set()
     rename_resource_types: Dict[str, str] = {}
+    update_block_resource_types: Dict[str, Dict[str, str]] = {}
     delete_resource_types: Set[str] = set()
     create_resource_type_relations: Dict[str, Set[str]] = {}
     create_resource_type_instance_relations: Dict[str, Set[str]] = {}
@@ -32,3 +33,4 @@ class DuplicateException(Exception):
 class ModelUpdates(BaseModel):
     fixed_inputs: Dict[str, Dict[str, str]] = {}
     resource_types: Dict[str, str] = {}
+    block_resource_types: Dict[str, Dict[str, str]] = {}

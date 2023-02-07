@@ -2,7 +2,7 @@ default_language_version:
   python: python3
 repos:
   - repo: https://github.com/timothycrosley/isort
-    rev: v5.11.3
+    rev: 5.12.0
     hooks:
       - id: isort
   - repo: https://github.com/psf/black
@@ -53,6 +53,7 @@ repos:
           - types-Deprecated
           - types-redis
           - types-orjson
+          - types-tabulate
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators

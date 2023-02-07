@@ -5,9 +5,10 @@ from more_itertools import flatten
 from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
-from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
+from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
+from orchestrator.cli.helpers.input_helpers import get_user_input
+from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.db.models import (
     ProductBlockRelationTable,
     ProductBlockTable,
@@ -189,7 +190,7 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
 
         def map_subscription_instances(block_name: str) -> Dict[str, List[Dict[str, Union[str, ScalarSelect]]]]:
             in_use_by_id_sql = get_product_block_id(block_name)
-            subscription_instances: list[SubscriptionInstanceTable] = (
+            subscription_instances: List[SubscriptionInstanceTable] = (
                 SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
                 .with_entities(
                     SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id

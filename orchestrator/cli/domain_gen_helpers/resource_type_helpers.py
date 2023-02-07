@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Type, Union
+from typing import Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
 import structlog
@@ -6,10 +6,11 @@ from more_itertools import flatten
 from sqlalchemy.sql.expression import Delete, Insert, Update
 from sqlalchemy.sql.selectable import ScalarSelect
 
-from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
+from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id, get_product_block_ids
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
+from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
+from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db.models import (
     ProductBlockTable,
     ProductTable,
@@ -122,6 +123,68 @@ def map_update_resource_types(
                 )
                 if should_update == "y":
                     updates[db_props[0]] = model_props[0]
+    return updates
+
+
+def update_resource_type_input(old_props: List[str], new_props: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    noqa_print("Which resource type would you want to update?")
+    old_rt = _prompt_user_menu(
+        [*[(p, p) for p in old_props], ("skip", None)],
+        keys=[*_enumerate_menu_keys(old_props), "q"],
+    )
+    if not old_rt:
+        return None, None
+
+    noqa_print(f"\nWhich resource type should update {old_rt}?")
+    new_rt = _prompt_user_menu(
+        [*[(p, p) for p in new_props], ("skip", None)],
+        keys=[*_enumerate_menu_keys(new_props), "q"],
+    )
+    return old_rt, new_rt if new_rt else None
+
+
+def map_update_product_block_resource_types(
+    block_diffs: Dict[str, Dict[str, Set[str]]],
+    renamed_resource_types: Dict[str, str],
+) -> Dict[str, Dict[str, str]]:
+    """Map resource types to update per product block.
+
+    Args:
+        - block_diffs: Dict with product block differences.
+            - key: product block name
+            - value: Dict with differences between model and database.
+                - key: difference name, 'missing_resource_types_in_model' and 'missing_resource_types_in_db' are used to check if a resource type can be renamed.
+                - value: Set of resource type names.
+        - product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
+        - inputs: Optional Dict to specify if resource type should update.
+            - key: Resource type name.
+            - value: Dict with update 'y/n'.
+                - key: 'update' key.
+                - value: 'y/n'.
+
+    Returns: Dict with resource types that can be updated.
+        - key: old resource type name.
+        - value: new resource type name.
+    """
+
+    updates = {}
+    updated_new_rts = renamed_resource_types.values()
+    print_fmt("\nUpdate block resource types", flags=[COLOR.BOLD, COLOR.UNDERLINE])
+    for block_name, diff in block_diffs.items():
+        db_props = list(diff.get("missing_resource_types_in_model", set()))
+        model_props = list(diff.get("missing_resource_types_in_db", set()))
+
+        old_rts = [prop for prop in db_props if prop not in renamed_resource_types]
+        new_rts = [prop for prop in model_props if prop not in updated_new_rts]
+        while len(old_rts) > 0 and len(new_rts) > 0:
+            old_rt, new_rt = update_resource_type_input(old_rts, new_rts)
+            if not old_rt:
+                break
+            if not new_rt:
+                continue
+            old_rts = [rt for rt in old_rts if rt != old_rt]
+            new_rts = [rt for rt in new_rts if rt != new_rt]
+            updates[block_name] = {old_rt: new_rt}
     return updates
 
 
@@ -396,3 +459,75 @@ def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str,
         ]
 
     return list(flatten([delete_resource_type_relation(*item) for item in delete_resource_types.items()]))
+
+
+def generate_update_resource_type_block_relations_sql(block_rt_updates: Dict[str, Dict[str, str]]) -> List[str]:
+    """Generate SQL to update resource type block relations.
+
+    Args:
+        - block_rt_updates: Dict with rt updates per product block.
+            - key: product block name.
+            - value: Dict with new resource type name by old resource type name:
+                - key: old resource type name.
+                - value: new resource type name.
+
+    Returns: List of SQL strings to update resource types.
+    """
+
+    def update_block_resource_types(block_name: str, rt_updates: Dict[str, str]) -> List[str]:
+        block_id_sql = get_product_block_id(block_name)
+
+        def update_block_relation(old_rt_name: str, new_rt_name: str) -> str:
+            old_rt_id = get_resource_type(old_rt_name)
+            new_rt_id = get_resource_type(new_rt_name)
+            return sql_compile(
+                Update(product_block_resource_type_association)
+                .where(
+                    product_block_resource_type_association.c.product_block_id.in_(block_id_sql),
+                    product_block_resource_type_association.c.resource_type_id.in_(old_rt_id),
+                )
+                .values(resource_type_id=new_rt_id)
+            )
+
+        return [update_block_relation(*item) for item in rt_updates.items()]
+
+    return list(flatten([update_block_resource_types(*item) for item in block_rt_updates.items()]))
+
+
+def generate_update_resource_type_instance_values_sql(block_rt_updates: Dict[str, Dict[str, str]]) -> List[str]:
+    """Generate SQL to update resource type instance values.
+
+    Args:
+        - block_rt_updates: Dict with rt updates per product block.
+            - key: product block name.
+            - value: Dict with new resource type name by old resource type name:
+                - key: old resource type name.
+                - value: new resource type name.
+
+    Returns: List of SQL strings to update resource types.
+    """
+
+    def update_block_resource_types(block_name: str, rt_updates: Dict[str, str]) -> List[str]:
+        instance_ids_sql = (
+            SubscriptionInstanceTable.query.where(
+                SubscriptionInstanceTable.product_block_id.in_(get_product_block_id(block_name))
+            )
+            .with_entities(SubscriptionInstanceTable.subscription_instance_id)
+            .scalar_subquery()
+        )
+
+        def update_instance_values(old_rt_name: str, new_rt_name: str) -> str:
+            old_rt_id = get_resource_type(old_rt_name)
+            new_rt_id = get_resource_type(new_rt_name)
+            return sql_compile(
+                Update(SubscriptionInstanceValueTable)
+                .where(
+                    SubscriptionInstanceValueTable.subscription_instance_id.in_(instance_ids_sql),
+                    SubscriptionInstanceValueTable.resource_type_id.in_(old_rt_id),
+                )
+                .values(resource_type_id=new_rt_id)
+            )
+
+        return [update_instance_values(*item) for item in rt_updates.items()]
+
+    return list(flatten([update_block_resource_types(*item) for item in block_rt_updates.items()]))
