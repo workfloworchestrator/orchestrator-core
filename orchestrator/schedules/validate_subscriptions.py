@@ -46,7 +46,7 @@ def validate_subscriptions() -> None:
                 json = [{"subscription_id": str(subscription.subscription_id)}]
 
                 validate_func = get_execution_context()["validate"]
-                validate_func(validation_workflow, user_inputs=json)
+                validate_func(validation_workflow, json=json)
         else:
             logger.warning(
                 "SubscriptionTable has no validation workflow",
