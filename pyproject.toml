@@ -167,4 +167,5 @@ exclude = '''
 '''
 
 [tool.nitpick]
-style="github://workfloworchestrator/nitpick-style@main/nitpick-style-orchestrator-core.toml"
+style="github://workfloworchestrator/nitpick-style@1541-celery_poc/nitpick-style-orchestrator-core.toml"
+# style="github://workfloworchestrator/nitpick-style@main/nitpick-style-orchestrator-core.toml"
