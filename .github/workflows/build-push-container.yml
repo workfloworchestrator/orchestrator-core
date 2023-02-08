@@ -41,11 +41,11 @@ jobs:
             type=ref,event=branch,priority=600
             type=ref,event=tag,priority=600
             type=ref,event=pr,prefix=pr-,priority=600
-            type=match,pattern=\d+.\d+.\d+-rc\d+,value=edge,priority=800
-            type=match,pattern=\d+.\d+.\d+,value=edge,priority=800
-            type=match,pattern=\d+.\d+.\d+,value=latest,priority=810
+            type=raw,value=latest,enable=${{ github.event.release.prerelease == false }},priority=410
+            type=raw,value=edge,enable=true,priority=400
 
       - name: Build and push Docker image
+        if: ${{ !env.ACT }}
         uses: docker/build-push-action@v3
         with:
           context: .
