@@ -37,9 +37,13 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=match,pattern=\d+.\d+.\d+-rc\d+,value=edge
-            type=match,pattern=\d+.\d+.\d+,value=edge
-            type=match,pattern=\d+.\d+.\d+,value=latest
+            type=schedule,pattern=nightly,priority=1000
+            type=ref,event=branch,priority=600
+            type=ref,event=tag,priority=600
+            type=ref,event=pr,prefix=pr-,priority=600
+            type=match,pattern=\d+.\d+.\d+-rc\d+,value=edge,priority=800
+            type=match,pattern=\d+.\d+.\d+,value=edge,priority=800
+            type=match,pattern=\d+.\d+.\d+,value=latest,priority=810
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v3
