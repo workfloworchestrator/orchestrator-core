@@ -1,13 +1,13 @@
 import itertools
 import operator
-from typing import Dict, Iterable, List, Optional, Tuple, TypeVar
+from typing import Dict, List, Tuple, TypeVar
 
 import structlog
 from tabulate import tabulate
 
 import orchestrator.workflows
-from orchestrator.cli.domain_gen_helpers.helpers import get_user_input
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
+from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
+from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.targets import Target
 from orchestrator.workflows import LazyWorkflowInstance, get_workflow
@@ -26,28 +26,6 @@ from orchestrator.workflows import LazyWorkflowInstance, get_workflow
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
-
-
-def _enumerate_menu_keys(items: list) -> List[str]:
-    return [str(i + 1) for i in range(len(items))]
-
-
-def _prompt_user_menu(
-    options: Iterable[Tuple[str, T]], keys: Optional[List[str]] = None, repeat: bool = True
-) -> Optional[T]:
-    options_list = list(options)
-    keys = keys or _enumerate_menu_keys(options_list)
-    done = False
-    while not done:
-        for k, txt_v in zip(keys, options_list):
-            noqa_print(f"{k}) {txt_v[0]}")
-        choice = get_user_input("? ")
-        if choice not in keys:
-            noqa_print("Invalid choice")
-            done = not repeat
-        else:
-            return options_list[keys.index(choice)][1]
-    return None
 
 
 def _print_workflows_table(workflows: List[WorkflowTable]) -> None:

@@ -3,7 +3,7 @@ from typing import List, Union
 
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
-from orchestrator.db.models import ProductTable
+from orchestrator.db.models import ProductTable, ResourceTypeTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
@@ -522,6 +522,69 @@ def test_migrate_domain_models_rename_and_relate_and_remove_resource_type(
     for stmt in downgrade_sql:
         db.session.execute(stmt)
     db.session.commit()
+
+
+def test_migrate_domain_models_update_block_resource_type(
+    test_product_one, test_product_type_one, test_product_block_one, test_product_sub_block_one
+):
+    _, ProductTypeOneForTestProvisioning, _ = test_product_type_one
+    _, _, ProductBlockOneForTest = test_product_block_one
+    _, _, SubBlockOneForTest = test_product_sub_block_one
+
+    class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        sub_block: SubBlockOneForTest
+        sub_block_2: SubBlockOneForTest
+        sub_block_list: List[SubBlockOneForTest]
+        str_field: str
+        new_int_field: int
+        list_field: List[int]
+
+    class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        test_fixed_input: bool
+        block: ProductBlockOneForTestUpdated
+
+    SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
+
+    inputs = json.dumps({"new_int_field": {"description": "test new int field type"}})
+    updates = json.dumps({"block_resource_types": {"ProductBlockOneForTest": {"int_field": "new_int_field"}}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs, updates=updates)
+
+    expected_old_diff = {
+        "TestProductOne": {
+            "missing_in_depends_on_blocks": {
+                "ProductBlockOneForTest": {
+                    "missing_resource_types_in_db": {"new_int_field"},
+                    "missing_resource_types_in_model": {"int_field"},
+                }
+            }
+        }
+    }
+
+    def test_expected_before_upgrade():
+        before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+        assert before_diff == expected_old_diff
+        int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "int_field").all()
+        new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
+        assert int_field_resource
+        assert not new_int_field_resource
+
+    assert len(upgrade_sql) == 3
+    assert len(downgrade_sql) == 4
+
+    test_expected_before_upgrade()
+
+    for stmt in upgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
+    assert upgrade_diff == {}
+
+    for stmt in downgrade_sql:
+        db.session.execute(stmt)
+    db.session.commit()
+
+    test_expected_before_upgrade()
 
 
 def test_migrate_domain_models_remove_product(test_product_one, test_product_type_one):

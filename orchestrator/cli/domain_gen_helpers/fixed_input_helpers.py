@@ -4,9 +4,10 @@ from more_itertools import flatten
 from sqlalchemy.sql.expression import Delete, Insert, Update
 from sqlalchemy.sql.selectable import ScalarSelect
 
-from orchestrator.cli.domain_gen_helpers.helpers import get_user_input, sql_compile
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt, str_fmt
+from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
 from orchestrator.cli.domain_gen_helpers.product_helpers import get_product_id, get_product_ids
+from orchestrator.cli.helpers.input_helpers import get_user_input
+from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.db.models import FixedInputTable
 
 

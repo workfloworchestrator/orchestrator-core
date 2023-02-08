@@ -25,13 +25,6 @@ def generic_mapper(prop_name: str, model_diffs: Dict[str, Dict[str, Set[str]]]) 
     return {k: {val[1] for val in v} for k, v in grouped}
 
 
-def get_user_input(text: str, default: str = "") -> str:
-    while True:
-        answer = input(text)
-        if answer or default:
-            return answer.strip() if answer else default
-
-
 def map_create_fixed_inputs(model_diffs: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Set[str]]:
     return generic_mapper("missing_fixed_inputs_in_db", model_diffs)
 

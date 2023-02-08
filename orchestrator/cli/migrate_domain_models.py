@@ -18,7 +18,6 @@ from orchestrator.cli.domain_gen_helpers.fixed_input_helpers import (
     map_update_fixed_inputs,
 )
 from orchestrator.cli.domain_gen_helpers.helpers import (
-    get_user_input,
     map_create_fixed_inputs,
     map_create_product_block_relations,
     map_create_resource_type_relations,
@@ -26,7 +25,6 @@ from orchestrator.cli.domain_gen_helpers.helpers import (
     map_delete_product_block_relations,
     map_delete_resource_type_relations,
 )
-from orchestrator.cli.domain_gen_helpers.print_helpers import COLOR, print_fmt
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import (
     generate_create_product_block_instance_relations_sql,
     generate_create_product_block_relations_sql,
@@ -52,12 +50,17 @@ from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
     generate_delete_resource_type_relations_sql,
     generate_delete_resource_types_sql,
     generate_rename_resource_types_sql,
+    generate_update_resource_type_block_relations_sql,
+    generate_update_resource_type_instance_values_sql,
     map_create_resource_type_instances,
     map_create_resource_types,
     map_delete_resource_types,
+    map_update_product_block_resource_types,
     map_update_resource_types,
 )
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges, ModelUpdates
+from orchestrator.cli.helpers.input_helpers import get_user_input
+from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt
 from orchestrator.db.models import ProductTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel, get_depends_on_product_block_type_list
@@ -165,6 +168,9 @@ def remove_updated_properties(
         }
         updated_old_rts = set(rt_updates.keys())
         updated_new_rts = set(rt_updates.values())
+        if block_updates := updates.block_resource_types.get(block_name, {}):
+            updated_old_rts = updated_old_rts | set(block_updates.keys())
+            updated_new_rts = updated_new_rts | set(block_updates.values())
         diffs["missing_resource_types_in_model"] = missing_rt_in_model - updated_old_rts
         diffs["missing_resource_types_in_db"] = missing_rt_in_db - updated_new_rts
         model_diffs["blocks"][block_name] = diffs
@@ -189,6 +195,7 @@ def map_changes(
         - product_blocks: Dict with product block model by product name.
         - db_product_names: Product names out of the database.
         - inputs: Optional Dict with prefilled values.
+        - updates: Optional Dict.
 
     Returns: Mapped changes.
     """
@@ -198,9 +205,13 @@ def map_changes(
     # updates need to go before create or deletes.
     if not updates:
         renamed_resource_types = map_update_resource_types(model_diffs["blocks"], product_blocks, inputs)
+        update_block_resource_types = map_update_product_block_resource_types(
+            model_diffs["blocks"], renamed_resource_types
+        )
         updates = ModelUpdates(
             fixed_inputs=map_update_fixed_inputs(model_diffs["products"]),
             resource_types=renamed_resource_types,
+            block_resource_types=update_block_resource_types,
         )
 
     model_diffs = remove_updated_properties(updates, model_diffs)
@@ -216,6 +227,7 @@ def map_changes(
         create_product_to_block_relations=map_create_product_block_relations(model_diffs["products"]),
         delete_product_to_block_relations=map_delete_product_block_relations(model_diffs["products"]),
         rename_resource_types=updates.resource_types,
+        update_block_resource_types=updates.block_resource_types,
         delete_resource_types=map_delete_resource_types(
             delete_resource_type_relations, list(updates.resource_types.keys()), product_blocks
         ),
@@ -229,7 +241,8 @@ def map_changes(
 
     changes = map_product_additional_relations(changes)
     changes = map_product_block_additional_relations(changes)
-    related_resource_type_names = set(changes.create_resource_type_relations.keys())
+    temp = {key for v in changes.update_block_resource_types.values() for key in v.values()}
+    related_resource_type_names = set(changes.create_resource_type_relations.keys()) | temp
     existing_renamed_rts = set(changes.rename_resource_types.values())
     changes.create_resource_types = map_create_resource_types(related_resource_type_names, existing_renamed_rts)
     changes.create_resource_type_instance_relations = map_create_resource_type_instances(changes)
@@ -260,6 +273,8 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
         + generate_create_fixed_inputs_sql(changes.create_product_fixed_inputs, inputs)
         + generate_create_product_blocks_sql(changes.create_product_blocks, inputs)
         + generate_create_resource_types_sql(changes.create_resource_types, inputs)
+        + generate_update_resource_type_block_relations_sql(changes.update_block_resource_types)
+        + generate_update_resource_type_instance_values_sql(changes.update_block_resource_types)
         + generate_create_product_relations_sql(changes.create_product_to_block_relations)
         + generate_create_product_block_relations_sql(changes.create_product_block_relations)
         + generate_create_resource_type_relations_sql(changes.create_resource_type_relations)
@@ -294,8 +309,18 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
         changes.create_resource_type_relations
     )
     sql_revert_create_resource_types = generate_delete_resource_types_sql(changes.create_resource_types)
-    sql_revert_update_resource_types = generate_rename_resource_types_sql(
+    sql_revert_rename_resource_types = generate_rename_resource_types_sql(
         {new: old for old, new in changes.rename_resource_types.items()}
+    )
+    reversed_update_block_resource_types = {
+        block: {new: old for old, new in rt_updates.items()}
+        for block, rt_updates in changes.update_block_resource_types.items()
+    }
+    sql_revert_update_block_resource_types = generate_update_resource_type_block_relations_sql(
+        reversed_update_block_resource_types
+    )
+    sql_revert_update_block_instance_values = generate_update_resource_type_instance_values_sql(
+        reversed_update_block_resource_types
     )
 
     sql_revert_create_product_product_block_relations = generate_delete_product_relations_sql(
@@ -310,6 +335,8 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
 
     return (
         sql_revert_create_resource_type_relations
+        + sql_revert_update_block_resource_types
+        + sql_revert_update_block_instance_values
         + sql_revert_create_resource_types
         + sql_revert_create_product_product_block_relations
         + sql_revert_create_product_block_depends_blocks
@@ -317,7 +344,7 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
         + sql_revert_create_product_blocks
         + sql_revert_create_products
         + sql_revert_delete_fixed_inputs
-        + sql_revert_update_resource_types
+        + sql_revert_rename_resource_types
         + sql_revert_update_fixed_inputs
     )
 
@@ -362,6 +389,7 @@ def create_domain_models_migration_sql(
     )
     logger.info("create_resource_types", create_resource_types=changes.create_resource_types)
     logger.info("rename_resource_types", rename_resource_types=changes.rename_resource_types)
+    logger.info("update_block_resource_types", update_block_resource_types=changes.update_block_resource_types)
     logger.info("delete_resource_types", delete_resource_types=changes.delete_resource_types)
     logger.info("create_resource_type_relations", create_resource_type_relations=changes.create_resource_type_relations)
     logger.info(
