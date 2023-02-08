@@ -276,7 +276,7 @@ def test_migrate_domain_models_update_resource_type(
     test_expected_before_upgrade()
 
 
-def test_migrate_domain_models_create_and_update_resource_type(test_product_type_one, product_one_subscription_1):
+def test_migrate_domain_models_create_and_rename_resource_type(test_product_type_one, product_one_subscription_1):
     _, _, ProductTypeOneForTest = test_product_type_one
 
     class SubBlockOneForTestNewResource(
@@ -341,7 +341,7 @@ def test_migrate_domain_models_create_and_update_resource_type(test_product_type
     test_expected_before_upgrade()
 
 
-def test_migrate_domain_models_create_and_update_and_delete_resource_type(
+def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
     test_product_type_sub_list_union,
     product_sub_list_union_subscription_1,
 ):
@@ -620,18 +620,21 @@ def test_migrate_domain_models_update_block_resource_type(
     test_expected_before_upgrade()
 
 
-def test_migrate_domain_models_rename_and_update_block_resource_type(
-    test_product_type_one, test_product_sub_block_one, product_one_subscription_1
-):
+def test_migrate_domain_models_rename_and_update_block_resource_type(test_product_type_one, product_one_subscription_1):
     _, _, ProductTypeOneForTest = test_product_type_one
-    _, _, SubBlockOneForTest = test_product_sub_block_one
+
+    class SubBlockOneForTesUpdated(
+        ProductBlockModel, product_block_name="SubBlockOneForTest", lifecycle=[SubscriptionLifecycle.ACTIVE]
+    ):
+        int_field: int
+        other_str_field: str
 
     class ProductBlockOneForTestUpdated(
         ProductBlockModel, product_block_name="ProductBlockOneForTest", lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
-        sub_block: SubBlockOneForTest
-        sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block: SubBlockOneForTesUpdated
+        sub_block_2: SubBlockOneForTesUpdated
+        sub_block_list: List[SubBlockOneForTesUpdated]
         update_str_field: str
         int_field: int
         list_field: List[int]
@@ -642,13 +645,13 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
 
-    inputs = json.dumps(
+    inputs = json.dumps({"update_str_field": {"description": "test"}})
+    updates = json.dumps(
         {
-            "update_str_field": {"description": "test"},
-            "updates": {"block_resource_types": {"ProductBlockOneForTest": {"str_field": "update_str_field"}}},
+            "resource_types": {"str_field": "other_str_field"},
+            "block_resource_types": {"ProductBlockOneForTest": {"other_str_field": "update_str_field"}},
         }
     )
-    updates = json.dumps({"block_resource_types": {"ProductBlockOneForTest": {"str_field": "update_str_field"}}})
     upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs, updates=updates)
 
     def test_expected_before_upgrade():
@@ -662,8 +665,8 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(
         assert not new_str_field_resource
         return subscription.block.str_field
 
-    assert len(upgrade_sql) == 3
-    assert len(downgrade_sql) == 4
+    assert len(upgrade_sql) == 6
+    assert len(downgrade_sql) == 5
 
     str_field_value = test_expected_before_upgrade()
 
