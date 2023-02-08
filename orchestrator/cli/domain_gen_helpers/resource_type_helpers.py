@@ -126,8 +126,10 @@ def map_update_resource_types(
     return updates
 
 
-def update_resource_type_input(old_props: List[str], new_props: List[str]) -> Tuple[Optional[str], Optional[str]]:
-    noqa_print("Which resource type would you want to update?")
+def update_block_resource_type_input(
+    block_name: str, old_props: List[str], new_props: List[str]
+) -> Tuple[Optional[str], Optional[str]]:
+    noqa_print(f"Which resource type would you want to update in {block_name} Block?")
     old_rt = _prompt_user_menu(
         [*[(p, p) for p in old_props], ("skip", None)],
         keys=[*_enumerate_menu_keys(old_props), "q"],
@@ -177,7 +179,7 @@ def map_update_product_block_resource_types(
         old_rts = [prop for prop in db_props if prop not in renamed_resource_types]
         new_rts = [prop for prop in model_props if prop not in updated_new_rts]
         while len(old_rts) > 0 and len(new_rts) > 0:
-            old_rt, new_rt = update_resource_type_input(old_rts, new_rts)
+            old_rt, new_rt = update_block_resource_type_input(block_name, old_rts, new_rts)
             if not old_rt:
                 break
             if not new_rt:
