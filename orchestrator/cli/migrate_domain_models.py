@@ -55,8 +55,8 @@ from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
     map_create_resource_type_instances,
     map_create_resource_types,
     map_delete_resource_types,
+    map_rename_resource_types,
     map_update_product_block_resource_types,
-    map_update_resource_types,
 )
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges, ModelUpdates
 from orchestrator.cli.helpers.input_helpers import get_user_input
@@ -204,7 +204,7 @@ def map_changes(
 
     # updates need to go before create or deletes.
     if not updates:
-        renamed_resource_types = map_update_resource_types(model_diffs["blocks"], product_blocks, inputs)
+        renamed_resource_types = map_rename_resource_types(model_diffs["blocks"], product_blocks)
         update_block_resource_types = map_update_product_block_resource_types(
             model_diffs["blocks"], renamed_resource_types
         )

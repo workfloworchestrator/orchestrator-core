@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional, Tuple, TypeVar
+from typing import Iterable, List, Optional, Set, Tuple, TypeVar, Union
 
 import structlog
 
@@ -15,10 +15,10 @@ def get_user_input(text: str, default: str = "", optional: bool = False) -> str:
         if answer or default:
             return answer.strip() if answer else default
         if optional:
-            return ""
+            return default
 
 
-def _enumerate_menu_keys(items: List) -> List[str]:
+def _enumerate_menu_keys(items: Union[List, Set]) -> List[str]:
     return [str(i + 1) for i in range(len(items))]
 
 
