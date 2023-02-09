@@ -112,6 +112,9 @@ def resume_process_endpoint(
 
     process = _get_process(pid)
 
+    if process.last_status == ProcessStatus.COMPLETED:
+        raise_status(HTTPStatus.CONFLICT, "Resuming a completed workflow is not possible")
+
     if process.last_status == ProcessStatus.RUNNING:
         raise_status(HTTPStatus.CONFLICT, "Resuming a running workflow is not possible")
 
