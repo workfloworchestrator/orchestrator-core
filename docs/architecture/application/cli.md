@@ -217,12 +217,34 @@ You will be prompted with inputs when updates are found.
 - rename of resource type input (renaming `age` to `user_age` in User Block). Only works when the resource type is renamed in all Blocks:
 
     > <u>**Update resource types**</u><br>
-	> Do you wish to rename resource type <span style="color:magenta">age</span> to <span style="color:magenta">user_age</span>? [y/N]: 
+	> Do you wish to rename resource type <span style="color:magenta">age</span> to <span style="color:magenta">user_age</span>? [y/N]:
 
 - rename of fixed input (renaming `affiliation` to `affiliationing` in User Product):
 
     > <u>**Update fixed inputs**</u><br>
-    Do you wish to rename fixed input <span style="color:magenta">affiliation</span> to <span style="color:magenta">affiliationing</span> for product **User internal**? [y/N]: 
+    Do you wish to rename fixed input <span style="color:magenta">affiliation</span> to <span style="color:magenta">affiliationing</span> for product **User internal**? [y/N]:
+
+- update of resource type per block (renaming `age` to `user_age` in User Block and not chosing to rename resource type). The input will loop until skipped or when there are no options anymore:
+    - first you get to choose which old resource type to update, skip will create/delete all resource types.
+        > <u>**Update block resource types**</u><br>
+        ```bash
+        Which resource type would you want to update in UserBlock Block?
+        1) age
+        q) skip
+        ?
+        ```
+    - then you get to choose which new resource type to update with, skip will give you the first question again.
+        ```bash
+        Which resource type should update age?
+        1) user_age
+        q) skip
+        ?
+        ```
+    - with 1 and 1, the log level difference would look like:
+        ```bash
+        2023-02-08 14:11:25 [info] update_block_resource_types [orchestrator.cli.migrate_domain_models] update_block_resource_types={'UserBlock': {'age': 'user_age'}}
+        ```
+
 
 It will log the differences on info level:
 
@@ -261,7 +283,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO products (name, description, product_type, tag, status) VALUES ('User group', 'User group product', 'UserGroup', 'GROUP', 'active') RETURNING products.product_id
     ```
 
-  
+
 - new fixed input (the type isn't checked, so typing an incorrect value will insert in db):
 
     > <u>**Create fixed inputs**</u><br>
@@ -288,7 +310,7 @@ After confirming, it will start generating the SQL, logging the SQL on debug lev
     ```sql
     2022-10-27 11:45:10 [debug] generated SQL [orchestrator.cli.domain_gen_helpers.helpers] sql_string=INSERT INTO resource_types (resource_type, description) VALUES ('group_name', 'Unique name of user group') RETURNING resource_types.resource_type_id
     ```
-  
+
 - default value for resource type per product block (necessary for adding a default value to existing instances):
 
     > <u>**Create subscription instance values**</u><br>
