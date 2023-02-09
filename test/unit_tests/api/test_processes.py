@@ -354,6 +354,17 @@ def test_resume_with_incorrect_workflow_status(test_client, started_process):
     assert process_info_after["status"] == "running"
 
 
+def test_try_resume_completed_workflow(test_client, started_process):
+    process = ProcessTable.query.get(started_process)
+    # setup DB so it looks like this workflow is already completed
+    process.last_status = ProcessStatus.COMPLETED
+    process.failed_reason = ""
+    db.session.commit()
+
+    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{}])
+    assert 409 == response.status_code
+
+
 def test_processes_filterable(test_client, mocked_processes, generic_subscription_2, generic_subscription_1):
     response = test_client.get("/api/processes/")
     assert HTTPStatus.OK == response.status_code
