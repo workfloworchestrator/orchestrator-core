@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import functools
 import inspect
-import sys
 from dataclasses import asdict, dataclass
 from typing import (
     Any,
@@ -37,12 +36,8 @@ from uuid import UUID
 
 import structlog
 from nwastdlib import const, identity
+from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
-
-if sys.version_info >= (3, 10):
-    from structlog.contextvars import bound_contextvars
-else:
-    from structlog.threadlocal import tmp_bind
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, db, transactional
@@ -217,26 +212,15 @@ def step(name: str) -> Callable[[StepFunc], Step]:
     def decorator(func: StepFunc) -> Step:
         @functools.wraps(func)
         def wrapper(state: State) -> Process:
-            if sys.version_info >= (3, 10):
-                with bound_contextvars(func=func.__qualname__):
-                    step_in_inject_args = inject_args(func)
-                    try:
-                        with transactional(db, logger):
-                            result = step_in_inject_args(state)
-                            return Success(result)
-                    except Exception as ex:
-                        logger.warning("Step failed", exc_info=ex)
-                        return Failed(ex)
-            else:
-                with tmp_bind(logger, func=func.__qualname__) as log:
-                    step_in_inject_args = inject_args(func)
-                    try:
-                        with transactional(db, log):
-                            result = step_in_inject_args(state)
-                            return Success(result)
-                    except Exception as ex:
-                        log.warning("Step failed", exc_info=ex)
-                        return Failed(ex)
+            with bound_contextvars(func=func.__qualname__):
+                step_in_inject_args = inject_args(func)
+                try:
+                    with transactional(db, logger):
+                        result = step_in_inject_args(state)
+                        return Success(result)
+                except Exception as ex:
+                    logger.warning("Step failed", exc_info=ex)
+                    return Failed(ex)
 
         return make_step_function(wrapper, name)
 
@@ -253,25 +237,14 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
     def decorator(func: StepFunc) -> Step:
         @functools.wraps(func)
         def wrapper(state: State) -> Process:
-            if sys.version_info >= (3, 10):
-                with bound_contextvars(func=func.__qualname__):
-                    step_in_inject_args = inject_args(func)
-                    try:
-                        with transactional(db, logger):
-                            result = step_in_inject_args(state)
-                            return Success(result)
-                    except Exception as ex:
-                        return Waiting(ex)
-
-            else:
-                with tmp_bind(logger, func=func.__qualname__) as log:
-                    step_in_inject_args = inject_args(func)
-                    try:
-                        with transactional(db, log):
-                            result = step_in_inject_args(state)
-                            return Success(result)
-                    except Exception as ex:
-                        return Waiting(ex)
+            with bound_contextvars(func=func.__qualname__):
+                step_in_inject_args = inject_args(func)
+                try:
+                    with transactional(db, logger):
+                        result = step_in_inject_args(state)
+                        return Success(result)
+                except Exception as ex:
+                    return Waiting(ex)
 
         return make_step_function(wrapper, name)
 

@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
-from starlette.testclient import DataType, TestClient
+from starlette.testclient import TestClient
 from urllib3_mock import Responses
 
 from orchestrator import OrchestratorCore
@@ -257,7 +257,7 @@ def test_client(fastapi_app):
             self,
             method: str,
             url: str,
-            data: Optional[DataType] = None,
+            data: Optional[Any] = None,
             headers: Optional[typing.MutableMapping[str, str]] = None,
             json: typing.Any = None,
             **kwargs: Any,
