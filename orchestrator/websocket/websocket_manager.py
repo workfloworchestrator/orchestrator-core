@@ -41,7 +41,7 @@ class WebSocketManager:
     async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
         try:
             async with AsyncClient() as client:
-                user = await oidc_user(websocket, async_request=client, token=token)  # type: ignore
+                user = await oidc_user(websocket, token=token)  # type: ignore
                 if user:
                     await opa_security_default(websocket, user, client)  # type: ignore
         except HTTPException as e:

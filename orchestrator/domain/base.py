@@ -14,22 +14,7 @@ from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from sys import version_info
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ClassVar,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    get_type_hints,
-)
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union, get_type_hints
 from uuid import UUID, uuid4
 
 import structlog
@@ -180,16 +165,9 @@ class DomainModel(BaseModel):
         cls._non_product_block_fields_ = {}
         cls._product_block_fields_ = {}
 
-        if version_info.minor < 10:
-            annotations = cls.__dict__.get("__annotations__", {})
-        else:
-            if TYPE_CHECKING:
-                annotations = {}
-            else:
-                # Only available in python > 3.10
-                from inspect import get_annotations
+        from inspect import get_annotations
 
-                annotations = get_annotations(cls)
+        annotations = get_annotations(cls)
 
         # Retrieve type hints with evaluated ForwardRefs (for nested blocks)
         type_hints = get_type_hints(cls, localns={cls.__name__: cls})
