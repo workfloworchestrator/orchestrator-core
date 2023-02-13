@@ -244,8 +244,8 @@ def test_migrate_domain_models_update_resource_type(
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
 
-    inputs = json.dumps({"list_field": {"update": "y"}})
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+    updates = json.dumps({"resource_types": {"list_field": "new_list_field"}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, updates=updates)
 
     assert len(upgrade_sql) == 1
     assert "UPDATE" in upgrade_sql[0]
@@ -302,13 +302,9 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTestNew
 
-    inputs = json.dumps(
-        {
-            "new_list_field": {"SubBlockOneForTest": "5"},
-            "list_field": {"update": "y"},
-        }
-    )
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+    inputs = json.dumps({"new_list_field": {"SubBlockOneForTest": "5"}})
+    updates = json.dumps({"resource_types": {"list_field": "new_list_field"}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs, updates=updates)
 
     assert len(upgrade_sql) == 3
     assert [sql_stmt for sql_stmt in upgrade_sql if "UPDATE" in sql_stmt]
@@ -373,13 +369,9 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
 
     SUBSCRIPTION_MODEL_REGISTRY["ProductSubListUnion"] = ProductSubListUnionTest
 
-    inputs = json.dumps(
-        {
-            "changed_int_field": {"SubBlockOneForTest": "5", "SubBlockTwoForTest": "2"},
-            "int_field": {"update": "y"},
-        }
-    )
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs)
+    inputs = json.dumps({"changed_int_field": {"SubBlockOneForTest": "5", "SubBlockTwoForTest": "2"}})
+    updates = json.dumps({"resource_types": {"int_field": "changed_int_field"}})
+    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=inputs, updates=updates)
 
     assert len(upgrade_sql) == 5
     assert [sql_stmt for sql_stmt in upgrade_sql if "UPDATE" in sql_stmt]

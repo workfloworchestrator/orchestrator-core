@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
@@ -70,12 +71,33 @@ def find_resource_within_blocks(
     return {field_name for field_name in keys if field_name in resource_type_names}
 
 
-def map_update_resource_types(
+def rename_resource_type_inputs(
+    resource_type_choices: Dict[str, Set[str]],
+    renamed_resource_types: Dict[str, str],
+) -> Tuple[Optional[str], Optional[str]]:
+    old_resource_types = set(resource_type_choices.keys())
+    noqa_print("Which resource type would you want to rename?")
+    old_rt = _prompt_user_menu(
+        [*[(p, p) for p in old_resource_types], ("continue", None)],
+        keys=[*_enumerate_menu_keys(old_resource_types), "q"],
+    )
+    if not old_rt:
+        return None, None
+
+    choices = resource_type_choices[old_rt] - set(renamed_resource_types.values())
+    noqa_print(f"\nWhich resource type should rename {old_rt}?")
+    new_rt = _prompt_user_menu(
+        [*[(p, p) for p in choices], ("cancel", None)],
+        keys=[*_enumerate_menu_keys(choices), "q"],
+    )
+    return old_rt, new_rt if new_rt else None
+
+
+def map_rename_resource_types(
     block_diffs: Dict[str, Dict[str, Set[str]]],
     product_blocks: Dict[str, Type[ProductBlockModel]],
-    inputs: Dict[str, Dict[str, str]],
 ) -> Dict[str, str]:
-    """Map resource types to update.
+    """Map resource types to rename.
 
     Args:
         - block_diffs: Dict with product block differences.
@@ -84,54 +106,59 @@ def map_update_resource_types(
                 - key: difference name, 'missing_resource_types_in_model' and 'missing_resource_types_in_db' are used to check if a resource type can be renamed.
                 - value: Set of resource type names.
         - product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
-        - inputs: Optional Dict to specify if resource type should update.
-            - key: Resource type name.
-            - value: Dict with update 'y/n'.
-                - key: 'update' key.
-                - value: 'y/n'.
 
     Returns: Dict with resource types that can be updated.
         - key: old resource type name.
         - value: new resource type name.
     """
 
-    updates = {}
-    print_fmt("\nUpdate resource types", flags=[COLOR.BOLD, COLOR.UNDERLINE])
-    for diff in block_diffs.values():
-        db_props = list(diff.get("missing_resource_types_in_model", set()))
-        model_props = list(diff.get("missing_resource_types_in_db", set()))
+    renamed_resource_types: Dict[str, str] = {}
+    new_resource_types: Set[str] = set()
+    existing_resource_types = {
+        rt for rt, in ResourceTypeTable.query.with_entities(ResourceTypeTable.resource_type).all()
+    }
+    possible_rt_choices: Dict[str, Set[str]] = defaultdict(set)
 
-        if (len(db_props) == 1 and len(model_props) == 1) and db_props[0] not in updates:
-            existing_in_blocks = find_resource_within_blocks(db_props, product_blocks)
-            if not existing_in_blocks:
-                prefilled_val = inputs.get(db_props[0], {}).get("update")
-                should_update = (
-                    prefilled_val
-                    if prefilled_val
-                    else get_user_input(
-                        "".join(
-                            [
-                                "Do you wish to rename resource type ",
-                                str_fmt(db_props[0], flags=[COLOR.MAGENTA]),
-                                " to ",
-                                str_fmt(model_props[0], flags=[COLOR.MAGENTA]),
-                                "? [y/N]: ",
-                            ]
-                        ),
-                        "N",
-                    )
-                )
-                if should_update == "y":
-                    updates[db_props[0]] = model_props[0]
-    return updates
+    for diff in block_diffs.values():
+        db_resource_types = list(diff.get("missing_resource_types_in_model", set()))
+        model_resource_types = list(diff.get("missing_resource_types_in_db", set()))
+        existing_in_blocks = find_resource_within_blocks(db_resource_types, product_blocks)
+
+        old_block_resource_types = {
+            resource_types for resource_types in db_resource_types if resource_types not in existing_in_blocks
+        }
+        new_block_resource_types = {
+            resource_type for resource_type in model_resource_types if resource_type not in existing_resource_types
+        }
+
+        new_resource_types.update(new_block_resource_types)
+        for rt in old_block_resource_types:
+            possible_rt_choices[rt].update(new_block_resource_types)
+
+    print_fmt("\nRename resource types", flags=[COLOR.BOLD, COLOR.UNDERLINE])
+    while len(possible_rt_choices.keys()) > 0 and len(new_resource_types) > 0:
+        old_rt, new_rt = rename_resource_type_inputs(possible_rt_choices, renamed_resource_types)
+        if not old_rt:
+            break
+        if not new_rt:
+            continue
+
+        possible_rt_choices = {
+            key: {value for value in values if value != new_rt}
+            for key, values in possible_rt_choices.items()
+            if key != old_rt
+        }
+        new_resource_types.remove(new_rt)
+        renamed_resource_types[old_rt] = new_rt
+    return renamed_resource_types
 
 
 def update_block_resource_type_input(
-    block_name: str, old_props: List[str], new_props: List[str]
+    old_props: List[str], new_props: List[str], block_name: str
 ) -> Tuple[Optional[str], Optional[str]]:
     noqa_print(f"Which resource type would you want to update in {block_name} Block?")
     old_rt = _prompt_user_menu(
-        [*[(p, p) for p in old_props], ("skip", None)],
+        [*[(p, p) for p in old_props], ("continue", None)],
         keys=[*_enumerate_menu_keys(old_props), "q"],
     )
     if not old_rt:
@@ -139,7 +166,7 @@ def update_block_resource_type_input(
 
     noqa_print(f"\nWhich resource type should update {old_rt}?")
     new_rt = _prompt_user_menu(
-        [*[(p, p) for p in new_props], ("skip", None)],
+        [*[(p, p) for p in new_props], ("cancel", None)],
         keys=[*_enumerate_menu_keys(new_props), "q"],
     )
     return old_rt, new_rt if new_rt else None
@@ -153,20 +180,17 @@ def map_update_product_block_resource_types(
 
     Args:
         - block_diffs: Dict with product block differences.
-            - key: product block name
+            - key: product block name.
             - value: Dict with differences between model and database.
                 - key: difference name, 'missing_resource_types_in_model' and 'missing_resource_types_in_db' are used to check if a resource type can be renamed.
                 - value: Set of resource type names.
-        - product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
-        - inputs: Optional Dict to specify if resource type should update.
-            - key: Resource type name.
-            - value: Dict with update 'y/n'.
-                - key: 'update' key.
-                - value: 'y/n'.
+        - renamed_resource_types: Dict of renamed resource types, old name as key and new name as value.
 
-    Returns: Dict with resource types that can be updated.
-        - key: old resource type name.
-        - value: new resource type name.
+    Returns: Dict with resource types per product block that can be updated.
+        - key: product block name.
+        - value: Dict with resource types to update.
+            - key: old resource type name.
+            - value: new resource type name.
     """
 
     updates = {}
@@ -179,7 +203,7 @@ def map_update_product_block_resource_types(
         old_rts = [prop for prop in db_props if prop not in renamed_resource_types]
         new_rts = [prop for prop in model_props if prop not in updated_new_rts]
         while len(old_rts) > 0 and len(new_rts) > 0:
-            old_rt, new_rt = update_block_resource_type_input(block_name, old_rts, new_rts)
+            old_rt, new_rt = update_block_resource_type_input(old_rts, new_rts, block_name)
             if not old_rt:
                 break
             if not new_rt:
