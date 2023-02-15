@@ -262,10 +262,6 @@ class Populator:
                 # Ignore divider elements
                 value = ""
 
-            if value is None:
-                log.error("Unable to resolve input field", input_field=input_field)
-                raise Exception(f"Unable to resolve input field: {field_name}")
-
             log.debug("Resolved input_field.", value=value)
             data[field_name] = value
         return data
