@@ -98,7 +98,7 @@ class CreateLightPathForm(FormPage):
 
 ### Multi step form input
 
-Similar to the original "list based" form `Input` elements, to do a multi step form flow yield multiple times and then combine the results at the end:
+Similar to the original "list based" form `Input` elements, to do a multistep form flow yield multiple times and then combine the results at the end:
 
 ```python
 def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGenerator:

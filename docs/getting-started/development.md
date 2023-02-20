@@ -3,7 +3,7 @@
 To add features to the repository follow the following procedure to setup a working development environment.
 
 ### Installation (Development)
-Install the project and its dependancies to develop on the code.
+Install the project and its dependencies to develop on the code.
 
 #### Step 1 - install flit:
 ``` shell

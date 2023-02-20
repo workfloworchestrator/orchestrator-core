@@ -22,7 +22,7 @@ the developer to be more `Type safe` whilst developing.
 
 #### Example
 !!! example
-    The main reason for developing domain models was to make sure bugs like this occured less.
+    The main reason for developing domain models was to make sure bugs like this occurred less.
     ##### Pre domain models
 
     ```python
@@ -115,7 +115,7 @@ class ServicePortBlockInactive(ProductBlockModel, product_block_name="Service Po
 ```
 As you can see in this model we define it as an Inactive Class. As parameter we pass the name of the product_block in the
 database. In the second highlighted line you see a variable. This references a `resource_type` in the database, and annotates what type it should be at runtime.
-In the `Inactive` or `Initial` phase of the Subscripton lifecycle we are least restrictive in annotating the properties; All fields/resource types
+In the `Inactive` or `Initial` phase of the Subscription lifecycle we are least restrictive in annotating the properties; All fields/resource types
 are Optional.
 
 ##### Product Block Model - Provisioning
@@ -132,7 +132,7 @@ class ServicePortBlockProvisioning(
     auto_negotiation: Optional[bool] = None
     node: NodeProductBlock
 ```
-In this stage whe have changed the way a Subscription domain model should look like in a certain Lifecyle state.
+In this stage whe have changed the way a Subscription domain model should look like in a certain Lifecycle state.
 You also see that the `resource_type` now no-longer is Optional. It must exist in this instantiation of the class. The
 model will raise a `ValidationError` upon `.save()` if typing is not filled in correctly.
 
@@ -149,7 +149,7 @@ class ServicePortBlock(ServicePortBlockProvisioning, lifecycle=[SubscriptionLife
     node: NodeProductBlock
 ```
 
-The Class is now defined in it's most strict form, in other words in the Active lifecycle of a subscription,
+The Class is now defined in its most strict form, in other words in the Active lifecycle of a subscription,
 this product block model must have all resource_types filled in except for `auto_negotiation` to function correctly.
 
 !!! Tip
@@ -173,7 +173,7 @@ class ServicePortInitial(
     port: Optional[ServicePortBlockInactive] = None
 ```
 
-In the above example you can observe the lifecyle definition as per the `ProductBlockModels`. Below that you see `fixed_inputs`
+In the above example you can observe the lifecycle definition as per the `ProductBlockModels`. Below that you see `fixed_inputs`
 These can be of any type, however if they are a `SubClass` of a `ProductBlockModel` the code will automatically create
 a database instance of that object.
 
@@ -199,7 +199,7 @@ to the `port` property in `SubscriptionLifecycle.ACTIVE` compared to `Subscripti
 
 ### Advanced Use Cases
 #### Crossing the subscription boundary
-As mentioned before an advanced usecase would be to use `ProductBlockModels` from other Subscriptions.
+As mentioned before an advanced use case would be to use `ProductBlockModels` from other Subscriptions.
 
 !!! Example
     ```python
@@ -218,7 +218,7 @@ As mentioned before an advanced usecase would be to use `ProductBlockModels` fro
     False
     ```
 This is valid use of the domain models. The code will detect that `port` is part of `first_service_port` and respect
-onwership. It basically will treat it as a `read-only` property.
+ownership. It basically will treat it as a `read-only` property.
 
 #### Union types
 There may also be a case where a user would like to define two different types to a `ProductBlockModel` propery.

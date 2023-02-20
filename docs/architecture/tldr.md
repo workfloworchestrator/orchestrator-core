@@ -26,7 +26,7 @@ def workflow():
 ```
 
 The `@workflow` decorator converts what the function returns into a `StepList` which the engine executes sequentially.
-If and when the step functions raise an exeption, the workflow will fail at that step and allow the user to retry.
+If and when the step functions raise an exception, the workflow will fail at that step and allow the user to retry.
 
 ## Products and Subscriptions
 The second part of the orchestrator is a product database that allows a developer to define a collection of logically grouped

@@ -21,7 +21,7 @@ There is one important difference though, one of the user inputs on the input
 form is special: the selection of the user group the user belongs to. It is not
 just an integer or a string, but the user must be able to select a user group
 out of a list of already provisioned user groups. For this the database will be
-queried to obtain a list of active user group susbscriptions, and a special
+queried to obtain a list of active user group subscriptions, and a special
 input field type is used to display a dropdown input field on the input form. 
 
 In the orchestrator, all access to the database is implemented using

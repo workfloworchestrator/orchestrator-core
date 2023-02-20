@@ -8,7 +8,7 @@ Tasks have a lot in common with regular workflows.
 
 ### Task code
 
-The task code modules are located in `orchestrator/orchestrator/server/workflows/tasks/`. Here is a very bare bones task file:
+The task code modules are located in `orchestrator/orchestrator/server/workflows/tasks/`. Here is a very bare-bones task file:
 
 ```python
 import time
