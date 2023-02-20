@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from redis import Redis
+from redis.asyncio import Redis as AIORedis
 from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
@@ -64,3 +65,24 @@ def delete_from_redis(subscription_id: UUID) -> None:
         cache.delete(f"domain:etag:{subscription_id}")
     else:
         logger.warning("Caching disabled, not deleting subscription", subscription=subscription_id)
+
+
+async def delete_keys_matching_pattern(_cache: AIORedis, pattern: str, chunksize: int = 5000) -> int:
+    """Delete all keys matching the given pattern.
+
+    Usage:
+        >>> await delete_keys_matching_pattern("orchestrator:foo:*")  # doctest:+SKIP
+    """
+    deleted = 0
+
+    async def fetch(_cursor: int = 0) -> tuple[int, list[bytes]]:
+        return await _cache.scan(cursor=_cursor, match=pattern, count=chunksize)
+
+    cursor, keys = await fetch()
+    while keys or cursor != 0:
+        if keys:
+            deleted += await _cache.delete(*keys)
+        cursor, keys = await fetch(_cursor=cursor)
+
+    logger.debug("Deleted keys matching pattern", pattern=pattern, deleted=deleted)
+    return deleted
