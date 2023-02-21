@@ -28,24 +28,86 @@ class AppSettings(BaseSettings):
 
 Celery concepts are introduced in the [Documentation](https://docs.celeryq.dev/en/stable/getting-started/introduction.html).
 
-In AppSettings you first will have to change the `EXECUTOR` field:
+When using Celery, the Orchestrator is split into two parts: the orchestrator-api and the orchestrator-worker.
+
+The orchestrator-api functionality is now limited to handling REST requests and delegating them (via one or more
+queues) to the orchestrator-worker. The workflows are executed in the orchestrator-worker.
 
 
-```python
-class AppSettings(BaseSettings):
-    # fields omitted
-
-    EXECUTOR: str = "celery"
-
-    # fields omitted
-```
-
-### queues
+### Queues
 
 Tasks and workflows are submitted on different queues. This allows for independent scaling of
 pods that handle low priority tasks and high priority tasks simply by letting the workers listen
-to different queues. Currently there are two queues defined:
+to different queues. Currently, there are two queues defined:
 
 - workflows: starting or resuming workflows
 - tasks: starting or resuming tasks
+
+By default, [Redis](https://redis.io/) is used for the Celery Broker and Backend. See the next chapter 
+about implementing on how to change this behaviour.
+
+
+### Implementing the worker
+
+The orchestrator-core needs to know what workflows a user has defined. This information is only available in the
+actual application using the orchestrator-core. Here we will use an example as used withing SURF. The files is 
+called tasks.py. First we define our own class derived from the Celery base class:
+
+```python
+class OrchestratorCelery(Celery):
+    def on_init(self) -> None:
+        from orchestrator import OrchestratorCore
+
+        app = OrchestratorCore(base_settings=AppSettings())
+        load_surf(app)  # This will load the workflows
+```
+
+The `load_surf` should be replaced by your own function that at least makes sure that all the workflows are imported
+(which make sure that the are registered) so that the worker can recognize them. This is the minimum implementation
+you need, but you might want to add other initialization that is needed to execute workflows.
+
+Next we instantiate celery using our own `OrchestratorCelery` class:
+
+```python
+broker = f"redis://{AppSettings().CACHE_HOST}:{AppSettings().CACHE_PORT}"
+backend = f"rpc://{AppSettings().CACHE_HOST}:{AppSettings().CACHE_PORT}/0"
+
+celery = OrchestratorCelery("proj", broker=broker, backend=backend, include=["orchestrator.services.tasks"])
+
+celery.conf.update(result_expires=3600)
+```
+
+As you can see in the code above we are using Redis as broker. You can of course replace this by RabbitMQ or 
+another broker of your choice. See the Celery documentation for more details.
+
+`"orchestrator.services.tasks" ` is the namespace in orchestartor-core where the Celery tasks can be found. At the
+moment 4 tasks are defined: 
+
+1. `tasks.new_task`: start a new task (delivered on the Task queue)
+2. `tasks.new_workflow`: start a new workflow (delivered on the Workflow queue)
+3. `tasks.resume_task`: resume an existing task (delivered on the Task queue)
+4. `tasks.resume_workflow`: resume an existing workflow (delivered on the Workflow queue)
+
+
+Finally, we initialize the orchestrator core:
+
+```python
+def init_celery() -> None:
+    from orchestrator.services.tasks import initialise_celery
+
+    initialise_celery(celery)
+
+
+# Needed if we load this as a Celery worker because in that case there is no 'main app'
+init_celery()
+```
+
+The code above sets our local celery instance (which initializes the workflows) as the celery instance that is
+going to be used by the orchestrator-core. Without this code the orchestrator-core would be only aware of a limited
+set of workflows that are part of orchestrator-core itself.
+
+
+## Deployment
+
+Todo: explain on how to use orchestrator[api] en orchestrator[worker]
 
