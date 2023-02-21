@@ -10,16 +10,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from http import HTTPStatus
 from typing import Optional
 
+import structlog
 from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from oauth2_lib.fastapi import OIDCUserModel
 from redis.asyncio import Redis as AIORedis
-from starlette.background import BackgroundTasks
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
@@ -29,21 +28,31 @@ from orchestrator.services import settings
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.settings import app_settings
 from orchestrator.utils.json import json_dumps
+from orchestrator.utils.redis import delete_keys_matching_pattern
 from orchestrator.websocket import WS_CHANNELS, websocket_manager
 
 router = APIRouter()
+logger = structlog.get_logger()
+
+
+CACHE_FLUSH_OPTIONS: dict[str, str] = {
+    "all": "All caches",
+}
 
 
 @router.delete("/cache/{name}")
-async def clear_cache(name: str, background_tasks: BackgroundTasks) -> None:
+async def clear_cache(name: str) -> int | None:
     cache: AIORedis = AIORedis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
-    if name == "all":
-        key_name = "orchestrator:*"
-    else:
-        key_name = f"orchestrator:{name}:*"
-    keys = await cache.keys(key_name)
-    if keys:
-        await cache.delete(*keys)
+    if name not in CACHE_FLUSH_OPTIONS:
+        raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
+
+    key_name = "orchestrator:*" if name == "all" else f"orchestrator:{name}:*"
+    return await delete_keys_matching_pattern(cache, key_name)
+
+
+@router.get("/cache-names")
+def get_cache_names() -> dict[str, str]:
+    return CACHE_FLUSH_OPTIONS
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
