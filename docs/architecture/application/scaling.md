@@ -106,6 +106,26 @@ The code above sets our local celery instance (which initializes the workflows) 
 going to be used by the orchestrator-core. Without this code the orchestrator-core would be only aware of a limited
 set of workflows that are part of orchestrator-core itself.
 
+### Running locally
+
+If you want to test your application locally you have to start both the orchestrator-api and one ore more workers.
+For example:
+
+Start the orchestrator api:
+
+```bash
+EXECUTOR="celery" DATABASE_URI="postgresql://nwa:nwa@localhost/nwa-workflows" ./start.sh dev
+```
+
+Notice that we are setting `EXECUTOR` to `celery`. Without that variable the api resorts to the default threadpool.
+
+Start a single worker that listens both on the `tasks` and `workflows` queue:
+
+```bash
+DATABASE_URI="postgresql://nwa:nwa@localhost/nwa-workflows" celery -A surf.tasks  worker --loglevel=info -Q tasks,workflows
+```
+
+Notice that `-A surf.tasks` indicates the namespace of the file that contains your 'celery' instance.
 
 ## Deployment
 
