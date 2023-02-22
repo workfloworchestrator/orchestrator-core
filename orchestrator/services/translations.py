@@ -16,11 +16,11 @@ from typing import Dict
 
 from orchestrator.settings import app_settings
 
+Translations = Dict[str, dict | str]
 
-def generate_translations(language: str) -> Dict[str, str]:
-    translations_dir = app_settings.TRANSLATIONS_DIR or Path(__file__).parent.parent / "workflows" / "translations"
+
+def _load_translations_file(language: str, translations_dir: Path) -> Translations:
     filename = translations_dir / f"{language}.json"
-
     if not filename.exists():
         return {}
 
@@ -29,3 +29,20 @@ def generate_translations(language: str) -> Dict[str, str]:
         if not isinstance(data, dict):
             return {}
         return data
+
+
+def _deep_merge_dict(d1: dict, d2: dict) -> Translations:
+    for k, v in d2.items():
+        if isinstance(d1.get(k), dict) and isinstance(v, dict):
+            d1[k] = _deep_merge_dict(d1[k], v)
+        else:
+            d1[k] = v
+    return d1
+
+
+def generate_translations(language: str) -> Translations:
+    translations = _load_translations_file(language, Path(__file__).parent.parent / "workflows" / "translations")
+    user_translations = (
+        _load_translations_file(language, app_settings.TRANSLATIONS_DIR) if app_settings.TRANSLATIONS_DIR else {}
+    )
+    return _deep_merge_dict(translations, user_translations)

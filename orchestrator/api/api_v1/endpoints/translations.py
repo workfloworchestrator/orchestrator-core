@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
-
 import structlog
 from fastapi import Query
 from fastapi.routing import APIRouter
@@ -26,7 +24,7 @@ router = APIRouter()
 
 
 @router.get("/{language}", response_model=dict)
-def get_translations(language: str = Query(..., regex="^[a-z]+-[A-Z]+$")) -> Dict[str, str]:
+def get_translations(language: str = Query(..., regex="^[a-z]+-[A-Z]+$")) -> dict:
     translations = generate_translations(language)
 
     return translations
