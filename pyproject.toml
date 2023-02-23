@@ -1,10 +1,11 @@
 [build-system]
-requires = ["flit"]
-build-backend = "flit.buildapi"
+build-backend = "flit_core.buildapi"
+requires = ["flit_core >=3.2,<4"]
 
-[tool.flit.metadata]
-module = "orchestrator"
-dist-name = "orchestrator-core"
+[project]
+name = "orchestrator-core"
+version = "0.3.5"
+description = "Open source orchestration software for NREN's"
 author = "SURF"
 author-email = "automation-beheer@surf.nl"
 home-page = "https://github.com/workfloworchestrator/orchestrator-core"
@@ -33,15 +34,13 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
 ]
-requires = [
+dependencies = [
     "alembic==1.5.4",
     "broadcaster[redis]==0.2.0",
     "celery",
     "celery[redis]",
     "click==8.0.3",
     "deepmerge==0.1.0",
-    "fastapi~=0.91.0",
-    "fastapi-etag==0.4.0",
     "more-itertools~=9.0.0",
     "itsdangerous==2.1.2",
     "Jinja2==3.1.2",
@@ -77,10 +76,22 @@ requires = [
 description-file = "README.md"
 requires-python = ">3.9,<3.12"
 
-[tool.flit.metadata.urls]
-Documentation = "https://workfloworchestrator.org/orchestrator-core/"
+[project.urls]
+documentation = "https://workfloworchestrator.org/orchestrator-core/"
 
-[tool.flit.metadata.requires-extra]
+[project.optional-dependencies]
+api = [
+    "fastapi~=0.91.0",
+    "fastapi-etag==0.4.0",
+    # TODO add dependencies that are only used by the api
+]
+worker = [
+    # TODO add dependencies that are only used by the worker
+]
+all = [
+    "orchestrator-core[api,worker]"
+]
+
 test = [
     "apache-license-check",
     "black",
@@ -140,6 +151,8 @@ dev = [
     "watchdog",
 ]
 
+[tool.flit.module]
+name = "orchestrator"
 
 [tool.isort]
 profile = "black"
