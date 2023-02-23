@@ -41,6 +41,8 @@ dependencies = [
     "celery[redis]",
     "click==8.0.3",
     "deepmerge==0.1.0",
+    "fastapi~=0.91.0",
+    "fastapi-etag==0.4.0",
     "more-itertools~=9.0.0",
     "itsdangerous==2.1.2",
     "Jinja2==3.1.2",
@@ -78,19 +80,6 @@ requires-python = ">3.9,<3.12"
 
 [project.urls]
 documentation = "https://workfloworchestrator.org/orchestrator-core/"
-
-[project.optional-dependencies]
-api = [
-    "fastapi~=0.91.0",
-    "fastapi-etag==0.4.0",
-    # TODO add dependencies that are only used by the api
-]
-worker = [
-    # TODO add dependencies that are only used by the worker
-]
-all = [
-    "orchestrator-core[api,worker]"
-]
 
 test = [
     "apache-license-check",
