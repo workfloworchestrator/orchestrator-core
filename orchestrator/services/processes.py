@@ -31,7 +31,7 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
-from orchestrator.settings import app_settings
+from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.datetime import nowtz
@@ -56,8 +56,15 @@ StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 
 SYSTEM_USER = "SYSTEM"
 
+task_semaphore = threading.BoundedSemaphore(value=2)
 
 _workflow_executor = None
+
+
+def get_execution_context() -> Dict[str, Callable]:
+    from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+
+    return CELERY_EXECUTION_CONTEXT if app_settings.EXECUTOR == ExecutorType.WORKER else THREADPOOL_EXECUTION_CONTEXT
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
@@ -202,7 +209,7 @@ def _db_log_step(
     return process_state.__class__(current_step.state)
 
 
-def _safe_logstep(
+def safe_logstep(
     stat: ProcessStat,
     step: Step,
     process_state: WFProcess,
@@ -317,24 +324,11 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     return pid, process_handle
 
 
-def start_process(
+def create_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
-    broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Future]:
-    """Start a process for workflow.
-
-    Args:
-        workflow_key: name of workflow
-        user_inputs: List of form inputs from frontend
-        user: User who starts this process
-        broadcast_func: Optional function to broadcast process data
-
-    Returns:
-        process id
-
-    """
+) -> ProcessStat:
     # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
 
     if user_inputs is None:
@@ -365,29 +359,50 @@ def start_process(
 
     _db_create_process(pstat)
 
-    _safe_logstep_withfunc = partial(_safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_withfunc))
+    return pstat
 
 
-def resume_process(
-    process: ProcessTable,
-    *,
+def thread_start_process(
+    workflow_key: str,
     user_inputs: Optional[List[State]] = None,
-    user: Optional[str] = None,
+    user: str = SYSTEM_USER,
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> Tuple[UUID, Future]:
-    """Resume a failed or suspended process.
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
+
+    _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
+    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_with_func))
+
+
+def start_process(
+    workflow_key: str,
+    user_inputs: Optional[List[State]] = None,
+    user: str = SYSTEM_USER,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> UUID:
+    """Start a process for workflow.
 
     Args:
-        process: Process from database
-        user_inputs: Optional user input from forms
-        user: user who resumed this process
+        workflow_key: name of workflow
+        user_inputs: List of form inputs from frontend
+        user: User who starts this process
         broadcast_func: Optional function to broadcast process data
 
     Returns:
         process id
 
     """
+    start_func = get_execution_context()["start"]
+    return start_func(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+
+
+def thread_resume_process(
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]] = None,
+    user: Optional[str] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> Tuple[UUID, Future]:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
 
     if user_inputs is None:
@@ -413,8 +428,44 @@ def resume_process(
     db.session.add(process)
     db.session.commit()
 
-    _safe_logstep_prep = partial(_safe_logstep, broadcast_func=broadcast_func)
+    _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
+
+
+def thread_validate_workflow(validation_workflow: str, json: Optional[List[State]]) -> None:
+    task_semaphore.acquire()
+    _, handle = thread_start_process(validation_workflow, user_inputs=json)
+    handle.add_done_callback(lambda _: task_semaphore.release())
+
+
+THREADPOOL_EXECUTION_CONTEXT: Dict[str, Callable] = {
+    "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs)[0],
+    "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs)[0],
+    "validate": thread_validate_workflow,
+}
+
+
+def resume_process(
+    process: ProcessTable,
+    *,
+    user_inputs: Optional[List[State]] = None,
+    user: Optional[str] = None,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> UUID:
+    """Resume a failed or suspended process.
+
+    Args:
+        process: Process from database
+        user_inputs: Optional user input from forms
+        user: user who resumed this process
+        broadcast_func: Optional function to broadcast process data
+
+    Returns:
+        process id
+
+    """
+    resume_func = get_execution_context()["resume"]
+    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
 async def _async_resume_processes(
@@ -465,7 +516,7 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Optional[Cal
     pstat = load_process(process)
 
     pstat.update(current_user=user)
-    return abort_wf(pstat, partial(_safe_logstep, broadcast_func=broadcast_func))
+    return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
 
 
 def _recoverwf(wf: Workflow, log: List[WFProcess]) -> Tuple[WFProcess, StepList]:

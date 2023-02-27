@@ -18,7 +18,7 @@ from orchestrator.services.processes import (
     _db_log_process_ex,
     _db_log_step,
     _run_process_async,
-    _safe_logstep,
+    safe_logstep,
     start_process,
 )
 from orchestrator.settings import app_settings
@@ -557,7 +557,7 @@ def test_safe_logstep():
             Exception("Failed to commit because of json serializable failure"),
             mock.sentinel.result,
         ]
-        result = _safe_logstep(pstat, step, state)
+        result = safe_logstep(pstat, step, state)
 
         assert result == mock.sentinel.result
         mock__db_log_step.assert_has_calls(
@@ -598,7 +598,7 @@ def test_safe_logstep_critical_failure():
         "orchestrator.services.processes._db_log_step", spec=_db_log_step, side_effect=_db_log_step
     ) as mock__db_log_step:
         with pytest.raises(ValueError) as e:
-            result = _safe_logstep(pstat, step, state)
+            result = safe_logstep(pstat, step, state)
 
             assert result == mock.sentinel.result
 
@@ -725,7 +725,7 @@ def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_proc
 
     mock_post_process.return_value = {"a": 1}
 
-    result, _ = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
+    result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.pid

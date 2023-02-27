@@ -18,7 +18,7 @@ import structlog
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.schedules.scheduling import scheduler
-from orchestrator.services.processes import start_process
+from orchestrator.services.processes import get_execution_context
 from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
 from orchestrator.targets import Target
 
@@ -43,10 +43,10 @@ def validate_subscriptions() -> None:
             usable_when = WF_USABLE_MAP.get(validation_workflow, default)
 
             if subscription.status in usable_when:
-                task_semaphore.acquire()
                 json = [{"subscription_id": str(subscription.subscription_id)}]
-                _, handle = start_process(validation_workflow, json)
-                handle.add_done_callback(lambda _: task_semaphore.release())
+
+                validate_func = get_execution_context()["validate"]
+                validate_func(validation_workflow, json=json)
         else:
             logger.warning(
                 "SubscriptionTable has no validation workflow",
