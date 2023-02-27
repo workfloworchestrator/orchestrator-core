@@ -64,9 +64,9 @@ class OrchestratorCelery(Celery):
 
 The `init_app` should be replaced by your own function that at least makes sure that all the workflows are imported
 (which make sure that the are registered) so that the worker can recognize them. This is the minimum implementation
-you need, but you might want to add other initialization that is needed to execute workflows.
+you need, but you might want to add other initialisation that is needed to execute workflows.
 
-Next we instantiate celery using our own `OrchestratorCelery` class:
+Next we instantiate Celery using our own `OrchestratorCelery` class:
 
 ```python
 broker = f"redis://{AppSettings().CACHE_HOST}:{AppSettings().CACHE_PORT}"
@@ -82,7 +82,7 @@ celery.conf.update(result_expires=3600)
 As you can see in the code above we are using Redis as broker. You can of course replace this by RabbitMQ or
 another broker of your choice. See the Celery documentation for more details.
 
-`"orchestrator.services.tasks" ` is the namespace in orchestartor-core where the Celery tasks can be found. At the
+`"orchestrator.services.tasks" ` is the namespace in orchestrator-core where the Celery tasks can be found. At the
 moment 4 tasks are defined:
 
 1. `tasks.new_task`: start a new task (delivered on the Task queue)
@@ -91,7 +91,7 @@ moment 4 tasks are defined:
 4. `tasks.resume_workflow`: resume an existing workflow (delivered on the Workflow queue)
 
 
-Finally, we initialize the orchestrator core:
+Finally, we initialise the orchestrator core:
 
 ```python
 def init_celery() -> None:
@@ -100,11 +100,11 @@ def init_celery() -> None:
     initialise_celery(celery)
 
 
-# Needed if we load this as a Celery worker because in that case there is no 'main app'
+# Needed if we load this as a Celery worker because in that case, the application is not started with a user-specified top-level `__main__` module
 init_celery()
 ```
 
-The code above sets our local celery instance (which initializes the workflows) as the celery instance that is
+The code above sets our local Celery instance (which initializes the workflows) as the celery instance that is
 going to be used by the orchestrator-core. Without this code, the orchestrator-core would be only aware of a limited
 set of workflows that are part of orchestrator-core itself.
 
