@@ -21,6 +21,13 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseSettings
 
+from orchestrator.types import strEnum
+
+
+class ExecutorType(strEnum):
+    WORKER = "celery"
+    THREADPOOL = "threadpool"
+
 
 class AppSettings(BaseSettings):
     TESTING: bool = True
@@ -40,7 +47,7 @@ class AppSettings(BaseSettings):
         "ETag",
     ]
     ENVIRONMENT: str = "local"
-    EXECUTOR: str = "threadpool"
+    EXECUTOR: str = ExecutorType.THREADPOOL
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     DATABASE_URI: str = "postgresql://nwa:nwa@localhost/orchestrator-core"

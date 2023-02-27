@@ -31,7 +31,7 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
-from orchestrator.settings import app_settings
+from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.datetime import nowtz
@@ -64,7 +64,7 @@ _workflow_executor = None
 def get_execution_context() -> Dict[str, Callable]:
     from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
 
-    return CELERY_EXECUTION_CONTEXT if app_settings.EXECUTOR == "celery" else THREADPOOL_EXECUTION_CONTEXT
+    return CELERY_EXECUTION_CONTEXT if app_settings.EXECUTOR == ExecutorType.WORKER else THREADPOOL_EXECUTION_CONTEXT
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
