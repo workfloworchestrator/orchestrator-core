@@ -209,7 +209,7 @@ def _db_log_step(
     return process_state.__class__(current_step.state)
 
 
-def _safe_logstep(
+def safe_logstep(
     stat: ProcessStat,
     step: Step,
     process_state: WFProcess,
@@ -324,10 +324,7 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     return pid, process_handle
 
 
-# Split up, refactor later
-
-
-def celery_create_process(
+def create_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
@@ -365,60 +362,15 @@ def celery_create_process(
     return pstat
 
 
-def celery_start_process(
-    pid: UUID,
-    workflow_key: str,
-    state: dict[str, Any],
-    user: str = SYSTEM_USER,
-) -> Tuple[UUID, Future]:
-    workflow = get_workflow(workflow_key)
-
-    if not workflow:
-        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    pstat = ProcessStat(pid, workflow=workflow, state=Success(state), log=workflow.steps, current_user=user)
-
-    _safe_logstep_with_func = partial(_safe_logstep, broadcast_func=None)
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_with_func))
-
-
 def thread_start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> Tuple[UUID, Future]:
-    # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
 
-    if user_inputs is None:
-        user_inputs = [{}]
-
-    pid = uuid4()
-    workflow = get_workflow(workflow_key)
-
-    if not workflow:
-        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    initial_state = {
-        "process_id": pid,
-        "reporter": user,
-        "workflow_name": workflow_key,
-        "workflow_target": workflow.target,
-    }
-
-    try:
-        state = post_process(workflow.initial_input_form, initial_state, user_inputs)
-    except FormValidationError:
-        logger.exception("Validation errors", user_inputs=user_inputs)
-        raise
-
-    pstat = ProcessStat(
-        pid, workflow=workflow, state=Success({**state, **initial_state}), log=workflow.steps, current_user=user
-    )
-
-    _db_create_process(pstat)
-
-    _safe_logstep_with_func = partial(_safe_logstep, broadcast_func=broadcast_func)
+    _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_with_func))
 
 
@@ -476,7 +428,7 @@ def thread_resume_process(
     db.session.add(process)
     db.session.commit()
 
-    _safe_logstep_prep = partial(_safe_logstep, broadcast_func=broadcast_func)
+    _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
 
 
@@ -564,7 +516,7 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Optional[Cal
     pstat = load_process(process)
 
     pstat.update(current_user=user)
-    return abort_wf(pstat, partial(_safe_logstep, broadcast_func=broadcast_func))
+    return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
 
 
 def _recoverwf(wf: Workflow, log: List[WFProcess]) -> Tuple[WFProcess, StepList]:

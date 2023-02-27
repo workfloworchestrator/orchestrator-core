@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from functools import partial
+from http import HTTPStatus
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -18,9 +20,12 @@ from celery import Celery, Task
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
-from orchestrator.services.processes import _get_process, celery_start_process, thread_resume_process
+from orchestrator.api.error_handling import raise_status
+from orchestrator.services.processes import _get_process, _run_process_async, safe_logstep, thread_resume_process
 from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.workflow import ProcessStat, Success, runwf
+from orchestrator.workflows import get_workflow
 
 logger = get_task_logger(__name__)
 
@@ -44,7 +49,7 @@ def get_celery_task(task_name: str) -> Task:
 
 
 def register_custom_serializer() -> None:
-    # surf specific serializer to handle more complex classes
+    # surf specific serializer to correctly handle more complex classes
     registry.register("surf", json_dumps, json_loads, "application/json", "utf-8")
 
 
@@ -66,7 +71,16 @@ def initialise_celery(celery: Celery) -> None:
 
     def start_process(pid: UUID, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         try:
-            pid, _ = celery_start_process(pid, workflow_key, state=state, user=user)
+            workflow = get_workflow(workflow_key)
+
+            if not workflow:
+                raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+            pstat = ProcessStat(pid, workflow=workflow, state=Success(state), log=workflow.steps, current_user=user)
+
+            safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
+            pid, _ = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
+
         except Exception as exc:
             local_logger.error("Worker failed to execute workflow", pid=pid, details=str(exc))
             return None
@@ -77,8 +91,8 @@ def initialise_celery(celery: Celery) -> None:
         try:
             process = _get_process(pid)
             pid, _ = thread_resume_process(process, user_inputs=user_inputs, user=user)
-        except Exception:
-            local_logger.error("Worker failed to resume workflow", pid=pid)
+        except Exception as exc:
+            local_logger.error("Worker failed to resume workflow", pid=pid, details=str(exc))
             return None
         else:
             return pid
