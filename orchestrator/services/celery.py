@@ -16,6 +16,7 @@ from uuid import UUID
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable
+from orchestrator.services.processes import celery_create_process
 from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.workflows import get_workflow
@@ -35,7 +36,10 @@ def _celery_start_process(
 
     task_name = NEW_TASK if workflow.target == Target.SYSTEM else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
-    result = trigger_task.delay(workflow_key, user_inputs, user)
+    pstat = celery_create_process(workflow_key, user_inputs, user)
+
+    tasks = pstat.state.s
+    result = trigger_task.delay(pstat.pid, workflow_key, tasks, user)
 
     pid = result.get()
     if not pid:

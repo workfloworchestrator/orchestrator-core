@@ -324,6 +324,64 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
     return pid, process_handle
 
 
+# Split up, refactor later
+
+
+def celery_create_process(
+    workflow_key: str,
+    user_inputs: Optional[List[State]] = None,
+    user: str = SYSTEM_USER,
+) -> ProcessStat:
+    # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
+
+    if user_inputs is None:
+        user_inputs = [{}]
+
+    pid = uuid4()
+    workflow = get_workflow(workflow_key)
+
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    initial_state = {
+        "process_id": pid,
+        "reporter": user,
+        "workflow_name": workflow_key,
+        "workflow_target": workflow.target,
+    }
+
+    try:
+        state = post_process(workflow.initial_input_form, initial_state, user_inputs)
+    except FormValidationError:
+        logger.exception("Validation errors", user_inputs=user_inputs)
+        raise
+
+    pstat = ProcessStat(
+        pid, workflow=workflow, state=Success({**state, **initial_state}), log=workflow.steps, current_user=user
+    )
+
+    _db_create_process(pstat)
+
+    return pstat
+
+
+def celery_start_process(
+    pid: UUID,
+    workflow_key: str,
+    state: dict[str, Any],
+    user: str = SYSTEM_USER,
+) -> Tuple[UUID, Future]:
+    workflow = get_workflow(workflow_key)
+
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    pstat = ProcessStat(pid, workflow=workflow, state=Success(state), log=workflow.steps, current_user=user)
+
+    _safe_logstep_with_func = partial(_safe_logstep, broadcast_func=None)
+    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_with_func))
+
+
 def thread_start_process(
     workflow_key: str,
     user_inputs: Optional[List[State]] = None,
