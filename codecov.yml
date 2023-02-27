@@ -2,4 +2,6 @@ ignore:
   - "docs"
   - "test"
   - "example"
+  - "devtools"
+  - "migrations"
   
