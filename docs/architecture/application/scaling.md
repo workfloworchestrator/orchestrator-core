@@ -50,7 +50,7 @@ about implementing on how to change this behaviour.
 ### Implementing the worker
 
 The orchestrator-core needs to know what workflows a user has defined. This information is only available in the
-actual application using the orchestrator-core. Here we will use an example as used withing SURF. The files is
+actual application using the orchestrator-core. Here we will use an example as used withing SURF. The file is
 called tasks.py. First we define our own class derived from the Celery base class:
 
 ```python
@@ -121,7 +121,7 @@ EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 
 Notice that we are setting `EXECUTOR` to `celery`. Without that variable the api resorts to the default threadpool.
 
-Start a single worker that listens both on the `tasks` and `workflows` queue:
+Start a single worker that listens both on the `tasks` and `workflows` queue (indicated by the `-Q` flag):
 
 ```bash
 celery -A surf.tasks  worker --loglevel=info -Q tasks,workflows
@@ -129,6 +129,16 @@ celery -A surf.tasks  worker --loglevel=info -Q tasks,workflows
 
 Notice that `-A surf.tasks` indicates the module that contains your 'celery.Celery' instance.
 
-## Deployment
+The queues are defined in the celery config (see in services/tasks.py):
 
-Todo: explain on how to use orchestrator[api] en orchestrator[worker]
+```python
+celery.conf.task_routes = {
+    NEW_TASK: {"queue": "tasks"},
+    NEW_WORKFLOW: {"queue": "workflows"},
+    RESUME_TASK: {"queue": "tasks"},
+    RESUME_WORKFLOW: {"queue": "workflows"},
+}
+```
+
+If you decide to override the queue names in this configuration, you also have to make sure that you also
+update the names accordingly after the `-Q` flag.
