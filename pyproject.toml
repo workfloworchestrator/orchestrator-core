@@ -68,7 +68,7 @@ dependencies = [
     "SQLAlchemy-Searchable==1.4.1",
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
-    "nwa-stdlib==1.4.4",
+    "nwa-stdlib==1.4.5",
     "oauth2-lib==1.2.3",
     "markupsafe==2.0.1",
     "bandit==1.7.2",
