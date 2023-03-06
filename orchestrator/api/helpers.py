@@ -27,6 +27,7 @@ from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.db.models import SubscriptionsSearchView
 from orchestrator.domain.base import SubscriptionModel
 
 logger = get_logger(__name__)
@@ -86,8 +87,12 @@ def _query_with_filters(
                             raise_status(HTTPStatus.BAD_REQUEST, msg)
                         query = query.filter(SubscriptionTable.customer_id == value_as_uuid)
                     elif field == "tsv":
-                        logger.debug("Running full-text search query.", value=value)
-                        query = query.search(value)
+                        logger.debug("Running full-text search query:", value=value)
+                        # TODO: Make 'websearch_to_tsquery' into a sqlalchemy extension
+                        query = query.join(SubscriptionsSearchView).filter(
+                            func.websearch_to_tsquery("simple", value).op("@@")(SubscriptionsSearchView.tsv)
+                        )
+
                     elif field in SubscriptionTable.__dict__:
                         query = query.filter(cast(SubscriptionTable.__dict__[field], String).ilike("%" + value + "%"))
 
