@@ -227,34 +227,6 @@ def subscriptions_filterable(
     return query_result
 
 
-@router.get("/v2", response_model=List[SubscriptionSchema])
-def subscriptions_filterable(
-    response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
-) -> List[SubscriptionTable]:
-    """
-    Get subscriptions filtered.
-
-    Args:
-        response: Fastapi Response object
-        range: Range
-        sort: Sort
-        filter: Filter
-
-    Returns:
-        List of subscriptions
-
-    """
-    _range: Union[List[int], None] = list(map(int, range.split(","))) if range else None
-    _sort: Union[List[str], None] = sort.split(",") if sort else None
-    _filter: Union[List[str], None] = filter.split(",") if filter else None
-    logger.info("subscriptions_filterable() called", range=_range, sort=_sort, filter=_filter)
-    query = SubscriptionTable.query.join(SubscriptionTable.product).options(
-        contains_eager(SubscriptionTable.product), defer("product_id")
-    )
-    query_result = _query_with_filters(response, query, _range, _sort, _filter)
-    return query_result
-
-
 @router.get(
     "/workflows/{subscription_id}", response_model=SubscriptionWorkflowListsSchema, response_model_exclude_none=True
 )

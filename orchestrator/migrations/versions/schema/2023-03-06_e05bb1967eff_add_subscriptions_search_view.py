@@ -5,7 +5,6 @@ Revises: bed6bc0b197a
 Create Date: 2023-03-06 10:09:55.675588
 
 """
-import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -88,6 +87,7 @@ FROM subscriptions s
 
     conn.execute(subscriptions_search_view_ddl)
     conn.execute(refresh_subscriptions_search_fn)
+    conn.execute("CREATE INDEX subscriptions_search_tsv_idx ON subscriptions_search USING GIN (tsv);")
 
     # Refresh the view when dependent tables change
     conn.execute(
@@ -153,4 +153,4 @@ def downgrade() -> None:
         conn.execute(f"DROP TRIGGER IF EXISTS {trigger} ON {table};")
 
     conn.execute("DROP FUNCTION IF EXISTS refresh_subscriptions_search_view();")
-    conn.execute("DROP MATERIALIZED VIEW IF EXISTS subscriptions_search;")
+    conn.execute("DROP MATERIALIZED VIEW IF EXISTS subscriptions_search CASCADE;")

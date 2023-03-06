@@ -65,7 +65,7 @@ dependencies = [
     "schedule==1.1.0",
     "sentry-sdk[fastapi]==1.15.0",
     "SQLAlchemy==1.4.28",
-    "SQLAlchemy-Searchable==1.4.1",
+    "SQLAlchemy-Utils==0.40.0",
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
     "nwa-stdlib==1.4.5",

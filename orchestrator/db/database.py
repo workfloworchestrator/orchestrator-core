@@ -23,7 +23,6 @@ from sqlalchemy.ext.declarative import DeclarativeMeta, as_declarative
 from sqlalchemy.orm import Query, Session, scoped_session, sessionmaker
 from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.sql.schema import MetaData
-from sqlalchemy_searchable import SearchQueryMixin
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -35,7 +34,7 @@ from orchestrator.utils.json import json_dumps, json_loads
 logger = structlog.get_logger(__name__)
 
 
-class SearchQuery(Query, SearchQueryMixin):
+class SearchQuery(Query):
     """Custom Query class to have search() property."""
 
     pass

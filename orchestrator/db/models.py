@@ -522,11 +522,6 @@ class SubscriptionTable(BaseModel):
     end_date = Column(UtcTimestamp)
     note = Column(Text())
 
-    # `tsv` is a deferred column as we don't want or need it loaded every time we query a SubscriptionTable.
-    # When updating stuff related to this see:
-    # https://sqlalchemy-searchable.readthedocs.io/en/latest/alembic_migrations.html
-    tsv = deferred(Column(TSVectorType))
-
     instances = relationship(
         "SubscriptionInstanceTable",
         lazy="select",
@@ -569,10 +564,9 @@ subscription_product_ix = Index(
 subscription_customer_ix = Index(
     "subscription_customer_ix", SubscriptionTable.subscription_id, SubscriptionTable.customer_id
 )
-subscription_tsv_ix = Index("subscription_tsv_ix", SubscriptionTable.tsv, postgresql_using="gin")
 
 
-class SubscriptionsSearchView(BaseModel):
+class SubscriptionSearchView(BaseModel):
     __tablename__ = "subscriptions_search"
     subscription_id = Column(
         UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True, primary_key=True

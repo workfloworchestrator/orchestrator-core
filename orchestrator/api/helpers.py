@@ -15,6 +15,7 @@ import functools
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
+from shlex import shlex
 from typing import Any, Generator, List, Optional, Union
 from uuid import UUID
 
@@ -27,10 +28,28 @@ from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable
-from orchestrator.db.models import SubscriptionsSearchView
+from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.domain.base import SubscriptionModel
 
 logger = get_logger(__name__)
+
+
+def _quote_if_kv_pair(token: str) -> str:
+    return f'"{token}"' if ":" in token else token
+
+
+def _process_text_query(q: str) -> str:
+    quote = '"'
+    if q.count(quote) % 2 == 1:
+        q += quote  # Add missing closing quote
+    lex = shlex(q)
+    lex.whitespace_split = True
+    lex.quotes = '"'
+    try:
+        return " ".join([_quote_if_kv_pair(token) for token in lex])
+    except ValueError:
+        logger.exception("Error parsing text query.")
+        return q
 
 
 def _query_with_filters(
@@ -87,10 +106,15 @@ def _query_with_filters(
                             raise_status(HTTPStatus.BAD_REQUEST, msg)
                         query = query.filter(SubscriptionTable.customer_id == value_as_uuid)
                     elif field == "tsv":
-                        logger.debug("Running full-text search query:", value=value)
+                        # Quote key:value tokens. This will use the FOLLOWED BY operator (https://www.postgresql.org/docs/13/textsearch-controls.html)
+                        processed_text_query = _process_text_query(value)
+
+                        logger.debug("Running full-text search query:", value=processed_text_query)
                         # TODO: Make 'websearch_to_tsquery' into a sqlalchemy extension
-                        query = query.join(SubscriptionsSearchView).filter(
-                            func.websearch_to_tsquery("simple", value).op("@@")(SubscriptionsSearchView.tsv)
+                        query = query.join(SubscriptionSearchView).filter(
+                            func.websearch_to_tsquery("simple", processed_text_query).op("@@")(
+                                SubscriptionSearchView.tsv
+                            )
                         )
 
                     elif field in SubscriptionTable.__dict__:
