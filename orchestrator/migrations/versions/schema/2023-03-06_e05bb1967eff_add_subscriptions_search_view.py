@@ -17,8 +17,12 @@ depends_on = None
 
 def upgrade() -> None:
     conn = op.get_bind()
-    subscriptions_search_query = """WITH rt_info AS (SELECT s.subscription_id,
-                        string_agg(rt.resource_type || ':' || siv.value, ', ' ORDER BY rt.resource_type) AS rt_info
+    subscriptions_search_query = """
+WITH rt_info AS (SELECT s.subscription_id,
+                        concat_ws(', ',
+                                  string_agg(rt.resource_type || ':' || siv.value, ', ' ORDER BY rt.resource_type),
+                                  string_agg(distinct 'subscription_instance_id' || ':' || si.subscription_instance_id, ', ')
+                            ) AS rt_info
                  FROM subscription_instance_values siv
                           JOIN resource_types rt ON siv.resource_type_id = rt.resource_type_id
                           JOIN subscription_instances si ON siv.subscription_instance_id = si.subscription_instance_id
@@ -66,7 +70,8 @@ FROM subscriptions s
          LEFT JOIN sub_prod_info spi ON s.subscription_id = spi.subscription_id
          LEFT JOIN fi_info fi ON s.subscription_id = fi.subscription_id
          LEFT JOIN rt_info rti ON s.subscription_id = rti.subscription_id
-         LEFT JOIN cust_info ci ON s.subscription_id = ci.subscription_id;"""
+         LEFT JOIN cust_info ci ON s.subscription_id = ci.subscription_id
+         """
     subscriptions_search_view_ddl = (
         f"CREATE MATERIALIZED VIEW IF NOT EXISTS subscriptions_search AS {subscriptions_search_query}"
     )
