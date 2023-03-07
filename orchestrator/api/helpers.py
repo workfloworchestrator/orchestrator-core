@@ -48,7 +48,7 @@ def _process_text_query(q: str) -> str:
     try:
         return " ".join([_quote_if_kv_pair(token) for token in lex])
     except ValueError:
-        logger.exception("Error parsing text query.")
+        logger.debug("Error parsing text query.")
         return q
 
 
@@ -102,7 +102,7 @@ def _query_with_filters(
                             value_as_uuid = UUID(value)
                         except (ValueError, AttributeError):
                             msg = "Not a valid customer_id, must be a UUID: '{value}'"
-                            logger.exception(msg)
+                            logger.debug(msg)
                             raise_status(HTTPStatus.BAD_REQUEST, msg)
                         query = query.filter(SubscriptionTable.customer_id == value_as_uuid)
                     elif field == "tsv":

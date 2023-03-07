@@ -171,8 +171,7 @@ def test_autouse_fixture_rolls_back_bbb():
 @pytest.mark.skip("TODO: Implement search method on SubscriptionSearchView")
 def test_full_text_search(generic_subscription_1):
     def get_subs_tsq(query: str) -> List[SubscriptionTable]:
-        subs = SubscriptionSearchView.query.search(query).all()
-        return subs
+        return SubscriptionSearchView.query.search(query).all()
 
     subs = get_subs_tsq("Generic Subscription One")
     assert subs[0].subscription_id == UUID(generic_subscription_1)
