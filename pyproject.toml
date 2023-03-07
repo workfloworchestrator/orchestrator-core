@@ -105,7 +105,7 @@ test = [
     "isort",
     "structlog",
     "jsonref",
-    "mypy",
+    "mypy==1.0.1",
     "pytest",
     "pytest-cov",
     "pytest-httpx",
