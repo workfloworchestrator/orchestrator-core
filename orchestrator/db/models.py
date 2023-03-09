@@ -141,7 +141,6 @@ product_product_block_association = Table(
     ),
 )
 
-
 product_block_resource_type_association = Table(
     "product_block_resource_types",
     BaseModel.metadata,
@@ -158,7 +157,6 @@ product_block_resource_type_association = Table(
         primary_key=True,
     ),
 )
-
 
 product_workflows_association = Table(
     "products_workflows",
@@ -458,7 +456,6 @@ class SubscriptionInstanceTable(BaseModel):
 SubscriptionInstanceTable.parent_relations = SubscriptionInstanceTable.in_use_by_block_relations
 SubscriptionInstanceTable.children_relations = SubscriptionInstanceTable.depends_on_block_relations
 
-
 subscription_instance_s_pb_ix = Index(
     "subscription_instance_s_pb_ix",
     SubscriptionInstanceTable.subscription_instance_id,
@@ -525,11 +522,6 @@ class SubscriptionTable(BaseModel):
     end_date = Column(UtcTimestamp)
     note = Column(Text())
 
-    # `tsv` is a deferred column as we don't want or need it loaded every time we query a SubscriptionTable.
-    # When updating stuff related to this see:
-    # https://sqlalchemy-searchable.readthedocs.io/en/latest/alembic_migrations.html
-    tsv = deferred(Column(TSVectorType))
-
     instances = relationship(
         "SubscriptionInstanceTable",
         lazy="select",
@@ -572,7 +564,17 @@ subscription_product_ix = Index(
 subscription_customer_ix = Index(
     "subscription_customer_ix", SubscriptionTable.subscription_id, SubscriptionTable.customer_id
 )
-subscription_tsv_ix = Index("subscription_tsv_ix", SubscriptionTable.tsv, postgresql_using="gin")
+
+
+class SubscriptionSearchView(BaseModel):
+    __tablename__ = "subscriptions_search"
+    subscription_id = Column(
+        UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True, primary_key=True
+    )
+
+    tsv = deferred(Column(TSVectorType))
+
+    subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
 
 
 class EngineSettingsTable(BaseModel):
