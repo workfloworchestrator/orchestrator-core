@@ -88,6 +88,9 @@ FROM subscriptions s
     conn.execute(subscriptions_search_view_ddl)
     conn.execute(refresh_subscriptions_search_fn)
     conn.execute("CREATE INDEX subscriptions_search_tsv_idx ON subscriptions_search USING GIN (tsv);")
+    conn.execute(
+        "CREATE UNIQUE INDEX subscriptions_search_subscription_id_idx ON subscriptions_search (subscription_id);"
+    )
 
     # Refresh the view when dependent tables change
     conn.execute(
