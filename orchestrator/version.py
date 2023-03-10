@@ -38,7 +38,7 @@ def __getattr__(name: str) -> Optional[str]:
         try:
             return check_output(["/usr/bin/env", "git", "rev-parse", "HEAD"]).decode().strip()  # noqa: S603
         except Exception:
-            logger.exception("Could not get git commit hash")
+            logger.info("Could not get git commit hash, not setting version")
             return None
     else:
         raise AttributeError(name)
