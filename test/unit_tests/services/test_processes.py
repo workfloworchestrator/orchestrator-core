@@ -1,5 +1,4 @@
 import asyncio
-from concurrent.futures import Future
 from http import HTTPStatus
 from threading import Event
 from time import sleep
@@ -710,7 +709,7 @@ def test_run_process_async_exception(mock_db_log_process_ex):
     app_settings.TESTING = True
 
 
-@mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.pid, Future()))
+@mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.pid))
 @mock.patch("orchestrator.services.processes._db_create_process")
 @mock.patch("orchestrator.services.processes.post_process")
 @mock.patch("orchestrator.services.processes.get_workflow")

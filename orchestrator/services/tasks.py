@@ -79,7 +79,7 @@ def initialise_celery(celery: Celery) -> None:
             pstat = ProcessStat(pid, workflow=workflow, state=Success(state), log=workflow.steps, current_user=user)
 
             safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
-            pid, _ = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
+            pid = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
 
         except Exception as exc:
             local_logger.error("Worker failed to execute workflow", pid=pid, details=str(exc))
@@ -90,7 +90,7 @@ def initialise_celery(celery: Celery) -> None:
     def resume_process(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         try:
             process = _get_process(pid)
-            pid, _ = thread_resume_process(process, user_inputs=user_inputs, user=user)
+            pid = thread_resume_process(process, user_inputs=user_inputs, user=user)
         except Exception as exc:
             local_logger.error("Worker failed to resume workflow", pid=pid, details=str(exc))
             return None
