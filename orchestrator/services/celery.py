@@ -14,6 +14,7 @@ from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
+from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable
 from orchestrator.services.processes import create_process
@@ -41,11 +42,12 @@ def _celery_start_process(
     tasks = pstat.state.s
     result = trigger_task.delay(pstat.pid, workflow_key, tasks, user)
 
-    pid = result.get()
-    if not pid:
-        raise RuntimeError("Celery worker has failed to start process")
+    if app_settings.TESTING:
+        pid = result.get()
+        if not pid:
+            raise RuntimeError("Celery worker has failed to resume process")
 
-    return pid
+    return pstat.pid
 
 
 def _celery_resume_process(
@@ -66,11 +68,12 @@ def _celery_resume_process(
     trigger_task = get_celery_task(task_name)
     result = trigger_task.delay(pstat.pid, user_inputs, user)
 
-    pid = result.get()
-    if not pid:
-        raise RuntimeError("Celery worker has failed to resume process")
+    if app_settings.TESTING:
+        pid = result.get()
+        if not pid:
+            raise RuntimeError("Celery worker has failed to resume process")
 
-    return pid
+    return pstat.pid
 
 
 def _celery_validate(validation_workflow: str, json: Optional[List[State]]) -> None:
