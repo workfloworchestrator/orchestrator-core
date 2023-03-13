@@ -63,6 +63,12 @@ class ProductNotInRegistryException(Exception):
     pass
 
 
+class serializabe_property(property):
+    """Inherit from property class to mark a field in a product block as serializable."""
+
+    pass
+
+
 def _is_constrained_list_type(type: Type) -> bool:
     """Check if type is a constained list type.
 
@@ -416,6 +422,47 @@ class DomainModel(BaseModel):
 
         return saved_instances, depends_on_instances
 
+    @classmethod
+    def get_properties(cls) -> list[Any]:
+        def is_serializable_property(prop: Any) -> bool:
+            return isinstance(cls.__dict__[prop], property)
+
+        return [prop for prop in cls.__dict__ if is_serializable_property(prop)]
+
+    def dict(
+        self,
+        *,
+        include: Any | None = None,
+        exclude: Any | None = None,
+        by_alias: bool = False,
+        skip_defaults: bool | None = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+    ) -> dict[str, Any]:
+        """Override the dict function to include serializable properties."""
+        attribs = super().dict(
+            include=include,
+            exclude=exclude,
+            by_alias=by_alias,
+            skip_defaults=skip_defaults,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+        )
+        props = self.get_properties()
+
+        # Include and exclude properties
+        if include:
+            props = [prop for prop in props if prop in include]
+        if exclude:
+            props = [prop for prop in props if prop not in exclude]
+
+        # Update the attribute dict with the properties
+        if props:
+            attribs.update({prop: getattr(self, prop) for prop in props})
+        return attribs
+
 
 class ProductBlockModelMeta(ModelMetaclass):
     """Metaclass used to create product block instances.
@@ -750,6 +797,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                 **sub_instances,  # type: ignore
             )
             model._db_model = subscription_instance
+
             return model
         except ValidationError:
             logger.exception(
