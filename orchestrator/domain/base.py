@@ -63,7 +63,7 @@ class ProductNotInRegistryException(Exception):
     pass
 
 
-class serializabe_property(property):
+class serializable_property(property):
     """Inherit from property class to mark a field in a product block as serializable."""
 
     pass
@@ -425,7 +425,7 @@ class DomainModel(BaseModel):
     @classmethod
     def get_properties(cls) -> list[Any]:
         def is_serializable_property(prop: Any) -> bool:
-            return isinstance(cls.__dict__[prop], property)
+            return isinstance(cls.__dict__[prop], serializable_property)
 
         return [prop for prop in cls.__dict__ if is_serializable_property(prop)]
 
