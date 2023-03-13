@@ -14,7 +14,21 @@ from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 from uuid import UUID, uuid4
 
 import structlog
@@ -424,10 +438,14 @@ class DomainModel(BaseModel):
 
     @classmethod
     def get_properties(cls) -> list[Any]:
-        def is_serializable_property(prop: Any) -> bool:
-            return isinstance(cls.__dict__[prop], serializable_property)
+        def get_props(klass: type) -> Generator:
+            yield from (prop for prop in klass.__dict__ if isinstance(klass.__dict__[prop], serializable_property))
 
-        return [prop for prop in cls.__dict__ if is_serializable_property(prop)]
+        def get_all_props() -> Generator:
+            for klass in cls.mro():
+                yield from get_props(klass)
+
+        return list(get_all_props())
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Override the dict function to include serializable properties."""
