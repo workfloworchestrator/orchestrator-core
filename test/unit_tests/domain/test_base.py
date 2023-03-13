@@ -1234,7 +1234,7 @@ def test_from_other_lifecycle_sub(test_product_one, test_product_block_one, test
 
 def test_serializable_property():
     class DerivedDomainModel(DomainModel):
-        @serializable_property
+        @serializable_property  # type: ignore
         def double_int_field(self) -> int:
             # This property is serialized
             return 2 * self.int_field
