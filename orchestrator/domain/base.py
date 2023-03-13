@@ -429,33 +429,15 @@ class DomainModel(BaseModel):
 
         return [prop for prop in cls.__dict__ if is_serializable_property(prop)]
 
-    def dict(
-        self,
-        *,
-        include: Any | None = None,
-        exclude: Any | None = None,
-        by_alias: bool = False,
-        skip_defaults: bool | None = None,
-        exclude_unset: bool = False,
-        exclude_defaults: bool = False,
-        exclude_none: bool = False,
-    ) -> dict[str, Any]:
+    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Override the dict function to include serializable properties."""
-        attribs = super().dict(
-            include=include,
-            exclude=exclude,
-            by_alias=by_alias,
-            skip_defaults=skip_defaults,
-            exclude_unset=exclude_unset,
-            exclude_defaults=exclude_defaults,
-            exclude_none=exclude_none,
-        )
+        attribs = super().dict(**kwargs)
         props = self.get_properties()
 
         # Include and exclude properties
-        if include:
+        if include := kwargs.get("include"):
             props = [prop for prop in props if prop in include]
-        if exclude:
+        if exclude := kwargs.get("exclude"):
             props = [prop for prop in props if prop not in exclude]
 
         # Update the attribute dict with the properties
