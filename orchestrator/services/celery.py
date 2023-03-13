@@ -42,6 +42,7 @@ def _celery_start_process(
     tasks = pstat.state.s
     result = trigger_task.delay(pstat.pid, workflow_key, tasks, user)
 
+    # Enables "Sync celery tasks. This will let the app wait until celery completes"
     if app_settings.TESTING:
         pid = result.get()
         if not pid:
@@ -68,6 +69,7 @@ def _celery_resume_process(
     trigger_task = get_celery_task(task_name)
     result = trigger_task.delay(pstat.pid, user_inputs, user)
 
+    # Enables "Sync celery tasks. This will let the app wait until celery completes"
     if app_settings.TESTING:
         pid = result.get()
         if not pid:
