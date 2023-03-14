@@ -13,7 +13,6 @@
 import asyncio
 import queue
 import threading
-from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
@@ -55,8 +54,6 @@ StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
 
 
 SYSTEM_USER = "SYSTEM"
-
-task_semaphore = threading.BoundedSemaphore(value=2)
 
 _workflow_executor = None
 
@@ -276,7 +273,7 @@ def _get_process(pid: UUID) -> ProcessTable:
     return process
 
 
-def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
+def _run_process_async(pid: UUID, f: Callable) -> UUID:
     def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
         """
         Update amount of running processes by one.
@@ -313,15 +310,20 @@ def _run_process_async(pid: UUID, f: Callable) -> Tuple[UUID, Future]:
 
         return result
 
-    workflow_executor = get_thread_pool()
-
-    process_handle = workflow_executor.submit(run)
     _update_running_processes("+")
+    if app_settings.EXECUTOR == ExecutorType.THREADPOOL:
+        workflow_executor = get_thread_pool()
+        process_handle = workflow_executor.submit(run)
 
-    if app_settings.TESTING:
-        process_handle.result()
-
-    return pid, process_handle
+        # Wait for the thread to return.
+        if app_settings.TESTING:
+            process_handle.result()
+    elif app_settings.EXECUTOR == ExecutorType.WORKER:
+        # No need to run in a thread, just run.
+        run()
+    else:
+        raise RuntimeError("Unknown Executor type")
+    return pid
 
 
 def create_process(
@@ -367,7 +369,7 @@ def thread_start_process(
     user_inputs: Optional[List[State]] = None,
     user: str = SYSTEM_USER,
     broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Future]:
+) -> UUID:
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
@@ -402,7 +404,7 @@ def thread_resume_process(
     user_inputs: Optional[List[State]] = None,
     user: Optional[str] = None,
     broadcast_func: Optional[BroadcastFunc] = None,
-) -> Tuple[UUID, Future]:
+) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
 
     if user_inputs is None:
@@ -432,15 +434,13 @@ def thread_resume_process(
     return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
 
 
-def thread_validate_workflow(validation_workflow: str, json: Optional[List[State]]) -> None:
-    task_semaphore.acquire()
-    _, handle = thread_start_process(validation_workflow, user_inputs=json)
-    handle.add_done_callback(lambda _: task_semaphore.release())
+def thread_validate_workflow(validation_workflow: str, json: Optional[List[State]]) -> UUID:
+    return thread_start_process(validation_workflow, user_inputs=json)
 
 
 THREADPOOL_EXECUTION_CONTEXT: Dict[str, Callable] = {
-    "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs)[0],
-    "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs)[0],
+    "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs),
+    "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs),
     "validate": thread_validate_workflow,
 }
 
@@ -502,13 +502,11 @@ async def _async_resume_processes(
         finally:
             distlock_manager.release_sync(lock)  # type: ignore
 
+    # Start all jobs in the background. BackgroundTasks might be more suited.
     workflow_executor = get_thread_pool()
-
     process_handle = workflow_executor.submit(run)
-
     if app_settings.TESTING:
         process_handle.result()
-
     return True
 
 
