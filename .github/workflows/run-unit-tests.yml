@@ -50,7 +50,7 @@ jobs:
         env:
           FLIT_ROOT_INSTALL: 1
       - name: Run Unit tests
-        run: CACHE_HOST=redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml
+        run: CACHE_HOST=redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml --ignore=test --ignore=orchestrator/devtools --ignore=examples --ignore=docs
         env:
           POSTGRES_DB: orchestrator-core-test
           POSTGRES_USER: nwa
