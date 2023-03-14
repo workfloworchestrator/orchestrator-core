@@ -14,7 +14,21 @@ from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
 from operator import attrgetter
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 from uuid import UUID, uuid4
 
 import structlog
@@ -60,6 +74,12 @@ logger = structlog.get_logger(__name__)
 
 
 class ProductNotInRegistryException(Exception):
+    pass
+
+
+class serializable_property(property):
+    """Inherit from property class to mark a field in a product block as serializable."""
+
     pass
 
 
@@ -416,6 +436,33 @@ class DomainModel(BaseModel):
 
         return saved_instances, depends_on_instances
 
+    @classmethod
+    def get_properties(cls) -> list[Any]:
+        def get_props(klass: type) -> Generator:
+            yield from (prop for prop in klass.__dict__ if isinstance(klass.__dict__[prop], serializable_property))
+
+        def get_all_props() -> Generator:
+            for klass in cls.mro():
+                yield from get_props(klass)
+
+        return list(get_all_props())
+
+    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """Override the dict function to include serializable properties."""
+        attribs = super().dict(**kwargs)
+        props = self.get_properties()
+
+        # Include and exclude properties
+        if include := kwargs.get("include"):
+            props = [prop for prop in props if prop in include]
+        if exclude := kwargs.get("exclude"):
+            props = [prop for prop in props if prop not in exclude]
+
+        # Update the attribute dict with the properties
+        if props:
+            attribs.update({prop: getattr(self, prop) for prop in props})
+        return attribs
+
 
 class ProductBlockModelMeta(ModelMetaclass):
     """Metaclass used to create product block instances.
@@ -750,6 +797,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                 **sub_instances,  # type: ignore
             )
             model._db_model = subscription_instance
+
             return model
         except ValidationError:
             logger.exception(
