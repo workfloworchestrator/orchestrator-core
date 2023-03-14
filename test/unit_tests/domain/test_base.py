@@ -1249,3 +1249,26 @@ def test_serializable_property():
     block = DerivedDomainModel(int_field=13)
 
     assert block.dict() == {"int_field": 13, "double_int_field": 26}
+
+
+def test_inherited_serializable_property():
+    class ProvisioningDomainModel(DomainModel):
+        @serializable_property  # type: ignore
+        def double_int_field(self) -> int:
+            return 2 * self.int_field
+
+        @serializable_property  # type: ignore
+        def triple_int_field(self) -> int:
+            return 3 * self.int_field
+
+        int_field: int
+
+    class ActiveDomainModel(ProvisioningDomainModel):
+        @serializable_property  # type: ignore
+        def triple_int_field(self) -> int:
+            # override the base property
+            return 30 * self.int_field
+
+    block = ActiveDomainModel(int_field=1)
+
+    assert block.dict() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
