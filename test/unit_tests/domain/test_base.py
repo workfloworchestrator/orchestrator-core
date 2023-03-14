@@ -1257,14 +1257,14 @@ def test_inherited_serializable_property():
         def double_int_field(self) -> int:
             return 2 * self.int_field
 
-        @serializable_property
+        @serializable_property  # type: ignore
         def triple_int_field(self) -> int:
             return 3 * self.int_field
 
         int_field: int
 
     class ActiveDomainModel(ProvisioningDomainModel):
-        @serializable_property
+        @serializable_property  # type: ignore
         def triple_int_field(self) -> int:
             # override the base property
             return 30 * self.int_field
