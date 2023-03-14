@@ -19,10 +19,12 @@ from orchestrator.db import (
 )
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import (
+    DomainModel,
     ProductBlockModel,
     SubscriptionInstanceList,
     SubscriptionModel,
     _is_constrained_list_type,
+    serializable_property,
 )
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
@@ -1228,3 +1230,22 @@ def test_from_other_lifecycle_sub(test_product_one, test_product_block_one, test
     assert active_block.sub_block.db_model == block.sub_block.db_model
     assert active_block.sub_block_2.db_model == block.sub_block_2.db_model
     assert active_block.sub_block_list[0].db_model == block.sub_block_list[0].db_model
+
+
+def test_serializable_property():
+    class DerivedDomainModel(DomainModel):
+        @serializable_property  # type: ignore
+        def double_int_field(self) -> int:
+            # This property is serialized
+            return 2 * self.int_field
+
+        @property
+        def triple_int_field(self) -> int:
+            # This property is not serialized
+            return 3 * self.int_field
+
+        int_field: int
+
+    block = DerivedDomainModel(int_field=13)
+
+    assert block.dict() == {"int_field": 13, "double_int_field": 26}
