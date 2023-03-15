@@ -210,6 +210,11 @@ class DomainModel(BaseModel):
                 # issubclass does not work on typing types
                 is_product_block_field = False
 
+            # Figure out if this field_name has an alias. Needed sometimes for serializable properties that
+            # have a 'real' property with the same name that has a field alias.
+            if field := cls.__fields__.get(field_name):
+                field_name = field.alias
+
             # We only want fields that are on this class and not on the related product blocks
             if is_product_block_field:
                 cls._product_block_fields_[field_name] = field_type
