@@ -152,7 +152,7 @@ class Populator:
         Returns: product dict
 
         """
-        response = self.session.get(BASE_API_URL / "products")
+        response = self.session.get(BASE_API_URL / "products/")
         if response.status_code == HTTPStatus.OK:
             for product in response.json():
                 if product["name"] == product_name:
