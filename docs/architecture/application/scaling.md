@@ -124,7 +124,7 @@ Notice that we are setting `EXECUTOR` to `celery`. Without that variable the api
 Start a single worker that listens both on the `tasks` and `workflows` queue (indicated by the `-Q` flag):
 
 ```bash
-celery -A surf.tasks  worker --loglevel=info -Q tasks,workflows
+celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 ```
 
 Notice that `-A surf.tasks` indicates the module that contains your 'celery.Celery' instance.
