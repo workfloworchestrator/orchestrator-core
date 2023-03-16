@@ -61,10 +61,10 @@ def initialise_celery(celery: Celery) -> None:
 
     # Different routes/queues so we can assign them priorities
     celery.conf.task_routes = {
-        NEW_TASK: {"queue": "tasks"},
-        NEW_WORKFLOW: {"queue": "workflows"},
-        RESUME_TASK: {"queue": "tasks"},
-        RESUME_WORKFLOW: {"queue": "workflows"},
+        NEW_TASK: {"queue": "new_task"},
+        NEW_WORKFLOW: {"queue": "new_workflow"},
+        RESUME_TASK: {"queue": "resume_task"},
+        RESUME_WORKFLOW: {"queue": "resume_workflow"},
     }
 
     register_custom_serializer()
