@@ -99,10 +99,6 @@ pip install flit
 ```
 
 #### Step 2 - install the development code:
-```shell
-flit install --deps develop --symlink --python venv/bin/python
-pip install redis
-```
 
 !!! danger
     Make sure to use the flit binary that is installed in your environment. You can check the correct
@@ -116,7 +112,6 @@ that you want to use:
 
 ```shell
 flit install --deps develop --symlink --python venv/bin/python
-pip install redis
 ```
 
 
