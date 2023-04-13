@@ -1,3 +1,4 @@
+import os
 import re
 from typing import Any
 
@@ -7,7 +8,11 @@ from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
 from structlog import get_logger
 
+import orchestrator
+
 logger = get_logger(__name__)
+
+orchestrator_module_location = os.path.dirname(orchestrator.__file__)
 
 
 def remove_down_revision_from_text(text: str) -> str:
@@ -60,6 +65,13 @@ def create_migration_file(
     print("Generating migration file.\n")  # noqa: T001, T201
 
     try:
+        project_venv_location = " ".join(
+            [
+                location
+                for location in alembic_config.get_main_option("version_locations").split(" ")
+                if orchestrator_module_location not in location
+            ]
+        )
         # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
         script = ScriptDirectory.from_config(alembic_config)
         core_head = script.get_current_head()
@@ -68,6 +80,7 @@ def create_migration_file(
             message,
             branch_label="data",
             depends_on=core_head,
+            version_path=project_venv_location,
         )
 
         remove_core_as_down_revision(migration)
