@@ -622,20 +622,23 @@ def test_safe_logstep_critical_failure():
         assert f"Failed to write failure step to process: process with PID {pid} not found" in str(e.value)
 
 
+@mock.patch("orchestrator.services.processes.set_process_status_resumed")
 @mock.patch("orchestrator.services.processes.get_execution_context")
-def test_resume_process(mock_get_execution_context):
+def test_resume_process(mock_get_execution_context, mock_set_process_status_resumed):
     """Test that resume_process() sets the process status to RESUMED."""
     process = mock.Mock(spec=ProcessTable())
     mock_resume_func = mock.Mock()
 
     context = {"resume": mock_resume_func}
 
-    mock_get_execution_context.side_effect = context
+    # Cannot just do .side_effect, otherwise returns the contexts's
+    #   key "resume" instead of the `context` dictionary.
+    mock_get_execution_context.__getitem__.side_effect = context
 
     process.pid, process.last_status = 123, ProcessStatus.FAILED
 
     _ = resume_process(process)
-    assert process.last_status == ProcessStatus.RESUMED
+    assert len(mock_set_process_status_resumed.mock_calls) == 1
 
 
 @mock.patch("orchestrator.services.processes._get_process")
