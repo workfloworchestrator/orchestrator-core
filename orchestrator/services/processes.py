@@ -464,6 +464,7 @@ def resume_process(
         process id
 
     """
+    # CS-TODO: Update process status here
     resume_func = get_execution_context()["resume"]
     return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
@@ -494,6 +495,10 @@ async def _async_resume_processes(
                     if process.last_status == ProcessStatus.RUNNING:
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", pid=_proc.pid)
+                        continue
+                    elif process.last_status == ProcessStatus.RESUMED:
+                        # Process has been resumed by something else in the meantime
+                        logger.info("Cannot resume a resumed process", pid=_proc.pid)
                         continue
                     resume_process(process, user=user_name, broadcast_func=broadcast_func)
                 except Exception:

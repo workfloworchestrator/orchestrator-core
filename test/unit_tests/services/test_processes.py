@@ -19,6 +19,7 @@ from orchestrator.services.processes import (
     _run_process_async,
     safe_logstep,
     start_process,
+    resume_process,
 )
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -621,27 +622,50 @@ def test_safe_logstep_critical_failure():
         assert f"Failed to write failure step to process: process with PID {pid} not found" in str(e.value)
 
 
+@mock.patch("orchestrator.services.processes.get_execution_context")
+def test_resume_process(mock_get_execution_context):
+    """Test that resume_process() sets the process status to RESUMED."""
+    process = mock.Mock(spec=ProcessTable())
+    mock_resume_func = mock.Mock()
+
+    context = {"resume": mock_resume_func}
+
+    mock_get_execution_context.side_effect = context
+
+    process.pid, process.last_status = 123, ProcessStatus.FAILED
+
+    _ = resume_process(process)
+    assert process.last_status == ProcessStatus.RESUMED
+
+
 @mock.patch("orchestrator.services.processes._get_process")
 @mock.patch("orchestrator.services.processes.resume_process")
 def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
     """Test that _async_resume_process() rejects running processes and handles failures."""
-    processes = [mock.Mock(spec=ProcessTable()), mock.Mock(spec=ProcessTable()), mock.Mock(spec=ProcessTable())]
+    processes = [
+        mock.Mock(spec=ProcessTable()),
+        mock.Mock(spec=ProcessTable()),
+        mock.Mock(spec=ProcessTable()),
+        mock.Mock(spec=ProcessTable()),
+    ]
     processes[0].pid, processes[0].last_status = 123, ProcessStatus.RUNNING
     processes[1].pid, processes[1].last_status = 124, ProcessStatus.FAILED
     processes[2].pid, processes[2].last_status = 125, ProcessStatus.API_UNAVAILABLE
+    processes[3].pid, processes[3].last_status = 126, ProcessStatus.RESUMED
 
-    # get_process() should be called 3 times
+    # get_process() should be called 4 times
     mock_get_process.side_effect = processes
 
-    # resume_process() should be called 2 times for the non-running processes; let 1 call fail
+    # resume_process() should be called 2 times for the non-running / non-resumed processes; let 1 call fail
     mock_resume_process.side_effect = [None, ValueError("This workflow cannot be resumed")]
 
     # Don't set app_settings.TESTING=False because we want to await the result
     asyncio.run(_async_resume_processes(processes, "testusername"))
 
-    assert len(mock_get_process.mock_calls) == 3
+    assert len(mock_get_process.mock_calls) == 4
     assert len(mock_resume_process.mock_calls) == 2
     assert "Cannot resume a running process" in caplog.text  # pid 123 should not be resumed
+    assert "Cannot resume a resumed process" in caplog.text  # pid 126 should not be resumed
     assert "Failed to resume process" in caplog.text  # pid 125 should fail
     assert "Completed resuming processes" in caplog.text
 
