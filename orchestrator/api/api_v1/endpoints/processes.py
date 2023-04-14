@@ -118,6 +118,9 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.RUNNING:
         raise_status(HTTPStatus.CONFLICT, "Resuming a running workflow is not possible")
 
+    if process.last_status == ProcessStatus.RESUMED:
+        raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
+
     user_name = user.user_name if user else SYSTEM_USER
 
     broadcast_func = api_broadcast_process_data(request)

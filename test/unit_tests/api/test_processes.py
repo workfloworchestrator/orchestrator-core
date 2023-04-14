@@ -365,26 +365,39 @@ def test_try_resume_completed_workflow(test_client, started_process):
     assert 409 == response.status_code
 
 
+def test_try_resume_resumed_workflow(test_client, started_process):
+    process = ProcessTable.query.get(started_process)
+    # setup DB so it looks like this workflow has already been resumed
+    process.last_status = ProcessStatus.RESUMED
+    process.failed_reason = ""
+    db.session.commit()
+
+    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{}])
+    assert 409 == response.status_code
+
+
 def test_processes_filterable(test_client, mocked_processes, generic_subscription_2, generic_subscription_1):
     response = test_client.get("/api/processes/")
     assert HTTPStatus.OK == response.status_code
     processes = response.json()
 
-    assert 7 == len(processes)
+    assert 9 == len(processes)
     assert "workflow_for_testing_processes_py", processes[0]["workflow"]
 
     response = test_client.get("/api/processes?filter=status,completed")
     assert 3 == len(response.json())
     response = test_client.get("/api/processes?filter=status,suspended")
     assert 2 == len(response.json())
+    response = test_client.get("/api/processes?filter=status,resumed")
+    assert 2 == len(response.json())
 
     product_name = SubscriptionTable.query.get(generic_subscription_1).product.name
     response = test_client.get(f"/api/processes?filter=product,{product_name}")
-    assert 3 == len(response.json())
+    assert 4 == len(response.json())
     response = test_client.get("/api/processes?sort=assignee,asc")
     assert response.json()[0]["assignee"] == "NOC"
     response = test_client.get("/api/processes?sort=started&filter=istask,y")
-    assert 3 == len(response.json())
+    assert 4 == len(response.json())
     response = test_client.get(f"/api/processes?filter=istask,y,organisation,{CUSTOMER_ID}")
     assert 2 == len(response.json())
 
@@ -395,7 +408,7 @@ def test_processes_filterable_response_model(
     response = test_client.get("/api/processes/?sort=started,asc")
     assert HTTPStatus.OK == response.status_code
     processes = response.json()
-    assert len(processes) == 7
+    assert len(processes) == 9
     process = processes[0]
 
     assert len(process["subscriptions"]) == 1
@@ -423,7 +436,7 @@ def test_processes_filterable_response_model_contains_product_info(
     response = test_client.get("/api/processes/?sort=started,asc")
     assert HTTPStatus.OK == response.status_code
     processes = response.json()
-    assert len(processes) == 7
+    assert len(processes) == 9
     process = processes[0]
 
     assert len(process["subscriptions"]) == 1
