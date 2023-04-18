@@ -69,6 +69,8 @@ def _celery_resume_process(
     trigger_task = get_celery_task(task_name)
     result = trigger_task.delay(pstat.pid, user_inputs, user)
 
+    _celery_set_process_status_resumed(process)
+
     # Enables "Sync celery tasks. This will let the app wait until celery completes"
     if app_settings.TESTING:
         pid = result.get()
@@ -76,6 +78,20 @@ def _celery_resume_process(
             raise RuntimeError("Celery worker has failed to resume process")
 
     return pstat.pid
+
+
+def _celery_set_process_status_resumed(process: ProcessTable):
+    """Set the process status to RESUMED to prevent re-adding to task queue.
+
+    Args:
+        process: Process from database
+    """
+    from orchestrator.db import db
+    from orchestrator.workflow import ProcessStatus
+
+    process.last_status = ProcessStatus.RESUMED
+    db.session.add(process)
+    db.session.commit()
 
 
 def _celery_validate(validation_workflow: str, json: Optional[List[State]]) -> None:

@@ -464,21 +464,8 @@ def resume_process(
         process id
 
     """
-    set_process_status_resumed(process)
     resume_func = get_execution_context()["resume"]
     return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
-
-
-def set_process_status_resumed(process: ProcessTable):
-    """Set the process status to RESUMED.
-
-    Args:
-        process: Process from database
-    """
-    # update to the process status to prevent re-adding to task queue
-    process.last_status = ProcessStatus.RESUMED
-    db.session.add(process)
-    db.session.commit()
 
 
 async def _async_resume_processes(
