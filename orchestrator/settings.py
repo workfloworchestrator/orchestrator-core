@@ -76,6 +76,7 @@ class AppSettings(BaseSettings):
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
+    SERVE_GRAPHQL_UI: bool = True
 
 
 class Oauth2Settings(BaseSettings):
