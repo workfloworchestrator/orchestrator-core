@@ -34,6 +34,7 @@ from typing import (
 )
 from uuid import UUID
 
+import strawberry
 import structlog
 from nwastdlib import const, identity
 from structlog.contextvars import bound_contextvars
@@ -403,6 +404,7 @@ S = TypeVar("S")
 F = TypeVar("F")
 
 
+@strawberry.enum
 class ProcessStatus(strEnum):
     CREATED = "created"
     RUNNING = "running"
