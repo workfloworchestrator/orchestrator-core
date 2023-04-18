@@ -370,6 +370,7 @@ def test_try_resume_resumed_workflow(test_client, started_process):
     # setup DB so it looks like this workflow has already been resumed
     process.last_status = ProcessStatus.RESUMED
     process.failed_reason = ""
+    db.session.add(process)
     db.session.commit()
 
     response = test_client.put(f"/api/processes/{started_process}/resume", json=[{}])
