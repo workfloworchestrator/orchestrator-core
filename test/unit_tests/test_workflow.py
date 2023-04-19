@@ -406,7 +406,7 @@ def store(log):
 
 
 def test_failing_inputstep_with_form_state_params() -> None:
-    @inputstep("Modify")
+    @inputstep("Modify", assignee=Assignee.SYSTEM)
     def modify(subscription_id: UUIDstr) -> NoReturn:
         raise Exception("Something went wrong")
 

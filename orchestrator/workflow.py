@@ -251,7 +251,7 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
     return decorator
 
 
-def inputstep(name: str, assignee: Optional[Assignee] = None) -> Callable[[InputStepFunc], Step]:
+def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
     IMPORTANT: In contrast to other workflow steps, the `@inputstep` wrapped function will not run in the
