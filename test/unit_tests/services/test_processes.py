@@ -19,7 +19,6 @@ from orchestrator.services.processes import (
     _run_process_async,
     safe_logstep,
     start_process,
-    resume_process,
 )
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
