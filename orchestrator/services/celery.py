@@ -80,7 +80,7 @@ def _celery_resume_process(
     return pstat.pid
 
 
-def _celery_set_process_status_resumed(process: ProcessTable):
+def _celery_set_process_status_resumed(process: ProcessTable) -> None:
     """Set the process status to RESUMED to prevent re-adding to task queue.
 
     Args:
