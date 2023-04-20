@@ -8,10 +8,10 @@ from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStep
 class ProcessFormType:
     title: strawberry.auto
     type: strawberry.auto
-    properties: JSON
+    properties: JSON  # type: ignore
     additionalProperties: strawberry.auto
     required: strawberry.auto
-    definitions: JSON | None
+    definitions: JSON | None  # type: ignore
 
 
 @strawberry.experimental.pydantic.type(
@@ -26,7 +26,7 @@ class ProcessFormType:
     ],
 )
 class ProcessStepType:
-    pass
+    state: JSON | None  # type: ignore
 
 
 @strawberry.experimental.pydantic.type(

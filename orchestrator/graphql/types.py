@@ -12,26 +12,20 @@
 # limitations under the License.
 
 # Map some Orchestrator types to scalars
-from typing import Callable, NewType
+from typing import Callable
 
-import strawberry
 from graphql import GraphQLError
 from oauth2_lib.fastapi import OIDCUserModel
 from strawberry.fastapi import BaseContext
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
-JSON = strawberry.scalar(
-    NewType("JSON", object),
-    description="The `JSON` scalar type represents JSON values as specified by ECMA-404",
-    serialize=lambda v: v,
-    parse_value=lambda v: v,
-)
-
 
 class CustomContext(BaseContext):
     def __init__(self, get_current_user: Callable[[], OIDCUserModel], get_opa_decision: Callable[[str], bool]):
         self.errors: list[GraphQLError] = []
+        self.get_current_user = get_current_user
+        self.get_opa_decision = get_opa_decision
         super().__init__()
 
 
