@@ -25,7 +25,6 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
@@ -120,7 +119,6 @@ class OrchestratorCore(FastAPI):
         logger.info("Activating Opentelemetry tracing to app", app=self.title)
         trace.set_tracer_provider(tracer_provider)
         FastAPIInstrumentor.instrument_app(self)
-        RequestsInstrumentor().instrument()
         HTTPXClientInstrumentor().instrument()
         RedisInstrumentor().instrument()
         Psycopg2Instrumentor().instrument()
