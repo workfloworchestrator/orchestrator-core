@@ -413,6 +413,7 @@ class ProcessStatus(strEnum):
     API_UNAVAILABLE = "api_unavailable"
     INCONSISTENT_DATA = "inconsistent_data"
     COMPLETED = "completed"
+    RESUMED = "resumed"
 
 
 class StepStatus(strEnum):
