@@ -31,7 +31,9 @@ from orchestrator.graphql.extensions.deprecation_checker_extension import make_d
 from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
+from orchestrator.graphql.resolvers.product import resolve_products
 from orchestrator.graphql.schemas.process import ProcessType
+from orchestrator.graphql.schemas.product import Product
 from orchestrator.graphql.types import CustomContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
@@ -46,6 +48,7 @@ class Query:
     processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
+    products: list[Product] = strawberry.field(resolve_products, description="Returns list of products")
 
 
 class OrchestratorGraphqlRouter(GraphQLRouter):
