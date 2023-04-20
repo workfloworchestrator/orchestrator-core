@@ -368,7 +368,7 @@ class Populator:
             return False
         elif status == "suspended":
             return True
-        elif status == "running":
+        elif status in ('running', 'resumed'):
             return False
         elif status in ("failed", "waiting"):
             if self.retries < 1:
