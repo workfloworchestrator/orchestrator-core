@@ -22,8 +22,8 @@ from orchestrator.graphql.types import CustomInfo
 class ErrorCollectorExtension(SchemaExtension):
     errors: list[GraphQLError] = []
 
-    def resolve(self, _next: Any, root: Any, info: CustomInfo, *args: Any, **kwargs: Any) -> Any:
-        info.context["errors"] = self.errors
+    def resolve(self, _next: Any, root: Any, info: CustomInfo, *args, **kwargs) -> Any:  # type: ignore
+        info.context.errors = self.errors
         return _next(root, info, *args, **kwargs)
 
     def on_execute(self) -> Generator[None, None, None]:

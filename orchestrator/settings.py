@@ -77,6 +77,9 @@ class AppSettings(BaseSettings):
     DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
     SERVE_GRAPHQL_UI: bool = True
+    MUTATIONS_ENABLED: bool = False
+    FEDEREATION_ENABLED: bool = False
+    ENVIRONMENT_IGNORE_MUTATION_DISABLED: list = []
 
 
 class Oauth2Settings(BaseSettings):

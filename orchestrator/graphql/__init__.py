@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Callable
 
 import strawberry
 import structlog
+from fastapi import Depends
 from fastapi.routing import APIRouter
 from graphql import GraphQLError, GraphQLFormattedError
 from graphql.error.graphql_error import format_error
@@ -25,10 +26,13 @@ from strawberry.http import GraphQLHTTPResponse
 from strawberry.types import ExecutionContext, ExecutionResult
 from strawberry.utils.logging import StrawberryLogger
 
+from orchestrator.graphql.authentication import authenticated_field
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.process import Process
+from orchestrator.graphql.types import CustomContext
+from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
 
 api_router = APIRouter()
@@ -38,7 +42,7 @@ logger = structlog.get_logger(__name__)
 
 @strawberry.type(description="Orchestrator queries")
 class Query:
-    processes: list[Process] = strawberry.field(resolve_processes, description="Returns list of processes")
+    processes: list[Process] = authenticated_field(resolver=resolve_processes, description="Returns list of processes")
 
 
 class PythiaGraphqlRouter(GraphQLRouter):
@@ -85,8 +89,20 @@ class CustomSchema(strawberry.federation.Schema):
 
 schema = CustomSchema(
     query=Query,
+    enable_federation_2=app_settings.FEDEREATION_ENABLED,
     extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=Query)],
 )
 
 
-graphql_router = PythiaGraphqlRouter(schema, graphiql=app_settings.SERVE_GRAPHQL_UI)
+def custom_context_dependency(
+    get_current_user: Callable = Depends(get_oidc_user),  # noqa: B008
+    get_opa_decision: Callable = Depends(get_opa_security_graphql),  # noqa: B008
+) -> CustomContext:
+    return CustomContext(get_current_user=get_current_user, get_opa_decision=get_opa_decision)
+
+
+async def get_context(custom_context=Depends(custom_context_dependency)) -> CustomContext:  # type: ignore # noqa: B008
+    return custom_context
+
+
+graphql_router = PythiaGraphqlRouter(schema, context_getter=get_context, graphiql=app_settings.SERVE_GRAPHQL_UI)

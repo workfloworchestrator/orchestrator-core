@@ -26,13 +26,13 @@ from more_itertools import chunked, flatten, one
 from sqlalchemy import String, cast
 from sqlalchemy.orm import defer, joinedload
 from sqlalchemy.sql import expression
-from strawberry.types import Info
 from strawberry.types.nodes import SelectedField, Selection
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.graphql.schemas.process import Process
+from orchestrator.graphql.types import CustomInfo
 from orchestrator.schemas import ProcessSchema
 from orchestrator.schemas.process import ProcessStepSchema
 
@@ -98,14 +98,14 @@ class ProcessSort:
 
 
 async def resolve_processes(
-    info: Info,
+    info: CustomInfo,
     filter_by: list[tuple[str, str]] | None = None,
     sort_by: list[ProcessSort] | None = None,
     first: int = 10,
     after: Cursor = 0,
 ) -> list[Process]:
     _range: Union[List[int], None] = [after, after + first] if after is not None and first else None
-    _filter: Union[List[str], None] = flatten(filter_by) if filter_by else None
+    _filter: Union[List[str], None] = List(flatten(filter_by)) if filter_by else None
     logger.info("processes_filterable() called", range=_range, sort=sort_by, filter=_filter)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
