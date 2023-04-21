@@ -27,7 +27,7 @@ class Connection(Generic[GenericType]):
     """
 
     page_info: "PageInfo"
-    edges: list["Edge[GenericType]"]
+    page: list["GenericType"]
 
 
 @strawberry.federation.type(
@@ -46,8 +46,8 @@ class PageInfo:
 
     has_next_page: bool
     has_previous_page: bool
-    start_cursor: str | None
-    end_cursor: str | None
+    start_cursor: int | None
+    end_cursor: int | None
     total_items: str | None
 
 

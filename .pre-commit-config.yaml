@@ -54,6 +54,7 @@ repos:
           - types-redis
           - types-orjson
           - types-tabulate
+          - strawberry-graphql
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
