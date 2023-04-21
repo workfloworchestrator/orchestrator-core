@@ -1,10 +1,6 @@
 import strawberry
 
-from orchestrator.schemas.fixed_input import (
-    FixedInputConfigurationItemSchema,
-    FixedInputSchema,
-    TagConfig,
-)
+from orchestrator.schemas.fixed_input import FixedInputConfigurationItemSchema, FixedInputSchema, TagConfig
 
 
 @strawberry.experimental.pydantic.type(model=FixedInputSchema, all_fields=True)
