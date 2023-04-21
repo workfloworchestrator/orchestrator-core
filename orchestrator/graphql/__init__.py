@@ -29,6 +29,7 @@ from strawberry.utils.logging import StrawberryLogger
 from orchestrator.graphql.authentication import authenticated_field
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
+from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.process import Process
 from orchestrator.graphql.types import CustomContext
@@ -42,7 +43,9 @@ logger = structlog.get_logger(__name__)
 
 @strawberry.type(description="Orchestrator queries")
 class Query:
-    processes: list[Process] = authenticated_field(resolver=resolve_processes, description="Returns list of processes")
+    processes: Connection[Process] = authenticated_field(
+        resolver=resolve_processes, description="Returns list of processes"
+    )
 
 
 class PythiaGraphqlRouter(GraphQLRouter):

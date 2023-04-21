@@ -13,8 +13,6 @@
 
 """Module that implements process related API endpoints."""
 
-import struct
-import zlib
 from enum import Enum
 from http import HTTPStatus
 from typing import List, Union
@@ -31,12 +29,11 @@ from strawberry.types.nodes import SelectedField, Selection
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
+from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.process import Process
-from orchestrator.graphql.types import CustomInfo
 from orchestrator.schemas import ProcessSchema
 from orchestrator.schemas.process import ProcessStepSchema
 
-Cursor = int
 logger = structlog.get_logger(__name__)
 
 
@@ -98,12 +95,11 @@ class ProcessSort:
 
 
 async def resolve_processes(
-    info: CustomInfo,
     filter_by: list[tuple[str, str]] | None = None,
     sort_by: list[ProcessSort] | None = None,
     first: int = 10,
-    after: Cursor = 0,
-) -> list[Process]:
+    after: int = 0,
+) -> Connection[Process]:
     _range: Union[List[int], None] = [after, after + first] if after is not None and first else None
     _filter: Union[List[str], None] = List(flatten(filter_by)) if filter_by else None
     logger.info("processes_filterable() called", range=_range, sort=sort_by, filter=_filter)
@@ -200,32 +196,32 @@ async def resolve_processes(
             else:
                 raise_status(HTTPStatus.BAD_REQUEST, "Invalid Sort parameters")
 
-    if _range is not None and len(_range) == 2:
-        try:
-            range_start = int(_range[0])
-            range_end = int(_range[1])
-            if range_start >= range_end:
-                raise ValueError("range start must be lower than end")
-        except (ValueError, AssertionError):
-            msg = "Invalid range parameters"
+    total = None
+    if after is not None and first:
+        if after >= after + first:
+            msg = "range start must be lower than end"
             logger.exception(msg)
             raise_status(HTTPStatus.BAD_REQUEST, msg)
-        # total = query.count()
-        query = query.slice(range_start, range_end)
 
-    results = query.all()
+        total = query.count()
+        query = query.offset(after).limit(first + 1)
 
-    # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
-    checksum = 0
-    for p in results:
-        checksum = zlib.crc32(p.pid.bytes, checksum)
-        last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
-        checksum = zlib.crc32(last_modified_as_bytes, checksum)
+    processes = query.all()
+    has_next_page = len(processes) > first
 
-    # entity_tag = hex(checksum)
-    # # When the If-None-Match header contains the same CRC we can be sure that the resource has not changed
-    # # so we can skip serialization at the backend and rerendering at the frontend.
-    # if if_none_match == entity_tag:
-    #     return []
+    # exclude last item as it was fetched to know if there is a next page
+    processes = processes[:first]
+    processes_length = len(processes)
+    start_cursor = after if processes_length else None
+    end_cursor = after + processes_length - 1
 
-    return [Process.from_pydantic(enrich_process(p)) for p in results]  # type: ignore
+    return Connection(
+        page=[Process.from_pydantic(enrich_process(p)) for p in processes] if processes else [],
+        page_info=PageInfo(
+            has_previous_page=bool(after),
+            has_next_page=has_next_page,
+            start_cursor=start_cursor,
+            end_cursor=end_cursor,
+            total_items=total if total else None,
+        ),
+    )
