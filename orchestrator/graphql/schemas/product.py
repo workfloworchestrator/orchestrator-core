@@ -6,7 +6,7 @@ from orchestrator.schemas.product import ProductSchema
 
 
 @strawberry.experimental.pydantic.type(model=ProductSchema)
-class ProductBaseType:
+class Product:
     product_id: strawberry.auto
     name: strawberry.auto
     description: strawberry.auto
@@ -15,9 +15,6 @@ class ProductBaseType:
     tag: strawberry.auto
     created_at: strawberry.auto
     end_date: strawberry.auto
-
-
-class Product(ProductBaseType):
     product_blocks: list[ProductBlockType]
     fixed_inputs: list[FixedInputType]
     # TODO(alex)

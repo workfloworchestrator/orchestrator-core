@@ -10,8 +10,9 @@ class FixedInputType:
 
 @strawberry.experimental.pydantic.type(model=FixedInputConfigurationItemSchema, all_fields=True)
 class FixedInputConfigurationItem:
-
     pass
+
+
 @strawberry.input
 class FixedInputConfigurationInputType:
     fixed_inputs: list[FixedInputConfigurationItem]

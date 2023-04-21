@@ -29,9 +29,9 @@ product_test_query = """
 }
 """
 
+
 @pytest.mark.asyncio
 async def test_product_query(test_product_list_nested):
-
     result = await schema.execute(product_test_query, context_value=Context())
     assert not result.errors
     product = result.data["products"][0]
