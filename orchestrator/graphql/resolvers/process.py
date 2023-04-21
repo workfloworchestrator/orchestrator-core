@@ -15,7 +15,6 @@
 
 from enum import Enum
 from http import HTTPStatus
-from typing import List, Union
 from uuid import UUID
 
 import strawberry
@@ -29,6 +28,7 @@ from strawberry.types.nodes import SelectedField, Selection
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
+from orchestrator.db.database import SearchQuery
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.process import Process
 from orchestrator.schemas import ProcessSchema
@@ -94,29 +94,12 @@ class ProcessSort:
     order: SortOrder = strawberry.field(default=SortOrder.ASC, description="Sort order (ASC or DESC")
 
 
-async def resolve_processes(
-    filter_by: list[tuple[str, str]] | None = None,
-    sort_by: list[ProcessSort] | None = None,
-    first: int = 10,
-    after: int = 0,
-) -> Connection[Process]:
-    _range: Union[List[int], None] = [after, after + first] if after is not None and first else None
-    _filter: Union[List[str], None] = List(flatten(filter_by)) if filter_by else None
-    logger.info("processes_filterable() called", range=_range, sort=sort_by, filter=_filter)
-
-    # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
-    # tracebacks are not presented in the list of processes and can be really large.
-    query = ProcessTable.query.options(
-        joinedload(ProcessTable.process_subscriptions)
-        .joinedload(ProcessSubscriptionTable.subscription)
-        .joinedload(SubscriptionTable.product),
-        defer("traceback"),
-    )
-
-    if _filter is not None:
-        if len(_filter) == 0 or (len(_filter) % 2) > 0:
+def filter_processes(query: SearchQuery, filter: list[str] | None = None) -> SearchQuery:
+    if filter is not None:
+        if len(filter) == 0 or (len(filter) % 2) > 0:
             raise_status(HTTPStatus.BAD_REQUEST, "Invalid number of filter arguments")
-        for filter_pair in chunked(_filter, 2):
+
+        for filter_pair in chunked(filter, 2):
             field, value = filter_pair
             field = field.lower()
             if value is not None:
@@ -184,7 +167,10 @@ async def resolve_processes(
                     query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
                 else:
                     raise_status(HTTPStatus.BAD_REQUEST, f"Invalid filter '{field}'")
+    return query
 
+
+def sort_processes(query: SearchQuery, sort_by: list[ProcessSort] | None = None) -> SearchQuery:
     if sort_by is not None:
         for item in sort_by:
             if item.field in VALID_SORT_KEYS:
@@ -195,16 +181,42 @@ async def resolve_processes(
                     query = query.order_by(expression.asc(ProcessTable.__dict__[sort_key]))
             else:
                 raise_status(HTTPStatus.BAD_REQUEST, "Invalid Sort parameters")
+    return query
 
-    total = None
+
+def set_processes_range(query: SearchQuery, after: int, first: int) -> SearchQuery:
     if after is not None and first:
         if after >= after + first:
             msg = "range start must be lower than end"
             logger.exception(msg)
             raise_status(HTTPStatus.BAD_REQUEST, msg)
-
-        total = query.count()
         query = query.offset(after).limit(first + 1)
+    return query
+
+
+async def resolve_processes(
+    filter_by: list[tuple[str, str]] | None = None,
+    sort_by: list[ProcessSort] | None = None,
+    first: int = 10,
+    after: int = 0,
+) -> Connection[Process]:
+    _range: list[int] | None = [after, after + first] if after is not None and first else None
+    _filter: list[str] | None = list(flatten(filter_by)) if filter_by else None
+    logger.info("processes_filterable() called", range=_range, sort=sort_by, filter=_filter)
+
+    # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
+    # tracebacks are not presented in the list of processes and can be really large.
+    query = ProcessTable.query.options(
+        joinedload(ProcessTable.process_subscriptions)
+        .joinedload(ProcessSubscriptionTable.subscription)
+        .joinedload(SubscriptionTable.product),
+        defer("traceback"),
+    )
+
+    query = filter_processes(query, _filter)
+    query = sort_processes(query, sort_by)
+    total = query.count()
+    query = set_processes_range(query, after, first)
 
     processes = query.all()
     has_next_page = len(processes) > first
