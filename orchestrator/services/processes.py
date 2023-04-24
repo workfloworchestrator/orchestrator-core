@@ -30,6 +30,7 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
+from orchestrator.schemas import JobStatisticsSchema
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
@@ -51,7 +52,6 @@ from orchestrator.workflows.removed_workflow import removed_workflow
 logger = structlog.get_logger(__name__)
 
 StateMerger = Merger([(dict, ["merge"])], ["override"], ["override"])
-
 
 SYSTEM_USER = "SYSTEM"
 
@@ -145,7 +145,11 @@ def _db_log_step(
             elif step_state.get("class") == "MaxRetryError" or (
                 step_state.get("class") == "ApiException"
                 and step_state.get("status_code")
-                in (HTTPStatus.BAD_GATEWAY, HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.GATEWAY_TIMEOUT)
+                in (
+                    HTTPStatus.BAD_GATEWAY,
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    HTTPStatus.GATEWAY_TIMEOUT,
+                )
             ):
                 p.assignee = Assignee.SYSTEM
                 p.last_status = ProcessStatus.API_UNAVAILABLE
@@ -174,7 +178,11 @@ def _db_log_step(
         # add a new entry to the process stat
         logger.info("Adding a new process step with state info")
         current_step = ProcessStepTable(
-            pid=stat.pid, name=step.name, status=process_state.status, state=step_state, created_by=stat.current_user
+            pid=stat.pid,
+            name=step.name,
+            status=process_state.status,
+            state=step_state,
+            created_by=stat.current_user,
         )
     else:
         # update the last one with the repeated info
@@ -183,8 +191,15 @@ def _db_log_step(
         executed_at.append(str(current_step.executed_at))
 
         # write new state info and execution date
-        current_step.state = {**step_state, "retries": retries, "executed_at": executed_at}
-        logger.info("Updating existing process step with state info about the error", retries=retries)
+        current_step.state = {
+            **step_state,
+            "retries": retries,
+            "executed_at": executed_at,
+        }
+        logger.info(
+            "Updating existing process step with state info about the error",
+            retries=retries,
+        )
 
     # Always explicitly set this instead of leaving it to the database to prevent failing tests
     # Test will fail if multiple steps have the same timestamp
@@ -243,7 +258,11 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
 
     p = ProcessTable.query.get(pid)
     if p is None:
-        logger.error("Failed to write failure to database: Process with PID %s not found", pid, pid=pid)
+        logger.error(
+            "Failed to write failure to database: Process with PID %s not found",
+            pid,
+            pid=pid,
+        )
         return
 
     logger.warning("Writing only process state to DB as step couldn't be found", pid=pid)
@@ -356,7 +375,11 @@ def create_process(
         raise
 
     pstat = ProcessStat(
-        pid, workflow=workflow, state=Success({**state, **initial_state}), log=workflow.steps, current_user=user
+        pid,
+        workflow=workflow,
+        state=Success({**state, **initial_state}),
+        log=workflow.steps,
+        current_user=user,
     )
 
     _db_create_process(pstat)
@@ -469,7 +492,9 @@ def resume_process(
 
 
 async def _async_resume_processes(
-    processes: List[ProcessTable], user_name: str, broadcast_func: Optional[Callable] = None
+    processes: List[ProcessTable],
+    user_name: str,
+    broadcast_func: Optional[Callable] = None,
 ) -> bool:
     """Asynchronously resume multiple failed processes.
 
@@ -560,7 +585,13 @@ def load_process(process: ProcessTable) -> ProcessStat:
     log = _restore_log(process.steps)
     pstate, remaining = _recoverwf(workflow, log)
 
-    return ProcessStat(pid=process.pid, workflow=workflow, state=pstate, log=remaining, current_user=SYSTEM_USER)
+    return ProcessStat(
+        pid=process.pid,
+        workflow=workflow,
+        state=pstate,
+        log=remaining,
+        current_user=SYSTEM_USER,
+    )
 
 
 class ProcessDataBroadcastThread(threading.Thread):
@@ -612,3 +643,13 @@ def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
         broadcast_queue.put((str(pid), data))
 
     return _queue_put
+
+
+class ThreadPoolJobStatistics(JobStatisticsSchema):
+    def __init__(self):
+        super().__init__()
+        thread_pool = get_thread_pool()
+        # TODO: Use getattr for safe access to protected field
+        self.number_of_workers_online = thread_pool._max_workers
+        self.number_of_queued_jobs = thread_pool._work_queue.qsize()
+        self.number_of_running_jobs = len(thread_pool._threads)

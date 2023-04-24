@@ -13,6 +13,7 @@
 
 from orchestrator.schemas.engine_settings import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
 from orchestrator.schemas.fixed_input import FixedInputConfigurationSchema, FixedInputSchema
+from orchestrator.schemas.job_statistics import JobStatisticsSchema
 from orchestrator.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.schemas.process import (
     ProcessBaseSchema,
@@ -38,6 +39,7 @@ __all__ = (
     "EngineSettingsBaseSchema",
     "FixedInputConfigurationSchema",
     "GlobalStatusEnum",
+    "JobStatisticsSchema",
     "ProblemDetailSchema",
     "FixedInputSchema",
     "ProductBlockEnrichedSchema",

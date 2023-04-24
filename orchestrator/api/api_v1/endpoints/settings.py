@@ -22,18 +22,22 @@ from redis.asyncio import Redis as AIORedis
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
-from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.schemas import (
+    EngineSettingsBaseSchema,
+    EngineSettingsSchema,
+    GlobalStatusEnum,
+    JobStatisticsSchema,
+)
 from orchestrator.security import oidc_user
 from orchestrator.services import settings
-from orchestrator.services.processes import SYSTEM_USER
-from orchestrator.settings import app_settings
+from orchestrator.services.processes import SYSTEM_USER, ThreadPoolJobStatistics
+from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
 from orchestrator.websocket import WS_CHANNELS, websocket_manager
 
 router = APIRouter()
 logger = structlog.get_logger()
-
 
 CACHE_FLUSH_OPTIONS: dict[str, str] = {
     "all": "All caches",
@@ -42,7 +46,9 @@ CACHE_FLUSH_OPTIONS: dict[str, str] = {
 
 @router.delete("/cache/{name}")
 async def clear_cache(name: str) -> int | None:
-    cache: AIORedis = AIORedis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
+    cache: AIORedis = AIORedis(
+        host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT
+    )
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
 
@@ -86,7 +92,8 @@ async def set_global_status(
     if websocket_manager.enabled:
         # send engine status to socket.
         await websocket_manager.broadcast_data(
-            [WS_CHANNELS.ENGINE_SETTINGS], {"engine-status": generate_engine_status_response(result)}
+            [WS_CHANNELS.ENGINE_SETTINGS],
+            {"engine-status": generate_engine_status_response(result)},
         )
 
     return status_response
@@ -105,10 +112,36 @@ def get_global_status() -> EngineSettingsSchema:
     return generate_engine_status_response(engine_settings)
 
 
+@router.get("/job-statistics", response_model=JobStatisticsSchema)
+def get_job_statistics() -> JobStatisticsSchema:
+    """
+    Return information job workers and queues.
+
+    Returns:
+    - The number of queued jobs
+    - The number of workers
+    - The number of running jobs
+    - The number of successful and unsuccessful jobs
+    """
+
+    logger.info("Entering job-statistics handler")
+    if app_settings.EXECUTOR == ExecutorType.WORKER:
+        from orchestrator.services.tasks import CeleryJobStatistics
+
+        response = CeleryJobStatistics()
+    else:
+        response = ThreadPoolJobStatistics()
+
+    logger.info("Retrieved TPJobStats", response=response)
+    return response
+
+
 if app_settings.ENABLE_WEBSOCKETS:
 
     @router.websocket("/ws-status/")
-    async def websocket_get_global_status(websocket: WebSocket, token: str = Query(...)) -> None:
+    async def websocket_get_global_status(
+        websocket: WebSocket, token: str = Query(...)
+    ) -> None:
         error = await websocket_manager.authorize(websocket, token)
 
         await websocket.accept()
@@ -118,13 +151,19 @@ if app_settings.ENABLE_WEBSOCKETS:
 
         engine_settings = EngineSettingsTable.query.one()
 
-        await websocket.send_text(json_dumps({"engine-status": generate_engine_status_response(engine_settings)}))
+        await websocket.send_text(
+            json_dumps(
+                {"engine-status": generate_engine_status_response(engine_settings)}
+            )
+        )
 
         channel = WS_CHANNELS.ENGINE_SETTINGS
         await websocket_manager.connect(websocket, channel)
 
 
-def generate_engine_status_response(engine_settings: EngineSettingsTable) -> EngineSettingsSchema:
+def generate_engine_status_response(
+    engine_settings: EngineSettingsTable,
+) -> EngineSettingsSchema:
     """
     Generate the correct engine status response.
 
