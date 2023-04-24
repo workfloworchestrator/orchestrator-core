@@ -18,7 +18,7 @@ from uuid import UUID
 
 try:
     # python3.10 introduces types.UnionType for the new union and optional type defs.
-    from types import UnionType
+    from types import UnionType  # type: ignore[attr-defined]  # new in python 3.10
 
     union_types = [Union, UnionType]
 except ImportError:

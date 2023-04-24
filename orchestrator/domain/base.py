@@ -185,7 +185,15 @@ class DomainModel(BaseModel):
         cls._non_product_block_fields_ = {}
         cls._product_block_fields_ = {}
 
-        from inspect import get_annotations
+        try:
+            from inspect import get_annotations  # type: ignore[attr-defined]  # new in python 3.10
+        except ImportError:
+            # python 3.9 compatibility
+            def get_annotations(obj: Any) -> dict:
+                if isinstance(obj, type):
+                    return obj.__dict__["__annotations__"]
+
+                return obj.__annotations__
 
         annotations = get_annotations(cls)
 
