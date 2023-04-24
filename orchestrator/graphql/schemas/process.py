@@ -4,13 +4,17 @@ from strawberry.scalars import JSON
 from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
 
 
-@strawberry.experimental.pydantic.type(model=ProcessForm)
+@strawberry.experimental.pydantic.type(
+    model=ProcessForm,
+    fields=[
+        "title",
+        "type",
+        "additionalProperties",
+        "required",
+    ],
+)
 class ProcessFormType:
-    title: strawberry.auto
-    type: strawberry.auto
     properties: JSON
-    additionalProperties: strawberry.auto
-    required: strawberry.auto
     definitions: JSON | None
 
 
@@ -50,5 +54,5 @@ class ProcessStepType:
         "form",
     ],
 )
-class Process:
+class ProcessType:
     pass
