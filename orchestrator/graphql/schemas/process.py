@@ -1,7 +1,8 @@
 import strawberry
 from strawberry.scalars import JSON
 
-from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
+from orchestrator.db.sql_models import ProcessSQLModel, StepSQLModel
+from orchestrator.schemas.process import ProcessForm
 
 
 @strawberry.experimental.pydantic.type(
@@ -18,14 +19,14 @@ class ProcessFormType:
     definitions: JSON | None
 
 
-@strawberry.experimental.pydantic.type(
-    model=ProcessStepSchema,
+@strawberry.experimental.pydantic.type(  # type: ignore
+    model=StepSQLModel,
     fields=[
         "stepid",
         "name",
         "status",
         "created_by",
-        "executed",
+        "executed_at",
         "commit_hash",
     ],
 )
@@ -33,26 +34,14 @@ class ProcessStepType:
     state: JSON | None
 
 
-@strawberry.experimental.pydantic.type(
-    model=ProcessSchema,
-    fields=[
-        "id",
-        "workflow_name",
-        "product",
-        "customer",
-        "assignee",
-        "failed_reason",
-        "traceback",
-        "step",
-        "status",
-        "last_step",
-        "created_by",
-        "started",
-        "last_modified",
-        "is_task",
-        "steps",
-        "form",
-    ],
-)
+@strawberry.experimental.pydantic.type(model=ProcessSQLModel, all_fields=True)  # type: ignore
 class ProcessType:
-    pass
+    product_id: str | None
+    customer_id: str | None
+    current_state: JSON | None
+    form: JSON | None
+    steps: list[ProcessStepType]
+
+    @strawberry.field(description="Process subscriptions")
+    async def subscriptions(self) -> str:
+        return "the to implement subscriptions model list"

@@ -11,9 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Map some Orchestrator types to scalars
+from enum import Enum
 from typing import Callable
 
+# Map some Orchestrator types to scalars
+import strawberry
 from graphql import GraphQLError
 from oauth2_lib.fastapi import OIDCUserModel
 from strawberry.fastapi import BaseContext
@@ -30,3 +32,15 @@ class CustomContext(BaseContext):
 
 
 CustomInfo = Info[CustomContext, RootValueType]
+
+
+@strawberry.enum(description="Sort order (ASC or DESC)")
+class SortOrder(Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+@strawberry.input(description="Sort resource by attribute")
+class Sort:
+    field: str = strawberry.field(description="Field to sort on")
+    order: SortOrder = strawberry.field(default=SortOrder.ASC, description="Sort order (ASC or DESC")
