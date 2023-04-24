@@ -19,11 +19,10 @@ from uuid import UUID
 
 import strawberry
 import structlog
-from more_itertools import chunked, flatten, one
+from more_itertools import chunked, flatten
 from sqlalchemy import String, cast
 from sqlalchemy.orm import defer, joinedload
 from sqlalchemy.sql import expression
-from strawberry.types.nodes import SelectedField, Selection
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS
@@ -35,20 +34,6 @@ from orchestrator.schemas import ProcessSchema
 from orchestrator.schemas.process import ProcessStepSchema
 
 logger = structlog.get_logger(__name__)
-
-
-def get_selections(selected_field: Selection) -> list[Selection]:
-    def has_field_name(selection: Selection, field_name: str) -> bool:
-        return isinstance(selection, SelectedField) and selection.name == field_name
-
-    edges_field = [selection for selection in selected_field.selections if has_field_name(selection, "edges")]
-
-    if not edges_field:
-        return selected_field.selections
-
-    node_field = [selection for selection in one(edges_field).selections if has_field_name(selection, "node")]
-
-    return one(node_field).selections if node_field else []
 
 
 def enrich_process(p: ProcessTable) -> ProcessSchema:
