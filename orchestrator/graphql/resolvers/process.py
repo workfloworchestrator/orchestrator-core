@@ -30,7 +30,7 @@ from orchestrator.api.helpers import VALID_SORT_KEYS
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.database import SearchQuery
 from orchestrator.graphql.pagination import Connection, PageInfo
-from orchestrator.graphql.schemas.process import Process
+from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.schemas import ProcessSchema
 from orchestrator.schemas.process import ProcessStepSchema
 
@@ -199,7 +199,7 @@ async def resolve_processes(
     sort_by: list[ProcessSort] | None = None,
     first: int = 10,
     after: int = 0,
-) -> Connection[Process]:
+) -> Connection[ProcessType]:
     _range: list[int] | None = [after, after + first] if after is not None and first else None
     _filter: list[str] | None = list(flatten(filter_by)) if filter_by else None
     logger.info("processes_filterable() called", range=_range, sort=sort_by, filter=_filter)
@@ -228,7 +228,7 @@ async def resolve_processes(
     end_cursor = after + processes_length - 1
 
     return Connection(
-        page=[Process.from_pydantic(enrich_process(p)) for p in processes] if processes else [],
+        page=[ProcessType.from_pydantic(enrich_process(p)) for p in processes] if processes else [],
         page_info=PageInfo(
             has_previous_page=bool(after),
             has_next_page=has_next_page,

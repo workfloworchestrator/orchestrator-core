@@ -31,7 +31,7 @@ from orchestrator.graphql.extensions.deprecation_checker_extension import make_d
 from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
-from orchestrator.graphql.schemas.process import Process
+from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import CustomContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
@@ -43,7 +43,7 @@ logger = structlog.get_logger(__name__)
 
 @strawberry.type(description="Orchestrator queries")
 class Query:
-    processes: Connection[Process] = authenticated_field(
+    processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
 
@@ -69,7 +69,7 @@ class OrchestratorGraphqlRouter(GraphQLRouter):
         return data
 
 
-class CustomSchema(strawberry.federation.Schema):
+class OrchestratorSchema(strawberry.federation.Schema):
     def process_errors(
         self,
         errors: list[GraphQLError],
@@ -90,7 +90,7 @@ class CustomSchema(strawberry.federation.Schema):
                 StrawberryLogger.error(error, execution_context)
 
 
-schema = CustomSchema(
+schema = OrchestratorSchema(
     query=Query,
     enable_federation_2=app_settings.FEDEREATION_ENABLED,
     extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=Query)],
