@@ -24,4 +24,4 @@ def get_selected_fields(info: CustomInfo) -> list[str]:
     if not page_items:
         return [selection.name for selection in root_selected.selections if isinstance(selection, SelectedField)]
 
-    return [selection.name for selection in one(page_items).selections if not selection.selections]
+    return [selection.name for selection in one(page_items).selections if isinstance(selection, SelectedField)]

@@ -49,11 +49,3 @@ class PageInfo:
     start_cursor: int | None
     end_cursor: int | None
     total_items: str | None
-
-
-@strawberry.type(description="An edge may contain additional information of the relationship")
-class Edge(Generic[GenericType]):
-    """An edge may contain additional information of the relationship. This is the trivial case."""
-
-    node: GenericType
-    cursor: str

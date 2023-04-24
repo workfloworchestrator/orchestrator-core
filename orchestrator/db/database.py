@@ -17,12 +17,12 @@ from typing import Any, Callable, ClassVar, Dict, Generator, Iterator, List, Opt
 from uuid import uuid4
 
 import structlog
-from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta, as_declarative
-from sqlalchemy.orm import Query, Session, scoped_session, sessionmaker
+from sqlalchemy.orm import Query, scoped_session, sessionmaker
 from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.sql.schema import MetaData
+from sqlmodel import Session, create_engine
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
