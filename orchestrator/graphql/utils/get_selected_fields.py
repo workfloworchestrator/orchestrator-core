@@ -1,4 +1,4 @@
-from more_itertools import one
+from more_itertools import first
 from strawberry.types.nodes import SelectedField, Selection
 
 from orchestrator.graphql.types import CustomInfo
@@ -19,9 +19,8 @@ def get_selected_fields(info: CustomInfo) -> list[str]:
     def has_field_name(selection: Selection, field_name: str) -> bool:
         return isinstance(selection, SelectedField) and selection.name == field_name
 
-    page_items = [selection for selection in root_selected.selections if has_field_name(selection, "page")]
-
+    page_items = first((selection for selection in root_selected.selections if has_field_name(selection, "page")), None)
     if not page_items:
-        return [selection.name for selection in root_selected.selections if isinstance(selection, SelectedField)]
+        page_items = root_selected
 
-    return [selection.name for selection in one(page_items).selections if not selection.selections]
+    return [selection.name for selection in page_items.selections if isinstance(selection, SelectedField)]
