@@ -48,7 +48,7 @@ class Query:
     )
 
 
-class PythiaGraphqlRouter(GraphQLRouter):
+class OrchestratorGraphqlRouter(GraphQLRouter):
     def __init__(self, schema: strawberry.federation.Schema, **kwargs: Any) -> None:
         super().__init__(schema, **kwargs)
 
@@ -108,4 +108,4 @@ async def get_context(custom_context=Depends(custom_context_dependency)) -> Cust
     return custom_context
 
 
-graphql_router = PythiaGraphqlRouter(schema, context_getter=get_context, graphiql=app_settings.SERVE_GRAPHQL_UI)
+graphql_router = OrchestratorGraphqlRouter(schema, context_getter=get_context, graphiql=app_settings.SERVE_GRAPHQL_UI)
