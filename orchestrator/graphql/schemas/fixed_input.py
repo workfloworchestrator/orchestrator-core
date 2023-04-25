@@ -4,7 +4,7 @@ from orchestrator.schemas.fixed_input import FixedInputConfigurationItemSchema, 
 
 
 @strawberry.experimental.pydantic.type(model=FixedInputSchema, all_fields=True)
-class FixedInputType:
+class FixedInput:
     pass
 
 
