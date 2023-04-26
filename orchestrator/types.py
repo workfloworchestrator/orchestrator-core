@@ -16,16 +16,8 @@ from http import HTTPStatus
 from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 from uuid import UUID
 
-try:
-    # python3.10 introduces types.UnionType for the new union and optional type defs.
-    from types import UnionType  # type: ignore[attr-defined]  # new in python 3.10
-
-    union_types = [Union, UnionType]
-except ImportError:
-    union_types = [Union]
-
 from pydantic import BaseModel
-from pydantic.typing import get_args, get_origin
+from pydantic.typing import get_args, get_origin, is_union
 
 UUIDstr = str
 State = Dict[str, Any]
@@ -247,7 +239,7 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_optional_type(Optional[State], State)
     True
     """
-    if get_origin(t) in union_types and None.__class__ in get_args(t):
+    if is_union(get_origin(t)) and None.__class__ in get_args(t):
         for arg in get_args(t):
             if arg is None.__class__:
                 continue
@@ -272,7 +264,7 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_union_type(int)
     False
     """
-    if get_origin(t) not in union_types:
+    if not is_union(get_origin(t)):
         return False
     if not test_type:
         return True
