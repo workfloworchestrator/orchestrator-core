@@ -11,9 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.schemas.engine_settings import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.schemas.engine_settings import (
+    EngineSettingsBaseSchema,
+    EngineSettingsSchema,
+    GlobalStatusEnum,
+    WorkerStatus,
+)
 from orchestrator.schemas.fixed_input import FixedInputConfigurationSchema, FixedInputSchema
-from orchestrator.schemas.job_statistics import JobStatisticsSchema
 from orchestrator.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.schemas.process import (
     ProcessBaseSchema,
@@ -39,7 +43,6 @@ __all__ = (
     "EngineSettingsBaseSchema",
     "FixedInputConfigurationSchema",
     "GlobalStatusEnum",
-    "JobStatisticsSchema",
     "ProblemDetailSchema",
     "FixedInputSchema",
     "ProductBlockEnrichedSchema",
@@ -62,6 +65,7 @@ __all__ = (
     "SubscriptionIdSchema",
     "ResourceTypeSchema",
     "ResourceTypeBaseSchema",
+    "WorkerStatus",
     "WorkflowSchema",
     "WorkflowWithProductTagsSchema",
 )

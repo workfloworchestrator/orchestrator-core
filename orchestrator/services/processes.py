@@ -30,7 +30,7 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
 from orchestrator.forms import FormValidationError, post_process
-from orchestrator.schemas import JobStatisticsSchema
+from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
@@ -323,7 +323,7 @@ def _run_process_async(pid: UUID, f: Callable) -> UUID:
                 finally:
                     _update_running_processes("-")
         except Exception as ex:
-            # We lost access to database here so we can only log
+            # We lost access to database here, so we can only log
             logger.exception("Unknown workflow failure", pid=pid)
             result = Failed(ex)
 
@@ -645,11 +645,12 @@ def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
     return _queue_put
 
 
-class ThreadPoolJobStatistics(JobStatisticsSchema):
+class ThreadPoolWorkerStatus(WorkerStatus):
+    executor_type = "threadpool"
+
     def __init__(self):
         super().__init__()
         thread_pool = get_thread_pool()
-        # TODO: Use getattr for safe access to protected field
-        self.number_of_workers_online = thread_pool._max_workers
-        self.number_of_queued_jobs = thread_pool._work_queue.qsize()
-        self.number_of_running_jobs = len(thread_pool._threads)
+        self.number_of_workers_online = getattr(thread_pool, "_max_workers", -1)
+        self.number_of_queued_jobs = thread_pool._work_queue.qsize() if hasattr(thread_pool, "_work_queue") else 0
+        self.number_of_running_jobs = len(getattr(thread_pool, "_threads", []))

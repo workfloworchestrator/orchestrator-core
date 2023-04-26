@@ -22,13 +22,8 @@ from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.schemas import JobStatisticsSchema
-from orchestrator.services.processes import (
-    _get_process,
-    _run_process_async,
-    safe_logstep,
-    thread_resume_process,
-)
+from orchestrator.schemas.engine_settings import WorkerStatus
+from orchestrator.services.processes import _get_process, _run_process_async, safe_logstep, thread_resume_process
 from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import ProcessStat, Success, runwf
@@ -76,9 +71,7 @@ def initialise_celery(celery: Celery) -> None:
 
     register_custom_serializer()
 
-    def start_process(
-        pid: UUID, workflow_key: str, state: Dict[str, Any], user: str
-    ) -> Optional[UUID]:
+    def start_process(pid: UUID, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         try:
             workflow = get_workflow(workflow_key)
 
@@ -94,62 +87,48 @@ def initialise_celery(celery: Celery) -> None:
             )
 
             safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
-            pid = _run_process_async(
-                pstat.pid, lambda: runwf(pstat, safe_logstep_with_func)
-            )
+            pid = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
 
         except Exception as exc:
-            local_logger.error(
-                "Worker failed to execute workflow", pid=pid, details=str(exc)
-            )
+            local_logger.error("Worker failed to execute workflow", pid=pid, details=str(exc))
             return None
         else:
             return pid
 
-    def resume_process(
-        pid: UUID, user_inputs: Optional[List[State]], user: str
-    ) -> Optional[UUID]:
+    def resume_process(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         try:
             process = _get_process(pid)
             pid = thread_resume_process(process, user_inputs=user_inputs, user=user)
         except Exception as exc:
-            local_logger.error(
-                "Worker failed to resume workflow", pid=pid, details=str(exc)
-            )
+            local_logger.error("Worker failed to resume workflow", pid=pid, details=str(exc))
             return None
         else:
             return pid
 
     @celery.task(log=local_logger, name=NEW_TASK, serializer="surf")  # type: ignore
-    def new_task(
-        pid, workflow_key: str, state: Dict[str, Any], user: str
-    ) -> Optional[UUID]:
+    def new_task(pid, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         local_logger.info("Start task", pid=pid, workflow_key=workflow_key)
         return start_process(pid, workflow_key, state=state, user=user)
 
     @celery.task(log=local_logger, name=NEW_WORKFLOW, serializer="surf")  # type: ignore
-    def new_workflow(
-        pid, workflow_key: str, state: Dict[str, Any], user: str
-    ) -> Optional[UUID]:
+    def new_workflow(pid, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         local_logger.info("Start workflow", pid=pid, workflow_key=workflow_key)
         return start_process(pid, workflow_key, state=state, user=user)
 
     @celery.task(log=local_logger, name=RESUME_TASK)  # type: ignore
-    def resume_task(
-        pid: UUID, user_inputs: Optional[List[State]], user: str
-    ) -> Optional[UUID]:
+    def resume_task(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         local_logger.info("Resume task", pid=pid)
         return resume_process(pid, user_inputs=user_inputs, user=user)
 
     @celery.task(log=local_logger, name=RESUME_WORKFLOW)  # type: ignore
-    def resume_workflow(
-        pid: UUID, user_inputs: Optional[List[State]], user: str
-    ) -> Optional[UUID]:
+    def resume_workflow(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         local_logger.info("Resume workflow", pid=pid)
         return resume_process(pid, user_inputs=user_inputs, user=user)
 
 
-class CeleryJobStatistics(JobStatisticsSchema):
+class CeleryJobWorkerStatus(WorkerStatus):
+    executor_type = "celery"
+
     def __init__(self):
         super().__init__()
         if not _celery:
@@ -160,9 +139,7 @@ class CeleryJobStatistics(JobStatisticsSchema):
         stats = inspection.stats()
         logger.info("Inspection stats")
         self.number_of_workers_online = len(stats)
-        self.number_of_queued_jobs = sum(
-            len(tasks) for w, tasks in inspection.scheduled().items()
-        ) + sum(len(tasks) for w, tasks in inspection.reserved().items())
-        self.number_of_running_jobs = sum(
-            len(tasks) for w, tasks in inspection.active().items()
+        self.number_of_queued_jobs = sum(len(tasks) for w, tasks in inspection.scheduled().items()) + sum(
+            len(tasks) for w, tasks in inspection.reserved().items()
         )
+        self.number_of_running_jobs = sum(len(tasks) for w, tasks in inspection.active().items())
