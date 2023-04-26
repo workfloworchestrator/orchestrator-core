@@ -15,21 +15,22 @@
 
 from enum import Enum
 from http import HTTPStatus
-from uuid import UUID
 
 import strawberry
 import structlog
-from more_itertools import chunked, flatten
-from sqlalchemy import String, cast
+from graphql import GraphQLError
 from sqlalchemy.orm import defer, joinedload
 from sqlalchemy.sql import expression
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable
 from orchestrator.db.database import SearchQuery
+from orchestrator.db.filters import CallableErrorHander, Filter
+from orchestrator.db.filters.process import filter_processes
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.process import ProcessType
+from orchestrator.graphql.types import CustomInfo, GraphqlFilter
 from orchestrator.schemas import ProcessSchema
 from orchestrator.schemas.process import ProcessStepSchema
 
@@ -79,80 +80,13 @@ class ProcessSort:
     order: SortOrder = strawberry.field(default=SortOrder.ASC, description="Sort order (ASC or DESC")
 
 
-def filter_processes(query: SearchQuery, filter: list[str] | None = None) -> SearchQuery:
-    if filter is not None:
-        if len(filter) == 0 or (len(filter) % 2) > 0:
-            raise_status(HTTPStatus.BAD_REQUEST, "Invalid number of filter arguments")
+def handle_process_error(info: CustomInfo) -> CallableErrorHander:  # type: ignore
+    def _handle_process_error(message: str, **kwargs) -> None:  # type: ignore
+        logger.debug(message, **kwargs)
+        extra_values = {k: v for k, v in kwargs.items()} if kwargs else {}
+        info.context.errors.append(GraphQLError(message=message, path=info.path, extensions=extra_values))
 
-        for filter_pair in chunked(filter, 2):
-            field, value = filter_pair
-            field = field.lower()
-            if value is not None:
-                if field == "istask":
-                    value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja")
-                    query = query.filter(ProcessTable.is_task.is_(value_as_bool))
-                elif field == "assignee":
-                    assignees = value.split("-")
-                    query = query.filter(ProcessTable.assignee.in_(assignees))
-                elif field == "status":
-                    statuses = value.split("-")
-                    query = query.filter(ProcessTable.last_status.in_(statuses))
-                elif field == "workflow":
-                    query = query.filter(ProcessTable.workflow.ilike("%" + value + "%"))
-                elif field == "creator":
-                    query = query.filter(ProcessTable.created_by.ilike("%" + value + "%"))
-                elif field == "organisation":
-                    try:
-                        value_as_uuid = UUID(value)
-                    except (ValueError, AttributeError):
-                        msg = "Not a valid customer_id, must be a UUID: '{value}'"
-                        logger.exception(msg)
-                        raise_status(HTTPStatus.BAD_REQUEST, msg)
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable)
-                        .filter(SubscriptionTable.customer_id == value_as_uuid)
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "product":
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable, ProductTable)
-                        .filter(ProductTable.name.ilike("%" + value + "%"))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "tag":
-                    tags = value.split("-")
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable, ProductTable)
-                        .filter(ProductTable.tag.in_(tags))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "subscriptions":
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable)
-                        .filter(SubscriptionTable.description.ilike("%" + value + "%"))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "pid":
-                    query = query.filter(cast(ProcessTable.pid, String).ilike("%" + value + "%"))
-                elif field == "target":
-                    targets = value.split("-")
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .filter(ProcessSubscriptionTable.workflow_target.in_(targets))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                else:
-                    raise_status(HTTPStatus.BAD_REQUEST, f"Invalid filter '{field}'")
-    return query
+    return _handle_process_error
 
 
 def sort_processes(query: SearchQuery, sort_by: list[ProcessSort] | None = None) -> SearchQuery:
@@ -180,14 +114,17 @@ def set_processes_range(query: SearchQuery, after: int, first: int) -> SearchQue
 
 
 async def resolve_processes(
-    filter_by: list[tuple[str, str]] | None = None,
+    info: CustomInfo,
+    filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[ProcessSort] | None = None,
     first: int = 10,
     after: int = 0,
 ) -> Connection[ProcessType]:
+    _error_handler = handle_process_error(info)
+
     _range: list[int] | None = [after, after + first] if after is not None and first else None
-    _filter: list[str] | None = list(flatten(filter_by)) if filter_by else None
-    logger.info("processes_filterable() called", range=_range, sort=sort_by, filter=_filter)
+    pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
+    logger.info("resolve_processes() called", range=_range, sort=sort_by, filter=pydantic_filter_by)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
@@ -198,7 +135,7 @@ async def resolve_processes(
         defer("traceback"),
     )
 
-    query = filter_processes(query, _filter)
+    query = filter_processes(query, pydantic_filter_by, _error_handler)
     query = sort_processes(query, sort_by)
     total = query.count()
     query = set_processes_range(query, after, first)

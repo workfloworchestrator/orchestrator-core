@@ -14,11 +14,14 @@
 # Map some Orchestrator types to scalars
 from typing import Callable
 
+import strawberry
 from graphql import GraphQLError
 from oauth2_lib.fastapi import OIDCUserModel
 from strawberry.fastapi import BaseContext
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
+
+from orchestrator.db.filters import Filter
 
 
 class CustomContext(BaseContext):
@@ -30,3 +33,9 @@ class CustomContext(BaseContext):
 
 
 CustomInfo = Info[CustomContext, RootValueType]
+
+
+@strawberry.experimental.pydantic.input(model=Filter)
+class GraphqlFilter:
+    field: str = strawberry.field(description="Field to filter on")
+    value: str = strawberry.field(description="Value to sort the field on")
