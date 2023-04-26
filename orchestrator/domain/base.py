@@ -190,10 +190,13 @@ class DomainModel(BaseModel):
         except ImportError:
             # python 3.9 compatibility
             def get_annotations(obj: Any) -> dict:
-                if isinstance(obj, type):
+                if hasattr(obj, "__annotations__"):
+                    return obj.__annotations__
+
+                if isinstance(obj, type) and "__annotations__" in obj.__dict__:
                     return obj.__dict__["__annotations__"]
 
-                return obj.__annotations__
+                raise Exception(f"Cannot resolve type annotations for object {obj!r}")
 
         annotations = get_annotations(cls)
 
