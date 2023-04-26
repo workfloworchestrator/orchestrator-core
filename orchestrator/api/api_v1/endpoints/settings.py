@@ -103,6 +103,7 @@ def get_worker_status() -> WorkerStatus:
     - The number of successful and unsuccessful jobs
     """
 
+    response: WorkerStatus
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.services.tasks import CeleryJobWorkerStatus
 
@@ -110,7 +111,6 @@ def get_worker_status() -> WorkerStatus:
     else:
         response = ThreadPoolWorkerStatus()
 
-    logger.info("Retrieved TPJobStats", response=response)
     return response
 
 

@@ -646,10 +646,8 @@ def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
 
 
 class ThreadPoolWorkerStatus(WorkerStatus):
-    executor_type = "threadpool"
-
-    def __init__(self):
-        super().__init__()
+    def __init__(self) -> None:
+        super().__init__(executor_type="threadpool")
         thread_pool = get_thread_pool()
         self.number_of_workers_online = getattr(thread_pool, "_max_workers", -1)
         self.number_of_queued_jobs = thread_pool._work_queue.qsize() if hasattr(thread_pool, "_work_queue") else 0

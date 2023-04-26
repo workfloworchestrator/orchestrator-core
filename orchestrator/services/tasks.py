@@ -33,9 +33,7 @@ logger = get_task_logger(__name__)
 
 local_logger = structlog.get_logger(__name__)
 
-
 _celery: Optional[Celery] = None
-
 
 NEW_TASK = "tasks.new_task"
 NEW_WORKFLOW = "tasks.new_workflow"
@@ -127,10 +125,8 @@ def initialise_celery(celery: Celery) -> None:
 
 
 class CeleryJobWorkerStatus(WorkerStatus):
-    executor_type = "celery"
-
-    def __init__(self):
-        super().__init__()
+    def __init__(self) -> None:
+        super().__init__(executor_type="celery")
         if not _celery:
             logger.error("Can't create CeleryJobStatistics. Celery is not initialised.")
             return
