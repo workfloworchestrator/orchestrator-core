@@ -191,8 +191,7 @@ def _db_log_step(
         executed_at.append(str(current_step.executed_at))
 
         # write new state info and execution date
-        current_step.state = {
-            **step_state,
+        current_step.state = step_state | {
             "retries": retries,
             "executed_at": executed_at,
         }
@@ -377,7 +376,7 @@ def create_process(
     pstat = ProcessStat(
         pid,
         workflow=workflow,
-        state=Success({**state, **initial_state}),
+        state=Success(state | initial_state),
         log=workflow.steps,
         current_user=user,
     )

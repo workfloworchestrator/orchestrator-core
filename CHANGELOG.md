@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Allow user to extend the default translation set, instead of overwriting everything
+- Return worker status information in the `/api/settings/status` endpoint
 
 ## [0.4.0-rc1](https://github.com/workfloworchestrator/orchestrator-core/tree/0.4.0-rc1) (2022-03-08)
 

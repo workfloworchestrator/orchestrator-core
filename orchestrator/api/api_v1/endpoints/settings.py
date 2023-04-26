@@ -103,15 +103,12 @@ def get_worker_status() -> WorkerStatus:
     - The number of successful and unsuccessful jobs
     """
 
-    response: WorkerStatus
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.services.tasks import CeleryJobWorkerStatus
 
-        response = CeleryJobWorkerStatus()
+        return CeleryJobWorkerStatus()
     else:
-        response = ThreadPoolWorkerStatus()
-
-    return response
+        return ThreadPoolWorkerStatus()
 
 
 @router.get("/status", response_model=EngineSettingsSchema)
