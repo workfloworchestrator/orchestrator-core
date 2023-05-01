@@ -1,58 +1,78 @@
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
 import strawberry
 from strawberry.scalars import JSON
 
-from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
+from orchestrator.config.assignee import Assignee
+from orchestrator.schemas.base import OrchestratorBaseModel
+from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
+from orchestrator.workflow import ProcessStatus
 
 
-@strawberry.experimental.pydantic.type(
-    model=ProcessForm,
-    fields=[
-        "title",
-        "type",
-        "additionalProperties",
-        "required",
-    ],
-)
+# TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
+class ProcessBaseSchema(OrchestratorBaseModel):
+    id: UUID
+    workflow_name: str
+    product: Optional[UUID]
+    customer: Optional[UUID]
+    assignee: Assignee
+    failed_reason: Optional[str]
+    traceback: Optional[str]
+    step: Optional[str]
+    status: ProcessStatus
+    last_step: Optional[str]
+    created_by: Optional[str]
+    started: datetime
+    last_modified: datetime
+    # subscriptions: List[SubscriptionBaseSchema]
+    is_task: bool
+
+
+class ProcessGraphqlSchema(ProcessBaseSchema):
+    current_state: Dict[str, Any]
+    steps: List[ProcessStepSchema]
+    form: Optional[ProcessForm]
+
+
+@strawberry.experimental.pydantic.type(model=ProcessForm)
 class ProcessFormType:
+    title: strawberry.auto
+    type: strawberry.auto
+    additionalProperties: strawberry.auto
+    required: strawberry.auto
     properties: JSON
     definitions: JSON | None
 
 
-@strawberry.experimental.pydantic.type(
-    model=ProcessStepSchema,
-    fields=[
-        "stepid",
-        "name",
-        "status",
-        "created_by",
-        "executed",
-        "commit_hash",
-    ],
-)
+@strawberry.experimental.pydantic.type(model=ProcessStepSchema)
 class ProcessStepType:
+    stepid: strawberry.auto
+    name: strawberry.auto
+    status: strawberry.auto
+    created_by: strawberry.auto
+    executed: strawberry.auto
+    commit_hash: strawberry.auto
     state: JSON | None
 
 
-@strawberry.experimental.pydantic.type(
-    model=ProcessSchema,
-    fields=[
-        "id",
-        "workflow_name",
-        "product",
-        "customer",
-        "assignee",
-        "failed_reason",
-        "traceback",
-        "step",
-        "status",
-        "last_step",
-        "created_by",
-        "started",
-        "last_modified",
-        "is_task",
-        "steps",
-        "form",
-    ],
-)
+@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema)
 class ProcessType:
-    pass
+    id: strawberry.auto
+    workflow_name: strawberry.auto
+    product: strawberry.auto
+    customer: strawberry.auto
+    assignee: strawberry.auto
+    failed_reason: strawberry.auto
+    traceback: strawberry.auto
+    step: strawberry.auto
+    status: strawberry.auto
+    last_step: strawberry.auto
+    created_by: strawberry.auto
+    started: strawberry.auto
+    last_modified: strawberry.auto
+    is_task: strawberry.auto
+    steps: strawberry.auto
+    form: strawberry.auto
+    current_state: JSON | None

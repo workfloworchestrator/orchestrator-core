@@ -12,6 +12,7 @@
 # limitations under the License.
 
 # Map some Orchestrator types to scalars
+from enum import Enum
 from typing import Callable
 
 import strawberry
@@ -22,6 +23,7 @@ from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
 from orchestrator.db.filters import Filter
+from orchestrator.db.sorting import Sort, SortOrder
 
 
 class CustomContext(BaseContext):
@@ -33,6 +35,21 @@ class CustomContext(BaseContext):
 
 
 CustomInfo = Info[CustomContext, RootValueType]
+
+
+@strawberry.enum(description="Sort order (ASC or DESC)")
+class GraphqlSortOrder(Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+@strawberry.experimental.pydantic.input(model=Sort)
+class GraphqlSort:
+    field: str = strawberry.field(description="Field to sort on")
+    order: GraphqlSortOrder = strawberry.field(default=GraphqlSortOrder.ASC, description="Sort order (ASC or DESC")
+
+    def to_pydantic(self) -> Sort:
+        return Sort(field=self.field, order=SortOrder[self.order.name])
 
 
 @strawberry.experimental.pydantic.input(model=Filter)

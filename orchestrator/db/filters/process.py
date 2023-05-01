@@ -58,7 +58,7 @@ def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
     try:
         value_as_uuid = UUID(value)
     except (ValueError, AttributeError):
-        msg = f"Not a valid customer_id, must be a UUID: '{value}'"
+        msg = f"Not a valid organisation, must be a UUID: '{value}'"
         logger.debug(msg)
         raise_status(HTTPStatus.BAD_REQUEST, msg)
 
