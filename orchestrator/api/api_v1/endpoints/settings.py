@@ -22,18 +22,17 @@ from redis.asyncio import Redis as AIORedis
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
-from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum
+from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum, WorkerStatus
 from orchestrator.security import oidc_user
 from orchestrator.services import settings
-from orchestrator.services.processes import SYSTEM_USER
-from orchestrator.settings import app_settings
+from orchestrator.services.processes import SYSTEM_USER, ThreadPoolWorkerStatus
+from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
 from orchestrator.websocket import WS_CHANNELS, websocket_manager
 
 router = APIRouter()
 logger = structlog.get_logger()
-
 
 CACHE_FLUSH_OPTIONS: dict[str, str] = {
     "all": "All caches",
@@ -86,10 +85,30 @@ async def set_global_status(
     if websocket_manager.enabled:
         # send engine status to socket.
         await websocket_manager.broadcast_data(
-            [WS_CHANNELS.ENGINE_SETTINGS], {"engine-status": generate_engine_status_response(result)}
+            [WS_CHANNELS.ENGINE_SETTINGS],
+            {"engine-status": generate_engine_status_response(result)},
         )
 
     return status_response
+
+
+def get_worker_status() -> WorkerStatus:
+    """
+    Return information job workers and queues.
+
+    Returns:
+    - The number of queued jobs
+    - The number of workers
+    - The number of running jobs
+    - The number of successful and unsuccessful jobs
+    """
+
+    if app_settings.EXECUTOR == ExecutorType.WORKER:
+        from orchestrator.services.tasks import CeleryJobWorkerStatus
+
+        return CeleryJobWorkerStatus()
+    else:
+        return ThreadPoolWorkerStatus()
 
 
 @router.get("/status", response_model=EngineSettingsSchema)
@@ -102,7 +121,9 @@ def get_global_status() -> EngineSettingsSchema:
 
     """
     engine_settings = EngineSettingsTable.query.one()
-    return generate_engine_status_response(engine_settings)
+    response = generate_engine_status_response(engine_settings)
+    response.worker_status = get_worker_status()
+    return response
 
 
 if app_settings.ENABLE_WEBSOCKETS:
@@ -124,7 +145,9 @@ if app_settings.ENABLE_WEBSOCKETS:
         await websocket_manager.connect(websocket, channel)
 
 
-def generate_engine_status_response(engine_settings: EngineSettingsTable) -> EngineSettingsSchema:
+def generate_engine_status_response(
+    engine_settings: EngineSettingsTable,
+) -> EngineSettingsSchema:
     """
     Generate the correct engine status response.
 

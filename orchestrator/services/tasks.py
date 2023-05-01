@@ -17,10 +17,12 @@ from uuid import UUID
 
 import structlog
 from celery import Celery, Task
+from celery.app.control import Inspect
 from celery.utils.log import get_task_logger
 from kombu.serialization import registry
 
 from orchestrator.api.error_handling import raise_status
+from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.processes import _get_process, _run_process_async, safe_logstep, thread_resume_process
 from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
@@ -31,9 +33,7 @@ logger = get_task_logger(__name__)
 
 local_logger = structlog.get_logger(__name__)
 
-
 _celery: Optional[Celery] = None
-
 
 NEW_TASK = "tasks.new_task"
 NEW_WORKFLOW = "tasks.new_workflow"
@@ -76,7 +76,13 @@ def initialise_celery(celery: Celery) -> None:
             if not workflow:
                 raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
-            pstat = ProcessStat(pid, workflow=workflow, state=Success(state), log=workflow.steps, current_user=user)
+            pstat = ProcessStat(
+                pid,
+                workflow=workflow,
+                state=Success(state),
+                log=workflow.steps,
+                current_user=user,
+            )
 
             safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
             pid = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
@@ -116,3 +122,21 @@ def initialise_celery(celery: Celery) -> None:
     def resume_workflow(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         local_logger.info("Resume workflow", pid=pid)
         return resume_process(pid, user_inputs=user_inputs, user=user)
+
+
+class CeleryJobWorkerStatus(WorkerStatus):
+    def __init__(self) -> None:
+        super().__init__(executor_type="celery")
+        if not _celery:
+            logger.error("Can't create CeleryJobStatistics. Celery is not initialised.")
+            return
+
+        inspection: Inspect = _celery.control.inspect()
+        stats = inspection.stats()
+        self.number_of_workers_online = len(stats)
+
+        def sum_items(d: dict) -> int:
+            return sum(len(l) for _, l in d.items())
+
+        self.number_of_queued_jobs = sum_items(inspection.scheduled()) + sum_items(inspection.reserved())
+        self.number_of_running_jobs = sum(len(tasks) for w, tasks in inspection.active().items())
