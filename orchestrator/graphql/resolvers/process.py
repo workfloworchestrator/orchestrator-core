@@ -38,7 +38,7 @@ def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
     return ProcessGraphqlSchema(**data)
 
 
-def handle_process_error(info: CustomInfo) -> CallableErrorHander:  # type: ignore
+def handle_process_error(info: CustomInfo) -> CallableErrorHander:
     def _handle_process_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
         extra_values = dict(kwargs.items()) if kwargs else {}

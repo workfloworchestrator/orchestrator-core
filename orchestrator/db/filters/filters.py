@@ -13,7 +13,7 @@
 
 """Module that implements process related API endpoints."""
 
-from typing import Any, Callable, Protocol, TypeVar
+from typing import Any, Callable, Iterator, Protocol, TypeVar
 
 from more_itertools import partition
 from pydantic import BaseModel
@@ -39,8 +39,8 @@ ValidFilterFunctionsByColumnType = dict[str, Callable[[QueryType, str], QueryTyp
 
 def generic_filters_validate(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[list[Filter]], tuple[list[Filter], list[Filter]]]:
-    def _validate_filters(filter_by: list[Filter]) -> tuple[list[Filter], list[Filter]]:
+) -> Callable[[list[Filter]], tuple[Iterator[Filter], Iterator[Filter]]]:
+    def _validate_filters(filter_by: list[Filter]) -> tuple[Iterator[Filter], Iterator[Filter]]:
         def _is_valid_filter(item: Filter) -> bool:
             return item.field in valid_filter_functions_by_column and item.value is not None
 
@@ -51,9 +51,9 @@ def generic_filters_validate(
 
 def generic_apply_filters(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[QueryType, list[Filter], CallableErrorHander], QueryType]:
+) -> Callable[[QueryType, Iterator[Filter], CallableErrorHander], QueryType]:
     def _apply_filters(
-        query: QueryType, filter_by: list[Filter], handle_filter_error: CallableErrorHander
+        query: QueryType, filter_by: Iterator[Filter], handle_filter_error: CallableErrorHander
     ) -> QueryType:
         for item in filter_by:
             field = item.field.lower()

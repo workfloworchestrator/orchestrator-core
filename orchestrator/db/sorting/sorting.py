@@ -14,7 +14,7 @@
 """Module that implements process related API endpoints."""
 
 from enum import Enum
-from typing import Callable, TypeVar
+from typing import Callable, Iterator, TypeVar
 
 from more_itertools import partition
 from pydantic import BaseModel
@@ -42,7 +42,9 @@ GenericType = TypeVar("GenericType")
 QueryType = SearchQuery
 
 
-def generic_sorts_validate(valid_sort_dict: dict[str, str]) -> Callable[[list[Sort]], tuple[list[Sort], list[Sort]]]:
+def generic_sorts_validate(
+    valid_sort_dict: dict[str, str]
+) -> Callable[[list[Sort]], tuple[Iterator[Sort], Iterator[Sort]]]:
     """Create generic validate sort factory that creates a validate function based on the valid sort dict.
 
     Args:
@@ -53,7 +55,7 @@ def generic_sorts_validate(valid_sort_dict: dict[str, str]) -> Callable[[list[So
     Returns function that takes sort parameters and returns a list of invalid and valid Sort items.
     """
 
-    def validate_sort_items(sort_by: list[Sort]) -> tuple[list[Sort], list[Sort]]:
+    def validate_sort_items(sort_by: list[Sort]) -> tuple[Iterator[Sort], Iterator[Sort]]:
         return partition(lambda item: item.field in valid_sort_dict, sort_by)
 
     return validate_sort_items
@@ -61,8 +63,8 @@ def generic_sorts_validate(valid_sort_dict: dict[str, str]) -> Callable[[list[So
 
 def generic_apply_sorts(
     valid_sort_dict: dict[str, str], model: SqlBaseModel
-) -> Callable[[QueryType, list[Sort]], QueryType]:
-    def _apply_sorts(query: QueryType, sort_by: list[Sort]) -> QueryType:
+) -> Callable[[QueryType, Iterator[Sort]], QueryType]:
+    def _apply_sorts(query: QueryType, sort_by: Iterator[Sort]) -> QueryType:
         for item in sort_by:
             field = item.field.lower()
             sort_key = valid_sort_dict[field]
