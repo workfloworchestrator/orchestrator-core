@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from typing import List, Optional, TypeVar
 from unittest import mock
@@ -1098,10 +1099,18 @@ def test_is_constrained_list_type():
     assert _is_constrained_list_type(List[int]) is False
 
 
-def test_diff_in_db(test_product_one, test_product_type_one):
+def test_diff_in_db_empty(test_product_one, test_product_type_one):
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
     assert ProductTypeOneForTestInactive.diff_product_in_database(test_product_one) == {}
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="Python 3.10 changed behavior of object.__annotations__ on empty derived class"
+)
+def test_diff_in_db_when_no_fields(test_product_one, test_product_type_one):
+    # As of Python 3.10, __annotations__ of an empty derived class no longer contain inherited fields
+    # Skipping this test for <3.10 because we have no usecase for empty derived classes + it's very difficult to fix this
 
     class Wrong(SubscriptionModel):
         pass
