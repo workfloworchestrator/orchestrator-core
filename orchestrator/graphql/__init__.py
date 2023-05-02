@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import strawberry
 import structlog
@@ -73,7 +73,7 @@ class OrchestratorSchema(strawberry.federation.Schema):
     def process_errors(
         self,
         errors: list[GraphQLError],
-        execution_context: ExecutionContext | None = None,
+        execution_context: Union[ExecutionContext, None] = None,
     ) -> None:
         """Override error processing to reduce verbosity of the logging.
 

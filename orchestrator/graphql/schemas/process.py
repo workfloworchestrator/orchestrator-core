@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import strawberry
@@ -43,7 +43,7 @@ class ProcessFormType:
     additionalProperties: strawberry.auto
     required: strawberry.auto
     properties: JSON
-    definitions: JSON | None
+    definitions: Union[JSON, None]
 
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)
@@ -54,7 +54,7 @@ class ProcessStepType:
     created_by: strawberry.auto
     executed: strawberry.auto
     commit_hash: strawberry.auto
-    state: JSON | None
+    state: Union[JSON, None]
 
 
 @strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema)
@@ -75,4 +75,4 @@ class ProcessType:
     is_task: strawberry.auto
     steps: strawberry.auto
     form: strawberry.auto
-    current_state: JSON | None
+    current_state: Union[JSON, None]

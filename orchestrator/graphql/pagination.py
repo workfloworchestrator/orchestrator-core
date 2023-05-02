@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, Union
 
 import strawberry
 
@@ -46,9 +46,9 @@ class PageInfo:
 
     has_next_page: bool
     has_previous_page: bool
-    start_cursor: int | None
-    end_cursor: int | None
-    total_items: str | None
+    start_cursor: Union[int, None]
+    end_cursor: Union[int, None]
+    total_items: Union[str, None]
 
 
 @strawberry.type(description="An edge may contain additional information of the relationship")

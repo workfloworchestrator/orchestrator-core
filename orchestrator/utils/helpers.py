@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, Union
 
 import structlog
 
@@ -20,7 +20,7 @@ T = TypeVar("T")
 logger = structlog.get_logger(__name__)
 
 
-def create_filter_string(input: list[str] | None) -> str:
+def create_filter_string(input: Union[list[str], None]) -> str:
     return ",".join(input) if input else ""
 
 
@@ -76,9 +76,9 @@ def map_value(mapping: dict[str, Callable], k: str, v: Any) -> tuple[str, Any]:
         if v is None:
             return k, None
         elif type(v) == dict:
-            return result if type(result := f(**v)) is tuple else (k, result)
+            return result if type(result := f(**v)) is tuple else (k, result)  # type: ignore
         else:
-            return result if type(result := f(v)) is tuple else (k, result)
+            return result if type(result := f(v)) is tuple else (k, result)  # type: ignore
     else:
         return k, v
 

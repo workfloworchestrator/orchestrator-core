@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import strawberry
 import structlog
@@ -70,13 +70,13 @@ class IsAuthenticatedForMutation(BasePermission):
         if not mutations_active:
             return app_settings.ENVIRONMENT in app_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED
 
-        path = f"{app_settings.SERVICE_NAME}/{info.path.key}"  # type: ignore
+        path = f"{app_settings.SERVICE_NAME}/{info.path.key}"
         try:
-            current_user = await info.context.get_current_user(info.context.request)  # type: ignore
+            current_user = await info.context.get_current_user(info.context.request)
         except HTTPException:
             self.message = f"User is not authorized to query or has an invalid access token for path: `{path}`"
             return False
-        opa_decision: bool = await info.context.get_opa_decision(path, current_user)  # type: ignore
+        opa_decision: bool = await info.context.get_opa_decision(path, current_user)
 
         logger.debug("Get opa decision", path=path, opa_decision=opa_decision)
         if not opa_decision:
@@ -87,8 +87,8 @@ class IsAuthenticatedForMutation(BasePermission):
 
 def authenticated_field(
     description: str,
-    resolver: StrawberryResolver | Callable | staticmethod | classmethod | None = None,
-    deprecation_reason: str | None = None,
+    resolver: Union[StrawberryResolver, Callable, staticmethod, classmethod, None] = None,
+    deprecation_reason: Union[str, None] = None,
 ) -> Any:
     return strawberry.field(
         description=description,
@@ -100,9 +100,9 @@ def authenticated_field(
 
 def authenticated_federated_field(  # type: ignore
     description: str,
-    resolver: StrawberryResolver | Callable | staticmethod | classmethod | None = None,
-    deprecation_reason: str | None = None,
-    requires: list[str] | None = None,
+    resolver: Union[StrawberryResolver, Callable, staticmethod, classmethod, None] = None,
+    deprecation_reason: Union[str, None] = None,
+    requires: Union[list[str], None] = None,
     **kwargs,
 ) -> Any:
     return strawberry.federation.field(

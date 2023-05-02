@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Type
+from typing import Any, Type, Union
 
 import structlog
 from graphql import GraphQLField, GraphQLResolveInfo
@@ -40,7 +40,7 @@ def get_root_path(path: Path) -> Path:
     return path
 
 
-def get_field_deprecation(info: GraphQLResolveInfo) -> str | None:
+def get_field_deprecation(info: GraphQLResolveInfo) -> Union[str, None]:
     field = info.parent_type.fields.get(info.field_name)
     if isinstance(field, GraphQLField):
         return field.deprecation_reason
@@ -95,10 +95,10 @@ def get_deprecated_paths(type_definition: TypeDefinition) -> DeprecatedPaths:
 
 
 def make_deprecation_checker_extension(
-    query: Type | None = None, mutation: Type | None = None
+    query: Union[Type, None] = None, mutation: Union[Type, None] = None
 ) -> type[DeprecationCheckerExtension]:
-    def deprecations_for(_type: Type | None) -> DeprecatedPaths:
-        type_def: TypeDefinition | None = getattr(_type, "_type_definition", None) if _type else None
+    def deprecations_for(_type: Union[Type, None]) -> DeprecatedPaths:
+        type_def: Union[TypeDefinition, None] = getattr(_type, "_type_definition", None) if _type else None
         if not type_def:
             return {}
         return get_deprecated_paths(type_def) if type_def else {}

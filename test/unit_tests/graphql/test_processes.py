@@ -12,6 +12,7 @@
 # limitations under the License.
 import json
 from http import HTTPStatus
+from typing import Union
 
 process_fields = [
     "assignee",
@@ -32,7 +33,10 @@ process_fields = [
 
 
 def get_processes_query(
-    first: int = 10, after: int = 0, filter_by: list[str] | None = None, sort_by: list[dict[str, str]] | None = None
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
 ) -> str:
     query = """
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {

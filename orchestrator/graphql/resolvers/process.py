@@ -13,6 +13,8 @@
 
 """Module that implements process related API endpoints."""
 
+from typing import Union
+
 import structlog
 from graphql import GraphQLError
 from sqlalchemy.orm import defer, joinedload
@@ -49,14 +51,14 @@ def handle_process_error(info: CustomInfo) -> CallableErrorHander:
 
 async def resolve_processes(
     info: CustomInfo,
-    filter_by: list[GraphqlFilter] | None = None,
-    sort_by: list[GraphqlSort] | None = None,
+    filter_by: Union[list[GraphqlFilter], None] = None,
+    sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
     after: int = 0,
 ) -> Connection[ProcessType]:
     _error_handler = handle_process_error(info)
 
-    _range: list[int] | None = [after, after + first] if after is not None and first else None
+    _range: Union[list[int], None] = [after, after + first] if after is not None and first else None
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.info("resolve_processes() called", range=_range, sort=sort_by, filter=pydantic_filter_by)
