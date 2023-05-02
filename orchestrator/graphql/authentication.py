@@ -67,24 +67,22 @@ class IsAuthenticatedForMutation(BasePermission):
     async def has_permission(self, source: Any, info: Info, **kwargs) -> bool:  # type: ignore
         mutations_active = oauth2_settings.OAUTH2_ACTIVE and app_settings.MUTATIONS_ENABLED
 
-        match mutations_active:
-            case False:
-                # return True when environment ignores the mutation disabled
-                return app_settings.ENVIRONMENT in app_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED
-            case _:
-                path = f"/{app_settings.SERVICE_NAME}/{info.path.key}"
-                try:
-                    current_user = await info.context.get_current_user(info.context.request)
-                except HTTPException:
-                    self.message = f"User is not authorized to query or has an invalid access token for path: `{path}`"
-                    return False
-                opa_decision = await info.context.get_opa_decision(path, current_user)
+        if not mutations_active:
+            return app_settings.ENVIRONMENT in app_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED
 
-                logger.debug("Get opa decision", path=path, opa_decision=opa_decision)
-                if not opa_decision:
-                    self.message = f"User is not authorized to execute mutation `{path}`"
+        path = f"{app_settings.SERVICE_NAME}/{info.path.key}"  # type: ignore
+        try:
+            current_user = await info.context.get_current_user(info.context.request)  # type: ignore
+        except HTTPException:
+            self.message = f"User is not authorized to query or has an invalid access token for path: `{path}`"
+            return False
+        opa_decision: bool = await info.context.get_opa_decision(path, current_user)  # type: ignore
 
-                return opa_decision
+        logger.debug("Get opa decision", path=path, opa_decision=opa_decision)
+        if not opa_decision:
+            self.message = f"User is not authorized to execute mutation `{path}`"
+
+        return opa_decision
 
 
 def authenticated_field(

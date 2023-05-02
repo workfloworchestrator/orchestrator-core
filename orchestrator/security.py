@@ -39,12 +39,7 @@ oidc_user = OIDCUser(
 opa_security_default = opa_decision(oauth2_settings.OPA_URL, oidc_user, enabled=oauth2_settings.OAUTH2_ACTIVE)
 
 
-opa_security_graphql = opa_graphql_decision(
-    oauth2_settings.OPA_URL,
-    oidc_user,
-    enabled=True,
-    opa_kwargs={},
-)
+opa_security_graphql = opa_graphql_decision(oauth2_settings.OPA_URL, oidc_user, enabled=oauth2_settings.OAUTH2_ACTIVE)
 
 
 def get_oidc_user() -> OIDCUser:

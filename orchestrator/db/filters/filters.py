@@ -11,9 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module that implements process related API endpoints."""
-
-from typing import Any, Callable, Iterator, Protocol, TypeVar
+from typing import Any, Callable, Iterator, Protocol
 
 from more_itertools import partition
 from pydantic import BaseModel
@@ -32,7 +30,6 @@ class Filter(BaseModel):
     value: str
 
 
-GenericType = TypeVar("GenericType")
 QueryType = SearchQuery
 ValidFilterFunctionsByColumnType = dict[str, Callable[[QueryType, str], QueryType]]
 
