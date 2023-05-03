@@ -1,19 +1,18 @@
 import structlog
-from strawberry.types import Info
 
 from orchestrator.db.models import ProductTable
-from orchestrator.graphql.resolvers.process import Cursor, ProcessSort
 from orchestrator.graphql.schemas.product import Product
+from orchestrator.graphql.types import CustomInfo, GraphqlSort
 
 logger = structlog.get_logger(__name__)
 
 
 async def resolve_products(
-    info: Info,
+    info: CustomInfo,
     filter_by: list[tuple[str, str]] | None = None,
-    sort_by: list[ProcessSort] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
     first: int = 10,
-    after: Cursor = 0,
+    after: int = 0,
 ) -> list[Product]:
     # _range: list[int] | None = [after, after + first] if after is not None and first else None
     # _filter: list[str] | None = flatten(filter_by) if filter_by else None
