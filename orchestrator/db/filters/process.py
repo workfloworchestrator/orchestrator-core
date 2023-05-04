@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module that implements process related API endpoints."""
 from http import HTTPStatus
 from typing import Callable
 from uuid import UUID

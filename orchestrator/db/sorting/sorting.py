@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module that implements process related API endpoints."""
-
 from enum import Enum
 from typing import Callable, Iterator, TypeVar
 
