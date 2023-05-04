@@ -20,7 +20,7 @@ from orchestrator.schemas.product import ProductSchema
         "product_blocks",
     ],
 )
-class Product:
+class ProductType:
     product_blocks: list[ProductBlock]
     fixed_inputs: list[FixedInput]
     workflows: list[Workflow]
