@@ -1,3 +1,5 @@
+from typing import Union
+
 import structlog
 
 from orchestrator.db.filters.filters import Filter
@@ -11,8 +13,8 @@ logger = structlog.get_logger(__name__)
 
 async def resolve_products(
     info: CustomInfo,
-    filter_by: list[GraphqlFilter] | None = None,
-    sort_by: list[GraphqlSort] | None = None,
+    filter_by: Union[list[GraphqlFilter], None] = None,
+    sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
     after: int = 0,
 ) -> list[ProductType]:
@@ -24,4 +26,4 @@ async def resolve_products(
 
     results = ProductTable.query.all()
 
-    return [ProductType.from_pydantic(p) for p in results]  # type: ignore
+    return [ProductType.from_pydantic(p) for p in results]
