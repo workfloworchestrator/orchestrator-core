@@ -1,40 +1,49 @@
-from dataclasses import dataclass, field
-from typing import Callable
+import json
+from http import HTTPStatus
+from typing import Union
 
-import pytest
-from graphql import GraphQLError
-
-from orchestrator.graphql import schema
-from orchestrator.security import oidc_user, opa_security_graphql
+from httpx import Response
 
 
-@dataclass
-class Context:
-    errors: list[GraphQLError] = field(default_factory=list)
-    get_current_user: Callable = field(default_factory=lambda: oidc_user)
-    get_opa_decision: Callable = field(default_factory=lambda: opa_security_graphql)
-
-
-product_test_query = """
-    query TestProductQuery {
-        products {
-            name
-            productType
-            tag
-            status
-            productId
-            description
-            createdAt
-        }
+def get_product_query(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
+) -> str:
+    query = """
+query ProductQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  products(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+      name
+      productType
+      tag
+      status
+      productId
+      description
+      createdAt
+    }
 }
-"""
+    """
+    return json.dumps(
+        {
+            "operationName": "ProductQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    )
 
 
-@pytest.mark.asyncio
-async def test_product_query(test_product_list_nested):
-    result = await schema.execute(product_test_query, context_value=Context())
-    assert not result.errors
-    product = result.data["products"][0]
-    assert product["name"] == "TestProductListNested"
-    assert product["productType"] == "Test"
-    assert product["tag"] == "TEST"
+def test_product_query(test_client, test_product_list_nested):
+    data = get_product_query()
+    response: Response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    products_data = result["data"]["products"]
+    assert len(products_data) == 1
+    assert products_data[0]["name"] == "TestProductListNested"

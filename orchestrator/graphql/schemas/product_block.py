@@ -1,3 +1,5 @@
+from typing import Optional
+
 import strawberry
 
 from orchestrator.graphql.schemas.resource_type import ResourceType
@@ -17,4 +19,4 @@ from orchestrator.schemas.product_block import ProductBlockSchema
     ],
 )
 class ProductBlock:
-    resource_types: list[ResourceType] | None
+    resource_types: Optional[list[ResourceType]]
