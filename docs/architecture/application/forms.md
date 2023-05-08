@@ -129,11 +129,11 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 
 ## custom form field
 
-You can create a custom field component in frontend and can take reference from components in `orchestrator-gui/src/lib/uniforms-surfnet/src`.
+You can create a custom field component in the frontend. The components in `orchestrator-gui/src/lib/uniforms-surfnet/src` can be used to study reference implementations for a couple of custom form field types.
 
 For it to show up in the form, you have to do 2 things, a pydantic type/class in the backend and add the component to the `AutoFieldLoader.tsx`.
 
-as example I will create a custom field with name field and group select field.
+as an example I will create a custom field with name field and group select field.
 
 ### pydantic type/class in backend
 
@@ -192,7 +192,8 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 ### auto field loader
 
 The auto field loader is for loading the correct field component in the form.
-it has switches that checks the field type and the field format, where you can add your custom field to.
+It has switches that check the field type and the field format.
+You have to add your new form field here.
 
 for this example, we would need to add to a `ChooseUser` case to the String switch:
 
