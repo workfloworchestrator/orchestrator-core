@@ -10,8 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from operator import itemgetter
 from typing import Dict
+
+from orchestrator.cli.generator.generator.fixed_input import (
+    get_int_enum_fixed_inputs,
+    get_non_standard_fixed_inputs,
+    get_str_enum_fixed_inputs,
+    replace_enum_fixed_inputs,
+)
+from orchestrator.cli.generator.generator.helpers import path_to_module
+from orchestrator.cli.generator.generator.settings import product_generator_settings
 
 
 def generate_product(context: Dict) -> None:
@@ -19,7 +27,26 @@ def generate_product(context: Dict) -> None:
     environment = context["environment"]
     writer = context["writer"]
 
-    template = environment.get_template("product.j2")
-    content = template.render()
+    product = config["type"]
+    fixed_inputs = config.get("fixed_inputs", [])
+    product_blocks = config.get("product_blocks", [])
 
-    writer("", content)
+    non_standard_fixed_inputs = get_non_standard_fixed_inputs(fixed_inputs)
+    int_enums = get_int_enum_fixed_inputs(fixed_inputs)
+    str_enums = get_str_enum_fixed_inputs(fixed_inputs)
+
+    template = environment.get_template("product.j2")
+    content = template.render(
+        product=product,
+        product_blocks_module=path_to_module(product_generator_settings.PRODUCT_BLOCKS_PATH),
+        product_types_module=path_to_module(product_generator_settings.PRODUCT_TYPES_PATH),
+        non_standard_fixed_inputs=non_standard_fixed_inputs,
+        fixed_inputs=replace_enum_fixed_inputs(fixed_inputs),
+        product_blocks=product_blocks,
+        int_enums=int_enums,
+        str_enums=str_enums,
+    )
+
+    file_name = config["variable"]
+    path = f"{product_generator_settings.PRODUCT_TYPES_PATH}/{file_name}.py"
+    writer(path, content)

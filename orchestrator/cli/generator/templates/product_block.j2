@@ -1,0 +1,73 @@
+{# Product block definition -#}
+
+{% include "copyright.j2" %}
+
+{% for namespace, type in types_to_import %}
+from {{ namespace }} import {{ type }}
+{%- endfor %}
+{% if lists_to_generate %}
+from typing import TypeVar
+{% endif -%}
+{% if restrained_ints_to_generate %}
+from pydantic import ConstrainedInt
+{% endif -%}
+{% if "UUID" in product_block.fields | map(attribute="type") %}
+from orchestrator.domain.base import SubscriptionInstanceList
+from uuid import UUID
+{% endif %}
+{% for module, type in product_blocks_to_import %}
+from {{ module }} import {{ type }}Block, {{ type }}BlockInactive
+{% endfor %}
+from orchestrator.domain.base import ProductBlockModel, serializable_property
+from orchestrator.types import SubscriptionLifecycle
+
+{% if lists_to_generate %}
+T = TypeVar("T", covariant=True)
+
+{% for list_type in lists_to_generate %}
+class ListOf{{ list_type.name | capitalize }}(SubscriptionInstanceList[T]):
+    min_items = {{ list_type.min_items }}
+    {% if list_type.max_items -%}
+    max_items = {{ list_type.max_items }}
+    {% endif %}
+{% endfor %}
+{% endif -%}
+
+{% for field in restrained_ints_to_generate %}
+class {{ field.type }}(ConstrainedInt):
+    {% if field.min_value is defined %} ge = {{ '{:_}'.format(field.min_value) }} {% endif %}
+    {% if field.max_value is defined %} le = {{ '{:_}'.format(field.max_value) }} {% endif %}
+
+{% endfor %}
+
+class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_name="{{ product_block.block_name }}"):
+    {% for field in product_block.fields -%}
+    {% if field.type == "list" -%}
+    {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}BlockInactive]
+    {% else -%}
+    {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive"] -%} | None = None {% endif %}
+    {% endif -%}
+    {% endfor %}
+
+class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    {% for field in product_block.fields -%}
+    {% if field.type == "list" -%}
+    {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}Block]
+    {% else -%}
+    {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning"] -%} | None = None {% endif %}
+    {% endif -%}
+    {% endfor %}
+    @serializable_property
+    def title(self) -> str:
+        # TODO: format correct title string
+        return f"{self.name}"
+
+
+class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    {% for field in product_block.fields -%}
+    {% if field.type == "list" -%}
+    {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}Block]
+    {% else -%}
+    {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning", "active"] -%} | None = None {% endif %}
+    {% endif -%}
+    {% endfor %}

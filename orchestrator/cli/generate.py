@@ -18,6 +18,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 
 from orchestrator.cli.generator.generator.product import generate_product
+from orchestrator.cli.generator.generator.product_block import generate_product_blocks
 
 app: typer.Typer = typer.Typer()
 
@@ -49,13 +50,7 @@ def write_file(path: str, content: str, append: bool, force: bool) -> None:
         typer.echo(f"Writing to {path} failed")
 
 
-@app.command(help="Create product from configuration file")
-def product(
-    config_file: str = typer.Argument(None, help="The configuration file"),
-    dryrun: bool = typer.Option(True, help="Dry run"),
-    force: bool = typer.Option(False, help="Force overwrite of existing files"),
-    python_version: str = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code"),
-) -> None:
+def create_context(config_file: str, dryrun: bool, force: bool, python_version) -> Dict:
     def writer(path: str, content: str, append: bool = False) -> None:
         if dryrun:
             typer.echo(path)
@@ -67,18 +62,36 @@ def product(
         loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
     )
 
-    context = {
+    return {
         "config": read_config(config_file),
         "environment": environment,
+        "python_version": python_version,
         "writer": writer,
     }
+
+
+@app.command(help="Create product from configuration file")
+def product(
+    config_file: str = typer.Argument(None, help="The configuration file"),
+    dryrun: bool = typer.Option(True, help="Dry run"),
+    force: bool = typer.Option(False, help="Force overwrite of existing files"),
+    python_version: str = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code"),
+) -> None:
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
     generate_product(context)
 
 
 @app.command(help="Create product blocks from configuration file")
-def product_blocks() -> None:
-    pass
+def product_blocks(
+    config_file: str = typer.Argument(None, help="The configuration file"),
+    dryrun: bool = typer.Option(True, help="Dry run"),
+    force: bool = typer.Option(False, help="Force overwrite of existing files"),
+    python_version: str = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code"),
+) -> None:
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+
+    generate_product_blocks(context)
 
 
 @app.command(help="Create workflows from configuration file")
