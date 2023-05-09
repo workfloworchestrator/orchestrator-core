@@ -79,7 +79,7 @@ def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
     return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]
 
 
-def get_product_blocks_to_import(lists_to_generate: List, existing_product_blocks: List) -> list[tuple]:
+def get_product_blocks_to_import(lists_to_generate: List, existing_product_blocks: Dict) -> list[tuple]:
     return [
         (module, lt["list_type"])
         for lt in lists_to_generate
