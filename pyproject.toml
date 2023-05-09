@@ -126,6 +126,7 @@ test = [
     "types-tabulate",
     "types-toml",
     "types-ujson",
+    "types-PyYAML"
 ]
 doc = [
     "mkdocs",

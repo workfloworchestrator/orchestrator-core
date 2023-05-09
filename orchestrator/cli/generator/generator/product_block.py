@@ -15,16 +15,16 @@ import inspect
 from collections.abc import Generator
 from importlib import import_module
 from os import listdir
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from orchestrator.cli.generator.generator.helpers import snake_to_camel
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.domain.base import ProductBlockModel
 
 
-def get_existing_product_blocks() -> dict[str, Any]:
+def get_existing_product_blocks() -> Dict[str, Any]:
     def yield_blocks() -> Generator:
-        def is_product_block(attribute) -> bool:
+        def is_product_block(attribute: Any) -> bool:
             return issubclass(attribute, ProductBlockModel)
 
         for pb_file in listdir(product_generator_settings.PRODUCT_BLOCKS_PATH):
@@ -54,8 +54,8 @@ def name_space_get_type(name_spaced_type: str) -> str:
     return name_spaced_type.split(".")[-1]
 
 
-def get_fields(product_block: dict) -> list[dict]:
-    def to_type(field: dict):
+def get_fields(product_block: Dict) -> list[Dict]:
+    def to_type(field: Dict) -> Dict:
         if is_restrained_int(field):
             return field | {"type": snake_to_camel(field["name"])}
         elif is_name_spaced_field_type(field):
@@ -79,7 +79,7 @@ def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
     return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]
 
 
-def get_product_blocks_to_import(lists_to_generate, existing_product_blocks) -> list[tuple]:
+def get_product_blocks_to_import(lists_to_generate: List, existing_product_blocks: List) -> list[tuple]:
     return [
         (module, lt["list_type"])
         for lt in lists_to_generate
