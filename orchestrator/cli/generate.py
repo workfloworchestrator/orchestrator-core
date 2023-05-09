@@ -13,13 +13,24 @@
 
 import typer
 
-from orchestrator.cli import database, scheduler, generate
-
-app = typer.Typer()
-app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
-app.add_typer(database.app, name="db", help="Interact with the application database")
-app.add_typer(generate.app, name="generate", help="Generate products, workflows and other artifacts")
+app: typer.Typer = typer.Typer()
 
 
-if __name__ == "__main__":
-    app()
+@app.command(help="Create product from configuration file")
+def product() -> None:
+    pass
+
+
+@app.command(help="Create product blocks from configuration file")
+def product_blocks() -> None:
+    pass
+
+
+@app.command(help="Create workflows from configuration file")
+def workflows() -> None:
+    pass
+
+
+@app.command(help="Create unit tests from configuration file")
+def unit_tests() -> None:
+    pass
