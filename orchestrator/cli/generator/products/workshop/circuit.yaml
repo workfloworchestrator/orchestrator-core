@@ -1,0 +1,30 @@
+#
+# This file describes the "Circuit" product from the advanced Orchestrator workshop
+#
+
+config:
+  create_summary_forms: false
+  send_email: false
+name: Circuit
+type: Circuit
+variable: circuit
+fixed_inputs:
+  - name: speed
+    type: str
+product_blocks:
+  - name: ckt
+    type: Circuit
+    block_name: "Circuit"
+    variable: circuit
+    fields:
+      - name: members
+        type: list
+        list_type: Layer3Interface
+        min_items: 2
+        max_items: 2
+      - name: circuit_id
+        type: int
+        required: provisioning
+      - name: under_maintenance
+        type: bool
+        required: provisioning

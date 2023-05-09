@@ -10,16 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import typer
-
-from orchestrator.cli import database, generate, scheduler
-
-app = typer.Typer()
-app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
-app.add_typer(database.app, name="db", help="Interact with the application database")
-app.add_typer(generate.app, name="generate", help="Generate products, workflows and other artifacts")
+from operator import itemgetter
+from typing import Dict
 
 
-if __name__ == "__main__":
-    app()
+def generate_product(context: Dict) -> None:
+    config = context["config"]
+    environment = context["environment"]
+    writer = context["writer"]
+
+    template = environment.get_template("product.j2")
+    content = template.render()
+
+    writer("", content)
