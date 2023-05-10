@@ -21,7 +21,7 @@ from orchestrator.cli.generator.generator.settings import product_generator_sett
 logger = structlog.getLogger(__name__)
 
 
-def read_translations() -> dict | None:
+def read_translations() -> dict:
     path = product_generator_settings.TRANSLATION_PATH
     try:
         with open(path) as stream:
@@ -32,7 +32,7 @@ def read_translations() -> dict | None:
     except FileNotFoundError:
         logger.error("File not found", path=path)
 
-    return None
+    return {}
 
 
 def add_workflow_translations(config: dict, writer: Callable) -> None:
