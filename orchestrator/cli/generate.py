@@ -20,6 +20,7 @@ from jinja2 import Environment, FileSystemLoader
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
 from orchestrator.cli.generator.generator.unittest import generate_unit_tests
+from orchestrator.cli.generator.generator.workflow import generate_workflows
 
 app: typer.Typer = typer.Typer()
 
@@ -114,6 +115,8 @@ def workflows(
 ) -> None:
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
+    generate_workflows(context)
+
 
 @app.command(help="Create unit tests from configuration file")
 def unit_tests(
@@ -135,3 +138,5 @@ def migration(
     python_version: str = PythonVersion,
 ) -> None:
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+
+    generate_workflows(context)
