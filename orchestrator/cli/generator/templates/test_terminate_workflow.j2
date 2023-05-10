@@ -13,7 +13,7 @@ from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 def test_happy_flow(responses, {{ product.variable }}_subscription):
     # when
 
-    # TODO: insert mocks here if needed (ImsMocks, NsoMocks)
+    # TODO: insert mocks here if needed
 
     result, _, _ = run_workflow("terminate_{{ product.variable }}", [{"subscription_id": {{ product.variable }}_subscription}, {}])
 

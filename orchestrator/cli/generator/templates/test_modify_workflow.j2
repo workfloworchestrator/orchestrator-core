@@ -2,7 +2,6 @@ import pytest
 from orchestrator.forms import FormValidationError
 
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.mock import CrmMocks
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
@@ -43,8 +42,10 @@ def test_{{ validation.validation.id }}(responses, {{ product.variable }}_subscr
 
     # when
 
+    init_state = {}
+
     with pytest.raises(FormValidationError) as error:
-        result, _, _ = run_workflow("modify_{{ product.variable }}", [{"subscription_id": {{ product.variable }}_subscription}, {}])
+        result, _, _ = run_workflow("modify_{{ product.variable }}", [{"subscription_id": {{ product.variable }}_subscription}, init_state, {}])
 
     # then
 
