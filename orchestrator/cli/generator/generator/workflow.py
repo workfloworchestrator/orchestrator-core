@@ -14,7 +14,7 @@
 from collections.abc import Callable
 from functools import partial, wraps
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 import structlog
 from jinja2 import Environment
