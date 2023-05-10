@@ -14,7 +14,7 @@
 from collections.abc import Callable
 from functools import partial, wraps
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 import structlog
 from jinja2 import Environment
@@ -36,14 +36,14 @@ def find_field_with_name(config: dict, field_name: str) -> dict:
     return {}
 
 
-def add_optional_ims_config(config: dict):
+def add_optional_ims_config(config: dict) -> dict:
     if found := find_field_with_name(config, "ims_circuit_id"):
         return config | found
     else:
         return config
 
 
-def add_optional_nso_config(config: dict):
+def add_optional_nso_config(config: dict) -> dict:
     if found := find_field_with_name(config, "nso_service_id"):
         return config | found
     else:
@@ -113,12 +113,12 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     writer(path, content)
 
 
-def generate_workflow(f: Optional[Callable] = None, workflow: Optional[str] = None):
+def generate_workflow(f: Optional[Callable] = None, workflow: Optional[str] = None) -> Callable:
     if f is None:
         return partial(generate_workflow, workflow=workflow)
 
     @wraps(f)
-    def wrapper(environment: Environment, config: dict, writer: Callable):
+    def wrapper(environment: Environment, config: dict, writer: Callable) -> Any:
         def workflow_enabled() -> bool:
             return all(wf.get("enabled", True) for wf in config.get("workflows", []) if wf["name"] == workflow)
 
