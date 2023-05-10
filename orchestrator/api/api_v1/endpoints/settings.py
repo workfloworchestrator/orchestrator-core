@@ -92,9 +92,10 @@ async def set_global_status(
     return status_response
 
 
+@router.get("/worker-status", response_model=WorkerStatus)
 def get_worker_status() -> WorkerStatus:
     """
-    Return information job workers and queues.
+    Return data on job workers and queues.
 
     Returns:
     - The number of queued jobs
@@ -121,9 +122,7 @@ def get_global_status() -> EngineSettingsSchema:
 
     """
     engine_settings = EngineSettingsTable.query.one()
-    response = generate_engine_status_response(engine_settings)
-    response.worker_status = get_worker_status()
-    return response
+    return generate_engine_status_response(engine_settings)
 
 
 if app_settings.ENABLE_WEBSOCKETS:

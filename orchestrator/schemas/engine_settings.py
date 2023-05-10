@@ -37,7 +37,6 @@ class WorkerStatus(OrchestratorBaseModel):
 class EngineSettingsSchema(EngineSettingsBaseSchema):
     global_status: Optional[GlobalStatusEnum]
     running_processes: int
-    worker_status: Optional[WorkerStatus]
 
     class Config:
         orm_mode = True
