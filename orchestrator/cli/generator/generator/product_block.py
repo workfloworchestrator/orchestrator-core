@@ -15,21 +15,24 @@ import inspect
 from collections.abc import Generator
 from importlib import import_module
 from os import listdir
-from typing import Any, Dict, List
+from typing import Any
 
-from orchestrator.cli.generator.generator.helpers import snake_to_camel
+from orchestrator.cli.generator.generator.helpers import path_to_module, snake_to_camel
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.domain.base import ProductBlockModel
 
 
-def get_existing_product_blocks() -> Dict[str, Any]:
+def get_existing_product_blocks() -> dict[str, Any]:
     def yield_blocks() -> Generator:
         def is_product_block(attribute: Any) -> bool:
             return issubclass(attribute, ProductBlockModel)
 
-        for pb_file in listdir(product_generator_settings.PRODUCT_BLOCKS_PATH):
+        product_blocks_path = product_generator_settings.PRODUCT_BLOCKS_PATH
+        product_blocks_module = path_to_module(product_blocks_path)
+
+        for pb_file in listdir(product_blocks_path):
             name = pb_file.removesuffix(".py")
-            module_name = f"surf.products.product_blocks.{name}"
+            module_name = f"{product_blocks_module}.{name}"
 
             module = import_module(module_name)
 
@@ -54,8 +57,8 @@ def name_space_get_type(name_spaced_type: str) -> str:
     return name_spaced_type.split(".")[-1]
 
 
-def get_fields(product_block: Dict) -> list[Dict]:
-    def to_type(field: Dict) -> Dict:
+def get_fields(product_block: dict) -> list[dict]:
+    def to_type(field: dict) -> dict:
         if is_restrained_int(field):
             return field | {"type": snake_to_camel(field["name"])}
         elif is_name_spaced_field_type(field):
@@ -79,7 +82,7 @@ def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
     return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]
 
 
-def get_product_blocks_to_import(lists_to_generate: List, existing_product_blocks: Dict) -> list[tuple]:
+def get_product_blocks_to_import(lists_to_generate: list, existing_product_blocks: dict) -> list[tuple]:
     return [
         (module, lt["list_type"])
         for lt in lists_to_generate
@@ -87,7 +90,7 @@ def get_product_blocks_to_import(lists_to_generate: List, existing_product_block
     ]
 
 
-def generate_product_blocks(context: Dict) -> None:
+def generate_product_blocks(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]

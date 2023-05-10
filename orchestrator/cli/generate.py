@@ -19,6 +19,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
+from orchestrator.cli.generator.generator.unittest import generate_unit_tests
 
 app: typer.Typer = typer.Typer()
 
@@ -70,12 +71,22 @@ def create_context(config_file: str, dryrun: bool, force: bool, python_version: 
     }
 
 
+# Couple of shared parameters since Typer doesn't have an option to do this at the root level
+# Discussion: https://github.com/tiangolo/typer/issues/153
+
+
+ConfigFile = typer.Option(None, "--config-file", "-cf", help="The configuration file")
+DryRun = typer.Option(True, help="Dry run")
+Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
+PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
+
+
 @app.command(help="Create product from configuration file")
 def product(
-    config_file: str = typer.Argument(None, help="The configuration file"),
-    dryrun: bool = typer.Option(True, help="Dry run"),
-    force: bool = typer.Option(False, help="Force overwrite of existing files"),
-    python_version: str = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code"),
+    config_file: str = ConfigFile,
+    dryrun: bool = DryRun,
+    force: bool = Force,
+    python_version: str = PythonVersion,
 ) -> None:
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
@@ -84,10 +95,10 @@ def product(
 
 @app.command(help="Create product blocks from configuration file")
 def product_blocks(
-    config_file: str = typer.Argument(None, help="The configuration file"),
-    dryrun: bool = typer.Option(True, help="Dry run"),
-    force: bool = typer.Option(False, help="Force overwrite of existing files"),
-    python_version: str = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code"),
+    config_file: str = ConfigFile,
+    dryrun: bool = DryRun,
+    force: bool = Force,
+    python_version: str = PythonVersion,
 ) -> None:
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
@@ -95,10 +106,32 @@ def product_blocks(
 
 
 @app.command(help="Create workflows from configuration file")
-def workflows() -> None:
-    pass
+def workflows(
+    config_file: str = ConfigFile,
+    dryrun: bool = DryRun,
+    force: bool = Force,
+    python_version: str = PythonVersion,
+) -> None:
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
 
 @app.command(help="Create unit tests from configuration file")
-def unit_tests() -> None:
-    pass
+def unit_tests(
+    config_file: str = ConfigFile,
+    dryrun: bool = DryRun,
+    force: bool = Force,
+    python_version: str = PythonVersion,
+) -> None:
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+
+    generate_unit_tests(context)
+
+
+@app.command(help="Create migration from configuration file")
+def migration(
+    config_file: str = ConfigFile,
+    dryrun: bool = DryRun,
+    force: bool = Force,
+    python_version: str = PythonVersion,
+) -> None:
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)

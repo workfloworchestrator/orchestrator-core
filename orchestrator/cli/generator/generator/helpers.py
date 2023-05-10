@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from collections.abc import Generator
-from typing import Dict, List
 
 from more_itertools import first, one
 
@@ -23,18 +22,18 @@ def snake_to_camel(s: str) -> str:
     return "".join(x.title() for x in s.split("_"))
 
 
-def get_workflow(config: Dict, workflow_name: str) -> dict:
+def get_workflow(config: dict, workflow_name: str) -> dict:
     workflows = (workflow for workflow in config.get("workflows", []) if workflow["name"] == workflow_name)
     return first(workflows, {})
 
 
-def root_product_block(config: Dict) -> dict:
+def root_product_block(config: dict) -> dict:
     product_blocks = config.get("product_blocks", [])
     # TODO: multiple product_blocks will need more logic, ok for now
     return one(product_blocks)
 
 
-def insert_into_imports(content: List[str], new_import: str) -> List[str]:
+def insert_into_imports(content: list[str], new_import: str) -> list[str]:
     # Note: we may consider using a real Python parser here someday, but for now this is ok and formatting
     # gets done by isort and black.
     def produce() -> Generator:
@@ -52,6 +51,6 @@ def path_to_module(path: str) -> str:
     return path.replace("/", ".")
 
 
-def get_product_import(product: Dict, lifecycle: str = "") -> str:
+def get_product_import(product: dict, lifecycle: str = "") -> str:
     module = path_to_module(product_generator_settings.PRODUCT_TYPES_PATH)
     return f'from {module}.{product["variable"]} import {product["type"]}{lifecycle}\n'

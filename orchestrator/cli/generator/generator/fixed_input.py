@@ -10,40 +10,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List
 
 
-def get_non_standard_fixed_inputs(fixed_inputs: List[Dict]) -> str:
+def get_non_standard_fixed_inputs(fixed_inputs: list[dict]) -> str:
     return ", ".join(type for fi in fixed_inputs if (type := fi["type"]) not in ["enum", "int", "bool", "str"])
 
 
-def is_enum(fixed_input: Dict) -> bool:
+def is_enum(fixed_input: dict) -> bool:
     return fixed_input["type"] == "enum"
 
 
-def is_enum_of_type(fixed_input: Dict, enum_type: str) -> bool:
+def is_enum_of_type(fixed_input: dict, enum_type: str) -> bool:
     return is_enum(fixed_input) and fixed_input["enum_type"] == enum_type
 
 
-def is_str_enum(fixed_input: Dict) -> bool:
+def is_str_enum(fixed_input: dict) -> bool:
     return is_enum_of_type(fixed_input, "str")
 
 
-def is_int_enum(fixed_input: Dict) -> bool:
+def is_int_enum(fixed_input: dict) -> bool:
     return is_enum_of_type(fixed_input, "int")
 
 
-def convert_enum(fixed_input: Dict) -> Dict:
+def convert_enum(fixed_input: dict) -> dict:
     return fixed_input | {"type": fixed_input["name"].title()}
 
 
-def get_str_enum_fixed_inputs(fixed_inputs: List[Dict]) -> List[Dict]:
+def get_str_enum_fixed_inputs(fixed_inputs: list[dict]) -> list[dict]:
     return [convert_enum(fi) for fi in fixed_inputs if is_str_enum(fi)]
 
 
-def get_int_enum_fixed_inputs(fixed_inputs: List[Dict]) -> List[Dict]:
+def get_int_enum_fixed_inputs(fixed_inputs: list[dict]) -> list[dict]:
     return [convert_enum(fi) for fi in fixed_inputs if is_int_enum(fi)]
 
 
-def replace_enum_fixed_inputs(fixed_inputs: List[Dict]) -> List[Dict]:
+def replace_enum_fixed_inputs(fixed_inputs: list[dict]) -> list[dict]:
     return [convert_enum(fi) for fi in fixed_inputs if is_enum(fi)]

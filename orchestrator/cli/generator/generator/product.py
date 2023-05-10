@@ -10,8 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
-
 from orchestrator.cli.generator.generator.fixed_input import (
     get_int_enum_fixed_inputs,
     get_non_standard_fixed_inputs,
@@ -22,7 +20,7 @@ from orchestrator.cli.generator.generator.helpers import path_to_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 
 
-def generate_product(context: Dict) -> None:
+def generate_product(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]
