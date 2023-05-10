@@ -14,6 +14,7 @@
 from collections.abc import Callable
 from functools import partial, wraps
 from pathlib import Path
+from typing import Optional
 
 import structlog
 from jinja2 import Environment
@@ -26,13 +27,13 @@ from orchestrator.cli.generator.generator.validations import get_validations, ge
 logger = structlog.getLogger(__name__)
 
 
-def find_field_with_name(config: dict, field_name: str) -> dict | None:
+def find_field_with_name(config: dict, field_name: str) -> dict:
     product_blocks = config.get("product_blocks", [])
     for pb in product_blocks:
         for field in pb.get("fields", []):
             if field["name"] == field_name:
                 return {f"{field_name}_path": pb["name"]}
-    return None
+    return {}
 
 
 def add_optional_ims_config(config: dict):
@@ -112,7 +113,7 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     writer(path, content)
 
 
-def generate_workflow(f: Callable | None = None, workflow: str | None = None):
+def generate_workflow(f: Optional[Callable] = None, workflow: str | None = None):
     if f is None:
         return partial(generate_workflow, workflow=workflow)
 
