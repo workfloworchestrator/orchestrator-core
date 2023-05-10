@@ -53,7 +53,7 @@ def generate_test_create_workflow(environment: Environment, config: dict, writer
     validations, _ = get_validations(config)
 
     template = environment.get_template("test_create_workflow.j2")
-    content = template.render(product=config, validations=validations)
+    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
     path = get_test_workflow_path(config, "create")
     writer(path, content)
@@ -63,7 +63,7 @@ def generate_test_modify_workflow(environment: Environment, config: dict, writer
     validations, _ = get_validations(config)
 
     template = environment.get_template("test_modify_workflow.j2")
-    content = template.render(product=config, validations=validations)
+    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
     path = get_test_workflow_path(config, "modify")
     writer(path, content)
@@ -74,7 +74,7 @@ def generate_test_validate_workflow(environment: Environment, config: dict, writ
     validations = workflow.get("validations", [])
 
     template = environment.get_template("test_validate_workflow.j2")
-    content = template.render(product=config, validations=validations)
+    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
     path = get_test_workflow_path(config, "validate")
     writer(path, content)
@@ -85,7 +85,7 @@ def generate_test_terminate_workflow(environment: Environment, config: dict, wri
     validations = workflow.get("validations", [])
 
     template = environment.get_template("test_terminate_workflow.j2")
-    content = template.render(product=config, validations=validations)
+    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
     path = get_test_workflow_path(config, "terminate")
     writer(path, content)
@@ -97,4 +97,4 @@ def generate_unit_tests(context: dict) -> None:
     writer = context["writer"]
 
     generate_product_type_tests(environment, config, writer)
-    # generate_workflow_tests(environment, config, writer)
+    generate_workflow_tests(environment, config, writer)

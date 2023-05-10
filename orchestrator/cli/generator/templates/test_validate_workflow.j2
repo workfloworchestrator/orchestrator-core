@@ -1,0 +1,35 @@
+import pytest
+
+from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
+
+
+@pytest.mark.workflow
+def test_happy_flow(responses, {{ product.variable }}_subscription):
+    # when
+
+    result, _, _ = run_workflow("validate_{{ product.variable }}", {"subscription_id": {{ product.variable }}_subscription})
+
+    # then
+
+    assert_complete(result)
+    state = extract_state(result)
+    assert state["check_core_db"] is True
+
+
+{% for validation in validations %}
+@pytest.mark.workflow
+def test_{{ validation.id }}(responses, {{ product.variable }}_subscription):
+    # given
+
+    # TODO: set test conditions or fixture so that "{{ validation.description }}" triggers
+
+    # when
+
+    with pytest.raises(AssertionError) as error:
+        result, _, _ = run_workflow("validate_{{ product.variable }}", [{"subscription_id": {{ product.variable }}_subscription}, {}])
+
+    # then
+
+    assert error.value.errors[0]["msg"] == "{{ validation.description }}"
+
+{% endfor %}
