@@ -94,6 +94,7 @@ def generate_product_blocks(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]
+    python_version = context["python_version"]
 
     template = environment.get_template("product_block.j2")
 
@@ -116,6 +117,7 @@ def generate_product_blocks(context: dict) -> None:
             product_blocks_to_import=product_blocks_to_import,
             restrained_ints_to_generate=restrained_ints_to_generate,
             types_to_import=types_to_import,
+            python_version=python_version,
         )
 
         file_name = product_block["variable"]

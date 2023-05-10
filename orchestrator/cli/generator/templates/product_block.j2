@@ -1,5 +1,7 @@
 {# Product block definition -#}
 
+{% from 'macros.j2' import optional with context %}
+
 {% for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
 {%- endfor %}
@@ -43,7 +45,7 @@ class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_nam
     {% if field.type == "list" -%}
     {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}BlockInactive]
     {% else -%}
-    {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive"] -%} | None = None {% endif %}
+    {{ field.name }}: {% if field.required not in ["inactive"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}
     {% endfor %}
 
@@ -52,7 +54,7 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
     {% if field.type == "list" -%}
     {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}Block]
     {% else -%}
-    {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning"] -%} | None = None {% endif %}
+    {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}
     {% endfor %}
     @serializable_property
@@ -66,6 +68,6 @@ class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, l
     {% if field.type == "list" -%}
     {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}Block]
     {% else -%}
-    {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning", "active"] -%} | None = None {% endif %}
+    {{ field.name }}: {% if field.required not in ["inactive", "provisioning", "active"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}
     {% endfor %}

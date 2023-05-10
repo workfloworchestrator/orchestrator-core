@@ -16,7 +16,7 @@ from orchestrator.cli.generator.generator.fixed_input import (
     get_str_enum_fixed_inputs,
     replace_enum_fixed_inputs,
 )
-from orchestrator.cli.generator.generator.helpers import path_to_module
+from orchestrator.cli.generator.generator.helpers import path_to_module, product_types_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 
 
@@ -37,7 +37,7 @@ def generate_product(context: dict) -> None:
     content = template.render(
         product=product,
         product_blocks_module=path_to_module(product_generator_settings.PRODUCT_BLOCKS_PATH),
-        product_types_module=path_to_module(product_generator_settings.PRODUCT_TYPES_PATH),
+        product_types_module=product_types_module,
         non_standard_fixed_inputs=non_standard_fixed_inputs,
         fixed_inputs=replace_enum_fixed_inputs(fixed_inputs),
         product_blocks=product_blocks,

@@ -17,7 +17,7 @@ from pathlib import Path
 import structlog
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import get_workflow
+from orchestrator.cli.generator.generator.helpers import get_workflow, product_types_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.cli.generator.generator.validations import get_validations
 
@@ -26,8 +26,7 @@ logger = structlog.getLogger(__name__)
 
 def generate_product_type_tests(environment: Environment, config: dict, writer: Callable) -> None:
     template = environment.get_template("test_product_type.j2")
-
-    content = template.render(product=config)
+    content = template.render(product=config, product_types_module=product_types_module)
 
     path = f'{product_generator_settings.TEST_PRODUCT_TYPE_PATH}/test_{config["variable"]}.py'
     writer(path, content)
@@ -98,4 +97,4 @@ def generate_unit_tests(context: dict) -> None:
     writer = context["writer"]
 
     generate_product_type_tests(environment, config, writer)
-    generate_workflow_tests(environment, config, writer)
+    # generate_workflow_tests(environment, config, writer)

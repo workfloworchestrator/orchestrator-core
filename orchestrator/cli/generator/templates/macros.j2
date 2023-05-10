@@ -1,0 +1,7 @@
+{% macro optional(field) -%}
+{% if python_version == "3.9" -%}
+Optional[{{ field.type }}] = None
+{%- else -%}
+{{ field.type }} | None = None
+{%- endif -%}
+{%- endmacro %}
