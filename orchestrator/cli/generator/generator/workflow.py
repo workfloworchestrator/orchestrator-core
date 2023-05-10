@@ -113,7 +113,7 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     writer(path, content)
 
 
-def generate_workflow(f: Optional[Callable] = None, workflow: str | None = None):
+def generate_workflow(f: Optional[Callable] = None, workflow: Optional[str] = None):
     if f is None:
         return partial(generate_workflow, workflow=workflow)
 
