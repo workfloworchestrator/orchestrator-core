@@ -48,7 +48,7 @@ class Query:
     processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
-    products: Connection[ProductType] = strawberry.field(
+    products: Connection[ProductType] = authenticated_field(
         resolver=resolve_products, description="Returns list of products"
     )
 
