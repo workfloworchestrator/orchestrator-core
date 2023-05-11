@@ -76,8 +76,6 @@ def generate_workflows(context: dict) -> None:
 
     add_workflow_translations(config, writer)
 
-    #
-    # add_email_support(environment, config, writer)
     # insert_lazy_workflow_instances(environment, config, writer)
 
 

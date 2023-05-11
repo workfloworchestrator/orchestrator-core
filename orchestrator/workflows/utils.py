@@ -17,6 +17,7 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import validator
+from surf.workflows.workflow import push_domain_models
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms import FormPage
@@ -24,13 +25,14 @@ from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
+from orchestrator.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc, SubscriptionLifecycle
 from orchestrator.utils.state import form_inject_args
-from orchestrator.workflow import StepList, Workflow, conditional, done, init, make_workflow, step
+from orchestrator.workflow import Step, StepList, Workflow, conditional, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
     cache_domain_models,
     remove_domain_model_from_cache,
     resync,
+    set_status,
     store_process_subscription,
     unsync_unchecked,
 )
@@ -174,6 +176,42 @@ modify_initial_input_form_generator = None
 
 
 validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_initial_input_form_generator)
+
+
+def core_create_workflow(
+    description: str,
+    initial_input_form: Optional[InputStepFunc] = None,
+    status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
+    update_ticket_step: Optional[Step] = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
+
+    Use this for create workflows only.
+
+    Example::
+
+        @create_workflow("create service port")
+        def create_service_port() -> StepList:
+            do_something
+            >> do_something_else
+    """
+    create_initial_input_form_generator = wrap_create_initial_input_form(initial_input_form)
+
+    def _create_workflow(f: Callable[[], StepList]) -> Workflow:
+        execute_ticket_step = conditional(lambda state: state.get("ticket_id", False))
+        steplist = (
+            init
+            >> f()
+            >> execute_ticket_step(update_ticket_step)
+            >> set_status(status)
+            >> resync
+            >> push_domain_models(cache_domain_models)
+            >> done
+        )
+
+        return make_workflow(f, description, create_initial_input_form_generator, Target.CREATE, steplist)
+
+    return _create_workflow
 
 
 def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Workflow]:
