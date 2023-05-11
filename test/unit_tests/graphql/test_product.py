@@ -145,7 +145,7 @@ def test_products_filter_by_product_block(test_client, generic_product_1, generi
 
 def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(sort_by=[{"field": "tag", "order": "DESC"}])
-    response: Response = test_client.post("/api/graphql", json=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 

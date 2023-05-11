@@ -52,17 +52,14 @@ def test_settings_query(test_client):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     settings_data = result["data"]["settings"]
+    worker_status = settings_data["workerStatus"]
 
-    assert settings_data == {
-        "cacheNames": {"all": "All caches"},
-        "engineSettings": {"globalLock": False, "globalStatus": "RUNNING", "runningProcesses": 0},
-        "workerStatus": {
-            "executorType": "threadpool",
-            "numberOfQueuedJobs": 0,
-            "numberOfWorkersOnline": 5,
-            "numberOfRunningJobs": 1,
-        },
-    }
+    assert settings_data["cacheNames"] == {"all": "All caches"}
+    assert settings_data["engineSettings"] == {"globalLock": False, "globalStatus": "RUNNING", "runningProcesses": 0}
+    assert worker_status["executorType"] == "threadpool"
+    assert worker_status["numberOfQueuedJobs"] == 0
+    assert worker_status["numberOfWorkersOnline"] == 5
+    # numberOfRunningJobs is different depending if you run the whole suite vs just the graphql tests
 
 
 def test_clear_cache_mutation_fails_auth(test_client):
