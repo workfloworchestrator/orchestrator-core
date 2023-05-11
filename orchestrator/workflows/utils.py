@@ -17,7 +17,6 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import validator
-from surf.workflows.workflow import push_domain_models
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms import FormPage
@@ -26,6 +25,7 @@ from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc, SubscriptionLifecycle
+from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
 from orchestrator.workflow import Step, StepList, Workflow, conditional, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
@@ -34,6 +34,7 @@ from orchestrator.workflows.steps import (
     resync,
     set_status,
     store_process_subscription,
+    unsync,
     unsync_unchecked,
 )
 
@@ -177,6 +178,8 @@ modify_initial_input_form_generator = None
 
 validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_initial_input_form_generator)
 
+push_domain_models = conditional(lambda _: caching_models_enabled())
+
 
 def core_create_workflow(
     description: str,
@@ -212,6 +215,83 @@ def core_create_workflow(
         return make_workflow(f, description, create_initial_input_form_generator, Target.CREATE, steplist)
 
     return _create_workflow
+
+
+def core_modify_workflow(
+    description: str,
+    initial_input_form: Optional[InputStepFunc] = None,
+    update_ticket_step: Optional[Step] = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Transform an initial_input_form and a step list into a workflow.
+
+    Use this for modify workflows.
+
+    Example::
+
+        @modify_workflow("create service port") -> StepList:
+        def create_service_port():
+            do_something
+            >> do_something_else
+    """
+
+    wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
+
+    def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
+        execute_ticket_step = conditional(lambda state: state.get("ticket_id", False))
+        steplist = (
+            init
+            >> store_process_subscription(Target.MODIFY)
+            >> push_domain_models(remove_domain_model_from_cache)
+            >> unsync
+            >> f()
+            >> execute_ticket_step(update_ticket_step)
+            >> resync
+            >> push_domain_models(cache_domain_models)
+            >> done
+        )
+
+        return make_workflow(f, description, wrapped_modify_initial_input_form_generator, Target.MODIFY, steplist)
+
+    return _modify_workflow
+
+
+def core_terminate_workflow(
+    description: str,
+    initial_input_form: Optional[InputStepFunc] = None,
+    update_ticket_step: Optional[Step] = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Transform an initial_input_form and a step list into a workflow.
+
+    Use this for terminate workflows.
+
+    Example::
+
+        @terminate_workflow("create service port") -> StepList:
+        def create_service_port():
+            do_something
+            >> do_something_else
+    """
+
+    wrapped_terminate_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
+
+    def _terminate_workflow(f: Callable[[], StepList]) -> Workflow:
+        execute_ticket_step = conditional(lambda state: state.get("ticket_id", False))
+        steplist = (
+            init
+            >> store_process_subscription(Target.TERMINATE)
+            >> push_domain_models(remove_domain_model_from_cache)
+            >> unsync
+            >> f()
+            >> execute_ticket_step(update_ticket_step)
+            >> set_status(SubscriptionLifecycle.TERMINATED)
+            >> resync
+            >> push_domain_models(cache_domain_models)
+            >> done
+        )
+
+        return make_workflow(f, description, wrapped_terminate_initial_input_form_generator, Target.TERMINATE, steplist)
+
+    return _terminate_workflow
 
 
 def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Workflow]:
