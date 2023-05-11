@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Union
 
-from httpx import Response
+from fastapi import Response
 
 
 def get_product_query(
@@ -138,3 +138,23 @@ def test_products_filter_by_product_block(test_client, generic_product_1, generi
     }
     assert products[0]["name"] == "Product 1"
     assert products[1]["name"] == "Product 2"
+
+
+def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2, generic_product_3):
+    data = get_product_query(sort_by=[{"field": "tag", "order": "DESC"}])
+    response: Response = test_client.post("/api/graphql", json=data, headers={"Content-Type": "application/json"})
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+
+    products_data = result["data"]["products"]
+    products = products_data["page"]
+    pageinfo = products_data["pageInfo"]
+
+    assert [prod["tag"] for prod in products] == ["GEN3", "GEN2", "GEN1"]
+    assert pageinfo == {
+        "endCursor": 2,
+        "hasNextPage": False,
+        "hasPreviousPage": False,
+        "startCursor": 0,
+        "totalItems": "3",
+    }

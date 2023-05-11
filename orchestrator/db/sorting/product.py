@@ -7,6 +7,7 @@ VALID_SORT_KEY_MAP = {
     "status": "status",
     "product_type": "product_type",
     "name": "name",
+    "tag": "tag",
 }
 
 sort_products = generic_sort(VALID_SORT_KEY_MAP, ProductTable)
