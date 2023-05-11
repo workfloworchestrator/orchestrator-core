@@ -1,3 +1,4 @@
+import json
 from http import HTTPStatus
 from typing import Union
 
@@ -9,7 +10,7 @@ def get_product_query(
     after: int = 0,
     filter_by: Union[list[str], None] = None,
     sort_by: Union[list[dict[str, str]], None] = None,
-) -> dict:
+) -> bytes:
     query = """
 query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
   products(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
@@ -61,21 +62,23 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
   }
 }
     """
-    return {
-        "operationName": "ProductQuery",
-        "query": query,
-        "variables": {
-            "first": first,
-            "after": after,
-            "sortBy": sort_by if sort_by else [],
-            "filterBy": filter_by if filter_by else [],
-        },
-    }
+    return json.dumps(
+        {
+            "operationName": "ProductQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
 
 
 def test_product_query(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(first=2)
-    response: Response = test_client.post("/api/graphql", json=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -96,7 +99,7 @@ def test_product_query(test_client, generic_product_1, generic_product_2, generi
 
 def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(after=1)
-    response: Response = test_client.post("/api/graphql", json=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -122,7 +125,7 @@ def test_products_filter_by_product_block(test_client, generic_product_1, generi
         filter_by=[{"field": "product_blocks", "value": "PB_1-PB_3"}],
         sort_by=[{"field": "name", "order": "ASC"}],
     )
-    response: Response = test_client.post("/api/graphql", json=data, headers={"Content-Type": "application/json"})
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     products_data = result["data"]["products"]

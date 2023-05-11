@@ -13,10 +13,13 @@
 
 from typing import Optional
 
+import strawberry
+
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.types import strEnum
 
 
+@strawberry.enum
 class GlobalStatusEnum(strEnum):
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
@@ -39,4 +42,5 @@ class EngineSettingsSchema(EngineSettingsBaseSchema):
     running_processes: int
 
     class Config:
+        orm_mode = True
         orm_mode = True
