@@ -143,7 +143,7 @@ Create a pydantic type/class.
 from uuid import UUID
 
 
-class ChooseUser(int):
+class ChooseUser(str):
     group_id: UUID  # type:ignore
 
     @classmethod
