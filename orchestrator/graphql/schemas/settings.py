@@ -35,4 +35,3 @@ class CacheClearSuccess:
 
 CacheClearResponse = strawberry.union("CacheClearResponse", [CacheClearSuccess, Error])
 StatusUpdateResponse = strawberry.union("StatusUpdateResponse", [EngineSettingsType, Error])
-StatusUpdateResponse = strawberry.union("StatusUpdateResponse", [EngineSettingsType, Error])
