@@ -16,6 +16,7 @@ from collections.abc import Callable
 
 import structlog
 
+from orchestrator.cli.generator.generator.helpers import get_variable
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 
 logger = structlog.getLogger(__name__)
@@ -37,7 +38,7 @@ def read_translations() -> dict:
 
 def add_workflow_translations(config: dict, writer: Callable) -> None:
     if translations := read_translations():
-        variable = config["variable"]
+        variable = get_variable(config)
         name = config["name"]
         workflows = {
             f"create_{variable}": f"Create {name}",

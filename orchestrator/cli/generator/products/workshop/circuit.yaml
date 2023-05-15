@@ -7,7 +7,6 @@ config:
   send_email: false
 name: Circuit
 type: Circuit
-variable: circuit
 fixed_inputs:
   - name: speed
     type: str
@@ -15,7 +14,6 @@ product_blocks:
   - name: ckt
     type: Circuit
     block_name: "Circuit"
-    variable: circuit
     fields:
       - name: members
         type: list

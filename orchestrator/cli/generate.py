@@ -52,7 +52,7 @@ def write_file(path: str, content: str, append: bool, force: bool) -> None:
         typer.echo(f"Writing to {path} failed")
 
 
-def create_context(config_file: str, dryrun: bool, force: bool, python_version: str) -> Dict:
+def create_context(config_file: str, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> Dict:
     def writer(path: str, content: str, append: bool = False) -> None:
         if dryrun:
             typer.echo(path)
@@ -64,10 +64,13 @@ def create_context(config_file: str, dryrun: bool, force: bool, python_version: 
         loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
     )
 
+    config = read_config(config_file)
+
     return {
-        "config": read_config(config_file),
+        "config": config,
         "environment": environment,
         "python_version": python_version,
+        "tdd": tdd,
         "writer": writer,
     }
 
@@ -78,6 +81,7 @@ def create_context(config_file: str, dryrun: bool, force: bool, python_version: 
 
 ConfigFile = typer.Option(None, "--config-file", "-cf", help="The configuration file")
 DryRun = typer.Option(True, help="Dry run")
+TestDrivenDevelopment = typer.Option(True, '--tdd', help="Force test driven development with failing asserts")
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
 PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
 
@@ -112,8 +116,9 @@ def workflows(
     dryrun: bool = DryRun,
     force: bool = Force,
     python_version: str = PythonVersion,
+    tdd: bool = TestDrivenDevelopment,
 ) -> None:
-    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version, tdd=tdd)
 
     generate_workflows(context)
 
@@ -125,7 +130,7 @@ def unit_tests(
     force: bool = Force,
     python_version: str = PythonVersion,
 ) -> None:
-    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version, tdd=tdd)
 
     generate_unit_tests(context)
 

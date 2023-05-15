@@ -8,7 +8,7 @@ from {{ namespace }} import {{ type }}
 {% if lists_to_generate %}
 from typing import TypeVar
 {% endif -%}
-{% if restrained_ints_to_generate %}
+{% if constrained_ints_to_generate %}
 from pydantic import ConstrainedInt
 {% endif -%}
 {% if "UUID" in product_block.fields | map(attribute="type") %}
@@ -22,13 +22,7 @@ from orchestrator.domain.base import ProductBlockModel, serializable_property
 from orchestrator.types import SubscriptionLifecycle
 
 {% include "list_definitions.j2" %}
-
-{% for field in restrained_ints_to_generate %}
-class {{ field.type }}(ConstrainedInt):
-    {% if field.min_value is defined %} ge = {{ '{:_}'.format(field.min_value) }} {% endif %}
-    {% if field.max_value is defined %} le = {{ '{:_}'.format(field.max_value) }} {% endif %}
-
-{% endfor %}
+{% include "constrained_int_definitions.j2" %}
 
 class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_name="{{ product_block.block_name }}"):
     {% for field in product_block.fields -%}

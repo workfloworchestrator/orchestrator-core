@@ -16,8 +16,13 @@ from orchestrator.cli.generator.generator.fixed_input import (
     get_str_enum_fixed_inputs,
     replace_enum_fixed_inputs,
 )
-from orchestrator.cli.generator.generator.helpers import path_to_module, product_types_module
+from orchestrator.cli.generator.generator.helpers import get_product_file_name, path_to_module, product_types_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings
+
+
+def get_product_path(config: dict) -> str:
+    file_name = get_product_file_name(config)
+    return f"{product_generator_settings.PRODUCT_TYPES_PATH}/{file_name}.py"
 
 
 def generate_product(context: dict) -> None:
@@ -45,6 +50,5 @@ def generate_product(context: dict) -> None:
         str_enums=str_enums,
     )
 
-    file_name = config["variable"]
-    path = f"{product_generator_settings.PRODUCT_TYPES_PATH}/{file_name}.py"
+    path = get_product_path(config)
     writer(path, content)

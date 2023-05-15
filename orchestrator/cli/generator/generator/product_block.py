@@ -17,7 +17,7 @@ from importlib import import_module
 from os import listdir
 from typing import Any
 
-from orchestrator.cli.generator.generator.helpers import path_to_module, snake_to_camel
+from orchestrator.cli.generator.generator.helpers import get_product_block_file_name, path_to_module, snake_to_camel
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.domain.base import ProductBlockModel
 
@@ -45,7 +45,7 @@ def get_existing_product_blocks() -> dict[str, Any]:
     return dict(yield_blocks())
 
 
-def is_restrained_int(field: dict) -> bool:
+def is_constrained_int(field: dict) -> bool:
     return "min_value" in field or "max_value" in field
 
 
@@ -59,7 +59,7 @@ def name_space_get_type(name_spaced_type: str) -> str:
 
 def get_fields(product_block: dict) -> list[dict]:
     def to_type(field: dict) -> dict:
-        if is_restrained_int(field):
+        if is_constrained_int(field):
             return field | {"type": snake_to_camel(field["name"])}
         elif is_name_spaced_field_type(field):
             return field | {"type": name_space_get_type(field["type"])}
@@ -70,7 +70,7 @@ def get_fields(product_block: dict) -> list[dict]:
 
 
 def get_lists_to_generate(fields: list[dict]) -> list[dict]:
-    def should_generate(type: str, list_type: str | None = None, **kwargs) -> bool:
+    def should_generate(type: str, list_type: str | None = None, **kwargs: Any) -> bool:
         return type == "list" and list_type not in ["str", "int", "bool", "UUID"]
 
     return [field for field in fields if should_generate(**field)]
@@ -93,6 +93,11 @@ def get_product_blocks_to_import(lists_to_generate: list, existing_product_block
     ]
 
 
+def get_product_block_path(product_block: dict) -> str:
+    file_name = get_product_block_file_name(product_block)
+    return f"{product_generator_settings.PRODUCT_BLOCKS_PATH}/{file_name}.py"
+
+
 def generate_product_blocks(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
@@ -112,19 +117,17 @@ def generate_product_blocks(context: dict) -> None:
 
         product_blocks_to_import = get_product_blocks_to_import(lists_to_generate, existing_product_blocks)
 
-        restrained_ints_to_generate = [field for field in fields if is_restrained_int(field)]
+        constrained_ints_to_generate = [field for field in fields if is_constrained_int(field)]
 
+        path = get_product_block_path(product_block)
         content = template.render(
             lists_to_generate=lists_to_generate,
             product_block=product_block | {"fields": fields},
             product_blocks_to_import=product_blocks_to_import,
-            restrained_ints_to_generate=restrained_ints_to_generate,
+            constrained_ints_to_generate=constrained_ints_to_generate,
             types_to_import=types_to_import,
             python_version=python_version,
         )
-
-        file_name = product_block["variable"]
-        path = f"{product_generator_settings.PRODUCT_BLOCKS_PATH}/{file_name}.py"
 
         writer(path, content)
 

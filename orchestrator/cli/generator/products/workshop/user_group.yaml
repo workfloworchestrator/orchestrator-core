@@ -7,7 +7,6 @@ config:
   send_email: false
 name: UserGroup
 type: UserGroup
-variable: user_group
 product_blocks:
   - name: user_group
     type: UserGroup

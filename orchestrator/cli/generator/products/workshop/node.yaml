@@ -7,12 +7,10 @@ config:
   send_email: false
 name: Node
 type: node
-variable: node
 product_blocks:
   - name: node
     type: Node
     block_name: "Node"
-    variable: node
     fields:
       - name: node_id
         type: int
