@@ -52,7 +52,7 @@ def write_file(path: str, content: str, append: bool, force: bool) -> None:
         typer.echo(f"Writing to {path} failed")
 
 
-def create_context(config_file: str, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> Dict:
+def create_context(config_file: str, dryrun: bool, force: bool, python_version: str, tdd: Optional[bool] = False) -> Dict:
     def writer(path: str, content: str, append: bool = False) -> None:
         if dryrun:
             typer.echo(path)

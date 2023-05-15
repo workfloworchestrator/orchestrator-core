@@ -50,5 +50,7 @@ def generate_product(context: dict) -> None:
         str_enums=str_enums,
     )
 
+    print(replace_enum_fixed_inputs(fixed_inputs))
+
     path = get_product_path(config)
     writer(path, content)
