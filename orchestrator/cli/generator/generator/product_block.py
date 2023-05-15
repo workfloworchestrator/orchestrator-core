@@ -14,12 +14,16 @@
 import inspect
 from collections.abc import Generator
 from importlib import import_module
-from os import listdir
+from os import listdir, path
 from typing import Any
+
+import structlog
 
 from orchestrator.cli.generator.generator.helpers import get_product_block_file_name, path_to_module, snake_to_camel
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.domain.base import ProductBlockModel
+
+logger = structlog.getLogger(__name__)
 
 
 def get_existing_product_blocks() -> dict[str, Any]:
@@ -29,6 +33,10 @@ def get_existing_product_blocks() -> dict[str, Any]:
 
         product_blocks_path = product_generator_settings.PRODUCT_BLOCKS_PATH
         product_blocks_module = path_to_module(product_blocks_path)
+
+        if not path.exists(product_blocks_path):
+            logger.warning("Product block path does not exist", product_blocks_path=product_blocks_path)
+            return
 
         for pb_file in listdir(product_blocks_path):
             name = pb_file.removesuffix(".py")
