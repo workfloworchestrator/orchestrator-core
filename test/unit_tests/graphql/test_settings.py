@@ -73,7 +73,7 @@ mutation UpdateStatusMutation($globalLock: Boolean = false) {
 
 def test_settings_query(test_client):
     response = test_client.post(
-        "/api/graphql",
+        GRAPHQL_ENDPOINT,
         content=get_settings_query(),
         headers=GRAPHQL_HEADERS,
     )
@@ -105,7 +105,7 @@ def test_clear_cache_mutation_fails_auth(test_client, monkeypatch):
     assert result["errors"][0]["message"] == "User is not authenticated"
 
 
-def test_clear_cache_success(test_client, cache_fixture):
+def test_success_clear_cache(test_client, cache_fixture):
     cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
     key = "some_model_uuid"
     test_data = {key: {"data": [1, 2, 3]}}
@@ -129,6 +129,14 @@ def test_clear_cache_success(test_client, cache_fixture):
     assert data["__typename"] == "CacheClearSuccess"
     assert len(cache.keys()) == 0
     assert data["deleted"] == 2
+
+
+def test_failure_clear_cache(test_client):
+    response = test_client.post(GRAPHQL_ENDPOINT, data=get_clear_cache_mutation("invalid"), headers=GRAPHQL_HEADERS)
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+
+    assert result["data"] == {"clearCache": {"__typename": "Error", "message": "Invalid cache name"}}
 
 
 def test_mutate_engine_global_settings(test_client):
