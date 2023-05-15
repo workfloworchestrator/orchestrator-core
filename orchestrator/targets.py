@@ -11,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import strawberry
 
 from orchestrator.types import strEnum
 
 
+@strawberry.enum
 class Target(strEnum):
     CREATE = "CREATE"
     MODIFY = "MODIFY"
