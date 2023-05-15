@@ -19,7 +19,12 @@ from typing import Any, Optional
 import structlog
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import get_workflow, product_types_module, root_product_block
+from orchestrator.cli.generator.generator.helpers import (
+    get_product_file_name,
+    get_workflow,
+    product_types_module,
+    root_product_block,
+)
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
 from orchestrator.cli.generator.generator.validations import get_validations, get_validations_for_modify
@@ -80,7 +85,7 @@ def generate_workflows(context: dict) -> None:
 
 
 def workflow_folder(config: dict) -> str:
-    folder = config["variable"]
+    folder = get_product_file_name(config)
     return f"{product_generator_settings.WORKFLOWS_PATH}/{folder}"
 
 
@@ -94,8 +99,7 @@ def create_workflow_paths(config: dict) -> None:
 
 
 def get_workflow_path(config: dict, workflow_type: str) -> str:
-    file_name = config["variable"]
-
+    file_name = get_product_file_name(config)
     return f"{workflow_folder(config)}/{workflow_type}_{file_name}.py"
 
 

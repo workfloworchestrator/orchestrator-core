@@ -17,24 +17,29 @@ from pathlib import Path
 import structlog
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import get_workflow, product_types_module
+from orchestrator.cli.generator.generator.helpers import get_product_file_name, get_workflow, product_types_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 from orchestrator.cli.generator.generator.validations import get_validations
 
 logger = structlog.getLogger(__name__)
 
 
+def get_test_product_path(config: dict) -> str:
+    file_name = f"test_{get_product_file_name(config)}"
+    return f"{product_generator_settings.TEST_PRODUCT_TYPE_PATH}/{file_name}.py"
+
+
 def generate_product_type_tests(environment: Environment, config: dict, writer: Callable) -> None:
     template = environment.get_template("test_product_type.j2")
     content = template.render(product=config, product_types_module=product_types_module)
 
-    path = f'{product_generator_settings.TEST_PRODUCT_TYPE_PATH}/test_{config["variable"]}.py'
+    path = get_test_product_path(config)
     writer(path, content)
 
 
 def get_test_workflow_path(config: dict, workflow_type: str) -> str:
-    file_name = config["variable"]
-    folder = config["variable"]
+    file_name = get_product_file_name(config)
+    folder = file_name
 
     workflow_folder = f"{product_generator_settings.TEST_WORKFLOWS_PATH}/{folder}"
     Path(workflow_folder).mkdir(exist_ok=True)
