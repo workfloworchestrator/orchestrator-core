@@ -114,7 +114,7 @@ def test_clear_cache_success(test_client, cache_fixture):
     cache.set(f"orchestrator:{key}", json.dumps(test_data), ex=ONE_WEEK)
     cache.set(
         f"orchestrator:etag:{key}",
-        md5(json.dumps(test_data).encode("utf-8"), usedforsecurity=False).hexdigest(),
+        md5(json.dumps(test_data).encode("utf-8"), usedforsecurity=False).hexdigest(),  # noqa: S303
         ex=ONE_WEEK,
     )
     cache_fixture.extend([f"orchestrator:{key}", f"orchestrator:etag:{key}"])
