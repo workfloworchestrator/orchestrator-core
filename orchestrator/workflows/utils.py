@@ -181,7 +181,7 @@ validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_in
 push_domain_models = conditional(lambda _: caching_models_enabled())
 
 
-def core_create_workflow(
+def create_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
@@ -217,7 +217,7 @@ def core_create_workflow(
     return _create_workflow
 
 
-def core_modify_workflow(
+def modify_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
     update_ticket_step: Optional[Step] = None,
@@ -255,7 +255,7 @@ def core_modify_workflow(
     return _modify_workflow
 
 
-def core_terminate_workflow(
+def terminate_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
     update_ticket_step: Optional[Step] = None,

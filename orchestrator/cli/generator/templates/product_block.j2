@@ -1,6 +1,6 @@
 {# Product block definition -#}
 
-{% from 'macros.j2' import optional with context %}
+{% from 'macros.j2' import optional, list_field with context %}
 
 {% for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
@@ -21,17 +21,7 @@ from {{ module }} import {{ type }}Block, {{ type }}BlockInactive
 from orchestrator.domain.base import ProductBlockModel, serializable_property
 from orchestrator.types import SubscriptionLifecycle
 
-{% if lists_to_generate %}
-T = TypeVar("T", covariant=True)
-
-{% for list_type in lists_to_generate %}
-class ListOf{{ list_type.name | capitalize }}(SubscriptionInstanceList[T]):
-    min_items = {{ list_type.min_items }}
-    {% if list_type.max_items -%}
-    max_items = {{ list_type.max_items }}
-    {% endif %}
-{% endfor %}
-{% endif -%}
+{% include "list_definitions.j2" %}
 
 {% for field in restrained_ints_to_generate %}
 class {{ field.type }}(ConstrainedInt):
@@ -43,7 +33,7 @@ class {{ field.type }}(ConstrainedInt):
 class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_name="{{ product_block.block_name }}"):
     {% for field in product_block.fields -%}
     {% if field.type == "list" -%}
-    {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}BlockInactive]
+    {{ list_field(field, "Inactive") }}
     {% else -%}
     {{ field.name }}: {% if field.required not in ["inactive"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}
@@ -52,7 +42,7 @@ class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_nam
 class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     {% for field in product_block.fields -%}
     {% if field.type == "list" -%}
-    {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}Block]
+    {{ list_field(field) }}
     {% else -%}
     {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}
@@ -66,7 +56,7 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
 class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     {% for field in product_block.fields -%}
     {% if field.type == "list" -%}
-    {{ field.name }}: ListOf{{ field.name | capitalize }}[{{ field.list_type }}Block]
+    {{ list_field(field) }}
     {% else -%}
     {{ field.name }}: {% if field.required not in ["inactive", "provisioning", "active"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}

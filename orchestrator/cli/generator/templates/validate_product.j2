@@ -9,7 +9,7 @@ from orchestrator.types import State
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import validate_workflow
 
-from surf.products.product_types.{{ product.variable }} import {{ product.type }}
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 
 from surf.workflows.shared.crm import load_organisation_info
 

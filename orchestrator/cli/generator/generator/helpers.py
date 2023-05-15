@@ -55,5 +55,4 @@ product_types_module = path_to_module(product_generator_settings.PRODUCT_TYPES_P
 
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:
-    module = path_to_module(product_generator_settings.PRODUCT_TYPES_PATH)
-    return f'from {module}.{product["variable"]} import {product["type"]}{lifecycle}\n'
+    return f'from {product_types_module}.{product["variable"]} import {product["type"]}{lifecycle}\n'

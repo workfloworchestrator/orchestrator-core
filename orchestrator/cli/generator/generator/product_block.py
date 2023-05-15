@@ -70,7 +70,10 @@ def get_fields(product_block: dict) -> list[dict]:
 
 
 def get_lists_to_generate(fields: list[dict]) -> list[dict]:
-    return [field for field in fields if field["type"] == "list"]
+    def should_generate(type: str, list_type: str | None = None, **kwargs) -> bool:
+        return type == "list" and list_type not in ["str", "int", "bool", "UUID"]
+
+    return [field for field in fields if should_generate(**field)]
 
 
 def get_name_spaced_types_to_import(fields: list) -> list[tuple]:

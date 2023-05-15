@@ -10,7 +10,7 @@ from orchestrator.types import FormGenerator, State, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 
 from surf.forms.validators import JiraTicketId
-from surf.products.product_types.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
 from surf.products.services.subscription import subscription_description
 from surf.workflows.shared.mail import send_confirmation_email
 from surf.workflows.shared.validate_subscriptions import subscription_update_wrapper

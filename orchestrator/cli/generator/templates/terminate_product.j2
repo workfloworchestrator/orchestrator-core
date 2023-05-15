@@ -12,7 +12,7 @@ from surf.forms.validators import JiraTicketId
 from orchestrator.types import State, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 
-from surf.products.product_types.{{ product.variable }} import {{ product.type }}
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 {% if product.config.send_email %}
 from surf.workflows.shared.mail import send_confirmation_email
 {% endif %}
