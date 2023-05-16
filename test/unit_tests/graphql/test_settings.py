@@ -132,7 +132,7 @@ def test_success_clear_cache(test_client, cache_fixture):
 
 
 def test_failure_clear_cache(test_client):
-    response = test_client.post(GRAPHQL_ENDPOINT, data=get_clear_cache_mutation("invalid"), headers=GRAPHQL_HEADERS)
+    response = test_client.post(GRAPHQL_ENDPOINT, content=get_clear_cache_mutation("invalid"), headers=GRAPHQL_HEADERS)
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 

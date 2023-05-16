@@ -1,4 +1,4 @@
-import os
+from typing import Union
 
 import strawberry
 import structlog
@@ -10,11 +10,9 @@ from orchestrator.db import EngineSettingsTable
 from orchestrator.graphql.schemas.errors import Error
 from orchestrator.graphql.schemas.settings import (
     CACHE_FLUSH_OPTIONS,
-    CacheClearResponse,
     CacheClearSuccess,
     EngineSettingsType,
     StatusType,
-    StatusUpdateResponse,
     WorkerStatusType,
 )
 from orchestrator.graphql.types import CustomInfo
@@ -31,8 +29,6 @@ logger = structlog.get_logger(__name__)
 # Queries
 def resolve_settings(info: CustomInfo) -> StatusType:
     selected_fields = get_selected_fields(info)
-    logger.debug(OAUTH2_ENABLED=os.getenv("OATH2_ENABLED"), MUTATIONS_ENABLED=os.getenv("MUTATIONS_ENABLED"))
-    logger.debug("resolve_settings() called...", selected_fields=selected_fields)
 
     db_engine_settings = EngineSettingsTable.query.one()
     pydantic_orm_resp = generate_engine_status_response(db_engine_settings)
@@ -61,7 +57,7 @@ def resolve_settings(info: CustomInfo) -> StatusType:
 
 
 # Mutations
-async def clear_cache(info: CustomInfo, name: str) -> CacheClearResponse:  # type: ignore
+async def clear_cache(info: CustomInfo, name: str) -> Union[CacheClearSuccess, Error]:
     cache: AIORedis = AIORedis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
@@ -71,8 +67,7 @@ async def clear_cache(info: CustomInfo, name: str) -> CacheClearResponse:  # typ
     return CacheClearSuccess(deleted=deleted)
 
 
-# TODO(alex): Why is mypy complaining here? I thought the strawberry plugin handled this...
-def set_status(info: CustomInfo, global_lock: bool) -> StatusUpdateResponse:  # type: ignore
+def set_status(info: CustomInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
     engine_settings = EngineSettingsTable.query.with_for_update().one()
 
     result = marshall_processes(engine_settings, global_lock)
@@ -91,9 +86,9 @@ def set_status(info: CustomInfo, global_lock: bool) -> StatusUpdateResponse:  # 
 
 @strawberry.type(description="Settings endpoint mutations")
 class SettingsMutation:
-    clear_cache: CacheClearResponse = authenticated_mutation_field(  # type: ignore
+    clear_cache: Union[CacheClearSuccess, Error] = authenticated_mutation_field(
         resolver=clear_cache, description="Clear a redis cache by name"
     )
-    update_status: StatusUpdateResponse = authenticated_mutation_field(  # type: ignore
+    update_status: Union[EngineSettingsType, Error] = authenticated_mutation_field(
         resolver=set_status, description="Update global status of the engine"
     )
