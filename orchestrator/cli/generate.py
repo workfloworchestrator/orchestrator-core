@@ -52,7 +52,9 @@ def write_file(path: str, content: str, append: bool, force: bool) -> None:
         typer.echo(f"Writing to {path} failed")
 
 
-def create_context(config_file: str, dryrun: bool, force: bool, python_version: str, tdd: Optional[bool] = False) -> Dict:
+def create_context(
+    config_file: str, dryrun: bool, force: bool, python_version: str, tdd: Optional[bool] = False
+) -> Dict:
     def writer(path: str, content: str, append: bool = False) -> None:
         if dryrun:
             typer.echo(path)
@@ -81,7 +83,7 @@ def create_context(config_file: str, dryrun: bool, force: bool, python_version: 
 
 ConfigFile = typer.Option(None, "--config-file", "-cf", help="The configuration file")
 DryRun = typer.Option(True, help="Dry run")
-TestDrivenDevelopment = typer.Option(True, '--tdd', help="Force test driven development with failing asserts")
+TestDrivenDevelopment = typer.Option(True, "--tdd", help="Force test driven development with failing asserts")
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
 PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
 

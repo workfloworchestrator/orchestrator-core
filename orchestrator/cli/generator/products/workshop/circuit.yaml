@@ -13,7 +13,6 @@ fixed_inputs:
 product_blocks:
   - name: ckt
     type: Circuit
-    block_name: "Circuit"
     fields:
       - name: members
         type: list

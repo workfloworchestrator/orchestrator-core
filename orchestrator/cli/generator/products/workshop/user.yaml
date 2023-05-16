@@ -17,7 +17,6 @@ fixed_inputs:
 product_blocks:
   - name: user
     type: User
-    block_name: "UserBlock"
     fields:
       - name: group
         type: UserGroup

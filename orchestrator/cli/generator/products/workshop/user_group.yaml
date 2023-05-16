@@ -10,8 +10,6 @@ type: UserGroup
 product_blocks:
   - name: user_group
     type: UserGroup
-    block_name: "UserGroupBlock"
-    variable: user_group
     fields:
       - name: group_name
         type: str

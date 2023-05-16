@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import inspect
+import re
 from collections.abc import Generator
 from importlib import import_module
 from os import listdir, path
@@ -106,6 +107,21 @@ def get_product_block_path(product_block: dict) -> str:
     return f"{product_generator_settings.PRODUCT_BLOCKS_PATH}/{file_name}.py"
 
 
+def enrich_product_block(product_block: dict):
+    def to_block_name() -> str:
+        type = product_block["type"]
+        name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
+        return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
+
+    fields = get_fields(product_block)
+    block_name = product_block.get("block_name", to_block_name())
+
+    return product_block | {
+        "fields": fields,
+        "block_name": block_name,
+    }
+
+
 def generate_product_blocks(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
@@ -130,7 +146,7 @@ def generate_product_blocks(context: dict) -> None:
         path = get_product_block_path(product_block)
         content = template.render(
             lists_to_generate=lists_to_generate,
-            product_block=product_block | {"fields": fields},
+            product_block=enrich_product_block(product_block),
             product_blocks_to_import=product_blocks_to_import,
             constrained_ints_to_generate=constrained_ints_to_generate,
             types_to_import=types_to_import,

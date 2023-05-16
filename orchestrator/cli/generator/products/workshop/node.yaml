@@ -10,7 +10,6 @@ type: node
 product_blocks:
   - name: node
     type: Node
-    block_name: "Node"
     fields:
       - name: node_id
         type: int
