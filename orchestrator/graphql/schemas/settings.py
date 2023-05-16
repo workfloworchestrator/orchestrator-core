@@ -33,5 +33,5 @@ class CacheClearSuccess:
     deleted: int
 
 
-CacheClearResponse = strawberry.union("CacheClearResponse", [CacheClearSuccess, Error])
-StatusUpdateResponse = strawberry.union("StatusUpdateResponse", [EngineSettingsType, Error])
+CacheClearResponse = strawberry.union("CacheClearResponse", types=(CacheClearSuccess, Error))
+StatusUpdateResponse = strawberry.union("StatusUpdateResponse", types=(EngineSettingsType, Error))

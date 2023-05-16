@@ -10,9 +10,11 @@ from orchestrator.db import EngineSettingsTable
 from orchestrator.graphql.schemas.errors import Error
 from orchestrator.graphql.schemas.settings import (
     CACHE_FLUSH_OPTIONS,
+    CacheClearResponse,
     CacheClearSuccess,
     EngineSettingsType,
     StatusType,
+    StatusUpdateResponse,
     WorkerStatusType,
 )
 from orchestrator.graphql.types import CustomInfo
@@ -86,9 +88,9 @@ def set_status(info: CustomInfo, global_lock: bool) -> Union[Error, EngineSettin
 
 @strawberry.type(description="Settings endpoint mutations")
 class SettingsMutation:
-    clear_cache: Union[CacheClearSuccess, Error] = authenticated_mutation_field(
+    clear_cache: CacheClearResponse = authenticated_mutation_field(
         resolver=clear_cache, description="Clear a redis cache by name"
     )
-    update_status: Union[EngineSettingsType, Error] = authenticated_mutation_field(
+    update_status: StatusUpdateResponse = authenticated_mutation_field(
         resolver=set_status, description="Update global status of the engine"
     )
