@@ -16,6 +16,8 @@ from typing import Generator, Optional
 
 import structlog
 
+from orchestrator.cli.generator.generator.helpers import get_variable
+
 logger = structlog.getLogger(__name__)
 
 
@@ -56,12 +58,12 @@ def generate_product_migration(context: dict) -> None:
         except FileNotFoundError:
             logger.error("Migration file not found", path=path)
         else:
-            template = environment.get_template("new_product_migration.j2")
-
             revision_info = extract_revision_info(original_content)
-            logger.warning("***", revision_info=revision_info)
+            variable = get_variable(config)
 
-            content = template.render(product=config, **revision_info)
+            template = environment.get_template("new_product_migration.j2")
+            content = template.render(product=config, variable=variable, **revision_info)
+
             writer(path, content)
 
     else:
