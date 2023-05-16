@@ -17,6 +17,7 @@ import typer
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
+from orchestrator.cli.generator.generator.migration import generate_product_migration
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
 from orchestrator.cli.generator.generator.unittest import generate_unit_tests
@@ -146,4 +147,4 @@ def migration(
 ) -> None:
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
-    generate_workflows(context)
+    generate_product_migration(context)
