@@ -2,6 +2,9 @@
 
 ## [1.1.0rc1]
 
+### Breaking change
+ - Changed `settings.CACHE_HOST` and `settings.CACHE_PORT` to `settings.CACHE_URI` 
+
 ## [1.0.2]
 
 - Allow user to extend the default translation set, instead of overwriting everything

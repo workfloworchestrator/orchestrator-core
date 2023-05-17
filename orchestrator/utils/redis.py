@@ -25,7 +25,7 @@ from orchestrator.utils.json import json_dumps, json_loads
 
 logger = get_logger(__name__)
 
-cache = Redis.from_url(app_settings.CACHE_DSN)
+cache = Redis.from_url(app_settings.CACHE_URI)
 
 ONE_WEEK = 3600 * 24 * 7
 

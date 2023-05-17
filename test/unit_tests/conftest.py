@@ -140,7 +140,7 @@ def run_migrations(db_uri: str) -> None:
     """
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     os.environ["DATABASE_URI"] = db_uri
-    app_settings.DATABASE_URI = db_uri
+    app_settings.DATABASE_URI = db_uri  # type: ignore
     alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/migrations/alembic.ini"))
     alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/migrations"))
     alembic_cfg.set_main_option(
@@ -595,7 +595,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(app_settings.CACHE_DSN)
+        cache = Redis.from_url(app_settings.CACHE_URI)
         # Clear cache before using this fixture
         cache.flushdb()
 

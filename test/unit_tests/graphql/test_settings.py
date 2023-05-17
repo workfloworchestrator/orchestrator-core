@@ -106,7 +106,7 @@ def test_clear_cache_mutation_fails_auth(test_client, monkeypatch):
 
 
 def test_success_clear_cache(test_client, cache_fixture):
-    cache = Redis.from_url(app_settings.CACHE_DSN)
+    cache = Redis.from_url(app_settings.CACHE_URI)
     key = "some_model_uuid"
     test_data = {key: {"data": [1, 2, 3]}}
 

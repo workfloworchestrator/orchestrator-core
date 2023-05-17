@@ -80,7 +80,7 @@ class RedisDistLockManager:
     def release_sync(self, lock: Lock) -> None:
         redis_conn: Optional[Redis] = None
         try:
-            redis_conn = Redis.from_url(app_settings.CACHE_DSN)
+            redis_conn = Redis.from_url(app_settings.CACHE_URI)
             sync_lock: SyncLock = SyncLock(
                 redis=redis_conn,
                 name=lock.name,  # type: ignore

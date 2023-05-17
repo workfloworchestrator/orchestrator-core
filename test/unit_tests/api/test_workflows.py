@@ -53,7 +53,7 @@ def test_push_subscriptions_to_cache_step(generic_subscription_1):
     push_subscription = orig(cache_domain_models)
     push_subscription("Aribtrary_name", SubscriptionModel.from_subscription(generic_subscription_1))
 
-    cache = Redis.from_url(app_settings.CACHE_DSN)
+    cache = Redis.from_url(app_settings.CACHE_URI)
     assert cache.get(f"domain:{generic_subscription_1}") is None
 
     app_settings.CACHE_DOMAIN_MODELS = True
