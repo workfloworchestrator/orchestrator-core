@@ -20,7 +20,7 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic import BaseSettings
+from pydantic import BaseSettings, RedisDsn
 
 from orchestrator.types import strEnum
 
@@ -56,8 +56,7 @@ class AppSettings(BaseSettings):
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
-    CACHE_HOST: str = "127.0.0.1"
-    CACHE_PORT: int = 6379
+    CACHE_DSN: RedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_DOMAIN_MODELS: bool = False
     CACHE_HMAC_SECRET: Optional[str] = None  # HMAC signing key, used when pickling results in the cache
     ENABLE_DISTLOCK_MANAGER: bool = True

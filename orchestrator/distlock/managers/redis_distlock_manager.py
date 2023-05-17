@@ -10,14 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
+from typing import Optional
 
+from pydantic import RedisDsn
 from redis import Redis
 from redis.asyncio import Redis as AIORedis
 from redis.asyncio.lock import Lock
 from redis.exceptions import LockError
 from redis.lock import Lock as SyncLock
 from structlog import get_logger
+
+from orchestrator.settings import app_settings
 
 logger = get_logger(__name__)
 
@@ -30,12 +33,12 @@ class RedisDistLockManager:
 
     namespace = "orchestrator:distlock"
 
-    def __init__(self, redis_address: Tuple[str, int]):
+    def __init__(self, redis_address: RedisDsn):
         self.redis_conn: Optional[AIORedis] = None
         self.redis_address = redis_address
 
     async def connect_redis(self) -> None:
-        self.redis_conn = AIORedis(host=self.redis_address[0], port=self.redis_address[1])
+        self.redis_conn = AIORedis.from_url(self.redis_address)
 
     async def disconnect_redis(self) -> None:
         if self.redis_conn:
@@ -77,7 +80,7 @@ class RedisDistLockManager:
     def release_sync(self, lock: Lock) -> None:
         redis_conn: Optional[Redis] = None
         try:
-            redis_conn = Redis(host=self.redis_address[0], port=self.redis_address[1])
+            redis_conn = Redis.from_url(app_settings.CACHE_DSN)
             sync_lock: SyncLock = SyncLock(
                 redis=redis_conn,
                 name=lock.name,  # type: ignore
