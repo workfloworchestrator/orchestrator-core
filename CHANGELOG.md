@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.1.0rc1]
+
 ## [1.0.2]
 
 - Allow user to extend the default translation set, instead of overwriting everything
