@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.2]
 
 - Allow user to extend the default translation set, instead of overwriting everything
 - Return worker status information in the `/api/settings/worker-status` endpoint
