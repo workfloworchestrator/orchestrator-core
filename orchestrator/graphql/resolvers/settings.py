@@ -60,7 +60,7 @@ def resolve_settings(info: CustomInfo) -> StatusType:
 
 # Mutations
 async def clear_cache(info: CustomInfo, name: str) -> Union[CacheClearSuccess, Error]:
-    cache: AIORedis = AIORedis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
+    cache: AIORedis = AIORedis.from_url(app_settings.CACHE_URI)
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
 
