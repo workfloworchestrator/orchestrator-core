@@ -14,6 +14,7 @@
 from typing import Dict, List, Union
 
 from fastapi import WebSocket, WebSocketDisconnect, status
+from starlette.websockets import WebSocketState
 from structlog import get_logger
 
 from orchestrator.utils.json import json_dumps
@@ -65,7 +66,8 @@ class MemoryWebsocketManager:
             pass
 
     async def remove_ws(self, websocket: WebSocket, channel: str) -> None:
-        await self.disconnect(websocket)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await self.disconnect(websocket)
         if channel in self.connections_by_pid:
             self.connections_by_pid[channel].remove(websocket)
             if len(self.connections_by_pid[channel]):

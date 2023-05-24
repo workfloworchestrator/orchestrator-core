@@ -8,6 +8,7 @@ import requests
 import structlog
 from alembic import command
 from alembic.config import Config
+from redis import Redis
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
@@ -139,7 +140,7 @@ def run_migrations(db_uri: str) -> None:
     """
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     os.environ["DATABASE_URI"] = db_uri
-    app_settings.DATABASE_URI = db_uri
+    app_settings.DATABASE_URI = db_uri  # type: ignore
     alembic_cfg = Config(file_=os.path.join(path, "../../orchestrator/migrations/alembic.ini"))
     alembic_cfg.set_main_option("script_location", os.path.join(path, "../../orchestrator/migrations"))
     alembic_cfg.set_main_option(
@@ -243,6 +244,9 @@ def db_session(database):
 
 @pytest.fixture(scope="session", autouse=True)
 def fastapi_app(database, db_uri):
+    from oauth2_lib.settings import oauth2lib_settings
+
+    oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = ["local", "TESTING"]
     app_settings.DATABASE_URI = db_uri
     app = OrchestratorCore(base_settings=app_settings)
     # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
@@ -584,3 +588,23 @@ def make_customer_description():
         return model
 
     return customer_description
+
+
+@pytest.fixture
+def cache_fixture(monkeypatch):
+    """Fixture to enable domain model caching and cleanup keys added to the list."""
+    with monkeypatch.context() as m:
+        m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
+        cache = Redis.from_url(app_settings.CACHE_URI)
+        # Clear cache before using this fixture
+        cache.flushdb()
+
+        to_cleanup = []
+
+        yield to_cleanup
+
+        for key in to_cleanup:
+            try:
+                cache.delete(key)
+            except Exception as exc:
+                print("failed to delete cache key", key, str(exc))  # noqa: T001, T201

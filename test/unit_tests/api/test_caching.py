@@ -1,32 +1,13 @@
 """(regression)tests in relation to domain model caching."""
 from http import HTTPStatus
 from os import getenv
-from unittest.mock import patch
 
 import pytest
 from nwastdlib.url import URL
-from redis import Redis
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import build_extended_domain_model
-from orchestrator.settings import app_settings
 from orchestrator.utils.redis import to_redis
-
-
-@pytest.fixture
-def cache_fixture():
-    # Fixture to enable domain model caching and cleanup keys added to the list
-    with patch.object(app_settings, "CACHE_DOMAIN_MODELS", True):
-        cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
-        to_cleanup = []
-
-        yield to_cleanup
-
-        for key in to_cleanup:
-            try:
-                cache.delete(key)
-            except Exception as exc:
-                print("failed to delete cache key", key, str(exc))  # noqa: T001, T201
 
 
 @pytest.mark.skipif(

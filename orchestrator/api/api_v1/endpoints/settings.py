@@ -41,7 +41,7 @@ CACHE_FLUSH_OPTIONS: dict[str, str] = {
 
 @router.delete("/cache/{name}")
 async def clear_cache(name: str) -> Union[int, None]:
-    cache: AIORedis = AIORedis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
+    cache: AIORedis = AIORedis.from_url(app_settings.CACHE_URI)
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
 
@@ -92,9 +92,10 @@ async def set_global_status(
     return status_response
 
 
+@router.get("/worker-status", response_model=WorkerStatus)
 def get_worker_status() -> WorkerStatus:
     """
-    Return information job workers and queues.
+    Return data on job workers and queues.
 
     Returns:
     - The number of queued jobs
@@ -121,9 +122,7 @@ def get_global_status() -> EngineSettingsSchema:
 
     """
     engine_settings = EngineSettingsTable.query.one()
-    response = generate_engine_status_response(engine_settings)
-    response.worker_status = get_worker_status()
-    return response
+    return generate_engine_status_response(engine_settings)
 
 
 if app_settings.ENABLE_WEBSOCKETS:

@@ -71,14 +71,14 @@ def warn_if_unmapped_fields(source: dict, used: dict) -> None:
         logger.warning("Found unused keys", keys=keys)
 
 
-def map_value(mapping: dict[str, Callable], k: str, v: Any) -> tuple[str, Any]:
+def map_value(mapping: dict[str, Callable], k: str, v: Any) -> tuple[Any, ...]:
     if f := mapping.get(k):
         if v is None:
             return k, None
         elif type(v) == dict:
-            return result if type(result := f(**v)) is tuple else (k, result)  # type: ignore
+            return result if type(result := f(**v)) is tuple else (k, result)
         else:
-            return result if type(result := f(v)) is tuple else (k, result)  # type: ignore
+            return result if type(result := f(v)) is tuple else (k, result)
     else:
         return k, v
 

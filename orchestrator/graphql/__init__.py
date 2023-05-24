@@ -20,18 +20,21 @@ from fastapi.routing import APIRouter
 from graphql import GraphQLError, GraphQLFormattedError
 from graphql.error.graphql_error import format_error
 from httpx import HTTPStatusError
+from oauth2_lib.graphql_authentication import authenticated_field
 from starlette.requests import Request
 from strawberry.fastapi import GraphQLRouter
 from strawberry.http import GraphQLHTTPResponse
+from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext, ExecutionResult
 from strawberry.utils.logging import StrawberryLogger
 
-from orchestrator.graphql.authentication import authenticated_field
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.process import resolve_processes
+from orchestrator.graphql.resolvers import SettingsMutation, resolve_processes, resolve_products, resolve_settings
 from orchestrator.graphql.schemas.process import ProcessType
+from orchestrator.graphql.schemas.product import ProductType
+from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.types import CustomContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
@@ -46,6 +49,16 @@ class Query:
     processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
+    products: Connection[ProductType] = authenticated_field(
+        resolver=resolve_products, description="Returns list of products"
+    )
+    settings: StatusType = authenticated_field(
+        resolver=resolve_settings,
+        description="Returns information about cache, workers, and global engine settings",
+    )
+
+
+Mutation = merge_types("Mutation", (SettingsMutation,))
 
 
 class OrchestratorGraphqlRouter(GraphQLRouter):
@@ -92,6 +105,7 @@ class OrchestratorSchema(strawberry.federation.Schema):
 
 schema = OrchestratorSchema(
     query=Query,
+    mutation=Mutation,
     enable_federation_2=app_settings.FEDEREATION_ENABLED,
     extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=Query)],
 )

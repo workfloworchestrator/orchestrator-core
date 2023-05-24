@@ -920,7 +920,7 @@ def test_subscription_detail_with_domain_model_cache(test_client, generic_subscr
 
     response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
 
-    cache = Redis(host=app_settings.CACHE_HOST, port=app_settings.CACHE_PORT)
+    cache = Redis.from_url(app_settings.CACHE_URI)
     result = cache.get(f"domain:{generic_subscription_1}")
     cached_model = json_dumps(json_loads(result))
     cached_etag = cache.get(f"domain:etag:{generic_subscription_1}")

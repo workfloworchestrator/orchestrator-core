@@ -69,8 +69,8 @@ you need, but you might want to add other initialisation that is needed to execu
 Next we instantiate Celery using our own `OrchestratorCelery` class:
 
 ```python
-broker = f"redis://{AppSettings().CACHE_HOST}:{AppSettings().CACHE_PORT}"
-backend = f"rpc://{AppSettings().CACHE_HOST}:{AppSettings().CACHE_PORT}/0"
+broker = f"redis://{AppSettings().CACHE_URI}"
+backend = f"rpc://{AppSettings().CACHE_URI}/0"
 
 celery = OrchestratorCelery(
     "proj", broker=broker, backend=backend, include=["orchestrator.services.tasks"]

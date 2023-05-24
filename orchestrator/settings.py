@@ -20,7 +20,7 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic import BaseSettings
+from pydantic import BaseSettings, PostgresDsn, RedisDsn
 
 from orchestrator.types import strEnum
 
@@ -51,13 +51,12 @@ class AppSettings(BaseSettings):
     EXECUTOR: str = ExecutorType.THREADPOOL
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
-    DATABASE_URI: str = "postgresql://nwa:nwa@localhost/orchestrator-core"
+    DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
-    CACHE_HOST: str = "127.0.0.1"
-    CACHE_PORT: int = 6379
+    CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_DOMAIN_MODELS: bool = False
     CACHE_HMAC_SECRET: Optional[str] = None  # HMAC signing key, used when pickling results in the cache
     ENABLE_DISTLOCK_MANAGER: bool = True
@@ -77,9 +76,7 @@ class AppSettings(BaseSettings):
     DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
     SERVE_GRAPHQL_UI: bool = True
-    MUTATIONS_ENABLED: bool = False
     FEDEREATION_ENABLED: bool = False
-    ENVIRONMENT_IGNORE_MUTATION_DISABLED: list = []
 
 
 class Oauth2Settings(BaseSettings):

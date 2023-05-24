@@ -10,7 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
+
+from pydantic import RedisDsn
 
 from orchestrator.distlock.managers.memory_distlock_manager import Lock as MemoryLock
 from orchestrator.distlock.managers.memory_distlock_manager import MemoryDistLockManager
@@ -33,11 +35,11 @@ class DistLockManager:
 
     _backend: Union[MemoryDistLockManager, RedisDistLockManager]
 
-    def __init__(self, enabled: bool, backend: Optional[str] = None, redis_address: Optional[Tuple[str, int]] = None):
+    def __init__(self, enabled: bool, backend: Optional[str] = None, redis_dsn: Optional[RedisDsn] = None):
         self.enabled = enabled
         self.connected = False
-        if backend == "redis" and redis_address:
-            self._backend = RedisDistLockManager(redis_address)
+        if backend == "redis" and redis_dsn:
+            self._backend = RedisDistLockManager(redis_dsn)
         else:
             self._backend = MemoryDistLockManager()
 

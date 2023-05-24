@@ -37,7 +37,7 @@ def get_processes_query(
     after: int = 0,
     filter_by: Union[list[str], None] = None,
     sort_by: Union[list[dict[str, str]], None] = None,
-) -> str:
+) -> bytes:
     query = """
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
@@ -78,14 +78,14 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "filterBy": filter_by if filter_by else [],
             },
         }
-    )
+    ).encode("utf-8")
 
 
 def test_processes_has_next_page(
     test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
 ):
     data = get_processes_query()
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     processes_data = result["data"]["processes"]
@@ -111,7 +111,7 @@ def test_process_has_previous_page(
     test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
 ):
     data = get_processes_query(after=1)
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -136,7 +136,7 @@ def test_processes_sorting_asc(
     # when
 
     data = get_processes_query(sort_by=[{"field": "started", "order": "ASC"}])
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -165,7 +165,7 @@ def test_processes_sorting_desc(
     # when
 
     data = get_processes_query(sort_by=[{"field": "started", "order": "DESC"}])
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -196,7 +196,7 @@ def test_processes_has_filtering(
     # when
 
     data = get_processes_query(filter_by=[{"field": "status", "value": "completed"}])
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -230,7 +230,7 @@ def test_processes_filtering_with_invalid_filter(
     data = get_processes_query(
         filter_by=[{"field": "status", "value": "completed"}, {"field": "test", "value": "invalid"}]
     )
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -286,7 +286,7 @@ def test_processes_filtering_with_invalid_organisation(
             {"field": "organisation", "value": "54321447"},
         ]
     )
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -326,7 +326,7 @@ def test_single_subscription(
     # when
 
     data = get_processes_query(filter_by=[{"field": "pid", "value": process_pid}])
-    response = test_client.post("/api/graphql", data=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
