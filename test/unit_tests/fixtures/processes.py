@@ -106,9 +106,11 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
         mock_process(generic_subscription_1, "suspended", first_datetime + timedelta(days=1), assignee="NOC"),
         mock_process(generic_subscription_2, "completed", first_datetime + timedelta(days=2)),
         mock_process(generic_subscription_2, "failed", first_datetime + timedelta(days=3)),
+        mock_process(generic_subscription_1, "resumed", first_datetime + timedelta(days=5)),
         mock_process(generic_subscription_1, "suspended", first_datetime + timedelta(days=1), is_task=True),
         mock_process(generic_subscription_2, "completed", first_datetime + timedelta(days=2), is_task=True),
         mock_process(None, "running", first_datetime + timedelta(days=4), is_task=True),
+        mock_process(None, "resumed", first_datetime + timedelta(days=5), is_task=True),
     ]
 
 
@@ -165,7 +167,9 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
         mock_process(generic_subscription_2, "completed", first_datetime + timedelta(days=2), is_task=True),
         mock_process(generic_subscription_2, "running", first_datetime + timedelta(days=2), is_task=True),
         mock_process(generic_subscription_2, "failed", first_datetime + timedelta(days=3), is_task=True),
+        mock_process(generic_subscription_1, "resumed", first_datetime + timedelta(days=5), is_task=True),
         mock_process(generic_subscription_1, "inconsistent_data", first_datetime + timedelta(days=1), is_task=True),
         mock_process(generic_subscription_2, "failed", first_datetime + timedelta(days=2), is_task=False),
         mock_process(None, "running", first_datetime + timedelta(days=4), is_task=True),
+        mock_process(None, "resumed", first_datetime + timedelta(days=5), is_task=True),
     ]

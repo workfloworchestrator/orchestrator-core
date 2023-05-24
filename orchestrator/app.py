@@ -25,7 +25,6 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
@@ -44,6 +43,7 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormException
+from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
 from orchestrator.version import GIT_COMMIT_HASH
@@ -92,6 +92,7 @@ class OrchestratorCore(FastAPI):
 
         initialise_logging()
 
+        api_router.include_router(graphql_router, prefix="/graphql")
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
@@ -120,7 +121,6 @@ class OrchestratorCore(FastAPI):
         logger.info("Activating Opentelemetry tracing to app", app=self.title)
         trace.set_tracer_provider(tracer_provider)
         FastAPIInstrumentor.instrument_app(self)
-        RequestsInstrumentor().instrument()
         HTTPXClientInstrumentor().instrument()
         RedisInstrumentor().instrument()
         Psycopg2Instrumentor().instrument()

@@ -8,3 +8,5 @@ IPAM_PREFIX_ID = "ipam_prefix_id"
 PARENT_IP_PREFIX_SUBSCRIPTION_ID = "parent_ip_prefix_subscription_id"
 INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID = "internetpinnen_prefix_subscription_id"
 PEER_GROUP_SUBSCRIPTION_ID = "peer_group_subscription_id"
+GRAPHQL_ENDPOINT = "/api/graphql"
+GRAPHQL_HEADERS = {"Content-Type": "application/json"}

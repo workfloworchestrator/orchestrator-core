@@ -101,13 +101,14 @@ def json_loads(s: Union[str, bytes, bytearray]) -> PY_JSON_TYPES:
     return from_serializable(o)
 
 
-def json_dumps(obj: PY_JSON_TYPES) -> str:
+def json_dumps(obj: PY_JSON_TYPES, indent: bool = False, sort_keys: bool = False) -> str:
+    orjson_options = json.OPT_PASSTHROUGH_DATETIME | json.OPT_OMIT_MICROSECONDS | json.OPT_NON_STR_KEYS
+    if sort_keys:
+        orjson_options |= json.OPT_SORT_KEYS
+    if indent:
+        orjson_options |= json.OPT_INDENT_2
     try:
-        return json.dumps(
-            obj,
-            default=to_serializable,
-            option=json.OPT_PASSTHROUGH_DATETIME | json.OPT_OMIT_MICROSECONDS | json.OPT_NON_STR_KEYS,
-        ).decode("utf8")
+        return json.dumps(obj, default=to_serializable, option=orjson_options).decode("utf8")
     except TypeError as e:
         # When Recursion limit is not configurable in orjson, falling back to the next best lib.
         if str(e) == "default serializer exceeds recursion limit":

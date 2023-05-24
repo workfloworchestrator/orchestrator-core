@@ -16,10 +16,11 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic import BaseSettings
+from pydantic import BaseSettings, PostgresDsn, RedisDsn
 
 from orchestrator.types import strEnum
 
@@ -50,13 +51,12 @@ class AppSettings(BaseSettings):
     EXECUTOR: str = ExecutorType.THREADPOOL
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
-    DATABASE_URI: str = "postgresql://nwa:nwa@localhost/orchestrator-core"
+    DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
-    CACHE_HOST: str = "127.0.0.1"
-    CACHE_PORT: int = 6379
+    CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_DOMAIN_MODELS: bool = False
     CACHE_HMAC_SECRET: Optional[str] = None  # HMAC signing key, used when pickling results in the cache
     ENABLE_DISTLOCK_MANAGER: bool = True
@@ -68,12 +68,15 @@ class AppSettings(BaseSettings):
     SLACK_ENGINE_SETTINGS_HOOK_ENABLED: bool = False
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
     TRACING_ENABLED: bool = False
+    TRACE_HOST: str = "http://localhost:4317"
     TRANSLATIONS_DIR: Optional[Path] = None
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
+    SERVE_GRAPHQL_UI: bool = True
+    FEDEREATION_ENABLED: bool = False
 
 
 class Oauth2Settings(BaseSettings):
@@ -89,7 +92,7 @@ app_settings = AppSettings()
 oauth2_settings = Oauth2Settings()
 
 # Tracer settings
-tracer_provider = TracerProvider()
+tracer_provider = TracerProvider(resource=Resource.create({SERVICE_NAME: app_settings.SERVICE_NAME}))
 
-jaeger_exporter = JaegerExporter(agent_host_name=app_settings.LOGGING_HOST, udp_split_oversized_batches=True)
-tracer_provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))
+otlp_exporter = OTLPSpanExporter(endpoint=app_settings.TRACE_HOST)
+tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))

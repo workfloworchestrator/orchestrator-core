@@ -27,7 +27,6 @@ from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from oauth2_lib.fastapi import OIDCUserModel
-from sqlalchemy import String, cast
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql import expression
 from sqlalchemy.sql.functions import count
@@ -36,14 +35,9 @@ from starlette.responses import Response
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS, enrich_process
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import (
-    EngineSettingsTable,
-    ProcessSubscriptionTable,
-    ProcessTable,
-    ProductTable,
-    SubscriptionTable,
-    db,
-)
+from orchestrator.db import EngineSettingsTable, ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.db.filters import Filter
+from orchestrator.db.filters.process import filter_processes
 from orchestrator.schemas import (
     ProcessIdSchema,
     ProcessListItemSchema,
@@ -117,6 +111,9 @@ def resume_process_endpoint(
 
     if process.last_status == ProcessStatus.RUNNING:
         raise_status(HTTPStatus.CONFLICT, "Resuming a running workflow is not possible")
+
+    if process.last_status == ProcessStatus.RESUMED:
+        raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
 
     user_name = user.user_name if user else SYSTEM_USER
 
@@ -244,6 +241,11 @@ def show(pid: UUID) -> Dict[str, Any]:
     return data
 
 
+def handle_process_error(message: str, **kwargs: Any) -> None:
+    logger.debug(message, **kwargs)
+    raise_status(HTTPStatus.BAD_REQUEST, message)
+
+
 @router.get("/", response_model=List[ProcessListItemSchema])
 def processes_filterable(
     response: Response,
@@ -269,74 +271,9 @@ def processes_filterable(
     if _filter is not None:
         if len(_filter) == 0 or (len(_filter) % 2) > 0:
             raise_status(HTTPStatus.BAD_REQUEST, "Invalid number of filter arguments")
-        for filter_pair in chunked(_filter, 2):
-            field, value = filter_pair
-            field = field.lower()
-            if value is not None:
-                if field == "istask":
-                    value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja")
-                    query = query.filter(ProcessTable.is_task.is_(value_as_bool))
-                elif field == "assignee":
-                    assignees = value.split("-")
-                    query = query.filter(ProcessTable.assignee.in_(assignees))
-                elif field == "status":
-                    statuses = value.split("-")
-                    query = query.filter(ProcessTable.last_status.in_(statuses))
-                elif field == "workflow":
-                    query = query.filter(ProcessTable.workflow.ilike("%" + value + "%"))
-                elif field == "creator":
-                    query = query.filter(ProcessTable.created_by.ilike("%" + value + "%"))
-                elif field == "organisation":
-                    try:
-                        value_as_uuid = UUID(value)
-                    except (ValueError, AttributeError):
-                        msg = "Not a valid customer_id, must be a UUID: '{value}'"
-                        logger.exception(msg)
-                        raise_status(HTTPStatus.BAD_REQUEST, msg)
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable)
-                        .filter(SubscriptionTable.customer_id == value_as_uuid)
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "product":
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable, ProductTable)
-                        .filter(ProductTable.name.ilike("%" + value + "%"))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "tag":
-                    tags = value.split("-")
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable, ProductTable)
-                        .filter(ProductTable.tag.in_(tags))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "subscriptions":
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .join(SubscriptionTable)
-                        .filter(SubscriptionTable.description.ilike("%" + value + "%"))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                elif field == "pid":
-                    query = query.filter(cast(ProcessTable.pid, String).ilike("%" + value + "%"))
-                elif field == "target":
-                    targets = value.split("-")
-                    process_subscriptions = (
-                        db.session.query(ProcessSubscriptionTable)
-                        .filter(ProcessSubscriptionTable.workflow_target.in_(targets))
-                        .subquery()
-                    )
-                    query = query.filter(ProcessTable.pid == process_subscriptions.c.pid)
-                else:
-                    raise_status(HTTPStatus.BAD_REQUEST, f"Invalid filter '{field}'")
+
+        pydantic_filters = [Filter(field=field.lower(), value=value) for field, value in chunked(_filter, 2)]
+        query = filter_processes(query, pydantic_filters, handle_process_error)
 
     if _sort is not None and len(_sort) >= 2:
         for item in chunked(_sort, 2):

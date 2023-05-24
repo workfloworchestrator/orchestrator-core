@@ -1,12 +1,8 @@
 name: Build and push container image
 
 on:
-  # Run when publish-package.yml has completed (this could mean it failed..)
-  workflow_run:
-    workflows:
-      - "Upload Python Package"
-    types:
-      - completed
+  release:
+    types: [prereleased, released]
 
 env:
   REGISTRY: ghcr.io
@@ -15,10 +11,6 @@ env:
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
-
-    # Run when publish-package.yml has completed with success
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
     permissions:
       contents: read
       packages: write

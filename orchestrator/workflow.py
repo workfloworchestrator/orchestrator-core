@@ -34,6 +34,7 @@ from typing import (
 )
 from uuid import UUID
 
+import strawberry
 import structlog
 from nwastdlib import const, identity
 from structlog.contextvars import bound_contextvars
@@ -251,7 +252,7 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
     return decorator
 
 
-def inputstep(name: str, assignee: Optional[Assignee] = None) -> Callable[[InputStepFunc], Step]:
+def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
     IMPORTANT: In contrast to other workflow steps, the `@inputstep` wrapped function will not run in the
@@ -403,6 +404,7 @@ S = TypeVar("S")
 F = TypeVar("F")
 
 
+@strawberry.enum
 class ProcessStatus(strEnum):
     CREATED = "created"
     RUNNING = "running"
@@ -413,6 +415,7 @@ class ProcessStatus(strEnum):
     API_UNAVAILABLE = "api_unavailable"
     INCONSISTENT_DATA = "inconsistent_data"
     COMPLETED = "completed"
+    RESUMED = "resumed"
 
 
 class StepStatus(strEnum):

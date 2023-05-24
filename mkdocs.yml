@@ -71,6 +71,8 @@ nav:
       - Command Line Interface: architecture/application/cli.md
       - Web sockets: architecture/application/websockets.md
       - Api Docs: architecture/application/api.md
+      - Scaling: architecture/application/scaling.md
+      - Python version: architecture/application/python.md
   - Workshops:
     - Beginner:
       - Overview: workshops/beginner/overview.md

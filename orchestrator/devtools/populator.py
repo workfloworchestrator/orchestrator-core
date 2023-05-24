@@ -254,8 +254,8 @@ class Populator:
                     log.warning("Unable to resolve custom function based on type.")
                     value = None
 
-            # If enum just pick the first
-            if value is None and "enum" in input_field:
+            # If enum just pick the first or leave empty if there are no options to select
+            if value is None and "enum" in input_field and input_field["enum"]:
                 value = input_field["enum"][0]
 
             if value is None and input_field.get("format") == "divider":
@@ -368,7 +368,7 @@ class Populator:
             return False
         elif status == "suspended":
             return True
-        elif status == "running":
+        elif status in ("created", "running", "resumed"):
             return False
         elif status in ("failed", "waiting"):
             if self.retries < 1:

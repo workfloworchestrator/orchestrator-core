@@ -1,0 +1,57 @@
+{# Product block definition -#}
+
+{% from 'macros.j2' import optional, list_field with context %}
+
+{% for namespace, type in types_to_import %}
+from {{ namespace }} import {{ type }}
+{%- endfor %}
+{% if lists_to_generate %}
+from typing import TypeVar
+{% endif -%}
+{% if constrained_ints_to_generate %}
+from pydantic import ConstrainedInt
+{% endif -%}
+{% if "UUID" in product_block.fields | map(attribute="type") %}
+from orchestrator.domain.base import SubscriptionInstanceList
+from uuid import UUID
+{% endif %}
+{% for module, type in product_blocks_to_import %}
+from {{ module }} import {{ type }}Block, {{ type }}BlockInactive
+{% endfor %}
+from orchestrator.domain.base import ProductBlockModel, serializable_property
+from orchestrator.types import SubscriptionLifecycle
+
+{% include "list_definitions.j2" %}
+{% include "constrained_int_definitions.j2" %}
+
+class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_name="{{ product_block.block_name }}"):
+    {% for field in product_block.fields -%}
+    {% if field.type == "list" -%}
+    {{ list_field(field, "Inactive") }}
+    {% else -%}
+    {{ field.name }}: {% if field.required not in ["inactive"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
+    {% endif -%}
+    {% endfor %}
+
+class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    {% for field in product_block.fields -%}
+    {% if field.type == "list" -%}
+    {{ list_field(field) }}
+    {% else -%}
+    {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
+    {% endif -%}
+    {% endfor %}
+    @serializable_property
+    def title(self) -> str:
+        # TODO: format correct title string
+        return f"{self.name}"
+
+
+class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    {% for field in product_block.fields -%}
+    {% if field.type == "list" -%}
+    {{ list_field(field) }}
+    {% else -%}
+    {{ field.name }}: {% if field.required not in ["inactive", "provisioning", "active"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
+    {% endif -%}
+    {% endfor %}

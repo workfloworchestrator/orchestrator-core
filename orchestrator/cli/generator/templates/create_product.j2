@@ -1,0 +1,112 @@
+{# Create workflow -#}
+
+from collections.abc import Generator
+
+from orchestrator.forms import FormPage
+from orchestrator.forms.validators import ContactPersonList, Divider, Label, OrganisationId, MigrationSummary
+from orchestrator.targets import Target
+from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.workflow import StepList, begin, step
+from orchestrator.workflows.steps import store_process_subscription
+
+from surf.forms.validators import JiraTicketId
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
+from surf.products.services.subscription import subscription_description
+from surf.workflows.shared.mail import send_confirmation_email
+from surf.workflows.workflow import create_workflow
+{% if validation_imports %}
+from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
+{% endif %}
+
+
+def initial_input_form_generator(product_name: str) -> FormGenerator:
+    # TODO add additional fields to form if needed
+
+    class Create{{ product.type }}Form(FormPage):
+        class Config:
+            title = product_name
+
+        organisation: OrganisationId
+        contact_persons: ContactPersonList = []  # type: ignore
+        ticket_id: JiraTicketId = JiraTicketId("")
+
+        label_{{ product.variable }}_settings: Label
+        divider_1: Divider
+
+        {% for field in product_block.fields -%}
+        {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning", "active"] -%} | None = None {% endif %}
+        {% endfor -%}
+
+{% for validation in validations %}
+        """{{ validation.validation.description }}"""
+        _validate_{{ validation.validation.id }}: classmethod = {{ validation.validation.id }}_validator()
+{% endfor %}
+
+    user_input = yield Create{{ product.type }}Form
+
+    user_input_dict = user_input.dict()
+    yield from create_summary_form(user_input_dict, product_name)
+
+    return user_input_dict
+
+
+def create_summary_form(
+    user_input: dict,
+    product_name: str,
+) -> Generator:
+    product_summary_fields = [{% for field in product_block.fields %} "{{ field.name }}",{% endfor -%}]
+
+    class ProductSummary(MigrationSummary):
+        data = {
+            "labels": product_summary_fields,
+            "columns": [[str(user_input[nm]) for nm in product_summary_fields]],
+        }
+
+    class SummaryForm(FormPage):
+        class Config:
+            title = f"{product_name} Summary"
+
+        product_summary: ProductSummary
+        divider_1: Divider
+
+        # TODO fill in additional details if needed
+
+    yield SummaryForm
+
+
+@step("Construct Subscription model")
+def construct_{{ product.variable }}_model(
+    product: UUIDstr,
+    organisation: UUIDstr,
+    {% for field in product_block.fields -%}
+    {{ field.name }}: {{ field.type }}{% if field.required not in ["inactive", "provisioning", "active"] %} | None{% endif %},
+    {% endfor -%}) -> State:
+    {{ product.variable }} = {{ product.type }}Inactive.from_product_id(
+        product_id=product,
+        customer_id=organisation,
+        status=SubscriptionLifecycle.INITIAL,
+    )
+
+    {% for field in product_block.fields -%}
+    {{ product.variable }}.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
+    {% endfor %}
+
+    {{ product.variable }} = {{ product.type }}Provisioning.from_other_lifecycle({{ product.variable }}, SubscriptionLifecycle.PROVISIONING)
+    {{ product.variable }}.description = subscription_description({{ product.variable }})
+
+    return {
+        "subscription": {{ product.variable }},
+        "subscription_id": {{ product.variable }}.subscription_id,  # necessary to be able to use older generic step functions
+        "subscription_description": {{ product.variable }}.description,
+    }
+
+
+@create_workflow("Create {{ product.name }}", initial_input_form=initial_input_form_generator)
+def create_{{ product.variable }}() -> StepList:
+    return (
+        begin
+        >> construct_{{ product.variable }}_model
+        >> store_process_subscription(Target.CREATE)
+        # TODO add additional steps
+        >> send_confirmation_email()
+    )

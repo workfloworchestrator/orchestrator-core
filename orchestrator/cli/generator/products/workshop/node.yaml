@@ -1,0 +1,25 @@
+#
+# This file describes the "Node" product from the advanced Orchestrator workshop
+#
+
+config:
+  create_summary_forms: false
+  send_email: false
+name: Node
+type: node
+product_blocks:
+  - name: node
+    type: Node
+    fields:
+      - name: node_id
+        type: int
+        required: provisioning
+      - name: node_name
+        type: str
+        required: provisioning
+      - name: ipv4_loopback
+        type: ipaddress.IPv4Address
+        required: provisioning
+      - name: ipv6_loopback
+        type: ipaddress.IPv6Address
+        required: provisioning
