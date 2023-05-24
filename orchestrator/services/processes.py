@@ -486,6 +486,13 @@ def resume_process(
         process id
 
     """
+    pstat = load_process(process)
+    try:
+        post_process(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
+    except FormValidationError:
+        logger.exception("Validation errors", user_inputs=user_inputs)
+        raise
+
     resume_func = get_execution_context()["resume"]
     return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
