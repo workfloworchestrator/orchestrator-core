@@ -95,6 +95,20 @@ nav:
         - Modify User: workshops/beginner/modify-user.md
         - Terminate User: workshops/beginner/terminate-user.md
       - Explore: workshops/beginner/explore.md
+    - Advanced:
+      - Overview: workshops/advanced/overview.md
+      - Installation: workshops/advanced/docker_installation.md
+      - Products:
+        - Scenario: workshops/advanced/scenario.md
+        - Domain models: workshops/advanced/domain-models.md
+        - Database migration: workshops/advanced/database-migration.md
+      - Workflows:
+        - Introduction: workshops/advanced/workflow-introduction.md
+        - Register workflows: workshops/advanced/register-workflows.md
+        - Input forms: workshops/advanced/input-forms.md
+        - Create Node: workshops/advanced/create-node.md
+        - Create Circuit: workshops/advanced/create-circuit.md
+      - Explore: workshops/advanced/explore.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
