@@ -1,0 +1,77 @@
+{# Terminate workflow -#}
+
+{%-if validations %}
+from uuid import UUID
+from pydantic import root_validator
+
+from orchestrator.forms import FormPage
+from orchestrator.forms.validators import DisplaySubscription, contact_person_list
+from orchestrator.types import InputForm
+from surf.forms.validators import JiraTicketId
+{% endif %}
+from orchestrator.types import State, UUIDstr
+from orchestrator.workflow import StepList, begin, step
+
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
+{% if product.config.send_email %}
+from surf.workflows.shared.mail import send_confirmation_email
+{% endif %}
+from surf.workflows.workflow import
+{%- if not validations %} terminate_initial_input_form_generator,{% endif %} terminate_workflow
+
+
+@step("Load initial state")
+def load_initial_state(subscription: {{ product.type }}) -> State:
+    {% if product.nso_service_id_path %}
+    nso_service_id = str(subscription.{{ product.nso_service_id_path }}.nso_service_id)
+    {% endif -%}
+    {% if product.ims_circuit_id_path %}
+    ims_service_id = subscription.{{ product.ims_circuit_id_path }}.ims_circuit_id
+    {% endif -%}
+
+    # TODO: optionally add additional values.
+    # Copy values to the root of the state for easy access
+
+    return {
+        "subscription": subscription,
+        {%- if product.nso_service_id_path %}
+        NSO_SERVICE_ID: nso_service_id,
+        {%- endif %}
+        {%- if product.ims_circuit_id_path %}
+        "ims_service_id": ims_service_id,
+        {%- endif %}
+    }
+
+{% if validations -%}
+{% for validation in validations %}
+def validate_{{ validation.id }}(cls: FormPage, values: dict) -> dict:
+    # TODO: add validation for "{{ validation.description }}"
+    if True:
+        raise ValueError({{ validation.description }})
+
+    return values
+{% endfor %}
+
+def terminate_initial_input_form_generator(subscription_id: UUIDstr, organisation: UUIDstr) -> InputForm:
+    temp_subscription_id = subscription_id
+
+    class TerminateForm(FormPage):
+        subscription_id: DisplaySubscription = temp_subscription_id  # type: ignore
+        contact_persons: contact_person_list(UUID(organisation)) = []  # type: ignore
+        ticket_id: JiraTicketId | None = None
+        {% for validation in validations %}
+        _check_{{ validation.id }}: classmethod = root_validator(allow_reuse=True)(validate_{{ validation.id }})
+        {% endfor %}
+    return TerminateForm
+{% endif %}
+
+@terminate_workflow("Terminate {{ product.name }}", initial_input_form=terminate_initial_input_form_generator)
+def terminate_{{ product.variable }}() -> StepList:
+    return (
+        begin
+        >> load_initial_state
+        # TODO: fill in additional steps if needed
+        {%- if product.config.send_email %}
+        >> send_confirmation_email()
+        {% endif %}
+    )

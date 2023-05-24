@@ -1,0 +1,19 @@
+#
+# This file describes the "UserGroup" product from the Orchestrator workshop
+#
+
+config:
+  create_summary_forms: false
+  send_email: false
+name: UserGroup
+type: UserGroup
+product_blocks:
+  - name: user_group
+    type: UserGroup
+    fields:
+      - name: group_name
+        type: str
+        required: provisioning
+      - name: group_id
+        type: int
+        required: active

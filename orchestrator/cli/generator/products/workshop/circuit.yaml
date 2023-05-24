@@ -1,0 +1,34 @@
+#
+# This file describes the "Circuit" product from the advanced Orchestrator workshop
+#
+
+config:
+  create_summary_forms: false
+  send_email: false
+name: Circuit
+type: Circuit
+tag: CIRCUIT
+description: "Circuit for workshop"
+fixed_inputs:
+  - name: speed
+    type: str
+product_blocks:
+  - name: ckt
+    type: Circuit
+    tag: CIRCUIT
+    description: "Circuit Product Block for workshop"
+    fields:
+      - name: members
+        type: list
+        description: "members"
+        list_type: Layer3Interface
+        min_items: 2
+        max_items: 2
+      - name: circuit_id
+        type: int
+        description: "circuit id"
+        required: provisioning
+      - name: under_maintenance
+        type: bool
+        description: "under maintenance"
+        required: provisioning

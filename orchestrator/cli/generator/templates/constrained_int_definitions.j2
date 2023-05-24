@@ -1,0 +1,6 @@
+{% for field in constrained_ints_to_generate %}
+class {{ field.type }}(ConstrainedInt):
+    {% if field.min_value is defined %} ge = {{ '{:_}'.format(field.min_value) }} {% endif %}
+    {% if field.max_value is defined %} le = {{ '{:_}'.format(field.max_value) }} {% endif %}
+
+{% endfor %}

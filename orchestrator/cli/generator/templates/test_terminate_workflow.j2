@@ -1,0 +1,48 @@
+import pytest
+
+{% if validations %}
+from orchestrator.forms import FormValidationError
+{% endif %}
+from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
+
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
+
+
+@pytest.mark.workflow
+def test_happy_flow(responses, {{ product.variable }}_subscription):
+    # when
+
+    # TODO: insert mocks here if needed
+
+    result, _, _ = run_workflow("terminate_{{ product.variable }}", [{"subscription_id": {{ product.variable }}_subscription}, {}])
+
+    # then
+
+    assert_complete(result)
+    state = extract_state(result)
+    assert "subscription" in state
+
+    # Check subscription in DB
+
+    {{ product.variable }} = {{ product.type }}.from_subscription({{ product.variable }}_subscription)
+    assert {{ product.variable }}.end_date is not None
+    assert {{ product.variable }}.status == SubscriptionLifecycle.TERMINATED
+
+{% for validation in validations %}
+@pytest.mark.workflow
+def test_{{ validation.id }}(responses, {{ product.variable }}_subscription):
+    # given
+
+    # TODO: set test conditions or fixture so that "{{ validation.description }}" triggers
+
+    # when
+
+    with pytest.raises(FormValidationError) as error:
+        result, _, _ = run_workflow("terminate_{{ product.variable }}", [{"subscription_id": {{ product.variable }}_subscription}, {}])
+
+    # then
+
+    assert error.value.errors[0]["msg"] == "{{ validation.description }}"
+
+{% endfor %}

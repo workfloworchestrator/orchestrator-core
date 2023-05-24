@@ -1,0 +1,31 @@
+#
+# This file describes the "User" product from the Orchestrator workshop
+#
+
+config:
+  create_summary_forms: false
+  send_email: false
+name: User
+type: User
+fixed_inputs:
+  - name: affiliation
+    type: enum
+    enum_type: str
+    values:
+      - "internal"
+      - "external"
+product_blocks:
+  - name: user
+    type: User
+    fields:
+      - name: group
+        type: UserGroup
+      - name: username
+        type: str
+        required: provisioning
+      - name: age
+        type: int
+      - name: user_id
+        type: int
+        required: active
+
