@@ -1,0 +1,95 @@
+"""Add {{ product.variable }} product.
+
+Revision ID: {{ revision }}
+Revises: {{ down_revision }}
+Create Date: {{ create_date}}
+
+"""
+from uuid import uuid4
+
+from alembic import op
+
+from orchestrator.migrations.helpers import create, create_workflow, delete, delete_workflow, ensure_default_workflows
+from orchestrator.targets import Target
+
+# revision identifiers, used by Alembic.
+revision = "{{ revision }}"
+down_revision = "{{ down_revision }}"
+branch_labels = None
+depends_on = None
+
+new_products = {
+    "products": {
+        "{{ product.name }}": {
+            "product_id": uuid4(),
+            "product_type": "{{ product.type }}",
+            "description": "{{ product.description }}",
+            "tag": "{{ product.tag }}",
+            "status": "active",
+            "product_blocks": [{% for pb in product.product_blocks %} "{{ pb.type }}",{% endfor %}],
+            "fixed_inputs": {
+                "domain": Domain.NETHERLIGHT8,
+            },
+        },
+    },
+    "product_blocks": {
+    {% for pb in product.product_blocks %}
+        "{{ pb.type }}": {
+            "product_block_id": uuid4(),
+            "description": "{{ pb.description }}",
+            "tag": "{{ pb.tag }}"
+            "status": "active",
+            "resources": {
+            {%- for field in pb.fields %}
+                "{{ field.name }}": "{{ field.description }}",
+            {%- endfor %}
+            },
+            "depends_on_block_relations": [],
+        },
+    {% endfor %}
+    },
+    "workflows": {},
+}
+
+new_workflows = [
+    {
+        "name": "create_{{ variable }}",
+        "target": Target.CREATE,
+        "description": "Create {{ product.name }}",
+        "product_type": "{{ product.type }}",
+    },
+    {
+        "name": "modify_{{ variable }}",
+        "target": Target.MODIFY,
+        "description": "Modify {{ product.name }}",
+        "product_type": "{{ product.type }}",
+    },
+    {
+        "name": "terminate_{{ variable }}",
+        "target": Target.TERMINATE,
+        "description": "Terminate {{ product.name }}",
+        "product_type": "{{ product.type }}",
+    },
+    {
+        "name": "validate_{{ variable }}",
+        "target": Target.SYSTEM,
+        "description": "Validate {{ product.name }}",
+        "product_type": "{{ product.type }}",
+    },
+]
+
+
+def upgrade() -> None:
+    conn = op.get_bind()
+    create(conn, new_products)
+    for workflow in new_workflows:
+        create_workflow(conn, workflow)
+    ensure_default_workflows(conn)
+
+
+def downgrade() -> None:
+    conn = op.get_bind()
+    for workflow in new_workflows:
+        delete_workflow(conn, workflow["name"])
+
+    delete(conn, new_products)

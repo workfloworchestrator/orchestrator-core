@@ -1,0 +1,76 @@
+{# Terminate workflow -#}
+
+import structlog
+{% if product.nso_service_id_path %}
+from deepdiff import DeepDiff
+from surf.products.services.nso.nso import build_payload
+{% endif %}
+from orchestrator.types import State
+from orchestrator.workflow import StepList, begin, step
+from orchestrator.workflows.utils import validate_workflow
+
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
+
+from surf.workflows.shared.crm import load_organisation_info
+
+logger = structlog.get_logger(__name__)
+
+
+@step("Load initial state")
+def load_initial_state_{{ product.variable }}(subscription: {{ product.type }}) -> State:
+    return {
+        "subscription": subscription,
+    }
+
+{% for validation in validations %}
+@step("{{ validation.description }}")
+def check_{{ validation.id }}(subscription: {{ product.type }}) -> State:
+    # TODO: add validation for "{{ validation.description }}"
+    if True:
+        raise ValueError({{ validation.description }})
+
+    return {}
+
+{% endfor %}
+
+{% if product.ims_circuit_id_path %}
+@step("Check data in IMS")
+def check_ims(subscription: {{ product.type }}) -> State:
+    # TODO: add validation in IMS
+
+    return {"check_ims": True}
+{% endif -%}
+
+
+{% if product.nso_service_id_path %}
+@step("Check data in NSO")
+def check_nso(subscription: Sn8LightPath) -> State:
+    # TODO: check and complete NSO validation
+
+    nso_actual = nso.get_service("todo:todo", subscription.{{ product.nso_service_id_path }}.nso_service_id)
+    nso_desired = build_payload(subscription.{{ product.nso_service_id_path }}, subscription).payload()
+
+    if nso_diff := DeepDiff(nso_actual, nso_desired):
+        logger.info("Non empty nso diff", nso_diff=nso_diff, nso_actual=nso_actual, nso_desired=nso_desired)
+        raise AssertionError("Found a difference in NSO:\nActual => Desired\n" + pretty_print_deepdiff(nso_diff))
+
+    return {"check_nso": True}
+{% endif -%}
+
+
+@validate_workflow("Validate {{ product.name }}")
+def validate_{{ product.variable }}() -> StepList:
+    return (
+        begin
+        >> load_initial_state_{{ product.variable }}
+        >> load_organisation_info
+{%- for validation in validations %}
+        >> check_{{ validation.id }}
+{%- endfor %}
+        {%- if product.ims_circuit_id_path %}
+        >> check_ims
+        {%- endif %}
+        {%- if product.nso_service_id_path %}
+        >> check_nso
+        {% endif %}
+    )

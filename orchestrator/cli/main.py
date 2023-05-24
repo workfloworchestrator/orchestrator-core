@@ -13,11 +13,12 @@
 
 import typer
 
-from orchestrator.cli import database, scheduler
+from orchestrator.cli import database, generate, scheduler
 
 app = typer.Typer()
 app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
 app.add_typer(database.app, name="db", help="Interact with the application database")
+app.add_typer(generate.app, name="generate", help="Generate products, workflows and other artifacts")
 
 
 if __name__ == "__main__":
