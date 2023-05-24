@@ -128,3 +128,8 @@ dmypy.json
 .vscode
 src/*
 .idea
+
+
+# MacOS Stuff
+
+.DS_store
