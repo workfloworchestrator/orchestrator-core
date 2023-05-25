@@ -11,12 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
 
 import typer
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
+from orchestrator.cli.generator.generator.helpers import get_variable
 from orchestrator.cli.generator.generator.migration import generate_product_migration
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
@@ -37,6 +38,12 @@ def read_config(config_file: str) -> Optional[Dict]:
         typer.echo(f'File "{config_file}" not found')
 
     return None
+
+
+def enrich_config(config: dict) -> dict:
+    return config | {
+        "variable": get_variable(config),
+    }
 
 
 def write_file(path: str, content: str, append: bool, force: bool) -> None:
@@ -67,7 +74,7 @@ def create_context(
         loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
     )
 
-    config = read_config(config_file)
+    config = enrich_config(read_config(config_file))
 
     return {
         "config": config,
