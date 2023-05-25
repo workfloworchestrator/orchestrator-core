@@ -7,12 +7,12 @@ from {{ namespace }} import {{ type }}
 {%- endfor %}
 {% if lists_to_generate %}
 from typing import TypeVar
+from orchestrator.domain.base import SubscriptionInstanceList
 {% endif -%}
 {% if constrained_ints_to_generate %}
 from pydantic import ConstrainedInt
 {% endif -%}
 {% if "UUID" in product_block.fields | map(attribute="type") %}
-from orchestrator.domain.base import SubscriptionInstanceList
 from uuid import UUID
 {% endif %}
 {% for module, type in product_blocks_to_import %}
