@@ -37,62 +37,63 @@ def generate_product_type_tests(environment: Environment, config: dict, writer: 
     writer(path, content)
 
 
-def get_test_workflow_path(config: dict, workflow_type: str) -> str:
+def get_test_workflow_path(config: dict, workflow_type: str, dryrun: bool) -> str:
     file_name = get_product_file_name(config)
     folder = file_name
 
     workflow_folder = f"{product_generator_settings.TEST_WORKFLOWS_PATH}/{folder}"
-    Path(workflow_folder).mkdir(exist_ok=True)
+    if not dryrun:
+        Path(workflow_folder).mkdir(exist_ok=True)
 
     return f"{workflow_folder}/test_{workflow_type}_{file_name}.py"
 
 
-def generate_workflow_tests(environment: Environment, config: dict, writer: Callable) -> None:
-    generate_test_create_workflow(environment, config, writer)
-    generate_test_modify_workflow(environment, config, writer)
-    generate_test_validate_workflow(environment, config, writer)
-    generate_test_terminate_workflow(environment, config, writer)
+def generate_workflow_tests(environment: Environment, config: dict, writer: Callable, dryrun: bool) -> None:
+    # generate_test_create_workflow(environment, config, writer, dryrun)
+    # generate_test_modify_workflow(environment, config, writer, dryrun)
+    # generate_test_validate_workflow(environment, config, writer, dryrun)
+    generate_test_terminate_workflow(environment, config, writer, dryrun)
 
 
-def generate_test_create_workflow(environment: Environment, config: dict, writer: Callable) -> None:
+def generate_test_create_workflow(environment: Environment, config: dict, writer: Callable, dryrun: bool) -> None:
     validations, _ = get_validations(config)
 
     template = environment.get_template("test_create_workflow.j2")
     content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
-    path = get_test_workflow_path(config, "create")
+    path = get_test_workflow_path(config, "create", dryrun)
     writer(path, content)
 
 
-def generate_test_modify_workflow(environment: Environment, config: dict, writer: Callable) -> None:
+def generate_test_modify_workflow(environment: Environment, config: dict, writer: Callable, dryrun: bool) -> None:
     validations, _ = get_validations(config)
 
     template = environment.get_template("test_modify_workflow.j2")
     content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
-    path = get_test_workflow_path(config, "modify")
+    path = get_test_workflow_path(config, "modify", dryrun)
     writer(path, content)
 
 
-def generate_test_validate_workflow(environment: Environment, config: dict, writer: Callable) -> None:
+def generate_test_validate_workflow(environment: Environment, config: dict, writer: Callable, dryrun: bool) -> None:
     workflow = get_workflow(config, "validate")
     validations = workflow.get("validations", [])
 
     template = environment.get_template("test_validate_workflow.j2")
     content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
-    path = get_test_workflow_path(config, "validate")
+    path = get_test_workflow_path(config, "validate", dryrun)
     writer(path, content)
 
 
-def generate_test_terminate_workflow(environment: Environment, config: dict, writer: Callable) -> None:
+def generate_test_terminate_workflow(environment: Environment, config: dict, writer: Callable, dryrun: bool) -> None:
     workflow = get_workflow(config, "terminate")
     validations = workflow.get("validations", [])
 
     template = environment.get_template("test_terminate_workflow.j2")
     content = template.render(product=config, validations=validations, product_types_module=product_types_module)
 
-    path = get_test_workflow_path(config, "terminate")
+    path = get_test_workflow_path(config, "terminate", dryrun)
     writer(path, content)
 
 
@@ -100,6 +101,7 @@ def generate_unit_tests(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]
+    dryrun = context["dryrun"]
 
     generate_product_type_tests(environment, config, writer)
-    generate_workflow_tests(environment, config, writer)
+    generate_workflow_tests(environment, config, writer, dryrun)

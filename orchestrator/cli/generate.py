@@ -74,6 +74,7 @@ def create_context(
         "environment": environment,
         "python_version": python_version,
         "tdd": tdd,
+        "dryrun": dryrun,
         "writer": writer,
     }
 
