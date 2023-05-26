@@ -42,8 +42,14 @@ def read_config(config_file: str) -> Optional[Dict]:
 
 
 def enrich_config(config: dict) -> dict:
+    def enrich_product_block(product_block) -> dict:
+        return enrich_config(product_block)
+
+    product_blocks = [enrich_product_block(pb) for pb in config.get("product_blocks", [])]
+
     return config | {
         "variable": get_variable(config),
+        "product_blocks": product_blocks,
     }
 
 

@@ -7,13 +7,11 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 {%- if str_enums %}, strEnum{% endif %}
 
-{% for pb in product_blocks -%}
-from {{ product_blocks_module }}.{{ pb.variable }} import (
-    {{ pb.type }}Block,
-    {{ pb.type }}BlockInactive,
-    {{ pb.type }}BlockProvisioning,
+from {{ product_blocks_module }}.{{ product_block.variable }} import (
+    {{ product_block.type }}Block,
+    {{ product_block.type }}BlockInactive,
+    {{ product_block.type }}BlockProvisioning,
 )
-{% endfor %}
 
 {% if non_standard_fixed_inputs -%}
 from {{ product_types_module }}.fixed_input_types import {{ non_standard_fixed_inputs }}
@@ -41,22 +39,16 @@ class {{ product }}Inactive(SubscriptionModel, is_base=True):
     {% for fi in fixed_inputs -%}
     {{ fi.name }}: {{ fi.type }}
     {% endfor -%}
-    {% for pb in product_blocks -%}
-    {{ pb.name }}: {{ pb.type }}BlockInactive
-    {% endfor %}
+    {{ product_block.name }}: {{ product_block.type }}BlockInactive
 
 class {{ product }}Provisioning({{ product }}Inactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     {% for fi in fixed_inputs -%}
     {{ fi.name }}: {{ fi.type }}
     {% endfor -%}
-    {% for pb in product_blocks -%}
-    {{ pb.name }}: {{ pb.type }}BlockProvisioning
-    {% endfor %}
+    {{ product_block.name }}: {{ product_block.type }}BlockProvisioning
 
 class {{ product }}({{ product }}Provisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     {% for fi in fixed_inputs -%}
     {{ fi.name }}: {{ fi.type }}
     {% endfor -%}
-    {% for pb in product_blocks -%}
-    {{ pb.name }}: {{ pb.type }}Block
-    {% endfor %}
+    {{ product_block.name }}: {{ product_block.type }}Block

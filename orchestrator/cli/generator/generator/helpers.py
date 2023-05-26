@@ -13,7 +13,7 @@
 import re
 from collections.abc import Generator
 
-from more_itertools import first, one
+from more_itertools import first
 
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 
@@ -51,7 +51,7 @@ def get_product_block_file_name(product_block: dict) -> str:
 def root_product_block(config: dict) -> dict:
     product_blocks = config.get("product_blocks", [])
     # TODO: multiple product_blocks will need more logic, ok for now
-    return one(product_blocks)
+    return first(product_blocks, {})
 
 
 def insert_into_imports(content: list[str], new_import: str) -> list[str]:

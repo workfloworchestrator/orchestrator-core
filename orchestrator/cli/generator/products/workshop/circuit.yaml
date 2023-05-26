@@ -3,24 +3,33 @@
 #
 
 config:
-  create_summary_forms: false
+  create_summary_forms: true
   send_email: false
 name: Circuit
 type: Circuit
 tag: CIRCUIT
-description: "Circuit for workshop"
+description: "point to point circuit"
 fixed_inputs:
   - name: speed
-    type: str
+    type: enum
+    description: "service speed"
+    enum_type: int
+    values:
+      - key: _1GB
+        value: 1
+      - key: _10GB
+        value: 10
+      - key: _100GB
+        value: 100
 product_blocks:
-  - name: ckt
+  - name: circuit
     type: Circuit
     tag: CIRCUIT
-    description: "Circuit Product Block for workshop"
+    description: "circuit product block"
     fields:
       - name: members
         type: list
-        description: "members"
+        description: "circuit interface members"
         list_type: Layer3Interface
         min_items: 2
         max_items: 2
@@ -31,4 +40,37 @@ product_blocks:
       - name: under_maintenance
         type: bool
         description: "under maintenance"
+        required: provisioning
+  - name: layer3interface
+    type: Layer3Interface
+    tag: LAYER3iNTERFACE
+    description: "layer 3 interface product block"
+    fields:
+      - name: port
+        type: Port
+        description: "layer 3 interface port"
+      - name: v6_ip_address
+        type: ipaddress.IPv6Interface
+        description: "IPv6 address"
+        required: provisioning
+  - name: port
+    type: Port
+    tag: PORT
+    description: "port product block"
+    fields:
+      - name: port_id
+        type: int
+        description: "port id"
+        required: provisioning
+      - name: port_description
+        type: str
+        description: "port description"
+        required: provisioning
+      - name: port_name
+        type: str
+        description: "port name"
+        required: provisioning
+      - name: node
+        type: Node
+        description: "Node that port resides on"
         required: provisioning

@@ -16,7 +16,12 @@ from orchestrator.cli.generator.generator.fixed_input import (
     get_str_enum_fixed_inputs,
     replace_enum_fixed_inputs,
 )
-from orchestrator.cli.generator.generator.helpers import get_product_file_name, path_to_module, product_types_module
+from orchestrator.cli.generator.generator.helpers import (
+    get_product_file_name,
+    path_to_module,
+    product_types_module,
+    root_product_block,
+)
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 
 
@@ -32,7 +37,6 @@ def generate_product(context: dict) -> None:
 
     product = config["type"]
     fixed_inputs = config.get("fixed_inputs", [])
-    product_blocks = config.get("product_blocks", [])
 
     non_standard_fixed_inputs = get_non_standard_fixed_inputs(fixed_inputs)
     int_enums = get_int_enum_fixed_inputs(fixed_inputs)
@@ -45,7 +49,7 @@ def generate_product(context: dict) -> None:
         product_types_module=product_types_module,
         non_standard_fixed_inputs=non_standard_fixed_inputs,
         fixed_inputs=replace_enum_fixed_inputs(fixed_inputs),
-        product_blocks=product_blocks,
+        product_block=root_product_block(config),
         int_enums=int_enums,
         str_enums=str_enums,
     )
