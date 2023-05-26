@@ -21,10 +21,14 @@ from {{ product_types_module }}.fixed_input_types import {{ non_standard_fixed_i
 
 {% for fi in int_enums -%}
 class {{ fi.type }}(IntEnum):
-    {% for v in fi["values"] -%}
-        _{{ v }} = {{ v }}
-    {% endfor %}
-{% endfor -%}
+{%- for v in fi["values"] -%}
+{% if v is number %}
+    _{{ v }} = {{ v }}
+{%- else %}
+    {{ v.key | upper}} = {{ v.value }}
+{%- endif -%}
+{% endfor %}
+{% endfor %}
 
 {% for fi in str_enums -%}
 class {{ fi.type }}(strEnum):
