@@ -122,6 +122,11 @@ def enrich_product_block(product_block: dict) -> dict:
     }
 
 
+def can_combine_lifecycle(product_block: dict) -> bool:
+    # Check if we can combine active and provisioning lifecycles. Could be make more generic, but ok for now
+    return not any(field.get("required") == "active" for field in product_block["fields"])
+
+
 def generate_product_blocks(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
@@ -151,6 +156,7 @@ def generate_product_blocks(context: dict) -> None:
             constrained_ints_to_generate=constrained_ints_to_generate,
             types_to_import=types_to_import,
             python_version=python_version,
+            can_combine_lifecycle=can_combine_lifecycle(product_block),
         )
 
         writer(path, content)
