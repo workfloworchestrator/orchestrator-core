@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from pathlib import Path
 from typing import Dict, Generator, Optional
 
 import typer
@@ -70,6 +71,12 @@ def create_context(
         else:
             write_file(path, content, append=append, force=force)
 
+    def mkdir(path) -> None:
+        if dryrun:
+            typer.echo(f"Creating path {path} if it doesn't exist")
+        else:
+            Path(path).mkdir(parents=True, exist_ok=True)
+
     environment = Environment(
         loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
     )
@@ -81,7 +88,7 @@ def create_context(
         "environment": environment,
         "python_version": python_version,
         "tdd": tdd,
-        "dryrun": dryrun,
+        "mkdir": mkdir,
         "writer": writer,
     }
 

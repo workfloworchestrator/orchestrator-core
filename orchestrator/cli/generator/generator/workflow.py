@@ -13,7 +13,6 @@
 
 from collections.abc import Callable
 from functools import partial, wraps
-from pathlib import Path
 from typing import Any, Optional
 
 import structlog
@@ -67,8 +66,9 @@ def generate_workflows(context: dict) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]
+    mkdir = context["mkdir"]
 
-    create_workflow_paths(config)
+    create_workflow_paths(config, mkdir)
 
     config = add_optional_nso_config(config)
     config = add_optional_ims_config(config)
@@ -93,9 +93,9 @@ def shared_workflow_folder(config: dict) -> str:
     return f"{workflow_folder(config)}/shared"
 
 
-def create_workflow_paths(config: dict) -> None:
+def create_workflow_paths(config: dict, mkdir: Callable) -> None:
     path = f"{workflow_folder(config)}/shared"
-    Path(path).mkdir(parents=True, exist_ok=True)
+    mkdir(path)
 
 
 def get_workflow_path(config: dict, workflow_type: str) -> str:
