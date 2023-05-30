@@ -12,13 +12,13 @@
 # limitations under the License.
 import os
 from pathlib import Path
-from typing import Dict, Generator, Optional
+from typing import Dict, Optional
 
 import typer
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
-from orchestrator.cli.generator.generator.helpers import get_variable
+from orchestrator.cli.generator.generator.helpers import camel_to_snake, get_variable, snake_to_camel
 from orchestrator.cli.generator.generator.migration import generate_product_migration
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
@@ -86,6 +86,9 @@ def create_context(
     environment = Environment(
         loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
     )
+
+    environment.filters["snake_to_camel"] = snake_to_camel
+    environment.filters["camel_to_snake"] = camel_to_snake
 
     config = enrich_config(read_config(config_file))
 
