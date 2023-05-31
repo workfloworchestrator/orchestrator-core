@@ -22,14 +22,14 @@ The products and product blocks for this workshop will be modeled as follows:
     * resource type `circuit_id`
     * resource type `circuit_description`
     * resource type `under_maintenance`
-    * restricted product block reference `members` (PortPair restricts to exactly 2 `Layer3Interface` instances)
+    * restricted product block reference `members` (`PortPair`, which restricts to exactly 2 `Layer3Interface` instances)
       * product block `Layer3Interface`
         * resource type `v6_ip_address`
-        * product block reference `Port` (Port)
+        * product block reference `port` (`Port`)
           * resource type `port_id`
           * resource type `port_description`
           * resource type `port_name`
-          * product block reference `NodeBlock`
+          * product block reference `node` (`NodeBlock`)
             * See `NodeBlock` from the above `Node` product.
 
 As you can see, a product can be seen as a container for fixed inputs and at least one references to a product block. A product block is a container for resources types and (optional) references to other product blocks. Finally, you can see that product block references may be nested as deep as needed and can be used by multiple products.
