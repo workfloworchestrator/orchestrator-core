@@ -1,3 +1,3 @@
 # Circuit Workflow
 
-## Exercise 1: create User workflow
+## Exercise 1: Create User workflow

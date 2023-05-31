@@ -14,7 +14,7 @@ For more details on what constitutes a workflow, refer to [this section of the b
 
 For the purposes of this workshop, we have provided you with already functional workflows that we will be slightly modifying. The two main workflows we will be working on are `create_node` and `create_circuit`; overviews of these workflows are below:
 
-## `create_node` workflow
+## Node Creation workflow
 
 The node create workflow is the first step for configuring our mock network. This is the most basic workflow example, and simply talks to our DCIM/IPAM (Netbox) to determine which nodes are ready to be enrolled in the orchestrator and then ultimately presents the user with the config to apply on that device to complete the initial provisioning of that node. The general workflow outline is as follows:
 
@@ -30,7 +30,7 @@ The node create workflow is the first step for configuring our mock network. Thi
 
   Additionally, we will play with adding in validations to the node create workflow that will prevent us from somehow enrolling a node more than once.
 
-## `create_circuit` workflow
+## Circuit Creation Workflow
 
 The circuit create workflow builds upon the subscriptions created by the `node_create` workflow and allow us to further configure our mock network by creating circuits between nodes. This is a more advanced workflow example which talks to the orchestrator's DB as well as our DCIM/IPAM to grab lists of available nodes and ports, then ultimately presents the user with the config to apply on that device so that they can complete the provisioning of that circuit. The general workflow outline is as follows:
 

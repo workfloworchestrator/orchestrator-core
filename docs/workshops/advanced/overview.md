@@ -4,7 +4,10 @@
 
 This workshop is intended for those who have run through the [beginner Workflow Orchestrator workshop](https://workfloworchestrator.org/orchestrator-core/workshops/beginner/overview/), but is also accessible to those who are new to the Workflow Orchestrator. The main goal of this workshop is to introduce you to how to write orchestrator workflows that talk to external systems, as well as teaching you how to relate products to other products, using the dependency model of the Workflow Orchestrator.
 
-> ***IMPORTANT NOTE:*** Knowledge of the Python programming language, Docker, and the Unix command line interface are prerequisites for this workshop.
+!!! tip
+
+    Knowledge of the Python programming language, Docker, and the Unix command line interface are prerequisites for this workshop.
+
 
 ## Topics
 

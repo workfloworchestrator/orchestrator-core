@@ -28,7 +28,9 @@ jlpicard@ncc-1701-d:~$ docker compose version
 Docker Compose version v2.17.2
 ```
 
-If this command does not work and produce a similar output, follow [the official Docker guide on installing the Docker Compose v2 plugin](https://docs.docker.com/compose/install/linux/).
+!!! tip
+
+    If this command does not work and produce a similar output, follow [the official Docker guide on installing the Docker Compose v2 plugin](https://docs.docker.com/compose/install/linux/).
 
 ### Step 2 - Start environment
 
@@ -57,4 +59,22 @@ jlpicard@ncc-1701-d:~$ docker compose up -d
 
 Now point a web browser to `http://localhost:3000/` and have a look around. This is fully functional and represents the end-state of the workshop.
 
-> **_NOTE:_** Once opened in the browser, ignore the message about the CRM not being responsive. This workshop does not include the setup of an interface to a CRM, fake customers IDs will be used instead.
+!!! tip
+
+    Once opened in the browser, ignore the message about the CRM not being responsive. This workshop does not include the setup of an interface to a CRM, fake customers IDs will be used instead.
+
+### Helpful Items
+
+#### Resetting Your Environment
+
+To reset the active state of your environment back to scratch, simply use docker compose to delete volumes, like so:
+
+```bash
+jlpicard@ncc-1701-d:~$ docker compose down -v 
+```
+
+You can then restart the containers as described above.
+
+#### Accessing Netbox
+
+Netbox can be accessed for troubleshooting and verifying that everything you have done in the workflow is working properly by pointing your web browser to `http://localhost:8000`. From there, you can login with `admin/admin`.
