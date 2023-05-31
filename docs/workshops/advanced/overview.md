@@ -52,6 +52,9 @@ This workshop uses the following folder layout:
 └── workflows
     ├── circuit
     │   ├── create_circuit.py
+    │   ├── modify_circuit.py
+    │   ├── shared.py
+    │   ├── terminate_circuit.py
     │   └── validate_circuit.py
     ├── node
     │   ├── create_node.py

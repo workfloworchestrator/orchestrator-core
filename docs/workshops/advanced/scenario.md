@@ -12,6 +12,7 @@ The following attributes need to be either stored from user input, pulled from e
 * **Circuit**
   * **speed**: The speed of the circuit.
   * **circuit_id**: The ID number of the circuit/cable in netbox that represents this circuit.
+  * **circuit_description**: The human-friendly description for this circuit.
   * **under_maintenance**:
   * **PortPair**: A pair of exactly two Layer3Interface objects
     * **Layer3Interface**
