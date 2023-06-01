@@ -27,6 +27,11 @@ from orchestrator.domain.base import ProductBlockModel
 logger = structlog.getLogger(__name__)
 
 
+def get_product_blocks_module() -> str:
+    product_blocks_path = product_generator_settings.PRODUCT_BLOCKS_PATH
+    return path_to_module(product_blocks_path)
+
+
 def get_existing_product_blocks() -> dict[str, Any]:
     def yield_blocks() -> Generator:
         def is_product_block(attribute: Any) -> bool:
@@ -66,14 +71,21 @@ def name_space_get_type(name_spaced_type: str) -> str:
     return name_spaced_type.split(".")[-1]
 
 
-def get_fields(product_block: dict) -> list[dict]:
+def is_product_block(field: dict, product_blocks: dict[str, dict]) -> bool:
+    return field["type"] in product_blocks
+
+
+def get_fields(product_block: dict, product_blocks: dict[str, dict]) -> list[dict]:
     def to_type(field: dict) -> dict:
-        if is_constrained_int(field):
-            return field | {"type": snake_to_camel(field["name"])}
+        if is_product_block(field, product_blocks):
+            return field | {"type": f"{field['type']}Block", "is_product_block": True}
+        elif is_constrained_int(field):
+            return field | {"type": snake_to_camel(field["name"]), "is_product_block": False}
         elif is_name_spaced_field_type(field):
-            return field | {"type": name_space_get_type(field["type"])}
+            full_type = field["type"]
+            return field | {"type": name_space_get_type(full_type), "name_space": full_type, "is_product_block": False}
         else:
-            return field
+            return field | {"is_product_block": False}
 
     return [to_type(field) for field in product_block["fields"]]
 
@@ -88,14 +100,22 @@ def get_lists_to_generate(fields: list[dict]) -> list[dict]:
 def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
     # NOTE: we could make this smarter by grouping imports from the namespace, but isort will handle this for us
     def name_space_split(field: dict) -> tuple[str, str]:
-        *namespace, type = field["type"].split(".")
+        *namespace, type = field["name_space"].split(".")
         return ".".join(namespace), type
 
-    return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]
+    return [name_space_split(field) for field in fields if "name_space" in field]
 
 
-def get_product_blocks_to_import(lists_to_generate: list, existing_product_blocks: dict) -> list[tuple]:
-    return [
+def get_product_blocks_to_import(
+    product_block: dict, lists_to_generate: list, existing_product_blocks: dict
+) -> list[tuple]:
+    module = get_product_blocks_module()
+
+    product_block_imports = [
+        (module, field["type"]) for field in product_block["fields"] if field.get("is_product_block")
+    ]
+
+    return product_block_imports + [
         (module, lt["list_type"])
         for lt in lists_to_generate
         if (module := existing_product_blocks.get(f'{lt["list_type"]}Block'))
@@ -107,13 +127,13 @@ def get_product_block_path(product_block: dict) -> str:
     return f"{product_generator_settings.PRODUCT_BLOCKS_PATH}/{file_name}.py"
 
 
-def enrich_product_block(product_block: dict) -> dict:
+def enrich_product_block(product_block: dict, product_blocks: dict[str, dict]) -> dict:
     def to_block_name() -> str:
         type = product_block["type"]
         name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
         return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
 
-    fields = get_fields(product_block)
+    fields = get_fields(product_block, product_blocks)
     block_name = product_block.get("block_name", to_block_name())
 
     return product_block | {
@@ -125,6 +145,7 @@ def enrich_product_block(product_block: dict) -> dict:
 def can_combine_lifecycle(product_block: dict) -> bool:
     # Check if we can combine active and provisioning lifecycles. Could be make more generic, but ok for now
     # return not any(field.get("required") == "active" for field in product_block["fields"])
+    # TODO: this needs to be improved
     return False
 
 
@@ -138,21 +159,25 @@ def generate_product_blocks(context: dict) -> None:
 
     existing_product_blocks = get_existing_product_blocks()
 
+    product_blocks = {pb["type"]: pb for pb in config.get("product_blocks", [])}
+
     def generate_product_block(product_block: dict) -> None:
         types_to_import = get_name_spaced_types_to_import(product_block["fields"])
 
-        fields = get_fields(product_block)
+        fields = get_fields(product_block, product_blocks)
 
         lists_to_generate = get_lists_to_generate(fields)
 
-        product_blocks_to_import = get_product_blocks_to_import(lists_to_generate, existing_product_blocks)
+        product_blocks_to_import = get_product_blocks_to_import(
+            product_block, lists_to_generate, existing_product_blocks
+        )
 
         constrained_ints_to_generate = [field for field in fields if is_constrained_int(field)]
 
         path = get_product_block_path(product_block)
         content = template.render(
             lists_to_generate=lists_to_generate,
-            product_block=enrich_product_block(product_block),
+            product_block=product_block,
             product_blocks_to_import=product_blocks_to_import,
             constrained_ints_to_generate=constrained_ints_to_generate,
             types_to_import=types_to_import,
@@ -162,6 +187,5 @@ def generate_product_blocks(context: dict) -> None:
 
         writer(path, content)
 
-    product_blocks = config.get("product_blocks", [])
-    for product_block in product_blocks:
-        generate_product_block(product_block)
+    for product_block in product_blocks.values():
+        generate_product_block(enrich_product_block(product_block, product_blocks))
