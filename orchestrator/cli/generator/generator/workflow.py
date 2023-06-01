@@ -94,7 +94,7 @@ def shared_workflow_folder(config: dict) -> str:
 
 
 def create_workflow_paths(config: dict, mkdir: Callable) -> None:
-    path = f"{workflow_folder(config)}/shared"
+    path = shared_workflow_folder(config)
     mkdir(path)
 
 

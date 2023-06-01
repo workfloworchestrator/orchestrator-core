@@ -22,6 +22,7 @@ from orchestrator.cli.generator.generator.helpers import (
     product_types_module,
     root_product_block,
 )
+from orchestrator.cli.generator.generator.product_registry import update_product_registry
 from orchestrator.cli.generator.generator.settings import product_generator_settings
 
 
@@ -56,3 +57,5 @@ def generate_product(context: dict) -> None:
 
     path = get_product_path(config)
     writer(path, content)
+
+    update_product_registry(context)
