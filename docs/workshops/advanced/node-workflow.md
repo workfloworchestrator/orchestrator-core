@@ -14,7 +14,7 @@ begin
 >> update_node_status_netbox
 ```
 
-To see the actual step code, go to `workflows/node/node_create.py` covering the implementation steps of these details is generally out of scope for this workshop, they simply exist to give us a framework to build off of. The important concept to understand is that we are going to fill out the currently empty `update_node_status_netbox` step to actual perform the functions we need done in netbox.
+To see the actual step code, go to `workflows/node/node_create.py`. covering the implementation steps of these details is generally out of scope for this workshop, they simply exist to give us a framework to build off of. The important concept to understand is that we are going to fill out the currently empty `update_node_status_netbox` step to actual perform the functions we need done in netbox.
 
 ### Why Update Node Status Externally?
 
