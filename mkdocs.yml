@@ -111,7 +111,6 @@ nav:
         - Introduction: workshops/advanced/workflow-introduction.md
         - Create Node: workshops/advanced/node-workflow.md
         - Create Circuit: workshops/advanced/circuit-workflow.md
-      - Explore: workshops/advanced/explore.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md

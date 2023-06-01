@@ -10,7 +10,7 @@ The workflow engine is the core of the orchestrator, it is responsible for the f
 
 * Atomically execute workflow functions.
 
-For more details on what constitutes a workflow, refer to [this section of the beginner workshop.](/orchestrator-core/workshops/beginner/workflow-introduction/)
+For more details on what constitutes a workflow, refer to [this section of the beginner workshop.](../beginner/workflow-introduction.md)
 
 For the purposes of this workshop, we have provided you with already functional workflows that we will be slightly modifying. The two main workflows we will be working on are `create_node` and `create_circuit`; overviews of these workflows are below:
 

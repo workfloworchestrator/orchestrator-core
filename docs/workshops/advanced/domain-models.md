@@ -2,7 +2,7 @@
 
 ## Introduction
 
-First read the [Architecture; TL;DR](/orchestrator-core/architecture/tldr/) section of the orchestrator core documentation to get an overview of the concepts that will be covered.
+First read the [Architecture; TL;DR](../../architecture/tldr.md) section of the orchestrator core documentation to get an overview of the concepts that will be covered.
 
 To put a part of the terminology in context, products are modeled using a set of product blocks. The product attributes are modeled by resource types.  By default all resource types are mutable and can be changed over the lifetime of a subscription. Fixed inputs are used to model immutable attributes.
 
@@ -34,4 +34,4 @@ The products and product blocks for this workshop will be modeled as follows:
 
 As you can see, a product can be seen as a container for fixed inputs and at least one references to a product block. A product block is a container for resources types and (optional) references to other product blocks. Finally, you can see that product block references may be nested as deep as needed and can be used by multiple products.
 
-For more information on product blocks, as well as some exercises for how to write these from scratch, please refer to [this section of the beginner workshop.](/orchestrator-core/workshops/beginner/domain-models/).
+For more information on product blocks, as well as some exercises for how to write these from scratch, please refer to [this section of the beginner workshop.](../beginner/domain-models.md).
