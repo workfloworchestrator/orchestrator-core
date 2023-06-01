@@ -65,7 +65,7 @@ Once you have made your implementation, save the file, and the orchestrator back
 
 !!! warning
 
-    Keep in mind that This won't go back and fix the nodes that have been enrolled before we implemented this fix. In a production deployment you would need to go and fix this data manually, however, in this scenario, we can simply reset our environment to scratch like so:
+    Keep in mind that This won't go back and fix the nodes that have been enrolled before we implemented this fix. In a production deployment you would need to go and fix this data manually or via some scripting, however, in this scenario, we can simply reset our environment to a blank slate like so:
 
     ```bash
     jlpicard@ncc-1701-d:~$ docker compose down -v && docker compose up -d

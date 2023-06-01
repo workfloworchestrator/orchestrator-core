@@ -57,7 +57,7 @@ jlpicard@ncc-1701-d:~$ docker compose up -d
 
 ### Step 3 - Open a browser
 
-Now point a web browser to `http://localhost:3000/` and have a look around. This is fully functional and represents the end-state of the workshop.
+Now point a web browser to `http://localhost:3000/` and have a look around. This is a functional orchestrator instance and represents an environment where you can perform the exercises that are part of this workshop.
 
 !!! tip
 
