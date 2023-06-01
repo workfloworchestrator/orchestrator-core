@@ -71,14 +71,20 @@ def name_space_get_type(name_spaced_type: str) -> str:
     return name_spaced_type.split(".")[-1]
 
 
-def is_product_block(field: dict, product_blocks: dict[str, dict]) -> bool:
+def is_existing_product_block(field: dict, existing_blocks: dict[str, dict]) -> bool:
+    return f"{field['type']}Block" in existing_blocks
+
+
+def is_new_product_block(field: dict, product_blocks: dict[str, dict]) -> bool:
     return field["type"] in product_blocks
 
 
-def get_fields(product_block: dict, product_blocks: dict[str, dict]) -> list[dict]:
+def get_fields(product_block: dict, existing_blocks: dict[str, dict], product_blocks: dict[str, dict]) -> list[dict]:
     def to_type(field: dict) -> dict:
-        if is_product_block(field, product_blocks):
+        if is_new_product_block(field, product_blocks):
             return field | {"type": f"{field['type']}Block", "is_product_block": True}
+        elif is_existing_product_block(field, existing_blocks):
+            return field | {"is_product_block": True}
         elif is_constrained_int(field):
             return field | {"type": snake_to_camel(field["name"]), "is_product_block": False}
         elif is_name_spaced_field_type(field):
@@ -115,6 +121,10 @@ def get_product_blocks_to_import(
         (module, field["type"]) for field in product_block["fields"] if field.get("is_product_block")
     ]
 
+    print("*****")
+    print(lists_to_generate)
+    print(existing_product_blocks)
+
     return product_block_imports + [
         (module, lt["list_type"])
         for lt in lists_to_generate
@@ -127,13 +137,15 @@ def get_product_block_path(product_block: dict) -> str:
     return f"{product_generator_settings.PRODUCT_BLOCKS_PATH}/{file_name}.py"
 
 
-def enrich_product_block(product_block: dict, product_blocks: dict[str, dict]) -> dict:
+def enrich_product_block(
+    product_block: dict, existing_blocks: dict[str, dict], product_blocks: dict[str, dict]
+) -> dict:
     def to_block_name() -> str:
         type = product_block["type"]
         name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
         return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
 
-    fields = get_fields(product_block, product_blocks)
+    fields = get_fields(product_block, existing_blocks, product_blocks)
     block_name = product_block.get("block_name", to_block_name())
 
     return product_block | {
@@ -164,7 +176,7 @@ def generate_product_blocks(context: dict) -> None:
     def generate_product_block(product_block: dict) -> None:
         types_to_import = get_name_spaced_types_to_import(product_block["fields"])
 
-        fields = get_fields(product_block, product_blocks)
+        fields = get_fields(product_block, existing_product_blocks, product_blocks)
 
         lists_to_generate = get_lists_to_generate(fields)
 
@@ -188,4 +200,4 @@ def generate_product_blocks(context: dict) -> None:
         writer(path, content)
 
     for product_block in product_blocks.values():
-        generate_product_block(enrich_product_block(product_block, product_blocks))
+        generate_product_block(enrich_product_block(product_block, existing_product_blocks, product_blocks))

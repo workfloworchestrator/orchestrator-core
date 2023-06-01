@@ -37,6 +37,9 @@ product_blocks:
         type: int
         description: "circuit id"
         required: provisioning
+        validations:
+          - id: circuit_id_must_be_unique
+            description: "circuit_id must be unique"
       - name: under_maintenance
         type: bool
         description: "under maintenance"
@@ -79,3 +82,4 @@ product_blocks:
         type: Node
         description: "Node that port resides on"
         required: provisioning
+
