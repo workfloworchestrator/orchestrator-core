@@ -60,8 +60,13 @@ product_blocks:
     fields:
       - name: port_id
         type: int
+        min_value: 1
+        max_value: 32_767
         description: "port id"
         required: provisioning
+        validations:
+          - id: port_id_must_be_unique
+            description: "port_id must be unique"
       - name: port_description
         type: str
         description: "port description"
