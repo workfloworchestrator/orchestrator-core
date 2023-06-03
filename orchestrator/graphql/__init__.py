@@ -31,10 +31,17 @@ from strawberry.utils.logging import StrawberryLogger
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers import SettingsMutation, resolve_processes, resolve_products, resolve_settings
+from orchestrator.graphql.resolvers import (
+    SettingsMutation,
+    resolve_processes,
+    resolve_products,
+    resolve_settings,
+    resolve_subscription,
+)
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.schemas.settings import StatusType
+from orchestrator.graphql.schemas.subscription import SubscriptionType
 from orchestrator.graphql.types import CustomContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
@@ -51,6 +58,9 @@ class Query:
     )
     products: Connection[ProductType] = authenticated_field(
         resolver=resolve_products, description="Returns list of products"
+    )
+    subscriptions: Connection[SubscriptionType] = authenticated_field(
+        resolver=resolve_subscription, description="Returns list of subscriptions"
     )
     settings: StatusType = authenticated_field(
         resolver=resolve_settings,

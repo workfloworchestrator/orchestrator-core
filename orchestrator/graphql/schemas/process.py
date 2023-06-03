@@ -1,14 +1,22 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import strawberry
+from oauth2_lib.graphql_authentication import authenticated_field
+from sqlalchemy.orm import load_only
 from strawberry.scalars import JSON
 
 from orchestrator.config.assignee import Assignee
+from orchestrator.db import ProcessTable
+from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
 from orchestrator.workflow import ProcessStatus
+
+if TYPE_CHECKING:
+    from orchestrator.graphql.schemas.subscription import SubscriptionType
 
 
 # TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
@@ -26,7 +34,6 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     created_by: Optional[str]
     started: datetime
     last_modified: datetime
-    # subscriptions: List[SubscriptionBaseSchema]
     is_task: bool
 
 
@@ -76,3 +83,19 @@ class ProcessType:
     steps: strawberry.auto
     form: strawberry.auto
     current_state: Union[JSON, None]
+
+    @authenticated_field(description="Returns list of processes of the subscription")
+    async def subscriptions(
+        self,
+        info: CustomInfo,
+        filter_by: Union[list[GraphqlFilter], None] = None,
+        sort_by: Union[list[GraphqlSort], None] = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+        from orchestrator.graphql.resolvers.subscription import resolve_subscription
+
+        process = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(self.id)
+        subscription_ids = [str(s.subscription_id) for s in process.process_subscriptions]
+        filter_by = filter_by or [] + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]  # type: ignore
+        return await resolve_subscription(info, filter_by, sort_by, first, after)

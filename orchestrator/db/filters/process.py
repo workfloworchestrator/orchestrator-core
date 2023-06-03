@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2023 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,41 +16,18 @@ from typing import Callable
 from uuid import UUID
 
 import structlog
-from sqlalchemy import String, cast
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.database import SearchQuery
 from orchestrator.db.filters.filters import generic_filter
+from orchestrator.db.filters.generic_filters import (
+    generic_bool_filter,
+    generic_is_like_filter,
+    generic_values_in_column_filter,
+)
 
 logger = structlog.get_logger(__name__)
-
-
-def pid_filter(query: SearchQuery, value: str) -> SearchQuery:
-    return query.filter(cast(ProcessTable.pid, String).ilike("%" + value + "%"))
-
-
-def is_task_filter(query: SearchQuery, value: str) -> SearchQuery:
-    value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja")
-    return query.filter(ProcessTable.is_task.is_(value_as_bool))
-
-
-def assignee_filter(query: SearchQuery, value: str) -> SearchQuery:
-    assignees = value.split("-")
-    return query.filter(ProcessTable.assignee.in_(assignees))
-
-
-def status_filter(query: SearchQuery, value: str) -> SearchQuery:
-    statuses = value.split("-")
-    return query.filter(ProcessTable.last_status.in_(statuses))
-
-
-def workflow_filter(query: SearchQuery, value: str) -> SearchQuery:
-    return query.filter(ProcessTable.workflow.ilike("%" + value + "%"))
-
-
-def creator_filter(query: SearchQuery, value: str) -> SearchQuery:
-    return query.filter(ProcessTable.created_by.ilike("%" + value + "%"))
 
 
 def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -101,6 +78,13 @@ def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
 
 
+def subscription_id_filter(query: SearchQuery, value: str) -> SearchQuery:
+    process_subscriptions = db.session.query(ProcessSubscriptionTable).join(SubscriptionTable)
+    process_subscriptions = generic_is_like_filter(SubscriptionTable.subscription_id)(process_subscriptions, value)
+    process_subscriptions = process_subscriptions.subquery()
+    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
+
+
 def target_filter(query: SearchQuery, value: str) -> SearchQuery:
     targets = value.split("-")
     process_subscriptions = (
@@ -112,16 +96,17 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
 
 
 VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
-    "pid": pid_filter,
-    "istask": is_task_filter,
-    "assignee": assignee_filter,
-    "status": status_filter,
-    "workflow": workflow_filter,
-    "creator": creator_filter,
+    "pid": generic_is_like_filter(ProcessTable.pid),
+    "istask": generic_bool_filter(ProcessTable.is_task),
+    "assignee": generic_values_in_column_filter(ProcessTable.assignee),
+    "status": generic_values_in_column_filter(ProcessTable.last_status),
+    "workflow": generic_is_like_filter(ProcessTable.workflow),
+    "creator": generic_is_like_filter(ProcessTable.created_by),
     "organisation": organisation_filter,
     "product": product_filter,
     "tag": tag_filter,
     "subscription": subscriptions_filter,
+    "subscriptionId": subscription_id_filter,
     "target": target_filter,
 }
 
