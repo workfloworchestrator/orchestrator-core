@@ -48,7 +48,11 @@ def get_existing_product_blocks() -> dict[str, Any]:
             name = pb_file.removesuffix(".py")
             module_name = f"{product_blocks_module}.{name}"
 
-            module = import_module(module_name)
+            try:
+                module = import_module(module_name)
+            except Exception as exc:
+                logger.warning("Module has an issue", module_name=module_name, exc=str(exc))
+                return
 
             classes = [obj for _, obj in inspect.getmembers(module, inspect.isclass) if obj.__module__ == module_name]
 
@@ -79,6 +83,10 @@ def is_new_product_block(field: dict, product_blocks: dict[str, dict]) -> bool:
     return field["type"] in product_blocks
 
 
+def is_list_of_product_blocks(field: dict, product_blocks: dict[str, dict]) -> bool:
+    return field["type"] == "list" and field["list_type"] in product_blocks
+
+
 def get_fields(product_block: dict, existing_blocks: dict[str, dict], product_blocks: dict[str, dict]) -> list[dict]:
     def to_type(field: dict) -> dict:
         if is_new_product_block(field, product_blocks):
@@ -90,6 +98,8 @@ def get_fields(product_block: dict, existing_blocks: dict[str, dict], product_bl
         elif is_name_spaced_field_type(field):
             full_type = field["type"]
             return field | {"type": name_space_get_type(full_type), "name_space": full_type, "is_product_block": False}
+        elif is_list_of_product_blocks(field, product_blocks):
+            return field | {"list_type": f"{field['list_type']}Block", "is_product_block": True}
         else:
             return field | {"is_product_block": False}
 
@@ -115,15 +125,17 @@ def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
 def get_product_blocks_to_import(
     product_block: dict, lists_to_generate: list, existing_product_blocks: dict
 ) -> list[tuple]:
+    def get_product_block_type(field: dict) -> str:
+        if field["type"] == "list":
+            return field["list_type"]
+        else:
+            return field["type"]
+
     module = get_product_blocks_module()
 
     product_block_imports = [
-        (module, field["type"]) for field in product_block["fields"] if field.get("is_product_block")
+        (module, get_product_block_type(field)) for field in product_block["fields"] if field.get("is_product_block")
     ]
-
-    print("*****")
-    print(lists_to_generate)
-    print(existing_product_blocks)
 
     return product_block_imports + [
         (module, lt["list_type"])

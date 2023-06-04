@@ -10,14 +10,14 @@ Optional[{{ field.type }}{{ lifecycle }}] = None
 {% if field.list_type in ["int", "str"] -%}
 {{ field.name }}: list[{{ field.list_type }}]
 {%- else -%}
-{{ field.name }}: ListOf{{ field.name | snake_to_camel }}[{{ field.list_type }}Block{{ lifecycle }}]
+{{ field.name }}: ListOf{{ field.name | snake_to_camel }}[{{ field.list_type }}{{ lifecycle }}]
 {%- endif -%}
 {%- endmacro %}
 
 
 {% macro product_block_field(field, lifecycles, lifecycle) -%}
 {% if field.is_product_block -%}
-{{ field.name }}: {% if field.required not in lifecycles -%} {{ optional(field, lifecycle) }} {% else -%} {{field.type}}Block{{lifecycle}} {% endif %}
+{{ field.name }}: {% if field.required not in lifecycles -%} {{ optional(field, lifecycle) }} {% else -%} {{field.type}}{{lifecycle}} {% endif %}
 {%- else -%}
 {{ field.name }}: {% if field.required not in lifecycles -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
 {%- endif -%}
