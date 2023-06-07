@@ -5,10 +5,11 @@ Revises: e05bb1967eff
 Create Date: 2023-05-25 09:22:46.491454
 
 """
-from uuid import uuid4
 
 from alembic import op
-import sqlalchemy
+import sqlalchemy as sa
+from sqlalchemy_utils.types.uuid import UUIDType
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "b1970225392d"
@@ -16,24 +17,21 @@ down_revision = "e05bb1967eff"
 branch_labels = None
 depends_on = None
 
-workflow = {
-    "name": "modify_subscription_metadata",
-    "description": "Modify Subscription Metadata",
-    "workflow_id": uuid4(),
-    "target": "MODIFY"
-}
-
-
+METADATA_TABLE_NAME = "subscription_metadata"
 def upgrade() -> None:
-    conn = op.get_bind()
-    conn.execute(
-        sqlalchemy.text(
-            "INSERT INTO workflows VALUES (:workflow_id, :name, :target, :description, now()) ON CONFLICT DO NOTHING"
+    op.create_table(
+        METADATA_TABLE_NAME,
+        sa.Column(
+            "subscription_id",
+            UUIDType(),
+            nullable=False,
+            index=True,
         ),
-        **workflow,
+        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.ForeignKeyConstraint(["subscription_id"], ["subscriptions.subscription_id"], ondelete="CASCADE"),
     )
 
 
 def downgrade() -> None:
     conn = op.get_bind()
-    conn.execute(sqlalchemy.text("DELETE FROM workflows WHERE name = :name"), {"name": workflow["name"]})
+    conn.execute(f"DROP TABLE IF EXISTS {METADATA_TABLE_NAME}")
