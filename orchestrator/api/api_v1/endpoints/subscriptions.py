@@ -47,7 +47,7 @@ from orchestrator.services.subscriptions import (
     get_subscription,
     query_depends_on_subscriptions,
     query_in_use_by_subscriptions,
-    subscription_workflows,
+    subscription_workflows, get_subscription_metadata,
 )
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
@@ -296,3 +296,11 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
             logger.info("Subscription already in sync")
     except ValueError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
+
+
+@router.get("/{subscription_id}/metadata", response_model=None, status_code=HTTPStatus.OK)
+def subscription_metadata(subscription_id: UUID, response: Response) -> Optional[dict]:
+    md = get_subscription_metadata(subscription_id)
+    if md is None:
+        response.status_code = HTTPStatus.NOT_FOUND
+    return md
