@@ -18,6 +18,8 @@ branch_labels = None
 depends_on = None
 
 METADATA_TABLE_NAME = "subscription_metadata"
+
+
 def upgrade() -> None:
     op.create_table(
         METADATA_TABLE_NAME,

@@ -498,7 +498,7 @@ WF_USABLE_MAP: Dict[str, List[str]] = {}
 WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
 WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS: Dict[str, bool] = {}
 
-WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note", "modify_subscription_metadata"]
+WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
 
 
 def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:

@@ -106,7 +106,6 @@ def get_workflow(name: str) -> Optional[Workflow]:
 
 # Modify
 LazyWorkflowInstance(".modify_note", "modify_note")
-LazyWorkflowInstance(".modify_subscription_metadata", "modify_subscription_metadata")
 
 # Tasks
 LazyWorkflowInstance(".tasks.cleanup_tasks_log", "task_clean_up_tasks")
