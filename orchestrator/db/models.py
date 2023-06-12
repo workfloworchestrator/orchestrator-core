@@ -576,7 +576,7 @@ class SubscriptionMetadataTable(BaseModel):
     metadata_ = Column("metadata", pg.JSONB(), nullable=False)
 
     @staticmethod
-    def find_by_subscription_id(subscription_id: UUIDType) -> Optional[SubscriptionMetadataTable]:
+    def find_by_subscription_id(subscription_id: str) -> Optional[SubscriptionMetadataTable]:
         return SubscriptionMetadataTable.query.get(subscription_id)
 
 
