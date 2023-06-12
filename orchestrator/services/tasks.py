@@ -49,8 +49,8 @@ def get_celery_task(task_name: str) -> Task:
 
 
 def register_custom_serializer() -> None:
-    # surf specific serializer to correctly handle more complex classes
-    registry.register("surf", json_dumps, json_loads, "application/json", "utf-8")
+    # orchestrator specific serializer to correctly handle more complex classes
+    registry.register("orchestrator-json", json_dumps, json_loads, "application/json", "utf-8")
 
 
 def initialise_celery(celery: Celery) -> None:
@@ -103,22 +103,24 @@ def initialise_celery(celery: Celery) -> None:
         else:
             return pid
 
-    @celery.task(log=local_logger, name=NEW_TASK, serializer="surf")  # type: ignore
+    celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
+
+    @celery_task(name=NEW_TASK)  # type: ignore
     def new_task(pid, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         local_logger.info("Start task", pid=pid, workflow_key=workflow_key)
         return start_process(pid, workflow_key, state=state, user=user)
 
-    @celery.task(log=local_logger, name=NEW_WORKFLOW, serializer="surf")  # type: ignore
+    @celery_task(name=NEW_WORKFLOW)  # type: ignore
     def new_workflow(pid, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         local_logger.info("Start workflow", pid=pid, workflow_key=workflow_key)
         return start_process(pid, workflow_key, state=state, user=user)
 
-    @celery.task(log=local_logger, name=RESUME_TASK)  # type: ignore
+    @celery_task(name=RESUME_TASK)  # type: ignore
     def resume_task(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         local_logger.info("Resume task", pid=pid)
         return resume_process(pid, user_inputs=user_inputs, user=user)
 
-    @celery.task(log=local_logger, name=RESUME_WORKFLOW)  # type: ignore
+    @celery_task(name=RESUME_WORKFLOW)  # type: ignore
     def resume_workflow(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         local_logger.info("Resume workflow", pid=pid)
         return resume_process(pid, user_inputs=user_inputs, user=user)
