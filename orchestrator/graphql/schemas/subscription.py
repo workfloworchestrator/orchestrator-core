@@ -1,12 +1,13 @@
 from datetime import datetime
 from itertools import count
-from typing import Any, Generator, List, Optional, Union
+from typing import Annotated, Any, Generator, List, Optional, Union
 from uuid import UUID
 
 import strawberry
 from oauth2_lib.graphql_authentication import authenticated_field
 from strawberry.scalars import JSON
 
+from orchestrator.db.models import SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
@@ -80,7 +81,7 @@ class SubscriptionGraphqlSchema(OrchestratorBaseModel):
 
 @strawberry.experimental.pydantic.type(model=SubscriptionGraphqlSchema, all_fields=True)
 class SubscriptionType:
-    pass
+    subscription_id: strawberry.auto
 
     @strawberry.field(description="Return all products blocks that are part of a subscription")
     async def product_blocks(
@@ -122,3 +123,39 @@ class SubscriptionType:
     ) -> Connection[ProcessType]:
         filter_by = filter_by or [] + [GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))]  # type: ignore
         return await resolve_processes(info, filter_by, sort_by, first, after)
+
+    @authenticated_field(description="Returns list of subscriptions that use this subscription")
+    async def in_use_by_subscriptions(
+        self,
+        info: CustomInfo,
+        filter_by: Union[list[GraphqlFilter], None] = None,
+        sort_by: Union[list[GraphqlSort], None] = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+        from orchestrator.graphql.resolvers.subscription import resolve_subscription
+        from orchestrator.services.subscriptions import query_in_use_by_subscriptions
+
+        in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
+        query_results = in_use_by_query.with_entities(SubscriptionTable.subscription_id).all()
+        subscription_ids = ",".join([str(s.subscription_id) for s in query_results])
+        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]  # type: ignore
+        return await resolve_subscription(info, filter_by, sort_by, first, after)
+
+    @authenticated_field(description="Returns list of subscriptions that this subscription depends on")
+    async def depends_on_subscriptions(
+        self,
+        info: CustomInfo,
+        filter_by: Union[list[GraphqlFilter], None] = None,
+        sort_by: Union[list[GraphqlSort], None] = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+        from orchestrator.graphql.resolvers.subscription import resolve_subscription
+        from orchestrator.services.subscriptions import query_depends_on_subscriptions
+
+        depends_on_query = query_depends_on_subscriptions(self.subscription_id)
+        query_results = depends_on_query.with_entities(SubscriptionTable.subscription_id).all()
+        subscription_ids = ",".join([str(s.subscription_id) for s in query_results])
+        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]  # type: ignore
+        return await resolve_subscription(info, filter_by, sort_by, first, after)
