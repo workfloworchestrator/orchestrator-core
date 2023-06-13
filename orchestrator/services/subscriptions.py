@@ -36,8 +36,11 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionInstanceRelationTable, \
-    SubscriptionMetadataTable
+from orchestrator.db.models import (
+    SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionMetadataTable,
+)
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
@@ -55,13 +58,13 @@ def get_subscription(subscription_id: Union[UUID, UUIDstr], for_update: bool = F
 
 @overload
 def get_subscription(
-        subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
 ) -> T:
     ...
 
 
 def get_subscription(
-        subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
 ) -> T:
     """Get the subscription.
 
@@ -212,7 +215,7 @@ def terminate_subscription(subscription_id: UUIDstr) -> SubscriptionTable:
 
 
 def create_subscription(
-        organisation: UUIDstr, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
+    organisation: UUIDstr, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
 ) -> UUID:
     subscription = SubscriptionTable(
         subscription_id=subscription_id,
@@ -263,7 +266,7 @@ def retrieve_node_subscriptions_by_name(node_name: str) -> List[SubscriptionTabl
 
 
 def retrieve_subscription_by_subscription_instance_value(
-        resource_type: str, value: str, sub_status: Tuple = ("provisioning", "active")
+    resource_type: str, value: str, sub_status: Tuple = ("provisioning", "active")
 ) -> Optional[SubscriptionTable]:
     """
     Retrieve a Subscriptions by resource_type and value.
@@ -287,7 +290,7 @@ def retrieve_subscription_by_subscription_instance_value(
 
 
 def find_values_for_resource_types(
-        subscription_id: Union[UUID, UUIDstr], resource_types: Sequence[str], strict: bool = True
+    subscription_id: Union[UUID, UUIDstr], resource_types: Sequence[str], strict: bool = True
 ) -> Dict[str, List[str]]:
     """Find values for resource types by subscription ID.
 

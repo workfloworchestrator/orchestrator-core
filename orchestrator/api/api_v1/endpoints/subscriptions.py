@@ -45,9 +45,10 @@ from orchestrator.services.subscriptions import (
     build_extended_domain_model,
     format_extended_domain_model,
     get_subscription,
+    get_subscription_metadata,
     query_depends_on_subscriptions,
     query_in_use_by_subscriptions,
-    subscription_workflows, get_subscription_metadata,
+    subscription_workflows,
 )
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
