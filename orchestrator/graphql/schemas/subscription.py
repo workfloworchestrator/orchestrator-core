@@ -23,22 +23,20 @@ from orchestrator.utils.helpers import to_camel
 @strawberry.type
 class SubscriptionProductBlock:
     id: int
-    parent: int | None
+    parent: Optional[int]
     owner_subscription_id: UUID
     resource_types: JSON
 
 
 def is_product_block(candidate: Any) -> bool:
-    match candidate:
-        case dict():
-            # TODO: also filter on tag (needs addition of tag in orchestrator endpoint)
-            # NOTE: this crosses subscription boundaries. If needed we can add an additional filter to limit that.
-            return candidate.get("owner_subscription_id", None)
-        case _:
-            return False
+    if isinstance(candidate, dict):
+        # TODO: also filter on tag (needs addition of tag in orchestrator endpoint)
+        # NOTE: this crosses subscription boundaries. If needed we can add an additional filter to limit that.
+        return candidate.get("owner_subscription_id", None)
+    return False
 
 
-def get_all_product_blocks(subscription: dict[str, Any], _tags: list[str] | None) -> list[dict[str, Any]]:
+def get_all_product_blocks(subscription: dict[str, Any], _tags: Optional[list[str]]) -> list[dict[str, Any]]:
     gen_id = count()
 
     def locate_product_block(candidate: dict[str, Any]) -> Generator:
@@ -66,7 +64,7 @@ class SubscriptionDescriptionType:
 class SubscriptionGraphqlSchema(OrchestratorBaseModel):
     subscription_id: UUID
     product: ProductSchema
-    customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []  # type: ignore
+    customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []
     description: str
     start_date: Optional[datetime]
     end_date: Optional[datetime]
@@ -83,16 +81,16 @@ class SubscriptionGraphqlSchema(OrchestratorBaseModel):
 class SubscriptionType:
     subscription_id: strawberry.auto
 
-    @strawberry.field(description="Return all products blocks that are part of a subscription")
+    @strawberry.field(description="Return all products blocks that are part of a subscription")  # type: ignore
     async def product_blocks(
-        self, tags: list[str] | None = None, resource_types: list[str] | None = None
+        self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
     ) -> list[SubscriptionProductBlock]:
-        subscription_model = SubscriptionModel.from_subscription(self.subscription_id)  # type: ignore
+        subscription_model = SubscriptionModel.from_subscription(self.subscription_id)
         subscription = build_extended_domain_model(subscription_model)
 
         def to_product_block(product_block: dict[str, Any]) -> SubscriptionProductBlock:
             def is_resource_type(candidate: Any) -> bool:
-                return isinstance(candidate, bool | str | int | float | None)
+                return isinstance(candidate, (bool, str, int, float, type(None)))
 
             def requested_resource_type(key: str) -> bool:
                 return not resource_types or key in resource_types
@@ -112,7 +110,7 @@ class SubscriptionType:
         )
         return [product_block for product_block in product_blocks if product_block.resource_types]
 
-    @authenticated_field(description="Returns list of processes of the subscription")
+    @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
     async def processes(
         self,
         info: CustomInfo,
@@ -121,10 +119,10 @@ class SubscriptionType:
         first: int = 10,
         after: int = 0,
     ) -> Connection[ProcessType]:
-        filter_by = filter_by or [] + [GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))]  # type: ignore
+        filter_by = filter_by or [] + [GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))]
         return await resolve_processes(info, filter_by, sort_by, first, after)
 
-    @authenticated_field(description="Returns list of subscriptions that use this subscription")
+    @authenticated_field(description="Returns list of subscriptions that use this subscription")  # type: ignore
     async def in_use_by_subscriptions(
         self,
         info: CustomInfo,
@@ -139,10 +137,10 @@ class SubscriptionType:
         in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
         query_results = in_use_by_query.with_entities(SubscriptionTable.subscription_id).all()
         subscription_ids = ",".join([str(s.subscription_id) for s in query_results])
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]  # type: ignore
+        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]
         return await resolve_subscription(info, filter_by, sort_by, first, after)
 
-    @authenticated_field(description="Returns list of subscriptions that this subscription depends on")
+    @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
     async def depends_on_subscriptions(
         self,
         info: CustomInfo,
@@ -157,5 +155,5 @@ class SubscriptionType:
         depends_on_query = query_depends_on_subscriptions(self.subscription_id)
         query_results = depends_on_query.with_entities(SubscriptionTable.subscription_id).all()
         subscription_ids = ",".join([str(s.subscription_id) for s in query_results])
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]  # type: ignore
+        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]
         return await resolve_subscription(info, filter_by, sort_by, first, after)
