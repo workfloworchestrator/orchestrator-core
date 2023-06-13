@@ -13,6 +13,8 @@
 from datetime import datetime
 from typing import Callable, Optional
 
+import pytz
+from dateutil.parser import parse
 from sqlalchemy import Column
 
 from orchestrator.db.database import SearchQuery
@@ -29,7 +31,7 @@ def convert_to_date(value: str) -> datetime:
     Example date: "2022-07-21T03:40:48+00:00"
     """
     try:
-        return datetime.fromisoformat(value)
+        return parse(value).replace(tzinfo=pytz.UTC)
     except ValueError:
         raise ValueError(f"{value} is not a valid date")
 
