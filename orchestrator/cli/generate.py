@@ -83,9 +83,8 @@ def create_context(
         else:
             Path(path).mkdir(parents=True, exist_ok=True)
 
-    environment = Environment(
-        loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
-    )
+    default_templates = os.path.join(os.path.dirname(__file__), "generator", "templates")
+    environment = Environment(loader=FileSystemLoader(default_templates), autoescape=True)
 
     environment.filters["snake_to_camel"] = snake_to_camel
     environment.filters["camel_to_snake"] = camel_to_snake
