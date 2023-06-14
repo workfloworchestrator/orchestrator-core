@@ -33,7 +33,7 @@ def get_workflow(config: dict, workflow_name: str) -> dict:
 
 
 def get_variable(config: dict) -> str:
-    return config.get("variable", camel_to_snake(config["name"]))
+    return config.get("variable", camel_to_snake(config["name"]).replace(" ", ""))
 
 
 def get_product_block_variable(product_block: dict) -> str:

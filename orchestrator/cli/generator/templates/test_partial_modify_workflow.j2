@@ -1,0 +1,25 @@
+import pytest
+
+from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
+
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
+
+@pytest.mark.workflow
+def test_happy_flow(responses, {{ product.variable }}_subscription):
+    # given
+
+    # TODO: setup mocks
+
+    # when
+
+    input_data = [{"subscription_id": {{ product.variable }}_subscription}]
+    result, _, _ = run_workflow("modify_{{ product.variable }}_{{ workflow.id }}", input_data)
+
+    # then
+
+    assert_complete(result)
+
+    corelink = {{ product.type }}.from_subscription(corelink_subscription)
+
+    # TODO: add check to see if value was modified

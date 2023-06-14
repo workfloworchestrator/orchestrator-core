@@ -59,7 +59,7 @@ def generate_workflow_tests(context: dict) -> None:
     create_test_workflow_folder(context["config"], context["mkdir"])
 
     generate_test_create_workflow(**context)
-    generate_test_modify_workflow(**context)
+    generate_test_modify_workflows(**context)
     generate_test_validate_workflow(**context)
     generate_test_terminate_workflow(**context)
 
@@ -82,6 +82,28 @@ def generate_test_modify_workflow(environment: Environment, config: dict, writer
 
     path = get_test_workflow_path("modify", config)
     writer(path, content)
+
+
+def generate_test_partial_modify_workflows(environment: Environment, config: dict, writer: Callable) -> None:
+    if workflow := get_workflow(config, "modify"):
+
+        def generate_partial_test_modify_workflow(workflow: dict) -> None:
+            template = environment.get_template("test_partial_modify_workflow.j2")
+            content = template.render(product=config, workflow=workflow)
+
+            workflow_folder = get_test_workflow_folder(config)
+
+            path = f"{workflow_folder}/test_modify_{workflow['id']}.py"
+            writer(path, content)
+
+        modify_workflows = workflow.get("flows", [])
+        for modify_workflow in modify_workflows:
+            generate_partial_test_modify_workflow(modify_workflow)
+
+
+def generate_test_modify_workflows(environment: Environment, config: dict, writer: Callable, **_kwargs: Any) -> None:
+    generate_test_modify_workflow(environment, config, writer)
+    generate_test_partial_modify_workflows(environment, config, writer)
 
 
 def generate_test_validate_workflow(environment: Environment, config: dict, writer: Callable, **_kwargs: Any) -> None:

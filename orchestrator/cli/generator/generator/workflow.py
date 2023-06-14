@@ -75,7 +75,7 @@ def generate_workflows(context: dict) -> None:
 
     generate_shared_workflow_files(environment, config, writer)
     generate_create_workflow(environment, config, writer)
-    generate_modify_workflow(environment, config, writer)
+    generate_modify_workflows(environment, config, writer)
     generate_validate_workflow(environment, config, writer)
     generate_terminate_workflow(environment, config, writer)
 
@@ -145,6 +145,21 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
     writer(path, content)
 
 
+def generate_partial_modify_workflows(environment: Environment, config: dict, writer: Callable) -> None:
+    if workflow := get_workflow(config, "modify"):
+
+        def generate_partial_modify_workflow(workflow: dict) -> None:
+            template = environment.get_template("partial_modify_product.j2")
+            content = template.render(product=config, workflow=workflow)
+
+            path = f"{workflow_folder(config)}/modify_{workflow['id']}.py"
+            writer(path, content)
+
+        modify_workflows = workflow.get("flows", [])
+        for modify_workflow in modify_workflows:
+            generate_partial_modify_workflow(modify_workflow)
+
+
 @generate_workflow(workflow="modify")
 def generate_modify_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     product_block = root_product_block(config)
@@ -158,6 +173,11 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
     path = get_workflow_path(config, "modify")
 
     writer(path, content)
+
+
+def generate_modify_workflows(environment: Environment, config: dict, writer: Callable) -> None:
+    generate_modify_workflow(environment, config, writer)
+    generate_partial_modify_workflows(environment, config, writer)
 
 
 @generate_workflow(workflow="validate")

@@ -1,0 +1,33 @@
+{# Modify workflow for partial updates -#}
+
+from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.workflow import StepList, begin, step
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
+
+def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
+    subscription = {{ product.type }}.from_subscription(subscription_id)
+
+    class Modify(FormPage):
+        # TODO: initialize fields to be modified
+        pass
+
+    user_input = yield Modify
+
+    # TODO: set updated field(s)
+    return {"subscription": subscription}
+
+
+@subscription_update
+@step("Update subscription")
+def update_subscription(subscription: {{ product.type }}Provisioning) -> State:
+    # TODO: set updated field(s)
+    return {"subscription": subscription}
+
+
+@modify_workflow("Modify {{ product.type }}: {{ workflow.description }}", initial_input_form=initial_input_form_generator)
+def modify_{{ product.variable }}_{{ workflow.id }}() -> StepList:
+    return (
+        begin
+        update_subscription
+        # TODO: add additional steps here
+    )
