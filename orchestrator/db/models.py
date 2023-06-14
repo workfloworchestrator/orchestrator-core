@@ -566,6 +566,20 @@ subscription_customer_ix = Index(
 )
 
 
+class SubscriptionMetadataTable(BaseModel):
+    __tablename__ = "subscription_metadata"
+    subscription_id = Column(
+        UUIDType,
+        ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    metadata_ = Column("metadata", pg.JSONB(), nullable=False)
+
+    @staticmethod
+    def find_by_subscription_id(subscription_id: str) -> Optional[SubscriptionMetadataTable]:
+        return SubscriptionMetadataTable.query.get(subscription_id)
+
+
 class SubscriptionSearchView(BaseModel):
     __tablename__ = "subscriptions_search"
     subscription_id = Column(
