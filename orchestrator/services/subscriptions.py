@@ -36,14 +36,17 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionInstanceRelationTable
+from orchestrator.db.models import (
+    SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionMetadataTable,
+)
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
 
 logger = structlog.get_logger(__name__)
-
 
 T = TypeVar("T", bound=SubscriptionTable)
 
@@ -88,6 +91,14 @@ def get_subscription(
         return subscription
     else:
         raise ValueError(f"Subscription with {subscription_id} does not exist in the database")
+
+
+def get_subscription_metadata(subscription_id: UUIDstr) -> Optional[dict]:
+    subscription_metadata = SubscriptionMetadataTable.find_by_subscription_id(subscription_id)
+    if subscription_metadata:
+        return subscription_metadata.metadata_
+    else:
+        return None
 
 
 def update_subscription_status(subscription_id: UUIDstr, status: str) -> SubscriptionTable:
@@ -532,7 +543,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         "terminate": [],
         "system": [],
     }
-
     for workflow in subscription.product.workflows:
         if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.target == Target.SYSTEM:
             # validations and modify note are also possible with: not in sync or locked relations
