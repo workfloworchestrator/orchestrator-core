@@ -52,16 +52,15 @@ def get_filter_value_convert_function(field: Column) -> Callable:
 
 
 def get_range_filter(range_type: str, field: Column) -> Callable:
-    if range_type == "gt":
-        return field.__gt__
-    if range_type == "gte":
-        return field.__ge__
-    if range_type == "lt":
-        return field.__lt__
-    if range_type == "lte":
-        return field.__le__
-    if range_type == "ne":
-        return field.__ne__
+    range_types = {
+        "gt": field.__gt__,
+        "gte": field.__ge__,
+        "lt": field.__lt__,
+        "lte": field.__le__,
+        "ne": field.__ne__,
+    }
+    if range_type in range_types:
+        return range_types[range_type]
     raise ValueError(f"{range_type} not a valid range type ({range_operator_list})")
 
 
@@ -70,9 +69,8 @@ def generic_range_filter(range_type: str, field: Column) -> Callable[[SearchQuer
     convert_filter_value = get_filter_value_convert_function(field)
 
     def use_filter(query: SearchQuery, value: str) -> SearchQuery:
-        if val := convert_filter_value(value):
-            value = val
-        return query.filter(filter_operator(value))
+        converted_value = convert_filter_value(value)
+        return query.filter(filter_operator(converted_value))
 
     return use_filter
 
@@ -80,10 +78,9 @@ def generic_range_filter(range_type: str, field: Column) -> Callable[[SearchQuer
 def generic_range_filters(
     column: Column, column_alias: Optional[str] = None
 ) -> dict[str, Callable[[SearchQuery, str], SearchQuery]]:
-    dict_filters = {}
-    for operator in range_operator_list:
-        dict_filters[f"{to_camel(column_alias or column.name)}{operator.capitalize()}"] = generic_range_filter(
-            operator, column
-        )
+    column_name = to_camel(column_alias or column.name)
 
-    return dict_filters
+    return {
+        f"{column_name}{operator.capitalize()}": generic_range_filter(operator, column)
+        for operator in range_operator_list
+    }
