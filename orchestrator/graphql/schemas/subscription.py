@@ -9,7 +9,7 @@ from strawberry.scalars import JSON
 
 from orchestrator.db.models import SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
@@ -136,8 +136,10 @@ class SubscriptionType:
 
         in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
         query_results = in_use_by_query.with_entities(SubscriptionTable.subscription_id).all()
-        subscription_ids = ",".join([str(s.subscription_id) for s in query_results])
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]
+        subscription_ids = [str(s.subscription_id) for s in query_results]
+        if not subscription_ids:
+            return EMPTY_PAGE
+        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]
         return await resolve_subscription(info, filter_by, sort_by, first, after)
 
     @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
@@ -154,6 +156,8 @@ class SubscriptionType:
 
         depends_on_query = query_depends_on_subscriptions(self.subscription_id)
         query_results = depends_on_query.with_entities(SubscriptionTable.subscription_id).all()
-        subscription_ids = ",".join([str(s.subscription_id) for s in query_results])
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=subscription_ids)]
+        subscription_ids = [str(s.subscription_id) for s in query_results]
+        if not subscription_ids:
+            return EMPTY_PAGE
+        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]
         return await resolve_subscription(info, filter_by, sort_by, first, after)

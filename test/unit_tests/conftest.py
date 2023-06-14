@@ -1,3 +1,4 @@
+import datetime
 import os
 import typing
 from contextlib import closing
@@ -541,19 +542,50 @@ def generic_product_type_2(generic_product_2, generic_product_block_type_3):
 
 
 @pytest.fixture
-def generic_subscription_1(generic_product_1, generic_product_type_1):
-    GenericProductOneInactive, _ = generic_product_type_1
-    gen_subscription = GenericProductOneInactive.from_product_id(
-        generic_product_1.product_id, customer_id=CUSTOMER_ID, insync=True
-    )
-    gen_subscription.pb_1.rt_1 = "Value1"
-    gen_subscription.pb_2.rt_2 = 42
-    gen_subscription.pb_2.rt_3 = "Value2"
-    gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
-    gen_subscription.description = "Generic Subscription One"
-    gen_subscription.save()
-    db.session.commit()
-    return str(gen_subscription.subscription_id)
+def generic_subscription_factory(generic_product_1, generic_product_type_1):
+    def subscription_create(
+        description="Generic Subscription One",
+        start_date="2023-05-24T00:00:00+00:00",
+        rt_1="Value1",
+        rt_2=42,
+        rt_3="Value2",
+    ):
+        GenericProductOneInactive, _ = generic_product_type_1
+        gen_subscription = GenericProductOneInactive.from_product_id(
+            generic_product_1.product_id, customer_id=CUSTOMER_ID, insync=True
+        )
+        gen_subscription.pb_1.rt_1 = rt_1
+        gen_subscription.pb_2.rt_2 = rt_2
+        gen_subscription.pb_2.rt_3 = rt_3
+        gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
+        gen_subscription.description = description
+        gen_subscription.start_date = start_date
+        gen_subscription.save()
+        db.session.commit()
+        return str(gen_subscription.subscription_id)
+
+    return subscription_create
+
+
+@pytest.fixture
+def generic_subscriptions_factory(generic_subscription_factory):
+    def subscriptions_create(amount):
+        return [
+            generic_subscription_factory(
+                description=f"Subscription {i}",
+                start_date=(
+                    datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
+                ).replace(tzinfo=datetime.timezone.utc),
+            )
+            for i in range(0, amount)
+        ]
+
+    return subscriptions_create
+
+
+@pytest.fixture
+def generic_subscription_1(generic_subscription_factory):
+    return generic_subscription_factory()
 
 
 @pytest.fixture

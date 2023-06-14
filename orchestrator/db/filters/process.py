@@ -30,11 +30,11 @@ from orchestrator.db.filters.generic_filters import (
 logger = structlog.get_logger(__name__)
 
 
-def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
+def customer_id_filter(query: SearchQuery, value: str) -> SearchQuery:
     try:
         value_as_uuid = UUID(value)
     except (ValueError, AttributeError):
-        msg = f"Not a valid organisation, must be a UUID: '{value}'"
+        msg = f"Not a valid customer_id, must be a UUID: '{value}'"
         logger.debug(msg)
         raise_status(HTTPStatus.BAD_REQUEST, msg)
 
@@ -102,7 +102,7 @@ VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQ
     "status": generic_values_in_column_filter(ProcessTable.last_status),
     "workflow": generic_is_like_filter(ProcessTable.workflow),
     "creator": generic_is_like_filter(ProcessTable.created_by),
-    "organisation": organisation_filter,
+    "customerId": customer_id_filter,
     "product": product_filter,
     "tag": tag_filter,
     "subscription": subscriptions_filter,

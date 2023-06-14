@@ -318,7 +318,7 @@ def test_processes_filtering_with_invalid_filter(
                     "status",
                     "workflow",
                     "creator",
-                    "organisation",
+                    "customerId",
                     "product",
                     "tag",
                     "subscription",
@@ -340,7 +340,7 @@ def test_processes_filtering_with_invalid_filter(
         assert process["status"] == "COMPLETED"
 
 
-def test_processes_filtering_with_invalid_organisation(
+def test_processes_filtering_with_invalid_customer_id(
     test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
 ):
     # when
@@ -348,7 +348,7 @@ def test_processes_filtering_with_invalid_organisation(
     data = get_processes_query(
         filter_by=[
             {"field": "status", "value": "completed"},
-            {"field": "organisation", "value": "54321447"},
+            {"field": "customerId", "value": "54321447"},
         ]
     )
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -364,10 +364,10 @@ def test_processes_filtering_with_invalid_organisation(
 
     assert errors == [
         {
-            "message": "Not a valid organisation, must be a UUID: '54321447'",
+            "message": "Not a valid customer_id, must be a UUID: '54321447'",
             "path": [None, "processes", "Query"],
             "extensions": {
-                "field": "organisation",
+                "field": "customerId",
                 "value": "54321447",
             },
         }

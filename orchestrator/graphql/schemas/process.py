@@ -9,7 +9,7 @@ from strawberry.scalars import JSON
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessTable
-from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
@@ -97,5 +97,7 @@ class ProcessType:
 
         process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(self.id)
         subscription_ids = [str(s.subscription_id) for s in process.process_subscriptions]
+        if not subscription_ids:
+            return EMPTY_PAGE
         filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]
         return await resolve_subscription(info, filter_by, sort_by, first, after)

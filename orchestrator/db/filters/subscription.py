@@ -34,11 +34,11 @@ from orchestrator.db.models import SubscriptionSearchView
 logger = structlog.get_logger(__name__)
 
 
-def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
+def customer_id_filter(query: SearchQuery, value: str) -> SearchQuery:
     try:
         value_as_uuid = UUID(value)
     except (ValueError, AttributeError):
-        msg = "Not a valid customer_id, must be a UUID: '{value}'"
+        msg = f"Not a valid customer_id, must be a UUID: '{value}'"
         logger.debug(msg)
         raise_status(HTTPStatus.BAD_REQUEST, msg)
     return query.filter(SubscriptionTable.customer_id == value_as_uuid)
@@ -75,7 +75,7 @@ VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQ
         "description": generic_is_like_filter(SubscriptionTable.description),
         "status": status_filter,
         "product": product_filter,
-        "organisation": organisation_filter,
+        "customerId": customer_id_filter,
         "insync": generic_bool_filter(SubscriptionTable.insync),
         "note": generic_is_like_filter(SubscriptionTable.note),
         "statuses": status_filter,
