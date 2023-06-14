@@ -97,6 +97,8 @@ def get_subscription_metadata(subscription_id: UUIDstr) -> Optional[dict]:
     subscription_metadata = SubscriptionMetadataTable.find_by_subscription_id(subscription_id)
     if subscription_metadata:
         return subscription_metadata.metadata_
+    else:
+        return None
 
 
 def update_subscription_status(subscription_id: UUIDstr, status: str) -> SubscriptionTable:
