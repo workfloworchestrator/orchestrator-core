@@ -95,7 +95,7 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
 
 
-VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
+PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
     "pid": generic_is_like_filter(ProcessTable.pid),
     "istask": generic_bool_filter(ProcessTable.is_task),
     "assignee": generic_values_in_column_filter(ProcessTable.assignee),
@@ -111,4 +111,4 @@ VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQ
 }
 
 
-filter_processes = generic_filter(VALID_FILTER_FUNCTIONS_BY_COLUMN)
+filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)

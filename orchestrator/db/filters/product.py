@@ -16,7 +16,7 @@ def product_block_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProductTable.product_blocks.any(ProductBlockTable.name.in_(blocks)))
 
 
-VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
+PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
     "product_id": generic_is_like_filter(ProductTable.product_id),
     "name": generic_is_like_filter(ProductTable.name),
     "description": generic_is_like_filter(ProductTable.description),
@@ -26,4 +26,4 @@ VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQ
     "product_blocks": product_block_filter,
 }
 
-filter_products = generic_filter(VALID_FILTER_FUNCTIONS_BY_COLUMN)
+filter_products = generic_filter(PRODUCT_FILTER_FUNCTIONS_BY_COLUMN)

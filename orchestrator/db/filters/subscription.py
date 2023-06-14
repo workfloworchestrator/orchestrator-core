@@ -68,7 +68,7 @@ start_date_range_filters = generic_range_filters(SubscriptionTable.start_date)
 end_date_range_filters = generic_range_filters(SubscriptionTable.end_date)
 
 
-VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
+SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
     {
         "subscriptionId": generic_is_like_filter(SubscriptionTable.subscription_id),
         "subscriptionIds": subscription_list_filter,
@@ -90,4 +90,4 @@ VALID_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQ
 )
 
 
-filter_subscriptions = generic_filter(VALID_FILTER_FUNCTIONS_BY_COLUMN)
+filter_subscriptions = generic_filter(SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN)
