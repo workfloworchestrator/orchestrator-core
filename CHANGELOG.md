@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- Add support for subscription metadata [\#266](https://github.com/workfloworchestrator/orchestrator-core/issues/266)
+
+
 ## [1.1.0rc1]
 
 ### Breaking change
