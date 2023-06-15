@@ -1,4 +1,4 @@
-from typing import Callable, Generator
+from typing import Generator
 
 import structlog
 

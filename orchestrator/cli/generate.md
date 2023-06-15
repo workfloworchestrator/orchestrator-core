@@ -72,7 +72,7 @@ A fixed input has a `name` and a `type` field. If the type is a primitive type
 an enum type, so we add additional fields to describe the enumeration type and its possible 
 values.
 
-### The `product_blccks` section
+### The `product_blocks` section
 
 In this section we define the product blocks that are part of this product. They can be
 either new or refer to previously defined product blocks.
@@ -99,3 +99,15 @@ In this example we define a product block with name 'user' and type `User`.
 'fields' is a list of field with a type and name. The 'required' field defines in which
 lifecycle state the field is required. In previous life cycle states the field will
 be optional.
+
+## Using the generator
+
+After you have configured your product, you can run the generator. For example:
+
+```bash
+PYTHONPATH=. python ./main.py generate product -cf ./generator/products/workshop/user.yaml
+```
+
+### User defined templates
+
+tbd

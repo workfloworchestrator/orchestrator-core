@@ -68,7 +68,12 @@ def write_file(path: str, content: str, append: bool, force: bool) -> None:
 
 
 def create_context(
-    config_file: str, dryrun: bool, force: bool, python_version: str, tdd: Optional[bool] = False
+    config_file: str,
+    dryrun: bool,
+    force: bool,
+    python_version: str,
+    tdd: Optional[bool] = False,
+    user_templates: Optional[str] = None,
 ) -> Dict:
     def writer(path: str, content: str, append: bool = False) -> None:
         if dryrun:
@@ -84,7 +89,9 @@ def create_context(
             Path(path).mkdir(parents=True, exist_ok=True)
 
     default_templates = os.path.join(os.path.dirname(__file__), "generator", "templates")
-    environment = Environment(loader=FileSystemLoader(default_templates), autoescape=True)
+    all_templates = [user_templates, default_templates] if user_templates else default_templates
+
+    environment = Environment(loader=FileSystemLoader(all_templates), autoescape=True)
 
     environment.filters["snake_to_camel"] = snake_to_camel
     environment.filters["camel_to_snake"] = camel_to_snake
@@ -110,6 +117,7 @@ DryRun = typer.Option(True, help="Dry run")
 TestDrivenDevelopment = typer.Option(True, "--tdd", help="Force test driven development with failing asserts")
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
 PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
+UserTemplates = typer.Option(None, "--user-templates", "-ut", help="Location with user templates")
 
 
 @app.command(help="Create product from configuration file")
@@ -118,8 +126,11 @@ def product(
     dryrun: bool = DryRun,
     force: bool = Force,
     python_version: str = PythonVersion,
+    user_templates: str = UserTemplates,
 ) -> None:
-    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+    context = create_context(
+        config_file, dryrun=dryrun, force=force, python_version=python_version, user_templates=user_templates
+    )
 
     generate_product(context)
 
@@ -130,8 +141,11 @@ def product_blocks(
     dryrun: bool = DryRun,
     force: bool = Force,
     python_version: str = PythonVersion,
+    user_templates: str = UserTemplates,
 ) -> None:
-    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+    context = create_context(
+        config_file, dryrun=dryrun, force=force, python_version=python_version, user_templates=user_templates
+    )
 
     generate_product_blocks(context)
 
