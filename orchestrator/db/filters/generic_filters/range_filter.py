@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
+from functools import partial
 from typing import Callable, Optional
 
 import pytz
@@ -22,7 +23,13 @@ from orchestrator.db.database import SearchQuery
 # from sqlalchemy.sql.expression import ColumnOperators
 from orchestrator.utils.helpers import to_camel
 
-range_operator_list = ["gt", "gte", "lt", "lte", "ne"]
+RANGE_TYPES = {
+    "gt": Column.__gt__,
+    "gte": Column.__ge__,
+    "lt": Column.__lt__,
+    "lte": Column.__le__,
+    "ne": Column.__ne__,
+}
 
 
 def convert_to_date(value: str) -> datetime:
@@ -51,21 +58,8 @@ def get_filter_value_convert_function(field: Column) -> Callable:
     return lambda x: x
 
 
-def get_range_filter(range_type: str, field: Column) -> Callable:
-    range_types = {
-        "gt": field.__gt__,
-        "gte": field.__ge__,
-        "lt": field.__lt__,
-        "lte": field.__le__,
-        "ne": field.__ne__,
-    }
-    if range_type in range_types:
-        return range_types[range_type]
-    raise ValueError(f"{range_type} not a valid range type ({range_operator_list})")
-
-
-def generic_range_filter(range_type: str, field: Column) -> Callable[[SearchQuery, str], SearchQuery]:
-    filter_operator = get_range_filter(range_type, field)
+def generic_range_filter(range_type_fn: Callable, field: Column) -> Callable[[SearchQuery, str], SearchQuery]:
+    filter_operator = partial(range_type_fn, field)
     convert_filter_value = get_filter_value_convert_function(field)
 
     def use_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -81,6 +75,6 @@ def generic_range_filters(
     column_name = to_camel(column_alias or column.name)
 
     return {
-        f"{column_name}{operator.capitalize()}": generic_range_filter(operator, column)
-        for operator in range_operator_list
+        f"{column_name}{operator.capitalize()}": generic_range_filter(operator_fn, column)
+        for operator, operator_fn in RANGE_TYPES.items()
     }
