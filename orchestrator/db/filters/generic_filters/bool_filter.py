@@ -20,7 +20,7 @@ from orchestrator.db.database import SearchQuery
 
 def generic_bool_filter(field: Column) -> Callable[[SearchQuery, str], SearchQuery]:
     def bool_filter(query: SearchQuery, value: str) -> SearchQuery:
-        value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja", "insync")
+        value_as_bool = value.lower() in ("yes", "y", "true", "1", "ja", "j")
         return query.filter(field.is_(value_as_bool))
 
     return bool_filter
