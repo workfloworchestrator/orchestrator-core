@@ -69,7 +69,6 @@ class SubscriptionGraphqlSchema(OrchestratorBaseModel):
     start_date: Optional[datetime]
     end_date: Optional[datetime]
     product_id: UUID
-    customer_id: UUID
     status: str
     insync: bool
     note: Optional[str]
@@ -119,8 +118,10 @@ class SubscriptionType:
         first: int = 10,
         after: int = 0,
     ) -> Connection[ProcessType]:
-        filter_by = filter_by or [] + [GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))]
-        return await resolve_processes(info, filter_by, sort_by, first, after)
+        filter_by_with_related_processes = filter_by or [] + [
+            GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))
+        ]
+        return await resolve_processes(info, filter_by_with_related_processes, sort_by, first, after)
 
     @authenticated_field(description="Returns list of subscriptions that use this subscription")  # type: ignore
     async def in_use_by_subscriptions(
@@ -139,8 +140,10 @@ class SubscriptionType:
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
             return EMPTY_PAGE
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]
-        return await resolve_subscription(info, filter_by, sort_by, first, after)
+        filter_by_with_related_subscriptions = (filter_by or []) + [
+            GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
+        ]
+        return await resolve_subscription(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
     @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
     async def depends_on_subscriptions(
@@ -159,5 +162,7 @@ class SubscriptionType:
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
             return EMPTY_PAGE
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]
-        return await resolve_subscription(info, filter_by, sort_by, first, after)
+        filter_by_with_related_subscriptions = (filter_by or []) + [
+            GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
+        ]
+        return await resolve_subscription(info, filter_by_with_related_subscriptions, sort_by, first, after)

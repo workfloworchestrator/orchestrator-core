@@ -11,14 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http import HTTPStatus
 from typing import Callable
-from uuid import UUID
 
 import structlog
 from sqlalchemy import func
 
-from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import _process_text_query
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.database import SearchQuery
@@ -32,16 +29,6 @@ from orchestrator.db.filters.generic_filters import (
 from orchestrator.db.models import SubscriptionSearchView
 
 logger = structlog.get_logger(__name__)
-
-
-def customer_id_filter(query: SearchQuery, value: str) -> SearchQuery:
-    try:
-        value_as_uuid = UUID(value)
-    except (ValueError, AttributeError):
-        msg = f"Not a valid customer_id, must be a UUID: '{value}'"
-        logger.debug(msg)
-        raise_status(HTTPStatus.BAD_REQUEST, msg)
-    return query.filter(SubscriptionTable.customer_id == value_as_uuid)
 
 
 def tsv_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -75,7 +62,6 @@ SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], 
         "description": generic_is_like_filter(SubscriptionTable.description),
         "status": status_filter,
         "product": product_filter,
-        "customerId": customer_id_filter,
         "insync": generic_bool_filter(SubscriptionTable.insync),
         "note": generic_is_like_filter(SubscriptionTable.note),
         "statuses": status_filter,

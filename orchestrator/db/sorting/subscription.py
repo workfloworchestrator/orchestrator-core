@@ -4,10 +4,8 @@ from orchestrator.db.sorting.sorting import generic_sort
 VALID_SORT_KEY_LIST = [
     "subscription_id",
     "product_id",
-    "customer_id",
     "name",
     "description",
-    "customer_descriptions",
     "insync",
     "status",
     "note",

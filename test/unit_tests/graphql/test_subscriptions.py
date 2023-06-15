@@ -23,7 +23,6 @@ subscription_fields = [
     "description",
     "subscriptionId",
     "startDate",
-    "customerId",
     "productId",
     "status",
     "tag",
@@ -47,7 +46,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       description
       subscriptionId
       startDate
-      customerId
       productId
       status
       tag
@@ -93,7 +91,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       description
       subscriptionId
       startDate
-      customerId
       productId
       status
       tag
@@ -108,7 +105,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           isTask
           lastStep
           traceback
-          customer
           id
           lastModified
           started
@@ -124,7 +120,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           insync
           endDate
           description
-          customerId
           productId
           startDate
           status
@@ -139,7 +134,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           insync
           endDate
           description
-          customerId
           productId
           startDate
           status
@@ -434,7 +428,6 @@ def test_subscriptions_filtering_with_invalid_filter(
                     "description",
                     "status",
                     "product",
-                    "customerId",
                     "insync",
                     "note",
                     "statuses",
@@ -454,60 +447,6 @@ def test_subscriptions_filtering_with_invalid_filter(
                     "endDateLte",
                     "endDateNe",
                 ],
-            },
-        }
-    ]
-    assert pageinfo == {
-        "hasPreviousPage": False,
-        "hasNextPage": False,
-        "startCursor": 0,
-        "endCursor": 1,
-        "totalItems": "2",
-    }
-
-    for subscription in subscriptions:
-        assert subscription["status"] == SubscriptionLifecycle.TERMINATED
-
-
-def test_subscriptions_filtering_with_invalid_customer_id(
-    test_client, generic_subscriptions_factory, generic_product_type_1
-):
-    # when
-
-    subscription_ids = generic_subscriptions_factory(30)
-
-    GenericProductOneInactive, GenericProductOne = generic_product_type_1
-    subscription_1 = GenericProductOne.from_subscription(subscription_ids[0])
-    subscription_1 = subscription_1.from_other_lifecycle(subscription_1, SubscriptionLifecycle.TERMINATED)
-    subscription_1.save()
-    subscription_9 = GenericProductOne.from_subscription(subscription_ids[8])
-    subscription_9 = subscription_9.from_other_lifecycle(subscription_9, SubscriptionLifecycle.TERMINATED)
-    subscription_9.save()
-
-    data = get_subscriptions_query(
-        filter_by=[
-            {"field": "status", "value": SubscriptionLifecycle.TERMINATED},
-            {"field": "customerId", "value": "54321447"},
-        ]
-    )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    errors = result["errors"]
-    subscriptions = subscriptions_data["page"]
-    pageinfo = subscriptions_data["pageInfo"]
-
-    assert errors == [
-        {
-            "message": "Not a valid customer_id, must be a UUID: '54321447'",
-            "path": [None, "subscriptions", "Query"],
-            "extensions": {
-                "field": "customerId",
-                "value": "54321447",
             },
         }
     ]

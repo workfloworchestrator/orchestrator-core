@@ -21,7 +21,6 @@ process_fields = [
     "isTask",
     "lastStep",
     "traceback",
-    "customer",
     "id",
     "lastModified",
     "started",
@@ -48,7 +47,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       isTask
       lastStep
       traceback
-      customer
       id
       lastModified
       started
@@ -97,7 +95,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       isTask
       lastStep
       traceback
-      customer
       id
       lastModified
       started
@@ -111,7 +108,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
           insync
           endDate
           description
-          customerId
           productId
           startDate
           status
@@ -318,57 +314,12 @@ def test_processes_filtering_with_invalid_filter(
                     "status",
                     "workflow",
                     "creator",
-                    "customerId",
                     "product",
                     "tag",
                     "subscription",
                     "subscriptionId",
                     "target",
                 ],
-            },
-        }
-    ]
-    assert pageinfo == {
-        "hasPreviousPage": False,
-        "hasNextPage": False,
-        "startCursor": 0,
-        "endCursor": 3,
-        "totalItems": "4",
-    }
-
-    for process in processes:
-        assert process["status"] == "COMPLETED"
-
-
-def test_processes_filtering_with_invalid_customer_id(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
-):
-    # when
-
-    data = get_processes_query(
-        filter_by=[
-            {"field": "status", "value": "completed"},
-            {"field": "customerId", "value": "54321447"},
-        ]
-    )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    processes_data = result["data"]["processes"]
-    errors = result["errors"]
-    processes = processes_data["page"]
-    pageinfo = processes_data["pageInfo"]
-
-    assert errors == [
-        {
-            "message": "Not a valid customer_id, must be a UUID: '54321447'",
-            "path": [None, "processes", "Query"],
-            "extensions": {
-                "field": "customerId",
-                "value": "54321447",
             },
         }
     ]

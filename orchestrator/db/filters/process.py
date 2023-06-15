@@ -11,13 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http import HTTPStatus
 from typing import Callable
-from uuid import UUID
 
 import structlog
 
-from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.database import SearchQuery
 from orchestrator.db.filters.filters import generic_filter
@@ -28,23 +25,6 @@ from orchestrator.db.filters.generic_filters import (
 )
 
 logger = structlog.get_logger(__name__)
-
-
-def customer_id_filter(query: SearchQuery, value: str) -> SearchQuery:
-    try:
-        value_as_uuid = UUID(value)
-    except (ValueError, AttributeError):
-        msg = f"Not a valid customer_id, must be a UUID: '{value}'"
-        logger.debug(msg)
-        raise_status(HTTPStatus.BAD_REQUEST, msg)
-
-    process_subscriptions = (
-        db.session.query(ProcessSubscriptionTable)
-        .join(SubscriptionTable)
-        .filter(SubscriptionTable.customer_id == value_as_uuid)
-        .subquery()
-    )
-    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
 
 
 def product_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -102,7 +82,6 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
     "status": generic_values_in_column_filter(ProcessTable.last_status),
     "workflow": generic_is_like_filter(ProcessTable.workflow),
     "creator": generic_is_like_filter(ProcessTable.created_by),
-    "customerId": customer_id_filter,
     "product": product_filter,
     "tag": tag_filter,
     "subscription": subscriptions_filter,

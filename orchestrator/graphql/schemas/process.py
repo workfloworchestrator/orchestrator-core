@@ -99,5 +99,7 @@ class ProcessType:
         subscription_ids = [str(s.subscription_id) for s in process.process_subscriptions]
         if not subscription_ids:
             return EMPTY_PAGE
-        filter_by = (filter_by or []) + [GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))]
-        return await resolve_subscription(info, filter_by, sort_by, first, after)
+        filter_by_with_related_subscriptions = (filter_by or []) + [
+            GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
+        ]
+        return await resolve_subscription(info, filter_by_with_related_subscriptions, sort_by, first, after)
