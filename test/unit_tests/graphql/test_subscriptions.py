@@ -25,7 +25,6 @@ subscription_fields = [
     "startDate",
     "productId",
     "status",
-    "tag",
     "insync",
     "note",
     "product",
@@ -34,7 +33,12 @@ subscription_fields = [
 subscription_product_fields = [
     "productId",
     "name",
-    "note",
+    "description",
+    "productType",
+    "status",
+    "tag",
+    "createdAt",
+    "endDate",
 ]
 
 
@@ -48,15 +52,11 @@ def get_subscriptions_query(
 query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      endDate
       description
       subscriptionId
-      startDate
       productId
       status
-      tag
       insync
-      name
       note
       startDate
       endDate
@@ -111,16 +111,14 @@ def get_subscriptions_query_with_relations(
 query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      endDate
       description
       subscriptionId
-      startDate
       productId
       status
-      tag
       insync
-      name
       note
+      startDate
+      endDate
       processes {
         page {
           assignee
@@ -140,30 +138,26 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       }
       dependsOnSubscriptions {
         page {
-          name
-          insync
-          endDate
           description
-          productId
-          startDate
-          status
           subscriptionId
-          tag
+          productId
+          status
+          insync
           note
+          startDate
+          endDate
         }
       }
       inUseBySubscriptions {
         page {
-          name
-          insync
-          endDate
           description
-          productId
-          startDate
-          status
           subscriptionId
-          tag
+          productId
+          status
+          insync
           note
+          startDate
+          endDate
         }
       }
     }
@@ -191,10 +185,10 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(test_client, generic_subscriptions_factory):
+def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory):
     # when
 
-    generic_subscriptions_factory(7)
+    product_type_1_subscriptions_factory(7)
     data = get_subscriptions_query()
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -206,6 +200,7 @@ def test_subscriptions_single_page(test_client, generic_subscriptions_factory):
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": False,
@@ -217,12 +212,14 @@ def test_subscriptions_single_page(test_client, generic_subscriptions_factory):
     for subscription in subscriptions:
         for field in subscription_fields:
             assert field in subscription
+        for field in subscription_product_fields:
+            assert field in subscription["product"]
 
 
-def test_subscriptions_has_next_page(test_client, generic_subscriptions_factory):
+def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_factory):
     # when
 
-    generic_subscriptions_factory(30)
+    product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query()
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -234,6 +231,7 @@ def test_subscriptions_has_next_page(test_client, generic_subscriptions_factory)
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": True,
@@ -247,10 +245,10 @@ def test_subscriptions_has_next_page(test_client, generic_subscriptions_factory)
             assert field in subscription
 
 
-def test_subscriptions_has_previous_page(test_client, generic_subscriptions_factory):
+def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptions_factory):
     # when
 
-    generic_subscriptions_factory(30)
+    product_type_1_subscriptions_factory(30)
     data = get_subscriptions_query(after=1)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -262,6 +260,7 @@ def test_subscriptions_has_previous_page(test_client, generic_subscriptions_fact
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert len(subscriptions) == 10
 
     assert pageinfo == {
@@ -273,11 +272,11 @@ def test_subscriptions_has_previous_page(test_client, generic_subscriptions_fact
     }
 
 
-def test_subscriptions_sorting_asc(test_client, generic_subscriptions_factory):
+def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_factory):
     # when
 
-    generic_subscriptions_factory(30)
-    data = get_subscriptions_query(sort_by=[{"field": "start_date", "order": "ASC"}])
+    product_type_1_subscriptions_factory(30)
+    data = get_subscriptions_query(sort_by=[{"field": "startDate", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -288,6 +287,7 @@ def test_subscriptions_sorting_asc(test_client, generic_subscriptions_factory):
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": True,
@@ -300,11 +300,11 @@ def test_subscriptions_sorting_asc(test_client, generic_subscriptions_factory):
         assert subscriptions[i]["startDate"] < subscriptions[i + 1]["startDate"]
 
 
-def test_subscriptions_sorting_desc(test_client, generic_subscriptions_factory):
+def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_factory):
     # when
 
-    generic_subscriptions_factory(30)
-    data = get_subscriptions_query(sort_by=[{"field": "start_date", "order": "DESC"}])
+    product_type_1_subscriptions_factory(30)
+    data = get_subscriptions_query(sort_by=[{"field": "startDate", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -315,6 +315,7 @@ def test_subscriptions_sorting_desc(test_client, generic_subscriptions_factory):
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": True,
@@ -327,10 +328,113 @@ def test_subscriptions_sorting_desc(test_client, generic_subscriptions_factory):
         assert subscriptions[i + 1]["startDate"] < subscriptions[i]["startDate"]
 
 
-def test_subscriptions_filtering_on_status(test_client, generic_subscriptions_factory, generic_product_type_1):
+def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription_1, generic_subscription_2):
     # when
 
-    subscription_ids = generic_subscriptions_factory(30)
+    data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "ASC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert "errors" not in result
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 1,
+        "totalItems": "2",
+    }
+
+    product_tag_list = [subscription["product"]["tag"] for subscription in subscriptions]
+    assert product_tag_list == ["GEN1", "GEN2"]
+
+
+def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscription_1, generic_subscription_2):
+    # when
+
+    data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "DESC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert "errors" not in result
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 1,
+        "totalItems": "2",
+    }
+
+    product_tag_list = [subscription["product"]["tag"] for subscription in subscriptions]
+    assert product_tag_list == ["GEN2", "GEN1"]
+
+
+def test_subscriptions_sorting_invalid(test_client, product_type_1_subscriptions_factory):
+    # when
+
+    product_type_1_subscriptions_factory(30)
+    data = get_subscriptions_query(sort_by=[{"field": "start_date", "order": "DESC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": True,
+        "startCursor": 0,
+        "endCursor": 9,
+        "totalItems": "30",
+    }
+
+    assert "errors" in result
+    assert result["errors"] == [
+        {
+            "message": "Invalid sort arguments",
+            "path": [None, "subscriptions", "Query"],
+            "extensions": {
+                "invalid_sorting": [{"field": "start_date", "order": "desc"}],
+                "valid_sort_keys": [
+                    "productId",
+                    "name",
+                    "description",
+                    "productType",
+                    "tag",
+                    "status",
+                    "createdAt",
+                    "endDate",
+                    "subscriptionId",
+                    "customerId",
+                    "insync",
+                    "startDate",
+                    "note",
+                ],
+            },
+        }
+    ]
+
+
+def test_subscriptions_filtering_on_status(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
+    # when
+
+    subscription_ids = product_type_1_subscriptions_factory(30)
 
     GenericProductOneInactive, GenericProductOne = generic_product_type_1
     subscription_1 = GenericProductOne.from_subscription(subscription_ids[0])
@@ -351,10 +455,7 @@ def test_subscriptions_filtering_on_status(test_client, generic_subscriptions_fa
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-
+    assert "errors" not in result
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": False,
@@ -369,10 +470,10 @@ def test_subscriptions_filtering_on_status(test_client, generic_subscriptions_fa
     assert subscriptions[1]["status"] == SubscriptionLifecycle.TERMINATED
 
 
-def test_subscriptions_range_filtering_on_start_date(test_client, generic_subscriptions_factory):
+def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
     # when
 
-    generic_subscriptions_factory(30)
+    product_type_1_subscriptions_factory(30)
     higher_then_date = datetime.datetime.now().isoformat()
     lower_then_date = (datetime.datetime.now() + datetime.timedelta(days=3)).isoformat()
 
@@ -392,10 +493,7 @@ def test_subscriptions_range_filtering_on_start_date(test_client, generic_subscr
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-
+    assert "errors" not in result
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": False,
@@ -409,11 +507,11 @@ def test_subscriptions_range_filtering_on_start_date(test_client, generic_subscr
 
 
 def test_subscriptions_filtering_with_invalid_filter(
-    test_client, generic_subscriptions_factory, generic_product_type_1
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1
 ):
     # when
 
-    subscription_ids = generic_subscriptions_factory(30)
+    subscription_ids = product_type_1_subscriptions_factory(30)
 
     GenericProductOneInactive, GenericProductOne = generic_product_type_1
     subscription_1 = GenericProductOne.from_subscription(subscription_ids[0])
@@ -486,10 +584,10 @@ def test_subscriptions_filtering_with_invalid_filter(
         assert subscription["status"] == SubscriptionLifecycle.TERMINATED
 
 
-def test_single_subscription(test_client, generic_subscriptions_factory):
+def test_single_subscription(test_client, product_type_1_subscriptions_factory):
     # when
 
-    subscription_ids = generic_subscriptions_factory(30)
+    subscription_ids = product_type_1_subscriptions_factory(30)
     subscription_id = subscription_ids[10]
     data = get_subscriptions_query(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -502,6 +600,7 @@ def test_single_subscription(test_client, generic_subscriptions_factory):
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert len(subscriptions) == 1
     assert pageinfo == {
         "hasPreviousPage": False,
@@ -529,7 +628,7 @@ def test_single_subscription(test_client, generic_subscriptions_factory):
 
 def test_single_subscription_with_processes(
     test_client,
-    generic_subscriptions_factory,
+    product_type_1_subscriptions_factory,
     mocked_processes,
     mocked_processes_resumeall,  # noqa: F811
     generic_subscription_2,  # noqa: F811
@@ -537,7 +636,7 @@ def test_single_subscription_with_processes(
 ):
     # when
 
-    generic_subscriptions_factory(30)
+    product_type_1_subscriptions_factory(30)
     subscription_id = generic_subscription_1
     data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -550,6 +649,7 @@ def test_single_subscription_with_processes(
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert len(subscriptions) == 1
     assert pageinfo == {
         "hasPreviousPage": False,
@@ -563,11 +663,11 @@ def test_single_subscription_with_processes(
 
 
 def test_single_subscription_with_depends_on_subscriptions(
-    test_client, generic_subscriptions_factory, seed  # noqa: F811
+    test_client, product_type_1_subscriptions_factory, seed  # noqa: F811
 ):
     # when
 
-    generic_subscriptions_factory(30)
+    product_type_1_subscriptions_factory(30)
     subscription_id = SERVICE_SUBSCRIPTION_ID
     data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -580,6 +680,7 @@ def test_single_subscription_with_depends_on_subscriptions(
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert len(subscriptions) == 1
     assert pageinfo == {
         "hasPreviousPage": False,
@@ -595,11 +696,11 @@ def test_single_subscription_with_depends_on_subscriptions(
 
 
 def test_single_subscription_with_in_use_by_subscriptions(
-    test_client, generic_subscriptions_factory, seed  # noqa: F811
+    test_client, product_type_1_subscriptions_factory, seed  # noqa: F811
 ):
     # when
 
-    generic_subscriptions_factory(30)
+    product_type_1_subscriptions_factory(30)
     subscription_id = PORT_A_SUBSCRIPTION_ID
     data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -612,6 +713,7 @@ def test_single_subscription_with_in_use_by_subscriptions(
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
 
+    assert "errors" not in result
     assert len(subscriptions) == 1
     assert pageinfo == {
         "hasPreviousPage": False,
