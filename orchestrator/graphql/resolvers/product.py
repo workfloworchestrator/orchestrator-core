@@ -34,10 +34,9 @@ async def resolve_products(
 ) -> Connection[ProductType]:
     _error_handler = handle_product_error(info)
 
-    _range: Union[list[int], None] = [after, after + first] if after is not None and first else None
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.info("resolve_products() called", range=_range, sort=sort_by, filter=pydantic_filter_by)
+    logger.info("resolve_products() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     query = filter_products(ProductTable.query, pydantic_filter_by, _error_handler)
     query = sort_products(query, pydantic_sort_by, _error_handler)
