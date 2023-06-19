@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 def handle_product_error(info: CustomInfo) -> CallableErrorHander:
     def _handle_product_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
-        extra_values = dict(kwargs.items()) if kwargs else {}
+        extra_values = kwargs if kwargs else {}
         info.context.errors.append(GraphQLError(message=message, path=info.path, extensions=extra_values))
 
     return _handle_product_error

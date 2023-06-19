@@ -28,7 +28,7 @@ class ProductType:
     fixed_inputs: list[FixedInput]
     workflows: list[Workflow]
 
-    @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
+    @authenticated_field(description="Returns list of subscriptions of the product type")  # type: ignore
     async def subscriptions(
         self,
         info: CustomInfo,
@@ -37,7 +37,7 @@ class ProductType:
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
-        from orchestrator.graphql.resolvers.subscription import resolve_subscription
+        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
         filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
-        return await resolve_subscription(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)

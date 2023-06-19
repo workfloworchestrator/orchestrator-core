@@ -36,7 +36,7 @@ from orchestrator.graphql.resolvers import (
     resolve_processes,
     resolve_products,
     resolve_settings,
-    resolve_subscription,
+    resolve_subscriptions,
 )
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductType
@@ -60,7 +60,7 @@ class Query:
         resolver=resolve_products, description="Returns list of products"
     )
     subscriptions: Connection[SubscriptionType] = authenticated_field(
-        resolver=resolve_subscription, description="Returns list of subscriptions"
+        resolver=resolve_subscriptions, description="Returns list of subscriptions"
     )
     settings: StatusType = authenticated_field(
         resolver=resolve_settings,

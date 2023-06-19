@@ -41,7 +41,7 @@ def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
 def handle_process_error(info: CustomInfo) -> CallableErrorHander:
     def _handle_process_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
-        extra_values = dict(kwargs.items()) if kwargs else {}
+        extra_values = kwargs if kwargs else {}
         info.context.errors.append(GraphQLError(message=message, path=info.path, extensions=extra_values))
 
     return _handle_process_error

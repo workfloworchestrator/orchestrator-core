@@ -136,7 +136,7 @@ class SubscriptionType:
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
-        from orchestrator.graphql.resolvers.subscription import resolve_subscription
+        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_in_use_by_subscriptions
 
         in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
@@ -147,7 +147,7 @@ class SubscriptionType:
         filter_by_with_related_subscriptions = (filter_by or []) + [
             GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
         ]
-        return await resolve_subscription(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
     @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
     async def depends_on_subscriptions(
@@ -158,7 +158,7 @@ class SubscriptionType:
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
-        from orchestrator.graphql.resolvers.subscription import resolve_subscription
+        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_depends_on_subscriptions
 
         depends_on_query = query_depends_on_subscriptions(self.subscription_id)
@@ -169,4 +169,4 @@ class SubscriptionType:
         filter_by_with_related_subscriptions = (filter_by or []) + [
             GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
         ]
-        return await resolve_subscription(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)

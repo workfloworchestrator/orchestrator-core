@@ -27,6 +27,12 @@ subscription_fields = [
     "status",
     "tag",
     "insync",
+    "note",
+    "product",
+    "productBlocks",
+]
+subscription_product_fields = [
+    "productId",
     "name",
     "note",
 ]
@@ -52,6 +58,24 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       insync
       name
       note
+      startDate
+      endDate
+      productBlocks {
+        id
+        parent
+        ownerSubscriptionId
+        resourceTypes
+      }
+      product {
+        productId
+        name
+        description
+        productType
+        status
+        tag
+        createdAt
+        endDate
+      }
     }
     pageInfo {
       startCursor
@@ -487,6 +511,20 @@ def test_single_subscription(test_client, generic_subscriptions_factory):
         "totalItems": "1",
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["productBlocks"] == [
+        {
+            "id": 0,
+            "ownerSubscriptionId": subscription_id,
+            "parent": None,
+            "resourceTypes": {"label": None, "name": "PB_1", "rt1": "Value1"},
+        },
+        {
+            "id": 1,
+            "ownerSubscriptionId": subscription_id,
+            "parent": None,
+            "resourceTypes": {"label": None, "name": "PB_2", "rt2": 42, "rt3": "Value2"},
+        },
+    ]
 
 
 def test_single_subscription_with_processes(
