@@ -29,7 +29,7 @@ from strawberry.types import ExecutionContext, ExecutionResult
 from strawberry.utils.logging import StrawberryLogger
 
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
-from orchestrator.graphql.extensions.ErrorCollectorExtension import ErrorCollectorExtension
+from orchestrator.graphql.extensions.error_collector_extension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
