@@ -21,7 +21,6 @@ from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
-from test.unit_tests.conftest import CUSTOMER_ID
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
@@ -399,8 +398,6 @@ def test_processes_filterable(test_client, mocked_processes, generic_subscriptio
     assert response.json()[0]["assignee"] == "NOC"
     response = test_client.get("/api/processes?sort=started&filter=istask,y")
     assert 4 == len(response.json())
-    response = test_client.get(f"/api/processes?filter=istask,y,organisation,{CUSTOMER_ID}")
-    assert 2 == len(response.json())
 
 
 def test_processes_filterable_response_model(

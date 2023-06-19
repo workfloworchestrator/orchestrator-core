@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2023 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -53,13 +53,19 @@ def generic_apply_filters(
         query: QueryType, filter_by: Iterator[Filter], handle_filter_error: CallableErrorHander
     ) -> QueryType:
         for item in filter_by:
-            field = item.field.lower()
+            field = item.field
             filter_fn = valid_filter_functions_by_column[field]
             try:
                 query = filter_fn(query, item.value)
             except ProblemDetailException as exception:
                 handle_filter_error(
                     exception.detail,
+                    field=field,
+                    value=item.value,
+                )
+            except ValueError as exception:
+                handle_filter_error(
+                    str(exception),
                     field=field,
                     value=item.value,
                 )

@@ -68,6 +68,7 @@ class UtcTimestamp(TypeDecorator):
 
     impl = sqlalchemy.types.TIMESTAMP(timezone=True)
     cache_ok = False
+    python_type = datetime
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
         if value is not None:

@@ -16,6 +16,7 @@ from http import HTTPStatus
 from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
 from uuid import UUID
 
+import strawberry
 from pydantic import BaseModel
 from pydantic.typing import get_args, get_origin, is_union
 
@@ -45,6 +46,7 @@ class strEnum(str, Enum):
         return [obj.value for obj in cls]
 
 
+@strawberry.enum
 class SubscriptionLifecycle(strEnum):
     INITIAL = "initial"
     ACTIVE = "active"
@@ -54,6 +56,7 @@ class SubscriptionLifecycle(strEnum):
     PROVISIONING = "provisioning"
 
 
+@strawberry.enum
 class AcceptItemType(strEnum):
     INFO = "info"
     LABEL = "label"

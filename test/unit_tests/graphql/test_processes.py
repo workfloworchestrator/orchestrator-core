@@ -21,7 +21,6 @@ process_fields = [
     "isTask",
     "lastStep",
     "traceback",
-    "customer",
     "id",
     "lastModified",
     "started",
@@ -48,7 +47,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       isTask
       lastStep
       traceback
-      customer
       id
       lastModified
       started
@@ -56,6 +54,68 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       status
       step
       product
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "ProcessQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
+def get_processes_query_with_subscriptions(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
+) -> bytes:
+    query = """
+query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      assignee
+      createdBy
+      failedReason
+      isTask
+      lastStep
+      traceback
+      id
+      lastModified
+      started
+      workflowName
+      status
+      step
+      product
+      subscriptions {
+        page {
+          name
+          insync
+          endDate
+          description
+          productId
+          startDate
+          status
+          subscriptionId
+          tag
+          note
+        }
+      }
     }
     pageInfo {
       startCursor
@@ -254,10 +314,10 @@ def test_processes_filtering_with_invalid_filter(
                     "status",
                     "workflow",
                     "creator",
-                    "organisation",
                     "product",
                     "tag",
                     "subscription",
+                    "subscriptionId",
                     "target",
                 ],
             },
@@ -275,51 +335,7 @@ def test_processes_filtering_with_invalid_filter(
         assert process["status"] == "COMPLETED"
 
 
-def test_processes_filtering_with_invalid_organisation(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
-):
-    # when
-
-    data = get_processes_query(
-        filter_by=[
-            {"field": "status", "value": "completed"},
-            {"field": "organisation", "value": "54321447"},
-        ]
-    )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    processes_data = result["data"]["processes"]
-    errors = result["errors"]
-    processes = processes_data["page"]
-    pageinfo = processes_data["pageInfo"]
-
-    assert errors == [
-        {
-            "message": "Not a valid organisation, must be a UUID: '54321447'",
-            "path": [None, "processes", "Query"],
-            "extensions": {
-                "field": "organisation",
-                "value": "54321447",
-            },
-        }
-    ]
-    assert pageinfo == {
-        "hasPreviousPage": False,
-        "hasNextPage": False,
-        "startCursor": 0,
-        "endCursor": 3,
-        "totalItems": "4",
-    }
-
-    for process in processes:
-        assert process["status"] == "COMPLETED"
-
-
-def test_single_subscription(
+def test_single_process(
     test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
 ):
     process_pid = str(mocked_processes[0])
@@ -345,3 +361,32 @@ def test_single_subscription(
         "totalItems": "1",
     }
     assert processes[0]["id"] == process_pid
+
+
+def test_single_process_with_subscriptions(
+    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+):
+    process_pid = str(mocked_processes[0])
+    # when
+
+    data = get_processes_query_with_subscriptions(filter_by=[{"field": "pid", "value": process_pid}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    processes_data = result["data"]["processes"]
+    processes = processes_data["page"]
+    pageinfo = processes_data["pageInfo"]
+
+    assert len(processes) == 1
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": "1",
+    }
+    assert processes[0]["id"] == process_pid
+    assert processes[0]["subscriptions"]["page"][0]["subscriptionId"] == generic_subscription_1
