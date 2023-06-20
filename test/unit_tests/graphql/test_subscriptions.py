@@ -16,7 +16,12 @@ from http import HTTPStatus
 from typing import Union
 
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.api.test_subscriptions import PORT_A_SUBSCRIPTION_ID, SERVICE_SUBSCRIPTION_ID, seed  # noqa: F401
+from test.unit_tests.api.test_subscriptions import (  # noqa: F401
+    PORT_A_SUBSCRIPTION_ID,
+    SERVICE_SUBSCRIPTION_ID,
+    SSP_SUBSCRIPTION_ID,
+    seed,
+)
 
 subscription_fields = [
     "endDate",
@@ -382,7 +387,7 @@ def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscriptio
     assert product_tag_list == ["GEN2", "GEN1"]
 
 
-def test_subscriptions_sorting_invalid(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -431,6 +436,23 @@ def test_subscriptions_sorting_invalid(test_client, product_type_1_subscriptions
     ]
 
 
+def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscriptions_factory):
+    # when
+
+    product_type_1_subscriptions_factory(30)
+    data = get_subscriptions_query(sort_by=[{"field": "start_date", "order": "test"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+
+    assert not result["data"]
+    assert "errors" in result
+    assert "Value 'test' does not exist in 'SortOrder'" in result["errors"][0]["message"]
+
+
 def test_subscriptions_filtering_on_status(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
     # when
 
@@ -474,8 +496,14 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
     # when
 
     product_type_1_subscriptions_factory(30)
-    higher_then_date = datetime.datetime.now().isoformat()
-    lower_then_date = (datetime.datetime.now() + datetime.timedelta(days=3)).isoformat()
+
+    data = get_subscriptions_query(first=1)
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    first_subscription = response.json()["data"]["subscriptions"]["page"][0]
+
+    first_subscription_date = datetime.datetime.fromisoformat(first_subscription["startDate"])
+    higher_then_date = first_subscription_date.isoformat()
+    lower_then_date = (first_subscription_date + datetime.timedelta(days=3)).isoformat()
 
     data = get_subscriptions_query(
         filter_by=[
@@ -498,12 +526,12 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
         "hasPreviousPage": False,
         "hasNextPage": False,
         "startCursor": 0,
-        "endCursor": 2,
-        "totalItems": "3",
+        "endCursor": 3,
+        "totalItems": "4",
     }
 
     for subscription in subscriptions:
-        assert higher_then_date < subscription["startDate"] < lower_then_date
+        assert higher_then_date <= subscription["startDate"] <= lower_then_date
 
 
 def test_subscriptions_filtering_with_invalid_filter(
@@ -691,7 +719,9 @@ def test_single_subscription_with_depends_on_subscriptions(
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert len(subscriptions[0]["processes"]["page"]) == 0
-    assert subscriptions[0]["dependsOnSubscriptions"]["page"][0]["subscriptionId"] == PORT_A_SUBSCRIPTION_ID
+    result_ids = [sub["subscriptionId"] for sub in subscriptions[0]["dependsOnSubscriptions"]["page"]]
+    assert PORT_A_SUBSCRIPTION_ID in result_ids
+    assert SSP_SUBSCRIPTION_ID in result_ids
     assert len(subscriptions[0]["inUseBySubscriptions"]["page"]) == 0
 
 
