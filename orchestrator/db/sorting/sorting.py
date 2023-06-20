@@ -14,6 +14,7 @@
 from enum import Enum
 from typing import Callable, Iterator, TypeVar
 
+import strawberry
 from more_itertools import partition
 from pydantic import BaseModel
 from sqlalchemy import Column
@@ -24,6 +25,7 @@ from orchestrator.db.database import SearchQuery
 from orchestrator.db.filters import CallableErrorHandler
 
 
+@strawberry.enum(description="Sort order (ASC or DESC)")
 class SortOrder(Enum):
     ASC = "asc"
     DESC = "desc"
@@ -32,9 +34,6 @@ class SortOrder(Enum):
 class Sort(BaseModel):
     field: str
     order: SortOrder
-
-    class Config:
-        use_enum_values = True
 
 
 GenericType = TypeVar("GenericType")
@@ -103,7 +102,7 @@ def generic_sort(
         handle_sort_error: CallableErrorHandler,
     ) -> QueryType:
         invalid_sort_items, valid_sort_items = _validate_sorts(sort_by)
-        if invalid_list := [item.dict() for item in invalid_sort_items]:
+        if invalid_list := [{"field": item.field, "order": item.order.value.upper()} for item in invalid_sort_items]:
             handle_sort_error(
                 "Invalid sort arguments",
                 invalid_sorting=invalid_list,
@@ -117,7 +116,7 @@ def generic_sort(
 
 def generic_column_sort(field: Column) -> Callable[[SearchQuery, SortOrder], SearchQuery]:
     def sort_function(query: SearchQuery, order: SortOrder) -> SearchQuery:
-        if order == SortOrder.DESC.value:  # type: ignore
+        if order == SortOrder.DESC:
             return query.order_by(expression.desc(field))
         return query.order_by(expression.asc(field))
 

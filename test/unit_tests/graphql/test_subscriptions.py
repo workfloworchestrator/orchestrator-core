@@ -410,7 +410,7 @@ def test_subscriptions_sorting_invalid(test_client, product_type_1_subscriptions
             "message": "Invalid sort arguments",
             "path": [None, "subscriptions", "Query"],
             "extensions": {
-                "invalid_sorting": [{"field": "start_date", "order": "desc"}],
+                "invalid_sorting": [{"field": "start_date", "order": "DESC"}],
                 "valid_sort_keys": [
                     "productId",
                     "name",
