@@ -124,16 +124,14 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
       }
       subscriptions {
         page {
-          name
-          insync
-          endDate
           description
-          productId
-          startDate
-          status
           subscriptionId
-          tag
+          productId
+          status
+          insync
           note
+          startDate
+          endDate
         }
       }
     }

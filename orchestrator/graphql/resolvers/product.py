@@ -3,7 +3,7 @@ from typing import Union
 import structlog
 from graphql import GraphQLError
 
-from orchestrator.db.filters import CallableErrorHander, Filter
+from orchestrator.db.filters import CallableErrorHandler, Filter
 from orchestrator.db.filters.product import filter_products
 from orchestrator.db.models import ProductTable
 from orchestrator.db.range.range import apply_range_to_query
@@ -16,7 +16,7 @@ from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 logger = structlog.get_logger(__name__)
 
 
-def handle_product_error(info: CustomInfo) -> CallableErrorHander:
+def handle_product_error(info: CustomInfo) -> CallableErrorHandler:
     def _handle_product_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
         extra_values = kwargs if kwargs else {}

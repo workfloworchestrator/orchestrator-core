@@ -99,19 +99,15 @@ class SubscriptionGraphqlSchema(OrchestratorBaseModel):
     status: str
     insync: bool
     note: Optional[str]
-    name: Optional[str]
-    tag: Optional[str]
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionGraphqlSchema, all_fields=True)
 class SubscriptionType:
-    subscription_id: strawberry.auto
-
     @strawberry.field(description="Return all products blocks that are part of a subscription")  # type: ignore
     async def product_blocks(
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
     ) -> list[SubscriptionProductBlock]:
-        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
+        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)  # type:ignore
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
     async def processes(
@@ -122,8 +118,8 @@ class SubscriptionType:
         first: int = 10,
         after: int = 0,
     ) -> Connection[ProcessType]:
-        filter_by_with_related_processes = filter_by or [] + [
-            GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))
+        filter_by_with_related_processes = (filter_by or []) + [
+            GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))  # type:ignore
         ]
         return await resolve_processes(info, filter_by_with_related_processes, sort_by, first, after)
 
@@ -139,7 +135,7 @@ class SubscriptionType:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_in_use_by_subscriptions
 
-        in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
+        in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)  # type:ignore
         query_results = in_use_by_query.with_entities(SubscriptionTable.subscription_id).all()
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
@@ -161,7 +157,7 @@ class SubscriptionType:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_depends_on_subscriptions
 
-        depends_on_query = query_depends_on_subscriptions(self.subscription_id)
+        depends_on_query = query_depends_on_subscriptions(self.subscription_id)  # type:ignore
         query_results = depends_on_query.with_entities(SubscriptionTable.subscription_id).all()
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:

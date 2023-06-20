@@ -15,10 +15,9 @@ from typing import Union
 
 import structlog
 from graphql import GraphQLError
-from sqlalchemy.orm import joinedload
 
-from orchestrator.db import SubscriptionTable
-from orchestrator.db.filters import CallableErrorHander, Filter
+from orchestrator.db import ProductTable, SubscriptionTable
+from orchestrator.db.filters import CallableErrorHandler, Filter
 from orchestrator.db.filters.subscription import filter_subscriptions
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
@@ -29,7 +28,7 @@ from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 logger = structlog.get_logger(__name__)
 
 
-def handle_subscription_error(info: CustomInfo) -> CallableErrorHander:
+def handle_subscription_error(info: CustomInfo) -> CallableErrorHandler:
     def _handle_subscription_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
         extra_values = kwargs if kwargs else {}
@@ -51,7 +50,7 @@ async def resolve_subscriptions(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.info("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    query = SubscriptionTable.query.options(joinedload(SubscriptionTable.product))
+    query = SubscriptionTable.query.join(ProductTable)
 
     query = filter_subscriptions(query, pydantic_filter_by, _error_handler)
     query = sort_subscriptions(query, pydantic_sort_by, _error_handler)

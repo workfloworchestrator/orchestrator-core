@@ -542,7 +542,7 @@ def generic_product_type_2(generic_product_2, generic_product_block_type_3):
 
 
 @pytest.fixture
-def generic_subscription_factory(generic_product_1, generic_product_type_1):
+def product_type_1_subscription_factory(generic_product_1, generic_product_type_1):
     def subscription_create(
         description="Generic Subscription One",
         start_date="2023-05-24T00:00:00+00:00",
@@ -568,10 +568,10 @@ def generic_subscription_factory(generic_product_1, generic_product_type_1):
 
 
 @pytest.fixture
-def generic_subscriptions_factory(generic_subscription_factory):
-    def subscriptions_create(amount):
+def product_type_1_subscriptions_factory(product_type_1_subscription_factory):
+    def subscriptions_create(amount=1):
         return [
-            generic_subscription_factory(
+            product_type_1_subscription_factory(
                 description=f"Subscription {i}",
                 start_date=(
                     datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
@@ -584,8 +584,8 @@ def generic_subscriptions_factory(generic_subscription_factory):
 
 
 @pytest.fixture
-def generic_subscription_1(generic_subscription_factory):
-    return generic_subscription_factory()
+def generic_subscription_1(product_type_1_subscription_factory):
+    return product_type_1_subscription_factory()
 
 
 @pytest.fixture
