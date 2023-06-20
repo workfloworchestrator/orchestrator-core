@@ -1,13 +1,11 @@
-from orchestrator.db import ProductTable
-from orchestrator.db.sorting.sorting import generic_sort
+from sqlalchemy.inspection import inspect
 
-VALID_SORT_KEY_MAP = {
-    "created_at": "created_at",
-    "end_date": "end_date",
-    "status": "status",
-    "product_type": "product_type",
-    "name": "name",
-    "tag": "tag",
+from orchestrator.db import ProductTable
+from orchestrator.db.sorting.sorting import generic_column_sort, generic_sort
+from orchestrator.utils.helpers import to_camel
+
+PRODUCT_SORT_FUNCTIONS_BY_COLUMN = {
+    to_camel(key): generic_column_sort(value) for [key, value] in inspect(ProductTable).columns.items()
 }
 
-sort_products = generic_sort(VALID_SORT_KEY_MAP, ProductTable)
+sort_products = generic_sort(PRODUCT_SORT_FUNCTIONS_BY_COLUMN)

@@ -104,16 +104,14 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       product
       subscriptions {
         page {
-          name
-          insync
-          endDate
           description
-          productId
-          startDate
-          status
           subscriptionId
-          tag
+          productId
+          status
+          insync
           note
+          startDate
+          endDate
         }
       }
     }
