@@ -1,5 +1,5 @@
 from orchestrator.db.filters.filters import (
-    CallableErrorHander,
+    CallableErrorHandler,
     Filter,
     generic_apply_filters,
     generic_filter,
@@ -8,7 +8,7 @@ from orchestrator.db.filters.filters import (
 
 __all__ = [
     "Filter",
-    "CallableErrorHander",
+    "CallableErrorHandler",
     "generic_filter",
     "generic_apply_filters",
     "generic_filters_validate",

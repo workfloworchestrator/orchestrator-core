@@ -17,7 +17,7 @@ import structlog
 from graphql import GraphQLError
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.filters import CallableErrorHander, Filter
+from orchestrator.db.filters import CallableErrorHandler, Filter
 from orchestrator.db.filters.subscription import filter_subscriptions
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
@@ -28,7 +28,7 @@ from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 logger = structlog.get_logger(__name__)
 
 
-def handle_subscription_error(info: CustomInfo) -> CallableErrorHander:
+def handle_subscription_error(info: CustomInfo) -> CallableErrorHandler:
     def _handle_subscription_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
         extra_values = kwargs if kwargs else {}

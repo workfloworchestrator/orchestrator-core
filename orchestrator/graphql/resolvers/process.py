@@ -18,7 +18,7 @@ from graphql import GraphQLError
 from sqlalchemy.orm import defer, joinedload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable
-from orchestrator.db.filters import CallableErrorHander, Filter
+from orchestrator.db.filters import CallableErrorHandler, Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort
@@ -38,7 +38,7 @@ def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
     return ProcessGraphqlSchema(**data)
 
 
-def handle_process_error(info: CustomInfo) -> CallableErrorHander:
+def handle_process_error(info: CustomInfo) -> CallableErrorHandler:
     def _handle_process_error(message: str, **kwargs) -> None:  # type: ignore
         logger.debug(message, **kwargs)
         extra_values = kwargs if kwargs else {}
