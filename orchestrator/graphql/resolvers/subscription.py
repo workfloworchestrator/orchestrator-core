@@ -14,27 +14,18 @@
 from typing import Union
 
 import structlog
-from graphql import GraphQLError
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.filters import CallableErrorHandler, Filter
+from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import filter_subscriptions
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.subscription import SubscriptionType
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 
 logger = structlog.get_logger(__name__)
-
-
-def handle_subscription_error(info: CustomInfo) -> CallableErrorHandler:
-    def _handle_subscription_error(message: str, **kwargs) -> None:  # type: ignore
-        logger.debug(message, **kwargs)
-        extra_values = kwargs if kwargs else {}
-        info.context.errors.append(GraphQLError(message=message, path=info.path, extensions=extra_values))
-
-    return _handle_subscription_error
 
 
 async def resolve_subscriptions(
@@ -44,7 +35,7 @@ async def resolve_subscriptions(
     first: int = 10,
     after: int = 0,
 ) -> Connection[SubscriptionType]:
-    _error_handler = handle_subscription_error(info)
+    _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
