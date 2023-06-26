@@ -261,7 +261,7 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
     pid = response.json()["id"]
 
     try:
-        with test_client.websocket_connect("api/processes/all?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Abort process
             response = test_client.put(f"/api/processes/{pid}/abort")
             assert HTTPStatus.NO_CONTENT == response.status_code
