@@ -1171,7 +1171,7 @@ class SubscriptionModel(DomainModel):
             end_date=end_date,
             note=note,
             **fixed_inputs,
-            **instances,  # type: ignore
+            **instances,
         )
         model._db_model = subscription
         return model
@@ -1275,7 +1275,7 @@ class SubscriptionModel(DomainModel):
                 end_date=subscription.end_date,
                 note=subscription.note,
                 **fixed_inputs,
-                **instances,  # type: ignore
+                **instances,
             )
             model._db_model = subscription
             return model
@@ -1325,7 +1325,7 @@ class SubscriptionModel(DomainModel):
                 end_date=subscription.end_date,
                 note=subscription.note,
                 **fixed_inputs,
-                **instances,  # type: ignore
+                **instances,
             )
             model._db_model = subscription
             return model

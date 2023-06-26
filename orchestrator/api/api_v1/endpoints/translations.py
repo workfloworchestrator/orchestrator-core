@@ -22,9 +22,11 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
+language_str = constr(regex="^[a-z]+-[A-Z]+$")
+
 
 @router.get("/{language}", response_model=dict)
-def get_translations(language: str = constr(regex="^[a-z]+-[A-Z]+$")) -> dict:
+def get_translations(language: language_str) -> dict:  # type: ignore
     translations = generate_translations(language)
 
     return translations
