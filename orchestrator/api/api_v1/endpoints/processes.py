@@ -22,9 +22,9 @@ from uuid import UUID
 
 import structlog
 from fastapi import Request
-from fastapi.websockets import WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
+from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from oauth2_lib.fastapi import OIDCUserModel
@@ -320,6 +320,7 @@ def processes_filterable(
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))
 
     return [asdict(enrich_process(p)) for p in results]
+
 
 ws_router = APIRouter()
 
