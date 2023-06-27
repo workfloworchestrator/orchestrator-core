@@ -21,7 +21,8 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
-from fastapi import Request, WebSocket
+from fastapi import Request
+from fastapi.websockets import WebSocket
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi_etag.dependency import CacheHit
@@ -47,7 +48,7 @@ from orchestrator.schemas import (
     ProcessSubscriptionSchema,
 )
 from orchestrator.schemas.process import ProcessStatusCounts
-from orchestrator.security import oidc_user, opa_security_default
+from orchestrator.security import oidc_user
 from orchestrator.services.processes import (
     SYSTEM_USER,
     _async_resume_processes,
@@ -69,9 +70,7 @@ router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
-@router.delete(
-    "/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(opa_security_default)]
-)
+@router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete(pid: UUID) -> None:
     process = ProcessTable.query.filter_by(pid=pid).one_or_none()
     if not process:
@@ -84,12 +83,7 @@ def delete(pid: UUID) -> None:
     db.session.commit()
 
 
-@router.post(
-    "/{workflow_key}",
-    response_model=ProcessIdSchema,
-    status_code=HTTPStatus.CREATED,
-    dependencies=[Depends(opa_security_default)],
-)
+@router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
 def new_process(
     workflow_key: str,
     request: Request,
@@ -105,12 +99,7 @@ def new_process(
     return {"id": pid}
 
 
-@router.put(
-    "/{pid}/resume",
-    response_model=None,
-    status_code=HTTPStatus.NO_CONTENT,
-    dependencies=[Depends(opa_security_default)],
-)
+@router.put("/{pid}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def resume_process_endpoint(
     pid: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> None:
@@ -133,7 +122,7 @@ def resume_process_endpoint(
     resume_process(process, user=user_name, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
-@router.put("/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(opa_security_default)])
+@router.put("/resume-all", response_model=ProcessResumeAllSchema)
 async def resume_all_processess_endpoint(
     request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> Dict[str, int]:
@@ -171,9 +160,7 @@ async def resume_all_processess_endpoint(
     return {"count": len(processes_to_resume)}
 
 
-@router.put(
-    "/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(opa_security_default)]
-)
+@router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
     process = _get_process(pid)
 
@@ -187,9 +174,7 @@ def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserM
 
 
 @router.get(
-    "/process-subscriptions-by-subscription-id/{subscription_id}",
-    response_model=List[ProcessSubscriptionSchema],
-    dependencies=[Depends(opa_security_default)],
+    "/process-subscriptions-by-subscription-id/{subscription_id}", response_model=List[ProcessSubscriptionSchema]
 )
 def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[ProcessSubscriptionSchema]:
     query = (
@@ -201,11 +186,7 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
     return query.all()
 
 
-@router.get(
-    "/process-subscriptions-by-pid/{pid}",
-    response_model=List[ProcessSubscriptionBaseSchema],
-    dependencies=[Depends(opa_security_default)],
-)
+@router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
     return ProcessSubscriptionTable.query.filter_by(pid=pid).all()
 
@@ -226,12 +207,12 @@ def check_global_lock() -> None:
         )
 
 
-@router.get("/statuses", response_model=List[ProcessStatus], dependencies=[Depends(opa_security_default)])
+@router.get("/statuses", response_model=List[ProcessStatus])
 def statuses() -> List[str]:
     return [status.value for status in ProcessStatus]
 
 
-@router.get("/status-counts", response_model=ProcessStatusCounts, dependencies=[Depends(opa_security_default)])
+@router.get("/status-counts", response_model=ProcessStatusCounts)
 def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
     rows = (
@@ -247,12 +228,12 @@ def status_counts() -> ProcessStatusCounts:
     )
 
 
-@router.get("/assignees", response_model=List[Assignee], dependencies=[Depends(opa_security_default)])
+@router.get("/assignees", response_model=List[Assignee])
 def assignees() -> List[str]:
     return [assignee.value for assignee in Assignee]
 
 
-@router.get("/{pid}", response_model=ProcessSchema, dependencies=[Depends(opa_security_default)])
+@router.get("/{pid}", response_model=ProcessSchema)
 def show(pid: UUID) -> Dict[str, Any]:
     process = _get_process(pid)
     p = load_process(process)
@@ -266,7 +247,7 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
     raise_status(HTTPStatus.BAD_REQUEST, message)
 
 
-@router.get("/", response_model=List[ProcessListItemSchema], dependencies=[Depends(opa_security_default)])
+@router.get("/", response_model=List[ProcessListItemSchema])
 def processes_filterable(
     response: Response,
     range: Optional[str] = None,
@@ -340,10 +321,11 @@ def processes_filterable(
 
     return [asdict(enrich_process(p)) for p in results]
 
+ws_router = APIRouter()
 
 if app_settings.ENABLE_WEBSOCKETS:
 
-    @router.websocket("/all/")
+    @ws_router.websocket("/all/")
     async def websocket_process_list(websocket: WebSocket, token: str) -> None:
         error = await websocket_manager.authorize(websocket, token)
 

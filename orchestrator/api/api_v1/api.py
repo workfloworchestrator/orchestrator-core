@@ -39,7 +39,12 @@ api_router.include_router(
     tags=["Core", "Fixed Inputs"],
     dependencies=[Depends(opa_security_default)],
 )
-api_router.include_router(processes.router, prefix="/processes", tags=["Core", "Processes"])
+api_router.include_router(
+    processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(opa_security_default)]
+)
+api_router.include_router(
+    processes.ws_router, prefix="/processes", tags=["Core", "Processes"]
+)
 
 api_router.include_router(
     product_blocks.router,
