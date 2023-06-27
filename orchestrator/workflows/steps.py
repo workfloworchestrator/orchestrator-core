@@ -195,7 +195,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
             # If subscription_instance is a ProductBlockModel check the owner_subscription_id to decide the cache
             elif isinstance(subscription_instance, ProductBlockModel):
                 _cache_other_subscriptions(subscription_instance)
-                if not subscription_instance.owner_subscription_id == subscription.subscription_id:  # type: ignore
+                if not subscription_instance.owner_subscription_id == subscription.subscription_id:
                     cached_subscription_ids.add(subscription_instance.owner_subscription_id)
 
     for field in subscription.__fields__:

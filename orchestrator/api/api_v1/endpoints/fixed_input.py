@@ -53,7 +53,7 @@ def fi_configuration() -> Dict[str, Any]:
                         {
                             "name": fi_name,
                             "description": (fi_type.__doc__ or fi_name).splitlines()[0],
-                            "values": list(map(lambda v: str(v.value), fi_type)),  # type: ignore
+                            "values": list(map(lambda v: str(v.value), fi_type)),
                         }
                     )
                 else:
