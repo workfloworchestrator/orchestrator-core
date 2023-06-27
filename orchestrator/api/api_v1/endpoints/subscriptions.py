@@ -299,9 +299,6 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
         raise_status(HTTPStatus.NOT_FOUND, str(e))
 
 
-@router.get("/{subscription_id}/metadata", response_model=None, status_code=HTTPStatus.OK)
-def subscription_metadata(subscription_id: UUID, response: Response) -> Optional[dict]:
-    md = get_subscription_metadata(str(subscription_id))
-    if md is None:
-        response.status_code = HTTPStatus.NOT_FOUND
-    return md
+@router.get("/{subscription_id}/metadata", status_code=HTTPStatus.OK)
+def subscription_metadata(subscription_id: UUID) -> Optional[dict]:
+    return get_subscription_metadata(str(subscription_id))
