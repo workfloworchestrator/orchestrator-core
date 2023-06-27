@@ -12,8 +12,8 @@
 # limitations under the License.
 
 import structlog
-from fastapi import Query
 from fastapi.routing import APIRouter
+from pydantic import constr
 
 from orchestrator.services.translations import generate_translations
 
@@ -22,9 +22,11 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
+language_str = constr(regex="^[a-z]+-[A-Z]+$")
+
 
 @router.get("/{language}", response_model=dict)
-def get_translations(language: str = Query(..., regex="^[a-z]+-[A-Z]+$")) -> dict:
+def get_translations(language: language_str) -> dict:  # type: ignore
     translations = generate_translations(language)
 
     return translations

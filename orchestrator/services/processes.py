@@ -535,7 +535,7 @@ async def _async_resume_processes(
                     logger.exception("Failed to resume process", pid=_proc.pid)
             logger.info("Completed resuming processes")
         finally:
-            distlock_manager.release_sync(lock)  # type: ignore
+            distlock_manager.release_sync(lock)
 
     # Start all jobs in the background. BackgroundTasks might be more suited.
     workflow_executor = get_thread_pool()

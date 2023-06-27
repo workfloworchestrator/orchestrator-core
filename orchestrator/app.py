@@ -142,6 +142,8 @@ class OrchestratorCore(FastAPI):
             environment=environment,
             release=f"orchestrator@{release}",
             integrations=[SqlalchemyIntegration(), RedisIntegration(), FastApiIntegration(transaction_style="url")],
+            propagate_traces=True,
+            profiles_sample_rate=trace_sample_rate,
         )
 
     @staticmethod
