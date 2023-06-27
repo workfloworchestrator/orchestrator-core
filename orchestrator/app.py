@@ -26,6 +26,7 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from pydantic.json import ENCODERS_BY_TYPE
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
@@ -46,6 +47,7 @@ from orchestrator.forms import FormException
 from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
+from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
 
@@ -76,6 +78,9 @@ class OrchestratorCore(FastAPI):
             shutdown_functions.extend(
                 [websocket_manager.disconnect_all, self.broadcast_thread.stop, websocket_manager.disconnect_redis]
             )
+
+        # Make sure encoding is done correctly on the response.
+        ENCODERS_BY_TYPE[VlanRanges] = str
 
         super().__init__(
             title=title,
