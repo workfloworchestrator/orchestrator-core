@@ -228,7 +228,7 @@ class ProductTable(BaseModel):
         return wfs[0].name if len(wfs) > 0 else None
 
     def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
-        return first_true(self.workflows, None, lambda wf: wf.name == name)
+        return first_true(self.workflows, None, lambda wf: wf.name == name)  # type: ignore
 
 
 class FixedInputTable(BaseModel):
@@ -449,7 +449,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
 
     def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:
-        return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)
+        return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)  # type: ignore
 
 
 SubscriptionInstanceTable.parent_relations = SubscriptionInstanceTable.in_use_by_block_relations
