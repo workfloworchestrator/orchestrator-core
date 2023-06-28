@@ -16,14 +16,14 @@ from http import HTTPStatus
 from typing import Dict, Optional, cast
 
 import structlog
-from nwastdlib.ex import show_ex
 
+from nwastdlib.ex import show_ex
 from orchestrator.types import JSON, ErrorDict
 
 logger = structlog.get_logger(__name__)
 
 
-class ApiException(Exception):
+class ApiException(Exception):  # noqa: N818
     """Api Exception Class.
 
     This is a copy of what is generated in api_clients. We use this to have consistent error handling for nso to.
@@ -62,7 +62,7 @@ class ApiException(Exception):
         return error_message
 
 
-class ProcessFailure(Exception):
+class ProcessFailureError(Exception):
     message: str
     details: JSON
 
@@ -72,7 +72,7 @@ class ProcessFailure(Exception):
         self.details = details
 
 
-class InconsistentData(ProcessFailure):
+class InconsistentDataError(ProcessFailureError):
     pass
 
 
@@ -102,9 +102,10 @@ def error_state_to_dict(err: Exception) -> ErrorDict:
         An ErrorDict containing the error message a status_code and a traceback if available
 
     """
-    if isinstance(err, ProcessFailure):
+    if isinstance(err, ProcessFailureError):
         return {"class": type(err).__name__, "error": err.message, "traceback": show_ex(err), "details": err.details}
-    elif is_api_exception(err):
+
+    if is_api_exception(err):
         err = cast(ApiException, err)
         return {
             "class": type(err).__name__,
@@ -114,5 +115,4 @@ def error_state_to_dict(err: Exception) -> ErrorDict:
             "headers": "\n".join(f"{k}: {v}" for k, v in err.headers.items()),
             "traceback": show_ex(err),
         }
-    else:
-        return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}
+    return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}

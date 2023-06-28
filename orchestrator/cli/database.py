@@ -58,8 +58,7 @@ def alembic_cfg() -> Config:
     help="Initialize an empty migrations environment. This command will throw an exception when it detects conflicting files and directories."
 )
 def init() -> None:
-    """
-    Initialize the migrations directory.
+    """Initialize the migrations directory.
 
     This command will initialize a migration directory for the orchestrator core application and setup a correct
     migration environment.
@@ -118,8 +117,7 @@ def merge(
     ),
     message: str = typer.Option(None, "--message", "-m", help="The revision message"),
 ) -> None:
-    """
-    Merge database revisions.
+    """Merge database revisions.
 
     Args:
         revisions: List of revisions to merge
@@ -134,8 +132,7 @@ def merge(
 
 @app.command()
 def upgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgrade to")) -> None:
-    """
-    Upgrade the database.
+    """Upgrade the database.
 
     Args:
         revision: Optional argument to indicate where to upgrade to.
@@ -149,8 +146,7 @@ def upgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgra
 
 @app.command()
 def downgrade(revision: Optional[str] = typer.Argument("-1", help="Rev id to upgrade to")) -> None:
-    """
-    Downgrade the database.
+    """Downgrade the database.
 
     Args:
         revision: Optional argument to indicate where to downgrade to.
@@ -169,8 +165,7 @@ def revision(
     autogenerate: bool = typer.Option(False, help="Detect schema changes and add migrations"),
     head: str = typer.Option(None, help="Determine the head you need to add your migration to."),
 ) -> None:
-    """
-    Create a new revision file.
+    """Create a new revision file.
 
     Args:
         message: The revision message
@@ -190,8 +185,7 @@ def history(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     indicate_current: bool = typer.Option(False, "--current", "-c", help="Indicate current revision"),
 ) -> None:
-    """
-    List changeset scripts in chronological order.
+    """List changeset scripts in chronological order.
 
     Args:
         verbose: Verbose output
@@ -217,24 +211,24 @@ def migrate_domain_models(
     Resource type updates are only handled when it's renamed in all product blocks.
 
     Args:
-    - `message`: Message/description of the generated migration.
-    - `--test`: Optional boolean if you don't want to generate a migration file.
-    - `--inputs`: stringified dict to prefill inputs.
-        The inputs and updates argument is mostly used for testing, prefilling the given inputs, here examples:
-        - new product: `inputs = { "new_product_name": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
-        - new product fixed input: `inputs = { "new_product_name": { "new_fixed_input_name": "value" }}`
-        - new product block: `inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }`
-        - new resource type: `inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value", "new_product_block_name": "add default value for block" }}`
-            - `new_product_block_name` prop inserts value specifically for that block.
-            - `value` prop is inserted as default for all existing instances it is added to.
+        message: Message/description of the generated migration.
+        test: Optional boolean if you don't want to generate a migration file.
+        inputs: stringified dict to prefill inputs.
+            The inputs and updates argument is mostly used for testing, prefilling the given inputs, here examples:
+            - new product: `inputs = { "new_product_name": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}`
+            - new product fixed input: `inputs = { "new_product_name": { "new_fixed_input_name": "value" }}`
+            - new product block: `inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }`
+            - new resource type: `inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value", "new_product_block_name": "add default value for block" }}`
+                - `new_product_block_name` prop inserts value specifically for that block.
+                - `value` prop is inserted as default for all existing instances it is added to.
 
-    - `--updates`: stringified dict to prefill inputs.
-        - renaming a fixed input:
-            - `updates = { "fixed_inputs": { "product_name": { "old_fixed_input_name": "new_fixed_input_name" } } }`
-        - renaming a resource type to a new resource type:
-            - `inputs = { "new_resource_type_name": { "description": "add description" }}`
-            - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
-        - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
+        updates: stringified dict to prefill inputs.
+            - renaming a fixed input:
+                - `updates = { "fixed_inputs": { "product_name": { "old_fixed_input_name": "new_fixed_input_name" } } }`
+            - renaming a resource type to a new resource type:
+                - `inputs = { "new_resource_type_name": { "description": "add description" }}`
+                - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
+            - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
 
     Returns None unless `--test` is used, in which case it returns:
         - tuple:
@@ -280,8 +274,8 @@ def migrate_workflows(
     Resource type updates are only handled when it's renamed in all product blocks.
 
     Args:
-    - `message`: Message/description of the generated migration.
-    - `--test`: Optional boolean if you don't want to generate a migration file.
+        message: Message/description of the generated migration.
+        test: Optional boolean if you don't want to generate a migration file.
 
     Returns None unless `--test` is used, in which case it returns:
         - tuple:

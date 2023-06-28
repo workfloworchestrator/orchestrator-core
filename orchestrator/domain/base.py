@@ -74,7 +74,7 @@ from orchestrator.utils.docs import make_product_block_docstring, make_subscript
 logger = structlog.get_logger(__name__)
 
 
-class ProductNotInRegistryException(Exception):
+class ProductNotInRegistryError(Exception):
     pass
 
 
@@ -103,8 +103,7 @@ def _is_constrained_list_type(type: Type) -> bool:
         # Strip generic arguments, it still might be a subclass
         if get_origin(type):
             return _is_constrained_list_type(get_origin(type))  # type: ignore
-        else:
-            return False
+        return False
 
     return is_constrained_list
 
@@ -234,7 +233,7 @@ class DomainModel(BaseModel):
                 cls._non_product_block_fields_[field_name] = field_type
 
     @classmethod
-    def _init_instances(
+    def _init_instances(  # noqa: C901
         cls, subscription_id: UUID, skip_keys: Optional[List[str]] = None
     ) -> Dict[str, Union[List["ProductBlockModel"], "ProductBlockModel"]]:
         """Initialize default subscription instances.
@@ -243,6 +242,7 @@ class DomainModel(BaseModel):
         We also create all subscription instances for it. This function does that.
 
         Args:
+            subscription_id: The UUID of the subscription
             skip_keys: list of fields on the class to skip when creating dummy instances.
 
         Returns:
@@ -285,7 +285,7 @@ class DomainModel(BaseModel):
         return instances
 
     @classmethod
-    def _load_instances(
+    def _load_instances(  # noqa: C901
         cls,
         db_instances: List[SubscriptionInstanceTable],
         status: SubscriptionLifecycle,
@@ -316,8 +316,7 @@ class DomainModel(BaseModel):
 
         def match_domain_model_attr_if_possible(field_name: str) -> Callable:
             def domain_filter(instance: SubscriptionInstanceTable) -> bool:
-                """
-                Match domain model attributes.
+                """Match domain model attributes.
 
                 This helper is necessary to filter through all relations in a subscription. Not all subscriptions have a
                 domain model attribute that is set as it is not always necessary. However when it is set, it is necessary
@@ -375,7 +374,8 @@ class DomainModel(BaseModel):
                 instance = only(instance_list)
                 if not is_optional_type(product_block_field_type) and instance is None:
                     raise ValueError("Required subscription instance is missing in database")
-                elif is_optional_type(product_block_field_type) and instance is None:
+
+                if is_optional_type(product_block_field_type) and instance is None:
                     instances[product_block_field_name] = None
                 elif instance:
                     assert (  # noqa: S101
@@ -874,13 +874,13 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
         subscription_instance: SubscriptionInstanceTable,
         subscription_instance_mapping: Dict[str, List[SubscriptionInstanceTable]],
     ) -> None:
-        """
-        Save the domain model attribute to the database.
+        """Save the domain model attribute to the database.
 
         This function iterates through the subscription instances and stores the domain model attribute in the
         hierarchy relationship.
 
         Args:
+            subscription_instance: The subscription instance object.
             subscription_instance_mapping: a mapping of the domain model attribute a underlying instances
 
         Returns:
@@ -1302,7 +1302,7 @@ class SubscriptionModel(DomainModel):
             try:
                 cls = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]  # type:ignore
             except KeyError:
-                raise ProductNotInRegistryException(
+                raise ProductNotInRegistryError(
                     f"'{subscription.product.name}' is not found within the SUBSCRIPTION_MODEL_REGISTRY"
                 )
             cls = lookup_specialized_type(cls, status)

@@ -25,9 +25,9 @@ def apply_range_to_query(query: SearchQuery, offset: int, limit: int) -> SearchQ
     """Apply range to the SearchQuery.
 
     Args:
-        - query: The sql query to add offset and limit to.
-        - offset: the limit item in the list to get.
-        - limit: the amount of items to get with offset as start point.
+        query: The sql query to add offset and limit to.
+        offset: the limit item in the list to get.
+        limit: the amount of items to get with offset as start point.
 
     returns the query with offset and limit applied.
     """

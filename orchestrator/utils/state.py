@@ -68,8 +68,7 @@ def _get_sub_id(val: Any) -> Optional[UUID]:
     representation of the domain model.
 
     Args:
-        data: the state like dict
-        name: name of the variable representing a domain model
+        val: The value of the subscription id
 
     Returns:
         A UUID if found, None otherwise.
@@ -82,8 +81,7 @@ def _get_sub_id(val: Any) -> Optional[UUID]:
     elif isinstance(val, UUID):
         return val
     try:
-        uuid = UUID(val)
-        return uuid
+        return UUID(val)
     except Exception:
         return None
 
@@ -137,7 +135,7 @@ def _save_models(state: State) -> None:
             _save_models(value)
 
 
-def _build_arguments(func: Union[StepFunc, InputStepFunc], state: State) -> List:
+def _build_arguments(func: Union[StepFunc, InputStepFunc], state: State) -> List:  # noqa: C901
     """Build actual arguments based on step function signature and state.
 
     What the step function requests in its function signature it what this function retrieves from the state or DB.
@@ -332,7 +330,6 @@ def form_inject_args(func: InputStepFunc) -> StateInputStepFunc:
         @wraps(simple_func)
         def wrapper(state: State) -> Optional[InputForm]:
             args = _build_arguments(simple_func, state)
-            new_state = simple_func(*args)
-            return new_state
+            return simple_func(*args)
 
     return wrapper

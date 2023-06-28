@@ -36,10 +36,10 @@ from uuid import UUID
 
 import strawberry
 import structlog
-from nwastdlib import const, identity
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
+from nwastdlib import const, identity
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, db, transactional
 from orchestrator.forms import FormPage
@@ -147,14 +147,15 @@ class StepList(List[Step]):
     def __rshift__(self, other: Union[StepList, Step]) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
-        elif isinstance(other, StepList):
+
+        if isinstance(other, StepList):
             return StepList([*self, *other])
-        elif hasattr(other, "__name__"):  # type:ignore
+
+        if hasattr(other, "__name__"):  # type:ignore
             raise ValueError(
                 f"Expected @step decorated function or type Step or StepList, got {type(other)} with name {other.__name__} instead."
             )
-        else:
-            raise ValueError(f"Expected @step decorated function or type Step or StepList, got {type(other)} instead.")
+        raise ValueError(f"Expected @step decorated function or type Step or StepList, got {type(other)} instead.")
 
     def __str__(self) -> str:
         return f"StepList [{', '.join(x.name for x in self)}]"
@@ -168,13 +169,12 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
         return cast(StateInputFormGenerator, f)
     if inspect.isgenerator(f):
         raise ValueError("Got a generator object instead of function, this is not correct")
-    else:
-        # If f is a SimpleInputFormGenerator convert to new style generator function
-        def form_generator(state: State) -> FormGenerator:
-            user_input = yield cast(StateSimpleInputFormGenerator, f)(state)
-            return user_input.dict()
+    # If f is a SimpleInputFormGenerator convert to new style generator function
+    def form_generator(state: State) -> FormGenerator:
+        user_input = yield cast(StateSimpleInputFormGenerator, f)(state)
+        return user_input.dict()
 
-        return form_generator
+    return form_generator
 
 
 def make_workflow(
@@ -328,8 +328,7 @@ def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[Sta
 
             if result.isfailed() or result.iswaiting():
                 return result
-            else:
-                return result.map(set(state))
+            return result.map(set(state))
 
         return make_step_function(wrapper, step.name, step.form, step.assignee)
 
@@ -957,8 +956,7 @@ class Process(Generic[S]):
         next_state = self._fold(Success, Success, Success, Success, Abort, Success, Complete)
 
         if self.issuspend():
-            result = resume_suspend(next_state)  # type: ignore
-            return result
+            return resume_suspend(next_state)  # type: ignore
 
         return next_state  # type: ignore
 
@@ -1172,8 +1170,7 @@ def abort_wf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
         state = pstat.state.abort()
 
         return logstep(pstat, abort_func, state)
-    else:
-        return pstat.state
+    return pstat.state
 
 
 @_purestep("Start")

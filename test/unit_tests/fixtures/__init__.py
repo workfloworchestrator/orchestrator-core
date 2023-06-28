@@ -21,8 +21,7 @@ def randomstr(length=3):
 def create_subscription_for_mapping(
     product: ProductTable, mapping: SubscriptionMapping, values: Dict[str, Any], **kwargs: Any
 ) -> SubscriptionTable:
-    """
-    Create a subscription in the test coredb for the given subscription_mapping and values.
+    """Create a subscription in the test coredb for the given subscription_mapping and values.
 
     This function handles optional resource types starting with a ? in the mapping not supplied in the values array.
 
@@ -30,7 +29,7 @@ def create_subscription_for_mapping(
         product: the ProductTable to create a sub for
         mapping: the subscription_mapping belonging to that product
         values: a dictionary of keys from the sub_map and their corresponding test values
-        kwargs:
+        kwargs: The rest of the arguments
 
     Returns: The conforming subscription.
     """

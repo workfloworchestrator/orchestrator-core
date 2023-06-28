@@ -76,8 +76,7 @@ def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptio
 
 
 def _filter_statuses(filter_statuses: Optional[str] = None) -> List[str]:
-    """
-    Check valid filter statuses.
+    """Check valid filter statuses.
 
     Args:
         filter_statuses: the filters.
@@ -137,22 +136,20 @@ def delete_subscription(subscription_id: UUID) -> None:
     all_process_subscriptions = ProcessSubscriptionTable.query.filter_by(subscription_id=subscription_id).all()
     if len(all_process_subscriptions) > 0:
         _delete_process_subscriptions(all_process_subscriptions)
-        return None
-    else:
-        subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).first()
-        if not subscription:
-            raise_status(HTTPStatus.NOT_FOUND)
+        return
+    subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).first()
+    if not subscription:
+        raise_status(HTTPStatus.NOT_FOUND)
 
-        _delete_subscription_tree(subscription)
-        return None
+    _delete_subscription_tree(subscription)
+    return
 
 
 @router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
 def in_use_by_subscriptions(
     subscription_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
 ) -> List[SubscriptionTable]:
-    """
-    Retrieve subscriptions that are in use by this subscription.
+    """Retrieve subscriptions that are in use by this subscription.
 
     Args:
         subscription_id: Subscription to query
@@ -186,8 +183,7 @@ def depends_on_subscriptions(
     subscription_id: UUID,
     filter_statuses: List[str] = Depends(_filter_statuses),
 ) -> List[SubscriptionTable]:
-    """
-    Retrieve dependant subscriptions.
+    """Retrieve dependant subscriptions.
 
     Args:
         subscription_id: The subscription id
@@ -204,8 +200,7 @@ def depends_on_subscriptions(
 def subscriptions_filterable(
     response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
 ) -> List[SubscriptionTable]:
-    """
-    Get subscriptions filtered.
+    """Get subscriptions filtered.
 
     Args:
         response: Fastapi Response object
@@ -224,8 +219,7 @@ def subscriptions_filterable(
     query = SubscriptionTable.query.join(SubscriptionTable.product).options(
         contains_eager(SubscriptionTable.product), defer("product_id")
     )
-    query_result = _query_with_filters(response, query, _range, _sort, _filter)
-    return query_result
+    return _query_with_filters(response, query, _range, _sort, _filter)
 
 
 @router.get(

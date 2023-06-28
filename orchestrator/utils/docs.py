@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Functions for automatically generating docs for workflows and domain models.
+"""Functions for automatically generating docs for workflows and domain models.
 
 WARNING: When developing on these auto generated docs,
     sphinx does not rebuild the files where these functions are called. To see your changes reflected you need to

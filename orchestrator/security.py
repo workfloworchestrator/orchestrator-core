@@ -12,9 +12,9 @@
 # limitations under the License.
 
 from authlib.integrations.starlette_client import OAuth
-from nwastdlib.url import URL
 from oauth2_lib.fastapi import OIDCUser, opa_decision, opa_graphql_decision
 
+from nwastdlib.url import URL
 from orchestrator.settings import oauth2_settings
 
 oauth_client_credentials = OAuth()

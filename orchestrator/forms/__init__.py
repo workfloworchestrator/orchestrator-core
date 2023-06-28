@@ -26,14 +26,14 @@ from orchestrator.utils.json import json_dumps, json_loads
 logger = structlog.get_logger(__name__)
 
 
-__all__ = ("generate_form", "post_process", "FormNotCompleteError", "FormValidationError", "FormException")
+__all__ = ("generate_form", "post_process", "FormNotCompleteError", "FormValidationError", "FormError")
 
 
-class FormException(Exception):
+class FormError(Exception):
     pass
 
 
-class FormNotCompleteError(FormException):
+class FormNotCompleteError(FormError):
     form: InputForm
 
     def __init__(self, form: JSON):
@@ -48,7 +48,7 @@ class PydanticErrorDict(TypedDict):
     ctx: Dict[str, Any]
 
 
-class FormValidationError(FormException):
+class FormValidationError(FormError):
     validator_name: str
     errors: List[PydanticErrorDict]
 

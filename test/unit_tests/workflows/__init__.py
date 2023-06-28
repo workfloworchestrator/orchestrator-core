@@ -279,6 +279,7 @@ def run_form_generator(
         extra_inputs: Optional list of user input dicts for each page in the generator.
                       If no input is given for a page an empty dict is used.
                       The default value from the form is used as default value for a field.
+
     Returns:
         A list of generated forms and the result state for the whole generator.
 

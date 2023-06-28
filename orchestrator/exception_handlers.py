@@ -13,12 +13,12 @@
 
 from http import HTTPStatus
 
-from nwastdlib.ex import show_ex
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from nwastdlib.ex import show_ex
 from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.forms import FormException, FormNotCompleteError, FormValidationError
+from orchestrator.forms import FormError, FormNotCompleteError, FormValidationError
 from orchestrator.utils.json import json_dumps, json_loads
 
 PROBLEM_DETAIL_FIELDS = ("title", "type")
@@ -36,11 +36,10 @@ async def problem_detail_handler(request: Request, exc: ProblemDetailException) 
 
     if headers:
         return JSONResponse(body, status_code=exc.status_code, headers=headers)
-    else:
-        return JSONResponse(body, status_code=exc.status_code)
+    return JSONResponse(body, status_code=exc.status_code)
 
 
-async def form_error_handler(request: Request, exc: FormException) -> JSONResponse:
+async def form_error_handler(request: Request, exc: FormError) -> JSONResponse:
     if isinstance(exc, FormValidationError):
         return JSONResponse(
             {
@@ -54,7 +53,8 @@ async def form_error_handler(request: Request, exc: FormException) -> JSONRespon
             },
             status_code=HTTPStatus.BAD_REQUEST,
         )
-    elif isinstance(exc, FormNotCompleteError):
+
+    if isinstance(exc, FormNotCompleteError):
         return JSONResponse(
             {
                 "type": type(exc).__name__,
@@ -67,13 +67,12 @@ async def form_error_handler(request: Request, exc: FormException) -> JSONRespon
             },
             status_code=HTTPStatus.NOT_EXTENDED,
         )
-    else:
-        return JSONResponse(
-            {
-                "detail": str(exc),
-                "title": "Internal Server Error",
-                "status": HTTPStatus.INTERNAL_SERVER_ERROR,
-                "type": type(exc).__name__,
-            },
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-        )
+    return JSONResponse(
+        {
+            "detail": str(exc),
+            "title": "Internal Server Error",
+            "status": HTTPStatus.INTERNAL_SERVER_ERROR,
+            "type": type(exc).__name__,
+        },
+        status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+    )

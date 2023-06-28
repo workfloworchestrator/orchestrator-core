@@ -168,7 +168,7 @@ def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserM
     broadcast_func = api_broadcast_process_data(request)
     try:
         abort_process(process, user_name, broadcast_func=broadcast_func)
-        return None
+        return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
@@ -192,8 +192,7 @@ def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionT
 
 
 def check_global_lock() -> None:
-    """
-    Check the global lock of the engine.
+    """Check the global lock of the engine.
 
     Returns:
         None or raises an exception
@@ -238,8 +237,7 @@ def show(pid: UUID) -> Dict[str, Any]:
     process = _get_process(pid)
     p = load_process(process)
 
-    data = show_process(process, p)
-    return data
+    return show_process(process, p)
 
 
 def handle_process_error(message: str, **kwargs: Any) -> None:
@@ -248,7 +246,7 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
 
 
 @router.get("/", response_model=List[ProcessListItemSchema])
-def processes_filterable(
+def processes_filterable(  # noqa: C901
     response: Response,
     range: Optional[str] = None,
     sort: Optional[str] = None,

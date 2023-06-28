@@ -15,15 +15,15 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
     """Map fixed inputs to update.
 
     Args:
-        - product_diffs: Dict with product differences.
+        product_diffs: Dict with product differences.
             - key: product name
             - value: Dict with differences between model and database.
                 - key: difference name, 'missing_fixed_inputs_in_model' and 'missing_fixed_inputs_in_db' are used to check if a fixed input can be renamed.
                 - value: Set of fixed input names.
 
     Returns: Dict with updated fixed inputs mapped by product.
-        - key: product name.
-        - value: Dict with updated fixed inputs.
+        key: product name.
+        value: Dict with updated fixed inputs.
             - key: old fixed input name.
             - value: new fixed input name.
     """
@@ -65,15 +65,15 @@ def generate_create_fixed_inputs_sql(
     """Generate SQL to create fixed inputs.
 
     Args:
-        - fixed_inputs: Dict with product names by fixed input.
+        fixed_inputs: Dict with product names by fixed input.
             - key: fixed input value.
             - value: product names.
-        - inputs: Optional Dict to prefill fixed input 'value' per product.
+        inputs: Optional Dict to prefill fixed input 'value' per product.
             - key: fixed input name.
             - value: Dict with prefilled value.
                 - key: 'value' as key.
                 - value: prefilled value.
-        - revert: boolean to create SQL string with value filled by the database.
+        revert: boolean to create SQL string with value filled by the database.
 
     Returns: List of SQL to create fixed inputs.
     """
@@ -115,7 +115,7 @@ def generate_delete_fixed_inputs_sql(fixed_inputs: Dict[str, Set[str]]) -> List[
     """Generate SQL to delete fixed inputs.
 
     Args:
-        - fixed_inputs: Dict with product names by fixed input.
+        fixed_inputs: Dict with product names by fixed input.
             - key: fixed input value.
             - value: product names.
 
@@ -140,7 +140,7 @@ def generate_update_fixed_inputs_sql(product_fixed_inputs: Dict[str, Dict[str, s
     """Generate SQL to update fixed inputs.
 
     Args:
-        - product_fixed_inputs: Dict with product names by fixed input.
+        product_fixed_inputs: Dict with product names by fixed input.
             - key: fixed input value.
             - value: product names.
 

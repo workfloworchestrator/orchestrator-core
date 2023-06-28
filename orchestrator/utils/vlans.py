@@ -49,7 +49,7 @@ class VlanRanges(abc.Set):
 
     _vlan_ranges: Tuple[range, ...]
 
-    def __init__(self, val: Optional[Union[str, int, Iterable[int], Sequence[Sequence[int]]]] = None) -> None:
+    def __init__(self, val: Optional[Union[str, int, Iterable[int], Sequence[Sequence[int]]]] = None) -> None:  # noqa: C901
         # The idea is to bring all acceptable values to one canonical intermediate format: the `Sequence[Sequence[
         # int]]`. Where the inner sequence is either a one or two element sequence. The one element sequence
         # represents a single VLAN, the two element sequence represents a VLAN range.
@@ -67,7 +67,8 @@ class VlanRanges(abc.Set):
         if val is None:
             self._vlan_ranges = ()
             return
-        elif isinstance(val, str):
+
+        if isinstance(val, str):
             if val.strip() != "":
                 # This might look complex, but it does handle strings such as `"  3, 4, 6-9, 4, 8 - 10"`
                 try:
@@ -153,8 +154,7 @@ class VlanRanges(abc.Set):
             new_set = set(self)
             new_set.remove(other)
             return VlanRanges(new_set)
-        else:
-            return VlanRanges(set(self) - set(other))
+        return VlanRanges(set(self) - set(other))
 
     def __and__(self, other: AbstractSet[Any]) -> VlanRanges:
         return VlanRanges(set(self) & set(other))

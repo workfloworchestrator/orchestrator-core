@@ -42,8 +42,8 @@ def map_create_resource_types(resource_type_names: Set[str], updated_resource_ty
     """Map resource types to create.
 
     Args:
-        - resource_types: List of resource type names.
-        - updated_resource_types: List of resource types that get renamed and don't need to be created.
+        resource_type_names: List of resource type names.
+        updated_resource_types: List of resource types that get renamed and don't need to be created.
 
     Returns: List of resource type names that can be created.
     """
@@ -62,8 +62,8 @@ def find_resource_within_blocks(
     """Find resource types within product blocks.
 
     Args:
-        - resource_type_names: List of resource type names.
-        - product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block that hasn't changed.
+        resource_type_names: List of resource type names.
+        product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block that hasn't changed.
 
     Returns: List of the resource_type_names that are found within product blocks.
     """
@@ -100,12 +100,12 @@ def map_rename_resource_types(
     """Map resource types to rename.
 
     Args:
-        - block_diffs: Dict with product block differences.
+        block_diffs: Dict with product block differences.
             - key: product block name
             - value: Dict with differences between model and database.
                 - key: difference name, 'missing_resource_types_in_model' and 'missing_resource_types_in_db' are used to check if a resource type can be renamed.
                 - value: Set of resource type names.
-        - product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
+        product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
 
     Returns: Dict with resource types that can be updated.
         - key: old resource type name.
@@ -179,12 +179,12 @@ def map_update_product_block_resource_types(
     """Map resource types to update per product block.
 
     Args:
-        - block_diffs: Dict with product block differences.
+        block_diffs: Dict with product block differences.
             - key: product block name.
             - value: Dict with differences between model and database.
                 - key: difference name, 'missing_resource_types_in_model' and 'missing_resource_types_in_db' are used to check if a resource type can be renamed.
                 - value: Set of resource type names.
-        - renamed_resource_types: Dict of renamed resource types, old name as key and new name as value.
+        renamed_resource_types: Dict of renamed resource types, old name as key and new name as value.
 
     Returns: Dict with resource types per product block that can be updated.
         - key: product block name.
@@ -222,9 +222,9 @@ def map_delete_resource_types(
     """Map resource types to delete.
 
     Args:
-        - resource_types: List of resource type names.
-        - updated_resource_types: List of resource types that get renamed and shouldn't be deleted.
-        - product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
+        resource_types: List of resource type names.
+        updated_resource_types: List of resource types that get renamed and shouldn't be deleted.
+        product_blocks: Dict of product blocks mapped by product block name, used to check if the resource type still exists in a product block.
 
     Returns: List of resource type names that can be deleted.
     """
@@ -265,7 +265,7 @@ def map_create_resource_type_instances(changes: DomainModelChanges) -> Dict[str,
     Resource types need a default value when the related product block is used in an existing instance or will be used in an existing instance.
 
     Args:
-        - changes: DomainModelChanges class with all changes.
+        changes: DomainModelChanges class with all changes.
 
     Returns: Dict with resource types that need a default value.
         - key: resource type name.
@@ -296,12 +296,13 @@ def generate_create_resource_types_sql(
     """Generate SQL to create resource types.
 
     Args:
-        - resource_types: List of resource type names.
-        - inputs: Optional Dict to add default value to the resource type for existing product block instances.
+        resource_types: List of resource type names.
+        inputs: Optional Dict to add default value to the resource type for existing product block instances.
             - key: Resource type name.
             - value: Dict with product block by default value.
                 - key: Product block name.
                 - value: Default value for the resource type.
+        revert: Revert bool
 
     Returns: List of SQL strings to create resource type.
     """
@@ -330,7 +331,7 @@ def generate_rename_resource_types_sql(resource_types: Dict[str, str]) -> List[s
     """Generate SQL to update resource types.
 
     Args:
-        - resource_types: Dict with new resource type name by old resource type name.
+        resource_types: Dict with new resource type name by old resource type name.
             - key: old resource type name.
             - value: new resource type name.
 
@@ -351,7 +352,7 @@ def generate_delete_resource_types_sql(resource_types: Set[str]) -> List[str]:
     """Generate SQL to delete resource types.
 
     Args:
-        - resource_types: List of resource type names.
+        resource_types: List of resource type names.
 
     Returns: List of SQL strings to delete resource types.
     """
@@ -371,7 +372,7 @@ def generate_create_resource_type_relations_sql(resource_types: Dict[str, Set[st
     """Generate SQL to create resource type relations.
 
     Args:
-        - resource_types: Dict with product blocks by resource type
+        resource_types: Dict with product blocks by resource type
             - key: Resource type name.
             - value: Set of product block names to relate with.
 
@@ -397,10 +398,10 @@ def generate_create_resource_type_instance_values_sql(
     """Generate SQL to create resource type instance values for existing instances.
 
     Args:
-        - resource_types: Dict with product blocks by resource type
+        resource_types: Dict with product blocks by resource type
             - key: Resource type name.
             - value: Set of product block names to relate with.
-        - inputs: Optional Dict to add default value to the resource type for existing product block instances.
+        inputs: Optional Dict to add default value to the resource type for existing product block instances.
             - key: Resource type name.
             - value: Dict with product block by default value.
                 - key: Product block name.
@@ -441,20 +442,19 @@ def generate_create_resource_type_instance_values_sql(
         logger.debug("Generated SQL", sql_string=sql_string)
         return sql_string
 
-    sql_statements = [
+    return [
         sql
         for resource_type, block_names in resource_types.items()
         for block_name in block_names
         if (sql := map_subscription_instance_relations(resource_type, block_name))
     ]
-    return sql_statements
 
 
 def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str, Set[str]]) -> List[str]:
     """Generate SQL to delete resource type relations and its instance values.
 
     Args:
-        - resource_types: Dict with product blocks by resource type
+        delete_resource_types: Dict with product blocks by resource type
             - key: Resource type name.
             - value: Set of product block names to relate with.
 
@@ -491,7 +491,7 @@ def generate_update_resource_type_block_relations_sql(block_rt_updates: Dict[str
     """Generate SQL to update resource type block relations.
 
     Args:
-        - block_rt_updates: Dict with rt updates per product block.
+        block_rt_updates: Dict with rt updates per product block.
             - key: product block name.
             - value: Dict with new resource type name by old resource type name:
                 - key: old resource type name.
@@ -524,7 +524,7 @@ def generate_update_resource_type_instance_values_sql(block_rt_updates: Dict[str
     """Generate SQL to update resource type instance values.
 
     Args:
-        - block_rt_updates: Dict with rt updates per product block.
+        block_rt_updates: Dict with rt updates per product block.
             - key: product block name.
             - value: Dict with new resource type name by old resource type name:
                 - key: old resource type name.

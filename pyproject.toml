@@ -45,7 +45,6 @@ dependencies = [
     "fastapi~=0.98.0",
     "fastapi-etag==0.4.0",
     "more-itertools~=9.0.0",
-    "itsdangerous==2.1.2",
     "Jinja2==3.1.2",
     "opentelemetry-distro",
     "opentelemetry-exporter-otlp",
@@ -65,12 +64,11 @@ dependencies = [
     "sentry-sdk[fastapi]==1.25.1",
     "SQLAlchemy==1.4.48",
     "SQLAlchemy-Utils==0.40.0",
+    "structlog",
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
     "nwa-stdlib~=1.4.8",
     "oauth2-lib~=1.2.10",
-    "markupsafe==2.0.1",
-    "bandit==1.7.2",
     "tabulate==0.9.0",
     "strawberry-graphql==0.171.1"
 ]
@@ -90,20 +88,7 @@ test = [
     "black",
     "blinker",
     "deepdiff",
-    "flake8 < 5.0.0", # Due to https://github.com/tylerwince/flake8-bandit/issues/33
-    "flake8-bandit",
-    "flake8-bugbear",
-    "flake8-comprehensions",
-    "flake8-docstrings",
-    "flake8-junit-report",
-    "flake8-logging-format",
-    "flake8-pep3101",
-    "flake8-print",
-    "flake8-rst",
-    "flake8-rst-docstrings",
-    "flake8-tidy-imports",
-    "isort",
-    "structlog",
+    "ruff",
     "jsonref",
     "mypy",
     "pytest",
@@ -175,3 +160,69 @@ exclude = '''
 
 [tool.nitpick]
 style="github://workfloworchestrator/nitpick-style@main/nitpick-style-orchestrator-core.toml"
+
+
+[tool.ruff]
+exclude = [
+    ".git",
+    ".cache",
+    ".eggs",
+    "__pycache__",
+    "dist",
+    "src",
+    "crypt.py",
+    "venv",
+    ".venv",
+    "docs",
+]
+ignore = [
+    "C417",
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    "D202",
+    "E501",
+    "N806",
+    "B905",
+    "N805",
+    "B904",
+    "N803",
+    "N801",
+    "N815",
+    "N802"
+]
+line-length = 120
+select = [
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "I",
+    "N",
+    "RET",
+    "S",
+    "T",
+    "W",
+]
+target-version = "py310"
+
+[tool.ruff.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.per-file-ignores]
+"orchestrator/api/*" = ["B008"]
+"orchestrator/cli/*" = ["B008"]
+"test/*" = ["S101", "B033", "N816", "N802"]
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.isort]
+known-third-party = ["pynso", "pydantic"]
+known-first-party = ["migrations", "test", "nwastdlib", "oauth2-lib"]

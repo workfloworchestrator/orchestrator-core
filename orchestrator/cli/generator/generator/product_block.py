@@ -70,10 +70,11 @@ def get_fields(product_block: dict) -> list[dict]:
     def to_type(field: dict) -> dict:
         if is_constrained_int(field):
             return field | {"type": snake_to_camel(field["name"])}
-        elif is_name_spaced_field_type(field):
+
+        if is_name_spaced_field_type(field):
             return field | {"type": name_space_get_type(field["type"])}
-        else:
-            return field
+
+        return field
 
     return [to_type(field) for field in product_block["fields"]]
 

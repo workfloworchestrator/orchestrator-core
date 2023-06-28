@@ -56,7 +56,7 @@ class WrappedWebSocketManager:
         if not isinstance(self.wrapped_websocket_manager, WebSocketManager):
             if "_" in attr:
                 logger.warning("No WebSocketManager configured, but attempting to access class methods")
-                return
+                return None
             raise RuntimeWarning(
                 "No WebSocketManager configured at this time. Please pass WebSocketManager configuration to OrchestratorCore base_settings"
             )
@@ -93,7 +93,7 @@ def send_process_data_to_websocket(
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
     if not websocket_manager.enabled:
-        return None
+        return
 
     if broadcast_func:
         logger.debug("Broadcast process data through broadcast_func", pid=str(pid))

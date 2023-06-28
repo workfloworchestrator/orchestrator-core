@@ -51,11 +51,9 @@ def from_redis(subscription_id: UUID) -> Optional[Tuple[Any, str]]:
         etag = cache.get(f"domain:etag:{subscription_id}")
         if obj and etag:
             return json_loads(obj), etag.decode("utf-8")
-        else:
-            return None
-    else:
-        logger.warning("Caching disabled, not loading subscription", subscription=subscription_id)
         return None
+    logger.warning("Caching disabled, not loading subscription", subscription=subscription_id)
+    return None
 
 
 def delete_from_redis(subscription_id: UUID) -> None:

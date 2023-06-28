@@ -1,10 +1,6 @@
 default_language_version:
   python: python3
 repos:
-  - repo: https://github.com/timothycrosley/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
@@ -25,21 +21,6 @@ repos:
       - id: debug-statements
       - id: requirements-txt-fixer
       - id: detect-private-key
-  - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-        additional_dependencies:
-          - flake8-bandit
-          - flake8-bugbear
-          - flake8-comprehensions
-          - flake8-docstrings
-          - flake8-logging-format
-          - flake8-pep3101
-          - flake8-print
-          - flake8-rst
-          - flake8-rst-docstrings
-          - flake8-tidy-imports
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.2.0
     hooks:

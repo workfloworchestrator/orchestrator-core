@@ -113,8 +113,7 @@ def json_dumps(obj: PY_JSON_TYPES, indent: bool = False, sort_keys: bool = False
         # When Recursion limit is not configurable in orjson, falling back to the next best lib.
         if str(e) == "default serializer exceeds recursion limit":
             return rjson.dumps(obj, default=to_serializable)
-        else:
-            raise e
+        raise e
 
 
 def to_serializable(o: Any) -> Any:
@@ -181,8 +180,7 @@ def from_serializable(dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def non_none_dict(dikt: Sequence[Tuple[str, Any]]) -> Dict[Any, Any]:
-    """
-    Return no `None` values in a Dict.
+    """Return no `None` values in a Dict.
 
     This function may be used in the `asdict()` method as dictionary factory.
 

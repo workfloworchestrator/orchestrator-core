@@ -23,8 +23,7 @@ from orchestrator.types import UUIDstr
 
 
 def get_product_by_id(product_id: Union[UUID, UUIDstr]) -> ProductTable:
-    """
-    Get product by id.
+    """Get product by id.
 
     Args:
         product_id: ProductTable id uuid

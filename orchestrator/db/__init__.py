@@ -31,7 +31,7 @@ from orchestrator.db.models import (  # noqa: F401
     SubscriptionMetadataTable,
     SubscriptionTable,
     UtcTimestamp,
-    UtcTimestampException,
+    UtcTimestampError,
     WorkflowTable,
 )
 from orchestrator.settings import AppSettings
@@ -51,7 +51,7 @@ class WrappedDatabase:
         if not isinstance(self.wrapped_database, Database):
             if "_" in attr:
                 logger.warning("No database configured, but attempting to access class methods")
-                return
+                return None
             raise RuntimeWarning(
                 "No database configured at this time. Please pass database configuration to OrchestratorCore base_settings"
             )
@@ -88,7 +88,7 @@ __all__ = [
     "WorkflowTable",
     "SubscriptionCustomerDescriptionTable",
     "UtcTimestamp",
-    "UtcTimestampException",
+    "UtcTimestampError",
     "db",
     "init_database",
 ]

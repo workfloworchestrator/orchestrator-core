@@ -23,8 +23,8 @@ import jsonref
 import requests
 import structlog
 from more_itertools import first_true
-from nwastdlib.url import URL
 
+from nwastdlib.url import URL
 from orchestrator.types import InputForm as LegacyInputForm
 from orchestrator.types import State
 
@@ -146,8 +146,7 @@ class Populator:
         """
 
     def _get_product_by_name(self, product_name: str) -> dict:
-        """
-        Fetch all active products.
+        """Fetch all active products.
 
         Returns: product dict
 
@@ -161,9 +160,8 @@ class Populator:
         self.log.error("Error product not found.", product=product_name, status_code=response.status_code)
         return {}
 
-    def get_form_data(self, form: JSONSchema) -> dict:
-        """
-        Compiles a dict that can be used as the payload in api request that need human input.
+    def get_form_data(self, form: JSONSchema) -> dict:  # noqa: C901
+        """Compiles a dict that can be used as the payload in api request that need human input.
 
         Note: if you want to populate a boolean field: you have to provide 'False' instead of 'None', as the
         latter is used to determine if one of the ways to populate the input_filed value was already successful.
@@ -267,11 +265,11 @@ class Populator:
         return data
 
     def _start_workflow(self, workflow_name: str, **kwargs: Any) -> UUIDstr:
-        """
-        Start a workflow.
+        """Start a workflow.
 
         Args:
             workflow_name: workflow name
+            kwargs: The kwargs
 
         Returns: the pid of the workflow process
 
@@ -293,8 +291,7 @@ class Populator:
         return pid
 
     def start_create_workflow(self, **kwargs: Any) -> UUIDstr:
-        """
-        Start a create workflow.
+        """Start a create workflow.
 
         Args:
             kwargs: values to be used as form input
@@ -310,8 +307,7 @@ class Populator:
     def start_modify_workflow(
         self, workflow_name: str, subscription_id: Union[UUIDstr, UUID], **kwargs: Any
     ) -> UUIDstr:
-        """
-        Start a modify workflow for the provided name and subscription_id.
+        """Start a modify workflow for the provided name and subscription_id.
 
         Args:
             workflow_name: workflow name
@@ -333,8 +329,7 @@ class Populator:
         return self._start_workflow(workflow_name, subscription_id=subscription_id)
 
     def start_terminate_workflow(self, subscription_id: Union[UUIDstr, UUID], **kwargs: Any) -> UUIDstr:
-        """
-        Start a terminate workflow for the provided subscription_id.
+        """Start a terminate workflow for the provided subscription_id.
 
         Args:
             subscription_id: uuid of the subscription you want to terminate
@@ -349,8 +344,7 @@ class Populator:
         return self._start_workflow(self.terminate_workflow, subscription_id=subscription_id, **kwargs)
 
     def human_input_needed(self) -> bool:
-        """
-        Check whether the workflow process needs human input.
+        """Check whether the workflow process needs human input.
 
         Returns: True or False
 
@@ -366,20 +360,22 @@ class Populator:
             self.log.info("Process is complete.")
             self.done = True
             return False
-        elif status == "suspended":
+
+        if status == "suspended":
             return True
-        elif status in ("created", "running", "resumed"):
+
+        if status in ("created", "running", "resumed"):
             return False
-        elif status in ("failed", "waiting"):
+
+        if status in ("failed", "waiting"):
             if self.retries < 1:
                 self.retries += 1
                 return True
 
             self.log.error("Cowardly quitting due to failed step.", reason=self.last_state["failed_reason"])
             raise Exception(f"Step failed: {self.last_state['failed_reason']}")
-        else:
-            self.log.error("Cowardly quitting due to unknown status", status=self.last_state["status"])
-            raise Exception(f"Unknown status: {status}")
+        self.log.error("Cowardly quitting due to unknown status", status=self.last_state["status"])
+        raise Exception(f"Unknown status: {status}")
 
     def get_current_form(self) -> Union[JSONSchema, None]:
         self.log.info("Current form.", form=self.last_state.get("form"))
@@ -411,8 +407,7 @@ class Populator:
         self.add_default_values()
 
     def run(self, **kwargs: Any) -> UUIDstr:
-        """
-        Responsible for auto-completing the workflow after the process has been started.
+        """Responsible for auto-completing the workflow after the process has been started.
 
         Returns: subscription_id of the created subscription
 

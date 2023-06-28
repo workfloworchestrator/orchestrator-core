@@ -216,8 +216,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
                 if is_union_type(first_arg) and get_args(first_arg) and not is_union_type(test_type):
                     first_arg = get_args(first_arg)[0]
                 return is_of_type(first_arg, test_type)
-            else:
-                return True
+            return True
 
     return False
 

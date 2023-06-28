@@ -54,7 +54,7 @@ TAG_LENGTH = 20
 STATUS_LENGTH = 255
 
 
-class UtcTimestampException(Exception, DontWrapMixin):
+class UtcTimestampError(Exception, DontWrapMixin):
     pass
 
 
@@ -73,7 +73,7 @@ class UtcTimestamp(TypeDecorator):
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
         if value is not None:
             if value.tzinfo is None:
-                raise UtcTimestampException(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
+                raise UtcTimestampError(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
         return value
 
     def process_result_value(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
@@ -228,8 +228,7 @@ class ProductTable(BaseModel):
         return wfs[0].name if len(wfs) > 0 else None
 
     def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
-        workflow = first_true(self.workflows, None, lambda wf: wf.name == name)
-        return workflow
+        return first_true(self.workflows, None, lambda wf: wf.name == name)
 
 
 class FixedInputTable(BaseModel):
@@ -450,8 +449,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
 
     def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:
-        value = first_true(self.values, None, lambda x: x.resource_type.resource_type == name)
-        return value
+        return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)
 
 
 SubscriptionInstanceTable.parent_relations = SubscriptionInstanceTable.in_use_by_block_relations

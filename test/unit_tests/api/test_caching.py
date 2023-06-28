@@ -3,8 +3,8 @@ from http import HTTPStatus
 from os import getenv
 
 import pytest
-from nwastdlib.url import URL
 
+from nwastdlib.url import URL
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import build_extended_domain_model
 from orchestrator.utils.redis import to_redis

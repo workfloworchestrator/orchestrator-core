@@ -35,8 +35,7 @@ def is_int_enum(fixed_input: dict) -> bool:
 def convert_enum(fixed_input: dict) -> dict:
     if is_enum(fixed_input):
         return fixed_input | {"type": fixed_input["name"].title()}
-    else:
-        return fixed_input
+    return fixed_input
 
 
 def get_str_enum_fixed_inputs(fixed_inputs: list[dict]) -> list[dict]:

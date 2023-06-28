@@ -36,7 +36,7 @@ class WrappedDistLockManager:
         if not isinstance(self.wrapped_distlock_manager, DistLockManager):
             if "_" in attr:
                 logger.warning("No DistLockManager configured, but attempting to access class methods")
-                return
+                return None
             raise RuntimeWarning(
                 "No DistLockManager configured at this time. Please set ENABLE_DISTLOCK_MANAGER "
                 "and DISTLOCK_BACKEND in OrchestratorCore base_settings"

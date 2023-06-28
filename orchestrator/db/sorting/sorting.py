@@ -47,9 +47,7 @@ def generic_sorts_validate(
     """Create generic validate sort factory that creates a validate function based on the valid sort dict.
 
     Args:
-        - valid_sort_dict: dict of column names by valid sort keys
-            - key: sort key.
-            - value: column name.
+        valid_sort_functions_by_column: The sort functions per column
 
     Returns function that takes sort parameters and returns a list of invalid and valid Sort items.
     """

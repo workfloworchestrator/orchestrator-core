@@ -5,16 +5,22 @@ from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
-from nwastdlib import const
 
+from nwastdlib import const
 from orchestrator.config.assignee import Assignee
 from orchestrator.forms import FormPage
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.types import FormGenerator, State, UUIDstr
 from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.workflow import Abort, Failed, Process, ProcessStat, Skipped, Success, Suspend, Waiting
-from orchestrator.workflow import _purestep as purestep
 from orchestrator.workflow import (
+    Abort,
+    Failed,
+    Process,
+    ProcessStat,
+    Skipped,
+    Success,
+    Suspend,
+    Waiting,
     abort,
     abort_wf,
     begin,
@@ -28,6 +34,7 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
+from orchestrator.workflow import _purestep as purestep
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_aborted,
@@ -170,8 +177,7 @@ def test_resume_waiting_workflow():
     def soft_fail():
         if hack["error"]:
             raise ValueError("error")
-        else:
-            return {"some_key": True}
+        return {"some_key": True}
 
     wf = workflow("Workflow with soft fail")(lambda: begin >> step1 >> soft_fail >> step2)
 

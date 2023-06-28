@@ -51,7 +51,7 @@ def remove_core_as_down_revision(migration: Any) -> None:
 
 def _insert_preamble(text: str, s: str) -> str:
     lines = text.splitlines(keepends=True)
-    line_num = next((i for i, l in enumerate(lines) if "def upgrade()" in l), None)
+    line_num = next((i for i, line in enumerate(lines) if "def upgrade()" in line), None)
     return "".join(lines[:line_num]) + f"{s}\n\n" + "".join(lines[line_num:]) if line_num else text
 
 
@@ -94,8 +94,7 @@ def create_migration_file(
             except CommandError:
                 if "Branch name 'data'" in error_str and "already used by revision" in error_str:
                     raise CommandError("Database not up to date with latest revision")
-                else:
-                    raise CommandError("Database head 'data' already exists but no revision/migration file found")
+                raise CommandError("Database head 'data' already exists but no revision/migration file found")
         else:
             raise err
 

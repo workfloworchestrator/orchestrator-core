@@ -80,7 +80,8 @@ def map_product_blocks_in_class(
     """Create mapping of all existing product block models related to a model.
 
     Args:
-        - model_class: a product class (SubscriptionModel) or product block class (ProductBlockModel).
+        model_class: a product class (SubscriptionModel) or product block class (ProductBlockModel).
+        product_blocks: The product blocks the
 
     Returns a Dict with product block models by product block name.
     """
@@ -104,7 +105,7 @@ def map_product_blocks(product_classes: List[Type[SubscriptionModel]]) -> Dict[s
     """Create mapping of all existing product block models related to products.
 
     Args:
-        - product_classes: List of product classes.
+        product_classes: List of product classes.
 
     Returns a Dict with product block models by product block name.
     """
@@ -121,8 +122,8 @@ def map_differences_unique(
     """Create a unique map for products and product block differences from the database.
 
     Args:
-        - registered_products: Dict with product models by product name.
-        - existing_products: List with tuples of product name and its uuid that exist in the database.
+        registered_products: Dict with product models by product name.
+        existing_products: List with tuples of product name and its uuid that exist in the database.
 
     Returns a dict with product and product block differences from the database without duplicates.
     """
@@ -188,14 +189,14 @@ def map_changes(
     """Map changes that need to be made to fix differences between models and database.
 
     Args:
-        - model_diffs: Dict with product and product block differences.
-            - products: Dict with product differences.
-            - blocks: Dict with product block differences.
-        - products: Dict with product model by product name.
-        - product_blocks: Dict with product block model by product name.
-        - db_product_names: Product names out of the database.
-        - inputs: Optional Dict with prefilled values.
-        - updates: Optional Dict.
+        model_diffs: Dict with product and product block differences.
+        products: Dict with product differences.
+        blocks: Dict with product block differences.
+        products: Dict with product model by product name.
+        product_blocks: Dict with product block model by product name.
+        db_product_names: Product names out of the database.
+        inputs: Optional Dict with prefilled values.
+        updates: Optional Dict.
 
     Returns: Mapped changes.
     """
@@ -254,8 +255,8 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
     """Generate upgrade SQL with mapped changes.
 
     Args:
-        - changes: Mapping of model changes.
-        - inputs: Optional Dict with prefilled values.
+        changes: Mapping of model changes.
+        inputs: Optional Dict with prefilled values.
 
     Returns: List of SQL strings to upgrade the database.
     """
@@ -290,7 +291,8 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
     Does not revert deleted subscription instances and subscription instance values!
 
     Args:
-        - changes: Mapping of model changes.
+        changes: Mapping of model changes.
+
 
     Returns: List of SQL strings to downgrade the database back before upgrade SQL.
     """
@@ -359,11 +361,13 @@ def create_domain_models_migration_sql(
     You will be prompted with inputs for new models and resource type updates.
 
     Args:
-        - inputs: dict with pre-defined input values
+        inputs: dict with pre-defined input values
+        updates: The model
+        is_test: the bool for if it is test
 
     Returns tuple:
-        - list of upgrade SQL statements in string format.
-        - list of downgrade SQL statements in string format.
+        list of upgrade SQL statements in string format.
+        list of downgrade SQL statements in string format.
     """
     existing_products: List[Tuple[str, UUID]] = list(
         ProductTable.query.with_entities(ProductTable.name, ProductTable.product_id)

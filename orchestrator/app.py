@@ -19,7 +19,6 @@ import structlog
 import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
-from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_logging
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -34,6 +33,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
+from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_logging
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
@@ -43,7 +43,7 @@ from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
-from orchestrator.forms import FormException
+from orchestrator.forms import FormError
 from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, app_settings, tracer_provider
@@ -114,7 +114,7 @@ class OrchestratorCore(FastAPI):
             expose_headers=base_settings.CORS_EXPOSE_HEADERS,
         )
 
-        self.add_exception_handler(FormException, form_error_handler)
+        self.add_exception_handler(FormError, form_error_handler)
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)
         add_exception_handler(self)
 
@@ -153,8 +153,7 @@ class OrchestratorCore(FastAPI):
 
     @staticmethod
     def register_subscription_models(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
-        """
-        Register your subscription models.
+        """Register your subscription models.
 
         This method is needed to register your subscription models inside the orchestrator core.
 

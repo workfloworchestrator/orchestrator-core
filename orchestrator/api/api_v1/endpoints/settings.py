@@ -58,11 +58,11 @@ def get_cache_names() -> dict[str, str]:
 async def set_global_status(
     body: EngineSettingsBaseSchema, user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> EngineSettingsSchema:
-    """
-    Update the global status of the engine to a new state.
+    """Update the global status of the engine to a new state.
 
     Args:
         body: The GlobalStatus object
+        user: The OIDCUser model
 
     Returns:
         The updated global status object
@@ -94,8 +94,7 @@ async def set_global_status(
 
 @router.get("/worker-status", response_model=WorkerStatus)
 def get_worker_status() -> WorkerStatus:
-    """
-    Return data on job workers and queues.
+    """Return data on job workers and queues.
 
     Returns:
     - The number of queued jobs
@@ -108,14 +107,12 @@ def get_worker_status() -> WorkerStatus:
         from orchestrator.services.tasks import CeleryJobWorkerStatus
 
         return CeleryJobWorkerStatus()
-    else:
-        return ThreadPoolWorkerStatus()
+    return ThreadPoolWorkerStatus()
 
 
 @router.get("/status", response_model=EngineSettingsSchema)
 def get_global_status() -> EngineSettingsSchema:
-    """
-    Retrieve the global status object.
+    """Retrieve the global status object.
 
     Returns:
         The global status of the engine
@@ -147,8 +144,7 @@ if app_settings.ENABLE_WEBSOCKETS:
 def generate_engine_status_response(
     engine_settings: EngineSettingsTable,
 ) -> EngineSettingsSchema:
-    """
-    Generate the correct engine status response.
+    """Generate the correct engine status response.
 
     Args:
         engine_settings: Engine settings database object
@@ -162,7 +158,8 @@ def generate_engine_status_response(
         result = EngineSettingsSchema.from_orm(engine_settings)
         result.global_status = GlobalStatusEnum.PAUSING
         return result
-    elif engine_settings.global_lock and engine_settings.running_processes == 0:
+
+    if engine_settings.global_lock and engine_settings.running_processes == 0:
         result = EngineSettingsSchema.from_orm(engine_settings)
         result.global_status = GlobalStatusEnum.PAUSED
         return result

@@ -126,8 +126,7 @@ CUSTOMER_ID: UUIDstr = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 
 def run_migrations(db_uri: str) -> None:
-    """
-    Configure the alembic context and run the migrations.
+    """Configure the alembic context and run the migrations.
 
     Each test will start with a clean database. This a heavy operation but ensures that our database is clean and
     tests run within their own context.
@@ -154,8 +153,7 @@ def run_migrations(db_uri: str) -> None:
 
 @pytest.fixture(scope="session")
 def db_uri(worker_id):
-    """
-    Ensure each pytest thread has its database.
+    """Ensure each pytest thread has its database.
 
     When running tests with the -j option make sure each test worker is isolated within its own database.
 
@@ -216,8 +214,7 @@ def database(db_uri):
 
 @pytest.fixture(autouse=True)
 def db_session(database):
-    """
-    Ensure tests are run in a transaction with automatic rollback.
+    """Ensure tests are run in a transaction with automatic rollback.
 
     This implementation creates a connection and transaction before yielding to the test function. Any transactions
     started and committed from within the test will be tied to this outer transaction. From the test function's
