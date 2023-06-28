@@ -169,6 +169,7 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
         return cast(StateInputFormGenerator, f)
     if inspect.isgenerator(f):
         raise ValueError("Got a generator object instead of function, this is not correct")
+
     # If f is a SimpleInputFormGenerator convert to new style generator function
     def form_generator(state: State) -> FormGenerator:
         user_input = yield cast(StateSimpleInputFormGenerator, f)(state)
