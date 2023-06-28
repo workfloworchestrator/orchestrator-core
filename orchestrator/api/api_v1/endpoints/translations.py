@@ -26,4 +26,3 @@ router = APIRouter()
 @router.get("/{language}", response_model=dict)
 def get_translations(language: str = Path(..., regex="^[a-z]+-[A-Z]+$")) -> dict:
     return generate_translations(language)
-

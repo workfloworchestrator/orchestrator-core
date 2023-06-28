@@ -49,7 +49,9 @@ class VlanRanges(abc.Set):
 
     _vlan_ranges: Tuple[range, ...]
 
-    def __init__(self, val: Optional[Union[str, int, Iterable[int], Sequence[Sequence[int]]]] = None) -> None:  # noqa: C901
+    def __init__(
+        self, val: Optional[Union[str, int, Iterable[int], Sequence[Sequence[int]]]] = None
+    ) -> None:  # noqa: C901
         # The idea is to bring all acceptable values to one canonical intermediate format: the `Sequence[Sequence[
         # int]]`. Where the inner sequence is either a one or two element sequence. The one element sequence
         # represents a single VLAN, the two element sequence represents a VLAN range.
