@@ -16,7 +16,7 @@ from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
 from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
-    from orchestrator.graphql.schemas.subscription import SubscriptionType
+    from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
 # TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
@@ -92,7 +92,7 @@ class ProcessType:
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
         process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(self.id)

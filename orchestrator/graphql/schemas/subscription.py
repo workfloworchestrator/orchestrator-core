@@ -12,11 +12,12 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.process import ProcessType
+from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.product import ProductSchema
 from orchestrator.schemas.subscription_descriptions import SubscriptionDescriptionSchema
 from orchestrator.services.subscriptions import build_extended_domain_model
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.helpers import to_camel
 
 
@@ -92,19 +93,28 @@ class SubscriptionDescriptionType:
 
 class SubscriptionGraphqlSchema(OrchestratorBaseModel):
     subscription_id: UUID
-    product: ProductSchema
+    product: ProductModelGraphql
     customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []
     description: str
     start_date: Optional[datetime]
     end_date: Optional[datetime]
-    product_id: UUID
-    status: str
+    status: SubscriptionLifecycle
     insync: bool
     note: Optional[str]
 
 
-@strawberry.experimental.pydantic.type(model=SubscriptionGraphqlSchema, all_fields=True)
-class SubscriptionType:
+@strawberry.interface
+class SubscriptionInterface:
+    subscription_id: UUID
+    product: ProductModelGraphql
+    # customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []
+    description: str
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+    status: SubscriptionLifecycle
+    insync: bool
+    note: Optional[str]
+
     @strawberry.field(description="Return all products blocks that are part of a subscription")  # type: ignore
     async def product_blocks(
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
@@ -140,7 +150,7 @@ class SubscriptionType:
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_in_use_by_subscriptions
 
@@ -162,7 +172,7 @@ class SubscriptionType:
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_depends_on_subscriptions
 
@@ -175,3 +185,8 @@ class SubscriptionType:
             GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
         ]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+
+
+@strawberry.experimental.pydantic.type(model=SubscriptionGraphqlSchema, all_fields=True)
+class UnknownSubscription(SubscriptionInterface):
+    pass

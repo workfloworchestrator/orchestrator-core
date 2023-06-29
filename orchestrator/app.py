@@ -42,7 +42,6 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormError
-from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
@@ -104,7 +103,6 @@ class OrchestratorCore(FastAPI):
 
         initialise_logging()
 
-        api_router.include_router(graphql_router, prefix="/graphql")
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
