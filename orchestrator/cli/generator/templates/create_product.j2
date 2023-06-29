@@ -10,11 +10,8 @@ from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUID
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 
-from surf.forms.validators import JiraTicketId
+{%- block create_product_imports %}{% endblock %}
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
-from surf.products.services.subscription import subscription_description
-from surf.workflows.shared.mail import send_confirmation_email
-from surf.workflows.workflow import create_workflow
 {% if validation_imports %}
 from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {% endif %}
@@ -29,7 +26,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         organisation: OrganisationId
         contact_persons: ContactPersonList = []  # type: ignore
-        ticket_id: JiraTicketId = JiraTicketId("")
+        {%- block create_product_additional_form_fields %}{% endblock %}
 
         label_{{ product.variable }}_settings: Label
         divider_1: Divider
@@ -93,12 +90,13 @@ def construct_{{ product.variable }}_model(
     {% endfor %}
 
     {{ product.variable }} = {{ product.type }}Provisioning.from_other_lifecycle({{ product.variable }}, SubscriptionLifecycle.PROVISIONING)
-    {{ product.variable }}.description = subscription_description({{ product.variable }})
+
+    {%- block create_product_assignments %}{% endblock %}
 
     return {
         "subscription": {{ product.variable }},
         "subscription_id": {{ product.variable }}.subscription_id,  # necessary to be able to use older generic step functions
-        "subscription_description": {{ product.variable }}.description,
+        {%- block create_product_return_state %}{% endblock %}
     }
 
 
@@ -108,6 +106,6 @@ def create_{{ product.variable }}() -> StepList:
         begin
         >> construct_{{ product.variable }}_model
         >> store_process_subscription(Target.CREATE)
-        # TODO add additional steps
-        >> send_confirmation_email()
+        # TODO add additional steps if required
+        {% block create_product_additional_steps %}{% endblock %}
     )

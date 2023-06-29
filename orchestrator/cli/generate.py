@@ -42,7 +42,7 @@ def read_config(config_file: str) -> Optional[Dict]:
 
 
 def enrich_config(config: dict) -> dict:
-    def enrich_product_block(product_block) -> dict:
+    def enrich_product_block(product_block: dict) -> dict:
         return enrich_config(product_block)
 
     product_blocks = [enrich_product_block(pb) for pb in config.get("product_blocks", [])]
@@ -82,7 +82,7 @@ def create_context(
         else:
             write_file(path, content, append=append, force=force)
 
-    def mkdir(path) -> None:
+    def mkdir(path: str) -> None:
         if dryrun:
             typer.echo(f"Creating path {path} if it doesn't exist")
         else:
@@ -96,10 +96,11 @@ def create_context(
     environment.filters["snake_to_camel"] = snake_to_camel
     environment.filters["camel_to_snake"] = camel_to_snake
 
-    config = enrich_config(read_config(config_file))
+    config = read_config(config_file)
+    enriched_config = enrich_config(config) if config else {}
 
     return {
-        "config": config,
+        "config": enriched_config,
         "environment": environment,
         "python_version": python_version,
         "tdd": tdd,
@@ -131,7 +132,6 @@ def product(
     context = create_context(
         config_file, dryrun=dryrun, force=force, python_version=python_version, user_templates=user_templates
     )
-
     generate_product(context)
 
 
@@ -146,7 +146,6 @@ def product_blocks(
     context = create_context(
         config_file, dryrun=dryrun, force=force, python_version=python_version, user_templates=user_templates
     )
-
     generate_product_blocks(context)
 
 
@@ -157,9 +156,11 @@ def workflows(
     force: bool = Force,
     python_version: str = PythonVersion,
     tdd: bool = TestDrivenDevelopment,
+    user_templates: str = UserTemplates,
 ) -> None:
-    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version, tdd=tdd)
-
+    context = create_context(
+        config_file, dryrun=dryrun, force=force, python_version=python_version, tdd=tdd, user_templates=user_templates
+    )
     generate_workflows(context)
 
 

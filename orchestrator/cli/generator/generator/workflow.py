@@ -73,11 +73,11 @@ def generate_workflows(context: dict) -> None:
     config = add_optional_nso_config(config)
     config = add_optional_ims_config(config)
 
-    generate_shared_workflow_files(environment, config, writer)
-    generate_create_workflow(environment, config, writer)
-    generate_modify_workflows(environment, config, writer)
+    # generate_shared_workflow_files(environment, config, writer)
+    # generate_create_workflow(environment, config, writer)
+    # generate_modify_workflows(environment, config, writer)
     generate_validate_workflow(environment, config, writer)
-    generate_terminate_workflow(environment, config, writer)
+    # generate_terminate_workflow(environment, config, writer)
 
     add_workflow_translations(config, writer)
 
@@ -165,7 +165,7 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
     product_block = root_product_block(config)
     validations, validation_imports = get_validations_for_modify(config)
 
-    template = environment.get_template("modify_product.j2")
+    template = environment.get_template("surf_modify_product.j2")
     content = template.render(
         product=config, product_block=product_block, validations=validations, validation_imports=validation_imports
     )
