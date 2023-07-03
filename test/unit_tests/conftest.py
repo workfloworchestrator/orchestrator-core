@@ -30,6 +30,7 @@ from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseMo
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.forms import FormPage
+from orchestrator.graphql import add_graphql
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
@@ -248,6 +249,7 @@ def fastapi_app(database, db_uri):
     app_settings.DATABASE_URI = db_uri
     app = OrchestratorCore(base_settings=app_settings)
     # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
+    add_graphql(app)
     app.broadcast_thread.start()
     yield app
     app.broadcast_thread.stop()

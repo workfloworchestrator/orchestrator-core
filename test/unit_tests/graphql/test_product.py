@@ -126,7 +126,6 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note

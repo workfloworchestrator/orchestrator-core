@@ -13,7 +13,7 @@
 
 import inspect
 from enum import Enum, EnumMeta
-from typing import Any, Type, Union
+from typing import Any, Type
 
 import strawberry
 
@@ -44,6 +44,10 @@ def is_enum(field: Any) -> bool:
     return inspect.isclass(field) and issubclass(field, Enum)
 
 
+def graphql_name(name: str) -> str:
+    return f"{name.replace(' ', '_').replace('Initial', '').replace('Inactive', '')}Subscription"
+
+
 def add_class_to_strawberry(
     model_name: str,
     model: Type[DomainModel],
@@ -65,9 +69,19 @@ def add_class_to_strawberry(
 
     strawberry_name = to_camel(model_name.replace(" ", "_"))
     if with_interface:
-        new_type = type(strawberry_name, (SubscriptionInterface,), {})  # type: ignore
+        base_type = type(strawberry_name, (SubscriptionInterface,), {})  # type: ignore
         straw_wrapper = strawberry.experimental.pydantic.type(model, all_fields=True)
-        strawberry_type = straw_wrapper(new_type)
+        federation_wrapper = strawberry.federation.type(description=f"{strawberry_name} Type", keys=["subscriptionId"])
+        pydantic_type = straw_wrapper(base_type)
+        temp = type(strawberry_name, (pydantic_type,), {})  # type: ignore
+        strawberry_type = federation_wrapper(temp)
+
+        def from_pydantic(model: pydantic_type) -> strawberry_type:  # type: ignore
+            graphql_model = pydantic_type.from_pydantic(model)
+            graphql_model.__class__ = strawberry_type
+            return graphql_model  # type: ignore
+
+        strawberry_type.from_pydantic = from_pydantic  # type: ignore
     else:
         new_type = type(strawberry_name, (), {})  # type: ignore
         straw_wrapper = strawberry.experimental.pydantic.type(model, all_fields=True)
@@ -85,13 +99,11 @@ def add_graphql(app: OrchestratorCore) -> OrchestratorCore:
         if product_type.__base_type__
     }
     for key, product_type in products.items():
-        add_class_to_strawberry(key, product_type, strawberry_models, strawberry_enums, True)
+        add_class_to_strawberry(graphql_name(key), product_type, strawberry_models, strawberry_enums, True)
 
-    product_union = Union[tuple(strawberry_models[key] for key in products.keys())]  # type: ignore
-
-    def sub_resolver(info: CustomInfo, id: str) -> product_union:  # type: ignore
+    def sub_resolver(info: CustomInfo, id: str) -> SubscriptionInterface:  # type: ignore
         subscription = SubscriptionModel.from_subscription(id)
-        return strawberry_models[subscription.__class__.__name__].from_pydantic(subscription)
+        return strawberry_models[graphql_name(subscription.__base_type__.__name__)].from_pydantic(subscription)  # type: ignore
 
     @strawberry.type(description="Orchestrator queries")
     class UpdatedQuery(Query):

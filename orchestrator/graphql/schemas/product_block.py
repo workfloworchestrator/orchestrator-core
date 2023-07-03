@@ -2,6 +2,7 @@ from typing import Optional
 
 import strawberry
 
+from orchestrator.domain.base import ProductBlockModel
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.schemas.product_block import ProductBlockSchema
 
@@ -16,3 +17,8 @@ class ProductBlock:
     created_at: strawberry.auto
     end_date: strawberry.auto
     resource_types: Optional[list[ResourceType]]
+
+
+@strawberry.experimental.pydantic.type(model=ProductBlockModel, all_fields=True)
+class ProductBlockModelGraphql:
+    pass

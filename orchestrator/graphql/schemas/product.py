@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 @strawberry.experimental.pydantic.type(model=ProductSchema)
-class ProductType:
+class ProductPydantic:
     product_id: strawberry.auto
     name: strawberry.auto
     description: strawberry.auto
@@ -42,6 +42,15 @@ class ProductType:
 
         filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+
+
+@strawberry.federation.type(description="Virtual base class for products", keys=["productId"])
+class ProductType(ProductPydantic):
+    @staticmethod
+    def from_pydantic(model: ProductSchema) -> "ProductType":  # type: ignore
+        graphql_model = ProductPydantic.from_pydantic(model)
+        graphql_model.__class__ = ProductType
+        return graphql_model  # type: ignore
 
 
 @strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)

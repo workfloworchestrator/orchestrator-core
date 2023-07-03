@@ -106,7 +106,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note

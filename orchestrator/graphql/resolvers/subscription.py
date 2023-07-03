@@ -25,7 +25,7 @@ from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection, PageInfo
-from orchestrator.graphql.schemas.subscription import SubscriptionInterface, UnknownSubscription
+from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 from orchestrator.types import SubscriptionLifecycle
@@ -59,25 +59,26 @@ def _has_subscription_details(info: CustomInfo) -> bool:
         return one(page_field).selections if page_field else []
 
     def has_details(selection: Selection) -> bool:
-        match selection:
-            case SelectedField():
-                return selection.name not in base_sub_props
-            case InlineFragment() as fragment:
-                return any(has_details(selection) for selection in fragment.selections)
-            case _:
-                return True
+        if isinstance(selection, SelectedField):
+            return selection.name not in base_sub_props
+        if isinstance(selection, InlineFragment):
+            return any(has_details(selection) for selection in selection.selections)
+        return True
 
     fields = flatten(get_selections(field) for field in info.selected_fields)
     return any(has_details(selection) for selection in fields if selection)
 
 
 def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInterface:
+    from orchestrator.graphql.add_graphql import graphql_name
     from orchestrator.graphql.schema import GRAPHQL_MODELS
 
-    subscription_model = SubscriptionModel.from_subscription(subscription.subscription_id)
-    subscription_model = subscription_model.from_other_lifecycle(subscription_model, SubscriptionLifecycle.TERMINATED)
-    strawberry_type = GRAPHQL_MODELS[subscription_model.__base_type__.__name__]  # type: ignore
-    return strawberry_type.from_pydantic(subscription_model)
+    subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
+    subscription_details = subscription_details.from_other_lifecycle(
+        subscription_details, SubscriptionLifecycle.TERMINATED
+    )
+    strawberry_type = GRAPHQL_MODELS[graphql_name(subscription_details.__base_type__.__name__)]  # type: ignore
+    return strawberry_type.from_pydantic(subscription_details)
 
 
 async def resolve_subscriptions(
@@ -112,7 +113,7 @@ async def resolve_subscriptions(
     if _has_subscription_details(info):
         page_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:
-        page_subscriptions = [UnknownSubscription.from_pydantic(p) for p in subscriptions]
+        page_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
 
     return Connection(
         page=page_subscriptions,

@@ -65,7 +65,7 @@ class ProcessStepType:
 
 
 @strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema)
-class ProcessType:
+class ProcessPydantic:
     id: strawberry.auto
     workflow_name: strawberry.auto
     product: strawberry.auto
@@ -103,3 +103,12 @@ class ProcessType:
             GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
         ]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+
+
+@strawberry.federation.type(description="Virtual base class for processes", keys=["id"])
+class ProcessType(ProcessPydantic):
+    @staticmethod
+    def from_pydantic(model: ProcessGraphqlSchema) -> "ProcessType":  # type: ignore
+        graphql_model = ProcessPydantic.from_pydantic(model)
+        graphql_model.__class__ = ProcessType
+        return graphql_model  # type: ignore

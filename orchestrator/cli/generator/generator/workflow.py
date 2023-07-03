@@ -123,7 +123,7 @@ def generate_workflow(f: Optional[Callable] = None, workflow: Optional[str] = No
             return all(wf.get("enabled", True) for wf in config.get("workflows", []) if wf["name"] == workflow)
 
         if workflow_enabled():
-            return f(environment, config, writer)
+            return f(environment, config, writer)  # type: ignore
         return None
 
     return wrapper

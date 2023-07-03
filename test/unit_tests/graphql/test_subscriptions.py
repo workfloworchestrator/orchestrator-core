@@ -28,7 +28,6 @@ subscription_fields = [
     "description",
     "subscriptionId",
     "startDate",
-    "productId",
     "status",
     "insync",
     "note",
@@ -59,7 +58,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     page {
       description
       subscriptionId
-      productId
       status
       insync
       note
@@ -119,7 +117,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     page {
       description
       subscriptionId
-      productId
       status
       insync
       note
@@ -146,7 +143,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note
@@ -158,7 +154,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note

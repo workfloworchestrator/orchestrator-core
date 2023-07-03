@@ -42,7 +42,7 @@ from orchestrator.graphql.resolvers import (
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType
 from orchestrator.graphql.schemas.settings import StatusType
-from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import SCALAR_OVERRIDES, CustomContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
@@ -54,7 +54,6 @@ logger = structlog.get_logger(__name__)
 StrawberryPydanticModel = TypeVar("StrawberryPydanticModel", bound=StrawberryTypeFromPydantic)
 StrawberryModelType = dict[str, StrawberryPydanticModel]
 
-REGISTERED_QUERY_RESOLVERS = {"processes": {"resolver": resolve_processes, "description": "Returns list of processes"}}
 GRAPHQL_MODELS: StrawberryModelType = {"ProductModelGraphql": ProductModelGraphql}
 
 
@@ -74,8 +73,6 @@ class Query:
         description="Returns information about cache, workers, and global engine settings",
     )
 
-
-schema_dict = {"query": Query}
 
 Mutation = merge_types("Mutation", (SettingsMutation,))
 
@@ -138,6 +135,7 @@ def create_graphql_router(query: Any = Query, mutation: Any = Mutation) -> Orche
         query=query,
         mutation=mutation,
         enable_federation_2=app_settings.FEDEREATION_ENABLED,
+        types=(Subscription,) + tuple(GRAPHQL_MODELS.values()),
         extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=query)],
         scalar_overrides=SCALAR_OVERRIDES,
     )
