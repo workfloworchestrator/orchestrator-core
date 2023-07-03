@@ -142,7 +142,7 @@ class OrchestratorCore(FastAPI):
         release: Optional[str] = GIT_COMMIT_HASH,
     ) -> None:
         logger.info("Adding Sentry middleware to app", app=self.title)
-        if self.base_settings.EXECUTOR == ExecutorType.CELERY:
+        if self.base_settings.EXECUTOR == ExecutorType.WORKER:
             from sentry_sdk.integrations.celery import CeleryIntegration
 
             sentry_integrations.append(CeleryIntegration())
