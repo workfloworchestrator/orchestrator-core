@@ -1,14 +1,14 @@
 # Changelog
 
-## [1.1.0rc2]
+## [1.2.0]
+ - Removed the opentelemetry dependancy and added warnings to function calls
+ - Renamed an error classes and added warnings
 
-- Add support for subscription metadata [\#266](https://github.com/workfloworchestrator/orchestrator-core/issues/266)
-
-
-## [1.1.0rc1]
+## [1.1.0]
 
 ### Breaking change
  - Changed `settings.CACHE_HOST` and `settings.CACHE_PORT` to `settings.CACHE_URI` 
+ - Add support for subscription metadata [\#266](https://github.com/workfloworchestrator/orchestrator-core/issues/266)
 
 ## [1.0.2]
 

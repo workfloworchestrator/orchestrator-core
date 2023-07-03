@@ -17,14 +17,9 @@ from typing import Any, Callable, Dict, Optional, Type
 import sentry_sdk
 import structlog
 import typer
+from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
-from opentelemetry import trace
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from pydantic.json import ENCODERS_BY_TYPE
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
@@ -46,7 +41,7 @@ from orchestrator.exception_handlers import form_error_handler, problem_detail_h
 from orchestrator.forms import FormError
 from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
-from orchestrator.settings import AppSettings, app_settings, tracer_provider
+from orchestrator.settings import AppSettings, app_settings
 from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
@@ -122,14 +117,9 @@ class OrchestratorCore(FastAPI):
         def _index() -> str:
             return "Orchestrator orchestrator"
 
+    @deprecated("Not using Opentelemetry from version 1.2.0, removing after version 1.3.0")
     def instrument_app(self) -> None:
-        logger.info("Activating Opentelemetry tracing to app", app=self.title)
-        trace.set_tracer_provider(tracer_provider)
-        FastAPIInstrumentor.instrument_app(self)
-        HTTPXClientInstrumentor().instrument()
-        RedisInstrumentor().instrument()
-        Psycopg2Instrumentor().instrument()
-        SQLAlchemyInstrumentor().instrument(engine=db.engine, tracer_provider=tracer_provider)
+        pass
 
     def add_sentry(
         self,
@@ -146,7 +136,7 @@ class OrchestratorCore(FastAPI):
             server_name=server_name,
             environment=environment,
             release=f"orchestrator@{release}",
-            integrations=[SqlalchemyIntegration(), RedisIntegration(), FastApiIntegration(transaction_style="url")],
+            integrations=[SqlalchemyIntegration(), RedisIntegration(), FastApiIntegration()],
             propagate_traces=True,
             profiles_sample_rate=trace_sample_rate,
         )
