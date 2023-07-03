@@ -41,6 +41,7 @@ dependencies = [
     "anyio>=3.7.0",
     "broadcaster[redis]==0.2.0",
     "click==8.0.3",
+    "deprecated",
     "deepmerge==0.1.0",
     "fastapi~=0.99.1",
     "fastapi-etag==0.4.0",
