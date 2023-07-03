@@ -87,7 +87,7 @@ class InconsistentDataError(ProcessFailureError):
 @deprecated(
     "Renamed the error 'InconsistentDataError', `from orchestrator.errors import InconsistentDataError` removing in version 1.3.0"
 )
-class InconsistentDataException(InconsistentDataError):  # noqa: N818
+class InconsistentData(InconsistentDataError):  # noqa: N818
     pass
 
 
