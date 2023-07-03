@@ -74,9 +74,9 @@ class ProcessFailureError(Exception):
 
 
 @deprecated(
-    "Renamed the error 'ProcessFailureError', `from orchestrator.errors import ProcessFailureError` removing in version 1.3.0"
+    "Renamed the error 'ProcessFailure', `from orchestrator.errors import ProcessFailureError` removing in version 1.3.0"
 )
-class ProcessFailureException(ProcessFailureError):  # noqa: N818
+class ProcessFailure(ProcessFailureError):  # noqa: N818
     pass
 
 

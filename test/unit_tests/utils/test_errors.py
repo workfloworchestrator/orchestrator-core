@@ -47,8 +47,8 @@ def test_error_state_to_dict():
 
     e = ProcessFailureError(message="Something went wrong", details={"foo": "bar"})
     assert error_state_to_dict(e) == {
-        "class": "ProcessFailure",
+        "class": "ProcessFailureError",
         "details": {"foo": "bar"},
         "error": "Something went wrong",
-        "traceback": "ProcessFailure: ('Something went wrong', {'foo': 'bar'})\n",
+        "traceback": "ProcessFailureError: ('Something went wrong', {'foo': 'bar'})\n",
     }
