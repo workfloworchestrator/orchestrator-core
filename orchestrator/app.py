@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 import sentry_sdk
 import structlog
@@ -21,9 +21,12 @@ from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from pydantic.json import ENCODERS_BY_TYPE
+from sentry_sdk.integrations import Integration
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.threading import ThreadingIntegration
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
@@ -41,12 +44,20 @@ from orchestrator.exception_handlers import form_error_handler, problem_detail_h
 from orchestrator.forms import FormError
 from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
-from orchestrator.settings import AppSettings, app_settings
+from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
 
 logger = structlog.get_logger(__name__)
+
+sentry_integrations: List[Integration] = [
+    SqlalchemyIntegration(),
+    RedisIntegration(),
+    FastApiIntegration(),
+    AsyncioIntegration(),
+    ThreadingIntegration(propagate_hub=True),
+]
 
 
 class OrchestratorCore(FastAPI):
@@ -62,6 +73,7 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        self.base_settings = base_settings
         websocket_manager = init_websocket_manager(base_settings)
         distlock_manager = init_distlock_manager(base_settings)
         self.broadcast_thread = ProcessDataBroadcastThread(websocket_manager)
@@ -130,13 +142,18 @@ class OrchestratorCore(FastAPI):
         release: Optional[str] = GIT_COMMIT_HASH,
     ) -> None:
         logger.info("Adding Sentry middleware to app", app=self.title)
+        if self.base_settings.EXECUTOR == ExecutorType.CELERY:
+            from sentry_sdk.integrations.celery import CeleryIntegration
+
+            sentry_integrations.append(CeleryIntegration())
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             traces_sample_rate=trace_sample_rate,
             server_name=server_name,
             environment=environment,
             release=f"orchestrator@{release}",
-            integrations=[SqlalchemyIntegration(), RedisIntegration(), FastApiIntegration()],
+            integrations=sentry_integrations,
             propagate_traces=True,
             profiles_sample_rate=trace_sample_rate,
         )
