@@ -16,11 +16,11 @@ from typing import Callable
 
 import strawberry
 from graphql import GraphQLError
-from oauth2_lib.fastapi import OIDCUserModel
 from strawberry.fastapi import BaseContext
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
 
