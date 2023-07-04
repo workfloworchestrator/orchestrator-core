@@ -18,6 +18,7 @@ from typing import List, Optional
 
 from pydantic import BaseSettings, PostgresDsn, RedisDsn
 
+from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.types import strEnum
 
 
@@ -76,7 +77,6 @@ class AppSettings(BaseSettings):
 
 
 class Oauth2Settings(BaseSettings):
-    OAUTH2_ACTIVE: bool = False
     OAUTH2_RESOURCE_SERVER_ID: str = ""
     OAUTH2_RESOURCE_SERVER_SECRET: str = ""
     OAUTH2_TOKEN_URL: str = ""
@@ -86,3 +86,7 @@ class Oauth2Settings(BaseSettings):
 
 app_settings = AppSettings()
 oauth2_settings = Oauth2Settings()
+
+# Set oauth2lib_settings variables to the same (default) value of settings
+oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
+oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT

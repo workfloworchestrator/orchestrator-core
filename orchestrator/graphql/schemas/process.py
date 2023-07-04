@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, Annotated, Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import strawberry
-from oauth2_lib.graphql_authentication import authenticated_field
 from sqlalchemy.orm import load_only
 from strawberry.scalars import JSON
 
+from oauth2_lib.strawberry import authenticated_field
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection

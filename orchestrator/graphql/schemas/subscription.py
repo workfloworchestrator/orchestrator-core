@@ -4,9 +4,9 @@ from typing import Annotated, Any, Generator, List, Optional, Union
 from uuid import UUID
 
 import strawberry
-from oauth2_lib.graphql_authentication import authenticated_field
 from strawberry.scalars import JSON
 
+from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db.models import SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
