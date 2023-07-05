@@ -17,9 +17,9 @@ import structlog
 from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
-from oauth2_lib.fastapi import OIDCUserModel
 from redis.asyncio import Redis as AIORedis
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum, WorkerStatus

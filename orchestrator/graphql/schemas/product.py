@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING, Annotated, Union
 
 import strawberry
-from oauth2_lib.graphql_authentication import authenticated_field
 
+from oauth2_lib.strawberry import authenticated_field
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.fixed_input import FixedInput
 from orchestrator.graphql.schemas.product_block import ProductBlock
