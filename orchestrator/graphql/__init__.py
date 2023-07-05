@@ -10,19 +10,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from orchestrator.graphql.add_graphql import add_graphql
+from orchestrator.graphql.add_graphql import (
+    EnumList,
+    add_class_to_strawberry,
+    graphql_subscription_name,
+)
 from orchestrator.graphql.schema import (
+    GRAPHQL_MODELS,
     Mutation,
     OrchestratorGraphqlRouter,
     OrchestratorSchema,
     Query,
+    create_graphql_router,
     custom_context_dependency,
     get_context,
     graphql_router,
 )
 
 __all__ = [
-    "add_graphql",
+    "GRAPHQL_MODELS",
     "Query",
     "Mutation",
     "OrchestratorGraphqlRouter",
@@ -30,4 +36,8 @@ __all__ = [
     "custom_context_dependency",
     "get_context",
     "graphql_router",
+    "create_graphql_router",
+    "EnumList",
+    "add_class_to_strawberry",
+    "graphql_subscription_name",
 ]

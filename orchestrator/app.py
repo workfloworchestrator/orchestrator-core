@@ -42,6 +42,15 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormError
+from orchestrator.graphql import (
+    GRAPHQL_MODELS,
+    EnumList,
+    Mutation,
+    Query,
+    add_class_to_strawberry,
+    create_graphql_router,
+    graphql_subscription_name,
+)
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
@@ -177,6 +186,26 @@ class OrchestratorCore(FastAPI):
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
+
+    def register_graphql(self: "OrchestratorCore", query: Any = Query, mutation: Any = Mutation) -> None:
+        strawberry_models = GRAPHQL_MODELS
+        strawberry_enums: EnumList = {}
+        products = {
+            product_type.__base_type__.__name__: product_type.__base_type__
+            for product_type in SUBSCRIPTION_MODEL_REGISTRY.values()
+            if product_type.__base_type__
+        }
+        for key, product_type in products.items():
+            add_class_to_strawberry(
+                model_name=graphql_subscription_name(key),
+                model=product_type,
+                strawberry_models=strawberry_models,
+                strawberry_enums=strawberry_enums,
+                with_interface=True,
+            )
+
+        new_router = create_graphql_router(query, mutation)
+        self.include_router(new_router, prefix="/api/graphql")
 
 
 main_typer_app = typer.Typer()

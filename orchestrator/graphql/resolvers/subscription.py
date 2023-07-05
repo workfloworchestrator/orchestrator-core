@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Union
+from typing import Union
 
 import structlog
 from more_itertools import flatten, one
@@ -25,6 +25,7 @@ from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection, PageInfo
+from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
@@ -33,15 +34,10 @@ from orchestrator.types import SubscriptionLifecycle
 logger = structlog.get_logger(__name__)
 # Note: we can make this more fancy by adding metadata to the field annotation that indicates if a resolver
 # needs subscription details or not, and use that information here. Left as an exercise for the reader.
-resolvers_that_dont_need_details = ["in_use_by_subscriptions", "depends_on_subscriptions", "processes"]
 base_sub_props = (
-    [
-        to_lower_camel(key)
-        for key in SubscriptionInterface.__annotations__
-        if not isinstance(getattr(SubscriptionInterface, key, None), Callable)  # type: ignore
-    ]
+    [to_lower_camel(key) for key in SubscriptionInterface.__annotations__]
+    + [to_lower_camel(key) for key in ProductModelGraphql.__annotations__]
     + ["__typename"]
-    + resolvers_that_dont_need_details
 )
 
 
@@ -70,14 +66,14 @@ def _has_subscription_details(info: CustomInfo) -> bool:
 
 
 def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInterface:
-    from orchestrator.graphql.add_graphql import graphql_name
+    from orchestrator.graphql.add_graphql import graphql_subscription_name
     from orchestrator.graphql.schema import GRAPHQL_MODELS
 
     subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
     subscription_details = subscription_details.from_other_lifecycle(
-        subscription_details, SubscriptionLifecycle.TERMINATED
+        subscription_details, SubscriptionLifecycle.TERMINATED, skip_validation=True
     )
-    strawberry_type = GRAPHQL_MODELS[graphql_name(subscription_details.__base_type__.__name__)]  # type: ignore
+    strawberry_type = GRAPHQL_MODELS[graphql_subscription_name(subscription_details.__base_type__.__name__)]  # type: ignore
     return strawberry_type.from_pydantic(subscription_details)
 
 

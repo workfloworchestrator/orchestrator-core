@@ -139,7 +139,12 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
 
 
 def test_processes_has_next_page(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     data = get_processes_query()
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -165,7 +170,12 @@ def test_processes_has_next_page(
 
 
 def test_process_has_previous_page(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     data = get_processes_query(after=1)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -188,7 +198,12 @@ def test_process_has_previous_page(
 
 
 def test_processes_sorting_asc(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     # when
 
@@ -217,7 +232,12 @@ def test_processes_sorting_asc(
 
 
 def test_processes_sorting_desc(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     # when
 
@@ -248,7 +268,12 @@ def test_processes_sorting_desc(
 
 
 def test_processes_has_filtering(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     # when
 
@@ -280,7 +305,12 @@ def test_processes_has_filtering(
 
 
 def test_processes_filtering_with_invalid_filter(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     # when
 
@@ -333,7 +363,12 @@ def test_processes_filtering_with_invalid_filter(
 
 
 def test_single_process(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     process_pid = str(mocked_processes[0])
     # when
@@ -361,7 +396,12 @@ def test_single_process(
 
 
 def test_single_process_with_subscriptions(
-    test_client, mocked_processes, mocked_processes_resumeall, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     process_pid = str(mocked_processes[0])
     # when
