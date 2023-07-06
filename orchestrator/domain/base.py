@@ -737,11 +737,6 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             else:
                 instance_values_dict[resource_type_name] = siv.value
 
-        # Make sure values are sorted. This already happens when they come from the db.
-        # However newly created SubscriptionInstances might not have the correct order
-        for field_name in list_field_names:
-            instance_values_dict[field_name] = sorted(instance_values_dict[field_name])
-
         return instance_values_dict
 
     @classmethod
@@ -850,7 +845,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                 continue
             if is_list_type(field_type):
                 for val, siv in zip_longest(value, current_values_dict[field_name]):
-                    if val:
+                    if val is not None:
                         if siv:
                             siv.value = str(val)
                             subscription_instance_values.append(siv)
