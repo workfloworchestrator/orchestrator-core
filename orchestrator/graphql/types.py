@@ -14,7 +14,7 @@
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 
 # Map some Orchestrator types to scalars
-from typing import Any, Callable, List, NewType, Tuple
+from typing import Any, Callable, List, NewType, Tuple, Union
 
 import strawberry
 from graphql import GraphQLError
@@ -102,7 +102,7 @@ IPv6InterfaceType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
-SCALAR_OVERRIDES: dict[object, Any | ScalarWrapper | ScalarDefinition] = {
+SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
     dict: JSON,
     VlanRanges: VlanRangesType,
     IPv4Address: IPv4AddressType,

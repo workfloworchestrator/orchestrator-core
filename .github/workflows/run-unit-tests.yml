@@ -50,7 +50,15 @@ jobs:
         env:
           FLIT_ROOT_INSTALL: 1
       - name: Run Unit tests
-        run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml --ignore=test --ignore=orchestrator/devtools --ignore=examples --ignore=docs
+        run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml --ignore=test --ignore=orchestrator/devtools --ignore=examples --ignore=docs --ignore=test/unit_tests/graphql
+        env:
+          POSTGRES_DB: orchestrator-core-test
+          POSTGRES_USER: nwa
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
+      - name: Run Graphql Unit tests
+        run: AIOCACHE_DISABLE=1 CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest ./test/unit_tests/graphql
         env:
           POSTGRES_DB: orchestrator-core-test
           POSTGRES_USER: nwa

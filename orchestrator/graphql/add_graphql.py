@@ -51,17 +51,17 @@ def is_not_strawberry_type(key: str, strawberry_models: StrawberryModelType) -> 
 
 
 def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel]) -> Type[SubscriptionInterface]:
-    base_type = type(strawberry_name, (SubscriptionInterface,), {})  # type: ignore
+    base_type = type(strawberry_name, (SubscriptionInterface,), {})
     pydantic_wrapper = strawberry.experimental.pydantic.type(model, all_fields=True)
     federation_wrapper = strawberry.federation.type(description=f"{strawberry_name} Type", keys=["subscriptionId"])
     pydantic_type = pydantic_wrapper(base_type)
-    federation_type = type(strawberry_name, (pydantic_type,), {})  # type: ignore
+    federation_type = type(strawberry_name, (pydantic_type,), {})
     strawberry_type = federation_wrapper(federation_type)
 
     def from_pydantic(model: pydantic_type) -> strawberry_type:  # type: ignore
         graphql_model = pydantic_type.from_pydantic(model)
         graphql_model.__class__ = strawberry_type
-        return graphql_model  # type: ignore
+        return graphql_model
 
     strawberry_type.from_pydantic = from_pydantic  # type: ignore
     return strawberry_type
@@ -70,7 +70,7 @@ def create_subscription_strawberry_type(strawberry_name: str, model: Type[Domain
 def create_block_strawberry_type(
     strawberry_name: str, model: Type[DomainModel]
 ) -> Type[StrawberryTypeFromPydantic[DomainModel]]:
-    new_type = type(strawberry_name, (), {})  # type: ignore
+    new_type = type(strawberry_name, (), {})
     strawberry_wrapper = strawberry.experimental.pydantic.type(model, all_fields=True)
     return strawberry_wrapper(new_type)
 

@@ -20,7 +20,6 @@ from fastapi.routing import APIRouter
 from graphql import GraphQLError, GraphQLFormattedError
 from graphql.error.graphql_error import format_error
 from httpx import HTTPStatusError
-from oauth2_lib.strawberry import authenticated_field
 from starlette.requests import Request
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.fastapi import GraphQLRouter
@@ -29,6 +28,7 @@ from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext, ExecutionResult
 from strawberry.utils.logging import StrawberryLogger
 
+from oauth2_lib.strawberry import authenticated_field
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.error_collector_extension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection

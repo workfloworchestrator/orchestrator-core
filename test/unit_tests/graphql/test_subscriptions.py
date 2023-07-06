@@ -119,7 +119,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       note
       startDate
       endDate
-      processes {
+      processes(sortBy: [{field: "started", order: ASC}]) {
         page {
           assignee
           createdBy

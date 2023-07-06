@@ -3,6 +3,7 @@ from typing import Annotated, Optional, Union
 from uuid import UUID
 
 import strawberry
+
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db.models import FixedInputTable, SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
@@ -33,7 +34,7 @@ class SubscriptionInterface:
     async def product_blocks(
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
     ) -> list[SubscriptionProductBlock]:
-        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)  # type:ignore
+        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> JSON:
@@ -52,7 +53,7 @@ class SubscriptionInterface:
         after: int = 0,
     ) -> Connection[ProcessType]:
         filter_by_with_related_processes = (filter_by or []) + [
-            GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))  # type:ignore
+            GraphqlFilter(field="subscriptionId", value=str(self.subscription_id))
         ]
         return await resolve_processes(info, filter_by_with_related_processes, sort_by, first, after)
 
@@ -68,7 +69,7 @@ class SubscriptionInterface:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_in_use_by_subscriptions
 
-        in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)  # type:ignore
+        in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
         query_results = in_use_by_query.with_entities(SubscriptionTable.subscription_id).all()
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
@@ -90,7 +91,7 @@ class SubscriptionInterface:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
         from orchestrator.services.subscriptions import query_depends_on_subscriptions
 
-        depends_on_query = query_depends_on_subscriptions(self.subscription_id)  # type:ignore
+        depends_on_query = query_depends_on_subscriptions(self.subscription_id)
         query_results = depends_on_query.with_entities(SubscriptionTable.subscription_id).all()
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
