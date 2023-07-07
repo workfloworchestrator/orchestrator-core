@@ -52,7 +52,7 @@ def _has_subscription_details(info: CustomInfo) -> bool:
 
         if not page_field:
             return selected_field.selections
-        return one(page_field).selections if page_field else []
+        return one(page_field).selections
 
     def has_details(selection: Selection) -> bool:
         if isinstance(selection, SelectedField):
