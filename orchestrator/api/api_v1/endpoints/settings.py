@@ -122,9 +122,12 @@ def get_global_status() -> EngineSettingsSchema:
     return generate_engine_status_response(engine_settings)
 
 
+ws_router = APIRouter()
+
+
 if app_settings.ENABLE_WEBSOCKETS:
 
-    @router.websocket("/ws-status/")
+    @ws_router.websocket("/ws-status/")
     async def websocket_get_global_status(websocket: WebSocket, token: str = Query(...)) -> None:
         error = await websocket_manager.authorize(websocket, token)
 
