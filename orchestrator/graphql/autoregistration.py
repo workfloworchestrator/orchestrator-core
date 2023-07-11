@@ -16,6 +16,7 @@ from enum import Enum, EnumMeta
 from typing import Any, Type
 
 import strawberry
+import structlog
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
@@ -23,14 +24,16 @@ from orchestrator.graphql.schema import StrawberryModelType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.utils.helpers import to_camel
 
-EnumList = dict[str, EnumMeta]
+logger = structlog.get_logger(__name__)
+
+EnumDict = dict[str, EnumMeta]
 
 
 def create_strawberry_enum(enum: Any) -> EnumMeta:
     return strawberry.enum(enum)
 
 
-def is_not_strawberry_enum(key: str, strawberry_enums: EnumList) -> bool:
+def is_not_strawberry_enum(key: str, strawberry_enums: EnumDict) -> bool:
     return key not in strawberry_enums
 
 
@@ -75,7 +78,7 @@ def create_block_strawberry_type(
     return strawberry_wrapper(new_type)
 
 
-def create_strawberry_enums(model: Type[DomainModel], strawberry_enums: EnumList) -> EnumList:
+def create_strawberry_enums(model: Type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
     enums = {
         key: field
         for key, field in model._non_product_block_fields_.items()
@@ -88,18 +91,23 @@ def add_class_to_strawberry(
     model_name: str,
     model: Type[DomainModel],
     strawberry_models: StrawberryModelType,
-    strawberry_enums: EnumList,
+    strawberry_enums: EnumDict,
     with_interface: bool = False,
 ) -> None:
+    if model_name in strawberry_models:
+        logger.debug("Skip already registered strawberry model", model=repr(model), strawberry_name=model_name)
+        return
+    logger.debug("Registering strawberry model", model=repr(model), strawberry_name=model_name)
+
     strawberry_enums = create_strawberry_enums(model, strawberry_enums)
 
     product_blocks_types_in_model = get_depends_on_product_block_type_list(model._get_depends_on_product_block_types())
     for field in product_blocks_types_in_model:
-        if is_not_strawberry_type(field.__name__, strawberry_models) and field.__name__ != model_name:
-            add_class_to_strawberry(field.__name__, field, strawberry_models, strawberry_enums)
+        graphql_field_name = graphql_name(field.__name__)
+        if is_not_strawberry_type(graphql_field_name, strawberry_models) and graphql_field_name != model_name:
+            add_class_to_strawberry(graphql_field_name, field, strawberry_models, strawberry_enums)
 
-    strawberry_name = graphql_name(model_name)
     strawberry_type_convert_function = (
         create_subscription_strawberry_type if with_interface else create_block_strawberry_type
     )
-    strawberry_models[strawberry_name] = strawberry_type_convert_function(strawberry_name, model)
+    strawberry_models[model_name] = strawberry_type_convert_function(model_name, model)

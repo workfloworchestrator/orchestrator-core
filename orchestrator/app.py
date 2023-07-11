@@ -44,7 +44,7 @@ from orchestrator.exception_handlers import form_error_handler, problem_detail_h
 from orchestrator.forms import FormError
 from orchestrator.graphql import (
     GRAPHQL_MODELS,
-    EnumList,
+    EnumDict,
     Mutation,
     Query,
     add_class_to_strawberry,
@@ -189,7 +189,7 @@ class OrchestratorCore(FastAPI):
 
     def register_graphql(self: "OrchestratorCore", query: Any = Query, mutation: Any = Mutation) -> None:
         strawberry_models = GRAPHQL_MODELS
-        strawberry_enums: EnumList = {}
+        strawberry_enums: EnumDict = {}
         products = {
             product_type.__base_type__.__name__: product_type.__base_type__
             for product_type in SUBSCRIPTION_MODEL_REGISTRY.values()

@@ -10,8 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from orchestrator.graphql.add_graphql import (
-    EnumList,
+from orchestrator.graphql.autoregistration import (
+    EnumDict,
     add_class_to_strawberry,
     graphql_subscription_name,
 )
@@ -37,7 +37,7 @@ __all__ = [
     "get_context",
     "graphql_router",
     "create_graphql_router",
-    "EnumList",
+    "EnumDict",
     "add_class_to_strawberry",
     "graphql_subscription_name",
 ]

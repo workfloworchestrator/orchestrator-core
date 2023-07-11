@@ -66,7 +66,7 @@ def _has_subscription_details(info: OrchestratorInfo) -> bool:
 
 
 def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInterface:
-    from orchestrator.graphql.add_graphql import graphql_subscription_name
+    from orchestrator.graphql.autoregistration import graphql_subscription_name
     from orchestrator.graphql.schema import GRAPHQL_MODELS
 
     subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
