@@ -21,7 +21,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
-from orchestrator.db import ProductTable, SubscriptionTable
+from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas import ProductCRUDSchema, ProductSchema
 from orchestrator.services.products import get_tags, get_types
@@ -32,7 +32,9 @@ router = APIRouter()
 @router.get("/", response_model=List[ProductSchema])
 def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List[ProductSchema]:
     query = ProductTable.query.options(
-        selectinload("workflows"), selectinload("fixed_inputs"), selectinload("product_blocks")
+        selectinload(ProductTable.workflows),
+        selectinload(ProductTable.fixed_inputs),
+        selectinload(ProductTable.product_blocks).selectinload(ProductBlockTable.resource_types),
     )
     if tag:
         query = query.filter(ProductTable.__dict__["tag"] == tag)
