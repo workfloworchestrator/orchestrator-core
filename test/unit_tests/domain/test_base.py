@@ -1281,3 +1281,31 @@ def test_inherited_serializable_property():
     block = ActiveDomainModel(int_field=1)
 
     assert block.dict() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
+
+
+def test_subscription_save_list_with_zero_values(
+    test_product_type_one, test_product_sub_block_one, product_one_subscription_1
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+
+    subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+    subscription.block.list_field = [10, 0, 20, 30, 40, 0, 0]
+    subscription.save()
+    assert subscription.block.list_field == [10, 0, 20, 30, 40, 0, 0]
+
+    subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+    assert subscription.block.list_field == [10, 0, 20, 30, 40, 0, 0]
+
+
+def test_subscription_save_bool_list_with_false_values(
+    test_product_type_one, test_product_sub_block_one, product_one_subscription_1
+):
+    _, _, ProductTypeOneForTest = test_product_type_one
+
+    subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+    subscription.block.list_field = [True, False, True, False]
+    subscription.save()
+    assert subscription.block.list_field == [True, False, True, False]
+
+    subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
+    assert subscription.block.list_field == [True, False, True, False]
