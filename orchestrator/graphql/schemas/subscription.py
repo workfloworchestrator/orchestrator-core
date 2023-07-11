@@ -11,7 +11,7 @@ from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.get_subscription_product_blocks import (
     SubscriptionProductBlock,
     get_subscription_product_blocks,
@@ -46,7 +46,7 @@ class SubscriptionInterface:
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
     async def processes(
         self,
-        info: CustomInfo,
+        info: OrchestratorInfo,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
@@ -60,7 +60,7 @@ class SubscriptionInterface:
     @authenticated_field(description="Returns list of subscriptions that use this subscription")  # type: ignore
     async def in_use_by_subscriptions(
         self,
-        info: CustomInfo,
+        info: OrchestratorInfo,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
@@ -82,7 +82,7 @@ class SubscriptionInterface:
     @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
     async def depends_on_subscriptions(
         self,
-        info: CustomInfo,
+        info: OrchestratorInfo,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,

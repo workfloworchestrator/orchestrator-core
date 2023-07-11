@@ -10,7 +10,7 @@ from oauth2_lib.strawberry import authenticated_field
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
 from orchestrator.workflow import ProcessStatus
@@ -87,7 +87,7 @@ class ProcessPydantic:
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
     async def subscriptions(
         self,
-        info: CustomInfo,
+        info: OrchestratorInfo,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,

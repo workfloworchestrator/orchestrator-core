@@ -27,7 +27,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 from orchestrator.types import SubscriptionLifecycle
 
@@ -41,8 +41,8 @@ base_sub_props = (
 )
 
 
-def _has_subscription_details(info: CustomInfo) -> bool:
-    """Check if the query asks for subscription details (surf specific properties)."""
+def _has_subscription_details(info: OrchestratorInfo) -> bool:
+    """Check if the query asks for subscription details (product specific properties)."""
 
     def get_selections(selected_field: Selection) -> list[Selection]:
         def has_field_name(selection: Selection, field_name: str) -> bool:
@@ -78,7 +78,7 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
 
 
 async def resolve_subscriptions(
-    info: CustomInfo,
+    info: OrchestratorInfo,
     filter_by: Union[list[GraphqlFilter], None] = None,
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,

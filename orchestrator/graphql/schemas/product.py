@@ -8,7 +8,7 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.fixed_input import FixedInput
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.workflow import Workflow
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.product import ProductSchema
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class ProductPydantic:
     @authenticated_field(description="Returns list of subscriptions of the product type")  # type: ignore
     async def subscriptions(
         self,
-        info: CustomInfo,
+        info: OrchestratorInfo,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,

@@ -19,11 +19,11 @@ from typing import Any, Callable, List, NewType, Tuple, Union
 import strawberry
 from graphql import GraphQLError
 from strawberry.custom_scalar import ScalarDefinition, ScalarWrapper
-from strawberry.fastapi import BaseContext
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
 from oauth2_lib.fastapi import OIDCUserModel
+from oauth2_lib.strawberry import OauthContext
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.utils.vlans import VlanRanges
@@ -37,15 +37,13 @@ def serialize_vlan(vlan: VlanRanges) -> List[Tuple[int, int]]:
     return vlan.to_list_of_tuples()
 
 
-class CustomContext(BaseContext):
+class OrchestratorContext(OauthContext):
     def __init__(self, get_current_user: Callable[[], OIDCUserModel], get_opa_decision: Callable[[str], bool]):
         self.errors: list[GraphQLError] = []
-        self.get_current_user = get_current_user
-        self.get_opa_decision = get_opa_decision
-        super().__init__()
+        super().__init__(get_current_user, get_opa_decision)
 
 
-CustomInfo = Info[CustomContext, RootValueType]
+OrchestratorInfo = Info[OrchestratorContext, RootValueType]
 
 
 @strawberry.experimental.pydantic.input(model=Sort)

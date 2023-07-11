@@ -43,7 +43,7 @@ from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType
 from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
-from orchestrator.graphql.types import SCALAR_OVERRIDES, CustomContext
+from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
 
@@ -122,11 +122,11 @@ class OrchestratorSchema(strawberry.federation.Schema):
 def custom_context_dependency(
     get_current_user: Callable = Depends(get_oidc_user),  # noqa: B008
     get_opa_decision: Callable = Depends(get_opa_security_graphql),  # noqa: B008
-) -> CustomContext:
-    return CustomContext(get_current_user=get_current_user, get_opa_decision=get_opa_decision)
+) -> OrchestratorContext:
+    return OrchestratorContext(get_current_user=get_current_user, get_opa_decision=get_opa_decision)
 
 
-async def get_context(custom_context=Depends(custom_context_dependency)) -> CustomContext:  # type: ignore # noqa: B008
+async def get_context(custom_context=Depends(custom_context_dependency)) -> OrchestratorContext:  # type: ignore # noqa: B008
     return custom_context
 
 

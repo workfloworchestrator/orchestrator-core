@@ -24,7 +24,7 @@ from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.process import ProcessGraphqlSchema, ProcessType
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 from orchestrator.services.processes import load_process
 from orchestrator.utils.show_process import show_process
@@ -39,7 +39,7 @@ def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
 
 
 async def resolve_processes(
-    info: CustomInfo,
+    info: OrchestratorInfo,
     filter_by: Union[list[GraphqlFilter], None] = None,
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
