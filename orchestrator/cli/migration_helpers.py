@@ -59,7 +59,7 @@ def create_migration_file(
     alembic_config: Config, sql_upgrade_str: str, sql_downgrade_str: str, message: str, preamble: str = ""
 ) -> None:
     if not (sql_upgrade_str or sql_downgrade_str):
-        print("Nothing to do")  # noqa: Too1, T201
+        print("Nothing to do")  # noqa: T001, T201
         return
 
     print("Generating migration file.\n")  # noqa: T001, T201
