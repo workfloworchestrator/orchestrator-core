@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from orchestrator.utils.errors import ApiException, ProcessFailure, error_state_to_dict
+from orchestrator.utils.errors import ApiException, ProcessFailureError, error_state_to_dict
 
 
 class RESTResponse:  # From openapi-generator generated clients
@@ -45,10 +45,10 @@ def test_error_state_to_dict():
         "traceback": "ApiException: (404)\nReason: Not Found\nHTTP response headers: {'Header': 'value', 'Content-type': 'bogus'}\nHTTP response body: Body\n\n",
     }
 
-    e = ProcessFailure(message="Something went wrong", details={"foo": "bar"})
+    e = ProcessFailureError(message="Something went wrong", details={"foo": "bar"})
     assert error_state_to_dict(e) == {
-        "class": "ProcessFailure",
+        "class": "ProcessFailureError",
         "details": {"foo": "bar"},
         "error": "Something went wrong",
-        "traceback": "ProcessFailure: ('Something went wrong', {'foo': 'bar'})\n",
+        "traceback": "ProcessFailureError: ('Something went wrong', {'foo': 'bar'})\n",
     }

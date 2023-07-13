@@ -26,7 +26,7 @@ class DomainModelChanges(BaseModel):
     delete_resource_type_relations: Dict[str, Set[str]] = {}
 
 
-class DuplicateException(Exception):
+class DuplicateError(Exception):
     pass
 
 

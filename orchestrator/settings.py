@@ -16,12 +16,9 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseSettings, PostgresDsn, RedisDsn
 
+from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.types import strEnum
 
 
@@ -80,7 +77,6 @@ class AppSettings(BaseSettings):
 
 
 class Oauth2Settings(BaseSettings):
-    OAUTH2_ACTIVE: bool = False
     OAUTH2_RESOURCE_SERVER_ID: str = ""
     OAUTH2_RESOURCE_SERVER_SECRET: str = ""
     OAUTH2_TOKEN_URL: str = ""
@@ -91,8 +87,6 @@ class Oauth2Settings(BaseSettings):
 app_settings = AppSettings()
 oauth2_settings = Oauth2Settings()
 
-# Tracer settings
-tracer_provider = TracerProvider(resource=Resource.create({SERVICE_NAME: app_settings.SERVICE_NAME}))
-
-otlp_exporter = OTLPSpanExporter(endpoint=app_settings.TRACE_HOST)
-tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+# Set oauth2lib_settings variables to the same (default) value of settings
+oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
+oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT

@@ -42,6 +42,7 @@ api_router.include_router(
 api_router.include_router(
     processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(opa_security_default)]
 )
+api_router.include_router(processes.ws_router, prefix="/processes", tags=["Core", "Processes"])
 
 api_router.include_router(
     product_blocks.router,
@@ -79,6 +80,7 @@ api_router.include_router(
 api_router.include_router(
     settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(opa_security_default)]
 )
+api_router.include_router(settings.ws_router, prefix="/settings", tags=["Core", "Settings"])
 api_router.include_router(health.router, prefix="/health", tags=["Core"])
 api_router.include_router(
     translations.router,

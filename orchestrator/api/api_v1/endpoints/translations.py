@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import structlog
-from fastapi import Query
+from fastapi import Path
 from fastapi.routing import APIRouter
 
 from orchestrator.services.translations import generate_translations
@@ -24,7 +24,5 @@ router = APIRouter()
 
 
 @router.get("/{language}", response_model=dict)
-def get_translations(language: str = Query(..., regex="^[a-z]+-[A-Z]+$")) -> dict:
-    translations = generate_translations(language)
-
-    return translations
+def get_translations(language: str = Path(..., regex="^[a-z]+-[A-Z]+$")) -> dict:
+    return generate_translations(language)

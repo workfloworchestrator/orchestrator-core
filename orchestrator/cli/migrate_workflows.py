@@ -114,8 +114,7 @@ def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
     if 0 <= wf_index < len(items):
         item = dict(zip(keys[1:], items[wf_index]))
         return {**state, "workflows_to_delete": [*state["workflows_to_delete"], item]}
-    else:
-        return state
+    return state
 
 
 def _show_state(state: dict) -> dict:

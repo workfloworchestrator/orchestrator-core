@@ -22,9 +22,9 @@ from uuid import UUID, uuid4
 import structlog
 from deepmerge import Merger
 from fastapi import Request
-from nwastdlib.ex import show_ex
 from sqlalchemy.orm import joinedload
 
+from nwastdlib.ex import show_ex
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
@@ -43,9 +43,8 @@ from orchestrator.websocket import (
     websocket_manager,
 )
 from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflow import Failed
+from orchestrator.workflow import Failed, ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
 from orchestrator.workflow import Process as WFProcess
-from orchestrator.workflow import ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
 
@@ -65,8 +64,7 @@ def get_execution_context() -> Dict[str, Callable]:
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
-    """
-    Get and optionally initialise a ThreadPoolExecutor.
+    """Get and optionally initialise a ThreadPoolExecutor.
 
     Returns:
         ThreadPoolExecutor
@@ -244,8 +242,7 @@ def safe_logstep(
 
 
 def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
-    """
-    Write the exception to the process or task when everything else has failed.
+    """Write the exception to the process or task when everything else has failed.
 
     Args:
         pid: the pid of the workflow process
@@ -293,12 +290,12 @@ def _get_process(pid: UUID) -> ProcessTable:
 
 def _run_process_async(pid: UUID, f: Callable) -> UUID:
     def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
-        """
-        Update amount of running processes by one.
+        """Update amount of running processes by one.
 
         Args:
             method: Add or subtract by one the amount of running processes
             args: Any args that are still going to be passed. When called as a callback this will be the future.
+
         Returns:
             None
 
@@ -507,6 +504,7 @@ async def _async_resume_processes(
     Args:
         processes: Processes from database
         user_name: User who requested resuming the processes
+        broadcast_func: The broadcast functionality
 
     Returns:
         True if the resume-all operation has been started.
@@ -526,7 +524,7 @@ async def _async_resume_processes(
                         # Process has been started by something else in the meantime
                         logger.info("Cannot resume a running process", pid=_proc.pid)
                         continue
-                    elif process.last_status == ProcessStatus.RESUMED:
+                    elif process.last_status == ProcessStatus.RESUMED:  # noqa: RET507
                         # Process has been resumed by something else in the meantime
                         logger.info("Cannot resume a resumed process", pid=_proc.pid)
                         continue
@@ -535,7 +533,7 @@ async def _async_resume_processes(
                     logger.exception("Failed to resume process", pid=_proc.pid)
             logger.info("Completed resuming processes")
         finally:
-            distlock_manager.release_sync(lock)  # type: ignore
+            distlock_manager.release_sync(lock)
 
     # Start all jobs in the background. BackgroundTasks might be more suited.
     workflow_executor = get_thread_pool()

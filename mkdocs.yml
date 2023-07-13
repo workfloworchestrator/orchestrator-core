@@ -23,6 +23,7 @@ theme:
   - navigation.tracking
   - navigation.instant
   - navigation.indexes
+  - content.code.copy
   - content.code.annotate
 plugins:
   - search
@@ -44,6 +45,8 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.keys
   - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true 
   - attr_list
   - codehilite
 
@@ -62,6 +65,19 @@ nav:
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md
+    - Product modelling:
+      - Introduction: architecture/product_modelling/introduction.md
+      - Standards: architecture/product_modelling/standards.md
+      - Modelling: architecture/product_modelling/modelling.md
+      - Context: architecture/product_modelling/context.md
+      - Terminology: architecture/product_modelling/terminology.md
+      - Example Product Models:
+        - Node: architecture/product_modelling/node.md
+        - Port: architecture/product_modelling/port.md
+        - L2 Point-to-Point: architecture/product_modelling/l2_point_to_point.md
+        - L2 VPN: architecture/product_modelling/l2_vpn.md
+        - IP Static: architecture/product_modelling/ip_static.md
+      - Product Block Graph: architecture/product_modelling/product_block_graph.md
     - Internals:
       - How do Workflows work?: architecture/application/workflow.md
       - What are tasks?: architecture/application/tasks.md
@@ -97,6 +113,17 @@ nav:
         - Modify User: workshops/beginner/modify-user.md
         - Terminate User: workshops/beginner/terminate-user.md
       - Explore: workshops/beginner/explore.md
+    - Advanced:
+      - Overview: workshops/advanced/overview.md
+      - Installation: workshops/advanced/docker-installation.md
+      - Products:
+        - Scenario: workshops/advanced/scenario.md
+        - Domain models: workshops/advanced/domain-models.md
+        - Database migration: workshops/advanced/database-migration.md
+      - Workflows:
+        - Introduction: workshops/advanced/workflow-introduction.md
+        - Create Node: workshops/advanced/node-workflow.md
+        - Create Circuit: workshops/advanced/circuit-workflow.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md

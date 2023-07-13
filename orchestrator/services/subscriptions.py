@@ -36,14 +36,17 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionInstanceRelationTable
+from orchestrator.db.models import (
+    SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionMetadataTable,
+)
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
 
 logger = structlog.get_logger(__name__)
-
 
 T = TypeVar("T", bound=SubscriptionTable)
 
@@ -86,8 +89,14 @@ def get_subscription(
 
     if subscription:
         return subscription
-    else:
-        raise ValueError(f"Subscription with {subscription_id} does not exist in the database")
+    raise ValueError(f"Subscription with {subscription_id} does not exist in the database")
+
+
+def get_subscription_metadata(subscription_id: UUIDstr) -> Optional[dict]:
+    subscription_metadata = SubscriptionMetadataTable.find_by_subscription_id(subscription_id)
+    if subscription_metadata:
+        return subscription_metadata.metadata_
+    return None
 
 
 def update_subscription_status(subscription_id: UUIDstr, status: str) -> SubscriptionTable:
@@ -171,6 +180,7 @@ def unsync(subscription_id: UUIDstr, checked: bool = True) -> SubscriptionTable:
 
     Args:
         subscription_id: Subscription id of the subscription
+        checked: Checked or not
 
     Returns: Updated subscription object
 
@@ -183,8 +193,7 @@ def unsync(subscription_id: UUIDstr, checked: bool = True) -> SubscriptionTable:
 
 
 def resync(subscription_id: UUIDstr) -> SubscriptionTable:
-    """
-    Resync subscription by subscription id.
+    """Resync subscription by subscription id.
 
     Args:
         subscription_id: Subscription id of the subscription
@@ -224,8 +233,7 @@ def create_subscription(
 
 
 def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str, datetime]) -> SubscriptionTable:
-    """
-    Update the subscription.
+    """Update the subscription.
 
     Args:
         subscription_id: SubscriptionTable id of the subscription
@@ -244,7 +252,7 @@ def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str,
 
 
 def retrieve_node_subscriptions_by_name(node_name: str) -> List[SubscriptionTable]:
-    node_subscriptions = (
+    return (
         SubscriptionTable.query.join(
             ProductTable, SubscriptionInstanceTable, SubscriptionInstanceValueTable, ResourceTypeTable
         )
@@ -253,14 +261,12 @@ def retrieve_node_subscriptions_by_name(node_name: str) -> List[SubscriptionTabl
         .filter(SubscriptionTable.status.in_(["active", "provisioning"]))
         .all()
     )
-    return node_subscriptions
 
 
 def retrieve_subscription_by_subscription_instance_value(
     resource_type: str, value: str, sub_status: Tuple = ("provisioning", "active")
 ) -> Optional[SubscriptionTable]:
-    """
-    Retrieve a Subscriptions by resource_type and value.
+    """Retrieve a Subscriptions by resource_type and value.
 
     Args:
         resource_type: name of the resource type
@@ -270,14 +276,13 @@ def retrieve_subscription_by_subscription_instance_value(
     Returns: Subscription or None
 
     """
-    subscription = (
+    return (
         SubscriptionTable.query.join(SubscriptionInstanceTable, SubscriptionInstanceValueTable, ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == value)
         .filter(ResourceTypeTable.resource_type == resource_type)
         .filter(SubscriptionTable.status.in_(sub_status))
         .one_or_none()
     )
-    return subscription
 
 
 def find_values_for_resource_types(
@@ -343,8 +348,7 @@ def find_values_for_resource_types(
 
 
 def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: Optional[List[str]] = None) -> Query:
-    """
-    Return a query with all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
+    """Return a query with all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
     """
@@ -381,8 +385,7 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: Option
 
 
 def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: Optional[List[str]] = None) -> Query:
-    """
-    Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
+    """Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
     """
@@ -477,8 +480,7 @@ def get_relations(subscription_id: UUIDstr) -> Dict[str, List[UUID]]:
     subscription_table = SubscriptionTable.query.options(joinedload("product"), joinedload("product.workflows")).get(
         subscription_id
     )
-    relations = status_relations(subscription_table)
-    return relations
+    return status_relations(subscription_table)
 
 
 TARGET_DEFAULT_USABLE_MAP: Dict[Target, List[str]] = {
@@ -497,8 +499,7 @@ WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
 
 
 def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
-    """
-    Return a dict containing all the workflows a user can start for this subscription.
+    """Return a dict containing all the workflows a user can start for this subscription.
 
     Args:
         subscription: an SqlAlchemy instance of a `db.SubscriptionTable`
@@ -532,7 +533,6 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         "terminate": [],
         "system": [],
     }
-
     for workflow in subscription.product.workflows:
         if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.target == Target.SYSTEM:
             # validations and modify note are also possible with: not in sync or locked relations

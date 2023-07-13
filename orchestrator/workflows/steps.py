@@ -39,8 +39,7 @@ def resync(subscription: SubscriptionModel) -> State:
 
 @step("Lock subscription")
 def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = None) -> State:
-    """
-    Transition a subscription to out of sync.
+    """Transition a subscription to out of sync.
 
     This step will also create a backup of the current subscription details in the state with the key
     `__old_subscriptions__`
@@ -140,8 +139,7 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 def remove_domain_model_from_cache(
     workflow_name: str, subscription: Optional[SubscriptionModel] = None, subscription_id: Optional[UUID] = None
 ) -> State:
-    """
-    Remove the domain model from the cache if it exists.
+    """Remove the domain model from the cache if it exists.
 
     Args:
         workflow_name: The workflow name
@@ -156,7 +154,7 @@ def remove_domain_model_from_cache(
     if not (subscription or subscription_id):
         logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
         return {"deleted_subscription_id": None}
-    elif subscription:
+    if subscription:
         delete_from_redis(subscription.subscription_id)
     elif subscription_id:
         delete_from_redis(subscription_id)
@@ -165,9 +163,8 @@ def remove_domain_model_from_cache(
 
 
 @step("Cache Subscription and related subscriptions")
-def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionModel] = None) -> State:
-    """
-    Attempt to cache all Subscriptions once they have been touched once.
+def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionModel] = None) -> State:  # noqa: C901
+    """Attempt to cache all Subscriptions once they have been touched once.
 
     Args:
         workflow_name: The Workflow Name
@@ -195,7 +192,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
             # If subscription_instance is a ProductBlockModel check the owner_subscription_id to decide the cache
             elif isinstance(subscription_instance, ProductBlockModel):
                 _cache_other_subscriptions(subscription_instance)
-                if not subscription_instance.owner_subscription_id == subscription.subscription_id:  # type: ignore
+                if not subscription_instance.owner_subscription_id == subscription.subscription_id:
                     cached_subscription_ids.add(subscription_instance.owner_subscription_id)
 
     for field in subscription.__fields__:

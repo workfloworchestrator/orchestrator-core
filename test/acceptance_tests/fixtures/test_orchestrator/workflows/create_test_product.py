@@ -16,7 +16,6 @@ from ipaddress import IPv4Address, IPv6Address
 from uuid import UUID
 
 from structlog import get_logger
-from test_orchestrator.products.test_product import TestProductInactive
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import OrganisationId
@@ -25,6 +24,7 @@ from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUID
 from orchestrator.workflow import StepList, begin, done, step, workflow
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import wrap_create_initial_input_form
+from test_orchestrator.products.test_product import TestProductInactive
 
 logger = get_logger(__name__)
 

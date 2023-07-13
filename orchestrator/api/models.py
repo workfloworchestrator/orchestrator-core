@@ -94,9 +94,8 @@ def delete(cls: Type, primary_key: UUID) -> None:
     row_count = cls.query.filter(cls.__dict__[pk] == primary_key).delete()
     db.session.commit()
     if row_count > 0:
-        return None
-    else:
-        raise_status(HTTPStatus.NOT_FOUND)
+        return
+    raise_status(HTTPStatus.NOT_FOUND)
 
 
 deserialization_mapping = {

@@ -52,7 +52,7 @@ def _process_text_query(q: str) -> str:
         return q
 
 
-def _query_with_filters(
+def _query_with_filters(  # noqa: C901
     response: Response,
     query: Query,
     range: Optional[List[int]] = None,

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2023 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@ from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.db.database import SearchQuery
 
 
-class CallableErrorHander(Protocol):
+class CallableErrorHandler(Protocol):
     def __call__(self, message: str, **kwargs: Any) -> None:
         ...
 
@@ -48,18 +48,24 @@ def generic_filters_validate(
 
 def generic_apply_filters(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[QueryType, Iterator[Filter], CallableErrorHander], QueryType]:
+) -> Callable[[QueryType, Iterator[Filter], CallableErrorHandler], QueryType]:
     def _apply_filters(
-        query: QueryType, filter_by: Iterator[Filter], handle_filter_error: CallableErrorHander
+        query: QueryType, filter_by: Iterator[Filter], handle_filter_error: CallableErrorHandler
     ) -> QueryType:
         for item in filter_by:
-            field = item.field.lower()
+            field = item.field
             filter_fn = valid_filter_functions_by_column[field]
             try:
                 query = filter_fn(query, item.value)
             except ProblemDetailException as exception:
                 handle_filter_error(
                     exception.detail,
+                    field=field,
+                    value=item.value,
+                )
+            except ValueError as exception:
+                handle_filter_error(
+                    str(exception),
                     field=field,
                     value=item.value,
                 )
@@ -70,7 +76,7 @@ def generic_apply_filters(
 
 def generic_filter(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[QueryType, list[Filter], CallableErrorHander], QueryType]:
+) -> Callable[[QueryType, list[Filter], CallableErrorHandler], QueryType]:
     valid_filter_functions_by_column_KEYS = list(valid_filter_functions_by_column.keys())
     _validate_filters = generic_filters_validate(valid_filter_functions_by_column)
     _apply_filters = generic_apply_filters(valid_filter_functions_by_column)
@@ -78,7 +84,7 @@ def generic_filter(
     def _filter(
         query: QueryType,
         filter_by: list[Filter],
-        handle_filter_error: CallableErrorHander,
+        handle_filter_error: CallableErrorHandler,
     ) -> QueryType:
         invalid_filter_items, valid_filter_items = _validate_filters(filter_by)
         if invalid_list := [item.dict() for item in invalid_filter_items]:

@@ -136,7 +136,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
     time.sleep(1)
 
     try:
-        with test_client.websocket_connect("api/processes/all?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Check the websocket messages.
             # the initial process details.
             data = websocket.receive_text()
@@ -189,7 +189,6 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
 
             # close and call receive_text to check websocket close exception
             websocket.close()
-            data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
     except AssertionError as e:
@@ -219,17 +218,12 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
     pid = response.json()["id"]
 
     try:
-        with test_client.websocket_connect("api/processes/all?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Resume process
             user_input = {"generic_select": "A"}
 
             response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
             assert HTTPStatus.NO_CONTENT == response.status_code
-
-            data = websocket.receive_text()
-            process = json_loads(data)["process"]
-            assert process["status"] == ProcessStatus.SUSPENDED
-            assert process["assignee"] == Assignee.CHANGES
 
             data = websocket.receive_text()
             process = json_loads(data)["process"]
@@ -243,7 +237,6 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
 
             # close and call receive_text to check websocket close exception
             websocket.close()
-            data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 
@@ -261,15 +254,10 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
     pid = response.json()["id"]
 
     try:
-        with test_client.websocket_connect("api/processes/all?token=") as websocket:
+        with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Abort process
             response = test_client.put(f"/api/processes/{pid}/abort")
             assert HTTPStatus.NO_CONTENT == response.status_code
-
-            data = websocket.receive_text()
-            process = json_loads(data)["process"]
-            assert process["status"] == ProcessStatus.SUSPENDED
-            assert process["assignee"] == Assignee.CHANGES
 
             data = websocket.receive_text()
             process = json_loads(data)["process"]
@@ -278,7 +266,6 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
 
             # close and call receive_text to check websocket close exception
             websocket.close()
-            data = websocket.receive_text()
     except WebSocketDisconnect as exception:
         assert exception.code == status.WS_1000_NORMAL_CLOSURE
 

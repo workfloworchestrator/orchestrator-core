@@ -29,7 +29,7 @@ from orchestrator.services import products
 from orchestrator.services.translations import generate_translations
 from orchestrator.targets import Target
 from orchestrator.types import State
-from orchestrator.utils.errors import ProcessFailure
+from orchestrator.utils.errors import ProcessFailureError
 from orchestrator.workflow import StepList, done, init, step, workflow
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
@@ -42,7 +42,7 @@ def check_all_workflows_are_in_db() -> State:
     not_in_db = all_workflows - all_workflows_in_db
     not_in_lwi = all_workflows_in_db - all_workflows
     if not_in_db or not_in_lwi:
-        raise ProcessFailure(
+        raise ProcessFailureError(
             "Found missing workflows in database or implementations",
             {
                 "Workflows not registered in the database": list(not_in_db),
@@ -74,7 +74,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
 
     if workflow_assertions:
         workflow_message = "\n".join(workflow_assertions)
-        raise ProcessFailure("Workflows with none matching targets and descriptions", workflow_message)
+        raise ProcessFailureError("Workflows with none matching targets and descriptions", workflow_message)
 
     # Check translations
     translations = generate_translations("en-GB")["workflow"]
@@ -85,7 +85,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
 
     if workflow_assertions:
         workflow_message = "\n".join(workflow_assertions)
-        raise ProcessFailure("Workflows with missing translations", workflow_message)
+        raise ProcessFailureError("Workflows with missing translations", workflow_message)
 
     return {"check_workflows_for_matching_targets_and_descriptions": True}
 
@@ -96,7 +96,7 @@ def check_that_products_have_at_least_one_workflow() -> State:
         flatten(ProductTable.query.filter(not_(ProductTable.workflows.any())).with_entities(ProductTable.name))
     )
     if prods_without_wf:
-        raise ProcessFailure("Found products that do not have a workflow associated with them", prods_without_wf)
+        raise ProcessFailureError("Found products that do not have a workflow associated with them", prods_without_wf)
 
     return {"check_that_products_have_at_least_one_workflow": True}
 
@@ -129,7 +129,7 @@ def check_that_active_products_have_a_modify_note() -> State:
     product_data = ProductTable.query.filter(ProductTable.status == "active").all()
     result = [product.name for product in product_data if modify_workflow not in product.workflows]
     if result:
-        raise ProcessFailure("Found products that do not have a modify_note workflow", result)
+        raise ProcessFailureError("Found products that do not have a modify_note workflow", result)
 
     return {"check_that_active_products_have_a_modify_note": True}
 
@@ -167,7 +167,7 @@ def check_db_fixed_input_config() -> State:
             errors.append(fi.product.name)
 
     if errors:
-        raise ProcessFailure("Errors in fixed input config", errors)
+        raise ProcessFailureError("Errors in fixed input config", errors)
 
     return {"check_db_fixed_input_config": True}
 
@@ -185,7 +185,7 @@ def check_subscription_models() -> State:
             failures[str(subscription.subscription_id)] = str(e)
 
     if failures:
-        raise ProcessFailure("Found subscriptions that could not be loaded", failures)
+        raise ProcessFailureError("Found subscriptions that could not be loaded", failures)
 
     return {"check_subscription_models": True}
 

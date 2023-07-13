@@ -27,11 +27,11 @@ logger = structlog.get_logger(__name__)
 
 
 def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None:
-    """
-    Post engine settings update to slack.
+    """Post engine settings update to slack.
 
     Args:
         engine_status: EngineStatus
+        user: The user who executed the change
 
     Returns:
         None
@@ -44,7 +44,7 @@ def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None
             action = f"started the `{app_settings.ENVIRONMENT}` workflow engine. The orchestrator will pick up all pending processes."
 
         message = {"text": f"User `{user}` {action}"}
-        requests.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message)
+        requests.post(app_settings.SLACK_ENGINE_SETTINGS_HOOK_URL, json=message, timeout=5)
 
     # Catch all Request exceptions and log. Then pass
     except RequestException:
@@ -53,8 +53,7 @@ def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None
 
 
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> Optional[EngineSettingsTable]:
-    """
-    Manage processes depending on the engine status.
+    """Manage processes depending on the engine status.
 
     This function only has to act when in the transitioning fases, i.e Pausing and Starting
 

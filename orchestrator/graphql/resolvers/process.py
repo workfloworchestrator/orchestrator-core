@@ -14,11 +14,10 @@
 from typing import Union
 
 import structlog
-from graphql import GraphQLError
 from sqlalchemy.orm import defer, joinedload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable
-from orchestrator.db.filters import CallableErrorHander, Filter
+from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort
@@ -26,6 +25,7 @@ from orchestrator.db.sorting.process import sort_processes
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.process import ProcessGraphqlSchema, ProcessType
 from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 from orchestrator.services.processes import load_process
 from orchestrator.utils.show_process import show_process
 
@@ -38,15 +38,6 @@ def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
     return ProcessGraphqlSchema(**data)
 
 
-def handle_process_error(info: CustomInfo) -> CallableErrorHander:
-    def _handle_process_error(message: str, **kwargs) -> None:  # type: ignore
-        logger.debug(message, **kwargs)
-        extra_values = dict(kwargs.items()) if kwargs else {}
-        info.context.errors.append(GraphQLError(message=message, path=info.path, extensions=extra_values))
-
-    return _handle_process_error
-
-
 async def resolve_processes(
     info: CustomInfo,
     filter_by: Union[list[GraphqlFilter], None] = None,
@@ -54,12 +45,10 @@ async def resolve_processes(
     first: int = 10,
     after: int = 0,
 ) -> Connection[ProcessType]:
-    _error_handler = handle_process_error(info)
-
-    _range: Union[list[int], None] = [after, after + first] if after is not None and first else None
+    _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.info("resolve_processes() called", range=_range, sort=sort_by, filter=pydantic_filter_by)
+    logger.info("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.

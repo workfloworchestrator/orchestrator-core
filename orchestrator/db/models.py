@@ -54,7 +54,7 @@ TAG_LENGTH = 20
 STATUS_LENGTH = 255
 
 
-class UtcTimestampException(Exception, DontWrapMixin):
+class UtcTimestampError(Exception, DontWrapMixin):
     pass
 
 
@@ -68,11 +68,12 @@ class UtcTimestamp(TypeDecorator):
 
     impl = sqlalchemy.types.TIMESTAMP(timezone=True)
     cache_ok = False
+    python_type = datetime
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
         if value is not None:
             if value.tzinfo is None:
-                raise UtcTimestampException(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
+                raise UtcTimestampError(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
         return value
 
     def process_result_value(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
@@ -227,8 +228,7 @@ class ProductTable(BaseModel):
         return wfs[0].name if len(wfs) > 0 else None
 
     def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
-        workflow = first_true(self.workflows, None, lambda wf: wf.name == name)
-        return workflow
+        return first_true(self.workflows, None, lambda wf: wf.name == name)  # type: ignore
 
 
 class FixedInputTable(BaseModel):
@@ -449,8 +449,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
 
     def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:
-        value = first_true(self.values, None, lambda x: x.resource_type.resource_type == name)
-        return value
+        return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)  # type: ignore
 
 
 SubscriptionInstanceTable.parent_relations = SubscriptionInstanceTable.in_use_by_block_relations
@@ -579,6 +578,20 @@ subscription_product_ix = Index(
 subscription_customer_ix = Index(
     "subscription_customer_ix", SubscriptionTable.subscription_id, SubscriptionTable.customer_id
 )
+
+
+class SubscriptionMetadataTable(BaseModel):
+    __tablename__ = "subscription_metadata"
+    subscription_id = Column(
+        UUIDType,
+        ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    metadata_ = Column("metadata", pg.JSONB(), nullable=False)
+
+    @staticmethod
+    def find_by_subscription_id(subscription_id: str) -> Optional[SubscriptionMetadataTable]:
+        return SubscriptionMetadataTable.query.get(subscription_id)
 
 
 class SubscriptionSearchView(BaseModel):

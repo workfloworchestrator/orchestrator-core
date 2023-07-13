@@ -10,7 +10,7 @@ def get_selected_fields(info: CustomInfo) -> list[str]:
     Can be used to get the selected fields of the schema, to only fetch those from the database.
 
     Args:
-        - info: The info class with request information.
+        info: The info class with request information.
 
     returns the names of SelectedFields as a list of strings.
     """

@@ -29,7 +29,7 @@ logger = structlog.get_logger(__name__)
 
 
 @router.get("/configuration", response_model=FixedInputConfigurationSchema)
-def fi_configuration() -> Dict[str, Any]:
+def fi_configuration() -> Dict[str, Any]:  # noqa: C901
     product_tags = products.get_tags()
 
     data: dict = {"fixed_inputs": [], "by_tag": {}}

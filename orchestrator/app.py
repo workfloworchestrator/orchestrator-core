@@ -12,27 +12,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 import sentry_sdk
 import structlog
 import typer
+from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
-from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_logging
-from opentelemetry import trace
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from pydantic.json import ENCODERS_BY_TYPE
+from sentry_sdk.integrations import Integration
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.threading import ThreadingIntegration
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
+from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_logging
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
@@ -42,14 +41,23 @@ from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
-from orchestrator.forms import FormException
+from orchestrator.forms import FormError
 from orchestrator.graphql import graphql_router
 from orchestrator.services.processes import ProcessDataBroadcastThread
-from orchestrator.settings import AppSettings, app_settings, tracer_provider
+from orchestrator.settings import AppSettings, ExecutorType, app_settings
+from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
 
 logger = structlog.get_logger(__name__)
+
+sentry_integrations: List[Integration] = [
+    SqlalchemyIntegration(),
+    RedisIntegration(),
+    FastApiIntegration(),
+    AsyncioIntegration(),
+    ThreadingIntegration(propagate_hub=True),
+]
 
 
 class OrchestratorCore(FastAPI):
@@ -65,6 +73,7 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        self.base_settings = base_settings
         websocket_manager = init_websocket_manager(base_settings)
         distlock_manager = init_distlock_manager(base_settings)
         self.broadcast_thread = ProcessDataBroadcastThread(websocket_manager)
@@ -76,6 +85,9 @@ class OrchestratorCore(FastAPI):
             shutdown_functions.extend(
                 [websocket_manager.disconnect_all, self.broadcast_thread.stop, websocket_manager.disconnect_redis]
             )
+
+        # Make sure encoding is done correctly on the response.
+        ENCODERS_BY_TYPE[VlanRanges] = str
 
         super().__init__(
             title=title,
@@ -109,7 +121,7 @@ class OrchestratorCore(FastAPI):
             expose_headers=base_settings.CORS_EXPOSE_HEADERS,
         )
 
-        self.add_exception_handler(FormException, form_error_handler)
+        self.add_exception_handler(FormError, form_error_handler)
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)
         add_exception_handler(self)
 
@@ -117,14 +129,9 @@ class OrchestratorCore(FastAPI):
         def _index() -> str:
             return "Orchestrator orchestrator"
 
+    @deprecated("Not using Opentelemetry from version 1.2.0, removing after version 1.3.0")
     def instrument_app(self) -> None:
-        logger.info("Activating Opentelemetry tracing to app", app=self.title)
-        trace.set_tracer_provider(tracer_provider)
-        FastAPIInstrumentor.instrument_app(self)
-        HTTPXClientInstrumentor().instrument()
-        RedisInstrumentor().instrument()
-        Psycopg2Instrumentor().instrument()
-        SQLAlchemyInstrumentor().instrument(engine=db.engine, tracer_provider=tracer_provider)
+        pass
 
     def add_sentry(
         self,
@@ -135,19 +142,25 @@ class OrchestratorCore(FastAPI):
         release: Optional[str] = GIT_COMMIT_HASH,
     ) -> None:
         logger.info("Adding Sentry middleware to app", app=self.title)
+        if self.base_settings.EXECUTOR == ExecutorType.WORKER:
+            from sentry_sdk.integrations.celery import CeleryIntegration
+
+            sentry_integrations.append(CeleryIntegration())
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             traces_sample_rate=trace_sample_rate,
             server_name=server_name,
             environment=environment,
             release=f"orchestrator@{release}",
-            integrations=[SqlalchemyIntegration(), RedisIntegration(), FastApiIntegration(transaction_style="url")],
+            integrations=sentry_integrations,
+            propagate_traces=True,
+            profiles_sample_rate=trace_sample_rate,
         )
 
     @staticmethod
     def register_subscription_models(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
-        """
-        Register your subscription models.
+        """Register your subscription models.
 
         This method is needed to register your subscription models inside the orchestrator core.
 

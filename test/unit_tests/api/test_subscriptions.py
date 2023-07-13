@@ -3,9 +3,9 @@ from os import getenv
 from uuid import uuid4
 
 import pytest
-from nwastdlib.url import URL
 from redis import Redis
 
+from nwastdlib.url import URL
 from orchestrator.api.helpers import product_block_paths
 from orchestrator.db import (
     FixedInputTable,

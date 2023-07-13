@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Generic, TypeVar, Union
+from typing import Any, Generic, TypeVar, Union
 
 import strawberry
 
@@ -57,3 +57,15 @@ class Edge(Generic[GenericType]):
 
     node: GenericType
     cursor: str
+
+
+EMPTY_PAGE: Connection[Any] = Connection(
+    page=[],
+    page_info=PageInfo(
+        has_previous_page=False,
+        has_next_page=False,
+        start_cursor=0,
+        end_cursor=-1,
+        total_items="0",
+    ),
+)

@@ -1,3 +1,4 @@
+import datetime
 import os
 import typing
 from contextlib import closing
@@ -125,8 +126,7 @@ CUSTOMER_ID: UUIDstr = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 
 def run_migrations(db_uri: str) -> None:
-    """
-    Configure the alembic context and run the migrations.
+    """Configure the alembic context and run the migrations.
 
     Each test will start with a clean database. This a heavy operation but ensures that our database is clean and
     tests run within their own context.
@@ -153,8 +153,7 @@ def run_migrations(db_uri: str) -> None:
 
 @pytest.fixture(scope="session")
 def db_uri(worker_id):
-    """
-    Ensure each pytest thread has its database.
+    """Ensure each pytest thread has its database.
 
     When running tests with the -j option make sure each test worker is isolated within its own database.
 
@@ -215,8 +214,7 @@ def database(db_uri):
 
 @pytest.fixture(autouse=True)
 def db_session(database):
-    """
-    Ensure tests are run in a transaction with automatic rollback.
+    """Ensure tests are run in a transaction with automatic rollback.
 
     This implementation creates a connection and transaction before yielding to the test function. Any transactions
     started and committed from within the test will be tied to this outer transaction. From the test function's
@@ -541,19 +539,50 @@ def generic_product_type_2(generic_product_2, generic_product_block_type_3):
 
 
 @pytest.fixture
-def generic_subscription_1(generic_product_1, generic_product_type_1):
-    GenericProductOneInactive, _ = generic_product_type_1
-    gen_subscription = GenericProductOneInactive.from_product_id(
-        generic_product_1.product_id, customer_id=CUSTOMER_ID, insync=True
-    )
-    gen_subscription.pb_1.rt_1 = "Value1"
-    gen_subscription.pb_2.rt_2 = 42
-    gen_subscription.pb_2.rt_3 = "Value2"
-    gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
-    gen_subscription.description = "Generic Subscription One"
-    gen_subscription.save()
-    db.session.commit()
-    return str(gen_subscription.subscription_id)
+def product_type_1_subscription_factory(generic_product_1, generic_product_type_1):
+    def subscription_create(
+        description="Generic Subscription One",
+        start_date="2023-05-24T00:00:00+00:00",
+        rt_1="Value1",
+        rt_2=42,
+        rt_3="Value2",
+    ):
+        GenericProductOneInactive, _ = generic_product_type_1
+        gen_subscription = GenericProductOneInactive.from_product_id(
+            generic_product_1.product_id, customer_id=CUSTOMER_ID, insync=True
+        )
+        gen_subscription.pb_1.rt_1 = rt_1
+        gen_subscription.pb_2.rt_2 = rt_2
+        gen_subscription.pb_2.rt_3 = rt_3
+        gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
+        gen_subscription.description = description
+        gen_subscription.start_date = start_date
+        gen_subscription.save()
+        db.session.commit()
+        return str(gen_subscription.subscription_id)
+
+    return subscription_create
+
+
+@pytest.fixture
+def product_type_1_subscriptions_factory(product_type_1_subscription_factory):
+    def subscriptions_create(amount=1):
+        return [
+            product_type_1_subscription_factory(
+                description=f"Subscription {i}",
+                start_date=(
+                    datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
+                ).replace(tzinfo=datetime.timezone.utc),
+            )
+            for i in range(0, amount)
+        ]
+
+    return subscriptions_create
+
+
+@pytest.fixture
+def generic_subscription_1(product_type_1_subscription_factory):
+    return product_type_1_subscription_factory()
 
 
 @pytest.fixture

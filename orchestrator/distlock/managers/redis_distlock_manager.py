@@ -59,9 +59,8 @@ class RedisDistLockManager:
             )
             if await lock.acquire():
                 return lock
-            else:
-                # normal behavior (lock acquired by something else)
-                return None
+            # normal behavior (lock acquired by something else)
+            return None
         except LockError:
             # Unexpected behavior, possibly a problem with Redis
             logger.Exception("Could not acquire lock for resource", resource=key)
@@ -69,7 +68,7 @@ class RedisDistLockManager:
 
     async def release_lock(self, lock: Lock) -> None:
         if not self.redis_conn:
-            return None
+            return
 
         try:
             await lock.release()

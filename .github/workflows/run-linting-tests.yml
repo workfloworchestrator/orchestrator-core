@@ -31,12 +31,11 @@ jobs:
           flit install --deps develop --symlink
       - name: Check formatting
         run: |
-          isort -c .
           black --check .
-      - name: Lint with flake8
+      - name: Lint with ruff
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 .
+          ruff .
       - name: Check with mypy
         run: |
           mypy .

@@ -2,9 +2,9 @@ from typing import Union
 
 import strawberry
 import structlog
-from oauth2_lib.graphql_authentication import authenticated_mutation_field
 from redis.asyncio import Redis as AIORedis
 
+from oauth2_lib.strawberry import authenticated_mutation_field
 from orchestrator.api.api_v1.endpoints.settings import generate_engine_status_response
 from orchestrator.db import EngineSettingsTable
 from orchestrator.graphql.schemas.errors import Error

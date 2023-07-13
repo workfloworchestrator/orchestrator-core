@@ -464,7 +464,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
     return resource_type_ids
 
 
-def create(conn: sa.engine.Connection, new: Dict) -> None:
+def create(conn: sa.engine.Connection, new: Dict) -> None:  # noqa: C901
     """Call other functions in this file based on the schema.
 
     Args:

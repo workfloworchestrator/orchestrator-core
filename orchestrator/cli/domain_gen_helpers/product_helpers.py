@@ -38,7 +38,7 @@ def map_product_additional_relations(changes: DomainModelChanges) -> DomainModel
     Adds resource type and product block relations.
 
     Args:
-        - changes: DomainModelChanges class with all changes.
+        changes: DomainModelChanges class with all changes.
 
     Returns: Updated DomainModelChanges.
     """
@@ -60,10 +60,10 @@ def generate_create_products_sql(
     """Generate SQL to create products.
 
     Args:
-        - create_products: Dict of SubscriptionModels by product name.
+        create_products: Dict of SubscriptionModels by product name.
             - key: product name.
             - value: SubscriptionModel
-        - inputs: Optional Dict to add prefilled values for 'description', 'product_type' and 'tag' per product.
+        inputs: Optional Dict to add prefilled values for 'description', 'product_type' and 'tag' per product.
             - key: product name.
             - value: Dict with 'description', 'product_type' and 'tag'.
                 - key: product property.
@@ -99,7 +99,7 @@ def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
     """Generate SQL to delete products.
 
     Args:
-        - delete_products: List of product names.
+        delete_products: List of product names.
 
     Returns: List of SQL strings to delete products.
     """
@@ -141,7 +141,7 @@ def generate_create_product_relations_sql(create_block_relations: Dict[str, Set[
     """Generate SQL to create product relations to product blocks.
 
     Args:
-        - create_block_relations: Dict with product names by product block
+        create_block_relations: Dict with product names by product block
             - key: product block name.
             - value: Set of product names to relate with.
 
@@ -167,7 +167,7 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: D
     """Generate SQL to create subscription instances for existing subscriptions.
 
     Args:
-        - product_to_block_relations: Dict with product blocks by resource type
+        product_to_block_relations: Dict with product blocks by resource type
             - key: product block name.
             - value: Set of product names to relate with.
 
@@ -207,7 +207,7 @@ def generate_delete_product_relations_sql(delete_block_relations: Dict[str, Set[
     """Generate SQL to delete product to product blocks relations.
 
     Args:
-        - delete_block_relations: Dict with product blocks by resource type
+        delete_block_relations: Dict with product blocks by resource type
             - key: product block name.
             - value: Set of product names to relate with.
 

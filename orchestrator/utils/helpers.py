@@ -75,12 +75,10 @@ def map_value(mapping: dict[str, Callable], k: str, v: Any) -> tuple[Any, ...]:
     if f := mapping.get(k):
         if v is None:
             return k, None
-        elif type(v) == dict:
+        if type(v) == dict:
             return result if type(result := f(**v)) is tuple else (k, result)
-        else:
-            return result if type(result := f(v)) is tuple else (k, result)
-    else:
-        return k, v
+        return result if type(result := f(v)) is tuple else (k, result)
+    return k, v
 
 
 def to_camel(s: str) -> str:

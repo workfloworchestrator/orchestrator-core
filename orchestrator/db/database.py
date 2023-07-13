@@ -54,8 +54,7 @@ class BaseModelMeta(DeclarativeMeta):
     def query(self) -> SearchQuery:
         if self._query is not None:
             return self._query
-        else:
-            raise NoSessionError("Cant get session. Please, call BaseModel.set_query() first")
+        raise NoSessionError("Cant get session. Please, call BaseModel.set_query() first")
 
 
 @as_declarative(metaclass=BaseModelMeta)
@@ -128,8 +127,7 @@ class _Base:
 
 
 class BaseModel(_Base):
-    """
-    Separate BaseModel class to be able to include mixins and to Fix typing.
+    """Separate BaseModel class to be able to include mixins and to Fix typing.
 
     This should be used instead of Base.
     """
@@ -195,8 +193,7 @@ class Database:
         BaseModel.set_query(cast(SearchQuery, self.scoped_session.query_property()))
 
     def _scopefunc(self) -> Optional[str]:
-        scope_str = self.request_context.get()
-        return scope_str
+        return self.request_context.get()
 
     @property
     def session(self) -> WrappedSession:
@@ -210,7 +207,7 @@ class Database:
         This method should typically only been called in request middleware or at the start of workflows.
 
         Args:
-            ``**kwargs``: Optional session kw args for this session
+            kwargs: Optional session kw args for this session
         """
         token = self.request_context.set(str(uuid4()))
         self.scoped_session(**kwargs)
@@ -227,8 +224,7 @@ class DBSessionMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         with self.database.database_scope():
-            response = await call_next(request)
-        return response
+            return await call_next(request)
 
 
 @contextmanager

@@ -4,8 +4,8 @@ from typing import List, Optional
 from uuid import uuid4
 
 import pytest
-from nwastdlib import const
 
+from nwastdlib import const
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.forms import FormPage, post_process
 from orchestrator.types import State, SubscriptionLifecycle

@@ -21,17 +21,18 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
-from fastapi import Query, Request, WebSocket
+from fastapi import Request
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
+from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
-from oauth2_lib.fastapi import OIDCUserModel
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql import expression
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import VALID_SORT_KEYS, enrich_process
 from orchestrator.config.assignee import Assignee
@@ -167,7 +168,7 @@ def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserM
     broadcast_func = api_broadcast_process_data(request)
     try:
         abort_process(process, user_name, broadcast_func=broadcast_func)
-        return None
+        return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
@@ -191,8 +192,7 @@ def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionT
 
 
 def check_global_lock() -> None:
-    """
-    Check the global lock of the engine.
+    """Check the global lock of the engine.
 
     Returns:
         None or raises an exception
@@ -237,8 +237,7 @@ def show(pid: UUID) -> Dict[str, Any]:
     process = _get_process(pid)
     p = load_process(process)
 
-    data = show_process(process, p)
-    return data
+    return show_process(process, p)
 
 
 def handle_process_error(message: str, **kwargs: Any) -> None:
@@ -247,7 +246,7 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
 
 
 @router.get("/", response_model=List[ProcessListItemSchema])
-def processes_filterable(
+def processes_filterable(  # noqa: C901
     response: Response,
     range: Optional[str] = None,
     sort: Optional[str] = None,
@@ -321,10 +320,12 @@ def processes_filterable(
     return [asdict(enrich_process(p)) for p in results]
 
 
+ws_router = APIRouter()
+
 if app_settings.ENABLE_WEBSOCKETS:
 
-    @router.websocket("/all/")
-    async def websocket_process_list(websocket: WebSocket, token: str = Query(...)) -> None:
+    @ws_router.websocket("/all/")
+    async def websocket_process_list(websocket: WebSocket, token: str) -> None:
         error = await websocket_manager.authorize(websocket, token)
 
         await websocket.accept()

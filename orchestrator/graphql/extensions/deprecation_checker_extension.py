@@ -30,8 +30,7 @@ DeprecatedPaths = dict[str, str]
 def get_path_as_string(path: Path) -> str:
     if path.prev:
         return f"{get_path_as_string(path.prev)}/{path.key}"
-    else:
-        return f"{path.key}"
+    return f"{path.key}"
 
 
 def get_root_path(path: Path) -> Path:

@@ -13,8 +13,7 @@
 
 
 def pre_mutation(context):
-    """
-    Prepare mutmut context.
+    """Prepare mutmut context.
 
     This helps skipping needless mutations.
     """

@@ -44,15 +44,13 @@ def find_field_with_name(config: dict, field_name: str) -> dict:
 def add_optional_ims_config(config: dict) -> dict:
     if found := find_field_with_name(config, "ims_circuit_id"):
         return config | found
-    else:
-        return config
+    return config
 
 
 def add_optional_nso_config(config: dict) -> dict:
     if found := find_field_with_name(config, "nso_service_id"):
         return config | found
-    else:
-        return config
+    return config
 
 
 def insert_lazy_workflow_instances(environment: Environment, config: dict, writer: Callable) -> None:
@@ -125,7 +123,8 @@ def generate_workflow(f: Optional[Callable] = None, workflow: Optional[str] = No
             return all(wf.get("enabled", True) for wf in config.get("workflows", []) if wf["name"] == workflow)
 
         if workflow_enabled():
-            return f(environment, config, writer)  # type: ignore
+            return f(environment, config, writer)
+        return None
 
     return wrapper
 

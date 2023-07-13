@@ -30,7 +30,7 @@ class ProcessForm(OrchestratorBaseModel):
     title: str
     type: str
     properties: Dict[str, Any]
-    additionalProperties: bool
+    additionalProperties: bool  # noqa: N815
     required: List[str] = []
     definitions: Optional[Dict[str, Any]]
 
