@@ -7,7 +7,7 @@ import strawberry
 from strawberry.scalars import JSON
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db.models import SubscriptionTable
+from orchestrator.db.models import FixedInputTable, SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
@@ -108,6 +108,13 @@ class SubscriptionType:
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
     ) -> list[SubscriptionProductBlock]:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)  # type:ignore
+
+    @strawberry.field(description="Return fixed inputs")  # type: ignore
+    async def fixed_inputs(self) -> JSON:
+        fixed_inputs: list[FixedInputTable] = FixedInputTable.query.filter(
+            FixedInputTable.product_id == self.product.product_id  # type: ignore
+        ).all()
+        return {fi.name: fi.value for fi in fixed_inputs}
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
     async def processes(
