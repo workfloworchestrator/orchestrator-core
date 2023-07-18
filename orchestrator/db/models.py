@@ -496,26 +496,12 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
         unique=UniqueConstraint("customer_id", "subscription_id"),
     )
     subscription = relationship("SubscriptionTable")
-    customer_id = Column(
-        UUIDType, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id")
-    )
+    customer_id = Column(String, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id"))
     description = Column(Text(), nullable=False)
     created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
 
     __table_args__ = (
         UniqueConstraint("customer_id", "subscription_id", name="uniq_customer_subscription_description"),
-    )
-
-
-class SubscriptionCustomerTable(BaseModel):
-    __tablename__ = "subscription_customer"
-
-    id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    subscription_id = Column(
-        UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    customer_id = Column(
-        UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True
     )
 
 
@@ -527,6 +513,7 @@ class SubscriptionTable(BaseModel):
     status = Column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = Column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     product = relationship("ProductTable")
+    customer_id = Column(String, nullable=False, index=True)
     insync = Column(Boolean(), nullable=False)
     start_date = Column(UtcTimestamp, nullable=True)
     end_date = Column(UtcTimestamp)
@@ -566,10 +553,6 @@ class SubscriptionTable(BaseModel):
             {instance.product_block.name: [{v.resource_type.resource_type: v.value} for v in instance.values]}
             for instance in sorted(self.instances, key=lambda si: si.subscription_instance_id)
         ]
-
-    @property
-    def customer(self) -> SubscriptionTable:
-        return SubscriptionCustomerTable.query.join(SubscriptionTable)
 
 
 subscription_product_ix = Index(

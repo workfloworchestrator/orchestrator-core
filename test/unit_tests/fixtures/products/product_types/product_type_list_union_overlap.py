@@ -66,7 +66,7 @@ def sub_list_union_overlap_subscription_1(
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     list_union_subscription_inactive = ProductListUnionInactive.from_product_id(
-        product_id=test_product_list_union_overlap, customer_id=uuid4()
+        product_id=test_product_list_union_overlap, customer_id=str(uuid4())
     )
 
     list_union_subscription_inactive.test_block = ProductBlockOneForTestInactive.new(

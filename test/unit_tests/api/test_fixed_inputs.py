@@ -35,7 +35,7 @@ def seed():
         status="active",
         insync=True,
         product=product,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
     )
 
     db.session.add(product)

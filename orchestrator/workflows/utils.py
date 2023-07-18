@@ -154,7 +154,7 @@ def wrap_modify_initial_input_form(initial_input_form: Optional[InputStepFunc]) 
         begin_state = {
             "subscription_id": str(subscription.subscription_id),
             "product": str(subscription.product_id),
-            "organisation": str(subscription.customer_id),
+            "organisation": subscription.customer_id,
         }
 
         if initial_input_form is None:

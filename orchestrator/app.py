@@ -185,4 +185,5 @@ main_typer_app = typer.Typer()
 main_typer_app.add_typer(cli_app, name="orchestrator", help="The orchestrator CLI commands")
 
 if __name__ == "__main__":
+    logger.info("HELLO")
     main_typer_app()

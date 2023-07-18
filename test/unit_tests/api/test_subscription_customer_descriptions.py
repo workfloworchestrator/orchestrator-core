@@ -7,7 +7,7 @@ from orchestrator.db import ProductTable, SubscriptionCustomerDescriptionTable, 
 
 SUBSCRIPTION_ID = uuid4()
 SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID = uuid4()
-CUSTOMER_ID = uuid4()
+CUSTOMER_ID = str(uuid4())
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def seed():
         status="active",
         insync=True,
         product=product,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         customer_descriptions=[
             SubscriptionCustomerDescriptionTable(
                 id=SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID, customer_id=CUSTOMER_ID, description="customer other alias"
@@ -55,7 +55,7 @@ def test_get_by_customer_and_subscription_id(seed, test_client):
 def test_save(seed, test_client):
     body = {
         "subscription_id": SUBSCRIPTION_ID,
-        "customer_id": uuid4(),
+        "customer_id": str(uuid4()),
         "description": "Customer specific alias",
     }
     response = test_client.post("/api/subscription_customer_descriptions/", json=body)
@@ -70,7 +70,7 @@ def test_update(seed, test_client):
     body = {
         "id": SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID,
         "subscription_id": SUBSCRIPTION_ID,
-        "customer_id": uuid4(),
+        "customer_id": str(uuid4()),
         "description": new_desc,
     }
     response = test_client.put("/api/subscription_customer_descriptions/", json=body)

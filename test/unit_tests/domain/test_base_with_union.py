@@ -19,7 +19,7 @@ def test_product_model_with_union_type_directly_below(
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     union_subscription_inactive = UnionProductInactive.from_product_id(
-        product_id=test_union_product, customer_id=uuid4()
+        product_id=test_union_product, customer_id=str(uuid4())
     )
 
     union_subscription_inactive.test_block = ProductBlockOneForTestInactive.new(
@@ -70,7 +70,7 @@ def test_union_product_block_as_sub(
     _, _, ProductSubOne = test_product_type_sub_one
 
     union_subscription_inactive = UnionProductSubInactive.from_product_id(
-        product_id=test_union_sub_product, customer_id=uuid4()
+        product_id=test_union_sub_product, customer_id=str(uuid4())
     )
     union_subscription_inactive.test_block = UnionProductBlockForTestInactive.new(
         subscription_id=union_subscription_inactive.subscription_id

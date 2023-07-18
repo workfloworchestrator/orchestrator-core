@@ -45,7 +45,7 @@ def sub_one_subscription_1(test_product_type_sub_one, test_product_sub_block_one
     SubBlockOneForTestInactive, _, _ = test_product_sub_block_one
 
     sub_one_subscription_inactive = ProductSubOneInactive.from_product_id(
-        product_id=test_product_sub_one, customer_id=uuid4()
+        product_id=test_product_sub_one, customer_id=str(uuid4())
     )
     sub_one_subscription_inactive.test_block = SubBlockOneForTestInactive.new(
         subscription_id=sub_one_subscription_inactive.subscription_id, int_field=1, str_field="blah"

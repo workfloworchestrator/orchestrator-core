@@ -1018,7 +1018,7 @@ class SubscriptionModel(DomainModel):
     """
 
     product: ProductModel
-    customer_id: UUID
+    customer_id: str
     _db_model: SubscriptionTable = PrivateAttr()
     subscription_id: UUID = Field(default_factory=uuid4)  # pragma: no mutate
     description: str = "Initial subscription"  # pragma: no mutate
@@ -1110,7 +1110,7 @@ class SubscriptionModel(DomainModel):
     def from_product_id(
         cls: Type[S],
         product_id: Union[UUID, UUIDstr],
-        customer_id: Union[UUID, UUIDstr],
+        customer_id: str,
         status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL,
         description: Optional[str] = None,
         insync: bool = False,
@@ -1151,9 +1151,6 @@ class SubscriptionModel(DomainModel):
 
         fixed_inputs = {fi.name: fi.value for fi in product_db.fixed_inputs}
         instances = cls._init_instances(subscription_id)
-
-        if isinstance(customer_id, str):
-            customer_id = UUID(customer_id)
 
         model = cls(
             product=product,

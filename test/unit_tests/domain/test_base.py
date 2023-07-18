@@ -62,7 +62,7 @@ def test_product_block_one_nested(test_product_model_nested, test_product_type_o
     """
     ProductTypeOneNestedForTestInactive, _, ProductTypeOneNestedForTest = test_product_type_one_nested
 
-    customer_id = uuid4()
+    customer_id = str(uuid4())
     # Create productblock 30 that will be nested in block 20
     model30 = ProductTypeOneNestedForTestInactive.from_product_id(
         product_id=test_product_model_nested.product_id,
@@ -184,7 +184,7 @@ def test_product_block_list_nested(test_product_model_list_nested, test_product_
     """
     ProductTypeListNestedForTestInactive, _, ProductTypeListNestedForTest = test_product_type_list_nested
 
-    customer_id = uuid4()
+    customer_id = str(uuid4())
     # Create productblocks 30 and 31 that will both be nested in block 20 and 21
     model30 = ProductTypeListNestedForTestInactive.from_product_id(
         product_id=test_product_model_list_nested.product_id,
@@ -345,7 +345,7 @@ def test_lifecycle(test_product_model, test_product_type_one, test_product_block
     with pytest.raises(ValueError, match=r"is not valid for status active"):
         ProductTypeOneForTestInactive(
             product=test_product_model,
-            customer_id=uuid4(),
+            customer_id=str(uuid4()),
             subscription_id=subscription_id,
             insync=False,
             description="",
@@ -360,7 +360,7 @@ def test_lifecycle(test_product_model, test_product_type_one, test_product_block
     # Works with right lifecycle
     product_type = ProductTypeOneForTestInactive(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -386,7 +386,7 @@ def test_lifecycle_specific(
     # Works with less contrained lifecycle
     product_type = ProductTypeOneForTest(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -410,7 +410,7 @@ def test_lifecycle_specific(
     # Works with right lifecycle
     product_type = ProductTypeOneForTest(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -435,7 +435,7 @@ def test_lifecycle_specific(
     with pytest.raises(ValueError, match=r"is not valid for status active"):
         ProductTypeOneForTestProvisioning(
             product=test_product_model,
-            customer_id=uuid4(),
+            customer_id=str(uuid4()),
             subscription_id=subscription_id,
             insync=False,
             description="",
@@ -456,7 +456,7 @@ def test_lifecycle_specific(
     # Works with right lifecycle
     product_type = ProductTypeOneForTestProvisioning(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -486,7 +486,7 @@ def test_product_blocks_per_lifecycle(
 
     ProductTypeOneForTestInactive(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -507,7 +507,7 @@ def test_product_blocks_per_lifecycle(
 
     ProductTypeOneForTestInactive(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -521,7 +521,7 @@ def test_product_blocks_per_lifecycle(
 
     ProductTypeOneForTestProvisioning(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -542,7 +542,7 @@ def test_product_blocks_per_lifecycle(
 
     ProductTypeOneForTest(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -563,7 +563,7 @@ def test_product_blocks_per_lifecycle(
 
     ProductTypeOneForTest(
         product=test_product_model,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         subscription_id=subscription_id,
         insync=False,
         description="",
@@ -588,7 +588,7 @@ def test_product_blocks_per_lifecycle(
     ):
         ProductTypeOneForTest(
             product=test_product_model,
-            customer_id=uuid4(),
+            customer_id=str(uuid4()),
             subscription_id=subscription_id,
             insync=False,
             description="",
@@ -603,7 +603,7 @@ def test_product_blocks_per_lifecycle(
     with pytest.raises(ValidationError, match=r"5 validation errors for ProductTypeOneForTest"):
         ProductTypeOneForTest(
             product=test_product_model,
-            customer_id=uuid4(),
+            customer_id=str(uuid4()),
             subscription_id=subscription_id,
             insync=False,
             description="",
@@ -620,7 +620,7 @@ def test_product_blocks_per_lifecycle(
     ):
         ProductTypeOneForTest(
             product=test_product_model,
-            customer_id=uuid4(),
+            customer_id=str(uuid4()),
             subscription_id=subscription_id,
             insync=False,
             description="",
@@ -636,7 +636,7 @@ def test_product_blocks_per_lifecycle(
     ):
         ProductTypeOneForTest(
             product=test_product_model,
-            customer_id=uuid4(),
+            customer_id=str(uuid4()),
             subscription_id=subscription_id,
             insync=False,
             description="",
@@ -809,7 +809,7 @@ def test_update_constrained_lists(test_product_one, test_product_block_one):
         saps: conlist(ProductBlockOneForTestInactive, min_items=1, max_items=4)
 
     # Creates
-    ip = TestConListProductType.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    ip = TestConListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     ip.save()
 
     sap = ProductBlockOneForTestInactive.new(subscription_id=ip.subscription_id, int_field=3, str_field="")
@@ -836,7 +836,7 @@ def test_update_lists(test_product_one, test_product_block_one):
         saps: List[ProductBlockOneForTestInactive]
 
     # Creates
-    ip = TestListProductType.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    ip = TestListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     ip.save()
 
     sap = ProductBlockOneForTestInactive.new(subscription_id=ip.subscription_id, int_field=3, str_field="")
@@ -859,7 +859,7 @@ def test_update_optional(test_product_one, test_product_block_one):
         sap: Optional[ProductBlockOneForTestInactive] = None
 
     # Creates
-    ip = TestListProductType.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    ip = TestListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     ip.save()
 
     sap = ProductBlockOneForTestInactive.new(subscription_id=ip.subscription_id, int_field=3, str_field="")
@@ -878,7 +878,7 @@ def test_update_optional(test_product_one, test_product_block_one):
 def test_generic_from_subscription(test_product_one, test_product_type_one):
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
-    ip = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    ip = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     ip.save()
 
     model = SubscriptionModel.from_subscription(ip.subscription_id)
@@ -901,7 +901,7 @@ def test_domain_model_attrs_saving_loading(test_product_one, test_product_type_o
     SubBlockOneForTestInactive, _, _ = test_product_sub_block_one
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
-    test_model = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    test_model = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     test_model.block.sub_block_2 = SubBlockOneForTestInactive.new(subscription_id=test_model.subscription_id)
     test_model.block.sub_block_list = [SubBlockOneForTestInactive.new(subscription_id=test_model.subscription_id)]
     test_model.save()
@@ -927,7 +927,7 @@ def test_removal_of_domain_attrs(test_product_one, test_product_type_one, test_p
     SubBlockOneForTestInactive, _, _ = test_product_sub_block_one
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
-    test_model = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    test_model = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     test_model.block.sub_block_2 = SubBlockOneForTestInactive.new(subscription_id=test_model.subscription_id)
 
     test_model.save()
@@ -1018,7 +1018,7 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTest
 
-    test_model = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=uuid4())
+    test_model = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     test_model.block = ProductBlockOneForTestInactive.new(subscription_id=test_model.subscription_id)
 
     product_block, product_sub_block = test_product_block_one_db
