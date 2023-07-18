@@ -87,7 +87,7 @@ def test_state() -> None:
 def test_inject_args(generic_product_1, generic_product_type_1) -> None:
     GenericProductOneInactive, GenericProduct = generic_product_type_1
     product_id = generic_product_1.product_id
-    state = {"product": product_id, "organisation": uuid4()}
+    state = {"product": product_id, "organisation": str(uuid4())}
     generic_sub = GenericProductOneInactive.from_product_id(
         product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
     )
@@ -128,7 +128,7 @@ def test_inject_args(generic_product_1, generic_product_type_1) -> None:
 def test_inject_args_list(generic_product_1, generic_product_type_1) -> None:
     GenericProductOneInactive, GenericProduct = generic_product_type_1
     product_id = generic_product_1.product_id
-    state = {"product": product_id, "organisation": uuid4()}
+    state = {"product": product_id, "organisation": str(uuid4())}
     generic_sub = GenericProductOneInactive.from_product_id(
         product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
     )
@@ -170,7 +170,7 @@ def test_inject_args_list(generic_product_1, generic_product_type_1) -> None:
 def test_inject_args_optional(generic_product_1, generic_product_type_1) -> None:
     GenericProductOneInactive, GenericProduct = generic_product_type_1
     product_id = generic_product_1.product_id
-    state = {"product": product_id, "organisation": uuid4()}
+    state = {"product": product_id, "organisation": str(uuid4())}
     generic_sub = GenericProductOneInactive.from_product_id(
         product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
     )
@@ -216,7 +216,7 @@ def test_inject_args_optional(generic_product_1, generic_product_type_1) -> None
 def test_form_inject_args(generic_product_1, generic_product_type_1) -> None:
     GenericProductOneInactive, GenericProduct = generic_product_type_1
     product_id = generic_product_1.product_id
-    state = {"product": product_id, "organisation": uuid4()}
+    state = {"product": product_id, "organisation": str(uuid4())}
     generic_sub = GenericProductOneInactive.from_product_id(
         product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
     )
@@ -262,7 +262,7 @@ def test_form_inject_args(generic_product_1, generic_product_type_1) -> None:
 def test_form_inject_args_simple(generic_product_1, generic_product_type_1) -> None:
     GenericProductOneInactive, GenericProduct = generic_product_type_1
     product_id = generic_product_1.product_id
-    state = {"product": product_id, "organisation": uuid4()}
+    state = {"product": product_id, "organisation": str(uuid4())}
     generic_sub = GenericProductOneInactive.from_product_id(
         product_id=state["product"], customer_id=state["organisation"], status=SubscriptionLifecycle.INITIAL
     )

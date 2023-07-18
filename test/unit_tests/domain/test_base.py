@@ -655,7 +655,7 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
 
     product_type = ProductTypeOneForTestInactive.from_product_id(
         test_product_one,
-        uuid4(),
+        str(uuid4()),
     )
     product_type.block = ProductBlockOneForTestInactive.new(
         subscription_id=product_type.subscription_id,
@@ -705,7 +705,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
     ProductBlockOneForTestInactive, ProductBlockOneForTestProvisioning, ProductBlockOneForTest = test_product_block_one
     ProductTypeOneForTestInactive, ProductTypeOneForTestProvisioning, ProductTypeOneForTest = test_product_type_one
 
-    customer_id = uuid4()
+    customer_id = str(uuid4())
 
     model = ProductTypeOneForTestInactive.from_product_id(
         product_id=test_product_model.product_id,
@@ -889,7 +889,7 @@ def test_generic_from_subscription(test_product_one, test_product_type_one):
 def test_label_is_saved(test_product_one, test_product_type_one):
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
-    test_model = ProductTypeOneForTestInactive.from_product_id(test_product_one, uuid4())
+    test_model = ProductTypeOneForTestInactive.from_product_id(test_product_one, str(uuid4()))
     test_model.block.label = "My label"
     test_model.save()
     db.session.commit()
