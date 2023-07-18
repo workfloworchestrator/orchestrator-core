@@ -69,7 +69,7 @@ async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSucc
     return CacheClearSuccess(deleted=deleted)
 
 
-def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
+async def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
     engine_settings = EngineSettingsTable.query.with_for_update().one()
 
     result = marshall_processes(engine_settings, global_lock)
@@ -78,7 +78,7 @@ def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, Engine
             message="Something went wrong while updating the database aborting, possible manual intervention required",
         )
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
-        oidc_user = info.context.get_current_user()
+        oidc_user = await info.context.get_current_user
         user_name = oidc_user.name if oidc_user else SYSTEM_USER
         post_update_to_slack(EngineSettingsSchema.from_orm(result), user_name)
 

@@ -37,7 +37,7 @@ class SubscriptionInterface:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
-    async def fixed_inputs(self) -> JSON:
+    async def fixed_inputs(self) -> strawberry.scalars.JSON:
         fixed_inputs: list[FixedInputTable] = FixedInputTable.query.filter(
             FixedInputTable.product_id == self.product.product_id  # type: ignore
         ).all()

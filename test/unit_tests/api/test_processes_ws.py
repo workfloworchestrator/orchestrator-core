@@ -140,7 +140,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
             # Check the websocket messages.
             # the initial process details.
 
-            # WITH AN UPDATE IT DOES NOT SEND THIS ANYMORE
+            # WITH AN PACKAGE UPDATE IT DOES NOT SEND THIS FIRST MESSAGE ANYMORE
             # data = websocket.receive_text()
             # process = json_loads(data)["process"]
             # assert process["workflow_name"] == "long_running_workflow_py"

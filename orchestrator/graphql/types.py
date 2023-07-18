@@ -21,6 +21,7 @@ import strawberry
 from graphql import GraphQLError
 from starlette.requests import Request
 from strawberry.custom_scalar import ScalarDefinition, ScalarWrapper
+from strawberry.scalars import JSON
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
@@ -63,13 +64,6 @@ class GraphqlFilter:
     field: str = strawberry.field(description="Field to filter on")
     value: str = strawberry.field(description="Value to sort the field on")
 
-
-JSON = strawberry.scalar(
-    NewType("JSON", object),
-    description="The `JSON` scalar type represents JSON values as specified by ECMA-404",
-    serialize=lambda v: v,
-    parse_value=lambda v: v,
-)
 
 VlanRangesType = strawberry.scalar(
     NewType("VlanRangesType", str),
