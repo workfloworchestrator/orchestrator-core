@@ -12,9 +12,9 @@
 # limitations under the License.
 
 from more_itertools import first
+from pydantic_forms.core import generate_form
 
 from orchestrator.db import ProcessTable
-from orchestrator.forms import generate_form
 from orchestrator.workflow import ProcessStat
 
 

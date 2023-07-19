@@ -17,9 +17,9 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import validator
+from pydantic_forms.core import FormPage
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.forms import FormPage
 from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings

@@ -13,12 +13,12 @@
 
 from http import HTTPStatus
 
+from pydantic_forms.exceptions import FormException, FormNotCompleteError, FormValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from nwastdlib.ex import show_ex
 from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.forms import FormError, FormNotCompleteError, FormValidationError
 from orchestrator.utils.json import json_dumps, json_loads
 
 PROBLEM_DETAIL_FIELDS = ("title", "type")
@@ -39,7 +39,7 @@ async def problem_detail_handler(request: Request, exc: ProblemDetailException) 
     return JSONResponse(body, status_code=exc.status_code)
 
 
-async def form_error_handler(request: Request, exc: FormError) -> JSONResponse:
+async def form_error_handler(request: Request, exc: FormException) -> JSONResponse:
     if isinstance(exc, FormValidationError):
         return JSONResponse(
             {

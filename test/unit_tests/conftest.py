@@ -9,6 +9,7 @@ import requests
 import structlog
 from alembic import command
 from alembic.config import Config
+from pydantic_forms.core import FormPage
 from redis import Redis
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
@@ -29,7 +30,6 @@ from orchestrator.db import (
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
-from orchestrator.forms import FormPage
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr

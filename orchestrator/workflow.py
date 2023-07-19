@@ -36,13 +36,13 @@ from uuid import UUID
 
 import strawberry
 import structlog
+from pydantic_forms.core import FormPage
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
 from nwastdlib import const, identity
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, db, transactional
-from orchestrator.forms import FormPage
 from orchestrator.targets import Target
 from orchestrator.types import (
     ErrorDict,

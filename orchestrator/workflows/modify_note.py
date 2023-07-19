@@ -10,9 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from pydantic_forms.core import FormPage
+from pydantic_forms.validators import LongText
+
 from orchestrator.db import db
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import LongText
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target

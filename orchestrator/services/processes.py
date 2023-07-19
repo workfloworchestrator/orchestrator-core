@@ -22,6 +22,8 @@ from uuid import UUID, uuid4
 import structlog
 from deepmerge import Merger
 from fastapi import Request
+from pydantic_forms.core import post_form
+from pydantic_forms.exceptions import FormValidationError
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
@@ -29,7 +31,6 @@ from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
-from orchestrator.forms import FormValidationError, post_process
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
@@ -365,7 +366,7 @@ def create_process(
     }
 
     try:
-        state = post_process(workflow.initial_input_form, initial_state, user_inputs)
+        state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
@@ -436,7 +437,7 @@ def thread_resume_process(
 
     form = pstat.log[0].form
 
-    user_input = post_process(form, pstat.state.unwrap(), user_inputs)
+    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
 
     if user:
         pstat.update(current_user=user)
@@ -485,7 +486,7 @@ def resume_process(
     """
     pstat = load_process(process)
     try:
-        post_process(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
+        post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise

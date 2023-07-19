@@ -1,6 +1,7 @@
 import pytest
+from pydantic_forms.core import FormPage, generate_form, post_form
+from pydantic_forms.exceptions import FormNotCompleteError, FormOverflowError, FormValidationError
 
-from orchestrator.forms import FormNotCompleteError, FormPage, FormValidationError, generate_form, post_process
 from orchestrator.types import strEnum
 from orchestrator.utils.json import json_dumps, json_loads
 
@@ -19,7 +20,7 @@ def test_post_process_yield():
         user_input = yield TestForm
         return {**user_input.dict(), "extra": 234}
 
-    validated_data = post_process(input_form, {"previous": True}, [{"generic_select": "a"}])
+    validated_data = post_form(input_form, {"previous": True}, [{"generic_select": "a"}])
 
     expected = {"generic_select": "a", "extra": 234}
     assert expected == json_loads(json_dumps(validated_data))
@@ -31,7 +32,7 @@ def test_post_process_extra_data():
         return {**user_input.dict(), "extra": 234}
 
     with pytest.raises(FormValidationError) as e:
-        post_process(input_form, {"previous": True}, [{"generic_select": "a", "extra_data": False}])
+        post_form(input_form, {"previous": True}, [{"generic_select": "a", "extra_data": False}])
 
     assert (
         str(e.value)
@@ -45,7 +46,7 @@ def test_post_process_validation_errors():
         return user_input.dict()
 
     with pytest.raises(FormValidationError) as e:
-        post_process(input_form, {}, [{"generic_select": 1, "extra_data": False}])
+        post_form(input_form, {}, [{"generic_select": 1, "extra_data": False}])
 
     assert (
         str(e.value)
@@ -53,7 +54,7 @@ def test_post_process_validation_errors():
     )
 
     with pytest.raises(FormValidationError) as e:
-        post_process(input_form, {}, [{"generic_select": 1}])
+        post_form(input_form, {}, [{"generic_select": 1}])
 
     assert (
         str(e.value)
@@ -63,8 +64,8 @@ def test_post_process_validation_errors():
 
 def test_post_process_wizard():
     # Return if there is no form
-    assert post_process(None, {}, []) == {}
-    assert post_process([], {}, []) == {}
+    assert post_form(None, {}, []) == {}
+    assert post_form([], {}, []) == {}
 
     def input_form(state):
         class TestForm1(FormPage):
@@ -90,7 +91,7 @@ def test_post_process_wizard():
 
     # Submit 1
     with pytest.raises(FormNotCompleteError) as error_info:
-        post_process(input_form, {"previous": True}, [])
+        post_form(input_form, {"previous": True}, [])
 
     assert error_info.value.form == {
         "title": "Some title",
@@ -110,7 +111,7 @@ def test_post_process_wizard():
 
     # Submit 2
     with pytest.raises(FormNotCompleteError) as error_info:
-        post_process(input_form, {"previous": True}, [{"generic_select1": "b"}])
+        post_form(input_form, {"previous": True}, [{"generic_select1": "b"}])
 
     assert error_info.value.form == {
         "title": "unknown",
@@ -129,15 +130,17 @@ def test_post_process_wizard():
     }
 
     # Submit complete
-    validated_data = post_process(input_form, {"previous": True}, [{"generic_select1": "b"}, {"generic_select3": "a"}])
+    validated_data = post_form(input_form, {"previous": True}, [{"generic_select1": "b"}, {"generic_select3": "a"}])
 
     expected = {"generic_select1": "b", "generic_select3": "a"}
     assert expected == json_loads(json_dumps(validated_data))
 
     # Submit overcomplete
-    validated_data = post_process(
-        input_form, {"previous": True}, [{"generic_select1": "b"}, {"generic_select3": "a"}, {"to_much": True}]
-    )
+    with pytest.raises(FormOverflowError) as error_info:
+        validated_data = post_form(
+            input_form, {"previous": True}, [{"generic_select1": "b"}, {"generic_select3": "a"}, {"to_much": True}]
+        )
+    assert error_info.match("Did not process all user_inputs \\(1 remaining\\)")
 
     expected = {"generic_select1": "b", "generic_select3": "a"}
     assert expected == json_loads(json_dumps(validated_data))

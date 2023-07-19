@@ -21,8 +21,8 @@ from pydantic.errors import EnumMemberError
 from pydantic.fields import ModelField
 from pydantic.utils import update_not_none
 from pydantic.validators import str_validator, uuid_validator
+from pydantic_forms.core import DisplayOnlyFieldType
 
-from orchestrator.forms import DisplayOnlyFieldType
 from orchestrator.services import products
 from orchestrator.types import AcceptData, SummaryData, strEnum
 

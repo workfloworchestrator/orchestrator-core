@@ -5,10 +5,10 @@ from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic_forms.core import FormPage
 
 from nwastdlib import const
 from orchestrator.config.assignee import Assignee
-from orchestrator.forms import FormPage
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.types import FormGenerator, State, UUIDstr
 from orchestrator.utils.errors import error_state_to_dict

@@ -6,10 +6,10 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from pydantic_forms.exceptions import FormValidationError
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db
-from orchestrator.forms import FormValidationError
 from orchestrator.services.processes import (
     SYSTEM_USER,
     _async_resume_processes,
@@ -718,9 +718,9 @@ def test_run_process_async_exception(mock_db_log_process_ex):
 
 @mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.pid))
 @mock.patch("orchestrator.services.processes._db_create_process")
-@mock.patch("orchestrator.services.processes.post_process")
+@mock.patch("orchestrator.services.processes.post_form")
 @mock.patch("orchestrator.services.processes.get_workflow")
-def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_process, mock_run_process_async):
+def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process, mock_run_process_async):
     @step("test step")
     def test_step():
         pass
@@ -729,7 +729,7 @@ def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_proc
     wf.name = "name"
     mock_get_workflow.return_value = wf
 
-    mock_post_process.return_value = {"a": 1}
+    mock_post_form.return_value = {"a": 1}
 
     result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
@@ -746,7 +746,7 @@ def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_proc
         "a": 1,
     }
     assert pstat.log == [test_step]
-    mock_post_process.assert_called_once_with(
+    mock_post_form.assert_called_once_with(
         mock.ANY,
         {
             "process_id": mock.ANY,
@@ -758,12 +758,12 @@ def test_start_process(mock_get_workflow, mock_post_process, mock_db_create_proc
     )
     mock_get_workflow.assert_called_once_with(mock.sentinel.wf_name)
 
-    mock_post_process.reset_mock()
-    mock_post_process.side_effect = FormValidationError("", [])
+    mock_post_form.reset_mock()
+    mock_post_form.side_effect = FormValidationError("", [])
 
     with pytest.raises(FormValidationError):
         start_process(mock.sentinel.wf_name, None, mock.sentinel.user)
-    mock_post_process.assert_called_once_with(
+    mock_post_form.assert_called_once_with(
         mock.ANY,
         {
             "process_id": mock.ANY,

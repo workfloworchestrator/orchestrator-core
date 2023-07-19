@@ -4,9 +4,8 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-
-from orchestrator.forms import FormPage, ReadOnlyField
-from orchestrator.forms.validators import (
+from pydantic_forms.core import FormPage, ReadOnlyField
+from pydantic_forms.validators import (
     Accept,
     Choice,
     ContactPersonList,
@@ -18,14 +17,14 @@ from orchestrator.forms.validators import (
     LongText,
     MigrationSummary,
     OrganisationId,
-    ProductId,
     UniqueConstrainedList,
     choice_list,
     contact_person_list,
     migration_summary,
-    product_id,
     unique_conlist,
 )
+
+from orchestrator.forms.validators import ProductId, product_id
 from orchestrator.services import products
 from orchestrator.utils.json import json_dumps, json_loads
 

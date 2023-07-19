@@ -21,6 +21,7 @@ from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from pydantic.json import ENCODERS_BY_TYPE
+from pydantic_forms.exceptions import FormException
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -41,7 +42,6 @@ from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
-from orchestrator.forms import FormError
 from orchestrator.graphql import (
     Mutation,
     Query,
@@ -125,7 +125,7 @@ class OrchestratorCore(FastAPI):
             expose_headers=base_settings.CORS_EXPOSE_HEADERS,
         )
 
-        self.add_exception_handler(FormError, form_error_handler)
+        self.add_exception_handler(FormException, form_error_handler)
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)
         add_exception_handler(self)
 
