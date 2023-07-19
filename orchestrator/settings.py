@@ -74,6 +74,7 @@ class AppSettings(BaseSettings):
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
     SERVE_GRAPHQL_UI: bool = True
     FEDEREATION_ENABLED: bool = False
+    DEFAULT_CUSTOMER_ONLY: Optional[str] = None
 
 
 class Oauth2Settings(BaseSettings):
