@@ -19,8 +19,9 @@ import strawberry
 import structlog
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
-from orchestrator.graphql.schema import StrawberryModelType
+from orchestrator.graphql.schema import GRAPHQL_MODELS, StrawberryModelType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.utils.helpers import to_camel
 
@@ -111,3 +112,21 @@ def add_class_to_strawberry(
         create_subscription_strawberry_type if with_interface else create_block_strawberry_type
     )
     strawberry_models[model_name] = strawberry_type_convert_function(model_name, model)
+
+
+def register_domain_models() -> None:
+    strawberry_models = GRAPHQL_MODELS
+    strawberry_enums: EnumDict = {}
+    products = {
+        product_type.__base_type__.__name__: product_type.__base_type__
+        for product_type in SUBSCRIPTION_MODEL_REGISTRY.values()
+        if product_type.__base_type__
+    }
+    for key, product_type in products.items():
+        add_class_to_strawberry(
+            model_name=graphql_subscription_name(key),
+            model=product_type,
+            strawberry_models=strawberry_models,
+            strawberry_enums=strawberry_enums,
+            with_interface=True,
+        )

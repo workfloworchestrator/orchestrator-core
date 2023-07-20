@@ -14,6 +14,7 @@ from orchestrator.graphql.autoregistration import (
     EnumDict,
     add_class_to_strawberry,
     graphql_subscription_name,
+    register_domain_models,
 )
 from orchestrator.graphql.schema import (
     GRAPHQL_MODELS,
@@ -40,4 +41,5 @@ __all__ = [
     "EnumDict",
     "add_class_to_strawberry",
     "graphql_subscription_name",
+    "register_domain_models",
 ]
