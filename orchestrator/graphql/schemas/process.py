@@ -4,7 +4,9 @@ from uuid import UUID
 
 import strawberry
 from sqlalchemy.orm import load_only
+from strawberry.federation.schema_directives import Key
 from strawberry.scalars import JSON
+from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.config.assignee import Assignee
@@ -17,6 +19,9 @@ from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+
+
+federation_key_directives = [Key(fields="id", resolvable=UNSET)]
 
 
 # TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
@@ -64,8 +69,8 @@ class ProcessStepType:
     state: Union[JSON, None]
 
 
-@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema)
-class ProcessPydantic:
+@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema, directives=federation_key_directives)
+class ProcessType:
     id: strawberry.auto
     workflow_name: strawberry.auto
     product: strawberry.auto
@@ -103,12 +108,3 @@ class ProcessPydantic:
             GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
         ]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
-
-
-@strawberry.federation.type(description="Virtual base class for processes", keys=["id"])
-class ProcessType(ProcessPydantic):
-    @staticmethod
-    def from_pydantic(model: ProcessGraphqlSchema) -> "ProcessType":  # type: ignore
-        graphql_model = ProcessPydantic.from_pydantic(model)
-        graphql_model.__class__ = ProcessType
-        return graphql_model  # type: ignore

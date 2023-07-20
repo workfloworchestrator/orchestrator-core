@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING, Annotated, Union
 
 import strawberry
+from strawberry.federation.schema_directives import Key
+from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import ProductModel
@@ -15,8 +17,11 @@ if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
-@strawberry.experimental.pydantic.type(model=ProductSchema)
-class ProductPydantic:
+federation_key_directives = [Key(fields="productId", resolvable=UNSET)]
+
+
+@strawberry.experimental.pydantic.type(model=ProductSchema, directives=federation_key_directives)
+class ProductType:
     product_id: strawberry.auto
     name: strawberry.auto
     description: strawberry.auto
@@ -42,15 +47,6 @@ class ProductPydantic:
 
         filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
-
-
-@strawberry.federation.type(description="Virtual base class for products", keys=["productId"])
-class ProductType(ProductPydantic):
-    @staticmethod
-    def from_pydantic(model: ProductSchema) -> "ProductType":  # type: ignore
-        graphql_model = ProductPydantic.from_pydantic(model)
-        graphql_model.__class__ = ProductType
-        return graphql_model  # type: ignore
 
 
 @strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)

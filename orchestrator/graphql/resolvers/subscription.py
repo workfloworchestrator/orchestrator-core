@@ -70,10 +70,11 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
     from orchestrator.graphql.schema import GRAPHQL_MODELS
 
     subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
-    subscription_details = subscription_details.from_other_lifecycle(
-        subscription_details, SubscriptionLifecycle.TERMINATED, skip_validation=True
+    base_model = subscription_details.__base_type__ if subscription_details.__base_type__ else subscription_details
+    subscription_details = base_model.from_other_lifecycle(  # type: ignore
+        subscription_details, SubscriptionLifecycle.INITIAL, skip_validation=True
     )
-    strawberry_type = GRAPHQL_MODELS[graphql_subscription_name(subscription_details.__base_type__.__name__)]  # type: ignore
+    strawberry_type = GRAPHQL_MODELS[graphql_subscription_name(base_model.__name__)]  # type: ignore
     return strawberry_type.from_pydantic(subscription_details)
 
 

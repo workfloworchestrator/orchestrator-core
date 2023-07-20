@@ -3,6 +3,8 @@ from typing import Annotated, Optional, Union
 from uuid import UUID
 
 import strawberry
+from strawberry.federation.schema_directives import Key
+from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db.models import FixedInputTable, SubscriptionTable
@@ -17,6 +19,8 @@ from orchestrator.graphql.utils.get_subscription_product_blocks import (
     get_subscription_product_blocks,
 )
 from orchestrator.types import SubscriptionLifecycle
+
+federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
 
 @strawberry.federation.interface(description="Virtual base interface for subscriptions", keys=["subscriptionId"])
@@ -102,14 +106,6 @@ class SubscriptionInterface:
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
 
-@strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True)
-class SubscriptionPydantic(SubscriptionInterface):
+@strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)
+class Subscription(SubscriptionInterface):
     pass
-
-
-@strawberry.federation.type(description="Virtual base class for subscriptions", keys=["subscriptionId"])
-class Subscription(SubscriptionPydantic):
-    def from_pydantic(model: SubscriptionModel) -> "Subscription":  # type: ignore
-        graphql_model = SubscriptionPydantic.from_pydantic(model)
-        graphql_model.__class__ = Subscription
-        return graphql_model  # type: ignore

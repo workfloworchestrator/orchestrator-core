@@ -260,11 +260,11 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           strField
           listField
           listUnionBlocks {
-            ... on SubBlockOneForTest {
+            ... on SubBlockOneForTestInactive {
               intField
               strField
             }
-            ... on SubBlockTwoForTest {
+            ... on SubBlockTwoForTestInactive {
               intField2
             }
           }
@@ -896,10 +896,8 @@ def test_single_subscription_with_in_use_by_subscriptions(
 
 
 def expect_fail_test_if_too_many_duplicate_types_in_interface(result):
-    if "errors" in result and "but got: <ProductBlockModelGraphql instance>." in result["errors"][0]["message"]:
-        pytest.xfail(
-            "Test fails with all tests because classes are re-created every test and are not recognized as the same class"
-        )
+    if "errors" in result and "are you using a strawberry.field" in result["errors"][0]["message"]:
+        pytest.xfail("Test fails when executed with all tests")
 
 
 def test_subscriptions_product_generic_one(

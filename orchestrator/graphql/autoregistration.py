@@ -18,6 +18,8 @@ from typing import Any, Type
 import strawberry
 import structlog
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
+from strawberry.federation.schema_directives import Key
+from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
@@ -43,39 +45,39 @@ def is_enum(field: Any) -> bool:
 
 
 def graphql_name(name: str) -> str:
-    return to_camel(name.replace(" ", "_").replace("Initial", "").replace("Inactive", ""))
+    return to_camel(name.replace(" ", "_"))
 
 
 def graphql_subscription_name(name: str) -> str:
-    return f"{graphql_name(name)}Subscription"
-
-
-def is_not_strawberry_type(key: str, strawberry_models: StrawberryModelType) -> bool:
-    return graphql_name(key) not in strawberry_models
+    subscription_graphql_name = graphql_name(name).replace("Initial", "").replace("Inactive", "")
+    return f"{subscription_graphql_name}Subscription"
 
 
 def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel]) -> Type[SubscriptionInterface]:
     base_type = type(strawberry_name, (SubscriptionInterface,), {})
-    pydantic_wrapper = strawberry.experimental.pydantic.type(model, all_fields=True)
-    federation_wrapper = strawberry.federation.type(description=f"{strawberry_name} Type", keys=["subscriptionId"])
-    pydantic_type = pydantic_wrapper(base_type)
-    federation_type = type(strawberry_name, (pydantic_type,), {})
-    strawberry_type = federation_wrapper(federation_type)
+    directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
-    def from_pydantic(model: pydantic_type) -> strawberry_type:  # type: ignore
-        graphql_model = pydantic_type.from_pydantic(model)
-        graphql_model.__class__ = strawberry_type
-        return graphql_model
-
-    strawberry_type.from_pydantic = from_pydantic  # type: ignore
-    return strawberry_type
+    pydantic_wrapper = strawberry.experimental.pydantic.type(
+        model, all_fields=True, directives=directives, description=f"{strawberry_name} Type"
+    )
+    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
 
 
 def create_block_strawberry_type(
     strawberry_name: str, model: Type[DomainModel]
 ) -> Type[StrawberryTypeFromPydantic[DomainModel]]:
+    from strawberry.federation.schema_directives import Key
+    from strawberry.unset import UNSET
+
+    federation_key_directives = [Key(fields="subscriptionInstanceId", resolvable=UNSET)]
+
+    if keys := [key for key in model.__annotations__.keys() if "_id" in key]:
+        federation_key_directives.extend([Key(fields=to_camel(key), resolvable=UNSET) for key in keys])
+
     new_type = type(strawberry_name, (), {})
-    strawberry_wrapper = strawberry.experimental.pydantic.type(model, all_fields=True)
+    strawberry_wrapper = strawberry.experimental.pydantic.type(
+        model, name=strawberry_name, all_fields=True, directives=federation_key_directives
+    )
     return strawberry_wrapper(new_type)
 
 
@@ -105,13 +107,14 @@ def add_class_to_strawberry(
     product_blocks_types_in_model = get_depends_on_product_block_type_list(model._get_depends_on_product_block_types())
     for field in product_blocks_types_in_model:
         graphql_field_name = graphql_name(field.__name__)
-        if is_not_strawberry_type(graphql_field_name, strawberry_models) and graphql_field_name != model_name:
+        if graphql_field_name not in strawberry_models and graphql_field_name != model_name:
             add_class_to_strawberry(graphql_field_name, field, strawberry_models, strawberry_enums)
 
     strawberry_type_convert_function = (
         create_subscription_strawberry_type if with_interface else create_block_strawberry_type
     )
     strawberry_models[model_name] = strawberry_type_convert_function(model_name, model)
+    logger.debug("Registered strawberry model", model=repr(model), strawberry_name=model_name)
 
 
 def register_domain_models() -> None:
