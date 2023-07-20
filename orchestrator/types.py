@@ -13,12 +13,12 @@
 
 from enum import Enum
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type, TypedDict, TypeVar, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID
 
 import strawberry
-from pydantic import BaseModel
 from pydantic.typing import get_args, get_origin, is_union
+from pydantic_forms.types import InputForm
 
 UUIDstr = str
 State = Dict[str, Any]
@@ -31,7 +31,7 @@ ErrorState = Union[str, Exception, Tuple[str, Union[int, HTTPStatus]]]
 # class: str[Optional]  # The exception class name (type)
 # status_code: Optional[int]  # HTTP Status code (optional)
 # traceback: Optional[str]  # A python traceback as a string formatted by nwastdlib.ex.show_ex
-ErrorDict = Dict[str, Union[str, int, List[Dict[str, Any]], "InputForm", None]]
+ErrorDict = Dict[str, Union[str, int, List[Dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
 BroadcastFunc = Callable[[UUID, Dict], None]
@@ -103,27 +103,6 @@ SAFE_USED_BY_TRANSITIONS_FOR_STATUS = {
         SubscriptionLifecycle.TERMINATED,
     ],
 }
-
-
-AcceptData = List[Union[Tuple[str, AcceptItemType], Tuple[str, AcceptItemType, Dict]]]
-
-InputForm = Type[BaseModel]
-
-T = TypeVar("T", bound=BaseModel)
-FormGenerator = Generator[Type[T], T, State]
-SimpleInputFormGenerator = Callable[..., InputForm]
-InputFormGenerator = Callable[..., FormGenerator]
-InputStepFunc = Union[SimpleInputFormGenerator, InputFormGenerator]
-StateSimpleInputFormGenerator = Callable[[State], InputForm]
-StateInputFormGenerator = Callable[[State], FormGenerator]
-StateInputStepFunc = Union[StateSimpleInputFormGenerator, StateInputFormGenerator]
-SubscriptionMapping = Dict[str, List[Dict[str, str]]]
-
-
-class SummaryData(TypedDict, total=False):
-    headers: List[str]
-    labels: List[str]
-    columns: List[List[Union[str, int, bool, float]]]
 
 
 def is_of_type(t: Any, test_type: Any) -> bool:

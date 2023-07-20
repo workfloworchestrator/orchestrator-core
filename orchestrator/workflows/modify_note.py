@@ -11,13 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator
 from pydantic_forms.validators import LongText
 
 from orchestrator.db import db
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, UUIDstr
+from orchestrator.types import UUIDstr
 from orchestrator.utils.json import to_serializable
 from orchestrator.workflow import StepList, conditional, done, init, workflow
 from orchestrator.workflows.steps import cache_domain_models, store_process_subscription

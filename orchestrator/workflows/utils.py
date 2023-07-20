@@ -18,13 +18,14 @@ from uuid import UUID
 from more_itertools import first_true
 from pydantic import validator
 from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, StateInputStepFunc
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc, SubscriptionLifecycle
+from orchestrator.types import State, SubscriptionLifecycle
 from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
 from orchestrator.workflow import Step, StepList, Workflow, conditional, done, init, make_workflow, step

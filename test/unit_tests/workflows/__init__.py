@@ -8,10 +8,11 @@ from uuid import uuid4
 
 import structlog
 from pydantic_forms.core import post_form
+from pydantic_forms.types import FormGenerator, InputForm
 
 from orchestrator.db import ProcessTable
 from orchestrator.services.processes import StateMerger, _db_create_process
-from orchestrator.types import FormGenerator, InputForm, State
+from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf

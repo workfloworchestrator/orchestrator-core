@@ -6,11 +6,12 @@ from uuid import UUID, uuid4
 
 import pytest
 from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator
 
 from nwastdlib import const
 from orchestrator.config.assignee import Assignee
 from orchestrator.services.processes import SYSTEM_USER
-from orchestrator.types import FormGenerator, State, UUIDstr
+from orchestrator.types import State, UUIDstr
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.workflow import (
     Abort,
