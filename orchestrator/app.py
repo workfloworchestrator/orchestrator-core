@@ -21,6 +21,7 @@ from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from pydantic.json import ENCODERS_BY_TYPE
+from pydantic_forms.exception_handlers.fastapi import form_error_handler
 from pydantic_forms.exceptions import FormException
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
@@ -41,7 +42,7 @@ from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
-from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
+from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import (
     Mutation,
     Query,
