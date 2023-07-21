@@ -24,6 +24,7 @@ from orchestrator.utils.helpers import to_camel
 class SubscriptionProductBlock:
     id: int
     parent: Optional[int]
+    subscription_instance_id: UUID
     owner_subscription_id: UUID
     resource_types: JSON
 
@@ -76,6 +77,7 @@ async def get_subscription_product_blocks(
             id=product_block["id"],
             parent=product_block.get("parent"),
             owner_subscription_id=product_block["owner_subscription_id"],
+            subscription_instance_id=product_block["subscription_instance_id"],
             resource_types={to_camel(k): v for k, v in product_block.items() if included(k, v)},
         )
 
