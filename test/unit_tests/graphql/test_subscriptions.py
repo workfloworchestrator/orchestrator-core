@@ -68,6 +68,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       productBlocks {
         id
         parent
+        subscriptionInstanceId
         ownerSubscriptionId
         resourceTypes
       }
@@ -612,13 +613,16 @@ def test_subscriptions_filtering_with_invalid_filter(
         assert subscription["status"] == SubscriptionLifecycle.TERMINATED
 
 
-def test_single_subscription(test_client, product_type_1_subscriptions_factory):
+def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
     # when
 
+    _, GenericProductOne = generic_product_type_1
     subscription_ids = product_type_1_subscriptions_factory(30)
     subscription_id = subscription_ids[10]
     data = get_subscriptions_query(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    subscription = GenericProductOne.from_subscription(subscription_id)
 
     # then
 
@@ -641,12 +645,14 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory):
     assert subscriptions[0]["productBlocks"] == [
         {
             "id": 0,
+            "subscriptionInstanceId": str(subscription.pb_1.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
             "resourceTypes": {"label": None, "name": "PB_1", "rt1": "Value1"},
         },
         {
             "id": 1,
+            "subscriptionInstanceId": str(subscription.pb_2.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
             "resourceTypes": {"label": None, "name": "PB_2", "rt2": 42, "rt3": "Value2"},
