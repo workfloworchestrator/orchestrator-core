@@ -75,7 +75,7 @@ documentation = "https://workfloworchestrator.org/orchestrator-core/"
 
 [project.optional-dependencies]
 celery = [
-    "celery~=5.2.7"
+    "celery~=5.3.1"
 ]
 
 test = [
