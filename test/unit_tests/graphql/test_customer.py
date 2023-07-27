@@ -20,7 +20,7 @@ query CustomerQuery {
     return json.dumps({"operationName": "CustomerQuery", "query": query}).encode("utf-8")
 
 
-def test_customers(test_client):
+def test_customers(fastapi_app_graphql, test_client):
     response = test_client.post(GRAPHQL_ENDPOINT, content=get_customers_query(), headers=GRAPHQL_HEADERS)
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -32,7 +32,7 @@ def test_customers(test_client):
     }
 
 
-def test_change_customer_env_vars(test_client):
+def test_change_customer_env_vars(fastapi_app_graphql, test_client):
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv("DEFAULT_CUSTOMER_FULLNAME", "Custom Default Customer")
         mp.setenv("DEFAULT_CUSTOMER_SHORTCODE", "shortcode")
