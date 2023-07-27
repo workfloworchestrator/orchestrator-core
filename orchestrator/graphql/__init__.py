@@ -68,12 +68,8 @@ class Query:
         resolver=resolve_settings,
         description="Returns information about cache, workers, and global engine settings",
     )
-
-
-@strawberry.type(description="Default customer query")
-class DefaultCustomerQuery:
     customers: DefaultCustomerType = authenticated_field(
-        resolver=resolve_default_customer, description="Return default customer"
+        resolver=resolve_default_customer, description="Returns default customer information"
     )
 
 
@@ -129,11 +125,6 @@ schema = OrchestratorSchema(
     extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=Query)],
 )
 
-default_customer_schema = OrchestratorSchema(
-    query=DefaultCustomerQuery,
-    enable_federation_2=app_settings.FEDEREATION_ENABLED,
-)
-
 
 def custom_context_dependency(
     get_current_user: Callable = Depends(get_oidc_user),  # noqa: B008
@@ -147,6 +138,3 @@ async def get_context(custom_context=Depends(custom_context_dependency)) -> Cust
 
 
 graphql_router = OrchestratorGraphqlRouter(schema, context_getter=get_context, graphiql=app_settings.SERVE_GRAPHQL_UI)
-default_customer_router = OrchestratorGraphqlRouter(
-    default_customer_schema, context_getter=get_context, graphiql=app_settings.SERVE_GRAPHQL_UI
-)

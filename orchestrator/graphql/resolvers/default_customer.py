@@ -6,7 +6,11 @@ from orchestrator.settings import app_settings
 
 
 async def resolve_default_customer() -> Union[DefaultCustomerType, Error]:
-    customer = app_settings.DEFAULT_CUSTOMER_ONLY
-    if not customer:
-        return Error(message="DEFAULT_CUSTOMER_ONLY must be set to a value in the environment.")
-    return DefaultCustomerType(id=customer)
+    try:
+        return DefaultCustomerType(
+            fullname=app_settings.DEFAULT_CUSTOMER_FULLNAME,
+            shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
+            identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
+        )
+    except Exception as e:
+        return Error(message=f"Error returning default customer: {str(e)}")
