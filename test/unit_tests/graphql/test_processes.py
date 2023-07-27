@@ -343,7 +343,7 @@ def test_processes_filtering_with_invalid_filter(
                     "creator",
                     "product",
                     "tag",
-                    "subscription",
+                    "subscriptions",
                     "subscriptionId",
                     "target",
                 ],
