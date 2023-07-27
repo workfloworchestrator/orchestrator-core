@@ -1173,6 +1173,7 @@ class SubscriptionModel(DomainModel):
         cls: Type[S],
         other: "SubscriptionModel",
         status: SubscriptionLifecycle,
+        skip_validation: bool = False,
     ) -> S:
         """Create new domain model from instance while changing the status.
 
@@ -1186,7 +1187,8 @@ class SubscriptionModel(DomainModel):
             cls = lookup_specialized_type(cls, status)
 
         # this will raise ValueError when wrong lifecycle transitions are detected in the new domain model
-        validate_lifecycle_change(other, status)
+        if not skip_validation:
+            validate_lifecycle_change(other, status)
 
         data = cls._data_from_lifecycle(other, status, other.subscription_id)
         data["status"] = status

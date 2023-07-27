@@ -17,7 +17,7 @@ from orchestrator.graphql.schemas.settings import (
     StatusUpdateResponse,
     WorkerStatusType,
 )
-from orchestrator.graphql.types import CustomInfo
+from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.graphql.utils import get_selected_fields
 from orchestrator.schemas.engine_settings import EngineSettingsSchema, WorkerStatus
 from orchestrator.services.processes import SYSTEM_USER, ThreadPoolWorkerStatus
@@ -29,7 +29,7 @@ logger = structlog.get_logger(__name__)
 
 
 # Queries
-def resolve_settings(info: CustomInfo) -> StatusType:
+def resolve_settings(info: OrchestratorInfo) -> StatusType:
     selected_fields = get_selected_fields(info)
 
     db_engine_settings = EngineSettingsTable.query.one()
@@ -59,7 +59,7 @@ def resolve_settings(info: CustomInfo) -> StatusType:
 
 
 # Mutations
-async def clear_cache(info: CustomInfo, name: str) -> Union[CacheClearSuccess, Error]:
+async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSuccess, Error]:
     cache: AIORedis = AIORedis.from_url(app_settings.CACHE_URI)
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
@@ -69,7 +69,7 @@ async def clear_cache(info: CustomInfo, name: str) -> Union[CacheClearSuccess, E
     return CacheClearSuccess(deleted=deleted)
 
 
-def set_status(info: CustomInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
+async def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
     engine_settings = EngineSettingsTable.query.with_for_update().one()
 
     result = marshall_processes(engine_settings, global_lock)
@@ -78,7 +78,7 @@ def set_status(info: CustomInfo, global_lock: bool) -> Union[Error, EngineSettin
             message="Something went wrong while updating the database aborting, possible manual intervention required",
         )
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
-        oidc_user = info.context.get_current_user()
+        oidc_user = await info.context.get_current_user
         user_name = oidc_user.name if oidc_user else SYSTEM_USER
         post_update_to_slack(EngineSettingsSchema.from_orm(result), user_name)
 

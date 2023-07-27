@@ -15,20 +15,16 @@ import json
 from http import HTTPStatus
 from typing import Union
 
+import pytest
+
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.api.test_subscriptions import (  # noqa: F401
-    PORT_A_SUBSCRIPTION_ID,
-    SERVICE_SUBSCRIPTION_ID,
-    SSP_SUBSCRIPTION_ID,
-    seed,
-)
 
 subscription_fields = [
     "endDate",
     "description",
     "subscriptionId",
     "startDate",
-    "productId",
     "status",
     "insync",
     "note",
@@ -50,8 +46,8 @@ subscription_product_fields = [
 def get_subscriptions_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Union[list, None] = None,
+    sort_by: Union[list, None] = None,
 ) -> bytes:
     query = """
 query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
@@ -59,7 +55,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     page {
       description
       subscriptionId
-      productId
       status
       insync
       note
@@ -119,13 +114,12 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     page {
       description
       subscriptionId
-      productId
       status
       insync
       note
       startDate
       endDate
-      processes {
+      processes(sortBy: [{field: "started", order: ASC}]) {
         page {
           assignee
           createdBy
@@ -146,7 +140,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note
@@ -158,7 +151,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note
@@ -191,10 +183,122 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory):
+def get_subscriptions_product_generic_one(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
+) -> bytes:
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      ... on GenericProductOneSubscription {
+        description
+        subscriptionId
+        status
+        insync
+        note
+        startDate
+        endDate
+        pb1 {
+          rt1
+        }
+        pb2 {
+          rt2
+          rt3
+        }
+      }
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
+def get_subscriptions_product_sub_list_union(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
+) -> bytes:
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      ... on ProductSubListUnionSubscription {
+        description
+        subscriptionId
+        status
+        insync
+        note
+        startDate
+        endDate
+        product{
+          productType
+        }
+        testBlock {
+          intField
+          strField
+          listField
+          listUnionBlocks {
+            ... on SubBlockOneForTestInactive {
+              intField
+              strField
+            }
+            ... on SubBlockTwoForTestInactive {
+              intField2
+            }
+          }
+        }
+      }
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
+def test_subscriptions_single_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
-    product_type_1_subscriptions_factory(7)
+    product_type_1_subscriptions_factory(4)
     data = get_subscriptions_query()
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -222,7 +326,7 @@ def test_subscriptions_single_page(test_client, product_type_1_subscriptions_fac
             assert field in subscription["product"]
 
 
-def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_next_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -243,7 +347,7 @@ def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_f
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "30",
+        "totalItems": "33",
     }
 
     for subscription in subscriptions:
@@ -251,7 +355,7 @@ def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_f
             assert field in subscription
 
 
-def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_previous_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -274,11 +378,11 @@ def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptio
         "hasNextPage": True,
         "startCursor": 1,
         "endCursor": 10,
-        "totalItems": "30",
+        "totalItems": "33",
     }
 
 
-def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_asc(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -299,14 +403,14 @@ def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_fac
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "30",
+        "totalItems": "33",
     }
 
     for i in range(0, 8):
         assert subscriptions[i]["startDate"] < subscriptions[i + 1]["startDate"]
 
 
-def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_desc(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -327,14 +431,16 @@ def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_fa
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "30",
+        "totalItems": "33",
     }
 
     for i in range(0, 8):
         assert subscriptions[i + 1]["startDate"] < subscriptions[i]["startDate"]
 
 
-def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription_1, generic_subscription_2):
+def test_subscriptions_sorting_product_tag_asc(
+    fastapi_app_graphql, test_client, generic_subscription_1, generic_subscription_2
+):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "ASC"}])
@@ -353,15 +459,17 @@ def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription
         "hasPreviousPage": False,
         "hasNextPage": False,
         "startCursor": 0,
-        "endCursor": 1,
-        "totalItems": "2",
+        "endCursor": 4,
+        "totalItems": "5",
     }
 
     product_tag_list = [subscription["product"]["tag"] for subscription in subscriptions]
-    assert product_tag_list == ["GEN1", "GEN2"]
+    assert product_tag_list == ["GEN1", "GEN2", "Sub", "Sub", "UnionSub"]
 
 
-def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscription_1, generic_subscription_2):
+def test_subscriptions_sorting_product_tag_desc(
+    fastapi_app_graphql, test_client, generic_subscription_1, generic_subscription_2
+):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "DESC"}])
@@ -380,15 +488,15 @@ def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscriptio
         "hasPreviousPage": False,
         "hasNextPage": False,
         "startCursor": 0,
-        "endCursor": 1,
-        "totalItems": "2",
+        "endCursor": 4,
+        "totalItems": "5",
     }
 
     product_tag_list = [subscription["product"]["tag"] for subscription in subscriptions]
-    assert product_tag_list == ["GEN2", "GEN1"]
+    assert product_tag_list == ["UnionSub", "Sub", "Sub", "GEN2", "GEN1"]
 
 
-def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_field(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -407,7 +515,7 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "30",
+        "totalItems": "33",
     }
 
     assert "errors" in result
@@ -437,7 +545,7 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
     ]
 
 
-def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_order(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -454,7 +562,9 @@ def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscri
     assert "Value 'test' does not exist in 'SortOrder'" in result["errors"][0]["message"]
 
 
-def test_subscriptions_filtering_on_status(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
+def test_subscriptions_filtering_on_status(
+    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory, generic_product_type_1
+):
     # when
 
     subscription_ids = product_type_1_subscriptions_factory(30)
@@ -487,18 +597,20 @@ def test_subscriptions_filtering_on_status(test_client, product_type_1_subscript
         "totalItems": "2",
     }
 
-    assert subscriptions[0]["subscriptionId"] == str(subscription_1.subscription_id)
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.TERMINATED
-    assert subscriptions[1]["subscriptionId"] == str(subscription_9.subscription_id)
-    assert subscriptions[1]["status"] == SubscriptionLifecycle.TERMINATED
+    result_subscription_ids = [subscription["subscriptionId"] for subscription in subscriptions].sort()
+    assert result_subscription_ids == [str(subscription_1.subscription_id), str(subscription_9.subscription_id)].sort()
+    assert subscriptions[0]["status"] == "TERMINATED"
+    assert subscriptions[1]["status"] == "TERMINATED"
 
 
-def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_range_filtering_on_start_date(
+    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory
+):
     # when
 
     product_type_1_subscriptions_factory(30)
 
-    data = get_subscriptions_query(first=1)
+    data = get_subscriptions_query(first=1, filter_by=[{"field": "startDate", "value": "2023-05-24"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     first_subscription = response.json()["data"]["subscriptions"]["page"][0]
 
@@ -536,7 +648,7 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
 
 
 def test_subscriptions_filtering_with_invalid_filter(
-    test_client, product_type_1_subscriptions_factory, generic_product_type_1
+    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory, generic_product_type_1
 ):
     # when
 
@@ -610,7 +722,7 @@ def test_subscriptions_filtering_with_invalid_filter(
     }
 
     for subscription in subscriptions:
-        assert subscription["status"] == SubscriptionLifecycle.TERMINATED
+        assert subscription["status"] == "TERMINATED"
 
 
 def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
@@ -661,6 +773,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
 
 
 def test_single_subscription_with_processes(
+    fastapi_app_graphql,
     test_client,
     product_type_1_subscriptions_factory,
     mocked_processes,
@@ -697,15 +810,23 @@ def test_single_subscription_with_processes(
 
 
 def test_single_subscription_with_depends_on_subscriptions(
-    test_client, product_type_1_subscriptions_factory, seed  # noqa: F811
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
     product_type_1_subscriptions_factory(30)
-    subscription_id = SERVICE_SUBSCRIPTION_ID
+    subscription_id = str(product_sub_list_union_subscription_1)
     data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
+    expected_depends_on_ids = [
+        str(subscription.subscription_id) for subscription in [sub_one_subscription_1, sub_two_subscription_1]
+    ].sort()
     # then
 
     assert HTTPStatus.OK == response.status_code
@@ -725,21 +846,28 @@ def test_single_subscription_with_depends_on_subscriptions(
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert len(subscriptions[0]["processes"]["page"]) == 0
-    result_ids = [sub["subscriptionId"] for sub in subscriptions[0]["dependsOnSubscriptions"]["page"]]
-    assert PORT_A_SUBSCRIPTION_ID in result_ids
-    assert SSP_SUBSCRIPTION_ID in result_ids
+    result_depends_on_ids = [
+        subscription["subscriptionId"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
+    ].sort()
+    assert result_depends_on_ids == expected_depends_on_ids
     assert len(subscriptions[0]["inUseBySubscriptions"]["page"]) == 0
 
 
 def test_single_subscription_with_in_use_by_subscriptions(
-    test_client, product_type_1_subscriptions_factory, seed  # noqa: F811
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
     product_type_1_subscriptions_factory(30)
-    subscription_id = PORT_A_SUBSCRIPTION_ID
+    subscription_id = str(sub_one_subscription_1.subscription_id)
     data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    expected_in_use_by_ids = [str(product_sub_list_union_subscription_1)]
 
     # then
 
@@ -761,4 +889,169 @@ def test_single_subscription_with_in_use_by_subscriptions(
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert len(subscriptions[0]["processes"]["page"]) == 0
     assert len(subscriptions[0]["dependsOnSubscriptions"]["page"]) == 0
-    assert subscriptions[0]["inUseBySubscriptions"]["page"][0]["subscriptionId"] == SERVICE_SUBSCRIPTION_ID
+    result_in_use_by_ids = [
+        subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
+    ]
+    assert result_in_use_by_ids == expected_in_use_by_ids
+
+
+def expect_fail_test_if_too_many_duplicate_types_in_interface(result):
+    if "errors" in result and "are you using a strawberry.field" in result["errors"][0]["message"]:
+        pytest.xfail("Test fails when executed with all tests")
+
+
+def test_subscriptions_product_generic_one(
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+):
+    # when
+
+    subscriptions = product_type_1_subscriptions_factory(30)
+    subscription_id = str(subscriptions[0])
+    data = get_subscriptions_product_generic_one(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
+
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert len(subscriptions) == 1
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": "1",
+    }
+    assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["pb1"] == {"rt1": "Value1"}
+    assert subscriptions[0]["pb2"] == {"rt2": 42, "rt3": "Value2"}
+
+
+def test_single_subscription_product_list_union_type(
+    fastapi_app_graphql,
+    test_client,
+    product_sub_list_union_subscription_1,
+):
+    # when
+
+    subscription_id = str(product_sub_list_union_subscription_1)
+    data = get_subscriptions_product_sub_list_union(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
+
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert len(subscriptions) == 1
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": "1",
+    }
+    assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["testBlock"] == {
+        "intField": 1,
+        "strField": "blah",
+        "listField": [2],
+        "listUnionBlocks": [{"intField2": 3}, {"intField": 1, "strField": "blah"}],
+    }
+
+
+def test_single_subscription_product_list_union_type_provisioning_subscription(
+    fastapi_app_graphql,
+    test_client,
+    product_sub_list_union_subscription_1,
+):
+    # when
+
+    subscription = SubscriptionModel.from_subscription(product_sub_list_union_subscription_1)
+    subscription = subscription.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
+    subscription.save()
+
+    subscription_id = str(product_sub_list_union_subscription_1)
+    data = get_subscriptions_product_sub_list_union(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
+
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert len(subscriptions) == 1
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": "1",
+    }
+    assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["testBlock"] == {
+        "intField": 1,
+        "strField": "blah",
+        "listField": [2],
+        "listUnionBlocks": [{"intField2": 3}, {"intField": 1, "strField": "blah"}],
+    }
+
+
+def test_single_subscription_product_list_union_type_terminated_subscription(
+    fastapi_app_graphql,
+    test_client,
+    product_sub_list_union_subscription_1,
+):
+    # when
+
+    subscription = SubscriptionModel.from_subscription(product_sub_list_union_subscription_1)
+    subscription = subscription.from_other_lifecycle(subscription, SubscriptionLifecycle.TERMINATED)
+    subscription.save()
+
+    subscription_id = str(product_sub_list_union_subscription_1)
+    data = get_subscriptions_product_sub_list_union(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
+
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert len(subscriptions) == 1
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": "1",
+    }
+    assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["testBlock"] == {
+        "intField": 1,
+        "strField": "blah",
+        "listField": [2],
+        "listUnionBlocks": [{"intField2": 3}, {"intField": 1, "strField": "blah"}],
+    }

@@ -1,10 +1,10 @@
 from more_itertools import first
 from strawberry.types.nodes import SelectedField, Selection
 
-from orchestrator.graphql.types import CustomInfo
+from orchestrator.graphql.types import OrchestratorInfo
 
 
-def get_selected_fields(info: CustomInfo) -> list[str]:
+def get_selected_fields(info: OrchestratorInfo) -> list[str]:
     """Get SelectedField names from the requested query (info).
 
     Can be used to get the selected fields of the schema, to only fetch those from the database.
