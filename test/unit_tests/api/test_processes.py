@@ -111,7 +111,9 @@ def test_delete_process_404(test_client, started_process):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
-def test_long_running_pause(test_client, long_running_workflow):
+# @pytest.mark.celery(task_always_eager=True)
+# @pytest.mark.usefixtures("orch_celery")
+def test_long_running_pause(orch_celery, test_client, long_running_workflow):
     app_settings.TESTING = False
     # Start the workflow
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{}])
@@ -181,6 +183,7 @@ def test_service_unavailable_engine_locked(test_client, test_workflow):
     assert HTTPStatus.SERVICE_UNAVAILABLE == response.status_code
 
 
+@pytest.mark.usefixtures("orch_celery")
 def test_complete_workflow(test_client, test_workflow):
     response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
@@ -263,6 +266,7 @@ def test_abort_process(test_client, started_process):
     assert "aborted" == aborted_process["last_status"]
 
 
+@pytest.mark.usefixtures("orch_celery")
 def test_new_process_invalid_body(test_client, long_running_workflow):
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{"wrong": "body"}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
@@ -305,6 +309,7 @@ def test_resume_validations(test_client, started_process):
     assert process_info_after["last_status"] == "suspended"
 
 
+@pytest.mark.usefixtures("orch_celery")
 def test_resume_with_empty_form(test_client, started_process):
     # Set a default value for the only input so we can submit an empty form
     step = db.session.scalars(
@@ -327,6 +332,7 @@ def test_resume_with_empty_form(test_client, started_process):
     assert process_info_after["last_status"] == "completed"
 
 
+@pytest.mark.usefixtures("orch_celery")
 def test_resume_happy_flow(test_client, started_process):
     process_info_before = test_client.get(f"/api/processes/{started_process}").json()
     response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": "A"}])
