@@ -126,7 +126,6 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
         page {
           description
           subscriptionId
-          productId
           status
           insync
           note
@@ -159,7 +158,7 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
     ).encode("utf-8")
 
 
-def test_product_query(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_query(fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(first=2)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -176,11 +175,13 @@ def test_product_query(test_client, generic_product_1, generic_product_2, generi
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": "3",
+        "totalItems": "6",
     }
 
 
-def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_has_previous_page(
+    fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3
+):
     data = get_product_query(after=1)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -191,19 +192,21 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
     pageinfo = products_data["pageInfo"]
 
     assert pageinfo == {
-        "endCursor": 2,
+        "endCursor": 5,
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "totalItems": "3",
+        "totalItems": "6",
     }
 
-    assert len(products) == 2
-    assert products[0]["name"] == "Product 2"
-    assert products[1]["name"] == "Product 3"
+    assert len(products) == 5
+    product_names = [product["name"] for product in products]
+    assert product_names == ["Product 2", "ProductSubOne", "ProductSubTwo", "ProductSubListUnion", "Product 3"]
 
 
-def test_products_filter_by_product_block(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_products_filter_by_product_block(
+    fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3
+):
     data = get_product_query(
         filter_by=[{"field": "product_blocks", "value": "PB_1-PB_3"}],
         sort_by=[{"field": "name", "order": "ASC"}],
@@ -226,7 +229,9 @@ def test_products_filter_by_product_block(test_client, generic_product_1, generi
     assert products[1]["name"] == "Product 2"
 
 
-def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_products_sort_by_tag(
+    fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3
+):
     data = get_product_query(sort_by=[{"field": "tag", "order": "DESC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
@@ -236,18 +241,23 @@ def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2,
     products = products_data["page"]
     pageinfo = products_data["pageInfo"]
 
-    assert [prod["tag"] for prod in products] == ["GEN3", "GEN2", "GEN1"]
+    assert [prod["tag"] for prod in products] == ["UnionSub", "Sub", "Sub", "GEN3", "GEN2", "GEN1"]
     assert pageinfo == {
-        "endCursor": 2,
+        "endCursor": 5,
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": "3",
+        "totalItems": "6",
     }
 
 
 def test_single_product_with_subscriptions(
-    test_client, mocked_processes, generic_product_1, generic_subscription_2, generic_subscription_1
+    fastapi_app_graphql,
+    test_client,
+    mocked_processes,
+    generic_product_1,
+    generic_subscription_2,
+    generic_subscription_1,
 ):
     product_id = str(generic_product_1.product_id)
     # when

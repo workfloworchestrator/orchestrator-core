@@ -4,19 +4,24 @@ from uuid import UUID
 
 import strawberry
 from sqlalchemy.orm import load_only
+from strawberry.federation.schema_directives import Key
 from strawberry.scalars import JSON
+from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
 from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
-    from orchestrator.graphql.schemas.subscription import SubscriptionType
+    from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+
+
+federation_key_directives = [Key(fields="id", resolvable=UNSET)]
 
 
 # TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
@@ -64,7 +69,7 @@ class ProcessStepType:
     state: Union[JSON, None]
 
 
-@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema)
+@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema, directives=federation_key_directives)
 class ProcessType:
     id: strawberry.auto
     workflow_name: strawberry.auto
@@ -87,12 +92,12 @@ class ProcessType:
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
     async def subscriptions(
         self,
-        info: CustomInfo,
+        info: OrchestratorInfo,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[Annotated["SubscriptionType", strawberry.lazy(".subscription")]]:
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
         process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(self.id)

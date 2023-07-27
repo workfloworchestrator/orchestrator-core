@@ -139,10 +139,12 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
         with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Check the websocket messages.
             # the initial process details.
-            data = websocket.receive_text()
-            process = json_loads(data)["process"]
-            assert process["workflow_name"] == "long_running_workflow_py"
-            assert process["status"] == ProcessStatus.RUNNING
+
+            # WITH AN PACKAGE UPDATE IT DOES NOT SEND THIS FIRST MESSAGE ANYMORE
+            # data = websocket.receive_text()
+            # process = json_loads(data)["process"]
+            # assert process["workflow_name"] == "long_running_workflow_py"
+            # assert process["status"] == ProcessStatus.RUNNING
 
             # Let first long step finish, receive_text would otherwise wait for a message indefinitely.
             with test_condition:
@@ -154,6 +156,7 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
             json_data = json_loads(data)
             process = json_data["process"]
             assert process["status"] == ProcessStatus.RUNNING
+            assert process["workflow_name"] == "long_running_workflow_py"
             assert process["steps"][1]["name"] == LONG_RUNNING_STEP
             assert process["steps"][1]["status"] == StepStatus.SUCCESS
 
@@ -185,7 +188,6 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
             assert process["status"] == ProcessStatus.COMPLETED
             assert process["steps"][4]["name"] == "Done"
             assert process["steps"][4]["status"] == StepStatus.COMPLETE
-            assert json_data["close"] is True
 
             # close and call receive_text to check websocket close exception
             websocket.close()

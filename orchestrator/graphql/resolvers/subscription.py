@@ -14,27 +14,77 @@
 from typing import Union
 
 import structlog
+from more_itertools import flatten, one
+from pydantic.utils import to_lower_camel
+from strawberry.types.nodes import InlineFragment, SelectedField, Selection
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import filter_subscriptions
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection, PageInfo
-from orchestrator.graphql.schemas.subscription import SubscriptionType
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.schemas.product import ProductModelGraphql
+from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
+from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
+# Note: we can make this more fancy by adding metadata to the field annotation that indicates if a resolver
+# needs subscription details or not, and use that information here. Left as an exercise for the reader.
+base_sub_props = (
+    [to_lower_camel(key) for key in SubscriptionInterface.__annotations__]
+    + [to_lower_camel(key) for key in ProductModelGraphql.__annotations__]
+    + ["__typename"]
+)
+
+
+def _has_subscription_details(info: OrchestratorInfo) -> bool:
+    """Check if the query asks for subscription details (product specific properties)."""
+
+    def get_selections(selected_field: Selection) -> list[Selection]:
+        def has_field_name(selection: Selection, field_name: str) -> bool:
+            return isinstance(selection, SelectedField) and selection.name == field_name
+
+        page_field = [selection for selection in selected_field.selections if has_field_name(selection, "page")]
+
+        if not page_field:
+            return selected_field.selections
+        return one(page_field).selections
+
+    def has_details(selection: Selection) -> bool:
+        if isinstance(selection, SelectedField):
+            return selection.name not in base_sub_props
+        if isinstance(selection, InlineFragment):
+            return any(has_details(selection) for selection in selection.selections)
+        return True
+
+    fields = flatten(get_selections(field) for field in info.selected_fields)
+    return any(has_details(selection) for selection in fields if selection)
+
+
+def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInterface:
+    from orchestrator.graphql.autoregistration import graphql_subscription_name
+    from orchestrator.graphql.schema import GRAPHQL_MODELS
+
+    subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
+    base_model = subscription_details.__base_type__ if subscription_details.__base_type__ else subscription_details
+    subscription_details = base_model.from_other_lifecycle(  # type: ignore
+        subscription_details, SubscriptionLifecycle.INITIAL, skip_validation=True
+    )
+    strawberry_type = GRAPHQL_MODELS[graphql_subscription_name(base_model.__name__)]  # type: ignore
+    return strawberry_type.from_pydantic(subscription_details)
 
 
 async def resolve_subscriptions(
-    info: CustomInfo,
+    info: OrchestratorInfo,
     filter_by: Union[list[GraphqlFilter], None] = None,
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
     after: int = 0,
-) -> Connection[SubscriptionType]:
+) -> Connection[SubscriptionInterface]:
     _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
@@ -56,7 +106,11 @@ async def resolve_subscriptions(
     subscriptions_length = len(subscriptions)
     start_cursor = after if subscriptions_length else None
     end_cursor = after + subscriptions_length - 1
-    page_subscriptions = [SubscriptionType.from_pydantic(p) for p in subscriptions]
+
+    if _has_subscription_details(info):
+        page_subscriptions = [get_subscription_details(p) for p in subscriptions]
+    else:
+        page_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
 
     return Connection(
         page=page_subscriptions,

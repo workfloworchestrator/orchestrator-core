@@ -15,10 +15,10 @@ from graphql import GraphQLError
 
 from orchestrator.db.filters import CallableErrorHandler
 from orchestrator.graphql.extensions.error_collector_extension import register_error
-from orchestrator.graphql.types import CustomInfo
+from orchestrator.graphql.types import OrchestratorInfo
 
 
-def create_resolver_error_handler(info: CustomInfo) -> CallableErrorHandler:
+def create_resolver_error_handler(info: OrchestratorInfo) -> CallableErrorHandler:
     def _handle_error(message: str, **kwargs) -> None:  # type: ignore
         register_error(GraphQLError(message=message, path=info.path, extensions=(kwargs or {})))
 

@@ -42,7 +42,12 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
 from orchestrator.forms import FormError
-from orchestrator.graphql import graphql_router
+from orchestrator.graphql import (
+    Mutation,
+    Query,
+    create_graphql_router,
+    register_domain_models,
+)
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
@@ -104,7 +109,6 @@ class OrchestratorCore(FastAPI):
 
         initialise_logging()
 
-        api_router.include_router(graphql_router, prefix="/graphql")
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
@@ -179,6 +183,11 @@ class OrchestratorCore(FastAPI):
 
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
+
+    def register_graphql(self: "OrchestratorCore", query: Any = Query, mutation: Any = Mutation) -> None:
+        register_domain_models()
+        new_router = create_graphql_router(query, mutation)
+        self.include_router(new_router, prefix="/api/graphql")
 
 
 main_typer_app = typer.Typer()
