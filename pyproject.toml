@@ -54,7 +54,7 @@ dependencies = [
     "python-dateutil==2.8.2",
     "python-rapidjson==1.9",
     "pytz==2023.3",
-    "redis>=4.5.5,<4.6",
+    "redis>=4.6, <4.7.0",
     "schedule==1.1.0",
     "sentry-sdk[fastapi]==1.25.1",
     "SQLAlchemy==1.4.48",
@@ -62,7 +62,7 @@ dependencies = [
     "structlog",
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
-    "nwa-stdlib~=1.4.8",
+    "nwa-stdlib~=1.4.9",
     "oauth2-lib==1.3.2",
     "tabulate==0.9.0",
     "strawberry-graphql==0.171.1"
@@ -75,7 +75,7 @@ documentation = "https://workfloworchestrator.org/orchestrator-core/"
 
 [project.optional-dependencies]
 celery = [
-    "celery~=5.2.7"
+    "celery~=5.3.1"
 ]
 
 test = [
