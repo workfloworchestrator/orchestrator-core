@@ -161,7 +161,7 @@ def test_processes_has_next_page(
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "19",
+        "totalItems": 19,
     }
 
     for process in processes:
@@ -193,7 +193,7 @@ def test_process_has_previous_page(
         "hasNextPage": True,
         "startCursor": 1,
         "endCursor": 10,
-        "totalItems": "19",
+        "totalItems": 19,
     }
 
 
@@ -223,7 +223,7 @@ def test_processes_sorting_asc(
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "19",
+        "totalItems": 19,
     }
 
     assert processes[0]["started"] == "2020-01-14T09:30:00+00:00"
@@ -257,7 +257,7 @@ def test_processes_sorting_desc(
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "19",
+        "totalItems": 19,
     }
 
     assert processes[0]["started"] == "2020-01-19T09:30:00+00:00"
@@ -297,7 +297,7 @@ def test_processes_has_filtering(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 3,
-        "totalItems": "4",
+        "totalItems": 4,
     }
 
     for process in processes:
@@ -343,7 +343,7 @@ def test_processes_filtering_with_invalid_filter(
                     "creator",
                     "product",
                     "tag",
-                    "subscription",
+                    "subscriptions",
                     "subscriptionId",
                     "target",
                 ],
@@ -355,7 +355,7 @@ def test_processes_filtering_with_invalid_filter(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 3,
-        "totalItems": "4",
+        "totalItems": 4,
     }
 
     for process in processes:
@@ -390,7 +390,7 @@ def test_single_process(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert processes[0]["id"] == process_pid
 
@@ -423,7 +423,7 @@ def test_single_process_with_subscriptions(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert processes[0]["id"] == process_pid
     assert processes[0]["subscriptions"]["page"][0]["subscriptionId"] == generic_subscription_1

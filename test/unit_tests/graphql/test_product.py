@@ -175,7 +175,7 @@ def test_product_query(fastapi_app_graphql, test_client, generic_product_1, gene
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": "6",
+        "totalItems": 6,
     }
 
 
@@ -196,7 +196,7 @@ def test_product_has_previous_page(
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "totalItems": "6",
+        "totalItems": 6,
     }
 
     assert len(products) == 5
@@ -223,7 +223,7 @@ def test_products_filter_by_product_block(
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": "2",
+        "totalItems": 2,
     }
     assert products[0]["name"] == "Product 1"
     assert products[1]["name"] == "Product 2"
@@ -247,7 +247,7 @@ def test_products_sort_by_tag(
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": "6",
+        "totalItems": 6,
     }
 
 
@@ -279,7 +279,7 @@ def test_single_product_with_subscriptions(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert products[0]["productId"] == product_id
     assert products[0]["subscriptions"]["page"][0]["subscriptionId"] == generic_subscription_1

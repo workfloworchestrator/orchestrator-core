@@ -316,7 +316,7 @@ def test_subscriptions_single_page(fastapi_app_graphql, test_client, product_typ
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 6,
-        "totalItems": "7",
+        "totalItems": 7,
     }
 
     for subscription in subscriptions:
@@ -347,7 +347,7 @@ def test_subscriptions_has_next_page(fastapi_app_graphql, test_client, product_t
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "33",
+        "totalItems": 33,
     }
 
     for subscription in subscriptions:
@@ -378,7 +378,7 @@ def test_subscriptions_has_previous_page(fastapi_app_graphql, test_client, produ
         "hasNextPage": True,
         "startCursor": 1,
         "endCursor": 10,
-        "totalItems": "33",
+        "totalItems": 33,
     }
 
 
@@ -403,7 +403,7 @@ def test_subscriptions_sorting_asc(fastapi_app_graphql, test_client, product_typ
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "33",
+        "totalItems": 33,
     }
 
     for i in range(0, 8):
@@ -431,7 +431,7 @@ def test_subscriptions_sorting_desc(fastapi_app_graphql, test_client, product_ty
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "33",
+        "totalItems": 33,
     }
 
     for i in range(0, 8):
@@ -460,7 +460,7 @@ def test_subscriptions_sorting_product_tag_asc(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 4,
-        "totalItems": "5",
+        "totalItems": 5,
     }
 
     product_tag_list = [subscription["product"]["tag"] for subscription in subscriptions]
@@ -489,7 +489,7 @@ def test_subscriptions_sorting_product_tag_desc(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 4,
-        "totalItems": "5",
+        "totalItems": 5,
     }
 
     product_tag_list = [subscription["product"]["tag"] for subscription in subscriptions]
@@ -515,7 +515,7 @@ def test_subscriptions_sorting_invalid_field(fastapi_app_graphql, test_client, p
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 9,
-        "totalItems": "33",
+        "totalItems": 33,
     }
 
     assert "errors" in result
@@ -594,7 +594,7 @@ def test_subscriptions_filtering_on_status(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": "2",
+        "totalItems": 2,
     }
 
     result_subscription_ids = [subscription["subscriptionId"] for subscription in subscriptions].sort()
@@ -640,7 +640,7 @@ def test_subscriptions_range_filtering_on_start_date(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 3,
-        "totalItems": "4",
+        "totalItems": 4,
     }
 
     for subscription in subscriptions:
@@ -718,7 +718,7 @@ def test_subscriptions_filtering_with_invalid_filter(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": "2",
+        "totalItems": 2,
     }
 
     for subscription in subscriptions:
@@ -751,7 +751,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["productBlocks"] == [
@@ -803,7 +803,7 @@ def test_single_subscription_with_processes(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["processes"]["page"][0]["id"] == str(mocked_processes[0])
@@ -842,7 +842,7 @@ def test_single_subscription_with_depends_on_subscriptions(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert len(subscriptions[0]["processes"]["page"]) == 0
@@ -884,7 +884,7 @@ def test_single_subscription_with_in_use_by_subscriptions(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert len(subscriptions[0]["processes"]["page"]) == 0
@@ -928,7 +928,7 @@ def test_subscriptions_product_generic_one(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["pb1"] == {"rt1": "Value1"}
@@ -962,7 +962,7 @@ def test_single_subscription_product_list_union_type(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["testBlock"] == {
@@ -1004,7 +1004,7 @@ def test_single_subscription_product_list_union_type_provisioning_subscription(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["testBlock"] == {
@@ -1046,7 +1046,7 @@ def test_single_subscription_product_list_union_type_terminated_subscription(
         "hasNextPage": False,
         "startCursor": 0,
         "endCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["testBlock"] == {
