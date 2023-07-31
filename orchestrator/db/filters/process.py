@@ -84,7 +84,7 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
     "creator": generic_is_like_filter(ProcessTable.created_by),
     "product": product_filter,
     "tag": tag_filter,
-    "subscription": subscriptions_filter,
+    "subscriptions": subscriptions_filter,
     "subscriptionId": subscription_id_filter,
     "target": target_filter,
 }

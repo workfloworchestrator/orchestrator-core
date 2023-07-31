@@ -35,12 +35,14 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
     resolve_processes,
+    resolve_product_blocks,
     resolve_products,
     resolve_settings,
     resolve_subscriptions,
 )
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType
+from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
@@ -64,6 +66,9 @@ class Query:
     )
     products: Connection[ProductType] = authenticated_field(
         resolver=resolve_products, description="Returns list of products"
+    )
+    product_blocks: Connection[ProductBlock] = authenticated_field(
+        resolver=resolve_product_blocks, description="Returns list of product blocks"
     )
     subscriptions: Connection[SubscriptionInterface] = authenticated_field(
         resolver=resolve_subscriptions, description="Returns list of subscriptions"

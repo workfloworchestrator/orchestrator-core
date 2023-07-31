@@ -66,14 +66,26 @@ if __name__ == "__main__":
     core_cli()
 ```
 
-#### Step 5:
+#### Step 5 (Optional):
+OrchestratorCore comes with a graphql interface that can to be registered after you create your OrchestratorApp.
+If you add it after registering your `SUBSCRIPTION_MODEL_REGISTRY` it will automatically create graphql types for them.
+More info can be found in `docs/architecture/application/graphql.md`
+
+example:
+```python
+app = OrchestratorCore(base_settings=AppSettings())
+# register SUBSCRIPTION_MODEL_REGISTRY
+app.register_graphql()
+```
+
+#### Step 6:
 Initialize the migration environment.
 ```shell
 PYTHONPATH=. python main.py db init
 PYTHONPATH=. python main.py db upgrade heads
 ```
 
-### Step 6:
+### Step 7:
 Profit :)
 
 ```shell
