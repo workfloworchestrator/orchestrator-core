@@ -8,10 +8,11 @@ from orchestrator.db.models import ProductTable
 from orchestrator.db.range.range import apply_range_to_query
 from orchestrator.db.sorting.product import sort_products
 from orchestrator.db.sorting.sorting import Sort
-from orchestrator.graphql.pagination import Connection, PageInfo
+from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
+from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
 
 logger = structlog.get_logger(__name__)
 
@@ -35,21 +36,5 @@ async def resolve_products(
     query = apply_range_to_query(query, after, first)
 
     products = query.all()
-    has_next_page = len(products) > first
-
-    products = products[:first]
-    products_length = len(products)
-    start_cursor = after if products_length else None
-    end_cursor = after + products_length - 1
-    page_products = [ProductType.from_pydantic(p) for p in products]
-
-    return Connection(
-        page=page_products,
-        page_info=PageInfo(
-            has_previous_page=bool(after),
-            has_next_page=has_next_page,
-            start_cursor=start_cursor,
-            end_cursor=end_cursor,
-            total_items=total if total else None,
-        ),
-    )
+    graphql_products = [ProductType.from_pydantic(p) for p in products]
+    return to_graphql_result_page(graphql_products, first, after, total)
