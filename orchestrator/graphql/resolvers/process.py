@@ -49,7 +49,7 @@ async def resolve_processes(
     _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.info("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
+    logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.

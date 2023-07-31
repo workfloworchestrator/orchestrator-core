@@ -90,7 +90,7 @@ async def resolve_subscriptions(
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.info("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
+    logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     query = SubscriptionTable.query.join(ProductTable)
 
