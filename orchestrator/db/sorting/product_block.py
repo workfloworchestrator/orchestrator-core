@@ -5,7 +5,7 @@ from orchestrator.db.sorting.sorting import generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
 PRODUCT_BLOCK_SORT_FUNCTIONS_BY_COLUMN = {
-    to_camel(key): generic_column_sort(value) for [key, value] in inspect(ProductBlockTable).columns.items()
+    to_camel(key): generic_column_sort(value) for key, value in inspect(ProductBlockTable).columns.items()
 }
 
 sort_product_blocks = generic_sort(PRODUCT_BLOCK_SORT_FUNCTIONS_BY_COLUMN)
