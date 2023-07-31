@@ -69,7 +69,7 @@ def test_product_blocks_query(test_client, generic_product_1, generic_product_2,
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": "3",
+        "totalItems": 3,
     }
 
 
@@ -88,7 +88,7 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "totalItems": "3",
+        "totalItems": 3,
     }
 
     assert len(product_blocks) == 2
@@ -113,7 +113,7 @@ def test_product_blocks_filter_by_resource_types(test_client, generic_product_1,
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": "1",
+        "totalItems": 1,
     }
     assert product_blocks[0]["name"] == "PB_1"
 
@@ -135,7 +135,7 @@ def test_product_blocks_filter_by_products(test_client, generic_product_1, gener
         "hasPreviousPage": False,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": "2",
+        "totalItems": 2,
     }
     assert product_blocks[0]["name"] == "PB_1"
     assert product_blocks[1]["name"] == "PB_2"
@@ -157,5 +157,5 @@ def test_product_blocks_sort_by_tag(test_client, generic_product_1, generic_prod
         "hasPreviousPage": False,
         "startCursor": 0,
         "endCursor": 2,
-        "totalItems": "3",
+        "totalItems": 3,
     }
