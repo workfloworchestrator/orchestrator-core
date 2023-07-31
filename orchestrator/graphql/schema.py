@@ -35,10 +35,10 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
     resolve_processes,
+    resolve_product_blocks,
     resolve_products,
     resolve_settings,
     resolve_subscriptions,
-    resolve_product_blocks,
 )
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType

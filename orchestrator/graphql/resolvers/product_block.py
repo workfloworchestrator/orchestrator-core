@@ -10,14 +10,14 @@ from orchestrator.db.sorting.product_block import sort_product_blocks
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection, PageInfo
 from orchestrator.graphql.schemas.product_block import ProductBlock
-from orchestrator.graphql.types import CustomInfo, GraphqlFilter, GraphqlSort
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 
 logger = structlog.get_logger(__name__)
 
 
 async def resolve_product_blocks(
-    info: CustomInfo,
+    info: OrchestratorInfo,
     filter_by: Union[list[GraphqlFilter], None] = None,
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
