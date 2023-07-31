@@ -22,10 +22,11 @@ from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import sort_processes
-from orchestrator.graphql.pagination import Connection, PageInfo
+from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.process import ProcessGraphqlSchema, ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
+from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
 from orchestrator.services.processes import load_process
 from orchestrator.utils.show_process import show_process
 
@@ -48,7 +49,7 @@ async def resolve_processes(
     _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.info("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
+    logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
@@ -65,22 +66,5 @@ async def resolve_processes(
     query = apply_range_to_query(query, after, first)
 
     processes = query.all()
-    has_next_page = len(processes) > first
-
-    # exclude last item as it was fetched to know if there is a next page
-    processes = processes[:first]
-    processes_length = len(processes)
-    start_cursor = after if processes_length else None
-    end_cursor = after + processes_length - 1
-    page_processes = [ProcessType.from_pydantic(enrich_process(p)) for p in processes]
-
-    return Connection(
-        page=page_processes,
-        page_info=PageInfo(
-            has_previous_page=bool(after),
-            has_next_page=has_next_page,
-            start_cursor=start_cursor,
-            end_cursor=end_cursor,
-            total_items=total if total else None,
-        ),
-    )
+    graphql_processes = [ProcessType.from_pydantic(enrich_process(p)) for p in processes]
+    return to_graphql_result_page(graphql_processes, first, after, total)

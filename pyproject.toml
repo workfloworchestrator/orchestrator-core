@@ -110,7 +110,7 @@ test = [
     "types-PyYAML"
 ]
 doc = [
-    "mkdocs",
+    "mkdocs<1.5", # mkdocs 1.5 fails to build https://github.com/squidfunk/mkdocs-material/issues/5772
     "mkdocs-material",
     "mkdocs-render-swagger-plugin",
     "mkdocs-include-markdown-plugin"

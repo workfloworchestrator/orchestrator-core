@@ -24,11 +24,12 @@ from orchestrator.db.filters.subscription import filter_subscriptions
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.graphql.pagination import Connection, PageInfo
+from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
+from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
 from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
@@ -89,7 +90,7 @@ async def resolve_subscriptions(
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.info("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
+    logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
     query = SubscriptionTable.query.join(ProductTable)
 
@@ -99,26 +100,8 @@ async def resolve_subscriptions(
     query = apply_range_to_query(query, after, first)
 
     subscriptions = query.all()
-    has_next_page = len(subscriptions) > first
-
-    # exclude last item as it was fetched to know if there is a next page
-    subscriptions = subscriptions[:first]
-    subscriptions_length = len(subscriptions)
-    start_cursor = after if subscriptions_length else None
-    end_cursor = after + subscriptions_length - 1
-
     if _has_subscription_details(info):
-        page_subscriptions = [get_subscription_details(p) for p in subscriptions]
+        graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:
-        page_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
-
-    return Connection(
-        page=page_subscriptions,
-        page_info=PageInfo(
-            has_previous_page=bool(after),
-            has_next_page=has_next_page,
-            start_cursor=start_cursor,
-            end_cursor=end_cursor,
-            total_items=total if total else None,
-        ),
-    )
+        graphql_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
+    return to_graphql_result_page(graphql_subscriptions, first, after, total)

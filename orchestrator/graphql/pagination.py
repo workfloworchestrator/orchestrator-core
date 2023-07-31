@@ -48,7 +48,7 @@ class PageInfo:
     has_previous_page: bool
     start_cursor: Union[int, None]
     end_cursor: Union[int, None]
-    total_items: Union[str, None]
+    total_items: Union[int, None]
 
 
 @strawberry.type(description="An edge may contain additional information of the relationship")
@@ -66,6 +66,6 @@ EMPTY_PAGE: Connection[Any] = Connection(
         has_next_page=False,
         start_cursor=0,
         end_cursor=-1,
-        total_items="0",
+        total_items=0,
     ),
 )
