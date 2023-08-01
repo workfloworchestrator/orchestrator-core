@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def fastapi_app_graphql(
     fastapi_app,
     test_client,

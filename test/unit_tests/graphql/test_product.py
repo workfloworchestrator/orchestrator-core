@@ -158,7 +158,7 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
     ).encode("utf-8")
 
 
-def test_product_query(fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_query(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(first=2)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -179,9 +179,7 @@ def test_product_query(fastapi_app_graphql, test_client, generic_product_1, gene
     }
 
 
-def test_product_has_previous_page(
-    fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3
-):
+def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(after=1)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -204,9 +202,7 @@ def test_product_has_previous_page(
     assert product_names == ["Product 2", "ProductSubOne", "ProductSubTwo", "ProductSubListUnion", "Product 3"]
 
 
-def test_products_filter_by_product_block(
-    fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3
-):
+def test_products_filter_by_product_block(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(
         filter_by=[{"field": "product_blocks", "value": "PB_1-PB_3"}],
         sort_by=[{"field": "name", "order": "ASC"}],
@@ -229,9 +225,7 @@ def test_products_filter_by_product_block(
     assert products[1]["name"] == "Product 2"
 
 
-def test_products_sort_by_tag(
-    fastapi_app_graphql, test_client, generic_product_1, generic_product_2, generic_product_3
-):
+def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2, generic_product_3):
     data = get_product_query(sort_by=[{"field": "tag", "order": "DESC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
@@ -252,7 +246,6 @@ def test_products_sort_by_tag(
 
 
 def test_single_product_with_subscriptions(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     generic_product_1,

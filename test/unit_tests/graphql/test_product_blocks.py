@@ -52,7 +52,7 @@ query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
     ).encode("utf-8")
 
 
-def test_product_blocks_query(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_blocks_query(test_client):
     data = get_product_blocks_query(first=2)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -69,11 +69,11 @@ def test_product_blocks_query(test_client, generic_product_1, generic_product_2,
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": 3,
+        "totalItems": 6,
     }
 
 
-def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_blocks_has_previous_page(test_client):
     data = get_product_blocks_query(after=1)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -84,19 +84,19 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
     pageinfo = product_blocks_data["pageInfo"]
 
     assert pageinfo == {
-        "endCursor": 2,
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "totalItems": 3,
+        "endCursor": 5,
+        "totalItems": 6,
     }
 
-    assert len(product_blocks) == 2
+    assert len(product_blocks) == 5
     assert product_blocks[0]["name"] == "PB_2"
     assert product_blocks[1]["name"] == "PB_3"
 
 
-def test_product_blocks_filter_by_resource_types(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_blocks_filter_by_resource_types(test_client):
     data = get_product_blocks_query(
         filter_by=[{"field": "resource_types", "value": "rt_1"}],
         sort_by=[{"field": "name", "order": "ASC"}],
@@ -118,7 +118,7 @@ def test_product_blocks_filter_by_resource_types(test_client, generic_product_1,
     assert product_blocks[0]["name"] == "PB_1"
 
 
-def test_product_blocks_filter_by_products(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_blocks_filter_by_products(test_client):
     data = get_product_blocks_query(
         filter_by=[{"field": "products", "value": "Product 1-Product 3"}],
         sort_by=[{"field": "name", "order": "ASC"}],
@@ -141,7 +141,7 @@ def test_product_blocks_filter_by_products(test_client, generic_product_1, gener
     assert product_blocks[1]["name"] == "PB_2"
 
 
-def test_product_blocks_sort_by_tag(test_client, generic_product_1, generic_product_2, generic_product_3):
+def test_product_blocks_sort_by_tag(test_client):
     data = get_product_blocks_query(sort_by=[{"field": "tag", "order": "DESC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
@@ -151,11 +151,11 @@ def test_product_blocks_sort_by_tag(test_client, generic_product_1, generic_prod
     product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
-    assert [p_block["tag"] for p_block in product_blocks] == ["PB3", "PB2", "PB1"]
+    assert [p_block["tag"] for p_block in product_blocks] == ["TEST", "TEST", "TEST", "PB3", "PB2", "PB1"]
     assert pageinfo == {
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "endCursor": 2,
-        "totalItems": 3,
+        "endCursor": 5,
+        "totalItems": 6,
     }

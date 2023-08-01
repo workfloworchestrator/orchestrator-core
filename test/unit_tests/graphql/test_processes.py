@@ -139,7 +139,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
 
 
 def test_processes_has_next_page(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -170,7 +169,6 @@ def test_processes_has_next_page(
 
 
 def test_process_has_previous_page(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -198,7 +196,6 @@ def test_process_has_previous_page(
 
 
 def test_processes_sorting_asc(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -232,7 +229,6 @@ def test_processes_sorting_asc(
 
 
 def test_processes_sorting_desc(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -268,7 +264,6 @@ def test_processes_sorting_desc(
 
 
 def test_processes_has_filtering(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -305,7 +300,6 @@ def test_processes_has_filtering(
 
 
 def test_processes_filtering_with_invalid_filter(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -363,7 +357,6 @@ def test_processes_filtering_with_invalid_filter(
 
 
 def test_single_process(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
@@ -396,7 +389,6 @@ def test_single_process(
 
 
 def test_single_process_with_subscriptions(
-    fastapi_app_graphql,
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
