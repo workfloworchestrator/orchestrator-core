@@ -665,3 +665,40 @@ def do_refresh_subscriptions_search_view():
 @pytest.fixture
 def refresh_subscriptions_search_view():
     do_refresh_subscriptions_search_view()
+
+
+@pytest.fixture(scope="session")
+def celery_config():
+    return {
+        "broker_url": app_settings.CACHE_URI,
+        "result_backend": app_settings.CACHE_URI,
+        "result_expires": 3600,
+    }
+
+
+@pytest.fixture(scope="session")
+def celery_includes():
+    return ["orchestrator.services.tasks"]
+
+
+@pytest.fixture(scope="session")
+def celery_worker_parameters():
+    return {
+        "queues": ("celery", "new_tasks", "resume_tasks", "new_workflows", "resume_workflows"),
+    }
+
+
+@pytest.fixture
+def orch_celery(celery_app, celery_worker):
+    if os.getenv("EXECUTOR") == "celery":
+        from orchestrator.services.tasks import register_custom_serializer, setup_task_routes, setup_tasks
+
+        with pytest.MonkeyPatch.context() as mp:
+            register_custom_serializer()
+            setup_task_routes(celery_app)
+            setup_tasks(celery_app)
+            celery_worker.reload()
+            mp.setattr("orchestrator.services.tasks._celery", celery_app)
+            yield celery_app
+    else:
+        yield

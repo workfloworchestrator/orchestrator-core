@@ -84,7 +84,6 @@ def test_settings_query(test_client):
 
     assert settings_data["cacheNames"] == {"all": "All caches"}
     assert settings_data["engineSettings"] == {"globalLock": False, "globalStatus": "RUNNING", "runningProcesses": 0}
-    assert worker_status["executorType"] == "threadpool"
     assert worker_status["numberOfQueuedJobs"] == 0
     assert worker_status["numberOfWorkersOnline"] == 5
     # numberOfRunningJobs is different depending if you run the whole suite vs just the graphql tests
