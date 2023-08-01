@@ -52,12 +52,7 @@ def register_custom_serializer() -> None:
     registry.register("orchestrator-json", json_dumps, json_loads, "application/json", "utf-8")
 
 
-def initialise_celery(celery: Celery) -> None:  # noqa: C901
-    global _celery
-    if _celery:
-        raise AssertionError("You can only initialise Celery once")
-    _celery = celery
-
+def setup_task_routes(celery: Celery) -> None:
     # Different routes/queues so we can assign them priorities
     celery.conf.task_routes = {
         NEW_TASK: {"queue": "new_tasks"},
@@ -66,42 +61,44 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
         RESUME_WORKFLOW: {"queue": "resume_workflows"},
     }
 
-    register_custom_serializer()
 
-    def start_process(pid: UUID, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
-        try:
-            workflow = get_workflow(workflow_key)
+def start_process(pid: UUID, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
+    try:
+        workflow = get_workflow(workflow_key)
 
-            if not workflow:
-                raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+        if not workflow:
+            raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
-            pstat = ProcessStat(
-                pid,
-                workflow=workflow,
-                state=Success(state),
-                log=workflow.steps,
-                current_user=user,
-            )
+        pstat = ProcessStat(
+            pid,
+            workflow=workflow,
+            state=Success(state),
+            log=workflow.steps,
+            current_user=user,
+        )
 
-            safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
-            pid = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
+        safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
+        pid = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
 
-        except Exception as exc:
-            local_logger.error("Worker failed to execute workflow", pid=pid, details=str(exc))
-            return None
-        else:
-            return pid
+    except Exception as exc:
+        local_logger.error("Worker failed to execute workflow", pid=pid, details=str(exc))
+        return None
+    else:
+        return pid
 
-    def resume_process(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
-        try:
-            process = _get_process(pid)
-            pid = thread_resume_process(process, user_inputs=user_inputs, user=user)
-        except Exception as exc:
-            local_logger.error("Worker failed to resume workflow", pid=pid, details=str(exc))
-            return None
-        else:
-            return pid
 
+def resume_process(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
+    try:
+        process = _get_process(pid)
+        pid = thread_resume_process(process, user_inputs=user_inputs, user=user)
+    except Exception as exc:
+        local_logger.error("Worker failed to resume workflow", pid=pid, details=str(exc))
+        return None
+    else:
+        return pid
+
+
+def setup_tasks(celery: Celery) -> None:
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
     @celery_task(name=NEW_TASK)  # type: ignore
@@ -123,6 +120,17 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     def resume_workflow(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         local_logger.info("Resume workflow", pid=pid)
         return resume_process(pid, user_inputs=user_inputs, user=user)
+
+
+def initialise_celery(celery: Celery) -> None:  # noqa: C901
+    global _celery
+    if _celery:
+        raise AssertionError("You can only initialise Celery once")
+    _celery = celery
+
+    setup_task_routes(celery)
+    register_custom_serializer()
+    setup_tasks(celery)
 
 
 class CeleryJobWorkerStatus(WorkerStatus):

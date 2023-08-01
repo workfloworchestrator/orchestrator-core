@@ -640,37 +640,7 @@ def cache_fixture(monkeypatch):
 
 
 @pytest.fixture(scope="session")
-def use_celery_app_trap():
-    return True
-
-
-@pytest.fixture(scope="session")
-def celery_worker_parameters():
-    return {
-        "shutdown_timeout": 2,
-        "task_time_limit": 5,
-        "queues": ("resume_workflows", "new_workflows", "resume_tasks", "new_tasks"),
-        # "exclude_queues": ("celery"),
-    }
-
-
-@pytest.fixture(scope="session")
 def celery_config():
-    from celery import Celery
-
-    from orchestrator.services.tasks import initialise_celery
-
-    class TestCelery(Celery):
-        pass
-
-    celery = TestCelery(
-        __name__,
-        broker=app_settings.CACHE_URI,
-        backend=app_settings.CACHE_URI,
-        include=["orchestrator.services.tasks"],
-    )
-    celery.conf.update(result_expires=3600)
-    initialise_celery(celery)
     return {
         "broker_url": app_settings.CACHE_URI,
         "result_backend": app_settings.CACHE_URI,
@@ -679,80 +649,28 @@ def celery_config():
 
 
 @pytest.fixture(scope="session")
-def celery_enable_logging():
-    return True
-
-
-@pytest.fixture(scope="session")
 def celery_includes():
     return ["orchestrator.services.tasks"]
 
 
-# @pytest.fixture(scope="session")
-# def celery_class_tasks():
-#     """Redefine this fixture to register tasks with the test Celery app."""
-#     return [
-#         "tasks.new_workflow",
-#         "tasks.resume_workflow",
-#         "tasks.new_task",
-#         "tasks.resume_task",
-#     ]
-
-
-# @pytest.fixture(scope="session", autouse=True)
 @pytest.fixture(scope="session")
-def orch_celery(celery_session_app, celery_session_worker, request):
+def celery_worker_parameters():
+    return {
+        "queues": ("celery", "new_tasks", "resume_tasks", "new_workflows", "resume_workflows"),
+    }
+
+
+@pytest.fixture
+def orch_celery(celery_app, celery_worker):
     if os.getenv("EXECUTOR") == "celery":
-        # from celery import Celery
-        #
-        from orchestrator.services.tasks import initialise_celery
+        from orchestrator.services.tasks import register_custom_serializer, setup_task_routes, setup_tasks
 
-        #
-        # class TestCelery(Celery):
-        #     pass
-        #
-        # celery = TestCelery(
-        #     __name__,
-        #     broker=app_settings.CACHE_URI,
-        #     backend=app_settings.CACHE_URI,
-        #     include=["orchestrator.services.tasks"],
-        # )
-        # celery.conf.update(result_expires=3600)
-        initialise_celery(celery_session_app)
-        # print("#### SESSION_APP", celery_session_app.__dict__)
-        # print("#### SESSION_WORKER", celery_session_worker.__dict__)
-        celery_session_worker.reload()
-        yield celery_session_app
-        #
-        # class CeleryWorker:
-        #     def __init__(self, worker: WorkController):
-        #         self.worker = worker
-        #         self.worker.setup_instance(queues=["new_tasks", "new_workflows", "resume_tasks", "resume_workflows"])
-        #         self.worker.setup_defaults(concurrency=1, loglevel="DEBUG", task_time_limit=30)
-        #         # self.worker.setup_queues("new_tasks,new_workflows,resume_tasks,resume_workflows")
-        #         # self.worker.setup_includes(("orchestrator.services.tasks",))
-        #
-        #     def __enter__(self):
-        #         return self
-        #
-        #     def __exit__(self, *args, **kwargs):
-        #         # print("#### ARGS to __exit__: ", args)
-        #         # print("#### KWARGS to __exit__: ", kwargs)
-        #         try:
-        #             self.worker.stop()
-        #         except Exception as e:
-        #             # print(f"#### ERROR: {e}")
-        #
-        #     def run(self):
-        #         self.worker.start()
-        #         # self.worker.reload()
-        #         # print("#### STATE", self.worker.state.__dict__)
-        #
-        # wcontroller = WorkController(app=celery)
-        # celery_worker = CeleryWorker(wcontroller)
-        # with celery_worker as worker:
-        #     thread = Thread(target=worker.run)
-        #     thread.start()
-        #     yield worker
-
-    yield True
+        with pytest.MonkeyPatch.context() as mp:
+            register_custom_serializer()
+            setup_task_routes(celery_app)
+            setup_tasks(celery_app)
+            celery_worker.reload()
+            mp.setattr("orchestrator.services.tasks._celery", celery_app)
+            yield celery_app
+    else:
+        yield

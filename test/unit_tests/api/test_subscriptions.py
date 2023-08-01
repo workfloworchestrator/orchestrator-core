@@ -698,6 +698,7 @@ def test_subscriptions_for_in_used_by_ids(seed, test_client, caplog):
     assert "Not all subscription_instance_id's could be resolved." not in caplog.text
 
 
+@pytest.mark.usefixtures("orch_celery")
 def test_subscriptions_for_in_used_by_ids_with_wrong_instance_ids(seed, test_client, caplog):
     response = test_client.post(
         "/api/subscriptions/subscriptions_for_in_used_by_ids", json=["5373600d-c9ee-4ceb-96bd-1d3256baccec"]
