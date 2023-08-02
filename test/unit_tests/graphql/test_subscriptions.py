@@ -295,7 +295,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(4)
@@ -326,7 +326,7 @@ def test_subscriptions_single_page(fastapi_app_graphql, test_client, product_typ
             assert field in subscription["product"]
 
 
-def test_subscriptions_has_next_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -355,7 +355,7 @@ def test_subscriptions_has_next_page(fastapi_app_graphql, test_client, product_t
             assert field in subscription
 
 
-def test_subscriptions_has_previous_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -382,7 +382,7 @@ def test_subscriptions_has_previous_page(fastapi_app_graphql, test_client, produ
     }
 
 
-def test_subscriptions_sorting_asc(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -410,7 +410,7 @@ def test_subscriptions_sorting_asc(fastapi_app_graphql, test_client, product_typ
         assert subscriptions[i]["startDate"] < subscriptions[i + 1]["startDate"]
 
 
-def test_subscriptions_sorting_desc(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -438,9 +438,7 @@ def test_subscriptions_sorting_desc(fastapi_app_graphql, test_client, product_ty
         assert subscriptions[i + 1]["startDate"] < subscriptions[i]["startDate"]
 
 
-def test_subscriptions_sorting_product_tag_asc(
-    fastapi_app_graphql, test_client, generic_subscription_1, generic_subscription_2
-):
+def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription_1, generic_subscription_2):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "ASC"}])
@@ -467,9 +465,7 @@ def test_subscriptions_sorting_product_tag_asc(
     assert product_tag_list == ["GEN1", "GEN2", "Sub", "Sub", "UnionSub"]
 
 
-def test_subscriptions_sorting_product_tag_desc(
-    fastapi_app_graphql, test_client, generic_subscription_1, generic_subscription_2
-):
+def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscription_1, generic_subscription_2):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "DESC"}])
@@ -496,7 +492,7 @@ def test_subscriptions_sorting_product_tag_desc(
     assert product_tag_list == ["UnionSub", "Sub", "Sub", "GEN2", "GEN1"]
 
 
-def test_subscriptions_sorting_invalid_field(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -545,7 +541,7 @@ def test_subscriptions_sorting_invalid_field(fastapi_app_graphql, test_client, p
     ]
 
 
-def test_subscriptions_sorting_invalid_order(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -562,9 +558,7 @@ def test_subscriptions_sorting_invalid_order(fastapi_app_graphql, test_client, p
     assert "Value 'test' does not exist in 'SortOrder'" in result["errors"][0]["message"]
 
 
-def test_subscriptions_filtering_on_status(
-    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory, generic_product_type_1
-):
+def test_subscriptions_filtering_on_status(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
     # when
 
     subscription_ids = product_type_1_subscriptions_factory(30)
@@ -603,9 +597,7 @@ def test_subscriptions_filtering_on_status(
     assert subscriptions[1]["status"] == "TERMINATED"
 
 
-def test_subscriptions_range_filtering_on_start_date(
-    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory
-):
+def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -648,7 +640,7 @@ def test_subscriptions_range_filtering_on_start_date(
 
 
 def test_subscriptions_filtering_with_invalid_filter(
-    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory, generic_product_type_1
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1
 ):
     # when
 
