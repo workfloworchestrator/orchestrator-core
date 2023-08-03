@@ -41,15 +41,23 @@ app.register_graphql(query=NewQuery)
 
 ## Domain Models Auto Registration for GraphQL
 
-When using the register_graphql function, all products in the SUBSCRIPTION_MODEL_REGISTRY will be automatically converted into GraphQL types.
+When using the `register_graphql()` function, all products in the `SUBSCRIPTION_MODEL_REGISTRY` will be automatically converted into GraphQL types.
 The registration process iterates through the list, starting from the deepest product block and working its way back up to the product level.
 
-However, there is a potential issue when dealing with a ProductBlock that references itself, as it can lead to an infinite loop.
-To handle this situation, you must manually create the GraphQL type for that ProductBlock and add it to the GRAPHQL_MODELS list.
+However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it leads to an error expecting the `ProductBlock` type to exist.
+
+Here an example of the expected error with self referenced `ProductBlock`:
+
+```
+trawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for <class 'products.product_blocks.product_block_file.ProductBlock'> did you forget to register it?
+```
+
+To handle this situation, you must manually create the GraphQL type for that `ProductBlock` and add it to the `GRAPHQL_MODELS` list.
 
 Here's an example of how to do it:
 
 ```python
+# product_block_file.py
 import strawberry
 from typing import Annotated
 from app.product_blocks import ProductBlock
@@ -60,7 +68,7 @@ from orchestrator.graphql import GRAPHQL_MODELS
 @strawberry.experimental.pydantic.type(model=ProductBlock)
 class ProductBlockGraphql:
     name: strawberry.auto
-    self_refrence_block: Annotated[
+    self_reference_block: Annotated[
         "ProductBlockGraphql", strawberry.lazy(".product_block_file")
     ] | None = None
     ...
@@ -70,19 +78,19 @@ class ProductBlockGraphql:
 GRAPHQL_MODELS.update({"ProductBlockGraphql": ProductBlockGraphql})
 ```
 
-By following this example, you can effectively create the necessary GraphQL type for ProductBlock and ensure proper registration with register_graphql. This will help you avoid any infinite loop scenarios and enable smooth integration of domain models with GraphQL.
+By following this example, you can effectively create the necessary GraphQL type for `ProductBlock` and ensure proper registration with `register_graphql()`. This will help you avoid any `Cannot find a Strawberry Type` scenarios and enable smooth integration of domain models with GraphQL.
 
 ### Scalars for Auto Registration
 
-When working with special types such as VlanRanges or IPv4Interface in the core module, scalar types are essential for the auto registration process.
-Scalar types enable smooth integration of these special types into the GraphQL schema.
+When working with special types such as `VlanRanges` or `IPv4Interface` in the core module, scalar types are essential for the auto registration process.
+Scalar types enable smooth integration of these special types into the GraphQL schema, They need to be initialized before `register_graphql()`.
 
 Here's an example of how to add a new scalar:
 
 ```python
 import strawberry
 from typing import NewType
-from orchestrator.graphql import SCALAR_OVERRIDESs
+from orchestrator.graphql import SCALAR_OVERRIDES
 
 VlanRangesType = strawberry.scalar(
     NewType("VlanRangesType", str),
@@ -97,7 +105,7 @@ SCALAR_OVERRIDES = {
 }
 ```
 
-You can find more examples of scalar usage in the `orchestrator-core/orchestrator/graphql/types.py` file.
+You can find more examples of scalar usage in the `orchestrator/graphql/types.py` file.
 For additional information on Scalars, please refer to the Strawberry documentation on Scalars: https://strawberry.rocks/docs/types/scalars.
 
 By using scalar types for auto registration, you can seamlessly incorporate special types into your GraphQL schema, making it easier to work with complex data in the Orchestrator application.
