@@ -27,9 +27,11 @@ from orchestrator.graphql.schema import (
     get_context,
     graphql_router,
 )
+from orchestrator.graphql.types import SCALAR_OVERRIDES
 
 __all__ = [
     "GRAPHQL_MODELS",
+    "SCALAR_OVERRIDES",
     "Query",
     "Mutation",
     "OrchestratorGraphqlRouter",
