@@ -11,18 +11,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID
 
 import strawberry
 from pydantic.typing import get_args, get_origin, is_union
-from pydantic_forms.types import InputForm
 
-UUIDstr = str
-State = Dict[str, Any]
-JSON = Any
+# TODO: eventually enforce code migration for downstream users to import
+# these types from pydantic_forms themselves
+from pydantic_forms.types import (  # noqa: F401
+    JSON,
+    AcceptData,
+    FormGenerator,
+    FormGeneratorAsync,
+    InputForm,
+    InputFormGenerator,
+    InputStepFunc,
+    SimpleInputFormGenerator,
+    State,
+    StateInputFormGenerator,
+    StateInputFormGeneratorAsync,
+    StateInputStepFunc,
+    StateSimpleInputFormGenerator,
+    SubscriptionMapping,
+    SummaryData,
+    UUIDstr,
+    strEnum,
+)
+
 # ErrorState is either a string containing an error message, a catched Exception or a tuple containing a message and
 # a HTTP status code
 ErrorState = Union[str, Exception, Tuple[str, Union[int, HTTPStatus]]]
@@ -35,15 +52,6 @@ ErrorDict = Dict[str, Union[str, int, List[Dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
 BroadcastFunc = Callable[[UUID, Dict], None]
-
-
-class strEnum(str, Enum):
-    def __str__(self) -> str:
-        return self.value
-
-    @classmethod
-    def values(cls) -> List:
-        return [obj.value for obj in cls]
 
 
 @strawberry.enum

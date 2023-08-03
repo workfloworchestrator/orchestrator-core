@@ -129,6 +129,10 @@ dev = [
 [tool.flit.module]
 name = "orchestrator"
 
+[[tool.mypy.overrides]]
+module = "orchestrator.*"
+implicit_reexport = true
+
 [tool.isort]
 profile = "black"
 line_length = 120
