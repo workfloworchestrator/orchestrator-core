@@ -29,7 +29,7 @@ subscription_fields = [
     "insync",
     "note",
     "product",
-    "productBlocks",
+    "productBlockInstances",
 ]
 subscription_product_fields = [
     "productId",
@@ -60,12 +60,12 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       note
       startDate
       endDate
-      productBlocks {
+      productBlockInstances {
         id
         parent
         subscriptionInstanceId
         ownerSubscriptionId
-        resourceTypes
+        productBlockInstanceValues
       }
       product {
         productId
@@ -746,20 +746,20 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["productBlocks"] == [
+    assert subscriptions[0]["productBlockInstances"] == [
         {
             "id": 0,
             "subscriptionInstanceId": str(subscription.pb_1.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
-            "resourceTypes": {"label": None, "name": "PB_1", "rt1": "Value1"},
+            "productBlockInstanceValues": {"label": None, "name": "PB_1", "rt1": "Value1"},
         },
         {
             "id": 1,
             "subscriptionInstanceId": str(subscription.pb_2.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
-            "resourceTypes": {"label": None, "name": "PB_2", "rt2": 42, "rt3": "Value2"},
+            "productBlockInstanceValues": {"label": None, "name": "PB_2", "rt2": 42, "rt3": "Value2"},
         },
     ]
 
