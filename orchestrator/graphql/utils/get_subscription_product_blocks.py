@@ -18,6 +18,10 @@ class ProductBlockInstance:
     owner_subscription_id: UUID
     product_block_instance_values: JSON
 
+    @strawberry.field(description="Returns all resource types of a product block", deprecation_reason="changed to product_block_instance_values")  # type: ignore
+    async def resource_types(self) -> JSON:
+        return {v["field"]: v["value"] for v in self.product_block_instance_values}
+
 
 def is_product_block(candidate: Any) -> bool:
     if isinstance(candidate, dict):
@@ -68,7 +72,9 @@ async def get_subscription_product_blocks(
             parent=product_block.get("parent"),
             owner_subscription_id=product_block["owner_subscription_id"],
             subscription_instance_id=product_block["subscription_instance_id"],
-            product_block_instance_values={to_lower_camel(k): v for k, v in product_block.items() if included(k, v)},
+            product_block_instance_values=[
+                {"field": to_lower_camel(k), "value": v} for k, v in product_block.items() if included(k, v)
+            ],
         )
 
     product_blocks = (to_product_block(product_block) for product_block in get_all_product_blocks(subscription, tags))

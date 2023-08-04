@@ -752,14 +752,23 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
             "subscriptionInstanceId": str(subscription.pb_1.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
-            "productBlockInstanceValues": {"label": None, "name": "PB_1", "rt1": "Value1"},
+            "productBlockInstanceValues": [
+                {"field": "name", "value": "PB_1"},
+                {"field": "label", "value": None},
+                {"field": "rt1", "value": "Value1"},
+            ],
         },
         {
             "id": 1,
             "subscriptionInstanceId": str(subscription.pb_2.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
-            "productBlockInstanceValues": {"label": None, "name": "PB_2", "rt2": 42, "rt3": "Value2"},
+            "productBlockInstanceValues": [
+                {"field": "name", "value": "PB_2"},
+                {"field": "label", "value": None},
+                {"field": "rt2", "value": 42},
+                {"field": "rt3", "value": "Value2"},
+            ],
         },
     ]
 
