@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID
@@ -23,6 +24,7 @@ from pydantic.typing import get_args, get_origin, is_union
 from pydantic_forms.types import (
     JSON,
     AcceptData,
+    AcceptItemType,
     FormGenerator,
     FormGeneratorAsync,
     InputForm,
@@ -94,21 +96,6 @@ class SubscriptionLifecycle(strEnum):
     DISABLED = "disabled"
     TERMINATED = "terminated"
     PROVISIONING = "provisioning"
-
-
-@strawberry.enum
-class AcceptItemType(strEnum):
-    INFO = "info"
-    LABEL = "label"
-    WARNING = "warning"
-    URL = "url"
-    CHECKBOX = "checkbox"
-    SUBCHECKBOX = ">checkbox"
-    OPTIONAL_CHECKBOX = "checkbox?"
-    OPTIONAL_SUBCHECKBOX = ">checkbox?"
-    SKIP = "skip"
-    VALUE = "value"
-    MARGIN = "margin"
 
 
 # TODO #1321: old code that protected against unsafe changes in subs

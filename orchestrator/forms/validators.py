@@ -18,11 +18,13 @@ from uuid import UUID
 import structlog
 from pydantic.errors import EnumMemberError
 from pydantic.validators import uuid_validator
+from pydantic_forms.types import strEnum
 from pydantic_forms.validators import (  # noqa: F401
     Accept,
     Choice,
     ChoiceList,
     ContactPerson,
+    ContactPersonList,
     ContactPersonName,
     DisplaySubscription,
     Divider,
@@ -35,6 +37,7 @@ from pydantic_forms.validators import (  # noqa: F401
     Timestamp,
     UniqueConstrainedList,
     choice_list,
+    contact_person_list,
     migration_summary,
     remove_empty_items,
     timestamp,
@@ -64,9 +67,11 @@ __all__ = [
     "Timestamp",
     "UniqueConstrainedList",
     "choice_list",
+    "contact_person_list",
     "migration_summary",
     "product_id",
     "remove_empty_items",
+    "strEnum",
     "timestamp",
     "unique_conlist",
 ]
