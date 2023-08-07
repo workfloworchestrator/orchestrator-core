@@ -49,7 +49,7 @@ However, there is a potential issue when dealing with a `ProductBlock` that refe
 Here an example of the expected error with self referenced `ProductBlock`:
 
 ```
-trawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for <class 'products.product_blocks.product_block_file.ProductBlock'> did you forget to register it?
+strawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for <class 'products.product_blocks.product_block_file.ProductBlock'> did you forget to register it?
 ```
 
 To handle this situation, you must manually create the GraphQL type for that `ProductBlock` and add it to the `GRAPHQL_MODELS` list.
