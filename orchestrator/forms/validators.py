@@ -54,6 +54,7 @@ __all__ = [
     "ChoiceList",
     "ContactPerson",
     "ContactPersonName",
+    "ContactPersonList",
     "DisplaySubscription",
     "Divider",
     "Label",
