@@ -46,7 +46,7 @@ The registration process iterates through the list, starting from the deepest pr
 
 However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it leads to an error expecting the `ProductBlock` type to exist.
 
-Here an example of the expected error with self referenced `ProductBlock`:
+Here is an example of the expected error with a self referenced `ProductBlock`:
 
 ```
 strawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for <class 'products.product_blocks.product_block_file.ProductBlock'> did you forget to register it?
