@@ -68,7 +68,7 @@ def _add_sort_to_query(query: Query, sort: Optional[List[str]]) -> Query:
             if col:
                 query = query.order_by(order_by_expr(col))
             else:
-                logger.warn(f"Unable to add sort. Unknown field: {item[0]}")
+                raise_status(HTTPStatus.BAD_REQUEST, f"Unable to sort on unknown field: {item[0]}")
     return query
 
 
