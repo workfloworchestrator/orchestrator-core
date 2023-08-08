@@ -209,4 +209,10 @@ convention = "google"
 
 [tool.ruff.isort]
 known-third-party = ["pynso", "pydantic"]
-known-first-party = ["migrations", "test", "nwastdlib", "oauth2_lib"]
+known-first-party = [
+    "migrations",
+    "test",
+    "nwastdlib",
+    "oauth2_lib",
+    "pydantic_forms",
+]

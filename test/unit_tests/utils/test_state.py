@@ -4,12 +4,12 @@ from typing import List, Optional
 from uuid import uuid4
 
 import pytest
-from pydantic_forms.core import FormPage, post_form
 
 from nwastdlib import const
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import State, SubscriptionLifecycle
 from orchestrator.utils.state import extract, form_inject_args, inject_args
+from pydantic_forms.core import FormPage, post_form
 
 STATE = {"one": 1, "two": 2, "three": 3, "four": 4}
 

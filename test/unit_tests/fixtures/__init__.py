@@ -2,8 +2,6 @@ import random
 import string
 from typing import Any, Dict
 
-from pydantic_forms.types import SubscriptionMapping
-
 from orchestrator.db import (
     ProductTable,
     SubscriptionInstanceTable,
@@ -12,6 +10,7 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.utils.datetime import nowtz
+from pydantic_forms.types import SubscriptionMapping
 
 
 def randomstr(length=3):

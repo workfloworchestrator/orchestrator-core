@@ -21,8 +21,6 @@ from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from pydantic.json import ENCODERS_BY_TYPE
-from pydantic_forms.exception_handlers.fastapi import form_error_handler
-from pydantic_forms.exceptions import FormException
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -54,6 +52,8 @@ from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
+from pydantic_forms.exception_handlers.fastapi import form_error_handler
+from pydantic_forms.exceptions import FormException
 
 logger = structlog.get_logger(__name__)
 

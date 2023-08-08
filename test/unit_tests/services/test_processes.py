@@ -6,7 +6,6 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
-from pydantic_forms.exceptions import FormValidationError
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db
@@ -38,6 +37,7 @@ from orchestrator.workflow import (
     make_workflow,
     step,
 )
+from pydantic_forms.exceptions import FormValidationError
 
 
 def test_db_create_process():

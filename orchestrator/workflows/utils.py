@@ -17,8 +17,6 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import validator
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, StateInputStepFunc
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms.validators import ProductId
@@ -38,6 +36,8 @@ from orchestrator.workflows.steps import (
     unsync,
     unsync_unchecked,
 )
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, StateInputStepFunc
 
 
 def _generate_new_subscription_form(workflow_target: str, workflow_name: str) -> InputForm:

@@ -4,6 +4,10 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
+
+from orchestrator.forms.validators import ProductId, product_id
+from orchestrator.services import products
+from orchestrator.utils.json import json_dumps, json_loads
 from pydantic_forms.core import FormPage, ReadOnlyField
 from pydantic_forms.validators import (
     Accept,
@@ -23,10 +27,6 @@ from pydantic_forms.validators import (
     migration_summary,
     unique_conlist,
 )
-
-from orchestrator.forms.validators import ProductId, product_id
-from orchestrator.services import products
-from orchestrator.utils.json import json_dumps, json_loads
 
 
 def test_constrained_list_good():

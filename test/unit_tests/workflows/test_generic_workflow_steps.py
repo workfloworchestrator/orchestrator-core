@@ -1,9 +1,8 @@
-from pydantic_forms.core import FormPage
-
 from orchestrator.config.assignee import Assignee
 from orchestrator.utils.functional import orig
 from orchestrator.workflow import begin, done, inputstep, step, workflow
 from orchestrator.workflows.steps import unsync
+from pydantic_forms.core import FormPage
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_complete,

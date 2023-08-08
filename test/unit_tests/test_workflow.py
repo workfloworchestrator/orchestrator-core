@@ -5,8 +5,6 @@ from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import FormGenerator
 
 from nwastdlib import const
 from orchestrator.config.assignee import Assignee
@@ -36,6 +34,8 @@ from orchestrator.workflow import (
     workflow,
 )
 from orchestrator.workflow import _purestep as purestep
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_aborted,

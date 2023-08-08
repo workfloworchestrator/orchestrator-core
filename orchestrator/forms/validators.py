@@ -18,6 +18,8 @@ from uuid import UUID
 import structlog
 from pydantic.errors import EnumMemberError
 from pydantic.validators import uuid_validator
+
+from orchestrator.services import products
 from pydantic_forms.types import strEnum
 from pydantic_forms.validators import (  # noqa: F401
     Accept,
@@ -43,8 +45,6 @@ from pydantic_forms.validators import (  # noqa: F401
     timestamp,
     unique_conlist,
 )
-
-from orchestrator.services import products
 
 logger = structlog.get_logger(__name__)
 

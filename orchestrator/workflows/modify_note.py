@@ -10,10 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import FormGenerator
-from pydantic_forms.validators import LongText
-
 from orchestrator.db import db
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
@@ -23,6 +19,9 @@ from orchestrator.utils.json import to_serializable
 from orchestrator.workflow import StepList, conditional, done, init, workflow
 from orchestrator.workflows.steps import cache_domain_models, store_process_subscription
 from orchestrator.workflows.utils import wrap_modify_initial_input_form
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator
+from pydantic_forms.validators import LongText
 
 
 def initial_input_form(subscription_id: UUIDstr) -> FormGenerator:

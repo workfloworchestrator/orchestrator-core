@@ -9,7 +9,6 @@ import requests
 import structlog
 from alembic import command
 from alembic.config import Config
-from pydantic_forms.core import FormPage
 from redis import Redis
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
@@ -34,6 +33,7 @@ from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.json import json_dumps
+from pydantic_forms.core import FormPage
 from test.unit_tests.fixtures.processes import mocked_processes, mocked_processes_resumeall, test_workflow  # noqa: F401
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (  # noqa: F401
     test_product_block_list_nested,
