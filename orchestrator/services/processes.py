@@ -59,9 +59,11 @@ _workflow_executor = None
 
 
 def get_execution_context() -> Dict[str, Callable]:
-    from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+    if app_settings.EXECUTOR == ExecutorType.WORKER:
+        from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+        return CELERY_EXECUTION_CONTEXT
 
-    return CELERY_EXECUTION_CONTEXT if app_settings.EXECUTOR == ExecutorType.WORKER else THREADPOOL_EXECUTION_CONTEXT
+    return THREADPOOL_EXECUTION_CONTEXT
 
 
 def get_thread_pool() -> ThreadPoolExecutor:
