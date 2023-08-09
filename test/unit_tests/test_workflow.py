@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import reduce
-from typing import List, NoReturn, Tuple
+from typing import List, NoReturn, Tuple, Type
 from unittest import mock
 from uuid import UUID, uuid4
 
@@ -32,6 +32,9 @@ from orchestrator.workflow import (
     runwf,
     step,
     workflow,
+    step_group,
+    StepList,
+    Complete,
 )
 from orchestrator.workflow import _purestep as purestep
 from pydantic_forms.core import FormPage
@@ -67,7 +70,7 @@ def step3(steps):
 
 
 @inputstep("Input Name", assignee=Assignee.SYSTEM)
-def user_action():
+def user_action() -> Type[FormPage]:
     class Form(FormPage):
         name: str
 
@@ -453,3 +456,53 @@ def test_update_wrapper():
         pass
 
     assert whatever.__doc__ == "Do whatever."
+
+
+def test_step_group_basic():
+    @step("Sub step 1")
+    def sub_step1(n):
+        return {"x": n + 1}
+
+    @step("Sub step 2")
+    def sub_step2(n: int, x: int):
+        return {"x": x * n}
+
+    @step("Sub step 3")
+    def sub_step3(n: int, x: int):
+        return {"x": x + n}
+
+    group = step_group("Multiple steps", begin >> sub_step1 >> sub_step2 >> sub_step3)
+
+    wf = workflow("Workflow with step group step")(lambda: init >> step1 >> step2 >> group >> step3 >> done)
+
+    log = []
+
+    pstat = create_new_process_stat(wf, {"n": 3})
+    result = runwf(pstat, store(log))
+    assert_complete(result)
+    assert [t[0] for t in log] == ["Start", "Step 1", "Step 2", "Multiple steps", "Step 3", "Done"]
+
+
+def test_step_group_with_inputform():
+    @step("Sub step 1")
+    def sub_step1(n):
+        return {"x": n + 1}
+
+    @step("Sub step 2")
+    def sub_step2(n: int, x: int):
+        return {"x": x * n}
+
+    @step("Sub step 3")
+    def sub_step3(n: int, x: int):
+        return {"x": x + n}
+
+    group = step_group("Multiple steps", begin >> sub_step1 >> sub_step2 >> sub_step3)
+
+    wf = workflow("Workflow with step group step")(lambda: init >> step1 >> step2 >> group >> step3 >> done)
+
+    log = []
+
+    pstat = create_new_process_stat(wf, {"n": 3})
+    result = runwf(pstat, store(log))
+    assert_complete(result)
+    assert [t[0] for t in log] == ["Start", "Step 1", "Step 2", "Multiple steps", "Step 3", "Done"]

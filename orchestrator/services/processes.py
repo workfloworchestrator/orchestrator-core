@@ -61,6 +61,7 @@ _workflow_executor = None
 def get_execution_context() -> Dict[str, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+
         return CELERY_EXECUTION_CONTEXT
 
     return THREADPOOL_EXECUTION_CONTEXT
@@ -487,6 +488,7 @@ def resume_process(
 
     """
     pstat = load_process(process)
+    logger.debug("Resume process pstat", pstat=pstat)
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
     except FormValidationError:
