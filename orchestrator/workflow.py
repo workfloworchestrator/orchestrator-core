@@ -42,23 +42,20 @@ from structlog.stdlib import BoundLogger
 from nwastdlib import const, identity
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, db, transactional
-from orchestrator.forms import FormPage
 from orchestrator.targets import Target
-from orchestrator.types import (
-    ErrorDict,
-    FormGenerator,
-    InputFormGenerator,
-    InputStepFunc,
-    State,
-    StateInputFormGenerator,
-    StateInputStepFunc,
-    StateSimpleInputFormGenerator,
-    StepFunc,
-    strEnum,
-)
+from orchestrator.types import ErrorDict, State, StepFunc, strEnum
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import (
+    FormGenerator,
+    InputFormGenerator,
+    InputStepFunc,
+    StateInputFormGenerator,
+    StateInputStepFunc,
+    StateSimpleInputFormGenerator,
+)
 
 logger = structlog.get_logger(__name__)
 

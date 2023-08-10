@@ -8,9 +8,8 @@ import pytest
 
 from nwastdlib import const
 from orchestrator.config.assignee import Assignee
-from orchestrator.forms import FormPage
 from orchestrator.services.processes import SYSTEM_USER
-from orchestrator.types import FormGenerator, State, UUIDstr
+from orchestrator.types import State, UUIDstr
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.workflow import (
     Abort,
@@ -35,6 +34,8 @@ from orchestrator.workflow import (
     workflow,
 )
 from orchestrator.workflow import _purestep as purestep
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     assert_aborted,

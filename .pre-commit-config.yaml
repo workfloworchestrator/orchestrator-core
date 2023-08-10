@@ -9,7 +9,7 @@ repos:
     rev: 1.14.0
     hooks:
       - id: blacken-docs
-        additional_dependencies: [black==23.1.0]
+        additional_dependencies: [ black==23.1.0 ]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.0.275
@@ -28,26 +28,43 @@ repos:
       - id: debug-statements
       - id: requirements-txt-fixer
       - id: detect-private-key
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.4.1
+  # Commented out due to errors with strawberry-ext-mypy plugin
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.4.1
+  #   hooks:
+  #     - id: mypy
+  #       additional_dependencies:
+  #         - pydantic<2.0.0
+  #         - types-toml
+  #         - types-pytz
+  #         - types-python-dateutil
+  #         - types-requests
+  #         - types-Deprecated
+  #         - types-redis
+  #         - types-orjson
+  #         - types-tabulate
+  #         - types-pyyaml
+  #         - strawberry-graphql
+  #       args:
+  #         - --no-warn-unused-ignores
+  #         - --allow-untyped-decorators
+  #       exclude: (test/.*|migrations/.*)
+
+  # This hook uses the `mypy` executable installed in your local environment
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - pydantic<2.0.0
-          - types-toml
-          - types-pytz
-          - types-python-dateutil
-          - types-requests
-          - types-Deprecated
-          - types-redis
-          - types-orjson
-          - types-tabulate
-          - types-pyyaml
-          - strawberry-graphql
+        name: mypy
+        language: system
+        entry: "mypy"
+        types: [ python ]
+        require_serial: true
+        verbose: true
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
         exclude: (test/.*|migrations/.*)
+
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:

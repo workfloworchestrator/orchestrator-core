@@ -29,7 +29,6 @@ from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
-from orchestrator.forms import FormValidationError, post_process
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
@@ -47,6 +46,8 @@ from orchestrator.workflow import Failed, ProcessStat, ProcessStatus, Step, Step
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
+from pydantic_forms.core import post_form
+from pydantic_forms.exceptions import FormValidationError
 
 logger = structlog.get_logger(__name__)
 
@@ -365,7 +366,7 @@ def create_process(
     }
 
     try:
-        state = post_process(workflow.initial_input_form, initial_state, user_inputs)
+        state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
@@ -436,7 +437,7 @@ def thread_resume_process(
 
     form = pstat.log[0].form
 
-    user_input = post_process(form, pstat.state.unwrap(), user_inputs)
+    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
 
     if user:
         pstat.update(current_user=user)
@@ -485,7 +486,7 @@ def resume_process(
     """
     pstat = load_process(process)
     try:
-        post_process(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
+        post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
@@ -533,7 +534,7 @@ async def _async_resume_processes(
                     logger.exception("Failed to resume process", pid=_proc.pid)
             logger.info("Completed resuming processes")
         finally:
-            distlock_manager.release_sync(lock)  # type: ignore
+            distlock_manager.release_sync(lock)
 
     # Start all jobs in the background. BackgroundTasks might be more suited.
     workflow_executor = get_thread_pool()
