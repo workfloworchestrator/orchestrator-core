@@ -1,0 +1,11 @@
+from sqlalchemy.inspection import inspect
+
+from orchestrator.db import WorkflowTable
+from orchestrator.db.sorting.sorting import generic_column_sort, generic_sort
+from orchestrator.utils.helpers import to_camel
+
+WORKFLOW_SORT_FUNCTIONS_BY_COLUMN = {
+    to_camel(key): generic_column_sort(value) for key, value in inspect(WorkflowTable).columns.items()
+}
+
+sort_workflows = generic_sort(WORKFLOW_SORT_FUNCTIONS_BY_COLUMN)

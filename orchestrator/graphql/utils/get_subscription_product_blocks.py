@@ -11,12 +11,16 @@ from orchestrator.services.subscriptions import build_extended_domain_model
 
 
 @strawberry.type
-class SubscriptionProductBlock:
+class ProductBlockInstance:
     id: int
     parent: Optional[int]
     subscription_instance_id: UUID
     owner_subscription_id: UUID
-    resource_types: JSON
+    product_block_instance_values: JSON
+
+    @strawberry.field(description="Returns all resource types of a product block", deprecation_reason="changed to product_block_instance_values")  # type: ignore
+    async def resource_types(self) -> JSON:
+        return {v["field"]: v["value"] for v in self.product_block_instance_values}
 
 
 def is_product_block(candidate: Any) -> bool:
@@ -48,28 +52,30 @@ def get_all_product_blocks(subscription: dict[str, Any], _tags: Optional[list[st
 
 
 async def get_subscription_product_blocks(
-    subscription_id: UUID, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
-) -> list[SubscriptionProductBlock]:
+    subscription_id: UUID, tags: Optional[list[str]] = None, product_block_instance_values: Optional[list[str]] = None
+) -> list[ProductBlockInstance]:
     subscription_model = SubscriptionModel.from_subscription(subscription_id)
     subscription = build_extended_domain_model(subscription_model)
 
-    def to_product_block(product_block: dict[str, Any]) -> SubscriptionProductBlock:
+    def to_product_block(product_block: dict[str, Any]) -> ProductBlockInstance:
         def is_resource_type(candidate: Any) -> bool:
             return isinstance(candidate, (bool, str, int, float, type(None)))
 
         def requested_resource_type(key: str) -> bool:
-            return not resource_types or key in resource_types
+            return not product_block_instance_values or key in product_block_instance_values
 
         def included(key: str, value: Any) -> bool:
             return is_resource_type(value) and requested_resource_type(key) and key not in ("id", "parent")
 
-        return SubscriptionProductBlock(
+        return ProductBlockInstance(
             id=product_block["id"],
             parent=product_block.get("parent"),
             owner_subscription_id=product_block["owner_subscription_id"],
             subscription_instance_id=product_block["subscription_instance_id"],
-            resource_types={to_lower_camel(k): v for k, v in product_block.items() if included(k, v)},
+            product_block_instance_values=[
+                {"field": to_lower_camel(k), "value": v} for k, v in product_block.items() if included(k, v)
+            ],
         )
 
     product_blocks = (to_product_block(product_block) for product_block in get_all_product_blocks(subscription, tags))
-    return [product_block for product_block in product_blocks if product_block.resource_types]
+    return [product_block for product_block in product_blocks if product_block.product_block_instance_values]
