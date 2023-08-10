@@ -34,7 +34,7 @@ class SubscriptionInterface:
     insync: bool
     note: Optional[str]
 
-    @strawberry.field(description="Return all products blocks that are part of a subscription")  # type: ignore
+    @strawberry.field(description="Return all products block instances of a subscription")  # type: ignore
     async def product_block_instances(
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
     ) -> list[ProductBlockInstance]:
