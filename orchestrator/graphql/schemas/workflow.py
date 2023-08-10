@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 @strawberry.experimental.pydantic.type(model=WorkflowSchema, all_fields=True)
 class Workflow:
-    @strawberry.field(description="Return all products blocks that are part of a workflow")  # type: ignore
+    @strawberry.field(description="Return all products that can use this workflow")  # type: ignore
     async def products(self) -> List[Annotated["ProductType", strawberry.lazy(".product")]]:
         from orchestrator.graphql.schemas.product import ProductType
 

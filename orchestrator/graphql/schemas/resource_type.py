@@ -1,12 +1,17 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Annotated, List
 
 import strawberry
 
 from orchestrator.schemas.resource_type import ResourceTypeSchema
 
+if TYPE_CHECKING:
+    from orchestrator.graphql.schemas.product_block import ProductBlock
 
-@strawberry.experimental.pydantic.type(model=ResourceTypeSchema)
+
+@strawberry.experimental.pydantic.type(model=ResourceTypeSchema, all_fields=True)
 class ResourceType:
-    resource_type: strawberry.auto
-    description: Optional[str]
-    resource_type_id: strawberry.auto
+    @strawberry.field(description="Return all product blocks that make use of this resource type")  # type: ignore
+    async def product_blocks(self) -> List[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
+        from orchestrator.graphql.schemas.product_block import ProductBlock
+
+        return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.product_blocks]  # type: ignore
