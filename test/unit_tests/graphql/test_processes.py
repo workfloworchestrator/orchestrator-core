@@ -21,7 +21,7 @@ process_fields = [
     "isTask",
     "lastStep",
     "traceback",
-    "id",
+    "processId",
     "lastModified",
     "started",
     "workflowName",
@@ -47,7 +47,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       isTask
       lastStep
       traceback
-      id
+      processId
       lastModified
       started
       workflowName
@@ -95,7 +95,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       isTask
       lastStep
       traceback
-      id
+      processId
       lastModified
       started
       workflowName
@@ -329,7 +329,7 @@ def test_processes_filtering_with_invalid_filter(
             "extensions": {
                 "invalid_filters": [{"field": "test", "value": "invalid"}],
                 "valid_filter_keys": [
-                    "pid",
+                    "processId",
                     "istask",
                     "assignee",
                     "status",
@@ -366,7 +366,7 @@ def test_single_process(
     process_pid = str(mocked_processes[0])
     # when
 
-    data = get_processes_query(filter_by=[{"field": "pid", "value": process_pid}])
+    data = get_processes_query(filter_by=[{"field": "processId", "value": process_pid}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -385,7 +385,7 @@ def test_single_process(
         "endCursor": 0,
         "totalItems": 1,
     }
-    assert processes[0]["id"] == process_pid
+    assert processes[0]["processId"] == process_pid
 
 
 def test_single_process_with_subscriptions(
@@ -398,7 +398,7 @@ def test_single_process_with_subscriptions(
     process_pid = str(mocked_processes[0])
     # when
 
-    data = get_processes_query_with_subscriptions(filter_by=[{"field": "pid", "value": process_pid}])
+    data = get_processes_query_with_subscriptions(filter_by=[{"field": "processId", "value": process_pid}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -417,5 +417,5 @@ def test_single_process_with_subscriptions(
         "endCursor": 0,
         "totalItems": 1,
     }
-    assert processes[0]["id"] == process_pid
+    assert processes[0]["processId"] == process_pid
     assert processes[0]["subscriptions"]["page"][0]["subscriptionId"] == generic_subscription_1

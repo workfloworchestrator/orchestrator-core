@@ -127,7 +127,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           isTask
           lastStep
           traceback
-          id
+          processId
           lastModified
           started
           workflowName
@@ -807,7 +807,7 @@ def test_single_subscription_with_processes(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["processes"]["page"][0]["id"] == str(mocked_processes[0])
+    assert subscriptions[0]["processes"]["page"][0]["processId"] == str(mocked_processes[0])
 
 
 def test_single_subscription_with_depends_on_subscriptions(

@@ -51,6 +51,7 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
     return {
         "id": process.pid,
         "pid": process.pid,  # list and single get differentiate with this value and the above.
+        "process_id": process.pid,  # for graphql consistency with id property names.
         "workflow": process.workflow,
         "workflow_name": process.workflow,
         "product": product_id,
@@ -74,4 +75,5 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
         "is_task": process.is_task,
         "form": generated_form,
         "current_state": current_state,
+        "workflow_target": first([ps.workflow_target for ps in process.process_subscriptions], None),
     }

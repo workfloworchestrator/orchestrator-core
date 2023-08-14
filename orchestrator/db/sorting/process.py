@@ -5,6 +5,7 @@ from orchestrator.db.sorting.sorting import generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
 VALID_SORT_KEY_MAP = {
+    "pid": "process_id",
     "created_by": "created_by",
     "started_at": "started",
     "last_status": "status",
