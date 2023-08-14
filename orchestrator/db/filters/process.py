@@ -76,7 +76,7 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
 
 
 PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
-    "pid": generic_is_like_filter(ProcessTable.pid),
+    "processId": generic_is_like_filter(ProcessTable.pid),
     "istask": generic_bool_filter(ProcessTable.is_task),
     "assignee": generic_values_in_column_filter(ProcessTable.assignee),
     "status": generic_values_in_column_filter(ProcessTable.last_status),

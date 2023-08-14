@@ -26,8 +26,9 @@ federation_key_directives = [Key(fields="id", resolvable=UNSET)]
 
 # TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
 class ProcessBaseSchema(OrchestratorBaseModel):
-    id: UUID
+    process_id: UUID
     workflow_name: str
+    workflow_target: Optional[str]
     product: Optional[UUID]
     customer: Optional[UUID]
     assignee: Assignee
@@ -71,8 +72,9 @@ class ProcessStepType:
 
 @strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema, directives=federation_key_directives)
 class ProcessType:
-    id: strawberry.auto
+    process_id: strawberry.auto
     workflow_name: strawberry.auto
+    workflow_target: strawberry.auto
     product: strawberry.auto
     customer: strawberry.auto
     assignee: strawberry.auto
@@ -100,7 +102,9 @@ class ProcessType:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(self.id)
+        process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(
+            self.process_id
+        )
         subscription_ids = [str(s.subscription_id) for s in process.process_subscriptions]
         if not subscription_ids:
             return EMPTY_PAGE
