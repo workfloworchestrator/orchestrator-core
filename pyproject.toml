@@ -40,7 +40,7 @@ dependencies = [
     "alembic==1.5.4",
     "anyio>=3.7.0",
     "broadcaster[redis]==0.2.0",
-    "click==8.0.3",
+    "click==8.*",
     "deprecated",
     "deepmerge==0.1.0",
     "fastapi~=0.99.1",
