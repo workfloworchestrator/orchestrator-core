@@ -76,17 +76,21 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
 
 
 PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
-    "processId": generic_is_like_filter(ProcessTable.pid),
-    "istask": generic_bool_filter(ProcessTable.is_task),
+    "pid": generic_is_like_filter(ProcessTable.pid),  # endpoint filter
+    "processId": generic_is_like_filter(ProcessTable.pid),  # graphql filter
+    "istask": generic_bool_filter(ProcessTable.is_task),  # endpoint filter
+    "isTask": generic_bool_filter(ProcessTable.is_task),  # graphql filter
     "assignee": generic_values_in_column_filter(ProcessTable.assignee),
     "status": generic_values_in_column_filter(ProcessTable.last_status),
     "workflow": generic_is_like_filter(ProcessTable.workflow),
-    "creator": generic_is_like_filter(ProcessTable.created_by),
+    "creator": generic_is_like_filter(ProcessTable.created_by),  # endpoint filter
+    "createdBy": generic_is_like_filter(ProcessTable.created_by),  # graphql filter
     "product": product_filter,
     "tag": tag_filter,
     "subscriptions": subscriptions_filter,
     "subscriptionId": subscription_id_filter,
-    "target": target_filter,
+    "target": target_filter,  # endpoint filter
+    "workflowTarget": target_filter,  # graphql filter
 }
 
 

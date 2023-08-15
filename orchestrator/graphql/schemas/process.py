@@ -12,24 +12,26 @@ from oauth2_lib.strawberry import authenticated_field
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
+from orchestrator.graphql.schemas.product import ProductType  # noqa: F401
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
+from orchestrator.schemas.product import ProductSchema
 from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
-federation_key_directives = [Key(fields="id", resolvable=UNSET)]
+federation_key_directives = [Key(fields="processId", resolvable=UNSET)]
 
 
 # TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
-class ProcessBaseSchema(OrchestratorBaseModel):
+class ProcessGraphqlSchema(OrchestratorBaseModel):
     process_id: UUID
     workflow_name: str
     workflow_target: Optional[str]
-    product: Optional[UUID]
+    product: Optional[ProductSchema]
     customer: Optional[UUID]
     assignee: Assignee
     failed_reason: Optional[str]
@@ -41,9 +43,6 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     started: datetime
     last_modified: datetime
     is_task: bool
-
-
-class ProcessGraphqlSchema(ProcessBaseSchema):
     current_state: Dict[str, Any]
     steps: List[ProcessStepSchema]
     form: Optional[ProcessForm]

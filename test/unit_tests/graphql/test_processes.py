@@ -27,7 +27,6 @@ process_fields = [
     "workflowName",
     "status",
     "step",
-    "product",
 ]
 
 
@@ -53,7 +52,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       workflowName
       status
       step
-      product
     }
     pageInfo {
       startCursor
@@ -101,7 +99,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       workflowName
       status
       step
-      product
       subscriptions {
         page {
           description
@@ -329,17 +326,21 @@ def test_processes_filtering_with_invalid_filter(
             "extensions": {
                 "invalid_filters": [{"field": "test", "value": "invalid"}],
                 "valid_filter_keys": [
+                    "pid",
                     "processId",
                     "istask",
+                    "isTask",
                     "assignee",
                     "status",
                     "workflow",
                     "creator",
+                    "createdBy",
                     "product",
                     "tag",
                     "subscriptions",
                     "subscriptionId",
                     "target",
+                    "workflowTarget",
                 ],
             },
         }

@@ -36,6 +36,8 @@ logger = structlog.get_logger(__name__)
 def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
     p = load_process(process)
     data = show_process(process, p)
+    data["process_id"] = data["pid"]
+    data["product"] = data["product_instance"]
     return ProcessGraphqlSchema(**data)
 
 

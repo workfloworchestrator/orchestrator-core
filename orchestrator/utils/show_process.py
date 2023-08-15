@@ -20,12 +20,14 @@ from pydantic_forms.core import generate_form
 
 def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
     subscription = first(process.subscriptions, None)
+    product_id = None
+    product = None
+    customer_id = None
+
     if subscription:
         product_id = subscription.product_id
+        product = subscription.product
         customer_id = subscription.customer_id
-    else:
-        product_id = None
-        customer_id = None
 
     steps = [
         {
@@ -55,10 +57,12 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
         "workflow": process.workflow,
         "workflow_name": process.workflow,
         "product": product_id,
+        "product_instance": product,
         "customer": customer_id,
         "assignee": process.assignee,
         "status": process.last_status,
         "last_status": process.last_status,  # list and single get differentiate with this value and the above.
+        "last_step": process.last_step,
         "failed_reason": process.failed_reason,
         "traceback": process.traceback,
         "step": process.last_step,

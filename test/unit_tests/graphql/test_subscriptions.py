@@ -133,7 +133,6 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           workflowName
           status
           step
-          product
         }
       }
       dependsOnSubscriptions {
