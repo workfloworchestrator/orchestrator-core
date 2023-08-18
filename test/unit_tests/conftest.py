@@ -381,6 +381,7 @@ def generic_product_block_1(generic_resource_type_1):
         tag="PB1",
         status="active",
         resource_types=[generic_resource_type_1],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
     )
     db.session.add(pb)
     db.session.commit()
@@ -395,6 +396,7 @@ def generic_product_block_2(generic_resource_type_2, generic_resource_type_3):
         tag="PB2",
         status="active",
         resource_types=[generic_resource_type_2, generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
     )
     db.session.add(pb)
     db.session.commit()
@@ -409,6 +411,7 @@ def generic_product_block_3(generic_resource_type_2):
         tag="PB3",
         status="active",
         resource_types=[generic_resource_type_2],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
     )
     db.session.add(pb)
     db.session.commit()

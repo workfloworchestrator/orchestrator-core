@@ -16,15 +16,21 @@ query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
   productBlocks(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
     page {
       name
-      productBlockId
       endDate
       description
       createdAt
       status
       tag
       resourceTypes {
-        resourceTypeId
         resourceType
+        description
+      }
+      dependsOn {
+        name
+        description
+      }
+      inUseBy {
+        name
         description
       }
     }
@@ -71,6 +77,103 @@ def test_product_blocks_query(test_client):
         "endCursor": 1,
         "totalItems": 6,
     }
+
+    expected = [
+        {
+            "name": "PB_1",
+            "endDate": None,
+            "description": "Generic Product Block 1",
+            "createdAt": "2023-05-24T00:00:00+00:00",
+            "status": "ACTIVE",
+            "tag": "PB1",
+            "resourceTypes": [{"resourceType": "rt_1", "description": "Resource Type one"}],
+            "dependsOn": [],
+            "inUseBy": [],
+        },
+        {
+            "name": "PB_2",
+            "endDate": None,
+            "description": "Generic Product Block 2",
+            "createdAt": "2023-05-24T00:00:00+00:00",
+            "status": "ACTIVE",
+            "tag": "PB2",
+            "resourceTypes": [
+                {"resourceType": "rt_2", "description": "Resource Type two"},
+                {"resourceType": "rt_3", "description": "Resource Type three"},
+            ],
+            "dependsOn": [],
+            "inUseBy": [],
+        },
+    ]
+    assert product_blocks == expected
+
+
+def test_product_block_query_with_relations(test_client):
+    data = get_product_blocks_query(filter_by={"field": "name", "value": "ForTest"})
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    product_blocks_data = result["data"]["productBlocks"]
+    product_blocks = product_blocks_data["page"]
+    pageinfo = product_blocks_data["pageInfo"]
+
+    assert len(product_blocks) == 3
+
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 2,
+        "totalItems": 3,
+    }
+
+    expected = [
+        {
+            "name": "SubBlockOneForTest",
+            "endDate": None,
+            "description": "Test Sub Block One",
+            "status": "ACTIVE",
+            "tag": "TEST",
+            "resourceTypes": [
+                {"resourceType": "int_field", "description": ""},
+                {"resourceType": "str_field", "description": ""},
+            ],
+            "dependsOn": [],
+            "inUseBy": [{"name": "ProductBlockWithListUnionForTest", "description": "Test Union Sub Block"}],
+        },
+        {
+            "name": "SubBlockTwoForTest",
+            "endDate": None,
+            "description": "Test Sub Block Two",
+            "status": "ACTIVE",
+            "tag": "TEST",
+            "resourceTypes": [{"resourceType": "int_field_2", "description": ""}],
+            "dependsOn": [],
+            "inUseBy": [{"name": "ProductBlockWithListUnionForTest", "description": "Test Union Sub Block"}],
+        },
+        {
+            "name": "ProductBlockWithListUnionForTest",
+            "endDate": None,
+            "description": "Test Union Sub Block",
+            "status": "ACTIVE",
+            "tag": "TEST",
+            "resourceTypes": [
+                {"resourceType": "int_field", "description": ""},
+                {"resourceType": "str_field", "description": ""},
+                {"resourceType": "list_field", "description": ""},
+            ],
+            "dependsOn": [
+                {"name": "SubBlockOneForTest", "description": "Test Sub Block One"},
+                {"name": "SubBlockTwoForTest", "description": "Test Sub Block Two"},
+            ],
+            "inUseBy": [],
+        },
+    ]
+    for pb in product_blocks:
+        del pb["createdAt"]
+
+    assert product_blocks == expected
 
 
 def test_product_blocks_has_previous_page(test_client):
