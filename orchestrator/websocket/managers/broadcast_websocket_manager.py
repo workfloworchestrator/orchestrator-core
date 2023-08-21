@@ -70,7 +70,7 @@ class BroadcastWebsocketManager:
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)
-                if type(json) is dict and "close" in json and json["close"] and channel != "processes":
+                if isinstance(json, dict) and "close" in json and json["close"] and channel != "processes":
                     await self.disconnect(websocket)
                     break
 
