@@ -74,8 +74,10 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
             """INSERT INTO resource_types (resource_type, description) VALUES
     (:resource_type, :description) ON CONFLICT DO NOTHING;"""
         ),
-        resource_type=resource_type,
-        description=description,
+        {
+            "resource_type": resource_type,
+            "description": description,
+        }
     )
 
 
