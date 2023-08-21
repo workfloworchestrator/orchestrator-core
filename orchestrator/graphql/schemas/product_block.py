@@ -1,4 +1,4 @@
-from typing import Annotated, List
+from typing import Annotated
 
 import strawberry
 
@@ -18,9 +18,9 @@ class ProductBlock:
     resource_types: list[ResourceType]
 
     @strawberry.field(description="Return all product blocks that this product block depends on")  # type: ignore
-    async def depends_on(self) -> List[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
+    async def depends_on(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
         return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.depends_on]  # type: ignore
 
     @strawberry.field(description="Return all product blocks that uses this product block")  # type: ignore
-    async def in_use_by(self) -> List[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
+    async def in_use_by(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
         return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.in_use_by]  # type: ignore

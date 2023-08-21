@@ -4,6 +4,8 @@ from typing import Union
 
 from fastapi import Response
 
+from test.unit_tests.helpers import assert_no_diff
+
 
 def get_product_blocks_query(
     first: int = 10,
@@ -170,10 +172,9 @@ def test_product_block_query_with_relations(test_client):
             "inUseBy": [],
         },
     ]
-    for pb in product_blocks:
-        del pb["createdAt"]
 
-    assert product_blocks == expected
+    exclude_paths = exclude_paths = [f"root[{i}]['createdAt']" for i in range(len(expected))]
+    assert_no_diff(expected, product_blocks, exclude_paths=exclude_paths)
 
 
 def test_product_blocks_has_previous_page(test_client):
