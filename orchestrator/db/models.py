@@ -236,7 +236,8 @@ class ProductTable(BaseModel):
             .query(FixedInputTable)
             .with_parent(self)
             .filter(FixedInputTable.name == name)
-            .value(FixedInputTable.value)
+            .with_entities(FixedInputTable.value)
+            .scalar()
         )
 
     def _subscription_workflow_key(self, target: Target) -> Optional[str]:

@@ -253,9 +253,10 @@ def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str,
 
 def retrieve_node_subscriptions_by_name(node_name: str) -> List[SubscriptionTable]:
     return (
-        SubscriptionTable.query.join(
-            ProductTable, SubscriptionInstanceTable, SubscriptionInstanceValueTable, ResourceTypeTable
-        )
+        SubscriptionTable.query.join(ProductTable)
+        .join(SubscriptionInstanceTable)
+        .join(SubscriptionInstanceValueTable)
+        .join(ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == node_name)
         .filter(ResourceTypeTable.resource_type == "nso_device_id")
         .filter(SubscriptionTable.status.in_(["active", "provisioning"]))
@@ -277,7 +278,9 @@ def retrieve_subscription_by_subscription_instance_value(
 
     """
     return (
-        SubscriptionTable.query.join(SubscriptionInstanceTable, SubscriptionInstanceValueTable, ResourceTypeTable)
+        SubscriptionTable.query.join(SubscriptionInstanceTable)
+        .join(SubscriptionInstanceValueTable)
+        .join(ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == value)
         .filter(ResourceTypeTable.resource_type == resource_type)
         .filter(SubscriptionTable.status.in_(sub_status))
@@ -327,13 +330,14 @@ def find_values_for_resource_types(
     # the `order_by` on `subscription_instance_id` is there to guarantee the matched ordering across resource_types
     # (see also docstring)
     query_result = (
-        SubscriptionInstanceValueTable.query.join(ResourceTypeTable, SubscriptionInstanceTable)
+        SubscriptionInstanceValueTable.query.join(ResourceTypeTable)
+        .join(SubscriptionInstanceTable)
         .filter(
             SubscriptionInstanceTable.subscription_id == subscription_id,
             ResourceTypeTable.resource_type.in_(resource_types),
         )
         .order_by(SubscriptionInstanceTable.subscription_instance_id)
-        .values(ResourceTypeTable.resource_type, SubscriptionInstanceValueTable.value)
+        .with_entities(ResourceTypeTable.resource_type, SubscriptionInstanceValueTable.value)
     )
     resource_type_values = tuple(query_result)
 

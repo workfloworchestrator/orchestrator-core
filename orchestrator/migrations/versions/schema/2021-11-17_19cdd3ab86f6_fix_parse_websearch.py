@@ -5,6 +5,7 @@ Revises: 6896a54e9483
 Create Date: 2021-11-17 21:23:09.959694
 
 """
+from sqlalchemy import text
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -42,9 +43,9 @@ def upgrade() -> None:
               RETURNS tsquery AS $$
               SELECT parse_websearch('pg_catalog.simple', search_query);
               $$ LANGUAGE SQL IMMUTABLE;"""
-    op.execute(command)
+    op.execute(text(command))
 
 
 def downgrade() -> None:
-    op.execute("DROP FUNCTION public.parse_websearch(regconfig, text);")
-    op.execute("DROP FUNCTION public.parse_websearch(text);")
+    op.execute(text("DROP FUNCTION public.parse_websearch(regconfig, text);"))
+    op.execute(text("DROP FUNCTION public.parse_websearch(text);"))
