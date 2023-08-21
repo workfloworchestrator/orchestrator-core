@@ -77,7 +77,7 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
         {
             "resource_type": resource_type,
             "description": description,
-        }
+        },
     )
 
 
