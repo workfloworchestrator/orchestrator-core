@@ -20,7 +20,7 @@ import structlog
 from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta
-from sqlalchemy.orm import Query, Session, scoped_session, sessionmaker, as_declarative
+from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.sql.schema import MetaData
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint

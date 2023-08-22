@@ -7,8 +7,8 @@ Create Date: 2023-06-28 15:33:36.248121
 """
 from pathlib import Path
 
-from sqlalchemy import text
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "a09ac125ea73"

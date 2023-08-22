@@ -31,7 +31,7 @@ def get_product_by_id(product_id: Union[UUID, UUIDstr]) -> ProductTable:
     Returns: ProductTable object
 
     """
-    return ProductTable.query.options(joinedload("fixed_inputs")).get(product_id)
+    return ProductTable.query.options(joinedload(ProductTable.fixed_inputs)).get(product_id)
 
 
 def get_product_by_name(name: str) -> ProductTable:

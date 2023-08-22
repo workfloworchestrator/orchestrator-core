@@ -5,8 +5,8 @@ Revises: bed6bc0b197a
 Create Date: 2023-03-06 10:09:55.675588
 
 """
-from sqlalchemy import text
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "e05bb1967eff"
