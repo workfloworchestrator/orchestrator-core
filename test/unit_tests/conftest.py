@@ -196,11 +196,9 @@ def database(db_uri):
     engine = create_engine(url)
     with closing(engine.connect()) as conn:
         conn.execute(text("COMMIT;"))
-        with conn.begin():
-            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
         conn.execute(text("COMMIT;"))
-        with conn.begin():
-            conn.execute(text(f'CREATE DATABASE "{db_to_create}";'))
+        conn.execute(text(f'CREATE DATABASE "{db_to_create}";'))
 
     run_migrations(db_uri)
     db.wrapped_database.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
@@ -211,8 +209,7 @@ def database(db_uri):
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
             conn.execute(text("COMMIT;"))
-            with conn.begin():
-                conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
 @pytest.fixture(autouse=True)
