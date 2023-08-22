@@ -296,7 +296,7 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
-    in_use_by_block_relations: list[ProductBlockRelationTable] = relationship(
+    in_use_by_block_relations: List[ProductBlockRelationTable] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -305,7 +305,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.depends_on_id]",
     )
 
-    depends_on_block_relations: list[ProductBlockRelationTable] = relationship(
+    depends_on_block_relations: List[ProductBlockRelationTable] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -314,13 +314,13 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
-    in_use_by: list[ProductBlockTable] = association_proxy(
+    in_use_by: List[ProductBlockTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
 
-    depends_on: list[ProductBlockTable] = association_proxy(
+    depends_on: List[ProductBlockTable] = association_proxy(
         "depends_on_block_relations",
         "depends_on",
         creator=lambda depends_on: ProductBlockRelationTable(depends_on=depends_on),
