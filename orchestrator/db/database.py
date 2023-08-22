@@ -137,7 +137,6 @@ class BaseModel(_Base):
     set_query: ClassVar[Callable[[SearchQuery], None]]
 
     __abstract__ = True
-    __allow_unmapped__ = True
 
     __init__: Callable[..., None]
 

@@ -10,7 +10,7 @@ import structlog
 from alembic import command
 from alembic.config import Config
 from redis import Redis
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
@@ -195,9 +195,9 @@ def database(db_uri):
         url.database = "postgres"
     engine = create_engine(url)
     with closing(engine.connect()) as conn:
-        conn.execute("COMMIT;")
+        conn.execute(text("COMMIT;"))
         conn.execute(f'DROP DATABASE IF EXISTS "{db_to_create}";')
-        conn.execute("COMMIT;")
+        conn.execute(text("COMMIT;"))
         conn.execute(f'CREATE DATABASE "{db_to_create}";')
 
     run_migrations(db_uri)
@@ -208,7 +208,7 @@ def database(db_uri):
     finally:
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
-            conn.execute("COMMIT;")
+            conn.execute(text("COMMIT;"))
             conn.execute(f'DROP DATABASE IF EXISTS "{db_to_create}";')
 
 
