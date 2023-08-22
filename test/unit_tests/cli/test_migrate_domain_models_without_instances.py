@@ -8,6 +8,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
+from sqlalchemy import text
 
 def test_migrate_domain_models_new_product(test_product_type_one, test_product_sub_block_one_db):
     _, _, ProductTypeOneForTest = test_product_type_one
@@ -373,14 +374,14 @@ def test_migrate_domain_models_rename_resource_type(
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
