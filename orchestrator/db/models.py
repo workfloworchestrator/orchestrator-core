@@ -448,7 +448,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
     label = Column(String(255))
 
-    in_use_by_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
+    in_use_by_block_relations: List[SubscriptionInstanceRelationTable] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -457,7 +457,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.depends_on_id]",
     )
 
-    depends_on_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
+    depends_on_block_relations: List[SubscriptionInstanceRelationTable] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -468,13 +468,13 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
-    in_use_by: list[SubscriptionInstanceTable] = association_proxy(
+    in_use_by: List[SubscriptionInstanceTable] = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
 
-    depends_on: list[SubscriptionInstanceTable] = association_proxy(
+    depends_on: List[SubscriptionInstanceTable] = association_proxy(
         "depends_on_block_relations",
         "depends_on",
         creator=lambda depends_on: SubscriptionInstanceRelationTable(depends_on=depends_on),
