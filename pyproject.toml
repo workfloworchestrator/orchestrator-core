@@ -37,7 +37,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "alembic==1.5.4",
+    "alembic==1.11.3,
     "anyio>=3.7.0",
     "broadcaster[redis]==0.2.0",
     "click==8.*",
