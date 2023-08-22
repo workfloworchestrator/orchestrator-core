@@ -359,7 +359,7 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: Option
     # Find relations through resource types
     resource_type_relations = (
         SubscriptionTable.query.join(SubscriptionInstanceTable)
-        .options(joinedload("customer_descriptions"))
+        .options(joinedload(SubscriptionTable.customer_descriptions))
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(ResourceTypeTable.resource_type.in_(RELATION_RESOURCE_TYPES))
