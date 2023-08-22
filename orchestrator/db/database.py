@@ -132,6 +132,8 @@ class BaseModel(_Base):
     This should be used instead of Base.
     """
 
+    __allow_unmapped__ = True
+
     metadata: ClassVar[MetaData]
     query: ClassVar[SearchQuery]
     set_query: ClassVar[Callable[[SearchQuery], None]]
