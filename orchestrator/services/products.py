@@ -35,7 +35,7 @@ def get_product_by_id(product_id: Union[UUID, UUIDstr]) -> ProductTable:
 
 
 def get_product_by_name(name: str) -> ProductTable:
-    return ProductTable.query.options(joinedload("fixed_inputs")).filter(ProductTable.name == name).one()
+    return ProductTable.query.options(ProductTable.fixed_inputs).filter(ProductTable.name == name).one()
 
 
 def get_types() -> List[str]:
