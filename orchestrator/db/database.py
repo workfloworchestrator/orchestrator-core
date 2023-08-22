@@ -62,6 +62,7 @@ class _Base:
     """SQLAlchemy base class."""
 
     __abstract__ = True
+    __allow_unmapped__ = True
 
     _json_include: List = []
     _json_exclude: List = []
