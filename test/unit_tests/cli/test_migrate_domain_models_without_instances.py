@@ -1,6 +1,8 @@
 import json
 from typing import List, Union
 
+from sqlalchemy import text
+
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
 from orchestrator.db.models import ProductTable, ResourceTypeTable
@@ -8,7 +10,6 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
-from sqlalchemy import text
 
 def test_migrate_domain_models_new_product(test_product_type_one, test_product_sub_block_one_db):
     _, _, ProductTypeOneForTest = test_product_type_one
@@ -64,7 +65,7 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
     db.session.commit()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     product_id = (
@@ -75,7 +76,7 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
     assert diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     product_id = (
@@ -107,14 +108,14 @@ def test_migrate_domain_models_new_fixed_input(test_product_one, test_product_ty
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -148,14 +149,14 @@ def test_migrate_domain_models_rename_fixed_input(test_product_one, test_product
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -198,14 +199,14 @@ def test_migrate_domain_models_new_product_block(test_product_one, test_product_
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -262,14 +263,14 @@ def test_migrate_domain_models_new_product_block_on_product_block(
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -316,14 +317,14 @@ def test_migrate_domain_models_new_resource_type(
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -439,14 +440,14 @@ def test_migrate_domain_models_rename_and_relate_resource_type(
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     downgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -514,14 +515,14 @@ def test_migrate_domain_models_rename_and_relate_and_remove_resource_type(
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductSubListUnionTest.diff_product_in_database(test_product_sub_list_union)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
 
@@ -575,14 +576,14 @@ def test_migrate_domain_models_update_block_resource_type(
     test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     upgrade_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert upgrade_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -601,7 +602,7 @@ def test_migrate_domain_models_remove_product(test_product_one, test_product_typ
     assert before_diff == {}
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     product_id = (
@@ -610,7 +611,7 @@ def test_migrate_domain_models_remove_product(test_product_one, test_product_typ
     assert not product_id
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTest
@@ -636,14 +637,14 @@ def test_migrate_domain_models_remove_fixed_input(test_product_one, test_product
     assert before_diff == expected_old_diff
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert before_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
@@ -667,14 +668,14 @@ def test_migrate_domain_models_remove_product_block(test_product_one, test_produ
     assert before_diff == {"TestProductOne": {"missing_product_blocks_in_model": {"ProductBlockOneForTest"}}}
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert before_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
 
@@ -713,12 +714,12 @@ def test_migrate_domain_models_remove_resource_type(
     }
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
     assert before_diff == {}
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
