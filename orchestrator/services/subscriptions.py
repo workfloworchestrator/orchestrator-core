@@ -481,9 +481,9 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
 
 
 def get_relations(subscription_id: UUIDstr) -> Dict[str, List[UUID]]:
-    subscription_table = SubscriptionTable.query.options(joinedload(SubscriptionTable.product), joinedload("product.workflows")).get(
-        subscription_id
-    )
+    subscription_table = SubscriptionTable.query.options(
+        joinedload(SubscriptionTable.product), joinedload("product.workflows")
+    ).get(subscription_id)
     return status_relations(subscription_table)
 
 
