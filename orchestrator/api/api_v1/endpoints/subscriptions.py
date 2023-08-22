@@ -33,6 +33,7 @@ from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
+    ProductTable,
     SubscriptionInstanceTable,
     SubscriptionTable,
     db,
@@ -227,7 +228,7 @@ def subscriptions_filterable(
 )
 def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[str, Union[List[Any], str]]]]:
     subscription = SubscriptionTable.query.options(
-        joinedload(SubscriptionTable.product), joinedload("product.workflows")
+        joinedload(SubscriptionTable.product), joinedload(SubscriptionTable.product).joinedLoad(ProductTable.workflows)
     ).get(subscription_id)
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
