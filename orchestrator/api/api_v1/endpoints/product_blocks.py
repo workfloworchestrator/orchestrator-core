@@ -30,13 +30,13 @@ router = APIRouter()
 
 @router.get("/", response_model=List[ProductBlockSchema])
 def fetch() -> List[ProductBlockTable]:
-    return ProductBlockTable.query.options(joinedload("resource_types")).all()
+    return ProductBlockTable.query.options(joinedload(ProductBlockTable.resource_types)).all()
 
 
 @router.get("/{product_block_id}", response_model=ProductBlockSchema)
 def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
     product_block = (
-        ProductBlockTable.query.options(joinedload("resource_types"))
+        ProductBlockTable.query.options(joinedload(ProductBlockTable.resource_types))
         .filter_by(product_block_id=product_block_id)
         .first()
     )

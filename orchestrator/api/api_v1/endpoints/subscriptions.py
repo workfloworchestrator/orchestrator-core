@@ -226,7 +226,7 @@ def subscriptions_filterable(
     "/workflows/{subscription_id}", response_model=SubscriptionWorkflowListsSchema, response_model_exclude_none=True
 )
 def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[str, Union[List[Any], str]]]]:
-    subscription = SubscriptionTable.query.options(joinedload("product"), joinedload("product.workflows")).get(
+    subscription = SubscriptionTable.query.options(joinedload(SubscriptionTable.product), joinedload("product.workflows")).get(
         subscription_id
     )
     if not subscription:
