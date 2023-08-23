@@ -35,7 +35,8 @@ logger = structlog.get_logger(__name__)
 def product_filter(query: SearchQuery, value: str) -> SearchQuery:
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
-        .join(SubscriptionTable, ProductTable)
+        .join(SubscriptionTable)
+        .join(ProductTable)
         .filter(ProductTable.name.ilike("%" + value + "%"))
         .subquery()
     )
@@ -46,7 +47,8 @@ def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
     tags = value.split("-")
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
-        .join(SubscriptionTable, ProductTable)
+        .join(SubscriptionTable)
+        .join(ProductTable)
         .filter(ProductTable.tag.in_(tags))
         .subquery()
     )
