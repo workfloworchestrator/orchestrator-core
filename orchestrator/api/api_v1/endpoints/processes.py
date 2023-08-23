@@ -293,7 +293,7 @@ def processes_filterable(  # noqa: C901
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
-        defer("traceback"),
+        defer(ProcessTable.traceback),
     )
 
     if _filter is not None:
