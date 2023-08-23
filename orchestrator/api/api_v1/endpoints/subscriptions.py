@@ -218,7 +218,7 @@ def subscriptions_filterable(
     _filter: Union[List[str], None] = filter.split(",") if filter else None
     logger.info("subscriptions_filterable() called", range=_range, sort=_sort, filter=_filter)
     query = SubscriptionTable.query.join(SubscriptionTable.product).options(
-        contains_eager(SubscriptionTable.product), defer("product_id")
+        contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
     return _query_with_filters(response, query, _range, _sort, _filter)
 
