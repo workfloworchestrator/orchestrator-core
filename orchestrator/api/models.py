@@ -39,7 +39,7 @@ from orchestrator.db import (
 
 def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
     required_columns = {
-        k: v for k, v in cls.__table__.columns._collection.items() if not v.nullable and (not v.server_default or v.primary_key)
+        k: v for k, v, *_ in cls.__table__.columns._collection if not v.nullable and (not v.server_default or v.primary_key)
     }
 
     required_attributes: Iterable[str] = required_columns.keys()
@@ -78,7 +78,7 @@ def create_or_update(cls: Type, obj: BaseModel) -> None:
 
 def update(cls: Type, base_model: BaseModel) -> None:
     json_dict = transform_json(base_model.dict())
-    pk = list({k: v for k, v in cls.__table__.columns._collection if v.primary_key}.keys())[0]
+    pk = list({k: v for k, v, *_ in cls.__table__.columns._collection if v.primary_key}.keys())[0]
     instance = cls.query.filter(cls.__dict__[pk] == json_dict[pk])
     if not instance:
         raise_status(HTTPStatus.NOT_FOUND)
@@ -90,7 +90,7 @@ def update(cls: Type, base_model: BaseModel) -> None:
 
 
 def delete(cls: Type, primary_key: UUID) -> None:
-    pk = list({k: v for k, v in cls.__table__.columns._collection if v.primary_key}.keys())[0]
+    pk = list({k: v for k, v, *_ in cls.__table__.columns._collection if v.primary_key}.keys())[0]
     row_count = cls.query.filter(cls.__dict__[pk] == primary_key).delete()
     db.session.commit()
     if row_count > 0:
