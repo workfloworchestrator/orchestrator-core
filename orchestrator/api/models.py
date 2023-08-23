@@ -39,7 +39,7 @@ from orchestrator.db import (
 
 def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
     required_columns = {
-        k: v for k, v in cls.__table__.columns._collection if not v.nullable and (not v.server_default or v.primary_key)
+        k: v for k, v in cls.__table__.columns._collection.items() if not v.nullable and (not v.server_default or v.primary_key)
     }
 
     required_attributes: Iterable[str] = required_columns.keys()
