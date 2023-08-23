@@ -14,6 +14,8 @@ import json
 from http import HTTPStatus
 from typing import Union
 
+from orchestrator.db import db
+
 process_fields = [
     "assignee",
     "createdBy",
@@ -395,6 +397,7 @@ def test_single_process_with_subscriptions(
     generic_subscription_2,
     generic_subscription_1,
 ):
+    db.session.execute("REFRESH MATERIALIZED VIEW subscriptions_search")
     process_pid = str(mocked_processes[0])
     # when
 

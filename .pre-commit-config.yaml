@@ -60,9 +60,11 @@ repos:
         types: [ python ]
         require_serial: true
         verbose: true
+        pass_filenames: false
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
+          - .
         exclude: (test/.*|migrations/.*)
 
   - repo: https://github.com/pre-commit/pygrep-hooks

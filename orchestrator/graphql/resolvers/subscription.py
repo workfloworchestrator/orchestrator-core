@@ -19,15 +19,14 @@ from pydantic.utils import to_lower_camel
 from strawberry.types.nodes import InlineFragment, SelectedField, Selection
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.filters import Filter
-from orchestrator.db.filters.subscription import filter_subscriptions
+from orchestrator.db.filters.subscription import elasticquery_tsv
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort, sort_subscriptions
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.graphql.types import GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
 from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
 from orchestrator.types import SubscriptionLifecycle
@@ -81,25 +80,30 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
 
 async def resolve_subscriptions(
     info: OrchestratorInfo,
-    filter_by: Union[list[GraphqlFilter], None] = None,
+    # filter_by: Union[list[GraphqlFilter], None] = None,
+    query: Union[str, None] = None,
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
     after: int = 0,
 ) -> Connection[SubscriptionInterface]:
     _error_handler = create_resolver_error_handler(info)
 
-    pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
+    # pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
+    logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by)
 
-    query = SubscriptionTable.query.join(ProductTable)
+    q = SubscriptionTable.query.join(ProductTable)
 
-    query = filter_subscriptions(query, pydantic_filter_by, _error_handler)
-    query = sort_subscriptions(query, pydantic_sort_by, _error_handler)
-    total = query.count()
-    query = apply_range_to_query(query, after, first)
+    # query = filter_subscriptions(query, pydantic_filter_by, _error_handler)
+    if query:
+        logger.debug("Query string supplied by user", query=query)
+        q = elasticquery_tsv(q, query)
 
-    subscriptions = query.all()
+    q = sort_subscriptions(q, pydantic_sort_by, _error_handler)
+    total = q.count()
+    q = apply_range_to_query(q, after, first)
+
+    subscriptions = q.all()
     if _has_subscription_details(info):
         graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:

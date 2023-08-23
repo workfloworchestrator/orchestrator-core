@@ -45,8 +45,9 @@ class ProductType:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
-        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        # filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
+        query_with_related_subscriptions = f"product_id:{self.product_id}"
+        return await resolve_subscriptions(info, query_with_related_subscriptions, sort_by, first, after)
 
 
 @strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)

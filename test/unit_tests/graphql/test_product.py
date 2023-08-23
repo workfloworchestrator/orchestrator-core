@@ -4,6 +4,8 @@ from typing import Union
 
 from fastapi import Response
 
+from orchestrator.db import db
+
 
 def get_product_query(
     first: int = 10,
@@ -252,6 +254,7 @@ def test_single_product_with_subscriptions(
     generic_subscription_2,
     generic_subscription_1,
 ):
+    db.session.execute("REFRESH MATERIALIZED VIEW subscriptions_search")
     product_id = str(generic_product_1.product_id)
     # when
 

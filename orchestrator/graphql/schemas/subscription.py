@@ -71,7 +71,7 @@ class SubscriptionInterface:
     async def in_use_by_subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
+        query: Union[str, None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
         after: int = 0,
@@ -84,16 +84,15 @@ class SubscriptionInterface:
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
             return EMPTY_PAGE
-        filter_by_with_related_subscriptions = (filter_by or []) + [
-            GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
-        ]
-        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        query_str = query + " " if query is not None else ""
+        query_with_related_subscriptions = query_str + " ".join(subscription_ids)
+        return await resolve_subscriptions(info, query_with_related_subscriptions, sort_by, first, after)
 
     @authenticated_field(description="Returns list of subscriptions that this subscription depends on")  # type: ignore
     async def depends_on_subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
+        query: Union[str, None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
         after: int = 0,
@@ -106,10 +105,9 @@ class SubscriptionInterface:
         subscription_ids = [str(s.subscription_id) for s in query_results]
         if not subscription_ids:
             return EMPTY_PAGE
-        filter_by_with_related_subscriptions = (filter_by or []) + [
-            GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
-        ]
-        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+        query_str = query + " " if query is not None else ""
+        query_with_related_subscriptions = query_str + " ".join(subscription_ids)
+        return await resolve_subscriptions(info, query_with_related_subscriptions, sort_by, first, after)
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)

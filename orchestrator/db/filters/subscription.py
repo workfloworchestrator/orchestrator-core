@@ -42,6 +42,16 @@ def tsv_filter(query: SearchQuery, value: str) -> SearchQuery:
     )
 
 
+def elasticquery_tsv(query: SearchQuery, value: str) -> SearchQuery:
+    logger.debug("Running full-text search query:", value=value)
+    # TODO: Make 'websearch_to_tsquery' into a sqlalchemy extension
+    # This is a part of the sqlalchemy.dialects.postgresql module in SQLalchemy >= 2.0
+    # https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#sqlalchemy.dialects.postgresql.websearch_to_tsquery
+    return query.join(SubscriptionSearchView).filter(
+        func.websearch_to_tsquery("simple", value).op("@@")(SubscriptionSearchView.tsv)
+    )
+
+
 def subscription_list_filter(query: SearchQuery, value: str) -> SearchQuery:
     values = [s.lower() for s in value.split(",")]
     return query.filter(SubscriptionTable.subscription_id.in_(values))
