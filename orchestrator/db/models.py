@@ -280,6 +280,8 @@ class FixedInputTable(BaseModel):
 class ProductBlockTable(BaseModel):
     __tablename__ = "product_blocks"
 
+    __allow_unmapped__ = True
+
     product_block_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = Column(String(), nullable=False, unique=True)
     description = Column(Text(), nullable=False)
