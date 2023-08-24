@@ -7,9 +7,9 @@ import pytest
 
 from nwastdlib import const
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.forms import FormPage, post_process
 from orchestrator.types import State, SubscriptionLifecycle
 from orchestrator.utils.state import extract, form_inject_args, inject_args
+from pydantic_forms.core import FormPage, post_form
 
 STATE = {"one": 1, "two": 2, "three": 3, "four": 4}
 
@@ -245,7 +245,7 @@ def test_form_inject_args(generic_product_1, generic_product_type_1) -> None:
     # from the database.
     state["generic_sub"] = generic_sub.subscription_id
 
-    state_amended = post_process(form_function, state, [{}])
+    state_amended = post_form(form_function, state, [{}])
     assert "generic_sub" in state_amended
 
     # Do we now have an entire object instead of merely a UUID

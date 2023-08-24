@@ -29,7 +29,7 @@ subscription_fields = [
     "insync",
     "note",
     "product",
-    "productBlocks",
+    "productBlockInstances",
 ]
 subscription_product_fields = [
     "productId",
@@ -60,12 +60,12 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       note
       startDate
       endDate
-      productBlocks {
+      productBlockInstances {
         id
         parent
         subscriptionInstanceId
         ownerSubscriptionId
-        resourceTypes
+        productBlockInstanceValues
       }
       product {
         productId
@@ -127,7 +127,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           isTask
           lastStep
           traceback
-          id
+          processId
           lastModified
           started
           workflowName
@@ -295,7 +295,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(4)
@@ -326,7 +326,7 @@ def test_subscriptions_single_page(fastapi_app_graphql, test_client, product_typ
             assert field in subscription["product"]
 
 
-def test_subscriptions_has_next_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_next_page(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -355,7 +355,7 @@ def test_subscriptions_has_next_page(fastapi_app_graphql, test_client, product_t
             assert field in subscription
 
 
-def test_subscriptions_has_previous_page(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -382,7 +382,7 @@ def test_subscriptions_has_previous_page(fastapi_app_graphql, test_client, produ
     }
 
 
-def test_subscriptions_sorting_asc(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -410,7 +410,7 @@ def test_subscriptions_sorting_asc(fastapi_app_graphql, test_client, product_typ
         assert subscriptions[i]["startDate"] < subscriptions[i + 1]["startDate"]
 
 
-def test_subscriptions_sorting_desc(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -438,9 +438,7 @@ def test_subscriptions_sorting_desc(fastapi_app_graphql, test_client, product_ty
         assert subscriptions[i + 1]["startDate"] < subscriptions[i]["startDate"]
 
 
-def test_subscriptions_sorting_product_tag_asc(
-    fastapi_app_graphql, test_client, generic_subscription_1, generic_subscription_2
-):
+def test_subscriptions_sorting_product_tag_asc(test_client, generic_subscription_1, generic_subscription_2):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "ASC"}])
@@ -467,9 +465,7 @@ def test_subscriptions_sorting_product_tag_asc(
     assert product_tag_list == ["GEN1", "GEN2", "Sub", "Sub", "UnionSub"]
 
 
-def test_subscriptions_sorting_product_tag_desc(
-    fastapi_app_graphql, test_client, generic_subscription_1, generic_subscription_2
-):
+def test_subscriptions_sorting_product_tag_desc(test_client, generic_subscription_1, generic_subscription_2):
     # when
 
     data = get_subscriptions_query(sort_by=[{"field": "tag", "order": "DESC"}])
@@ -496,7 +492,7 @@ def test_subscriptions_sorting_product_tag_desc(
     assert product_tag_list == ["UnionSub", "Sub", "Sub", "GEN2", "GEN1"]
 
 
-def test_subscriptions_sorting_invalid_field(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -545,7 +541,7 @@ def test_subscriptions_sorting_invalid_field(fastapi_app_graphql, test_client, p
     ]
 
 
-def test_subscriptions_sorting_invalid_order(fastapi_app_graphql, test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -562,9 +558,7 @@ def test_subscriptions_sorting_invalid_order(fastapi_app_graphql, test_client, p
     assert "Value 'test' does not exist in 'SortOrder'" in result["errors"][0]["message"]
 
 
-def test_subscriptions_filtering_on_status(
-    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory, generic_product_type_1
-):
+def test_subscriptions_filtering_on_status(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
     # when
 
     subscription_ids = product_type_1_subscriptions_factory(30)
@@ -603,9 +597,7 @@ def test_subscriptions_filtering_on_status(
     assert subscriptions[1]["status"] == "TERMINATED"
 
 
-def test_subscriptions_range_filtering_on_start_date(
-    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory
-):
+def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
     # when
 
     product_type_1_subscriptions_factory(30)
@@ -648,7 +640,7 @@ def test_subscriptions_range_filtering_on_start_date(
 
 
 def test_subscriptions_filtering_with_invalid_filter(
-    fastapi_app_graphql, test_client, product_type_1_subscriptions_factory, generic_product_type_1
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1
 ):
     # when
 
@@ -754,20 +746,29 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["productBlocks"] == [
+    assert subscriptions[0]["productBlockInstances"] == [
         {
             "id": 0,
             "subscriptionInstanceId": str(subscription.pb_1.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
-            "resourceTypes": {"label": None, "name": "PB_1", "rt1": "Value1"},
+            "productBlockInstanceValues": [
+                {"field": "name", "value": "PB_1"},
+                {"field": "label", "value": None},
+                {"field": "rt1", "value": "Value1"},
+            ],
         },
         {
             "id": 1,
             "subscriptionInstanceId": str(subscription.pb_2.subscription_instance_id),
             "ownerSubscriptionId": subscription_id,
             "parent": None,
-            "resourceTypes": {"label": None, "name": "PB_2", "rt2": 42, "rt3": "Value2"},
+            "productBlockInstanceValues": [
+                {"field": "name", "value": "PB_2"},
+                {"field": "label", "value": None},
+                {"field": "rt2", "value": 42},
+                {"field": "rt3", "value": "Value2"},
+            ],
         },
     ]
 
@@ -806,7 +807,7 @@ def test_single_subscription_with_processes(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["processes"]["page"][0]["id"] == str(mocked_processes[0])
+    assert subscriptions[0]["processes"]["page"][0]["processId"] == str(mocked_processes[0])
 
 
 def test_single_subscription_with_depends_on_subscriptions(

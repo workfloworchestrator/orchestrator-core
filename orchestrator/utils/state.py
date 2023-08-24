@@ -20,19 +20,16 @@ from uuid import UUID
 from pydantic.typing import get_args
 
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.types import (
+from orchestrator.types import State, StepFunc, is_list_type, is_optional_type
+from orchestrator.utils.functional import logger
+from pydantic_forms.types import (
     FormGenerator,
     InputForm,
     InputFormGenerator,
     InputStepFunc,
     SimpleInputFormGenerator,
-    State,
     StateInputStepFunc,
-    StepFunc,
-    is_list_type,
-    is_optional_type,
 )
-from orchestrator.utils.functional import logger
 
 
 def extract(keys: Tuple[str, ...], state: State) -> Tuple[Any, ...]:

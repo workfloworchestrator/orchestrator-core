@@ -75,7 +75,7 @@ def map_value(mapping: dict[str, Callable], k: str, v: Any) -> tuple[Any, ...]:
     if f := mapping.get(k):
         if v is None:
             return k, None
-        if type(v) == dict:
+        if isinstance(v, dict):
             return result if type(result := f(**v)) is tuple else (k, result)
         return result if type(result := f(v)) is tuple else (k, result)
     return k, v

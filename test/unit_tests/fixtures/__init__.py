@@ -9,8 +9,8 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.types import SubscriptionMapping
 from orchestrator.utils.datetime import nowtz
+from pydantic_forms.types import SubscriptionMapping
 
 
 def randomstr(length=3):

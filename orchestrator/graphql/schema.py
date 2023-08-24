@@ -38,15 +38,19 @@ from orchestrator.graphql.resolvers import (
     resolve_processes,
     resolve_product_blocks,
     resolve_products,
+    resolve_resource_types,
     resolve_settings,
     resolve_subscriptions,
+    resolve_workflows,
 )
 from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType
 from orchestrator.graphql.schemas.product_block import ProductBlock
+from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
+from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.settings import app_settings
@@ -71,6 +75,12 @@ class Query:
     )
     product_blocks: Connection[ProductBlock] = authenticated_field(
         resolver=resolve_product_blocks, description="Returns list of product blocks"
+    )
+    resource_types: Connection[ResourceType] = authenticated_field(
+        resolver=resolve_resource_types, description="Returns list of resource types"
+    )
+    workflows: Connection[Workflow] = authenticated_field(
+        resolver=resolve_workflows, description="Returns list of workflows"
     )
     subscriptions: Connection[SubscriptionInterface] = authenticated_field(
         resolver=resolve_subscriptions, description="Returns list of subscriptions"

@@ -12,5 +12,6 @@ jobs:
         with:
           python-version: 3.x
 
-      - run: pip install mkdocs mkdocs-material mkdocs-render-swagger-plugin mkdocs-include-markdown-plugin
+      - run: pip install flit
+      - run: flit install --only-deps --deps develop
       - run: mkdocs gh-deploy --force

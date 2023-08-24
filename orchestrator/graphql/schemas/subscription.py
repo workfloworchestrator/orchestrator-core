@@ -15,7 +15,7 @@ from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.get_subscription_product_blocks import (
-    SubscriptionProductBlock,
+    ProductBlockInstance,
     get_subscription_product_blocks,
 )
 from orchestrator.types import SubscriptionLifecycle
@@ -34,10 +34,16 @@ class SubscriptionInterface:
     insync: bool
     note: Optional[str]
 
-    @strawberry.field(description="Return all products blocks that are part of a subscription")  # type: ignore
+    @strawberry.field(description="Return all products block instances of a subscription")  # type: ignore
+    async def product_block_instances(
+        self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
+    ) -> list[ProductBlockInstance]:
+        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
+
+    @strawberry.field(description="Return all products blocks that are part of a subscription", deprecation_reason="changed to product_block_instances")  # type: ignore
     async def product_blocks(
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
-    ) -> list[SubscriptionProductBlock]:
+    ) -> list[ProductBlockInstance]:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
@@ -45,7 +51,7 @@ class SubscriptionInterface:
         fixed_inputs: list[FixedInputTable] = FixedInputTable.query.filter(
             FixedInputTable.product_id == self.product.product_id  # type: ignore
         ).all()
-        return {fi.name: fi.value for fi in fixed_inputs}
+        return [{"field": fi.name, "value": fi.value} for fi in fixed_inputs]
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
     async def processes(

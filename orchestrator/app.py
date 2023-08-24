@@ -40,8 +40,7 @@ from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
-from orchestrator.exception_handlers import form_error_handler, problem_detail_handler
-from orchestrator.forms import FormError
+from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import (
     Mutation,
     Query,
@@ -53,6 +52,8 @@ from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
+from pydantic_forms.exception_handlers.fastapi import form_error_handler
+from pydantic_forms.exceptions import FormException
 
 logger = structlog.get_logger(__name__)
 
@@ -125,7 +126,7 @@ class OrchestratorCore(FastAPI):
             expose_headers=base_settings.CORS_EXPOSE_HEADERS,
         )
 
-        self.add_exception_handler(FormError, form_error_handler)
+        self.add_exception_handler(FormException, form_error_handler)
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)
         add_exception_handler(self)
 

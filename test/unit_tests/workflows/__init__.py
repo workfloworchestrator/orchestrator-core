@@ -9,13 +9,14 @@ from uuid import uuid4
 import structlog
 
 from orchestrator.db import ProcessTable
-from orchestrator.forms import post_process
 from orchestrator.services.processes import StateMerger, _db_create_process
-from orchestrator.types import FormGenerator, InputForm, State
+from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
 from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
+from pydantic_forms.core import post_form
+from pydantic_forms.types import FormGenerator, InputForm
 from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
 
 logger = structlog.get_logger(__name__)
@@ -188,7 +189,7 @@ def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tu
         "workflow_target": workflow.target,
     }
 
-    user_input = post_process(workflow.initial_input_form, initial_state, user_data)
+    user_input = post_form(workflow.initial_input_form, initial_state, user_data)
 
     pstat = ProcessStat(
         pid, workflow=workflow, state=Success({**user_input, **initial_state}), log=workflow.steps, current_user=user
@@ -215,7 +216,7 @@ def resume_workflow(
 
     _, current_state = step_log[-1]
 
-    user_input = post_process(remaining_steps[0].form, current_state.unwrap(), user_data)
+    user_input = post_form(remaining_steps[0].form, current_state.unwrap(), user_data)
     state = current_state.map(lambda state: StateMerger.merge(deepcopy(state), user_input))
 
     updated_process = process.update(log=remaining_steps, state=state)
@@ -286,7 +287,7 @@ def run_form_generator(
     Example:
         Given the following form generator:
 
-        >>> from orchestrator.forms import FormPage
+        >>> from pydantic_forms.core import FormPage
         >>> def form_generator(state):
         ...     class TestForm(FormPage):
         ...         field: str = "foo"

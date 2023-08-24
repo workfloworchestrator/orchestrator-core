@@ -17,13 +17,14 @@ from uuid import UUID
 
 from structlog import get_logger
 
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import OrganisationId
 from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, done, step, workflow
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import wrap_create_initial_input_form
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator
+from pydantic_forms.validators import OrganisationId
 from test_orchestrator.products.test_product import TestProductInactive
 
 logger = get_logger(__name__)
