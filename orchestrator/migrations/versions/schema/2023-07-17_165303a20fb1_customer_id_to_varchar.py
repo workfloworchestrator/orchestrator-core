@@ -14,16 +14,6 @@ down_revision = "a09ac125ea73"
 branch_labels = None
 depends_on = None
 
-REFRESH_SUBSCRIPTIONS_SEARCH_FN = """
-      CREATE OR REPLACE FUNCTION refresh_subscriptions_search_view()
-  RETURNS TRIGGER LANGUAGE plpgsql
-  AS $$
-  BEGIN
-  REFRESH MATERIALIZED VIEW CONCURRENTLY subscriptions_search;
-  RETURN NULL;
-  END $$;
-"""
-
 
 def upgrade() -> None:
     conn = op.get_bind()
