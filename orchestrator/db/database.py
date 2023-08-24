@@ -21,7 +21,6 @@ from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
-from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.sql.schema import MetaData
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -67,7 +66,7 @@ class _Base:
     _json_exclude: List = []
 
     def __json__(self, excluded_keys: Set = set()) -> Dict:  # noqa: B006
-        ins = sa_inspect(self)
+        ins: Any = sa_inspect(self)
 
         columns = set(ins.mapper.column_attrs.keys())
         relationships = set(ins.mapper.relationships.keys())
@@ -132,8 +131,6 @@ class BaseModel(_Base):
     This should be used instead of Base.
     """
 
-    __allow_unmapped__ = True
-
     metadata: ClassVar[MetaData]
     query: ClassVar[SearchQuery]
     set_query: ClassVar[Callable[[SearchQuery], None]]
@@ -143,7 +140,7 @@ class BaseModel(_Base):
     __init__: Callable[..., None]
 
     def __repr__(self) -> str:
-        inst_state: InstanceState = sa_inspect(self)
+        inst_state: Any = sa_inspect(self)
         attr_vals = [
             f"{attr.key}={getattr(self, attr.key)}"
             for attr in inst_state.mapper.column_attrs
@@ -189,7 +186,10 @@ class Database:
     def __init__(self, db_url: str) -> None:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
-        self.session_factory = sessionmaker(bind=self.engine, **SESSION_ARGUMENTS)
+        # self.session_factory = sessionmaker(bind=self.engine, **SESSION_ARGUMENTS)
+        self.session_factory = sessionmaker(
+            bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
+        )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
         BaseModel.set_query(cast(SearchQuery, self.scoped_session.query_property()))

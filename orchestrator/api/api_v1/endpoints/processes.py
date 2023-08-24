@@ -230,7 +230,7 @@ def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
     rows = (
         ProcessTable.query.with_entities(
-            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)
+            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)  # type: ignore
         )
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
         .all()

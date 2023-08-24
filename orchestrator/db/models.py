@@ -120,7 +120,7 @@ class ProcessStepTable(BaseModel):
     process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(), nullable=False)
     status = Column(String(50), nullable=False)
-    state = Column(pg.JSONB(), nullable=False)
+    state = Column(pg.JSONB(), nullable=False)  # type: ignore
     created_by = Column(String(255), nullable=True)
     executed_at = Column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = Column(String(40), nullable=True, default=GIT_COMMIT_HASH)
@@ -262,14 +262,13 @@ class FixedInputTable(BaseModel):
     __tablename__ = "fixed_inputs"
 
     fixed_input_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    name = Column(String(), nullable=False, unique=UniqueConstraint("name", "product_id"))
+    name = Column(String(), nullable=False)
     value = Column(String(), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("current_timestamp()"))
     product_id = Column(
         UUIDType,
         ForeignKey("products.product_id", ondelete="CASCADE"),
         nullable=False,
-        unique=UniqueConstraint("name", "product_id"),
     )
 
     __table_args__ = (UniqueConstraint("name", "product_id"), {"extend_existing": True})
@@ -521,10 +520,9 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
         ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        unique=UniqueConstraint("customer_id", "subscription_id"),
     )
     subscription = relationship("SubscriptionTable")
-    customer_id = Column(String, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id"))
+    customer_id = Column(String, nullable=False, index=True)
     description = Column(Text(), nullable=False)
     created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
 
@@ -545,7 +543,7 @@ class SubscriptionTable(BaseModel):
     insync = Column(Boolean(), nullable=False)
     start_date = Column(UtcTimestamp, nullable=True)
     end_date = Column(UtcTimestamp)
-    note = Column(Text())
+    note: str = Column(Text())
 
     instances = relationship(
         "SubscriptionInstanceTable",
@@ -598,7 +596,7 @@ class SubscriptionMetadataTable(BaseModel):
         ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    metadata_ = Column("metadata", pg.JSONB(), nullable=False)
+    metadata_ = Column("metadata", pg.JSONB(), nullable=False)  # type: ignore
 
     @staticmethod
     def find_by_subscription_id(subscription_id: str) -> Optional[SubscriptionMetadataTable]:

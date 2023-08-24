@@ -156,7 +156,7 @@ def upgrade() -> None:
         sa.Column("pid", sqlalchemy_utils.types.uuid.UUIDType(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("status", sa.String(length=50), nullable=False),
-        sa.Column("state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),  # type: ignore
         sa.Column("created_by", sa.String(length=255), nullable=True),
         sa.Column(
             "executed_at",
