@@ -196,6 +196,7 @@ product_workflows_association = Table(
 
 class ProductTable(BaseModel):
     __tablename__ = "products"
+    __allow_unmapped__ = True
 
     product_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = Column(String(), nullable=False, unique=True)
