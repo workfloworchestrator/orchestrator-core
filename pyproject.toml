@@ -92,7 +92,7 @@ test = [
     "pytest-httpx",
     "pytest-xdist",
     "requests-mock",
-    "sqlalchemy[mypy]",
+#    "sqlalchemy[mypy]",
     "urllib3_mock",
     "types-Deprecated",
     "types-Jinja2",
