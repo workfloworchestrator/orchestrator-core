@@ -68,14 +68,14 @@ def create_migration_file(
         project_venv_location = " ".join(
             [
                 location
-                for location in alembic_config.get_main_option("version_locations").split(" ")
+                for location in alembic_config.get_main_option("version_locations", default="").split(" ")
                 if orchestrator_module_location not in location
             ]
         )
         # Initial alembic migration generate that doesn't know about a branch 'data' and remove core down revision.
         script = ScriptDirectory.from_config(alembic_config)
         core_head = script.get_current_head()
-        migration = command.revision(
+        migration: Any = command.revision(
             alembic_config,
             message,
             branch_label="data",

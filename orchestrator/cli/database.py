@@ -107,14 +107,12 @@ def init() -> None:
 
 @app.command(help="Get the database heads")
 def heads() -> None:
-    command.heads(alembic_cfg())
+    command.heads(alembic_cfg())  # type: ignore[no-untyped-call]
 
 
 @app.command(help="Merge database revisions.")
 def merge(
-    revisions: Optional[List[str]] = typer.Argument(
-        None, help="Add the revision you would like to merge to this command."
-    ),
+    revisions: str = typer.Argument(default=None, help="Add the revision you would like to merge to this command."),
     message: str = typer.Option(None, "--message", "-m", help="The revision message"),
 ) -> None:
     """Merge database revisions.
@@ -131,7 +129,7 @@ def merge(
 
 
 @app.command()
-def upgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgrade to")) -> None:
+def upgrade(revision: str = typer.Argument(default=None, help="Rev id to upgrade to")) -> None:
     """Upgrade the database.
 
     Args:
@@ -145,7 +143,7 @@ def upgrade(revision: Optional[str] = typer.Argument(None, help="Rev id to upgra
 
 
 @app.command()
-def downgrade(revision: Optional[str] = typer.Argument("-1", help="Rev id to upgrade to")) -> None:
+def downgrade(revision: str = typer.Argument("-1", help="Rev id to upgrade to")) -> None:
     """Downgrade the database.
 
     Args:
