@@ -84,8 +84,6 @@ class UtcTimestamp(TypeDecorator):
 
 
 class ProcessTable(BaseModel):
-    __allow_unmapped__ = True
-
     __tablename__ = "processes"
 
     process_id = Column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)

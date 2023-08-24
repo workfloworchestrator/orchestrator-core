@@ -3,7 +3,7 @@ from typing import Any
 from orchestrator.graphql.pagination import Connection, PageInfo
 
 
-def to_graphql_result_page(items: list[Any], first: int, after: int, total: str) -> Connection:
+def to_graphql_result_page(items: list[Any], first: int, after: int, total: int) -> Connection:
     has_next_page = len(items) > first
 
     page_items = items[:first]
@@ -18,6 +18,6 @@ def to_graphql_result_page(items: list[Any], first: int, after: int, total: str)
             has_next_page=has_next_page,
             start_cursor=start_cursor,
             end_cursor=end_cursor,
-            total_items=int(total) if total else None,
+            total_items=total if total else None,
         ),
     )
