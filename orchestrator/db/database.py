@@ -57,7 +57,7 @@ class BaseModelMeta(DeclarativeMeta):
 
 
 # @as_declarative(metaclass=BaseModelMeta)
-class _Base(DeclarativeBase, metaclass=BaseModelMeta):
+class _Base(metaclass=BaseModelMeta):
     """SQLAlchemy base class."""
 
     __abstract__ = True
