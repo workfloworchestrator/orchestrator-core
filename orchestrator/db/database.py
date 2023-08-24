@@ -20,7 +20,7 @@ import structlog
 from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.declarative import DeclarativeMeta
-from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Query, Session, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -56,8 +56,8 @@ class BaseModelMeta(DeclarativeMeta):
         raise NoSessionError("Cant get session. Please, call BaseModel.set_query() first")
 
 
-@as_declarative(metaclass=BaseModelMeta)
-class _Base:
+# @as_declarative(metaclass=BaseModelMeta)
+class _Base(DeclarativeBase, metaclass=BaseModelMeta):
     """SQLAlchemy base class."""
 
     __abstract__ = True

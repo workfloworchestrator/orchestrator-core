@@ -39,7 +39,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import backref, deferred, object_session, relationship
+from sqlalchemy.orm import backref, deferred, mapped_column, object_session, relationship
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
@@ -116,14 +116,15 @@ class ProcessTable(BaseModel):
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
-    step_id = Column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String(), nullable=False)
-    status = Column(String(50), nullable=False)
-    state = Column(pg.JSONB(), nullable=False)  # type: ignore
-    created_by = Column(String(255), nullable=True)
-    executed_at = Column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
-    commit_hash = Column(String(40), nullable=True, default=GIT_COMMIT_HASH)
+
+    stepid = mapped_column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    pid = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+    name = mapped_column(String(), nullable=False)
+    status = mapped_column(String(50), nullable=False)
+    state = mapped_column(pg.JSONB(), nullable=False)  # type: ignore
+    created_by = mapped_column(String(255), nullable=True)
+    executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
     @property
     @deprecated("Changed to 'step_id' from version 1.2.3, will be removed in 1.4")
@@ -226,19 +227,20 @@ class ProductTable(BaseModel):
     __table_args__ = {"extend_existing": True}
 
     def find_block_by_name(self, name: str) -> ProductBlockTable:
-        return (
-            object_session(self).query(ProductBlockTable).with_parent(self).filter(ProductBlockTable.name == name).one()
-        )
+        if session := object_session(self):
+            return session.query(ProductBlockTable).with_parent(self).filter(ProductBlockTable.name == name).one()
+        raise AssertionError("Session should not be None")
 
     def fixed_input_value(self, name: str) -> str:
-        return (
-            object_session(self)
-            .query(FixedInputTable)
-            .with_parent(self)
-            .filter(FixedInputTable.name == name)
-            .with_entities(FixedInputTable.value)
-            .scalar()
-        )
+        if session := object_session(self):
+            return (
+                session.query(FixedInputTable)
+                .with_parent(self)
+                .filter(FixedInputTable.name == name)
+                .with_entities(FixedInputTable.value)
+                .scalar()
+            )
+        raise AssertionError("Session should not be None")
 
     def _subscription_workflow_key(self, target: Target) -> Optional[str]:
         wfs = list(filter(lambda w: w.target == target, self.workflows))
@@ -332,13 +334,11 @@ class ProductBlockTable(BaseModel):
         return ProductBlockTable.query.filter(ProductBlockTable.tag == tag).one()
 
     def find_resource_type_by_name(self, name: str) -> ResourceTypeTable:
-        return (
-            object_session(self)
-            .query(ResourceTypeTable)
-            .with_parent(self)
-            .filter(ResourceTypeTable.resource_type == name)
-            .one()
-        )
+        if session := object_session(self):
+            return (
+                session.query(ResourceTypeTable).with_parent(self).filter(ResourceTypeTable.resource_type == name).one()
+            )
+        raise AssertionError("Session should not be None")
 
 
 ProductBlockTable.parent_relations = ProductBlockTable.in_use_by_block_relations
