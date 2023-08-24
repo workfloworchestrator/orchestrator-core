@@ -89,7 +89,7 @@ class Query:
         resolver=resolve_settings,
         description="Returns information about cache, workers, and global engine settings",
     )
-    customers: DefaultCustomerType = authenticated_field(
+    customers: Connection[DefaultCustomerType] = authenticated_field(
         resolver=resolve_default_customer, description="Returns default customer information"
     )
 
