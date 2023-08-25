@@ -53,7 +53,9 @@ def get_product_name_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr])
 
 def get_product_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> dict:
     result = conn.execute(sa.text("SELECT * FROM products WHERE product_id=:id"), {"id": id})
-    return result.fetchall()[0]
+
+    return dict(result.mappings().one())
+    # return result.fetchall()[0]
 
 
 def get_product_ids_by_product_type(conn: sa.engine.Connection, product_type: str) -> list[UUID]:
@@ -810,7 +812,7 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
 
 
 def delete_products_by_tag(conn: sa.engine.Connection, name: str) -> None:
-    conn.execute(sa.text("""DELETE FROM products p WHERE p.name=:name"""), tag=name)
+    conn.execute(sa.text("""DELETE FROM products p WHERE p.name=:name"""), {"name": name})
 
 
 def delete_product(conn: sa.engine.Connection, name: str) -> None:

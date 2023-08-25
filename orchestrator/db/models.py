@@ -78,9 +78,7 @@ class UtcTimestamp(TypeDecorator):
         return value
 
     def process_result_value(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
-        if value is not None:
-            return value.astimezone(timezone.utc)
-        return value
+        return value.astimezone(timezone.utc) if value else value
 
 
 class ProcessTable(BaseModel):

@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import ProductTable
 from orchestrator.services.products import get_product_by_id, get_product_by_name, get_tags, get_types
