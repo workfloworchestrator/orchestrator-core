@@ -39,7 +39,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import backref, deferred, mapped_column, object_session, relationship, Mapped
+from sqlalchemy.orm import Mapped, backref, deferred, mapped_column, object_session, relationship
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
@@ -609,9 +609,7 @@ class SubscriptionMetadataTable(BaseModel):
 
 class SubscriptionSearchView(BaseModel):
     __tablename__ = "subscriptions_search"
-    subscription_id = mapped_column(
-        UUIDType, ForeignKey("subscriptions.subscription_id"), index=True, primary_key=True
-    )
+    subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), index=True, primary_key=True)
 
     # TODO: figure out what next type should be
     tsv = deferred(mapped_column(TSVectorType))  # type: ignore
