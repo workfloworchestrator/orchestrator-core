@@ -428,6 +428,8 @@ subscription_relation_index = Index(
 
 class SubscriptionInstanceTable(BaseModel):
     __tablename__ = "subscription_instances"
+    __allow_unmapped__ = True
+    
     subscription_instance_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     subscription_id = mapped_column(
         UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), index=True
