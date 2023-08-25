@@ -36,4 +36,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
-    conn.execute(f"DROP TABLE IF EXISTS {METADATA_TABLE_NAME}")
+    conn.execute(sa.text(f"DROP TABLE IF EXISTS {METADATA_TABLE_NAME}"))
