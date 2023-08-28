@@ -173,7 +173,7 @@ def db_uri(worker_id):
         url = url.set(database=f"{url.database}-{worker_id}")
     else:
         url.database = f"{url.database}-{worker_id}"
-    return str(url)
+    return url.render_as_string(hide_password=False)
 
 
 @pytest.fixture(scope="session")
