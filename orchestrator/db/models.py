@@ -198,7 +198,7 @@ class ProductTable(BaseModel):
     __allow_unmapped__ = True
 
     product_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    name = mapped_column(String(), unique=True)
+    name = mapped_column(String(), nullable=False, unique=True)
     description = mapped_column(Text(), nullable=False)
     product_type = mapped_column(String(255), nullable=False)
     tag = mapped_column(String(TAG_LENGTH), nullable=False, index=True)
