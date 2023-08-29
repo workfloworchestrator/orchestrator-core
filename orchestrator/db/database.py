@@ -186,7 +186,6 @@ class Database:
     def __init__(self, db_url: str) -> None:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
-        # self.session_factory = sessionmaker(bind=self.engine, **SESSION_ARGUMENTS)
         self.session_factory = sessionmaker(
             bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
         )
