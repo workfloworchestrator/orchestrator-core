@@ -21,6 +21,7 @@ from uuid import UUID
 from dateutil.parser import isoparse
 from more_itertools import flatten
 from pydantic import BaseModel
+from sqlalchemy import Column
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import (
@@ -38,11 +39,11 @@ from orchestrator.db import (
 
 
 def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
-    required_columns = {
-        k: v
-        for k, v, *_ in cls.__table__.columns._collection
-        if not v.nullable and (not v.server_default or v.primary_key)
-    }
+    def is_required(v: Column) -> bool:
+        return not v.nullable and (not v.server_default or v.primary_key)
+
+    table = cls.__table__
+    required_columns = {k: v for k, v, *_ in table.columns._collection if is_required(v)}
 
     required_attributes: Iterable[str] = required_columns.keys()
     if is_new_instance:
