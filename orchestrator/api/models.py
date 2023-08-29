@@ -46,13 +46,12 @@ def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
 
     required_attributes: Iterable[str] = required_columns.keys()
     if is_new_instance:
-        required_attributes = filter(lambda k: not required_columns[k].primary_key, required_attributes)
-    missing_attributes = list(filter(lambda key: key not in json_dict, required_attributes))
-    if len(missing_attributes) != 0:
-        raise_status(
-            HTTPStatus.BAD_REQUEST,
-            f"Missing attributes '{', '.join(missing_attributes)}' for {cls.__name__}",
-        )
+        required_attributes = (key for key in required_attributes if not required_columns[key].primary_key)
+
+    missing_attributes = [key for key in required_attributes if key not in json_dict]
+    if missing_attributes:
+        detail = f"Missing attributes '{', '.join(missing_attributes)}' for {cls.__name__}"
+        raise_status(HTTPStatus.BAD_REQUEST, detail=detail)
     return json_dict
 
 
