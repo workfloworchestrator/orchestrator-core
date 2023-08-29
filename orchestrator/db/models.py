@@ -199,11 +199,11 @@ class ProductTable(BaseModel):
 
     product_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), unique=True)
-    description = mapped_column(Text())
-    product_type = mapped_column(String(255))
-    tag = mapped_column(String(TAG_LENGTH), index=True)
-    status = mapped_column(String(STATUS_LENGTH))
-    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"))
+    description = mapped_column(Text(), nullable=False)
+    product_type = mapped_column(String(255), nullable=False)
+    tag = mapped_column(String(TAG_LENGTH), nullable=False, index=True)
+    status = mapped_column(String(STATUS_LENGTH), nullable=False)
+    created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     end_date = mapped_column(UtcTimestamp)
     product_blocks = relationship(
         "ProductBlockTable",
