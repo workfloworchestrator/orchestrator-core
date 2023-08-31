@@ -97,8 +97,8 @@ def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for [key, value] in inspect(ProcessTable).columns.items()}
-BASE_SNAKE = {key: generic_is_like_filter(value) for [key, value] in inspect(ProcessTable).columns.items()}
+BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
+BASE_SNAKE = {key: generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
 
 PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
     BASE_CAMEL

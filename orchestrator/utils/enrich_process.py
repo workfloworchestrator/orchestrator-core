@@ -95,4 +95,10 @@ def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) 
         "steps": None,
         "form": None,
         "current_state": None,
+        "pid": process.process_id,  # TODO: remove in 1.3.0
+        "workflow": process.workflow_name,  # TODO: remove in 1.3.0
+        "status": process.last_status,  # TODO: remove in 1.3.0
+        "step": process.last_step,  # TODO: remove in 1.3.0
+        "started": process.started_at,  # TODO: remove in 1.3.0
+        "last_modified": process.last_modified_at,  # TODO: remove in 1.3.0
     } | details
