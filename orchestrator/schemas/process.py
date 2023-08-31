@@ -71,7 +71,7 @@ class ProcessSchema(ProcessBaseSchema):
 
 class ProcessSubscriptionProcessSchema(OrchestratorBaseModel):
     workflow: str
-    pid: UUID
+    process_id: UUID
     is_task: bool
     created_by: Optional[str]
     failed_reason: Optional[str]
@@ -90,7 +90,7 @@ class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     workflow_target: Optional[Target]
     subscription_id: UUID
     id: UUID
-    pid: UUID
+    process_id: UUID
     created_at: datetime
 
     class Config:
@@ -106,7 +106,7 @@ class ProcessListItemSchema(OrchestratorBaseModel):
     created_by: Optional[str]
     failed_reason: Optional[str]
     last_modified_at: datetime
-    pid: UUID
+    process_id: UUID
     started_at: datetime
     last_status: ProcessStatus
     last_step: Optional[str]

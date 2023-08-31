@@ -381,7 +381,7 @@ def workflow(
 
 @dataclass
 class ProcessStat:
-    pid: UUID
+    process_id: UUID
     workflow: Workflow
     state: Process
     log: StepList
@@ -392,7 +392,7 @@ class ProcessStat:
 
         >>> pstat = ProcessStat('', None, {}, [], "")
         >>> pstat.update(state={"a": "b"})
-        ProcessStat(pid='', workflow=None, state={'a': 'b'}, log=[], current_user='')
+        ProcessStat(process_id='', workflow=None, state={'a': 'b'}, log=[], current_user='')
         """
         return ProcessStat(**{**asdict(self), **vs})
 

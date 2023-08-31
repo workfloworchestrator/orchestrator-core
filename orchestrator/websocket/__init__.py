@@ -87,7 +87,7 @@ def is_process_active(p: Dict) -> bool:
 
 
 def send_process_data_to_websocket(
-    pid: UUID,
+    process_id: UUID,
     data: Dict,
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> None:
@@ -96,10 +96,10 @@ def send_process_data_to_websocket(
         return
 
     if broadcast_func:
-        logger.debug("Broadcast process data through broadcast_func", pid=str(pid))
-        broadcast_func(pid, data)
+        logger.debug("Broadcast process data through broadcast_func", process_id=str(process_id))
+        broadcast_func(process_id, data)
     else:
-        logger.debug("Broadcast process data directly to websocket_manager", pid=str(pid))
+        logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
         loop = new_event_loop()
         channels = [WS_CHANNELS.ALL_PROCESSES]
         loop.run_until_complete(websocket_manager.broadcast_data(channels, data))

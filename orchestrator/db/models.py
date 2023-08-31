@@ -85,7 +85,7 @@ class UtcTimestamp(TypeDecorator):
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
-    pid = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
+    process_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
     workflow = Column(String(255), nullable=False)
     assignee = Column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = Column(String(50), nullable=False)
@@ -106,7 +106,7 @@ class ProcessTable(BaseModel):
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
     stepid = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    pid = Column(UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+    process_id = Column(UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(), nullable=False)
     status = Column(String(50), nullable=False)
     state = Column(pg.JSONB(), nullable=False)
@@ -118,7 +118,7 @@ class ProcessStepTable(BaseModel):
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
     id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    pid = Column(UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+    process_id = Column(UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), nullable=False, index=True)
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription_id = Column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     subscription = relationship("SubscriptionTable", lazy=True)
@@ -127,7 +127,7 @@ class ProcessSubscriptionTable(BaseModel):
 
 
 processes_subscriptions_ix = Index(
-    "processes_subscriptions_ix", ProcessSubscriptionTable.pid, ProcessSubscriptionTable.subscription_id
+    "processes_subscriptions_ix", ProcessSubscriptionTable.process_id, ProcessSubscriptionTable.subscription_id
 )
 
 product_product_block_association = Table(

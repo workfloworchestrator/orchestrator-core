@@ -34,7 +34,7 @@ def product_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(ProductTable.name.ilike("%" + value + "%"))
         .subquery()
     )
-    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
 
 
 def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -45,7 +45,7 @@ def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(ProductTable.tag.in_(tags))
         .subquery()
     )
-    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
 
 
 def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -55,14 +55,14 @@ def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(SubscriptionTable.description.ilike("%" + value + "%"))
         .subquery()
     )
-    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
 
 
 def subscription_id_filter(query: SearchQuery, value: str) -> SearchQuery:
     process_subscriptions = db.session.query(ProcessSubscriptionTable).join(SubscriptionTable)
     process_subscriptions = generic_is_like_filter(SubscriptionTable.subscription_id)(process_subscriptions, value)
     process_subscriptions = process_subscriptions.subquery()
-    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
 
 
 def target_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -72,11 +72,11 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(ProcessSubscriptionTable.workflow_target.in_(targets))
         .subquery()
     )
-    return query.filter(ProcessTable.pid == process_subscriptions.c.pid)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
 
 
 PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
-    "processId": generic_is_like_filter(ProcessTable.pid),
+    "processId": generic_is_like_filter(ProcessTable.process_id),
     "istask": generic_bool_filter(ProcessTable.is_task),
     "assignee": generic_values_in_column_filter(ProcessTable.assignee),
     "status": generic_values_in_column_filter(ProcessTable.last_status),

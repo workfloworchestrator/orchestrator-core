@@ -192,7 +192,7 @@ class _ProcessListItem:
     created_by: Optional[str]
     failed_reason: Optional[str]
     last_modified_at: datetime
-    pid: UUID
+    process_id: UUID
     started_at: datetime
     last_status: str
     last_step: Optional[str]
@@ -233,7 +233,7 @@ def enrich_process(p: ProcessTable) -> _ProcessListItem:
         created_by=p.created_by,
         failed_reason=p.failed_reason,
         last_modified_at=p.last_modified_at,
-        pid=p.pid,
+        process_id=p.process_id,
         started_at=p.started_at.timestamp(),
         last_status=p.last_status,
         last_step=p.last_step,

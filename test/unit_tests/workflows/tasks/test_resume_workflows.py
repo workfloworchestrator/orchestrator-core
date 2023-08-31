@@ -17,13 +17,15 @@ PID = uuid.uuid4()
 def waiting_process():
     state = {"foo": "bar"}
 
-    success_step = ProcessStepTable(pid=PID, name="generic-step", status="success", state=state, created_by="Fredje")
+    success_step = ProcessStepTable(
+        process_id=PID, name="generic-step", status="success", state=state, created_by="Fredje"
+    )
     waiting_step = ProcessStepTable(
-        pid=PID, name="waiting-step", status="waiting", state="Uberly cool error message", created_by="Fredje"
+        process_id=PID, name="waiting-step", status="waiting", state="Uberly cool error message", created_by="Fredje"
     )
 
     process = ProcessTable(
-        pid=PID,
+        process_id=PID,
         workflow=WORKFLOW_ID,
         last_status=ProcessStatus.WAITING,
         assignee=Assignee.SYSTEM,

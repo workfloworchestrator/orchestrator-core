@@ -27,20 +27,20 @@ logger = structlog.get_logger(__name__)
 @step("Find waiting workflows")
 def find_waiting_workflows() -> State:
     processes = ProcessTable.query.filter(ProcessTable.last_status == ProcessStatus.WAITING).all()
-    waiting_pids = [str(process.pid) for process in processes]
+    waiting_pids = [str(process.process_id) for process in processes]
     return {"number_of_waiting_processes": len(waiting_pids), "waiting_pids": waiting_pids}
 
 
 @step("Resume found workflows")
 def resume_found_workflows(waiting_pids: List[UUIDstr]) -> State:
     resumed_pids = []
-    for pid in waiting_pids:
+    for process_id in waiting_pids:
         try:
-            process = ProcessTable.query.get(pid)
+            process = ProcessTable.query.get(process_id)
             # Workaround the commit disable function
             db.session.info["disabled"] = False
             processes.resume_process(process)
-            resumed_pids.append(pid)
+            resumed_pids.append(process_id)
         except Exception:
             logger.exception()
         finally:

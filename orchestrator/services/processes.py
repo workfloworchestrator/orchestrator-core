@@ -87,7 +87,7 @@ def shutdown_thread_pool() -> None:
 
 def _db_create_process(stat: ProcessStat) -> None:
     p = ProcessTable(
-        pid=stat.pid,
+        process_id=stat.process_id,
         workflow=stat.workflow.name,
         last_status=ProcessStatus.CREATED,
         created_by=stat.current_user,
@@ -115,9 +115,9 @@ def _db_log_step(
         WFProcess
 
     """
-    p = ProcessTable.query.get(stat.pid)
+    p = ProcessTable.query.get(stat.process_id)
     if p is None:
-        raise ValueError(f"Failed to write failure step to process: process with PID {stat.pid} not found")
+        raise ValueError(f"Failed to write failure step to process: process with PID {stat.process_id} not found")
 
     p.last_step = step.name
     p.last_status = process_state.overall_status
@@ -177,7 +177,7 @@ def _db_log_step(
         # add a new entry to the process stat
         logger.info("Adding a new process step with state info")
         current_step = ProcessStepTable(
-            pid=stat.pid,
+            process_id=stat.process_id,
             name=step.name,
             status=process_state.status,
             state=step_state,
@@ -213,7 +213,7 @@ def _db_log_step(
     if websocket_manager.enabled:
         new_pStat = load_process(p)
         websocket_data = create_process_websocket_data(p, new_pStat)
-        send_process_data_to_websocket(p.pid, websocket_data, broadcast_func=broadcast_func)
+        send_process_data_to_websocket(p.process_id, websocket_data, broadcast_func=broadcast_func)
 
     # Return the state as stored in the database
     return process_state.__class__(current_step.state)
@@ -242,27 +242,27 @@ def safe_logstep(
         return _db_log_step(stat, step, failure, broadcast_func=broadcast_func)
 
 
-def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
+def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
     """Write the exception to the process or task when everything else has failed.
 
     Args:
-        pid: the pid of the workflow process
+        process_id: the process_id of the workflow process
         ex: the Exception message
 
     Returns: None, there is no one to listen at this point
 
     """
 
-    p = ProcessTable.query.get(pid)
+    p = ProcessTable.query.get(process_id)
     if p is None:
         logger.error(
             "Failed to write failure to database: Process with PID %s not found",
-            pid,
-            pid=pid,
+            process_id,
+            process_id=process_id,
         )
         return
 
-    logger.warning("Writing only process state to DB as step couldn't be found", pid=pid)
+    logger.warning("Writing only process state to DB as step couldn't be found", process_id=process_id)
     p.last_step = "Unknown"
     if p.last_status != ProcessStatus.WAITING:
         p.last_status = ProcessStatus.FAILED
@@ -272,24 +272,24 @@ def _db_log_process_ex(pid: UUID, ex: Exception) -> None:
     try:
         db.session.commit()
     except BaseException:
-        logger.exception("Commit failed, rolling back", pid=pid)
+        logger.exception("Commit failed, rolling back", process_id=process_id)
         db.session.rollback()
         raise
 
 
-def _get_process(pid: UUID) -> ProcessTable:
+def _get_process(process_id: UUID) -> ProcessTable:
     process = ProcessTable.query.options(
         joinedload(ProcessTable.steps),
         joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-    ).get(pid)
+    ).get(process_id)
 
     if not process:
-        raise_status(HTTPStatus.NOT_FOUND, f"Process with pid {pid} not found")
+        raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
 
     return process
 
 
-def _run_process_async(pid: UUID, f: Callable) -> UUID:
+def _run_process_async(process_id: UUID, f: Callable) -> UUID:
     def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
         """Update amount of running processes by one.
 
@@ -311,17 +311,17 @@ def _run_process_async(pid: UUID, f: Callable) -> UUID:
         try:
             with db.database_scope():
                 try:
-                    logger.new(process_id=str(pid))
+                    logger.new(process_id=str(process_id))
                     result = f()
                 except Exception as ex:
                     # We still have access to the database, so we can log at least something
-                    _db_log_process_ex(pid, ex)
+                    _db_log_process_ex(process_id, ex)
                     raise
                 finally:
                     _update_running_processes("-")
         except Exception as ex:
             # We lost access to database here, so we can only log
-            logger.exception("Unknown workflow failure", pid=pid)
+            logger.exception("Unknown workflow failure", process_id=process_id)
             result = Failed(ex)
 
         return result
@@ -339,7 +339,7 @@ def _run_process_async(pid: UUID, f: Callable) -> UUID:
         run()
     else:
         raise RuntimeError("Unknown Executor type")
-    return pid
+    return process_id
 
 
 def create_process(
@@ -352,14 +352,14 @@ def create_process(
     if user_inputs is None:
         user_inputs = [{}]
 
-    pid = uuid4()
+    process_id = uuid4()
     workflow = get_workflow(workflow_key)
 
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     initial_state = {
-        "process_id": pid,
+        "process_id": process_id,
         "reporter": user,
         "workflow_name": workflow_key,
         "workflow_target": workflow.target,
@@ -372,7 +372,7 @@ def create_process(
         raise
 
     pstat = ProcessStat(
-        pid,
+        process_id,
         workflow=workflow,
         state=Success(state | initial_state),
         log=workflow.steps,
@@ -393,7 +393,7 @@ def thread_start_process(
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_with_func))
+    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
 
 def start_process(
@@ -451,7 +451,7 @@ def thread_resume_process(
     db.session.commit()
 
     _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.pid, lambda: runwf(pstat, _safe_logstep_prep))
+    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
 
 
 def thread_validate_workflow(validation_workflow: str, json: Optional[List[State]]) -> UUID:
@@ -520,18 +520,18 @@ async def _async_resume_processes(
         try:
             for _proc in processes:
                 try:
-                    process = _get_process(_proc.pid)
+                    process = _get_process(_proc.process_id)
                     if process.last_status == ProcessStatus.RUNNING:
                         # Process has been started by something else in the meantime
-                        logger.info("Cannot resume a running process", pid=_proc.pid)
+                        logger.info("Cannot resume a running process", process_id=_proc.process_id)
                         continue
                     elif process.last_status == ProcessStatus.RESUMED:  # noqa: RET507
                         # Process has been resumed by something else in the meantime
-                        logger.info("Cannot resume a resumed process", pid=_proc.pid)
+                        logger.info("Cannot resume a resumed process", process_id=_proc.process_id)
                         continue
                     resume_process(process, user=user_name, broadcast_func=broadcast_func)
                 except Exception:
-                    logger.exception("Failed to resume process", pid=_proc.pid)
+                    logger.exception("Failed to resume process", process_id=_proc.process_id)
             logger.info("Completed resuming processes")
         finally:
             distlock_manager.release_sync(lock)
@@ -591,7 +591,7 @@ def load_process(process: ProcessTable) -> ProcessStat:
     pstate, remaining = _recoverwf(workflow, log)
 
     return ProcessStat(
-        pid=process.pid,
+        process_id=process.process_id,
         workflow=workflow,
         state=pstate,
         log=remaining,
@@ -613,12 +613,12 @@ class ProcessDataBroadcastThread(threading.Thread):
 
             while not self.shutdown:
                 try:
-                    pid, data = self.queue.get(block=True, timeout=1)
+                    process_id, data = self.queue.get(block=True, timeout=1)
                 except queue.Empty:
                     continue
                 logger.debug(
                     "Threadsafe broadcast data through websocket manager",
-                    process_id=pid,
+                    process_id=process_id,
                     where="ProcessDataBroadcastThread",
                     channels=WS_CHANNELS.ALL_PROCESSES,
                 )
@@ -644,8 +644,8 @@ def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
     """
     broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
 
-    def _queue_put(pid: UUID, data: Dict) -> None:
-        broadcast_queue.put((str(pid), data))
+    def _queue_put(process_id: UUID, data: Dict) -> None:
+        broadcast_queue.put((str(process_id), data))
 
     return _queue_put
 

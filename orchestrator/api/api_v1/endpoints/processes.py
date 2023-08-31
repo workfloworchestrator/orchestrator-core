@@ -70,16 +70,16 @@ router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
-@router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def delete(pid: UUID) -> None:
-    process = ProcessTable.query.filter_by(pid=pid).one_or_none()
+@router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+def delete(process_id: UUID) -> None:
+    process = ProcessTable.query.filter_by(process_id=process_id).one_or_none()
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    websocket_data = {"process": {"id": process.pid, "status": ProcessStatus.ABORTED}}
-    send_process_data_to_websocket(process.pid, websocket_data)
+    websocket_data = {"process": {"id": process.process_id, "status": ProcessStatus.ABORTED}}
+    send_process_data_to_websocket(process.process_id, websocket_data)
 
-    ProcessTable.query.filter_by(pid=pid).delete()
+    ProcessTable.query.filter_by(process_id=process_id).delete()
     db.session.commit()
 
 
@@ -94,18 +94,18 @@ def new_process(
 
     user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
-    pid = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
+    process_id = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
 
-    return {"id": pid}
+    return {"id": process_id}
 
 
-@router.put("/{pid}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/{process_id}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def resume_process_endpoint(
-    pid: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    process_id: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> None:
     check_global_lock()
 
-    process = _get_process(pid)
+    process = _get_process(process_id)
 
     if process.last_status == ProcessStatus.COMPLETED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a completed workflow is not possible")
@@ -160,9 +160,11 @@ async def resume_all_processess_endpoint(
     return {"count": len(processes_to_resume)}
 
 
-@router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
-    process = _get_process(pid)
+@router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+def abort_process_endpoint(
+    process_id: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> None:
+    process = _get_process(process_id)
 
     user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
@@ -186,9 +188,9 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
     return query.all()
 
 
-@router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
-def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
-    return ProcessSubscriptionTable.query.filter_by(pid=pid).all()
+@router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
+def process_subscriptions_by_process_pid(process_id: UUID) -> List[ProcessSubscriptionTable]:
+    return ProcessSubscriptionTable.query.filter_by(process_id=process_id).all()
 
 
 def check_global_lock() -> None:
@@ -232,9 +234,9 @@ def assignees() -> List[str]:
     return [assignee.value for assignee in Assignee]
 
 
-@router.get("/{pid}", response_model=ProcessSchema)
-def show(pid: UUID) -> Dict[str, Any]:
-    process = _get_process(pid)
+@router.get("/{process_id}", response_model=ProcessSchema)
+def show(process_id: UUID) -> Dict[str, Any]:
+    process = _get_process(process_id)
     p = load_process(process)
 
     return show_process(process, p)
@@ -305,7 +307,7 @@ def processes_filterable(  # noqa: C901
     # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
     checksum = 0
     for p in results:
-        checksum = zlib.crc32(p.pid.bytes, checksum)
+        checksum = zlib.crc32(p.process_id.bytes, checksum)
         last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
         checksum = zlib.crc32(last_modified_as_bytes, checksum)
 

@@ -41,26 +41,28 @@ from pydantic_forms.exceptions import FormValidationError
 
 
 def test_db_create_process():
-    pid = uuid4()
+    process_id = uuid4()
     workflow = make_workflow(lambda: None, "wf description", None, Target.SYSTEM, [])
     workflow.name = "wf name"
-    pstat = ProcessStat(pid, workflow, None, None, current_user="user")
+    pstat = ProcessStat(process_id, workflow, None, None, current_user="user")
 
     _db_create_process(pstat)
 
-    process = ProcessTable.query.get(pid)
+    process = ProcessTable.query.get(process_id)
     assert process
     assert process.workflow == "wf name"
     assert process.is_task
 
 
 def test_process_log_db_step_success():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"foo": "bar"}
     state = Success(state_data)
@@ -68,11 +70,11 @@ def test_process_log_db_step_success():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "success"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     assert psteps[0].state == state_data
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.RUNNING
@@ -84,11 +86,11 @@ def test_process_log_db_step_success():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 2
     assert psteps[1].status == "success"
-    assert psteps[1].pid == pid
+    assert psteps[1].process_id == process_id
     assert psteps[1].state == state_data
     assert psteps[1].created_by == "user"
     assert p.last_status == ProcessStatus.RUNNING
@@ -98,12 +100,14 @@ def test_process_log_db_step_success():
 
 
 def test_process_log_db_step_skipped():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"foo": "bar"}
     state = Skipped(state_data)
@@ -111,11 +115,11 @@ def test_process_log_db_step_skipped():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "skipped"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     assert psteps[0].state == state_data
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.RUNNING
@@ -127,11 +131,11 @@ def test_process_log_db_step_skipped():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 2
     assert psteps[1].status == "skipped"
-    assert psteps[1].pid == pid
+    assert psteps[1].process_id == process_id
     assert psteps[1].state == state_data
     assert psteps[1].created_by == "user"
     assert p.last_status == ProcessStatus.RUNNING
@@ -141,12 +145,14 @@ def test_process_log_db_step_skipped():
 
 
 def test_process_log_db_step_suspend():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"foo": "bar"}
     state = Suspend(state_data)
@@ -154,11 +160,11 @@ def test_process_log_db_step_suspend():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "suspend"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     assert psteps[0].state == state_data
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.SUSPENDED
@@ -170,11 +176,11 @@ def test_process_log_db_step_suspend():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 2
     assert psteps[1].status == "suspend"
-    assert psteps[1].pid == pid
+    assert psteps[1].process_id == process_id
     assert psteps[1].state == state_data
     assert psteps[1].created_by == "user"
     assert p.last_status == ProcessStatus.SUSPENDED
@@ -184,12 +190,14 @@ def test_process_log_db_step_suspend():
 
 
 def test_process_log_db_step_waiting():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = "expected failure"
     state = Waiting(error_state_to_dict(Exception(state_data)))
@@ -197,11 +205,11 @@ def test_process_log_db_step_waiting():
     result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "waiting"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     assert psteps[0].state["error"] == state_data
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.WAITING
@@ -213,11 +221,11 @@ def test_process_log_db_step_waiting():
     result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "waiting"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
     assert len(pstep_state["executed_at"]) == 1
     del pstep_state["executed_at"]
@@ -230,12 +238,14 @@ def test_process_log_db_step_waiting():
 
 
 def test_process_log_db_step_failed():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, Assignee.SYSTEM)
 
     state_data = Exception("Hard failure")
@@ -244,11 +254,11 @@ def test_process_log_db_step_failed():
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     saved_state = error_state_to_dict(state_data)
     saved_state.pop("traceback")
     assert psteps[0].state == saved_state
@@ -262,11 +272,11 @@ def test_process_log_db_step_failed():
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
     assert len(pstep_state["executed_at"]) == 1
     del pstep_state["executed_at"]
@@ -280,14 +290,18 @@ def test_process_log_db_step_failed():
 
 
 def test_process_log_db_step_assertion_failed():
-    pid = uuid4()
+    process_id = uuid4()
     p = ProcessTable(
-        pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER, is_task=True
+        process_id=process_id,
+        workflow="workflow_key",
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
+        is_task=True,
     )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
 
     state_data = AssertionError("Assertion failure")
@@ -296,11 +310,11 @@ def test_process_log_db_step_assertion_failed():
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     saved_state = error_state_to_dict(state_data)
     saved_state.pop("traceback")
     assert psteps[0].state == saved_state
@@ -314,11 +328,11 @@ def test_process_log_db_step_assertion_failed():
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
     assert len(pstep_state["executed_at"]) == 1
     del pstep_state["executed_at"]
@@ -332,14 +346,18 @@ def test_process_log_db_step_assertion_failed():
 
 
 def test_process_log_db_step_api_failed():
-    pid = uuid4()
+    process_id = uuid4()
     p = ProcessTable(
-        pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER, is_task=True
+        process_id=process_id,
+        workflow="workflow_key",
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
+        is_task=True,
     )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
 
     state_data = ApiException(HTTPStatus.BAD_GATEWAY, "API failure")
@@ -348,11 +366,11 @@ def test_process_log_db_step_api_failed():
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     saved_state = error_state_to_dict(state_data)
     saved_state.pop("traceback")
     assert psteps[0].state == saved_state
@@ -366,11 +384,11 @@ def test_process_log_db_step_api_failed():
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
     assert len(pstep_state["executed_at"]) == 1
     del pstep_state["executed_at"]
@@ -390,12 +408,14 @@ def test_process_log_db_step_api_failed():
 
 
 def test_process_log_db_step_abort():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"foo": "bar"}
     state = Abort(state_data)
@@ -403,11 +423,11 @@ def test_process_log_db_step_abort():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "abort"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     assert psteps[0].state == state_data
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.ABORTED
@@ -419,11 +439,11 @@ def test_process_log_db_step_abort():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 2
     assert psteps[1].status == "abort"
-    assert psteps[1].pid == pid
+    assert psteps[1].process_id == process_id
     assert psteps[1].state == state_data
     assert psteps[1].created_by == "user"
     assert p.last_status == ProcessStatus.ABORTED
@@ -433,12 +453,14 @@ def test_process_log_db_step_abort():
 
 
 def test_process_log_db_step_complete():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"foo": "bar"}
     state = Complete(state_data)
@@ -446,11 +468,11 @@ def test_process_log_db_step_complete():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 1
     assert psteps[0].status == "complete"
-    assert psteps[0].pid == pid
+    assert psteps[0].process_id == process_id
     assert psteps[0].state == state_data
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.COMPLETED
@@ -462,11 +484,11 @@ def test_process_log_db_step_complete():
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).all()
+    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
 
     assert len(psteps) == 2
     assert psteps[1].status == "complete"
-    assert psteps[1].pid == pid
+    assert psteps[1].process_id == process_id
     assert psteps[1].state == state_data
     assert psteps[1].created_by == "user"
     assert p.last_status == ProcessStatus.COMPLETED
@@ -476,25 +498,27 @@ def test_process_log_db_step_complete():
 
 
 def test_process_log_db_step_no_pid():
-    pid = uuid4()
+    process_id = uuid4()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"foo": "bar"}
     state = Complete(state_data)
 
     with pytest.raises(ValueError) as exc_info:
         _db_log_step(pstat, step, state)
-    assert f"Failed to write failure step to process: process with PID {pid} not found" in str(exc_info.value)
+    assert f"Failed to write failure step to process: process with PID {process_id} not found" in str(exc_info.value)
 
 
 def test_process_log_db_step_deduplication():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
 
     step1 = make_step_function(lambda: None, "step1", None, Assignee.SYSTEM)
     step2 = make_step_function(lambda: None, "step2", None, Assignee.SYSTEM)
@@ -505,7 +529,9 @@ def test_process_log_db_step_deduplication():
     _db_log_step(pstat, step1, Success({}))
     _db_log_step(pstat, step1, Failed(error_state_data))
 
-    psteps = ProcessStepTable.query.filter_by(pid=p.pid).order_by(ProcessStepTable.executed_at.asc()).all()
+    psteps = (
+        ProcessStepTable.query.filter_by(process_id=p.process_id).order_by(ProcessStepTable.executed_at.asc()).all()
+    )
 
     assert psteps[0].name == "step1"
     assert psteps[0].status == "failed"
@@ -541,12 +567,14 @@ def test_process_log_db_step_deduplication():
 
 
 def test_safe_logstep():
-    pid = uuid4()
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    process_id = uuid4()
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"not_serializable": object()}
     state = Complete(state_data)
@@ -584,11 +612,11 @@ def test_safe_logstep():
 
 
 def test_safe_logstep_critical_failure():
-    pid = uuid4()
+    process_id = uuid4()
 
     # Skip storing the actual process to let `_db_log_step` fail
 
-    pstat = ProcessStat(pid, None, None, None, current_user="user")
+    pstat = ProcessStat(process_id, None, None, None, current_user="user")
     step = make_step_function(lambda: None, "step", None, "assignee")
     state_data = {"not_serializable": object()}
     state = Complete(state_data)
@@ -610,7 +638,7 @@ def test_safe_logstep_critical_failure():
                         Failed(
                             {
                                 "class": "Exception",
-                                "error": f"Failed to write failure step to process: process with PID {pid} not found",
+                                "error": f"Failed to write failure step to process: process with PID {process_id} not found",
                                 "traceback": mock.ANY,
                             }
                         ),
@@ -618,7 +646,7 @@ def test_safe_logstep_critical_failure():
                 ]
             )
 
-        assert f"Failed to write failure step to process: process with PID {pid} not found" in str(e.value)
+        assert f"Failed to write failure step to process: process with PID {process_id} not found" in str(e.value)
 
 
 @mock.patch("orchestrator.services.processes._get_process")
@@ -631,10 +659,10 @@ def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
         mock.Mock(spec=ProcessTable()),
         mock.Mock(spec=ProcessTable()),
     ]
-    processes[0].pid, processes[0].last_status = 123, ProcessStatus.RUNNING
-    processes[1].pid, processes[1].last_status = 124, ProcessStatus.FAILED
-    processes[2].pid, processes[2].last_status = 125, ProcessStatus.API_UNAVAILABLE
-    processes[3].pid, processes[3].last_status = 126, ProcessStatus.RESUMED
+    processes[0].process_id, processes[0].last_status = 123, ProcessStatus.RUNNING
+    processes[1].process_id, processes[1].last_status = 124, ProcessStatus.FAILED
+    processes[2].process_id, processes[2].last_status = 125, ProcessStatus.API_UNAVAILABLE
+    processes[3].process_id, processes[3].last_status = 126, ProcessStatus.RESUMED
 
     # get_process() should be called 4 times
     mock_get_process.side_effect = processes
@@ -647,30 +675,32 @@ def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
 
     assert len(mock_get_process.mock_calls) == 4
     assert len(mock_resume_process.mock_calls) == 2
-    assert "Cannot resume a running process" in caplog.text  # pid 123 should not be resumed
-    assert "Cannot resume a resumed process" in caplog.text  # pid 126 should not be resumed
-    assert "Failed to resume process" in caplog.text  # pid 125 should fail
+    assert "Cannot resume a running process" in caplog.text  # process_id 123 should not be resumed
+    assert "Cannot resume a resumed process" in caplog.text  # process_id 126 should not be resumed
+    assert "Failed to resume process" in caplog.text  # process_id 125 should fail
     assert "Completed resuming processes" in caplog.text
 
 
 def test_db_log_process_ex():
-    pid = uuid4()
+    process_id = uuid4()
 
     # No exceptions!
-    _db_log_process_ex(pid, ValueError())
+    _db_log_process_ex(process_id, ValueError())
 
     # Now with existing process
-    p = ProcessTable(pid=pid, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER)
+    p = ProcessTable(
+        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+    )
     db.session.add(p)
     db.session.commit()
 
-    _db_log_process_ex(pid, ValueError())
+    _db_log_process_ex(process_id, ValueError())
 
     assert p.last_status == "failed"
 
 
 def test_run_process_async_success():
-    pid = uuid4()
+    process_id = uuid4()
     event = Event()
 
     def run_func():
@@ -678,7 +708,7 @@ def test_run_process_async_success():
 
     # Disable Testing setting since we want to run async
     app_settings.TESTING = False
-    _run_process_async(pid, run_func)
+    _run_process_async(process_id, run_func)
     sleep(0.01)
 
     assert EngineSettingsTable.query.one().running_processes == 1
@@ -692,7 +722,7 @@ def test_run_process_async_success():
 
 @mock.patch("orchestrator.services.processes._db_log_process_ex")
 def test_run_process_async_exception(mock_db_log_process_ex):
-    pid = uuid4()
+    process_id = uuid4()
     event = Event()
 
     def run_func():
@@ -701,7 +731,7 @@ def test_run_process_async_exception(mock_db_log_process_ex):
 
     # Disable Testing setting since we want to run async
     app_settings.TESTING = False
-    _run_process_async(pid, run_func)
+    _run_process_async(process_id, run_func)
     sleep(0.1)
 
     assert EngineSettingsTable.query.one().running_processes == 1
@@ -711,12 +741,12 @@ def test_run_process_async_exception(mock_db_log_process_ex):
 
     assert EngineSettingsTable.query.one().running_processes == 0
 
-    mock_db_log_process_ex.assert_called_once_with(pid, mock.ANY)
+    mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)
     assert repr(mock_db_log_process_ex.call_args[0][1]) == "ValueError('Failed')"
     app_settings.TESTING = True
 
 
-@mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.pid))
+@mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.process_id))
 @mock.patch("orchestrator.services.processes._db_create_process")
 @mock.patch("orchestrator.services.processes.post_form")
 @mock.patch("orchestrator.services.processes.get_workflow")
@@ -734,7 +764,7 @@ def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process
     result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
     pstat = mock_db_create_process.call_args[0][0]
-    assert result == mock.sentinel.pid
+    assert result == mock.sentinel.process_id
     assert pstat.current_user == mock.sentinel.user
     assert pstat.state.status == StepStatus.SUCCESS
     assert pstat.workflow == wf

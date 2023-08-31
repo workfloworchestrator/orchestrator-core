@@ -82,26 +82,29 @@ def test_workflow_2(generic_subscription_1: UUIDstr, generic_product_type_1) -> 
 
 @pytest.fixture
 def completed_process(test_workflow, generic_subscription_1):
-    pid = uuid4()
-    process = ProcessTable(pid=pid, workflow=test_workflow, last_status=ProcessStatus.COMPLETED)
-    init_step = ProcessStepTable(pid=pid, name="Start", status=StepStatus.SUCCESS, state={})
+    process_id = uuid4()
+    process = ProcessTable(process_id=process_id, workflow=test_workflow, last_status=ProcessStatus.COMPLETED)
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
     insert_step = ProcessStepTable(
-        pid=pid,
+        process_id=process_id,
         name="Insert UUID in state",
         status=StepStatus.SUCCESS,
         state={"subscription_id": generic_subscription_1},
     )
     check_step = ProcessStepTable(
-        pid=pid,
+        process_id=process_id,
         name="Test that it is a string now",
         status=StepStatus.SUCCESS,
         state={"subscription_id": generic_subscription_1},
     )
     step = ProcessStepTable(
-        pid=pid, name="Modify", status=StepStatus.SUCCESS, state={"subscription_id": generic_subscription_1}
+        process_id=process_id,
+        name="Modify",
+        status=StepStatus.SUCCESS,
+        state={"subscription_id": generic_subscription_1},
     )
 
-    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=generic_subscription_1)
+    process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=generic_subscription_1)
 
     db.session.add(process)
     db.session.add(init_step)
@@ -111,7 +114,7 @@ def completed_process(test_workflow, generic_subscription_1):
     db.session.add(process_subscription)
     db.session.commit()
 
-    return pid
+    return process_id
 
 
 # long running workflow test only works locally and with memory type
@@ -127,9 +130,9 @@ def test_websocket_process_detail_workflow(test_client, long_running_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
 
     # Make sure it started again
@@ -217,14 +220,14 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
     try:
         with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Resume process
             user_input = {"generic_select": "A"}
 
-            response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
+            response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
             assert HTTPStatus.NO_CONTENT == response.status_code
 
             data = websocket.receive_text()
@@ -253,12 +256,12 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
     try:
         with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # Abort process
-            response = test_client.put(f"/api/processes/{pid}/abort")
+            response = test_client.put(f"/api/processes/{process_id}/abort")
             assert HTTPStatus.NO_CONTENT == response.status_code
 
             data = websocket.receive_text()

@@ -48,21 +48,26 @@ def long_running_workflow():
 
 @pytest.fixture
 def started_process(test_workflow, generic_subscription_1):
-    pid = uuid4()
-    process = ProcessTable(pid=pid, workflow=test_workflow, last_status=ProcessStatus.SUSPENDED)
-    init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
+    process_id = uuid4()
+    process = ProcessTable(process_id=process_id, workflow=test_workflow, last_status=ProcessStatus.SUSPENDED)
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
     insert_step = ProcessStepTable(
-        pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": generic_subscription_1}
+        process_id=process_id,
+        name="Insert UUID in state",
+        status="success",
+        state={"subscription_id": generic_subscription_1},
     )
     check_step = ProcessStepTable(
-        pid=pid,
+        process_id=process_id,
         name="Test that it is a string now",
         status="success",
         state={"subscription_id": generic_subscription_1},
     )
-    step = ProcessStepTable(pid=pid, name="Modify", status="suspend", state={"subscription_id": generic_subscription_1})
+    step = ProcessStepTable(
+        process_id=process_id, name="Modify", status="suspend", state={"subscription_id": generic_subscription_1}
+    )
 
-    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=generic_subscription_1)
+    process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=generic_subscription_1)
 
     db.session.add(process)
     db.session.add(init_step)
@@ -72,7 +77,7 @@ def started_process(test_workflow, generic_subscription_1):
     db.session.add(process_subscription)
     db.session.commit()
 
-    return pid
+    return process_id
 
 
 def test_show(test_client, started_process):
@@ -114,9 +119,9 @@ def test_long_running_pause(test_client, long_running_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
 
     # Let it run untill the first lock step is started
@@ -138,7 +143,7 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert response.json()["running_processes"] == 0
     assert response.json()["global_status"] == "PAUSED"
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert len(response.json()["steps"]) == 4
     assert response.json()["current_state"]["done"] is True
     # assume ordered steplist
@@ -158,7 +163,7 @@ def test_long_running_pause(test_client, long_running_workflow):
         test_condition.notify_all()
     time.sleep(1)
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
     # assume ordered steplist
     assert response.json()["steps"][3]["status"] == "complete"
@@ -183,9 +188,9 @@ def test_complete_workflow(test_client, test_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
 
     process = response.json()
@@ -200,7 +205,7 @@ def test_complete_workflow(test_client, test_workflow):
         "generic_select": 123,
     }
 
-    response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
+    response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert response.json()["validation_errors"] == [
         {
@@ -211,7 +216,7 @@ def test_complete_workflow(test_client, test_workflow):
         }
     ]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
 
     process = response.json()
     assert "suspended" == process["status"]
@@ -219,10 +224,10 @@ def test_complete_workflow(test_client, test_workflow):
     # Now for real
     user_input = {"generic_select": "A"}
 
-    response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
+    response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.NO_CONTENT == response.status_code
 
-    process = test_client.get(f"api/processes/{pid}").json()
+    process = test_client.get(f"api/processes/{process_id}").json()
     assert "completed" == process["status"]
 
 
@@ -240,13 +245,13 @@ def test_process_subscription_by_subscription_id(test_client, started_process, g
     process_subscriptions = response.json()
     assert 1 == len(process_subscriptions)
     assert process_subscriptions[0]["subscription_id"].lower(), generic_subscription_1
-    assert process_subscriptions[0]["pid"].lower(), started_process
+    assert process_subscriptions[0]["process_id"].lower(), started_process
     assert process_subscriptions[0]["workflow_target"], Target.CREATE
     assert process_subscriptions[0]["process"]["workflow"], "workflow_for_testing_processes_py"
 
 
 def test_process_subscription_by_pid(test_client, started_process, generic_subscription_1):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-pid/{started_process}")
+    response = test_client.get(f"/api/processes/process-subscriptions-by-process_id/{started_process}")
     assert HTTPStatus.OK == response.status_code
     process_subscriptions = response.json()
     assert 1 == len(process_subscriptions)
@@ -255,7 +260,7 @@ def test_process_subscription_by_pid(test_client, started_process, generic_subsc
 
 
 def test_process_subscription_by_pid_404(test_client):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-pid/{uuid4()}")
+    response = test_client.get(f"/api/processes/process-subscriptions-by-process_id/{uuid4()}")
     assert 0 == len(response.json())
 
 
@@ -307,7 +312,7 @@ def test_resume_validations(test_client, started_process):
 def test_resume_with_empty_form(test_client, started_process):
     # Set a default value for the only input so we can submit an empty form
     step = ProcessStepTable.query.filter(
-        ProcessStepTable.name == "Modify", ProcessStepTable.pid == started_process
+        ProcessStepTable.name == "Modify", ProcessStepTable.process_id == started_process
     ).one()
     step.state["generic_select"] = "A"
     db.session.add(step)
@@ -412,7 +417,7 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
-    del process["pid"]  # skip pid as it's dynamic
+    del process["process_id"]  # skip process_id as it's dynamic
     del process["subscriptions"]
     assert process == {
         "assignee": "SYSTEM",

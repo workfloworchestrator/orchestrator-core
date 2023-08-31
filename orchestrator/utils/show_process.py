@@ -49,9 +49,8 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
     generated_form = generate_form(form, current_state, []) if form and current_state else None
 
     return {
-        "id": process.pid,
-        "pid": process.pid,  # list and single get differentiate with this value and the above.
-        "process_id": process.pid,  # for graphql consistency with id property names.
+        "id": process.process_id,
+        "process_id": process.process_id,  # for graphql consistency with id property names.
         "workflow": process.workflow,
         "workflow_name": process.workflow,
         "product": product_id,
