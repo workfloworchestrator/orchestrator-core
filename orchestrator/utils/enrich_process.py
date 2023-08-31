@@ -14,7 +14,7 @@
 from typing import Optional
 
 from orchestrator.db import ProcessTable, SubscriptionTable
-from orchestrator.workflow import ProcessStat
+from orchestrator.workflow import ProcessStat, Step
 from pydantic_forms.core import generate_form
 
 
@@ -40,40 +40,41 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
     }
 
 
-def enrich_process(process: ProcessTable, pStat: Optional[ProcessStat] = None) -> dict:
+def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
+    current_state = p_stat.state.unwrap() if p_stat.state else None
+
+    steps = [
+        {
+            "name": step.name,
+            "executed": step.executed_at.timestamp(),
+            "status": step.status,
+            "state": step.state,
+            "created_by": step.created_by,
+            "step_id": step.step_id,
+        }
+        for step in process.steps
+    ]
+
+    def step_fn(step: Step) -> dict:
+        return {"name": step.name, "status": "pending"}
+
+    steps += list(map(step_fn, p_stat.log)) if p_stat.log else []
+    form = p_stat.log[0].form if p_stat.log else None
+    generated_form = generate_form(form, current_state, []) if form and current_state else None
+
+    return {
+        "steps": steps,
+        "form": generated_form,
+        "current_state": current_state,
+    }
+
+
+def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) -> dict:
     # process.subscriptions is a non JSON serializable AssociationProxy
     # So we need to build a list of Subscriptions here.
     subscriptions = [format_subscription(sub) for sub in process.subscriptions]
 
-    details = {}
-
-    if pStat:
-        steps = [
-            {
-                "name": step.name,
-                "executed": step.executed_at.timestamp(),
-                "status": step.status,
-                "state": step.state,
-                "created_by": step.created_by,
-                "step_id": step.step_id,
-            }
-            for step in process.steps
-        ]
-
-        form = None
-        if pStat.log:
-            form = pStat.log[0].form
-            pstat_steps = list(map(lambda step: {"name": step.name, "status": "pending"}, pStat.log))
-            steps += pstat_steps
-
-        current_state = pStat.state.unwrap() if pStat.state else None
-        generated_form = generate_form(form, current_state, []) if form and current_state else None
-
-        details = {
-            "steps": steps,
-            "form": generated_form,
-            "current_state": current_state,
-        }
+    details = enrich_process_details(process, p_stat) if p_stat else {}
 
     return {
         "process_id": process.process_id,
@@ -91,4 +92,7 @@ def enrich_process(process: ProcessTable, pStat: Optional[ProcessStat] = None) -
         "last_modified_at": process.last_modified_at,
         "product": subscriptions[0]["product"] if subscriptions else None,
         "subscriptions": subscriptions,
+        "steps": None,
+        "form": None,
+        "current_state": None,
     } | details
