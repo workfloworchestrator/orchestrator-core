@@ -63,8 +63,8 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
         "step": process.last_step,
         "steps": steps,
         "created_by": process.created_by,
-        "started": process.started_at.timestamp(),
-        "last_modified": process.last_modified_at.timestamp(),
+        "started_at": process.started_at.timestamp(),
+        "last_modified_at": process.last_modified_at.timestamp(),
         "subscriptions": [
             # explicit conversion using excluded_keys to prevent eager loaded subscriptions (when loaded for form domain models)
             # to cause circular reference errors

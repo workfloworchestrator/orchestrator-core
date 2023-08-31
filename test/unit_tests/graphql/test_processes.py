@@ -22,8 +22,8 @@ process_fields = [
     "lastStep",
     "traceback",
     "processId",
-    "lastModified",
-    "started",
+    "lastModifiedAt",
+    "startedAt",
     "workflowName",
     "status",
     "step",
@@ -48,8 +48,8 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       lastStep
       traceback
       processId
-      lastModified
-      started
+      lastModifiedAt
+      startedAt
       workflowName
       status
       step
@@ -96,8 +96,8 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       lastStep
       traceback
       processId
-      lastModified
-      started
+      lastModifiedAt
+      startedAt
       workflowName
       status
       step
@@ -204,7 +204,7 @@ def test_processes_sorting_asc(
 ):
     # when
 
-    data = get_processes_query(sort_by=[{"field": "started", "order": "ASC"}])
+    data = get_processes_query(sort_by=[{"field": "startedAt", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -223,9 +223,9 @@ def test_processes_sorting_asc(
         "totalItems": 19,
     }
 
-    assert processes[0]["started"] == "2020-01-14T09:30:00+00:00"
-    assert processes[1]["started"] == "2020-01-14T09:30:00+00:00"
-    assert processes[2]["started"] == "2020-01-15T09:30:00+00:00"
+    assert processes[0]["startedAt"] == "2020-01-14T09:30:00+00:00"
+    assert processes[1]["startedAt"] == "2020-01-14T09:30:00+00:00"
+    assert processes[2]["startedAt"] == "2020-01-15T09:30:00+00:00"
 
 
 def test_processes_sorting_desc(
@@ -237,7 +237,7 @@ def test_processes_sorting_desc(
 ):
     # when
 
-    data = get_processes_query(sort_by=[{"field": "started", "order": "DESC"}])
+    data = get_processes_query(sort_by=[{"field": "startedAt", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -256,11 +256,11 @@ def test_processes_sorting_desc(
         "totalItems": 19,
     }
 
-    assert processes[0]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[1]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[2]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[3]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[4]["started"] == "2020-01-18T09:30:00+00:00"
+    assert processes[0]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[1]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[2]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[3]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[4]["startedAt"] == "2020-01-18T09:30:00+00:00"
 
 
 def test_processes_has_filtering(

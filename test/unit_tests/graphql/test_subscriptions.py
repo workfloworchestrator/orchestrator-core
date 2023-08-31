@@ -119,7 +119,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       note
       startDate
       endDate
-      processes(sortBy: [{field: "started", order: ASC}]) {
+      processes(sortBy: [{field: "startedAt", order: ASC}]) {
         page {
           assignee
           createdBy
@@ -128,8 +128,8 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
           lastStep
           traceback
           processId
-          lastModified
-          started
+          lastModifiedAt
+          startedAt
           workflowName
           status
           step

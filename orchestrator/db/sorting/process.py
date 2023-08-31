@@ -7,7 +7,7 @@ from orchestrator.utils.helpers import to_camel
 VALID_SORT_KEY_MAP = {
     "process_id": "process_id",
     "created_by": "created_by",
-    "started_at": "started",
+    "started_at": "started_at",
     "last_status": "status",
     "last_modified_at": "modified",
 }

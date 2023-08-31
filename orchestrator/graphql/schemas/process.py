@@ -38,8 +38,8 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     status: ProcessStatus
     last_step: Optional[str]
     created_by: Optional[str]
-    started: datetime
-    last_modified: datetime
+    started_at: datetime
+    last_modified_at: datetime
     is_task: bool
 
 
@@ -84,8 +84,8 @@ class ProcessType:
     status: strawberry.auto
     last_step: strawberry.auto
     created_by: strawberry.auto
-    started: strawberry.auto
-    last_modified: strawberry.auto
+    started_at: strawberry.auto
+    last_modified_at: strawberry.auto
     is_task: strawberry.auto
     steps: strawberry.auto
     form: strawberry.auto

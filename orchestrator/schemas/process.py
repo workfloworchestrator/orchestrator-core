@@ -44,11 +44,11 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     failed_reason: Optional[str]
     traceback: Optional[str]
     step: Optional[str]
-    status: ProcessStatus
+    last_status: ProcessStatus
     last_step: Optional[str]
     created_by: Optional[str]
-    started: datetime
-    last_modified: datetime
+    started_at: datetime
+    last_modified_at: datetime
     subscriptions: List[SubscriptionBaseSchema]
     is_task: bool
 

@@ -195,7 +195,7 @@ def test_complete_workflow(test_client, test_workflow):
 
     process = response.json()
     assert Assignee.CHANGES == process["assignee"]
-    assert "suspended" == process["status"]
+    assert "suspended" == process["last_status"]
 
     steps = process["steps"]
     assert "success" == steps[0]["status"]
@@ -219,7 +219,7 @@ def test_complete_workflow(test_client, test_workflow):
     response = test_client.get(f"api/processes/{process_id}")
 
     process = response.json()
-    assert "suspended" == process["status"]
+    assert "suspended" == process["last_status"]
 
     # Now for real
     user_input = {"generic_select": "A"}
@@ -228,7 +228,7 @@ def test_complete_workflow(test_client, test_workflow):
     assert HTTPStatus.NO_CONTENT == response.status_code
 
     process = test_client.get(f"api/processes/{process_id}").json()
-    assert "completed" == process["status"]
+    assert "completed" == process["last_status"]
 
 
 def test_abort_process(test_client, started_process):
@@ -236,7 +236,7 @@ def test_abort_process(test_client, started_process):
     assert HTTPStatus.NO_CONTENT == response.status_code
 
     aborted_process = test_client.get(f"/api/processes/{started_process}").json()
-    assert "aborted" == aborted_process["status"]
+    assert "aborted" == aborted_process["last_status"]
 
 
 def test_process_subscription_by_subscription_id(test_client, started_process, generic_subscription_1):
@@ -306,7 +306,7 @@ def test_resume_validations(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) == len(excuted_steps_before)
-    assert process_info_after["status"] == "suspended"
+    assert process_info_after["last_status"] == "suspended"
 
 
 def test_resume_with_empty_form(test_client, started_process):
@@ -326,7 +326,7 @@ def test_resume_with_empty_form(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) > len(excuted_steps_before)
-    assert process_info_after["status"] == "completed"
+    assert process_info_after["last_status"] == "completed"
 
 
 def test_resume_happy_flow(test_client, started_process):
@@ -338,7 +338,7 @@ def test_resume_happy_flow(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) > len(excuted_steps_before)
-    assert process_info_after["status"] == "completed"
+    assert process_info_after["last_status"] == "completed"
 
 
 def test_resume_with_incorrect_workflow_status(test_client, started_process):
@@ -355,7 +355,7 @@ def test_resume_with_incorrect_workflow_status(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) == len(excuted_steps_before)
-    assert process_info_after["status"] == "running"
+    assert process_info_after["last_status"] == "running"
 
 
 def test_try_resume_completed_workflow(test_client, started_process):
