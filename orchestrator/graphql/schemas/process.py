@@ -43,6 +43,13 @@ class ProcessStepType:
     commit_hash: strawberry.auto
     state: Union[JSON, None]
 
+    @authenticated_field(
+        description="Returns step id",
+        deprecation_reason="Changed to 'stepId' from version 1.2.3, removing after version 1.3.0",
+    )  # type: ignore
+    def stepid(self) -> Optional[UUID]:
+        return self.step_id
+
 
 @strawberry.experimental.pydantic.type(model=ProcessSchema, directives=federation_key_directives)
 class ProcessType:
@@ -66,42 +73,49 @@ class ProcessType:
 
     @authenticated_field(
         description="Returns process id",
-        deprecation_reason="Changed to 'process_id' from version 1.2.3, removing after version 1.3.0",
+        deprecation_reason="Changed to 'processId' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def pid(self) -> UUID:
         return self.process_id
 
     @authenticated_field(
+        description="Returns customer id",
+        deprecation_reason="Changed to 'customerId' from version 1.2.3, removing after version 1.3.0",
+    )  # type: ignore
+    def customer(self) -> UUID:
+        return self.customer_id
+
+    @authenticated_field(
         description="Returns process workflow name",
-        deprecation_reason="Changed to 'workflow_name' from version 1.2.3, removing after version 1.3.0",
+        deprecation_reason="Changed to 'workflowName' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def workflow(self) -> str:
         return self.workflow
 
     @authenticated_field(
         description="Returns process last status",
-        deprecation_reason="Changed to 'last_status' from version 1.2.3, removing after version 1.3.0",
+        deprecation_reason="Changed to 'lastStatus' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def status(self) -> ProcessStatus:
         return self.last_status
 
     @authenticated_field(
-        description="Returns process id",
-        deprecation_reason="Changed to 'last_step' from version 1.2.3, removing after version 1.3.0",
+        description="Returns process last step",
+        deprecation_reason="Changed to 'lastStep' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def step(self) -> str:
         return self.last_step
 
     @authenticated_field(
         description="Returns process started at datetime",
-        deprecation_reason="Changed to 'started_at' from version 1.2.3, removing after version 1.3.0",
+        deprecation_reason="Changed to 'startedAt' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def started(self) -> datetime:
         return self.started_at
 
     @authenticated_field(
         description="Returns process last modified at datetime",
-        deprecation_reason="Changed to 'last_modified_at' from version 1.2.3, removing after version 1.3.0",
+        deprecation_reason="Changed to 'last_modifiedAt' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def last_modified(self) -> datetime:
         return self.last_modified_at

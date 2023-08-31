@@ -48,6 +48,7 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     last_modified_at: datetime
     traceback: Optional[str]
 
+    id: Optional[UUID]  # TODO: remove in 1.3.0
     pid: Optional[UUID]  # TODO: remove in 1.3.0
     workflow: Optional[str]  # TODO: remove in 1.3.0
     status: Optional[ProcessStatus]  # TODO: remove in 1.3.0
