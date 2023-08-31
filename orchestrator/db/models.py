@@ -105,11 +105,6 @@ class ProcessTable(BaseModel):
 
     @property
     @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
-    def id(self) -> Column:
-        return self.process_id
-
-    @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
     def pid(self) -> Column:
         return self.process_id
 
