@@ -105,7 +105,7 @@ class ProcessTable(BaseModel):
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
-    stepid = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    step_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     process_id = Column(UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(), nullable=False)
     status = Column(String(50), nullable=False)

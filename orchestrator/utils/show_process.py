@@ -34,7 +34,7 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
             "status": step.status,
             "state": step.state,
             "created_by": step.created_by,
-            "stepid": step.stepid,
+            "step_id": step.step_id,
         }
         for step in process.steps
     ]

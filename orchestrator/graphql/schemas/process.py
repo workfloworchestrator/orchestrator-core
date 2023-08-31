@@ -61,7 +61,7 @@ class ProcessFormType:
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)
 class ProcessStepType:
-    stepid: strawberry.auto
+    step_id: strawberry.auto
     name: strawberry.auto
     status: strawberry.auto
     created_by: strawberry.auto

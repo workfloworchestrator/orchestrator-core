@@ -54,7 +54,7 @@ class ProcessBaseSchema(OrchestratorBaseModel):
 
 
 class ProcessStepSchema(OrchestratorBaseModel):
-    stepid: Optional[UUID]
+    step_id: Optional[UUID]
     name: str
     status: str
     created_by: Optional[str] = None
