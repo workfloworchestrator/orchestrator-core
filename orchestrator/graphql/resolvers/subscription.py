@@ -14,9 +14,7 @@
 from typing import Union
 
 import structlog
-from more_itertools import flatten, one
 from pydantic.utils import to_lower_camel
-from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField, Selection
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters import Filter
@@ -29,41 +27,20 @@ from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
+from orchestrator.graphql.utils.is_query_detailed import is_query_detailed
 from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
 from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
 # Note: we can make this more fancy by adding metadata to the field annotation that indicates if a resolver
 # needs subscription details or not, and use that information here. Left as an exercise for the reader.
-base_sub_props = (
+base_sub_props = tuple(
     [to_lower_camel(key) for key in SubscriptionInterface.__annotations__]
     + [to_lower_camel(key) for key in ProductModelGraphql.__annotations__]
     + ["__typename"]
 )
 
-
-def _has_subscription_details(info: OrchestratorInfo) -> bool:
-    """Check if the query asks for subscription details (product specific properties)."""
-
-    def get_selections(selected_field: Selection) -> list[Selection]:
-        def has_field_name(selection: Selection, field_name: str) -> bool:
-            return isinstance(selection, SelectedField) and selection.name == field_name
-
-        page_field = [selection for selection in selected_field.selections if has_field_name(selection, "page")]
-
-        if not page_field:
-            return selected_field.selections
-        return one(page_field).selections
-
-    def has_details(selection: Selection) -> bool:
-        if isinstance(selection, InlineFragment):
-            return any(has_details(selection) for selection in selection.selections)
-        if isinstance(selection, FragmentSpread):
-            return any(has_details(s) for s in selection.selections)
-        return selection.name not in base_sub_props
-
-    fields = flatten(get_selections(field) for field in info.selected_fields)
-    return any(has_details(selection) for selection in fields if selection)
+_is_subscription_detailed = is_query_detailed(base_sub_props)
 
 
 def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInterface:
@@ -100,7 +77,7 @@ async def resolve_subscriptions(
     query = apply_range_to_query(query, after, first)
 
     subscriptions = query.all()
-    if _has_subscription_details(info):
+    if _is_subscription_detailed(info):
         graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:
         graphql_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]

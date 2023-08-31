@@ -113,16 +113,6 @@ class ProcessTable(BaseModel):
     def workflow(self) -> Column:
         return self.workflow_name
 
-    @property
-    @deprecated("Changed to 'last_status' from version 1.2.3, removing after version 1.3.0")
-    def status(self) -> Column:
-        return self.last_status
-
-    @property
-    @deprecated("Changed to 'last_step' from version 1.2.3, removing after version 1.3.0")
-    def step(self) -> Column:
-        return self.last_step
-
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"

@@ -51,6 +51,12 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       createdBy
       startedAt
       lastModifiedAt
+      pid
+      step
+      status
+      workflow
+      started
+      lastModified
       product {
         productId
         name
@@ -368,6 +374,7 @@ def test_processes_filtering_with_invalid_filter(
                     "productTag",
                     "subscriptions",
                     "subscriptionId",
+                    "subscription_id",
                     "target",
                     "organisation",
                     "istask",

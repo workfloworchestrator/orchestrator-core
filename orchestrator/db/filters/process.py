@@ -105,12 +105,14 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
     | BASE_SNAKE
     | {
         "isTask": generic_bool_filter(ProcessTable.is_task),
+        "is_task": generic_bool_filter(ProcessTable.is_task),
         "assignee": generic_values_in_column_filter(ProcessTable.assignee),
         "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
         "product": product_filter,
         "productTag": tag_filter,
         "subscriptions": subscriptions_filter,
         "subscriptionId": subscription_id_filter,
+        "subscription_id": subscription_id_filter,
         "target": target_filter,
         "organisation": organisation_filter,
         "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: remove in 1.3.0

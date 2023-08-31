@@ -14,6 +14,7 @@
 from typing import Union
 
 import structlog
+from pydantic.utils import to_lower_camel
 from sqlalchemy.orm import defer, joinedload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable
@@ -34,8 +35,11 @@ from orchestrator.utils.enrich_process import enrich_process
 
 logger = structlog.get_logger(__name__)
 
-process_props = ("steps", "form", "current_state")
-_is_process_detailed = is_query_detailed(process_props)
+
+detailed_props = ("steps", "form", "current_state")
+simple_props = tuple([to_lower_camel(key) for key in ProcessType.__annotations__ if key not in detailed_props])
+
+_is_process_detailed = is_query_detailed(simple_props)
 
 
 def _enrich_process(process: ProcessTable, with_details: bool = False) -> ProcessSchema:

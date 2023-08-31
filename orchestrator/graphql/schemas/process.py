@@ -90,7 +90,7 @@ class ProcessType:
         deprecation_reason="Changed to 'workflowName' from version 1.2.3, removing after version 1.3.0",
     )  # type: ignore
     def workflow(self) -> str:
-        return self.workflow
+        return self.workflow_name
 
     @authenticated_field(
         description="Returns process last status",
