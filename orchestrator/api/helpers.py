@@ -193,7 +193,7 @@ class _ProcessListItem:
     created_by: Optional[str]
     failed_reason: Optional[str]
     last_modified_at: datetime
-    process_id: UUID
+    pid: UUID
     started_at: datetime
     last_status: str
     last_step: Optional[str]
