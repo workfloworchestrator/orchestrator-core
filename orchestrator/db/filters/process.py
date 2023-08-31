@@ -34,7 +34,7 @@ def product_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(ProductTable.name.ilike("%" + value + "%"))
         .subquery()
     )
-    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
 def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -45,7 +45,7 @@ def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(ProductTable.tag.in_(tags))
         .subquery()
     )
-    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
 def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
@@ -55,14 +55,14 @@ def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(SubscriptionTable.description.ilike("%" + value + "%"))
         .subquery()
     )
-    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
 def subscription_id_filter(query: SearchQuery, value: str) -> SearchQuery:
     process_subscriptions = db.session.query(ProcessSubscriptionTable).join(SubscriptionTable)
     process_subscriptions = generic_is_like_filter(SubscriptionTable.subscription_id)(process_subscriptions, value)
     process_subscriptions = process_subscriptions.subquery()
-    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
 def target_filter(query: SearchQuery, value: str) -> SearchQuery:

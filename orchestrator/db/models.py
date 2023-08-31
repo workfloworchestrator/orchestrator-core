@@ -85,8 +85,8 @@ class UtcTimestamp(TypeDecorator):
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
-    process_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow_name = Column(String(255), nullable=False)
+    process_id = Column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
+    workflow_name = Column("workflow", String(255), nullable=False)
     assignee = Column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = Column(String(50), nullable=False)
     last_step = Column(String(255), nullable=True)
@@ -105,8 +105,8 @@ class ProcessTable(BaseModel):
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
-    step_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    process_id = Column(UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), nullable=False, index=True)
+    step_id = Column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(), nullable=False)
     status = Column(String(50), nullable=False)
     state = Column(pg.JSONB(), nullable=False)
@@ -118,7 +118,7 @@ class ProcessStepTable(BaseModel):
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
     id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    process_id = Column(UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), nullable=False, index=True)
+    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription_id = Column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     subscription = relationship("SubscriptionTable", lazy=True)
