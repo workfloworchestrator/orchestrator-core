@@ -53,9 +53,9 @@ def test_resume_workflow(waiting_process):
             "process_id": res["process_id"],
             "reporter": "john.doe",
             "number_of_waiting_processes": 1,
-            "number_of_resumed_pids": 1,
-            "waiting_pids": [str(PID)],
-            "resumed_pids": [str(PID)],
+            "number_of_resumed_process_ids": 1,
+            "waiting_process_ids": [str(PID)],
+            "resumed_process_ids": [str(PID)],
         }
         assert_state(result, state)
         m.assert_called_once()
@@ -74,9 +74,9 @@ def test_resume_workflow_non_204(waiting_process):
             "process_id": res["process_id"],
             "reporter": "john.doe",
             "number_of_waiting_processes": 1,
-            "number_of_resumed_pids": 0,
-            "waiting_pids": [str(PID)],
-            "resumed_pids": [],
+            "number_of_resumed_process_ids": 0,
+            "waiting_process_ids": [str(PID)],
+            "resumed_process_ids": [],
         }
         assert_state(result, state)
         m.assert_called_once()

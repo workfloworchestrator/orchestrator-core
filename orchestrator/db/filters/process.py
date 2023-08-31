@@ -14,6 +14,7 @@
 from typing import Callable
 
 import structlog
+from sqlalchemy.inspection import inspect
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.database import SearchQuery
@@ -23,6 +24,7 @@ from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_values_in_column_filter,
 )
+from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
 
@@ -72,22 +74,20 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
         .filter(ProcessSubscriptionTable.workflow_target.in_(targets))
         .subquery()
     )
-    return query.filter(ProcessTable.process_id == process_subscriptions.c.process_id)
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
-    "processId": generic_is_like_filter(ProcessTable.process_id),
-    "istask": generic_bool_filter(ProcessTable.is_task),
+BASE = {to_camel(key): generic_is_like_filter(value) for [key, value] in inspect(ProcessTable).columns.items()}
+
+PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = BASE | {
+    "isTask": generic_bool_filter(ProcessTable.is_task),
     "assignee": generic_values_in_column_filter(ProcessTable.assignee),
-    "status": generic_values_in_column_filter(ProcessTable.last_status),
-    "workflowName": generic_is_like_filter(ProcessTable.workflow_name),
-    "creator": generic_is_like_filter(ProcessTable.created_by),
+    "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
     "product": product_filter,
-    "tag": tag_filter,
+    "productTag": tag_filter,
     "subscriptions": subscriptions_filter,
     "subscriptionId": subscription_id_filter,
     "target": target_filter,
 }
-
 
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)

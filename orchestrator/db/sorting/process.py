@@ -4,16 +4,8 @@ from orchestrator.db import ProcessTable
 from orchestrator.db.sorting.sorting import generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
-VALID_SORT_KEY_MAP = {
-    "process_id": "process_id",
-    "created_by": "created_by",
-    "started_at": "started_at",
-    "last_status": "status",
-    "last_modified_at": "modified",
-}
 PROCESS_SORT_FUNCTIONS_BY_COLUMN = {
-    to_camel(VALID_SORT_KEY_MAP.get(key, key)): generic_column_sort(value)
-    for [key, value] in inspect(ProcessTable).columns.items()
+    to_camel(key): generic_column_sort(value) for [key, value] in inspect(ProcessTable).columns.items()
 }
 
 sort_processes = generic_sort(PROCESS_SORT_FUNCTIONS_BY_COLUMN)

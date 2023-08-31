@@ -12,14 +12,12 @@
 # limitations under the License.
 
 import functools
-from dataclasses import dataclass
-from datetime import datetime
 from http import HTTPStatus
 from shlex import shlex
 from typing import Any, Generator, List, Optional, Union
 from uuid import UUID
 
-from more_itertools import chunked, first
+from more_itertools import chunked
 from sqlalchemy import String, cast, func
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import expression
@@ -27,7 +25,7 @@ from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.domain.base import SubscriptionModel
 
@@ -162,86 +160,6 @@ VALID_SORT_KEYS = {
     "modified": "last_modified_at",
     "workflow": "workflow",
 }
-
-
-@dataclass
-class ProductEnriched:
-    product_id: UUID
-    description: str
-    name: str
-    tag: str
-    status: str
-    product_type: str
-
-
-@dataclass
-class _Subscription:
-    customer_id: str
-    description: str
-    end_date: float
-    insync: bool
-    start_date: float
-    status: str
-    subscription_id: UUID
-    product: ProductEnriched
-
-
-@dataclass
-class _ProcessListItem:
-    assignee: str
-    created_by: Optional[str]
-    failed_reason: Optional[str]
-    last_modified_at: datetime
-    process_id: UUID
-    started_at: datetime
-    last_status: str
-    last_step: Optional[str]
-    subscriptions: List[_Subscription]
-    workflow_name: str
-    workflow_target: Optional[str]
-    is_task: bool
-
-
-def enrich_process(p: ProcessTable) -> _ProcessListItem:
-    # p.subscriptions is a non JSON serializable AssociationProxy
-    # So we need to build a list of Subscriptions here.
-    subscriptions: List[_Subscription] = []
-    for sub in p.subscriptions:
-        prod = sub.product
-
-        subscription = _Subscription(
-            customer_id=sub.customer_id,
-            description=sub.description,
-            end_date=sub.end_date if sub.end_date else None,
-            insync=sub.insync,
-            start_date=sub.start_date if sub.start_date else None,
-            status=sub.status,
-            subscription_id=sub.subscription_id,
-            product=ProductEnriched(
-                product_id=prod.product_id,
-                description=prod.description,
-                name=prod.name,
-                tag=prod.tag,
-                status=prod.status,
-                product_type=prod.product_type,
-            ),
-        )
-        subscriptions.append(subscription)
-
-    return _ProcessListItem(
-        assignee=p.assignee,
-        created_by=p.created_by,
-        failed_reason=p.failed_reason,
-        last_modified_at=p.last_modified_at,
-        process_id=p.process_id,
-        started_at=p.started_at.timestamp(),
-        last_status=p.last_status,
-        last_step=p.last_step,
-        subscriptions=subscriptions,
-        workflow_name=p.workflow_name,
-        workflow_target=first([ps.workflow_target for ps in p.process_subscriptions], None),
-        is_task=p.is_task,
-    )
 
 
 def update_in(dct: Union[dict, list], path: str, value: Any, sep: str = ".") -> None:

@@ -15,7 +15,6 @@
 
 import struct
 import zlib
-from dataclasses import asdict
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
@@ -28,20 +27,19 @@ from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from sqlalchemy.orm import contains_eager, defer, joinedload
-from sqlalchemy.sql import expression
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import VALID_SORT_KEYS, enrich_process
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
+from orchestrator.db.sorting import Sort, SortOrder
+from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import (
     ProcessIdSchema,
-    ProcessListItemSchema,
     ProcessResumeAllSchema,
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
@@ -61,7 +59,7 @@ from orchestrator.services.processes import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON
-from orchestrator.utils.show_process import show_process
+from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
@@ -189,7 +187,7 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
 
 
 @router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
-def process_subscriptions_by_process_pid(process_id: UUID) -> List[ProcessSubscriptionTable]:
+def process_subscriptions_by_process_process_id(process_id: UUID) -> List[ProcessSubscriptionTable]:
     return ProcessSubscriptionTable.query.filter_by(process_id=process_id).all()
 
 
@@ -239,7 +237,7 @@ def show(process_id: UUID) -> Dict[str, Any]:
     process = _get_process(process_id)
     p = load_process(process)
 
-    return show_process(process, p)
+    return enrich_process(process, p)
 
 
 def handle_process_error(message: str, **kwargs: Any) -> None:
@@ -247,7 +245,7 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
     raise_status(HTTPStatus.BAD_REQUEST, message)
 
 
-@router.get("/", response_model=List[ProcessListItemSchema])
+@router.get("/", response_model=List[ProcessSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
     range: Optional[str] = None,
@@ -273,19 +271,12 @@ def processes_filterable(  # noqa: C901
         if len(_filter) == 0 or (len(_filter) % 2) > 0:
             raise_status(HTTPStatus.BAD_REQUEST, "Invalid number of filter arguments")
 
-        pydantic_filters = [Filter(field=field.lower(), value=value) for field, value in chunked(_filter, 2)]
+        pydantic_filters = [Filter(field=field, value=value) for field, value in chunked(_filter, 2)]
         query = filter_processes(query, pydantic_filters, handle_process_error)
 
     if _sort is not None and len(_sort) >= 2:
-        for item in chunked(_sort, 2):
-            if item and len(item) == 2 and item[0] in VALID_SORT_KEYS:
-                sort_key = VALID_SORT_KEYS[item[0]]
-                if item[1].upper() == "DESC":
-                    query = query.order_by(expression.desc(ProcessTable.__dict__[sort_key]))
-                else:
-                    query = query.order_by(expression.asc(ProcessTable.__dict__[sort_key]))
-            else:
-                raise_status(HTTPStatus.BAD_REQUEST, "Invalid Sort parameters")
+        pydantic_sorting = [Sort(field=field, order=SortOrder[value.upper()]) for field, value in chunked(_sort, 2)]
+        query = sort_processes(query, pydantic_sorting, handle_process_error)
 
     if _range is not None and len(_range) == 2:
         try:
@@ -319,7 +310,7 @@ def processes_filterable(  # noqa: C901
     if if_none_match == entity_tag:
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))
 
-    return [asdict(enrich_process(p)) for p in results]
+    return [enrich_process(p) for p in results]
 
 
 ws_router = APIRouter()

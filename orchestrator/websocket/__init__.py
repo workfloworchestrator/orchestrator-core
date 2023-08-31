@@ -20,7 +20,7 @@ from structlog import get_logger
 from orchestrator.db import ProcessTable
 from orchestrator.settings import AppSettings, app_settings
 from orchestrator.types import BroadcastFunc
-from orchestrator.utils.show_process import show_process
+from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStat, ProcessStatus
 
@@ -79,7 +79,7 @@ def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
 
 
 def create_process_websocket_data(process: ProcessTable, pStat: ProcessStat) -> Dict:
-    return {"process": show_process(process, pStat)}
+    return {"process": enrich_process(process, pStat)}
 
 
 def is_process_active(p: Dict) -> bool:

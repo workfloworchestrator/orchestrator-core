@@ -15,18 +15,17 @@ from http import HTTPStatus
 from typing import Union
 
 process_fields = [
-    "assignee",
-    "createdBy",
-    "failedReason",
+    "processId",
     "isTask",
     "lastStep",
+    "lastStatus",
+    "assignee",
+    "failedReason",
     "traceback",
-    "processId",
-    "lastModifiedAt",
-    "startedAt",
     "workflowName",
-    "status",
-    "step",
+    "createdBy",
+    "startedAt",
+    "lastModifiedAt",
     "product",
 ]
 
@@ -41,19 +40,27 @@ def get_processes_query(
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      assignee
-      createdBy
-      failedReason
+      processId
       isTask
       lastStep
+      lastStatus
+      assignee
+      failedReason
       traceback
-      processId
-      lastModifiedAt
-      startedAt
       workflowName
-      status
-      step
-      product
+      createdBy
+      startedAt
+      lastModifiedAt
+      product {
+        productId
+        name
+        description
+        productType
+        status
+        tag
+        createdAt
+        endDate
+      }
     }
     pageInfo {
       startCursor
@@ -89,19 +96,27 @@ def get_processes_query_with_subscriptions(
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      assignee
-      createdBy
-      failedReason
+      processId
       isTask
       lastStep
+      lastStatus
+      assignee
+      failedReason
       traceback
-      processId
-      lastModifiedAt
-      startedAt
       workflowName
-      status
-      step
-      product
+      createdBy
+      startedAt
+      lastModifiedAt
+      product {
+        productId
+        name
+        description
+        productType
+        status
+        tag
+        createdAt
+        endDate
+      }
       subscriptions {
         page {
           description
@@ -272,7 +287,7 @@ def test_processes_has_filtering(
 ):
     # when
 
-    data = get_processes_query(filter_by=[{"field": "status", "value": "completed"}])
+    data = get_processes_query(filter_by=[{"field": "lastStatus", "value": "completed"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -296,7 +311,7 @@ def test_processes_has_filtering(
     }
 
     for process in processes:
-        assert process["status"] == "COMPLETED"
+        assert process["lastStatus"] == "COMPLETED"
 
 
 def test_processes_filtering_with_invalid_filter(
@@ -309,7 +324,7 @@ def test_processes_filtering_with_invalid_filter(
     # when
 
     data = get_processes_query(
-        filter_by=[{"field": "status", "value": "completed"}, {"field": "test", "value": "invalid"}]
+        filter_by=[{"field": "lastStatus", "value": "completed"}, {"field": "test", "value": "invalid"}]
     )
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -330,13 +345,18 @@ def test_processes_filtering_with_invalid_filter(
                 "invalid_filters": [{"field": "test", "value": "invalid"}],
                 "valid_filter_keys": [
                     "processId",
-                    "istask",
-                    "assignee",
-                    "status",
                     "workflowName",
-                    "creator",
+                    "assignee",
+                    "lastStatus",
+                    "lastStep",
+                    "startedAt",
+                    "lastModifiedAt",
+                    "failedReason",
+                    "traceback",
+                    "createdBy",
+                    "isTask",
                     "product",
-                    "tag",
+                    "productTag",
                     "subscriptions",
                     "subscriptionId",
                     "target",
@@ -353,7 +373,7 @@ def test_processes_filtering_with_invalid_filter(
     }
 
     for process in processes:
-        assert process["status"] == "COMPLETED"
+        assert process["lastStatus"] == "COMPLETED"
 
 
 def test_single_process(

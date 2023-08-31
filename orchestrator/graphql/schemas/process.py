@@ -1,52 +1,23 @@
-from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Any, Dict, List, Optional, Union
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated, Optional, Union
 
 import strawberry
-from sqlalchemy.orm import load_only
+from more_itertools import first
 from strawberry.federation.schema_directives import Key
 from strawberry.scalars import JSON
 from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessTable
+from orchestrator.db.models import ProductTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
+from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
-from orchestrator.workflow import ProcessStatus
+from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
 federation_key_directives = [Key(fields="id", resolvable=UNSET)]
-
-
-# TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
-class ProcessBaseSchema(OrchestratorBaseModel):
-    process_id: UUID
-    workflow_name: str
-    workflow_target: Optional[str]
-    product: Optional[UUID]
-    customer: Optional[UUID]
-    assignee: Assignee
-    failed_reason: Optional[str]
-    traceback: Optional[str]
-    step: Optional[str]
-    status: ProcessStatus
-    last_step: Optional[str]
-    created_by: Optional[str]
-    started_at: datetime
-    last_modified_at: datetime
-    is_task: bool
-
-
-class ProcessGraphqlSchema(ProcessBaseSchema):
-    current_state: Dict[str, Any]
-    steps: List[ProcessStepSchema]
-    form: Optional[ProcessForm]
 
 
 @strawberry.experimental.pydantic.type(model=ProcessForm)
@@ -70,19 +41,18 @@ class ProcessStepType:
     state: Union[JSON, None]
 
 
-@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema, directives=federation_key_directives)
+@strawberry.experimental.pydantic.type(model=ProcessSchema, directives=federation_key_directives)
 class ProcessType:
     process_id: strawberry.auto
+    product_id: strawberry.auto
+    customer_id: strawberry.auto
     workflow_name: strawberry.auto
     workflow_target: strawberry.auto
-    product: strawberry.auto
-    customer: strawberry.auto
     assignee: strawberry.auto
     failed_reason: strawberry.auto
     traceback: strawberry.auto
-    step: strawberry.auto
-    status: strawberry.auto
     last_step: strawberry.auto
+    last_status: strawberry.auto
     created_by: strawberry.auto
     started_at: strawberry.auto
     last_modified_at: strawberry.auto
@@ -90,6 +60,14 @@ class ProcessType:
     steps: strawberry.auto
     form: strawberry.auto
     current_state: Union[JSON, None]
+
+    @authenticated_field(description="Returns the associated product")  # type: ignore
+    def product(self) -> Optional[ProductType]:
+        subscription = first(self._original_model.subscriptions, None)  # type: ignore
+        product = None
+        if subscription:
+            product = ProductTable.query.get(subscription.product_id)
+        return product
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
     async def subscriptions(
@@ -102,10 +80,7 @@ class ProcessType:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(
-            self.process_id
-        )
-        subscription_ids = [str(s.subscription_id) for s in process.process_subscriptions]
+        subscription_ids = [str(s.subscription_id) for s in self._original_model.subscriptions]  # type: ignore
         if not subscription_ids:
             return EMPTY_PAGE
         filter_by_with_related_subscriptions = (filter_by or []) + [

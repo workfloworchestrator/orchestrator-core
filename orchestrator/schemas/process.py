@@ -17,7 +17,7 @@ from uuid import UUID
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.subscription import SubscriptionBaseSchema, SubscriptionSchema
+from orchestrator.schemas.subscription import SubscriptionSchema
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
 
@@ -36,21 +36,20 @@ class ProcessForm(OrchestratorBaseModel):
 
 
 class ProcessBaseSchema(OrchestratorBaseModel):
-    id: UUID
+    process_id: UUID
     workflow_name: str
-    product: Optional[UUID]
-    customer: Optional[UUID]
-    assignee: Assignee
+    is_task: bool
+    created_by: Optional[str]
     failed_reason: Optional[str]
-    traceback: Optional[str]
-    step: Optional[str]
+    started_at: datetime
     last_status: ProcessStatus
     last_step: Optional[str]
-    created_by: Optional[str]
-    started_at: datetime
+    assignee: Assignee
     last_modified_at: datetime
-    subscriptions: List[SubscriptionBaseSchema]
-    is_task: bool
+    traceback: Optional[str]
+
+    class Config:
+        orm_mode = True
 
 
 class ProcessStepSchema(OrchestratorBaseModel):
@@ -64,33 +63,20 @@ class ProcessStepSchema(OrchestratorBaseModel):
 
 
 class ProcessSchema(ProcessBaseSchema):
-    current_state: Dict[str, Any]
-    steps: List[ProcessStepSchema]
+    product_id: Optional[UUID]
+    customer_id: Optional[UUID]
+    workflow_target: Optional[Target]
+    subscriptions: List[SubscriptionSchema]
+    current_state: Optional[Dict[str, Any]]
+    steps: Optional[List[ProcessStepSchema]]
     form: Optional[ProcessForm]
 
 
-class ProcessSubscriptionProcessSchema(OrchestratorBaseModel):
-    workflow_name: str
-    process_id: UUID
-    is_task: bool
-    created_by: Optional[str]
-    failed_reason: Optional[str]
-    started_at: datetime
-    last_status: ProcessStatus
-    assignee: Assignee
-    last_modified_at: datetime
-    traceback: Optional[str]
-    last_step: Optional[str]
-
-    class Config:
-        orm_mode = True
-
-
 class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
-    workflow_target: Optional[Target]
-    subscription_id: UUID
     id: UUID
     process_id: UUID
+    subscription_id: UUID
+    workflow_target: Optional[Target]
     created_at: datetime
 
     class Config:
@@ -98,22 +84,7 @@ class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
 
 
 class ProcessSubscriptionSchema(ProcessSubscriptionBaseSchema):
-    process: ProcessSubscriptionProcessSchema
-
-
-class ProcessListItemSchema(OrchestratorBaseModel):
-    assignee: Assignee
-    created_by: Optional[str]
-    failed_reason: Optional[str]
-    last_modified_at: datetime
-    process_id: UUID
-    started_at: datetime
-    last_status: ProcessStatus
-    last_step: Optional[str]
-    workflow_name: str
-    workflow_target: Optional[Target]
-    is_task: bool
-    subscriptions: List[SubscriptionSchema]
+    process: ProcessBaseSchema
 
 
 class ProcessResumeAllSchema(OrchestratorBaseModel):

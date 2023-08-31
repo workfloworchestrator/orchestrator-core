@@ -22,7 +22,6 @@ from orchestrator.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.schemas.process import (
     ProcessBaseSchema,
     ProcessIdSchema,
-    ProcessListItemSchema,
     ProcessResumeAllSchema,
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
@@ -56,7 +55,6 @@ __all__ = (
     "ProcessSchema",
     "ProcessIdSchema",
     "ProcessSubscriptionBaseSchema",
-    "ProcessListItemSchema",
     "SubscriptionDescriptionBaseSchema",
     "SubscriptionDescriptionSchema",
     "SubscriptionSchema",

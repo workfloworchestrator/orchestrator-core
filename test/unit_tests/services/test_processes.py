@@ -497,7 +497,7 @@ def test_process_log_db_step_complete():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_no_pid():
+def test_process_log_db_step_no_process_id():
     process_id = uuid4()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")

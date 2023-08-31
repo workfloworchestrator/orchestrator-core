@@ -27,27 +27,27 @@ logger = structlog.get_logger(__name__)
 @step("Find waiting workflows")
 def find_waiting_workflows() -> State:
     processes = ProcessTable.query.filter(ProcessTable.last_status == ProcessStatus.WAITING).all()
-    waiting_pids = [str(process.process_id) for process in processes]
-    return {"number_of_waiting_processes": len(waiting_pids), "waiting_pids": waiting_pids}
+    waiting_process_ids = [str(process.process_id) for process in processes]
+    return {"number_of_waiting_processes": len(waiting_process_ids), "waiting_process_ids": waiting_process_ids}
 
 
 @step("Resume found workflows")
-def resume_found_workflows(waiting_pids: List[UUIDstr]) -> State:
-    resumed_pids = []
-    for process_id in waiting_pids:
+def resume_found_workflows(waiting_process_ids: List[UUIDstr]) -> State:
+    resumed_process_ids = []
+    for process_id in waiting_process_ids:
         try:
             process = ProcessTable.query.get(process_id)
             # Workaround the commit disable function
             db.session.info["disabled"] = False
             processes.resume_process(process)
-            resumed_pids.append(process_id)
+            resumed_process_ids.append(process_id)
         except Exception:
             logger.exception()
         finally:
             # Make sure to turn it on again
             db.session.info["disabled"] = True
 
-    return {"number_of_resumed_pids": len(resumed_pids), "resumed_pids": resumed_pids}
+    return {"number_of_resumed_process_ids": len(resumed_process_ids), "resumed_process_ids": resumed_process_ids}
 
 
 @workflow("Resume all workflows that are stuck on tasks with the status 'waiting'", target=Target.SYSTEM)

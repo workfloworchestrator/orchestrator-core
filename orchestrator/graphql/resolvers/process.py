@@ -23,20 +23,25 @@ from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.schemas.process import ProcessGraphqlSchema, ProcessType
+from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
+from orchestrator.graphql.utils.is_query_detailed import is_query_detailed
 from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.schemas.process import ProcessSchema
 from orchestrator.services.processes import load_process
-from orchestrator.utils.show_process import show_process
+from orchestrator.utils.enrich_process import enrich_process
 
 logger = structlog.get_logger(__name__)
 
+process_props = ("steps", "form", "current_state")
+_is_process_detailed = is_query_detailed(process_props)
 
-def enrich_process(process: ProcessTable) -> ProcessGraphqlSchema:
-    p = load_process(process)
-    data = show_process(process, p)
-    return ProcessGraphqlSchema(**data)
+
+def _enrich_process(process: ProcessTable, with_details: bool = False) -> ProcessSchema:
+    pstat = load_process(process) if with_details else None
+    process_data = enrich_process(process, pstat)
+    return ProcessSchema(**process_data)
 
 
 async def resolve_processes(
@@ -66,5 +71,7 @@ async def resolve_processes(
     query = apply_range_to_query(query, after, first)
 
     processes = query.all()
-    graphql_processes = [ProcessType.from_pydantic(enrich_process(p)) for p in processes]
+
+    is_detailed = _is_process_detailed(info)
+    graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
     return to_graphql_result_page(graphql_processes, first, after, total)
