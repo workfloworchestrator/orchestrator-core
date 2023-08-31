@@ -417,6 +417,7 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
+    del process["id"]  # skip product_id as it's dynamic
     del process["pid"]  # skip product_id as it's dynamic
     del process["process_id"]  # skip process_id as it's dynamic
     del process["product_id"]  # skip product_id as it's dynamic

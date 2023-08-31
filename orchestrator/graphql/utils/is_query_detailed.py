@@ -1,7 +1,7 @@
 from typing import Callable
 
 from more_itertools import flatten, one
-from strawberry.types.nodes import InlineFragment, SelectedField, Selection
+from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField, Selection
 
 from orchestrator.graphql.types import OrchestratorInfo
 
@@ -21,11 +21,11 @@ def is_query_detailed(props: tuple) -> Callable[[OrchestratorInfo], bool]:
             return one(page_field).selections
 
         def has_details(selection: Selection) -> bool:
-            if isinstance(selection, SelectedField):
-                return selection.name in props
             if isinstance(selection, InlineFragment):
                 return any(has_details(selection) for selection in selection.selections)
-            return True
+            if isinstance(selection, FragmentSpread):
+                return any(has_details(s) for s in selection.selections)
+            return selection.name in props
 
         fields = flatten(get_selections(field) for field in info.selected_fields)
         return any(has_details(selection) for selection in fields if selection)

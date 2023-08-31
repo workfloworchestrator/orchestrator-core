@@ -16,7 +16,7 @@ from typing import Union
 import structlog
 from more_itertools import flatten, one
 from pydantic.utils import to_lower_camel
-from strawberry.types.nodes import InlineFragment, SelectedField, Selection
+from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField, Selection
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters import Filter
@@ -56,11 +56,11 @@ def _has_subscription_details(info: OrchestratorInfo) -> bool:
         return one(page_field).selections
 
     def has_details(selection: Selection) -> bool:
-        if isinstance(selection, SelectedField):
-            return selection.name not in base_sub_props
         if isinstance(selection, InlineFragment):
             return any(has_details(selection) for selection in selection.selections)
-        return True
+        if isinstance(selection, FragmentSpread):
+            return any(has_details(s) for s in selection.selections)
+        return selection.name not in base_sub_props
 
     fields = flatten(get_selections(field) for field in info.selected_fields)
     return any(has_details(selection) for selection in fields if selection)
