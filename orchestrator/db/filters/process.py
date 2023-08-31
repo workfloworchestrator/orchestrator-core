@@ -11,11 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from http import HTTPStatus
 from typing import Callable
+from uuid import UUID
 
 import structlog
 from sqlalchemy.inspection import inspect
 
+from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.database import SearchQuery
 from orchestrator.db.filters.filters import generic_filter
@@ -77,17 +80,45 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-BASE = {to_camel(key): generic_is_like_filter(value) for [key, value] in inspect(ProcessTable).columns.items()}
+def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
+    try:
+        value_as_uuid = UUID(value)
+    except (ValueError, AttributeError):
+        msg = f"Not a valid organisation, must be a UUID: '{value}'"
+        logger.debug(msg)
+        raise_status(HTTPStatus.BAD_REQUEST, msg)
 
-PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = BASE | {
-    "isTask": generic_bool_filter(ProcessTable.is_task),
-    "assignee": generic_values_in_column_filter(ProcessTable.assignee),
-    "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
-    "product": product_filter,
-    "productTag": tag_filter,
-    "subscriptions": subscriptions_filter,
-    "subscriptionId": subscription_id_filter,
-    "target": target_filter,
-}
+    process_subscriptions = (
+        db.session.query(ProcessSubscriptionTable)
+        .join(SubscriptionTable)
+        .filter(SubscriptionTable.customer_id == value_as_uuid)
+        .subquery()
+    )
+    return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
+
+
+BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for [key, value] in inspect(ProcessTable).columns.items()}
+BASE_SNAKE = {key: generic_is_like_filter(value) for [key, value] in inspect(ProcessTable).columns.items()}
+
+PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
+    BASE_CAMEL
+    | BASE_SNAKE
+    | {
+        "isTask": generic_bool_filter(ProcessTable.is_task),
+        "assignee": generic_values_in_column_filter(ProcessTable.assignee),
+        "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
+        "product": product_filter,
+        "productTag": tag_filter,
+        "subscriptions": subscriptions_filter,
+        "subscriptionId": subscription_id_filter,
+        "target": target_filter,
+        "organisation": organisation_filter,
+        "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: remove in 1.3.0
+        "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: remove in 1.3.0
+        "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: remove in 1.3.0
+        "tag": tag_filter,  # TODO: remove in 1.3.0
+        "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: remove in 1.3.0
+    }
+)
 
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)

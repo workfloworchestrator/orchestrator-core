@@ -48,6 +48,13 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     last_modified_at: datetime
     traceback: Optional[str]
 
+    pid: Optional[UUID]  # TODO: remove in 1.3.0
+    workflow: Optional[str]  # TODO: remove in 1.3.0
+    status: Optional[ProcessStatus]  # TODO: remove in 1.3.0
+    step: Optional[str]  # TODO: remove in 1.3.0
+    started: Optional[datetime]  # TODO: remove in 1.3.0
+    last_modified: Optional[datetime]  # TODO: remove in 1.3.0
+
     class Config:
         orm_mode = True
 
@@ -78,6 +85,8 @@ class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     subscription_id: UUID
     workflow_target: Optional[Target]
     created_at: datetime
+
+    pid: UUID  # TODO: remove in 1.3.0
 
     class Config:
         orm_mode = True

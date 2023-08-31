@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 
 import sqlalchemy
 import structlog
+from deprecated import deprecated
 from more_itertools import first_true
 from sqlalchemy import (
     TIMESTAMP,
@@ -102,6 +103,31 @@ class ProcessTable(BaseModel):
     process_subscriptions = relationship("ProcessSubscriptionTable", lazy=True, passive_deletes=True)
     subscriptions = association_proxy("process_subscriptions", "subscription")
 
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    def id(self) -> Column:
+        return self.process_id
+
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    def pid(self) -> Column:
+        return self.process_id
+
+    @property
+    @deprecated("Changed to 'workflow_name' from version 1.2.3, removing after version 1.3.0")
+    def workflow(self) -> Column:
+        return self.workflow_name
+
+    @property
+    @deprecated("Changed to 'last_status' from version 1.2.3, removing after version 1.3.0")
+    def status(self) -> Column:
+        return self.last_status
+
+    @property
+    @deprecated("Changed to 'last_step' from version 1.2.3, removing after version 1.3.0")
+    def step(self) -> Column:
+        return self.last_step
+
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
@@ -114,6 +140,16 @@ class ProcessStepTable(BaseModel):
     executed_at = Column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = Column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
+    @property
+    @deprecated("Changed to 'step_id' from version 1.2.3, removing after version 1.3.0")
+    def stepid(self) -> Column:
+        return self.step_id
+
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    def pid(self) -> Column:
+        return self.process_id
+
 
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
@@ -124,6 +160,11 @@ class ProcessSubscriptionTable(BaseModel):
     subscription = relationship("SubscriptionTable", lazy=True)
     created_at = Column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     workflow_target = Column(String(255), nullable=False, server_default=Target.CREATE)
+
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    def pid(self) -> Column:
+        return self.process_id
 
 
 processes_subscriptions_ix = Index(

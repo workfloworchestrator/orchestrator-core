@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from deprecated import deprecated
 from fastapi import Request
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
@@ -184,6 +185,14 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
         .order_by(ProcessTable.started_at.asc())
     )
     return query.all()
+
+
+@deprecated(
+    "Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, removing after version 1.3.0"
+)
+@router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
+def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
+    return ProcessSubscriptionTable.query.filter_by(pid=pid).all()
 
 
 @router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
