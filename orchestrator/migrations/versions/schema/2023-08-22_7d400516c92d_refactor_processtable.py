@@ -19,7 +19,7 @@ def upgrade() -> None:
     op.alter_column("process_steps", "pid", nullable=False, new_column_name="process_id")
     # op.alter_column("process_steps", "stepid", nullable=False, new_column_name="step_id")
     op.alter_column("processes", "pid", nullable=False, new_column_name="process_id")
-    # op.alter_column("processes", "workflow", nullable=False, new_column_name="workflow_name")
+    op.alter_column("processes", "workflow", nullable=False, new_column_name="workflow_name")
 
 
 def downgrade() -> None:
@@ -27,4 +27,4 @@ def downgrade() -> None:
     op.alter_column("process_steps", "process_id", nullable=False, new_column_name="pid")
     # op.alter_column("process_steps", "step_id", nullable=False, new_column_name="stepid")
     op.alter_column("processes", "process_id", nullable=False, new_column_name="pid")
-    # op.alter_column("processes", "workflow_name", nullable=False, new_column_name="workflow")
+    op.alter_column("processes", "workflow_name", nullable=False, new_column_name="workflow")

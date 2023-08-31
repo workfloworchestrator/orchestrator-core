@@ -86,7 +86,7 @@ class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
     process_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow = Column(String(255), nullable=False)
+    workflow_name = Column(String(255), nullable=False)
     assignee = Column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = Column(String(50), nullable=False)
     last_step = Column(String(255), nullable=True)

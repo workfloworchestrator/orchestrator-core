@@ -49,7 +49,7 @@ def long_running_workflow():
 @pytest.fixture
 def started_process(test_workflow, generic_subscription_1):
     process_id = uuid4()
-    process = ProcessTable(process_id=process_id, workflow=test_workflow, last_status=ProcessStatus.SUSPENDED)
+    process = ProcessTable(process_id=process_id, workflow_name=test_workflow, last_status=ProcessStatus.SUSPENDED)
     init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
     insert_step = ProcessStepTable(
         process_id=process_id,
@@ -247,7 +247,7 @@ def test_process_subscription_by_subscription_id(test_client, started_process, g
     assert process_subscriptions[0]["subscription_id"].lower(), generic_subscription_1
     assert process_subscriptions[0]["process_id"].lower(), started_process
     assert process_subscriptions[0]["workflow_target"], Target.CREATE
-    assert process_subscriptions[0]["process"]["workflow"], "workflow_for_testing_processes_py"
+    assert process_subscriptions[0]["process"]["workflow_name"], "workflow_for_testing_processes_py"
 
 
 def test_process_subscription_by_pid(test_client, started_process, generic_subscription_1):
@@ -427,7 +427,7 @@ def test_processes_filterable_response_model(
         "started_at": mock.ANY,
         "last_status": "completed",
         "last_step": "Modify",
-        "workflow": "workflow_for_testing_processes_py",
+        "workflow_name": "workflow_for_testing_processes_py",
         "workflow_target": "CREATE",
         "is_task": False,
     }

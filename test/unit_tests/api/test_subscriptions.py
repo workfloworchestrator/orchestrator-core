@@ -851,7 +851,9 @@ def test_depends_on_subscriptions_insync_direct_relations(seed_with_direct_relat
 def test_delete_subscription(responses, seed, test_client):
     process_id = str(uuid4())
     db.session.add(
-        ProcessTable(process_id=process_id, workflow="statisch_lichtpad_aanvragen", last_status=ProcessStatus.CREATED)
+        ProcessTable(
+            process_id=process_id, workflow_name="statisch_lichtpad_aanvragen", last_status=ProcessStatus.CREATED
+        )
     )
     db.session.add(ProcessSubscriptionTable(process_id=process_id, subscription_id=PORT_A_SUBSCRIPTION_ID))
     db.session.commit()
@@ -979,7 +981,7 @@ def _create_failed_process(subscription_id):
 
     process = ProcessTable(
         process_id=process_id,
-        workflow="validate_ip_prefix",
+        workflow_name="validate_ip_prefix",
         last_status=ProcessStatus.FAILED,
         last_step="Verify references in NSO",
         assignee="NOC",

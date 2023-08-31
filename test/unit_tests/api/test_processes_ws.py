@@ -83,7 +83,7 @@ def test_workflow_2(generic_subscription_1: UUIDstr, generic_product_type_1) -> 
 @pytest.fixture
 def completed_process(test_workflow, generic_subscription_1):
     process_id = uuid4()
-    process = ProcessTable(process_id=process_id, workflow=test_workflow, last_status=ProcessStatus.COMPLETED)
+    process = ProcessTable(process_id=process_id, workflow_name=test_workflow, last_status=ProcessStatus.COMPLETED)
     init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
     insert_step = ProcessStepTable(
         process_id=process_id,

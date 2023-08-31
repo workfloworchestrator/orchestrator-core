@@ -80,7 +80,7 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
     "istask": generic_bool_filter(ProcessTable.is_task),
     "assignee": generic_values_in_column_filter(ProcessTable.assignee),
     "status": generic_values_in_column_filter(ProcessTable.last_status),
-    "workflow": generic_is_like_filter(ProcessTable.workflow),
+    "workflowName": generic_is_like_filter(ProcessTable.workflow_name),
     "creator": generic_is_like_filter(ProcessTable.created_by),
     "product": product_filter,
     "tag": tag_filter,

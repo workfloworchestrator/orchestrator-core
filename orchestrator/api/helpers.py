@@ -197,7 +197,7 @@ class _ProcessListItem:
     last_status: str
     last_step: Optional[str]
     subscriptions: List[_Subscription]
-    workflow: str
+    workflow_name: str
     workflow_target: Optional[str]
     is_task: bool
 
@@ -238,7 +238,7 @@ def enrich_process(p: ProcessTable) -> _ProcessListItem:
         last_status=p.last_status,
         last_step=p.last_step,
         subscriptions=subscriptions,
-        workflow=p.workflow,
+        workflow_name=p.workflow_name,
         workflow_target=first([ps.workflow_target for ps in p.process_subscriptions], None),
         is_task=p.is_task,
     )

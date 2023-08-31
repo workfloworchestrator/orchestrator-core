@@ -50,14 +50,14 @@ def test_db_create_process():
 
     process = ProcessTable.query.get(process_id)
     assert process
-    assert process.workflow == "wf name"
+    assert process.workflow_name == "wf name"
     assert process.is_task
 
 
 def test_process_log_db_step_success():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -102,7 +102,7 @@ def test_process_log_db_step_success():
 def test_process_log_db_step_skipped():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -147,7 +147,7 @@ def test_process_log_db_step_skipped():
 def test_process_log_db_step_suspend():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -192,7 +192,7 @@ def test_process_log_db_step_suspend():
 def test_process_log_db_step_waiting():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -240,7 +240,7 @@ def test_process_log_db_step_waiting():
 def test_process_log_db_step_failed():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -293,7 +293,7 @@ def test_process_log_db_step_assertion_failed():
     process_id = uuid4()
     p = ProcessTable(
         process_id=process_id,
-        workflow="workflow_key",
+        workflow_name="workflow_key",
         last_status=ProcessStatus.CREATED,
         created_by=SYSTEM_USER,
         is_task=True,
@@ -349,7 +349,7 @@ def test_process_log_db_step_api_failed():
     process_id = uuid4()
     p = ProcessTable(
         process_id=process_id,
-        workflow="workflow_key",
+        workflow_name="workflow_key",
         last_status=ProcessStatus.CREATED,
         created_by=SYSTEM_USER,
         is_task=True,
@@ -410,7 +410,7 @@ def test_process_log_db_step_api_failed():
 def test_process_log_db_step_abort():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -455,7 +455,7 @@ def test_process_log_db_step_abort():
 def test_process_log_db_step_complete():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -513,7 +513,7 @@ def test_process_log_db_step_no_pid():
 def test_process_log_db_step_deduplication():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -569,7 +569,7 @@ def test_process_log_db_step_deduplication():
 def test_safe_logstep():
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()
@@ -689,7 +689,7 @@ def test_db_log_process_ex():
 
     # Now with existing process
     p = ProcessTable(
-        process_id=process_id, workflow="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
     )
     db.session.add(p)
     db.session.commit()

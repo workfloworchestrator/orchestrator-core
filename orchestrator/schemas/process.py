@@ -70,7 +70,7 @@ class ProcessSchema(ProcessBaseSchema):
 
 
 class ProcessSubscriptionProcessSchema(OrchestratorBaseModel):
-    workflow: str
+    workflow_name: str
     process_id: UUID
     is_task: bool
     created_by: Optional[str]
@@ -110,7 +110,7 @@ class ProcessListItemSchema(OrchestratorBaseModel):
     started_at: datetime
     last_status: ProcessStatus
     last_step: Optional[str]
-    workflow: str
+    workflow_name: str
     workflow_target: Optional[Target]
     is_task: bool
     subscriptions: List[SubscriptionSchema]

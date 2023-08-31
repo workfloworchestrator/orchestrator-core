@@ -51,8 +51,8 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
     return {
         "id": process.process_id,
         "process_id": process.process_id,  # for graphql consistency with id property names.
-        "workflow": process.workflow,
-        "workflow_name": process.workflow,
+        "workflow": process.workflow_name,
+        "workflow_name": process.workflow_name,
         "product": product_id,
         "customer": customer_id,
         "assignee": process.assignee,

@@ -26,7 +26,7 @@ def waiting_process():
 
     process = ProcessTable(
         process_id=PID,
-        workflow=WORKFLOW_ID,
+        workflow_name=WORKFLOW_ID,
         last_status=ProcessStatus.WAITING,
         assignee=Assignee.SYSTEM,
         last_step="waiting-step",

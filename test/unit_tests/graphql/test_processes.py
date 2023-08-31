@@ -333,7 +333,7 @@ def test_processes_filtering_with_invalid_filter(
                     "istask",
                     "assignee",
                     "status",
-                    "workflow",
+                    "workflowName",
                     "creator",
                     "product",
                     "tag",

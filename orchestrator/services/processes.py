@@ -88,7 +88,7 @@ def shutdown_thread_pool() -> None:
 def _db_create_process(stat: ProcessStat) -> None:
     p = ProcessTable(
         process_id=stat.process_id,
-        workflow=stat.workflow.name,
+        workflow_name=stat.workflow.name,
         last_status=ProcessStatus.CREATED,
         created_by=stat.current_user,
         is_task=stat.workflow.target == Target.SYSTEM,
@@ -582,7 +582,7 @@ def _restore_log(steps: List[ProcessStepTable]) -> List[WFProcess]:
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
-    workflow = get_workflow(process.workflow)
+    workflow = get_workflow(process.workflow_name)
 
     if not workflow:
         workflow = removed_workflow
