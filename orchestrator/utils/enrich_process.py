@@ -27,6 +27,7 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
         "description": subscription.description,
         "insync": subscription.insync,
         "status": subscription.status,
+        "note": subscription.note,
         "start_date": subscription.start_date if subscription.start_date else None,
         "end_date": subscription.end_date if subscription.end_date else None,
         "product": {
@@ -102,4 +103,5 @@ def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) 
         "step": process.last_step,  # TODO: remove in 1.3.0
         "started": process.started_at,  # TODO: remove in 1.3.0
         "last_modified": process.last_modified_at,  # TODO: remove in 1.3.0
+        "customer": subscriptions[0]["customer_id"] if subscriptions else None,  # TODO: remove in 1.3.0
     } | details

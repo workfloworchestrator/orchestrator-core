@@ -55,6 +55,8 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     step: Optional[str]  # TODO: remove in 1.3.0
     started: Optional[datetime]  # TODO: remove in 1.3.0
     last_modified: Optional[datetime]  # TODO: remove in 1.3.0
+    product: Optional[UUID]  # TODO: remove in 1.3.0
+    customer: Optional[UUID]  # TODO: remove in 1.3.0
 
     class Config:
         orm_mode = True
