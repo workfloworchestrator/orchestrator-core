@@ -389,7 +389,7 @@ class ProcessStat:
     current_user: str
 
     @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
     def pid(self) -> UUID:
         return self.process_id
 

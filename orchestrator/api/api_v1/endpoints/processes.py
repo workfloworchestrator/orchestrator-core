@@ -40,9 +40,9 @@ from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import (
+    ProcessDeprecationsSchema,
     ProcessIdSchema,
     ProcessResumeAllSchema,
-    ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
 )
@@ -187,9 +187,7 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
     return query.all()
 
 
-@deprecated(
-    "Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, removing after version 1.3.0"
-)
+@deprecated("Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, will be removed in 1.4")
 @router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
     return ProcessSubscriptionTable.query.filter_by(process_id=pid).all()
@@ -241,12 +239,12 @@ def assignees() -> List[str]:
     return [assignee.value for assignee in Assignee]
 
 
-@deprecated("product (UUID) changed to product_id from version 1.2.3, removing after version 1.3.0")
+@deprecated("product (UUID) changed to product_id from version 1.2.3, will be removed in 1.4")
 def convert_to_old_process(process: dict) -> dict:
     return {**process, "product": process["product_id"]}
 
 
-@router.get("/{process_id}", response_model=ProcessSchema)
+@router.get("/{process_id}", response_model=ProcessDeprecationsSchema)
 def show(process_id: UUID) -> Dict[str, Any]:
     process = _get_process(process_id)
     p = load_process(process)
@@ -259,7 +257,7 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
     raise_status(HTTPStatus.BAD_REQUEST, message)
 
 
-@router.get("/", response_model=List[ProcessSchema])
+@router.get("/", response_model=List[ProcessDeprecationsSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
     range: Optional[str] = None,

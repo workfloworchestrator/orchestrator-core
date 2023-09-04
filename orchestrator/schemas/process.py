@@ -48,16 +48,6 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     last_modified_at: datetime
     traceback: Optional[str]
 
-    id: Optional[UUID]  # TODO: remove in 1.3.0
-    pid: Optional[UUID]  # TODO: remove in 1.3.0
-    workflow: Optional[str]  # TODO: remove in 1.3.0
-    status: Optional[ProcessStatus]  # TODO: remove in 1.3.0
-    step: Optional[str]  # TODO: remove in 1.3.0
-    started: Optional[datetime]  # TODO: remove in 1.3.0
-    last_modified: Optional[datetime]  # TODO: remove in 1.3.0
-    product: Optional[UUID]  # TODO: remove in 1.3.0
-    customer: Optional[UUID]  # TODO: remove in 1.3.0
-
     class Config:
         orm_mode = True
 
@@ -82,6 +72,18 @@ class ProcessSchema(ProcessBaseSchema):
     form: Optional[ProcessForm]
 
 
+class ProcessDeprecationsSchema(ProcessSchema):
+    id: Optional[UUID]  # TODO: will be removed in 1.4
+    pid: Optional[UUID]  # TODO: will be removed in 1.4
+    workflow: Optional[str]  # TODO: will be removed in 1.4
+    status: Optional[ProcessStatus]  # TODO: will be removed in 1.4
+    step: Optional[str]  # TODO: will be removed in 1.4
+    started: Optional[datetime]  # TODO: will be removed in 1.4
+    last_modified: Optional[datetime]  # TODO: will be removed in 1.4
+    product: Optional[UUID]  # TODO: will be removed in 1.4
+    customer: Optional[UUID]  # TODO: will be removed in 1.4
+
+
 class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     id: UUID
     process_id: UUID
@@ -89,7 +91,7 @@ class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     workflow_target: Optional[Target]
     created_at: datetime
 
-    pid: UUID  # TODO: remove in 1.3.0
+    pid: UUID  # TODO: will be removed in 1.4
 
     class Config:
         orm_mode = True

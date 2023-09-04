@@ -204,7 +204,7 @@ class _ProcessListItem:
 
 
 @deprecated(
-    "consolidated with `show_process` into enrich_process in `orchestrator.utils.enrich_process` from version 1.2.3, removing after version 1.3.0"
+    "consolidated with `show_process` into enrich_process in `orchestrator.utils.enrich_process` from version 1.2.3, will be removed in 1.4"
 )
 def enrich_process(p: ProcessTable) -> _ProcessListItem:
     # p.subscriptions is a non JSON serializable AssociationProxy

@@ -115,11 +115,11 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
         "subscription_id": subscription_id_filter,
         "target": target_filter,
         "organisation": organisation_filter,
-        "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: remove in 1.3.0
-        "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: remove in 1.3.0
-        "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: remove in 1.3.0
-        "tag": tag_filter,  # TODO: remove in 1.3.0
-        "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: remove in 1.3.0
+        "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
+        "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
+        "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
+        "tag": tag_filter,  # TODO: will be removed in 1.4
+        "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: will be removed in 1.4
     }
 )
 

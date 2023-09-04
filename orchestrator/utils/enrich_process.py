@@ -96,12 +96,12 @@ def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) 
         "steps": None,
         "form": None,
         "current_state": None,
-        "id": process.process_id,  # TODO: remove in 1.3.0
-        "pid": process.process_id,  # TODO: remove in 1.3.0
-        "workflow": process.workflow_name,  # TODO: remove in 1.3.0
-        "status": process.last_status,  # TODO: remove in 1.3.0
-        "step": process.last_step,  # TODO: remove in 1.3.0
-        "started": process.started_at,  # TODO: remove in 1.3.0
-        "last_modified": process.last_modified_at,  # TODO: remove in 1.3.0
-        "customer": subscriptions[0]["customer_id"] if subscriptions else None,  # TODO: remove in 1.3.0
+        "id": process.process_id,  # TODO: will be removed in 1.4
+        "pid": process.process_id,  # TODO: will be removed in 1.4
+        "workflow": process.workflow_name,  # TODO: will be removed in 1.4
+        "status": process.last_status,  # TODO: will be removed in 1.4
+        "step": process.last_step,  # TODO: will be removed in 1.4
+        "started": process.started_at,  # TODO: will be removed in 1.4
+        "last_modified": process.last_modified_at,  # TODO: will be removed in 1.4
+        "customer": subscriptions[0]["customer_id"] if subscriptions else None,  # TODO: will be removed in 1.4
     } | details

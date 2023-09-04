@@ -104,12 +104,12 @@ class ProcessTable(BaseModel):
     subscriptions = association_proxy("process_subscriptions", "subscription")
 
     @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
     def pid(self) -> Column:
         return self.process_id
 
     @property
-    @deprecated("Changed to 'workflow_name' from version 1.2.3, removing after version 1.3.0")
+    @deprecated("Changed to 'workflow_name' from version 1.2.3, will be removed in 1.4")
     def workflow(self) -> Column:
         return self.workflow_name
 
@@ -126,12 +126,12 @@ class ProcessStepTable(BaseModel):
     commit_hash = Column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
     @property
-    @deprecated("Changed to 'step_id' from version 1.2.3, removing after version 1.3.0")
+    @deprecated("Changed to 'step_id' from version 1.2.3, will be removed in 1.4")
     def stepid(self) -> Column:
         return self.step_id
 
     @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
     def pid(self) -> Column:
         return self.process_id
 
@@ -147,7 +147,7 @@ class ProcessSubscriptionTable(BaseModel):
     workflow_target = Column(String(255), nullable=False, server_default=Target.CREATE)
 
     @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, removing after version 1.3.0")
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
     def pid(self) -> Column:
         return self.process_id
 
