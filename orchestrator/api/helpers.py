@@ -118,13 +118,7 @@ def _query_with_filters(  # noqa: C901
                         sub_values = value.split("-")
                         query = query.filter(SubscriptionTable.status.in_([s.lower() for s in sub_values]))
                     elif field == "organisation":
-                        try:
-                            value_as_uuid = UUID(value)
-                        except (ValueError, AttributeError):
-                            msg = "Not a valid customer_id, must be a UUID: '{value}'"
-                            logger.debug(msg)
-                            raise_status(HTTPStatus.BAD_REQUEST, msg)
-                        query = query.filter(SubscriptionTable.customer_id == value_as_uuid)
+                        query = query.filter(SubscriptionTable.customer_id == value)
                     elif field == "tsv":
                         # Quote key:value tokens. This will use the FOLLOWED BY operator (https://www.postgresql.org/docs/13/textsearch-controls.html)
                         processed_text_query = _process_text_query(value)
@@ -182,7 +176,7 @@ class ProductEnriched:
 
 @dataclass
 class _Subscription:
-    customer_id: UUID
+    customer_id: str
     description: str
     end_date: float
     insync: bool

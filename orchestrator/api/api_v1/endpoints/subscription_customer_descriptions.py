@@ -58,7 +58,7 @@ def get_subscription_customer_descriptions(_id: UUID) -> str:
 
 
 @router.get("/customer/{customer_id}/subscription/{subscription_id}", response_model=SubscriptionDescriptionSchema)
-def get_subscription_customer_description_by_customer_subscription(customer_id: UUID, subscription_id: UUID) -> str:
+def get_subscription_customer_description_by_customer_subscription(customer_id: str, subscription_id: UUID) -> str:
     description = SubscriptionCustomerDescriptionTable.query.filter_by(
         customer_id=customer_id, subscription_id=subscription_id
     ).one_or_none()

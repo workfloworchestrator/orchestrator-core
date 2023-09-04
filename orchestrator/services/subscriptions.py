@@ -215,7 +215,7 @@ def terminate_subscription(subscription_id: UUIDstr) -> SubscriptionTable:
 
 
 def create_subscription(
-    organisation: UUIDstr, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
+    organisation: str, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
 ) -> UUID:
     subscription = SubscriptionTable(
         subscription_id=subscription_id,

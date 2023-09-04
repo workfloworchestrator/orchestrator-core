@@ -496,9 +496,7 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
         unique=UniqueConstraint("customer_id", "subscription_id"),
     )
     subscription = relationship("SubscriptionTable")
-    customer_id = Column(
-        UUIDType, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id")
-    )
+    customer_id = Column(String, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id"))
     description = Column(Text(), nullable=False)
     created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
 
@@ -515,7 +513,7 @@ class SubscriptionTable(BaseModel):
     status = Column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = Column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     product = relationship("ProductTable")
-    customer_id = Column(UUIDType, nullable=False, index=True)
+    customer_id = Column(String, nullable=False, index=True)
     insync = Column(Boolean(), nullable=False)
     start_date = Column(UtcTimestamp, nullable=True)
     end_date = Column(UtcTimestamp)

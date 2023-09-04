@@ -78,7 +78,7 @@ class SubscriptionBaseSchema(OrchestratorBaseModel):
     description: str
     status: SubscriptionLifecycle
     product_id: Optional[UUID]
-    customer_id: UUID
+    customer_id: str
     insync: bool
     note: Optional[str]
 

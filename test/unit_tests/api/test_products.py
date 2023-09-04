@@ -80,7 +80,7 @@ def seed():
         status="active",
         insync=True,
         product=product,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         instances=[SubscriptionInstanceTable(product_block=product_blocks[0], values=values)],
     )
     depends_on_subscription = SubscriptionTable(
@@ -89,7 +89,7 @@ def seed():
         status="active",
         insync=True,
         product=msp_product,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
     )
 
     def lp_product(protection_type, product_id, speed="1000"):
