@@ -46,7 +46,6 @@ from orchestrator.workflow import Failed, ProcessStat, ProcessStatus, Step, Step
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
-from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
 
 logger = structlog.get_logger(__name__)
@@ -100,37 +99,17 @@ def _db_create_process(stat: ProcessStat) -> None:
     db.session.commit()
 
 
-def _db_log_step(
-    stat: ProcessStat,
-    step: Step,
-    process_state: WFProcess,
-    broadcast_func: Optional[BroadcastFunc] = None,
-) -> WFProcess:
-    """Write the current step to the db.
-
-    Args:
-        stat: ProcessStat of process
-        step: Current step
-        process_state: State of process after current step
-        broadcast_func: Optional function to broadcast process data
-
-    Returns:
-        WFProcess
-
-    """
-    p = ProcessTable.query.get(stat.process_id)
+def _update_process(process_id, step: Step, process_state: WFProcess) -> ProcessTable:
+    p = ProcessTable.query.get(process_id)
     if p is None:
-        raise ValueError(f"Failed to write failure step to process: process with PID {stat.process_id} not found")
+        raise ValueError(f"Failed to write failure step to process: process with PID {process_id} not found")
 
     p.last_step = step.name
     p.last_status = process_state.overall_status
     p.assignee = step.assignee
-
     step_state: State = process_state.unwrap()
-    current_step = None
     if process_state.isfailed() or process_state.iswaiting():
         failed_reason = step_state.get("error")
-        failed_details = step_state.get("details")
         # pop also removes the traceback from the dict
         traceback = step_state.pop("traceback", None)
 
@@ -158,54 +137,79 @@ def _db_log_step(
             else:
                 p.assignee = Assignee.SYSTEM
 
-        # check if last error state is identical to determine if we add a new step or update the last one
-        last_db_step = p.steps[-1] if len(p.steps) else None
-
-        if (
-            last_db_step is not None
-            and last_db_step.status == process_state.status
-            and last_db_step.name == step.name
-            and failed_reason == last_db_step.state.get("error")
-            and failed_details == last_db_step.state.get("details")
-        ):
-            current_step = last_db_step
-
     else:
         p.failed_reason = None
         p.traceback = None
 
-    db.session.add(p)
+    return p
+
+
+def _get_current_step_to_update(
+    stat: ProcessStat, p: ProcessTable, step: Step, process_state: WFProcess
+) -> ProcessStepTable:
+    """Checks if last error state is identical to determine if we add a new step or update the last one."""
+    step_state: State = process_state.unwrap()
+    current_step = None
+    if process_state.isfailed() or process_state.iswaiting():
+        last_db_step = p.steps[-1] if len(p.steps) else None
+        if (
+            last_db_step is not None
+            and last_db_step.status == process_state.status
+            and last_db_step.name == step.name
+            and last_db_step.state.get("error") == step_state.get("error")
+            and last_db_step.state.get("details") == step_state.get("details")
+        ):
+            state_ex_info = {
+                "retries": last_db_step.state.get("retries", 0) + 1,
+                "executed_at": last_db_step.state.get("executed_at", []) + [str(last_db_step.executed_at)],
+            }
+
+            # write new state info and execution date
+            last_db_step.state = step_state | state_ex_info
+            logger.info(
+                "Updating existing process step with state info about the error",
+                retries=state_ex_info["retries"],
+            )
+            current_step = last_db_step
 
     if current_step is None:
         # add a new entry to the process stat
         logger.info("Adding a new process step with state info")
         current_step = ProcessStepTable(
-            process_id=stat.process_id,
+            pid=stat.process_id,
             name=step.name,
             status=process_state.status,
             state=step_state,
             created_by=stat.current_user,
         )
-    else:
-        # update the last one with the repeated info
-        retries = current_step.state.get("retries", 0) + 1
-        executed_at = current_step.state.get("executed_at", [])
-        executed_at.append(str(current_step.executed_at))
-
-        # write new state info and execution date
-        current_step.state = step_state | {
-            "retries": retries,
-            "executed_at": executed_at,
-        }
-        logger.info(
-            "Updating existing process step with state info about the error",
-            retries=retries,
-        )
 
     # Always explicitly set this instead of leaving it to the database to prevent failing tests
     # Test will fail if multiple steps have the same timestamp
     current_step.executed_at = nowtz()
+    return current_step
 
+def _db_log_step(
+    stat: ProcessStat,
+    step: Step,
+    process_state: WFProcess,
+    broadcast_func: Optional[BroadcastFunc] = None,
+) -> WFProcess:
+    """Write the current step to the db.
+
+    Args:
+        stat: ProcessStat of process
+        step: Current step
+        process_state: State of process after current step
+        broadcast_func: Optional function to broadcast process data
+
+    Returns:
+        WFProcess
+
+    """
+    p = _update_process(stat.pid, step, process_state)
+    current_step = _get_current_step_to_update(stat, p, step, process_state)
+
+    db.session.add(p)
     db.session.add(current_step)
     try:
         db.session.commit()
