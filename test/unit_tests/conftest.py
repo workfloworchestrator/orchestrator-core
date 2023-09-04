@@ -31,7 +31,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
-from orchestrator.types import SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from pydantic_forms.core import FormPage
 from test.unit_tests.fixtures.processes import mocked_processes, mocked_processes_resumeall, test_workflow  # noqa: F401
@@ -122,7 +122,7 @@ from test.unit_tests.workflows.shared.test_validate_subscriptions import validat
 
 logger = structlog.getLogger(__name__)
 
-CUSTOMER_ID: UUIDstr = "2f47f65a-0911-e511-80d0-005056956c1a"
+CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
 
 def run_migrations(db_uri: str) -> None:

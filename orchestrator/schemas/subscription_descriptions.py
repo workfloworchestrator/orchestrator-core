@@ -20,7 +20,7 @@ from orchestrator.schemas.base import OrchestratorBaseModel
 
 class SubscriptionDescriptionBaseSchema(OrchestratorBaseModel):
     description: str
-    customer_id: UUID
+    customer_id: str
     subscription_id: UUID
 
 

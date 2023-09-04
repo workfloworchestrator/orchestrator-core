@@ -61,7 +61,7 @@ def product_sub_list_union_subscription_1(
 
     model = ProductSubListUnionInactive.from_product_id(
         product_id=test_product_sub_list_union,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         status=SubscriptionLifecycle.INITIAL,
         insync=True,
         description="product sub list union sub description",

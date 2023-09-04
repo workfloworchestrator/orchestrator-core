@@ -17,7 +17,7 @@ def test_product_model_with_list_union_type_directly_below(
     _, _, SubBlockTwoForTest = test_product_sub_block_two
 
     list_union_subscription_inactive = ProductListUnionInactive.from_product_id(
-        product_id=test_product_list_union, customer_id=uuid4()
+        product_id=test_product_list_union, customer_id=str(uuid4())
     )
 
     with pytest.raises(ValidationError):
@@ -74,7 +74,7 @@ def test_product_model_with_list_union_type_directly_below_with_relation_overlap
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     list_union_subscription_inactive = ProductListUnionInactive.from_product_id(
-        product_id=test_product_list_union_overlap, customer_id=uuid4()
+        product_id=test_product_list_union_overlap, customer_id=str(uuid4())
     )
 
     list_union_subscription_inactive.test_block = ProductBlockOneForTestInactive.new(
@@ -143,7 +143,7 @@ def test_list_union_product_block_as_sub(
     _, _, ProductSubOne = test_product_type_sub_one
 
     list_union_subscription_inactive = ProductSubListUnionInactive.from_product_id(
-        product_id=test_product_sub_list_union, customer_id=uuid4()
+        product_id=test_product_sub_list_union, customer_id=str(uuid4())
     )
     list_union_subscription_inactive.test_block = ProductListUnionBlockForTestInactive.new(
         subscription_id=list_union_subscription_inactive.subscription_id

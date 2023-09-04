@@ -72,7 +72,7 @@ def product_one_subscription_1(test_product_one, test_product_type_one, test_pro
 
     model = ProductTypeOneForTestInactive.from_product_id(
         product_id=test_product_one,
-        customer_id=uuid4(),
+        customer_id=str(uuid4()),
         status=SubscriptionLifecycle.INITIAL,
         insync=True,
         description="product one sub description",

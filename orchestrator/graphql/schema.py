@@ -34,6 +34,7 @@ from orchestrator.graphql.extensions.error_collector_extension import ErrorColle
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
+    resolve_default_customer,
     resolve_processes,
     resolve_product_blocks,
     resolve_products,
@@ -42,6 +43,7 @@ from orchestrator.graphql.resolvers import (
     resolve_subscriptions,
     resolve_workflows,
 )
+from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType
 from orchestrator.graphql.schemas.product_block import ProductBlock
@@ -86,6 +88,9 @@ class Query:
     settings: StatusType = authenticated_field(
         resolver=resolve_settings,
         description="Returns information about cache, workers, and global engine settings",
+    )
+    customers: Connection[DefaultCustomerType] = authenticated_field(
+        resolver=resolve_default_customer, description="Returns default customer information"
     )
 
 
