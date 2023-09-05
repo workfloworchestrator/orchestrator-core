@@ -20,6 +20,6 @@ from orchestrator.services.processes import start_process
 @scheduler(name="Validate Products and inactive subscriptions", time_unit="day", at="02:30")
 def validate_products() -> None:
     if not ProcessTable.query.filter(
-        ProcessTable.workflow == "validate_products", ProcessTable.last_status != "completed"
+        ProcessTable.workflow_name == "validate_products", ProcessTable.last_status != "completed"
     ).count():
         start_process("validate_products")

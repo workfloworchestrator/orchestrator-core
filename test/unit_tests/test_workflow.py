@@ -113,7 +113,11 @@ def test_process_state_assertions():
 
 def create_new_process_stat(workflow, initial_state):
     return ProcessStat(
-        pid=str(uuid4()), workflow=workflow, state=Success(initial_state), log=workflow.steps, current_user=SYSTEM_USER
+        process_id=str(uuid4()),
+        workflow=workflow,
+        state=Success(initial_state),
+        log=workflow.steps,
+        current_user=SYSTEM_USER,
     )
 
 
@@ -143,7 +147,7 @@ def test_recover():
     log = []
 
     p = ProcessStat(
-        pid=1,
+        process_id=1,
         workflow=sample_workflow,
         state=Success({"steps": [4]}),
         log=sample_workflow.steps[1:],
@@ -187,7 +191,7 @@ def test_resume_waiting_workflow():
     state = Waiting({"steps": [1]})
 
     hack["error"] = False
-    p = ProcessStat(pid=1, workflow=wf, state=state, log=wf.steps[1:], current_user="john.doe")
+    p = ProcessStat(process_id=1, workflow=wf, state=state, log=wf.steps[1:], current_user="john.doe")
     result = runwf(p, logstep=store(log))
 
     assert_success(result)
@@ -215,7 +219,7 @@ def test_resume_suspended_workflow():
     log = []
 
     p = ProcessStat(
-        pid=1,
+        process_id=1,
         workflow=wf,
         state=Suspend({"steps": [1], "name": "Jane Doe"}),
         log=wf.steps[1:],
@@ -296,7 +300,7 @@ def test_abort_workflow():
 
     log = []
     state = {"steps": [1]}
-    pstat = ProcessStat(pid=1, workflow=wf, state=Success(state), log=wf.steps[1:], current_user="john.doe")
+    pstat = ProcessStat(process_id=1, workflow=wf, state=Success(state), log=wf.steps[1:], current_user="john.doe")
 
     result = abort_wf(pstat, store(log))
 
@@ -362,9 +366,13 @@ def test_input_in_substate() -> None:
     )
 
     log: List[Tuple[str, Process]] = []
-    pid = uuid4()
+    process_id = uuid4()
     p = ProcessStat(
-        pid=pid, workflow=wf, state=Suspend({"sub": {"a": 1, "b": 2}}), log=wf.steps[1:], current_user="john.doe"
+        process_id=process_id,
+        workflow=wf,
+        state=Suspend({"sub": {"a": 1, "b": 2}}),
+        log=wf.steps[1:],
+        current_user="john.doe",
     )
     result = runwf(p, logstep=store(log))
 

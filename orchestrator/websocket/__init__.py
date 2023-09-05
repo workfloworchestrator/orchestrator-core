@@ -20,7 +20,7 @@ from structlog import get_logger
 from orchestrator.db import ProcessTable
 from orchestrator.settings import AppSettings, app_settings
 from orchestrator.types import BroadcastFunc
-from orchestrator.utils.show_process import show_process
+from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStat, ProcessStatus
 
@@ -79,7 +79,7 @@ def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
 
 
 def create_process_websocket_data(process: ProcessTable, pStat: ProcessStat) -> Dict:
-    return {"process": show_process(process, pStat)}
+    return {"process": enrich_process(process, pStat)}
 
 
 def is_process_active(p: Dict) -> bool:
@@ -87,7 +87,7 @@ def is_process_active(p: Dict) -> bool:
 
 
 def send_process_data_to_websocket(
-    pid: UUID,
+    process_id: UUID,
     data: Dict,
     broadcast_func: Optional[BroadcastFunc] = None,
 ) -> None:
@@ -96,10 +96,10 @@ def send_process_data_to_websocket(
         return
 
     if broadcast_func:
-        logger.debug("Broadcast process data through broadcast_func", pid=str(pid))
-        broadcast_func(pid, data)
+        logger.debug("Broadcast process data through broadcast_func", process_id=str(process_id))
+        broadcast_func(process_id, data)
     else:
-        logger.debug("Broadcast process data directly to websocket_manager", pid=str(pid))
+        logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
         loop = new_event_loop()
         channels = [WS_CHANNELS.ALL_PROCESSES]
         loop.run_until_complete(websocket_manager.broadcast_data(channels, data))

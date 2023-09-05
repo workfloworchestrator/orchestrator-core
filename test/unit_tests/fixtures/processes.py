@@ -61,10 +61,10 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
     first_datetime = datetime(2020, 1, 14, 9, 30, tzinfo=pytz.utc)
 
     def mock_process(subscription_id, status, started, assignee=Assignee.SYSTEM, is_task=False):
-        pid = uuid4()
+        process_id = uuid4()
         process = ProcessTable(
-            pid=pid,
-            workflow=test_workflow,
+            process_id=process_id,
+            workflow_name=test_workflow,
             last_status=status,
             last_step="Modify",
             started_at=started,
@@ -73,24 +73,27 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
             is_task=is_task,
         )
 
-        init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
+        init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
         db.session.add(process)
 
         if subscription_id:
             insert_step = ProcessStepTable(
-                pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": subscription_id}
+                process_id=process_id,
+                name="Insert UUID in state",
+                status="success",
+                state={"subscription_id": subscription_id},
             )
             check_step = ProcessStepTable(
-                pid=pid,
+                process_id=process_id,
                 name="Test that it is a string now",
                 status="success",
                 state={"subscription_id": subscription_id},
             )
             step = ProcessStepTable(
-                pid=pid, name="Modify", status="suspend", state={"subscription_id": subscription_id}
+                process_id=process_id, name="Modify", status="suspend", state={"subscription_id": subscription_id}
             )
 
-            process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=subscription_id)
+            process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)
 
             db.session.add(init_step)
             db.session.add(insert_step)
@@ -99,7 +102,7 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
             db.session.add(process_subscription)
         db.session.commit()
 
-        return pid
+        return process_id
 
     return [
         mock_process(generic_subscription_1, "completed", first_datetime),
@@ -119,10 +122,10 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
     first_datetime = datetime(2020, 1, 14, 9, 30, tzinfo=pytz.utc)
 
     def mock_process(subscription_id, status, started, assignee=Assignee.SYSTEM, is_task=False):
-        pid = uuid4()
+        process_id = uuid4()
         process = ProcessTable(
-            pid=pid,
-            workflow=test_workflow,
+            process_id=process_id,
+            workflow_name=test_workflow,
             last_status=status,
             last_step="Modify",
             started_at=started,
@@ -131,24 +134,27 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
             is_task=is_task,
         )
 
-        init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
+        init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
         db.session.add(process)
 
         if subscription_id:
             insert_step = ProcessStepTable(
-                pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": subscription_id}
+                process_id=process_id,
+                name="Insert UUID in state",
+                status="success",
+                state={"subscription_id": subscription_id},
             )
             check_step = ProcessStepTable(
-                pid=pid,
+                process_id=process_id,
                 name="Test that it is a string now",
                 status="success",
                 state={"subscription_id": subscription_id},
             )
             step = ProcessStepTable(
-                pid=pid, name="Modify", status="suspend", state={"subscription_id": subscription_id}
+                process_id=process_id, name="Modify", status="suspend", state={"subscription_id": subscription_id}
             )
 
-            process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=subscription_id)
+            process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)
 
             db.session.add(init_step)
             db.session.add(insert_step)
@@ -157,7 +163,7 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
             db.session.add(process_subscription)
         db.session.commit()
 
-        return pid
+        return process_id
 
     return [
         mock_process(generic_subscription_1, "api_unavailable", first_datetime, is_task=True),

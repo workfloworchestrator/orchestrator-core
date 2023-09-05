@@ -11,6 +11,7 @@ from orchestrator.db.models import FixedInputTable, SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
+from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -18,6 +19,7 @@ from orchestrator.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
 )
+from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 
 federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
@@ -26,6 +28,7 @@ federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 @strawberry.federation.interface(description="Virtual base interface for subscriptions", keys=["subscriptionId"])
 class SubscriptionInterface:
     subscription_id: UUID
+    customer_id: str
     product: ProductModelGraphql
     description: str
     start_date: Optional[datetime]
@@ -108,6 +111,14 @@ class SubscriptionInterface:
         query_str = query + " " if query is not None else ""
         query_with_related_subscriptions = query_str + " ".join(subscription_ids)
         return await resolve_subscriptions(info, query_with_related_subscriptions, sort_by, first, after)
+
+    @strawberry.field(description="Returns customer of a subscription")  # type: ignore
+    def customer(self) -> DefaultCustomerType:
+        return DefaultCustomerType(
+            fullname=app_settings.DEFAULT_CUSTOMER_FULLNAME,
+            shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
+            identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
+        )
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)

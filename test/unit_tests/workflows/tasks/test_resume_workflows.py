@@ -17,14 +17,16 @@ PID = uuid.uuid4()
 def waiting_process():
     state = {"foo": "bar"}
 
-    success_step = ProcessStepTable(pid=PID, name="generic-step", status="success", state=state, created_by="Fredje")
+    success_step = ProcessStepTable(
+        process_id=PID, name="generic-step", status="success", state=state, created_by="Fredje"
+    )
     waiting_step = ProcessStepTable(
-        pid=PID, name="waiting-step", status="waiting", state="Uberly cool error message", created_by="Fredje"
+        process_id=PID, name="waiting-step", status="waiting", state="Uberly cool error message", created_by="Fredje"
     )
 
     process = ProcessTable(
-        pid=PID,
-        workflow=WORKFLOW_ID,
+        process_id=PID,
+        workflow_name=WORKFLOW_ID,
         last_status=ProcessStatus.WAITING,
         assignee=Assignee.SYSTEM,
         last_step="waiting-step",
@@ -51,9 +53,9 @@ def test_resume_workflow(waiting_process):
             "process_id": res["process_id"],
             "reporter": "john.doe",
             "number_of_waiting_processes": 1,
-            "number_of_resumed_pids": 1,
-            "waiting_pids": [str(PID)],
-            "resumed_pids": [str(PID)],
+            "number_of_resumed_process_ids": 1,
+            "waiting_process_ids": [str(PID)],
+            "resumed_process_ids": [str(PID)],
         }
         assert_state(result, state)
         m.assert_called_once()
@@ -72,9 +74,9 @@ def test_resume_workflow_non_204(waiting_process):
             "process_id": res["process_id"],
             "reporter": "john.doe",
             "number_of_waiting_processes": 1,
-            "number_of_resumed_pids": 0,
-            "waiting_pids": [str(PID)],
-            "resumed_pids": [],
+            "number_of_resumed_process_ids": 0,
+            "waiting_process_ids": [str(PID)],
+            "resumed_process_ids": [],
         }
         assert_state(result, state)
         m.assert_called_once()

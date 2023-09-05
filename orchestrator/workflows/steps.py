@@ -110,7 +110,7 @@ def store_process_subscription_relationship(
     process_id: UUIDstr, subscription_id: UUIDstr, workflow_target: str
 ) -> ProcessSubscriptionTable:
     process_subscription = ProcessSubscriptionTable(
-        pid=process_id, subscription_id=subscription_id, workflow_target=workflow_target
+        process_id=process_id, subscription_id=subscription_id, workflow_target=workflow_target
     )
     db.session.add(process_subscription)
     return process_subscription

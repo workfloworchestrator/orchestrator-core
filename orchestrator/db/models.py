@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 
 import sqlalchemy
 import structlog
+from deprecated import deprecated
 from more_itertools import first_true
 from sqlalchemy import (
     TIMESTAMP,
@@ -85,8 +86,8 @@ class UtcTimestamp(TypeDecorator):
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
-    pid = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow = Column(String(255), nullable=False)
+    process_id = Column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
+    workflow_name = Column("workflow", String(255), nullable=False)
     assignee = Column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = Column(String(50), nullable=False)
     last_step = Column(String(255), nullable=True)
@@ -102,11 +103,21 @@ class ProcessTable(BaseModel):
     process_subscriptions = relationship("ProcessSubscriptionTable", lazy=True, passive_deletes=True)
     subscriptions = association_proxy("process_subscriptions", "subscription")
 
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
+    def pid(self) -> Column:
+        return self.process_id
+
+    @property
+    @deprecated("Changed to 'workflow_name' from version 1.2.3, will be removed in 1.4")
+    def workflow(self) -> Column:
+        return self.workflow_name
+
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
-    stepid = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    pid = Column(UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+    step_id = Column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(), nullable=False)
     status = Column(String(50), nullable=False)
     state = Column(pg.JSONB(), nullable=False)
@@ -114,20 +125,35 @@ class ProcessStepTable(BaseModel):
     executed_at = Column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = Column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
+    @property
+    @deprecated("Changed to 'step_id' from version 1.2.3, will be removed in 1.4")
+    def stepid(self) -> Column:
+        return self.step_id
+
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
+    def pid(self) -> Column:
+        return self.process_id
+
 
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
     id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    pid = Column(UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription_id = Column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     subscription = relationship("SubscriptionTable", lazy=True)
     created_at = Column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     workflow_target = Column(String(255), nullable=False, server_default=Target.CREATE)
 
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
+    def pid(self) -> Column:
+        return self.process_id
+
 
 processes_subscriptions_ix = Index(
-    "processes_subscriptions_ix", ProcessSubscriptionTable.pid, ProcessSubscriptionTable.subscription_id
+    "processes_subscriptions_ix", ProcessSubscriptionTable.process_id, ProcessSubscriptionTable.subscription_id
 )
 
 product_product_block_association = Table(

@@ -36,6 +36,7 @@ from uuid import UUID
 
 import strawberry
 import structlog
+from deprecated import deprecated
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -381,18 +382,23 @@ def workflow(
 
 @dataclass
 class ProcessStat:
-    pid: UUID
+    process_id: UUID
     workflow: Workflow
     state: Process
     log: StepList
     current_user: str
+
+    @property
+    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
+    def pid(self) -> UUID:
+        return self.process_id
 
     def update(self, **vs: Any) -> ProcessStat:
         """Update ProcessStat.
 
         >>> pstat = ProcessStat('', None, {}, [], "")
         >>> pstat.update(state={"a": "b"})
-        ProcessStat(pid='', workflow=None, state={'a': 'b'}, log=[], current_user='')
+        ProcessStat(process_id='', workflow=None, state={'a': 'b'}, log=[], current_user='')
         """
         return ProcessStat(**{**asdict(self), **vs})
 

@@ -1,20 +1,21 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Optional, Union
 from uuid import UUID
 
 import strawberry
-from sqlalchemy.orm import load_only
+from more_itertools import first
 from strawberry.federation.schema_directives import Key
 from strawberry.scalars import JSON
 from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessTable
+from orchestrator.db.models import ProductTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
+from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
+from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.process import ProcessForm, ProcessStepSchema
+from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
+from orchestrator.settings import app_settings
 from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
@@ -22,31 +23,6 @@ if TYPE_CHECKING:
 
 
 federation_key_directives = [Key(fields="id", resolvable=UNSET)]
-
-
-# TODO: Change to the orchestrator.schemas.process version when subscriptions are typed in strawberry.
-class ProcessBaseSchema(OrchestratorBaseModel):
-    process_id: UUID
-    workflow_name: str
-    workflow_target: Optional[str]
-    product: Optional[UUID]
-    customer: Optional[UUID]
-    assignee: Assignee
-    failed_reason: Optional[str]
-    traceback: Optional[str]
-    step: Optional[str]
-    status: ProcessStatus
-    last_step: Optional[str]
-    created_by: Optional[str]
-    started: datetime
-    last_modified: datetime
-    is_task: bool
-
-
-class ProcessGraphqlSchema(ProcessBaseSchema):
-    current_state: Dict[str, Any]
-    steps: List[ProcessStepSchema]
-    form: Optional[ProcessForm]
 
 
 @strawberry.experimental.pydantic.type(model=ProcessForm)
@@ -61,7 +37,7 @@ class ProcessFormType:
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)
 class ProcessStepType:
-    stepid: strawberry.auto
+    step_id: strawberry.auto
     name: strawberry.auto
     status: strawberry.auto
     created_by: strawberry.auto
@@ -69,27 +45,91 @@ class ProcessStepType:
     commit_hash: strawberry.auto
     state: Union[JSON, None]
 
+    @authenticated_field(
+        description="Returns step id",
+        deprecation_reason="Changed to 'stepId' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def stepid(self) -> Optional[UUID]:
+        return self.step_id
 
-@strawberry.experimental.pydantic.type(model=ProcessGraphqlSchema, directives=federation_key_directives)
+
+@strawberry.experimental.pydantic.type(model=ProcessSchema, directives=federation_key_directives)
 class ProcessType:
     process_id: strawberry.auto
+    product_id: strawberry.auto
+    customer_id: strawberry.auto
     workflow_name: strawberry.auto
     workflow_target: strawberry.auto
-    product: strawberry.auto
-    customer: strawberry.auto
     assignee: strawberry.auto
     failed_reason: strawberry.auto
     traceback: strawberry.auto
-    step: strawberry.auto
-    status: strawberry.auto
     last_step: strawberry.auto
+    last_status: strawberry.auto
     created_by: strawberry.auto
-    started: strawberry.auto
-    last_modified: strawberry.auto
+    started_at: strawberry.auto
+    last_modified_at: strawberry.auto
     is_task: strawberry.auto
     steps: strawberry.auto
     form: strawberry.auto
     current_state: Union[JSON, None]
+
+    @authenticated_field(
+        description="Returns process id",
+        deprecation_reason="Changed to 'processId' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def pid(self) -> UUID:
+        return self.process_id
+
+    @authenticated_field(
+        description="Returns process workflow name",
+        deprecation_reason="Changed to 'workflowName' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def workflow(self) -> str:
+        return self.workflow_name
+
+    @authenticated_field(
+        description="Returns process last status",
+        deprecation_reason="Changed to 'lastStatus' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def status(self) -> ProcessStatus:
+        return self.last_status
+
+    @authenticated_field(
+        description="Returns process last step",
+        deprecation_reason="Changed to 'lastStep' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def step(self) -> str:
+        return self.last_step
+
+    @authenticated_field(
+        description="Returns process started at datetime",
+        deprecation_reason="Changed to 'startedAt' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def started(self) -> datetime:
+        return self.started_at
+
+    @authenticated_field(
+        description="Returns process last modified at datetime",
+        deprecation_reason="Changed to 'last_modifiedAt' from version 1.2.3, will be removed in 1.4",
+    )  # type: ignore
+    def last_modified(self) -> datetime:
+        return self.last_modified_at
+
+    @authenticated_field(description="Returns the associated product")  # type: ignore
+    def product(self) -> Optional[ProductType]:
+        subscription = first(self._original_model.subscriptions, None)  # type: ignore
+        product = None
+        if subscription:
+            product = ProductTable.query.get(subscription.product_id)
+        return product
+
+    @strawberry.field(description="Returns customer of a subscription")  # type: ignore
+    def customer(self) -> DefaultCustomerType:
+        return DefaultCustomerType(
+            fullname=app_settings.DEFAULT_CUSTOMER_FULLNAME,
+            shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
+            identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
+        )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
     async def subscriptions(
@@ -102,10 +142,7 @@ class ProcessType:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        process: ProcessTable = ProcessTable.query.options(load_only(ProcessTable.process_subscriptions)).get(
-            self.process_id
-        )
-        subscription_ids = [str(s.subscription_id) for s in process.process_subscriptions]
+        subscription_ids = [str(s.subscription_id) for s in self._original_model.subscriptions]  # type: ignore
         if not subscription_ids:
             return EMPTY_PAGE
         # filter_by_with_related_subscriptions = (filter_by or []) + [
