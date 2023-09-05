@@ -46,6 +46,7 @@ from orchestrator.workflow import Failed, ProcessStat, ProcessStatus, Step, Step
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
+from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
 
 logger = structlog.get_logger(__name__)
@@ -150,8 +151,31 @@ def _get_current_step_to_update(
     """Checks if last error state is identical to determine if we add a new step or update the last one."""
     step_state: State = process_state.unwrap()
     current_step = None
+    last_db_step = p.steps[-1] if len(p.steps) else None
+    current_sub_step, current_step_group = step_state.get("__sub_step"), step_state.get("__step_group")
+    db_sub_step, db_step_group = (
+        (last_db_step.state.get("__sub_step"), last_db_step.state.get("__step_group")) if last_db_step else (None, None)
+    )
+
+    if current_sub_step is None and db_sub_step is None:
+        pass  # Skip step group logic
+    elif (db_sub_step is None and current_sub_step) or (db_sub_step and current_sub_step is None):
+        # New entry
+        current_step = ProcessStepTable(
+            process_id=stat.process_id,
+            name=current_step_group or db_step_group,
+            status=process_state.status,
+            state=step_state,
+            created_by=stat.current_user,
+        )
+    else:
+        # Update last step entry in db
+        logger.info("Will be merged")
+        last_db_step.status = process_state.status
+        last_db_step.state = step_state
+        current_step = last_db_step
+
     if process_state.isfailed() or process_state.iswaiting():
-        last_db_step = p.steps[-1] if len(p.steps) else None
         if (
             last_db_step is not None
             and last_db_step.status == process_state.status
@@ -174,9 +198,8 @@ def _get_current_step_to_update(
 
     if current_step is None:
         # add a new entry to the process stat
-        logger.info("Adding a new process step with state info")
         current_step = ProcessStepTable(
-            pid=stat.process_id,
+            process_id=stat.process_id,
             name=step.name,
             status=process_state.status,
             state=step_state,
@@ -187,6 +210,7 @@ def _get_current_step_to_update(
     # Test will fail if multiple steps have the same timestamp
     current_step.executed_at = nowtz()
     return current_step
+
 
 def _db_log_step(
     stat: ProcessStat,
@@ -206,7 +230,7 @@ def _db_log_step(
         WFProcess
 
     """
-    p = _update_process(stat.pid, step, process_state)
+    p = _update_process(stat.process_id, step, process_state)
     current_step = _get_current_step_to_update(stat, p, step, process_state)
 
     db.session.add(p)

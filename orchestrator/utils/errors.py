@@ -13,7 +13,7 @@
 
 
 from http import HTTPStatus
-from typing import Dict, Optional, cast
+from typing import Dict, Optional, Union, cast
 
 import structlog
 from deprecated import deprecated
@@ -108,7 +108,7 @@ def is_api_exception(ex: Exception) -> bool:
     return ex.__class__.__name__ == "ApiException"
 
 
-def error_state_to_dict(err: Exception) -> ErrorDict:
+def error_state_to_dict(err: Union[Exception, ErrorDict]) -> ErrorDict:
     """Return an ErrorDict based on the exception.
 
     Args:
@@ -117,6 +117,9 @@ def error_state_to_dict(err: Exception) -> ErrorDict:
         An ErrorDict containing the error message a status_code and a traceback if available
 
     """
+    if isinstance(err, dict):
+        return err
+
     if isinstance(err, ProcessFailureError):
         return {"class": type(err).__name__, "error": err.message, "traceback": show_ex(err), "details": err.details}
 

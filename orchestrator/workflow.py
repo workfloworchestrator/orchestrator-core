@@ -14,9 +14,11 @@
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import inspect
 from dataclasses import asdict, dataclass
+from itertools import dropwhile
 from typing import (
     Any,
     Callable,
@@ -64,6 +66,8 @@ logger = structlog.get_logger(__name__)
 StepLogFunc = Callable[["ProcessStat", "Step", "Process"], "Process"]
 StepLogFuncInternal = Callable[["Step", "Process"], "Process"]
 StepToProcessFunc = Callable[[State], "Process"]
+
+step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.ContextVar("log_step_fn")
 
 
 @runtime_checkable
@@ -290,77 +294,36 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
 # The state of the group will be the last state of the sub-steps. So if one of the steps goes to FAILED,
 # the group goes to failed. If a step goes to SUSPEND, the group is in SUSPEND. If a step goes to SUCCESS however,
 # the group is still RUNNING. It will be in SUCCESS only of all the sub-steps are in SUCCESS.
-
-
 def step_group(name: str, steps: StepList) -> Step:
     def func(initial_state: State) -> Process:
         logger.debug("Inside step group executor", initial_state=initial_state)
+        step_log_fn = step_log_fn_var.get()
 
         def dblogstep(step_: Step, p: Process) -> Process:
-            logger.debug("Logging sub step in step group.", group_name=name, substep_name=step_.name)
+            # Add sub_step info to state
+            logger.info("Add sub step info to state")
+            p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_group": name})
+            p = step_log_fn(step_, p)
+            # If this was the last sub step, remove sub_step info from state
+            step_state = p.unwrap()
+            if step_state.get("__sub_step") == steps[-1].name and step_state.get("__step_group") == name:
+                # The step group is finished. Remove sub step data from state
+                logger.info("Step group finished. Removing sub step data from state")
+                p = p.on_success(lambda s: {k: v for k, v in s.items() if k not in ["__sub_step", "__step_group"]})
             return p
 
+        # If sub_step information is present in the state. Resume from the corresponding sub step
+        if "__sub_step" in initial_state:
+            step_list = StepList(dropwhile(lambda s: s.name != initial_state.get("__sub_step"), steps))[1:]
+        else:
+            step_list = steps
+
         process: Process = Success(initial_state)
-        logger.debug("Before group _exec_steps", process=process)
-        process = _exec_steps(steps, process, dblogstep)
-        logger.debug("After group _exec_steps", process=process)
-        return process
+        return _exec_steps(step_list, process, dblogstep)
 
-    return make_step_function(func, name)
-
-
-# def callback_step(name: str) -> Callable[[InputStepFunc], Step]:
-#     """Mark a function as a callback step.
-#
-#     A callback step is used to handle a set of operations asynchronously within a single step.
-#     The function decorated with callback_step must be a generator that yields the following:
-#      1. A function that takes the current state and can perform any side effect.
-#      2. An orchestrator.forms.FormPage type to validate the form input.
-#
-#     Finally, generator should return the resulting state, like a normal step function.
-#
-#     This decorator will put the process in an AWAITING_CALLBACK state and register a callback endpoint that expects the
-#     form input. After the input is validated, the step process will continue.
-#
-#     IMPORTANT: The code in the decorated function might be run multiple times. Therefore, it is important that all
-#     workflow related side effects are performed in the function returned by the first `yield`.
-#     The orchestrator will ensure that function is invoked once (or once per retry).
-#
-#     Example::
-#
-#     @callback_step("Callback step")
-#     def call_external_system(state: State) -> FormGenerator:
-#         def perform_side_effect(state: State) -> State:
-#             ...
-#
-#         next_state = yield perform_side_effect
-#
-#         class Form(FormPage):
-#             ...
-#
-#         form_input = yield Form
-#         return form_input.dict()
-#
-#     """
-#
-#     def decorator(func: InputStepFunc) -> Step:
-#         def wrapper(state: State) -> FormGenerator:
-#             return _handle_simple_input_form_generator(form_inject_args(func))(state)
-#
-#         @functools.wraps(func)
-#         def await_(state: State) -> Process:
-#             logger.info("In cb_step await", state=state)
-#             logger.info("Attempting to start/continue this step")
-#             new_state = _process_callback_step(wrapper, state)
-#             logger.info("After await_ post_process. Returning AwaitingCallback Process status", new_state=state)
-#             return AwaitingCallback(new_state)
-#
-#         print("In await func. Calling func")
-#         sf = make_step_function(await_, name, wrapper)
-#         print(sf)
-#         return sf
-#
-#     return decorator
+    # Make sure we return a form is a sub step has a form
+    form = next((sub_step.form for sub_step in steps if sub_step.form), None)
+    return make_step_function(func, name, form)
 
 
 def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
@@ -1380,9 +1343,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
         result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
-
         process = dblogstep(step, result_to_log)
-
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
         consolelogger.debug("Workflow step executed.", process_status=process.status)
@@ -1403,11 +1364,18 @@ def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
     logger.bind(workflow=pstat.workflow.name)
 
     def resume_suspend(process: Process) -> Process:
-        step = steps.pop(0)
+        state = process.unwrap()
+        if "__step_group" in state:
+            step = steps[0]
+        else:
+            step = steps.pop(0)
         return _logstep(step, process)
 
     next_state = pstat.state.resume(resume_suspend)
-
+    # Set the step_log_fn in the contextvar.
+    # This enables recursive step execution of sub steps with the same StepLogFunc.
+    # Should probably be refactored at some point as contextvars is a kind of global state.
+    step_log_fn_var.set(_logstep)
     return _exec_steps(steps, next_state, _logstep)
 
 
