@@ -11,9 +11,11 @@ from strawberry.unset import UNSET
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db.models import ProductTable
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
+from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
+from orchestrator.settings import app_settings
 from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
@@ -79,13 +81,6 @@ class ProcessType:
         return self.process_id
 
     @authenticated_field(
-        description="Returns customer id",
-        deprecation_reason="Changed to 'customerId' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def customer(self) -> UUID:
-        return self.customer_id
-
-    @authenticated_field(
         description="Returns process workflow name",
         deprecation_reason="Changed to 'workflowName' from version 1.2.3, will be removed in 1.4",
     )  # type: ignore
@@ -127,6 +122,14 @@ class ProcessType:
         if subscription:
             product = ProductTable.query.get(subscription.product_id)
         return product
+
+    @strawberry.field(description="Returns customer of a subscription")  # type: ignore
+    def customer(self) -> DefaultCustomerType:
+        return DefaultCustomerType(
+            fullname=app_settings.DEFAULT_CUSTOMER_FULLNAME,
+            shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
+            identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
+        )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
     async def subscriptions(

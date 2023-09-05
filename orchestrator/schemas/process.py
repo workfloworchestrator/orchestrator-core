@@ -64,7 +64,7 @@ class ProcessStepSchema(OrchestratorBaseModel):
 
 class ProcessSchema(ProcessBaseSchema):
     product_id: Optional[UUID]
-    customer_id: Optional[UUID]
+    customer_id: Optional[str]
     workflow_target: Optional[Target]
     subscriptions: List[SubscriptionSchema]
     current_state: Optional[Dict[str, Any]]
@@ -81,7 +81,7 @@ class ProcessDeprecationsSchema(ProcessSchema):
     started: Optional[datetime]  # TODO: will be removed in 1.4
     last_modified: Optional[datetime]  # TODO: will be removed in 1.4
     product: Optional[UUID]  # TODO: will be removed in 1.4
-    customer: Optional[UUID]  # TODO: will be removed in 1.4
+    customer: Optional[str]  # TODO: will be removed in 1.4
 
 
 class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
