@@ -66,11 +66,11 @@ def _delete_subscription_tree(subscription: SubscriptionTable) -> None:
 
 def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptionTable]) -> None:
     for process_subscription in process_subscriptions:
-        pid = str(process_subscription.pid)
+        process_id = str(process_subscription.process_id)
         subscription_id = str(process_subscription.subscription_id)
-        ProcessSubscriptionTable.query.filter(ProcessSubscriptionTable.pid == pid).delete()
-        ProcessStepTable.query.filter(ProcessStepTable.pid == pid).delete()
-        ProcessTable.query.filter(ProcessTable.pid == pid).delete()
+        ProcessSubscriptionTable.query.filter(ProcessSubscriptionTable.process_id == process_id).delete()
+        ProcessStepTable.query.filter(ProcessStepTable.process_id == process_id).delete()
+        ProcessTable.query.filter(ProcessTable.process_id == process_id).delete()
         subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).first()
         _delete_subscription_tree(subscription)
 
@@ -269,7 +269,7 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
             .filter(ProcessTable.last_status != "aborted")
             .all()
         )
-        return [str(p.pid) for p in _failed_processes]
+        return [str(p.process_id) for p in _failed_processes]
 
     try:
         subscription = get_subscription(subscription_id, for_update=True)

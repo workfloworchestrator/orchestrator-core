@@ -119,21 +119,29 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       note
       startDate
       endDate
-      processes(sortBy: [{field: "started", order: ASC}]) {
+      processes(sortBy: [{field: "startedAt", order: ASC}]) {
         page {
-          assignee
-          createdBy
-          failedReason
+          processId
           isTask
           lastStep
+          lastStatus
+          assignee
+          failedReason
           traceback
-          processId
-          lastModified
-          started
           workflowName
-          status
-          step
-          product
+          createdBy
+          startedAt
+          lastModifiedAt
+          product {
+            productId
+            name
+            description
+            productType
+            status
+            tag
+            createdAt
+            endDate
+          }
         }
       }
       dependsOnSubscriptions {

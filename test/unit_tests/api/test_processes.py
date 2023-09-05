@@ -48,21 +48,26 @@ def long_running_workflow():
 
 @pytest.fixture
 def started_process(test_workflow, generic_subscription_1):
-    pid = uuid4()
-    process = ProcessTable(pid=pid, workflow=test_workflow, last_status=ProcessStatus.SUSPENDED)
-    init_step = ProcessStepTable(pid=pid, name="Start", status="success", state={})
+    process_id = uuid4()
+    process = ProcessTable(process_id=process_id, workflow_name=test_workflow, last_status=ProcessStatus.SUSPENDED)
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
     insert_step = ProcessStepTable(
-        pid=pid, name="Insert UUID in state", status="success", state={"subscription_id": generic_subscription_1}
+        process_id=process_id,
+        name="Insert UUID in state",
+        status="success",
+        state={"subscription_id": generic_subscription_1},
     )
     check_step = ProcessStepTable(
-        pid=pid,
+        process_id=process_id,
         name="Test that it is a string now",
         status="success",
         state={"subscription_id": generic_subscription_1},
     )
-    step = ProcessStepTable(pid=pid, name="Modify", status="suspend", state={"subscription_id": generic_subscription_1})
+    step = ProcessStepTable(
+        process_id=process_id, name="Modify", status="suspend", state={"subscription_id": generic_subscription_1}
+    )
 
-    process_subscription = ProcessSubscriptionTable(pid=pid, subscription_id=generic_subscription_1)
+    process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=generic_subscription_1)
 
     db.session.add(process)
     db.session.add(init_step)
@@ -72,7 +77,7 @@ def started_process(test_workflow, generic_subscription_1):
     db.session.add(process_subscription)
     db.session.commit()
 
-    return pid
+    return process_id
 
 
 def test_show(test_client, started_process):
@@ -114,9 +119,9 @@ def test_long_running_pause(test_client, long_running_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
 
     # Let it run untill the first lock step is started
@@ -138,7 +143,7 @@ def test_long_running_pause(test_client, long_running_workflow):
     assert response.json()["running_processes"] == 0
     assert response.json()["global_status"] == "PAUSED"
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert len(response.json()["steps"]) == 4
     assert response.json()["current_state"]["done"] is True
     # assume ordered steplist
@@ -158,7 +163,7 @@ def test_long_running_pause(test_client, long_running_workflow):
         test_condition.notify_all()
     time.sleep(1)
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
     # assume ordered steplist
     assert response.json()["steps"][3]["status"] == "complete"
@@ -183,14 +188,14 @@ def test_complete_workflow(test_client, test_workflow):
         HTTPStatus.CREATED == response.status_code
     ), f"Invalid response status code (response data: {response.json()})"
 
-    pid = response.json()["id"]
+    process_id = response.json()["id"]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
 
     process = response.json()
     assert Assignee.CHANGES == process["assignee"]
-    assert "suspended" == process["status"]
+    assert "suspended" == process["last_status"]
 
     steps = process["steps"]
     assert "success" == steps[0]["status"]
@@ -200,7 +205,7 @@ def test_complete_workflow(test_client, test_workflow):
         "generic_select": 123,
     }
 
-    response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
+    response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert response.json()["validation_errors"] == [
         {
@@ -211,19 +216,19 @@ def test_complete_workflow(test_client, test_workflow):
         }
     ]
 
-    response = test_client.get(f"api/processes/{pid}")
+    response = test_client.get(f"api/processes/{process_id}")
 
     process = response.json()
-    assert "suspended" == process["status"]
+    assert "suspended" == process["last_status"]
 
     # Now for real
     user_input = {"generic_select": "A"}
 
-    response = test_client.put(f"/api/processes/{pid}/resume", json=[user_input])
+    response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.NO_CONTENT == response.status_code
 
-    process = test_client.get(f"api/processes/{pid}").json()
-    assert "completed" == process["status"]
+    process = test_client.get(f"api/processes/{process_id}").json()
+    assert "completed" == process["last_status"]
 
 
 def test_abort_process(test_client, started_process):
@@ -231,7 +236,7 @@ def test_abort_process(test_client, started_process):
     assert HTTPStatus.NO_CONTENT == response.status_code
 
     aborted_process = test_client.get(f"/api/processes/{started_process}").json()
-    assert "aborted" == aborted_process["status"]
+    assert "aborted" == aborted_process["last_status"]
 
 
 def test_process_subscription_by_subscription_id(test_client, started_process, generic_subscription_1):
@@ -240,13 +245,13 @@ def test_process_subscription_by_subscription_id(test_client, started_process, g
     process_subscriptions = response.json()
     assert 1 == len(process_subscriptions)
     assert process_subscriptions[0]["subscription_id"].lower(), generic_subscription_1
-    assert process_subscriptions[0]["pid"].lower(), started_process
+    assert process_subscriptions[0]["process_id"].lower(), started_process
     assert process_subscriptions[0]["workflow_target"], Target.CREATE
-    assert process_subscriptions[0]["process"]["workflow"], "workflow_for_testing_processes_py"
+    assert process_subscriptions[0]["process"]["workflow_name"], "workflow_for_testing_processes_py"
 
 
-def test_process_subscription_by_pid(test_client, started_process, generic_subscription_1):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-pid/{started_process}")
+def test_process_subscription_by_process_id(test_client, started_process, generic_subscription_1):
+    response = test_client.get(f"/api/processes/process-subscriptions-by-process_id/{started_process}")
     assert HTTPStatus.OK == response.status_code
     process_subscriptions = response.json()
     assert 1 == len(process_subscriptions)
@@ -254,8 +259,8 @@ def test_process_subscription_by_pid(test_client, started_process, generic_subsc
     assert process_subscriptions[0]["workflow_target"], Target.CREATE
 
 
-def test_process_subscription_by_pid_404(test_client):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-pid/{uuid4()}")
+def test_process_subscription_by_process_id_404(test_client):
+    response = test_client.get(f"/api/processes/process-subscriptions-by-process_id/{uuid4()}")
     assert 0 == len(response.json())
 
 
@@ -301,13 +306,13 @@ def test_resume_validations(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) == len(excuted_steps_before)
-    assert process_info_after["status"] == "suspended"
+    assert process_info_after["last_status"] == "suspended"
 
 
 def test_resume_with_empty_form(test_client, started_process):
     # Set a default value for the only input so we can submit an empty form
     step = ProcessStepTable.query.filter(
-        ProcessStepTable.name == "Modify", ProcessStepTable.pid == started_process
+        ProcessStepTable.name == "Modify", ProcessStepTable.process_id == started_process
     ).one()
     step.state["generic_select"] = "A"
     db.session.add(step)
@@ -321,7 +326,7 @@ def test_resume_with_empty_form(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) > len(excuted_steps_before)
-    assert process_info_after["status"] == "completed"
+    assert process_info_after["last_status"] == "completed"
 
 
 def test_resume_happy_flow(test_client, started_process):
@@ -333,7 +338,7 @@ def test_resume_happy_flow(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) > len(excuted_steps_before)
-    assert process_info_after["status"] == "completed"
+    assert process_info_after["last_status"] == "completed"
 
 
 def test_resume_with_incorrect_workflow_status(test_client, started_process):
@@ -350,7 +355,7 @@ def test_resume_with_incorrect_workflow_status(test_client, started_process):
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
     excuted_steps_after = [step for step in process_info_after["steps"] if step.get("executed")]
     assert len(excuted_steps_after) == len(excuted_steps_before)
-    assert process_info_after["status"] == "running"
+    assert process_info_after["last_status"] == "running"
 
 
 def test_try_resume_completed_workflow(test_client, started_process):
@@ -384,11 +389,11 @@ def test_processes_filterable(test_client, mocked_processes, generic_subscriptio
     assert 9 == len(processes)
     assert "workflow_for_testing_processes_py", processes[0]["workflow"]
 
-    response = test_client.get("/api/processes?filter=status,completed")
+    response = test_client.get("/api/processes?filter=lastStatus,completed")
     assert 3 == len(response.json())
-    response = test_client.get("/api/processes?filter=status,suspended")
+    response = test_client.get("/api/processes?filter=lastStatus,suspended")
     assert 2 == len(response.json())
-    response = test_client.get("/api/processes?filter=status,resumed")
+    response = test_client.get("/api/processes?filter=lastStatus,resumed")
     assert 2 == len(response.json())
 
     product_name = SubscriptionTable.query.get(generic_subscription_1).product.name
@@ -396,14 +401,14 @@ def test_processes_filterable(test_client, mocked_processes, generic_subscriptio
     assert 4 == len(response.json())
     response = test_client.get("/api/processes?sort=assignee,asc")
     assert response.json()[0]["assignee"] == "NOC"
-    response = test_client.get("/api/processes?sort=started&filter=istask,y")
+    response = test_client.get("/api/processes?sort=startedAt&filter=isTask,y")
     assert 4 == len(response.json())
 
 
 def test_processes_filterable_response_model(
     test_client, mocked_processes, generic_subscription_2, generic_subscription_1
 ):
-    response = test_client.get("/api/processes/?sort=started,asc")
+    response = test_client.get("/api/processes/?sort=startedAt,asc")
     assert HTTPStatus.OK == response.status_code
     processes = response.json()
     assert len(processes) == 9
@@ -412,26 +417,41 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
-    del process["pid"]  # skip pid as it's dynamic
+    del process["id"]  # skip product_id as it's dynamic
+    del process["pid"]  # skip product_id as it's dynamic
+    del process["process_id"]  # skip process_id as it's dynamic
+    del process["product_id"]  # skip product_id as it's dynamic
+    del process["product"]  # skip product as it's dynamic
     del process["subscriptions"]
     assert process == {
-        "assignee": "SYSTEM",
-        "created_by": None,
-        "failed_reason": None,
-        "last_modified_at": mock.ANY,
-        "started_at": mock.ANY,
-        "last_status": "completed",
-        "last_step": "Modify",
+        "customer_id": "2f47f65a-0911-e511-80d0-005056956c1a",
+        "customer": "2f47f65a-0911-e511-80d0-005056956c1a",
         "workflow": "workflow_for_testing_processes_py",
-        "workflow_target": "CREATE",
+        "workflow_name": "workflow_for_testing_processes_py",
         "is_task": False,
+        "assignee": "SYSTEM",
+        "status": "completed",
+        "last_status": "completed",
+        "step": "Modify",
+        "last_step": "Modify",
+        "failed_reason": None,
+        "traceback": None,
+        "created_by": None,
+        "started": 1578994200.0,
+        "started_at": 1578994200.0,
+        "last_modified": 1578994800.0,
+        "last_modified_at": 1578994800.0,
+        "current_state": None,
+        "steps": None,
+        "form": None,
+        "workflow_target": "CREATE",
     }
 
 
 def test_processes_filterable_response_model_contains_product_info(
     test_client, mocked_processes, generic_subscription_2, generic_subscription_1
 ):
-    response = test_client.get("/api/processes/?sort=started,asc")
+    response = test_client.get("/api/processes/?sort=startedAt,asc")
     assert HTTPStatus.OK == response.status_code
     processes = response.json()
     assert len(processes) == 9

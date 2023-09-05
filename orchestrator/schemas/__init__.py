@@ -21,8 +21,8 @@ from orchestrator.schemas.fixed_input import FixedInputConfigurationSchema, Fixe
 from orchestrator.schemas.problem_detail import ProblemDetailSchema
 from orchestrator.schemas.process import (
     ProcessBaseSchema,
+    ProcessDeprecationsSchema,
     ProcessIdSchema,
-    ProcessListItemSchema,
     ProcessResumeAllSchema,
     ProcessSchema,
     ProcessSubscriptionBaseSchema,
@@ -54,9 +54,9 @@ __all__ = (
     "ProcessResumeAllSchema",
     "ProcessBaseSchema",
     "ProcessSchema",
+    "ProcessDeprecationsSchema",
     "ProcessIdSchema",
     "ProcessSubscriptionBaseSchema",
-    "ProcessListItemSchema",
     "SubscriptionDescriptionBaseSchema",
     "SubscriptionDescriptionSchema",
     "SubscriptionSchema",

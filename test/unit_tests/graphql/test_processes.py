@@ -15,18 +15,17 @@ from http import HTTPStatus
 from typing import Union
 
 process_fields = [
-    "assignee",
-    "createdBy",
-    "failedReason",
+    "processId",
     "isTask",
     "lastStep",
+    "lastStatus",
+    "assignee",
+    "failedReason",
     "traceback",
-    "processId",
-    "lastModified",
-    "started",
     "workflowName",
-    "status",
-    "step",
+    "createdBy",
+    "startedAt",
+    "lastModifiedAt",
     "product",
 ]
 
@@ -41,19 +40,33 @@ def get_processes_query(
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      assignee
-      createdBy
-      failedReason
+      processId
       isTask
       lastStep
+      lastStatus
+      assignee
+      failedReason
       traceback
-      processId
-      lastModified
-      started
       workflowName
-      status
+      createdBy
+      startedAt
+      lastModifiedAt
+      pid
       step
-      product
+      status
+      workflow
+      started
+      lastModified
+      product {
+        productId
+        name
+        description
+        productType
+        status
+        tag
+        createdAt
+        endDate
+      }
     }
     pageInfo {
       startCursor
@@ -89,19 +102,27 @@ def get_processes_query_with_subscriptions(
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      assignee
-      createdBy
-      failedReason
+      processId
       isTask
       lastStep
+      lastStatus
+      assignee
+      failedReason
       traceback
-      processId
-      lastModified
-      started
       workflowName
-      status
-      step
-      product
+      createdBy
+      startedAt
+      lastModifiedAt
+      product {
+        productId
+        name
+        description
+        productType
+        status
+        tag
+        createdAt
+        endDate
+      }
       subscriptions {
         page {
           description
@@ -204,7 +225,7 @@ def test_processes_sorting_asc(
 ):
     # when
 
-    data = get_processes_query(sort_by=[{"field": "started", "order": "ASC"}])
+    data = get_processes_query(sort_by=[{"field": "startedAt", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -223,9 +244,9 @@ def test_processes_sorting_asc(
         "totalItems": 19,
     }
 
-    assert processes[0]["started"] == "2020-01-14T09:30:00+00:00"
-    assert processes[1]["started"] == "2020-01-14T09:30:00+00:00"
-    assert processes[2]["started"] == "2020-01-15T09:30:00+00:00"
+    assert processes[0]["startedAt"] == "2020-01-14T09:30:00+00:00"
+    assert processes[1]["startedAt"] == "2020-01-14T09:30:00+00:00"
+    assert processes[2]["startedAt"] == "2020-01-15T09:30:00+00:00"
 
 
 def test_processes_sorting_desc(
@@ -237,7 +258,7 @@ def test_processes_sorting_desc(
 ):
     # when
 
-    data = get_processes_query(sort_by=[{"field": "started", "order": "DESC"}])
+    data = get_processes_query(sort_by=[{"field": "startedAt", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -256,11 +277,11 @@ def test_processes_sorting_desc(
         "totalItems": 19,
     }
 
-    assert processes[0]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[1]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[2]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[3]["started"] == "2020-01-19T09:30:00+00:00"
-    assert processes[4]["started"] == "2020-01-18T09:30:00+00:00"
+    assert processes[0]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[1]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[2]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[3]["startedAt"] == "2020-01-19T09:30:00+00:00"
+    assert processes[4]["startedAt"] == "2020-01-18T09:30:00+00:00"
 
 
 def test_processes_has_filtering(
@@ -272,7 +293,7 @@ def test_processes_has_filtering(
 ):
     # when
 
-    data = get_processes_query(filter_by=[{"field": "status", "value": "completed"}])
+    data = get_processes_query(filter_by=[{"field": "lastStatus", "value": "completed"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -296,7 +317,7 @@ def test_processes_has_filtering(
     }
 
     for process in processes:
-        assert process["status"] == "COMPLETED"
+        assert process["lastStatus"] == "COMPLETED"
 
 
 def test_processes_filtering_with_invalid_filter(
@@ -309,7 +330,7 @@ def test_processes_filtering_with_invalid_filter(
     # when
 
     data = get_processes_query(
-        filter_by=[{"field": "status", "value": "completed"}, {"field": "test", "value": "invalid"}]
+        filter_by=[{"field": "lastStatus", "value": "completed"}, {"field": "test", "value": "invalid"}]
     )
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -330,16 +351,36 @@ def test_processes_filtering_with_invalid_filter(
                 "invalid_filters": [{"field": "test", "value": "invalid"}],
                 "valid_filter_keys": [
                     "processId",
-                    "istask",
+                    "workflowName",
                     "assignee",
-                    "status",
-                    "workflow",
-                    "creator",
+                    "lastStatus",
+                    "lastStep",
+                    "startedAt",
+                    "lastModifiedAt",
+                    "failedReason",
+                    "traceback",
+                    "createdBy",
+                    "isTask",
+                    "process_id",
+                    "workflow_name",
+                    "last_status",
+                    "last_step",
+                    "started_at",
+                    "last_modified_at",
+                    "failed_reason",
+                    "created_by",
+                    "is_task",
                     "product",
-                    "tag",
+                    "productTag",
                     "subscriptions",
                     "subscriptionId",
+                    "subscription_id",
                     "target",
+                    "organisation",
+                    "istask",
+                    "status",
+                    "tag",
+                    "creator",
                 ],
             },
         }
@@ -353,7 +394,7 @@ def test_processes_filtering_with_invalid_filter(
     }
 
     for process in processes:
-        assert process["status"] == "COMPLETED"
+        assert process["lastStatus"] == "COMPLETED"
 
 
 def test_single_process(

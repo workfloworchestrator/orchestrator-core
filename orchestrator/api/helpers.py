@@ -19,6 +19,7 @@ from shlex import shlex
 from typing import Any, Generator, List, Optional, Union
 from uuid import UUID
 
+from deprecated import deprecated
 from more_itertools import chunked, first
 from sqlalchemy import String, cast, func
 from sqlalchemy.orm import Query
@@ -176,7 +177,7 @@ class ProductEnriched:
 
 @dataclass
 class _Subscription:
-    customer_id: str
+    customer_id: UUID
     description: str
     end_date: float
     insync: bool
@@ -202,6 +203,9 @@ class _ProcessListItem:
     is_task: bool
 
 
+@deprecated(
+    "consolidated with `show_process` into enrich_process in `orchestrator.utils.enrich_process` from version 1.2.3, will be removed in 1.4"
+)
 def enrich_process(p: ProcessTable) -> _ProcessListItem:
     # p.subscriptions is a non JSON serializable AssociationProxy
     # So we need to build a list of Subscriptions here.
@@ -233,12 +237,12 @@ def enrich_process(p: ProcessTable) -> _ProcessListItem:
         created_by=p.created_by,
         failed_reason=p.failed_reason,
         last_modified_at=p.last_modified_at,
-        pid=p.pid,
+        pid=p.process_id,
         started_at=p.started_at.timestamp(),
         last_status=p.last_status,
         last_step=p.last_step,
         subscriptions=subscriptions,
-        workflow=p.workflow,
+        workflow=p.workflow_name,
         workflow_target=first([ps.workflow_target for ps in p.process_subscriptions], None),
         is_task=p.is_task,
     )

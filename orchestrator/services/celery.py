@@ -40,15 +40,15 @@ def _celery_start_process(
     pstat = create_process(workflow_key, user_inputs, user)
 
     tasks = pstat.state.s
-    result = trigger_task.delay(pstat.pid, workflow_key, tasks, user)
+    result = trigger_task.delay(pstat.process_id, workflow_key, tasks, user)
 
     # Enables "Sync celery tasks. This will let the app wait until celery completes"
     if app_settings.TESTING:
-        pid = result.get()
-        if not pid:
+        process_id = result.get()
+        if not process_id:
             raise RuntimeError("Celery worker has failed to resume process")
 
-    return pstat.pid
+    return pstat.process_id
 
 
 def _celery_resume_process(
@@ -67,17 +67,17 @@ def _celery_resume_process(
 
     task_name = RESUME_TASK if workflow.target == Target.SYSTEM else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
-    result = trigger_task.delay(pstat.pid, user_inputs, user)
+    result = trigger_task.delay(pstat.process_id, user_inputs, user)
 
     _celery_set_process_status_resumed(process)
 
     # Enables "Sync celery tasks. This will let the app wait until celery completes"
     if app_settings.TESTING:
-        pid = result.get()
-        if not pid:
+        process_id = result.get()
+        if not process_id:
             raise RuntimeError("Celery worker has failed to resume process")
 
-    return pstat.pid
+    return pstat.process_id
 
 
 def _celery_set_process_status_resumed(process: ProcessTable) -> None:

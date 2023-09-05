@@ -115,11 +115,11 @@ def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
         )
         process_ids = (
             ProcessSubscriptionTable.query.where(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
-            .with_entities(ProcessSubscriptionTable.pid)
+            .with_entities(ProcessSubscriptionTable.process_id)
             .scalar_subquery()
         )
         return [
-            sql_compile(Delete(ProcessTable).where(ProcessTable.pid.in_(process_ids))),
+            sql_compile(Delete(ProcessTable).where(ProcessTable.process_id.in_(process_ids))),
             sql_compile(
                 Delete(ProcessSubscriptionTable).where(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
             ),

@@ -179,11 +179,11 @@ def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tu
 
     step_log: List[Tuple[Step, WFProcess]] = []
 
-    pid = uuid4()
+    process_id = uuid4()
     workflow = get_workflow(workflow_key)
     assert workflow, "Workflow does not exist"
     initial_state = {
-        "process_id": pid,
+        "process_id": process_id,
         "reporter": user,
         "workflow_name": workflow_key,
         "workflow_target": workflow.target,
@@ -192,7 +192,11 @@ def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tu
     user_input = post_form(workflow.initial_input_form, initial_state, user_data)
 
     pstat = ProcessStat(
-        pid, workflow=workflow, state=Success({**user_input, **initial_state}), log=workflow.steps, current_user=user
+        process_id,
+        workflow=workflow,
+        state=Success({**user_input, **initial_state}),
+        log=workflow.steps,
+        current_user=user,
     )
 
     _db_create_process(pstat)

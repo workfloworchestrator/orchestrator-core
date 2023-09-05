@@ -17,7 +17,7 @@ def task():
     generic_step = ProcessStepTable(name="generic-step", status="success", state=state)
 
     task_old = ProcessTable(
-        workflow="nice and old task",
+        workflow_name="nice and old task",
         last_status=ProcessStatus.COMPLETED,
         last_step="Awesome last step",
         started_at=three_weeks_ago,
@@ -27,7 +27,7 @@ def task():
     )
 
     task_new = ProcessTable(
-        workflow="nice and new task",
+        workflow_name="nice and new task",
         last_status=ProcessStatus.COMPLETED,
         last_step="Awesome last step",
         started_at=three_weeks_ago,
@@ -37,7 +37,7 @@ def task():
     )
 
     process = ProcessTable(
-        workflow="nice process",
+        workflow_name="nice process",
         last_status=ProcessStatus.COMPLETED,
         last_step="Awesome last step",
         started_at=three_weeks_ago,
@@ -63,4 +63,6 @@ def test_remove_tasks(task):
     processes = ProcessTable.query.all()
 
     assert len(processes) == 3
-    assert sorted(p.workflow for p in processes) == sorted(["nice and new task", "nice process", "task_clean_up_tasks"])
+    assert sorted(p.workflow_name for p in processes) == sorted(
+        ["nice and new task", "nice process", "task_clean_up_tasks"]
+    )

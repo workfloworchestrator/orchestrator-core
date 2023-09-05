@@ -15,12 +15,12 @@
 
 import struct
 import zlib
-from dataclasses import asdict
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
+from deprecated import deprecated
 from fastapi import Request
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
@@ -28,22 +28,21 @@ from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from sqlalchemy.orm import contains_eager, defer, joinedload
-from sqlalchemy.sql import expression
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import VALID_SORT_KEYS, enrich_process
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
+from orchestrator.db.sorting import Sort, SortOrder
+from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import (
+    ProcessDeprecationsSchema,
     ProcessIdSchema,
-    ProcessListItemSchema,
     ProcessResumeAllSchema,
-    ProcessSchema,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
 )
@@ -61,7 +60,7 @@ from orchestrator.services.processes import (
 )
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON
-from orchestrator.utils.show_process import show_process
+from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
@@ -70,16 +69,16 @@ router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
-@router.delete("/{pid}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def delete(pid: UUID) -> None:
-    process = ProcessTable.query.filter_by(pid=pid).one_or_none()
+@router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+def delete(process_id: UUID) -> None:
+    process = ProcessTable.query.filter_by(process_id=process_id).one_or_none()
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    websocket_data = {"process": {"id": process.pid, "status": ProcessStatus.ABORTED}}
-    send_process_data_to_websocket(process.pid, websocket_data)
+    websocket_data = {"process": {"id": process.process_id, "status": ProcessStatus.ABORTED}}
+    send_process_data_to_websocket(process.process_id, websocket_data)
 
-    ProcessTable.query.filter_by(pid=pid).delete()
+    ProcessTable.query.filter_by(process_id=process_id).delete()
     db.session.commit()
 
 
@@ -94,18 +93,18 @@ def new_process(
 
     user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
-    pid = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
+    process_id = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
 
-    return {"id": pid}
+    return {"id": process_id}
 
 
-@router.put("/{pid}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/{process_id}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def resume_process_endpoint(
-    pid: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    process_id: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> None:
     check_global_lock()
 
-    process = _get_process(pid)
+    process = _get_process(process_id)
 
     if process.last_status == ProcessStatus.COMPLETED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a completed workflow is not possible")
@@ -160,9 +159,11 @@ async def resume_all_processess_endpoint(
     return {"count": len(processes_to_resume)}
 
 
-@router.put("/{pid}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(pid: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
-    process = _get_process(pid)
+@router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+def abort_process_endpoint(
+    process_id: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> None:
+    process = _get_process(process_id)
 
     user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
@@ -186,9 +187,15 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
     return query.all()
 
 
+@deprecated("Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, will be removed in 1.4")
 @router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
-    return ProcessSubscriptionTable.query.filter_by(pid=pid).all()
+    return ProcessSubscriptionTable.query.filter_by(process_id=pid).all()
+
+
+@router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
+def process_subscriptions_by_process_process_id(process_id: UUID) -> List[ProcessSubscriptionTable]:
+    return ProcessSubscriptionTable.query.filter_by(process_id=process_id).all()
 
 
 def check_global_lock() -> None:
@@ -232,12 +239,17 @@ def assignees() -> List[str]:
     return [assignee.value for assignee in Assignee]
 
 
-@router.get("/{pid}", response_model=ProcessSchema)
-def show(pid: UUID) -> Dict[str, Any]:
-    process = _get_process(pid)
+@deprecated("product (UUID) changed to product_id from version 1.2.3, will be removed in 1.4")
+def convert_to_old_process(process: dict) -> dict:
+    return {**process, "product": process["product_id"]}
+
+
+@router.get("/{process_id}", response_model=ProcessDeprecationsSchema)
+def show(process_id: UUID) -> Dict[str, Any]:
+    process = _get_process(process_id)
     p = load_process(process)
 
-    return show_process(process, p)
+    return convert_to_old_process(enrich_process(process, p))
 
 
 def handle_process_error(message: str, **kwargs: Any) -> None:
@@ -245,7 +257,7 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
     raise_status(HTTPStatus.BAD_REQUEST, message)
 
 
-@router.get("/", response_model=List[ProcessListItemSchema])
+@router.get("/", response_model=List[ProcessDeprecationsSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
     range: Optional[str] = None,
@@ -271,19 +283,12 @@ def processes_filterable(  # noqa: C901
         if len(_filter) == 0 or (len(_filter) % 2) > 0:
             raise_status(HTTPStatus.BAD_REQUEST, "Invalid number of filter arguments")
 
-        pydantic_filters = [Filter(field=field.lower(), value=value) for field, value in chunked(_filter, 2)]
+        pydantic_filters = [Filter(field=field, value=value) for field, value in chunked(_filter, 2)]
         query = filter_processes(query, pydantic_filters, handle_process_error)
 
     if _sort is not None and len(_sort) >= 2:
-        for item in chunked(_sort, 2):
-            if item and len(item) == 2 and item[0] in VALID_SORT_KEYS:
-                sort_key = VALID_SORT_KEYS[item[0]]
-                if item[1].upper() == "DESC":
-                    query = query.order_by(expression.desc(ProcessTable.__dict__[sort_key]))
-                else:
-                    query = query.order_by(expression.asc(ProcessTable.__dict__[sort_key]))
-            else:
-                raise_status(HTTPStatus.BAD_REQUEST, "Invalid Sort parameters")
+        pydantic_sorting = [Sort(field=field, order=SortOrder[value.upper()]) for field, value in chunked(_sort, 2)]
+        query = sort_processes(query, pydantic_sorting, handle_process_error)
 
     if _range is not None and len(_range) == 2:
         try:
@@ -305,7 +310,7 @@ def processes_filterable(  # noqa: C901
     # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
     checksum = 0
     for p in results:
-        checksum = zlib.crc32(p.pid.bytes, checksum)
+        checksum = zlib.crc32(p.process_id.bytes, checksum)
         last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
         checksum = zlib.crc32(last_modified_as_bytes, checksum)
 
@@ -317,7 +322,7 @@ def processes_filterable(  # noqa: C901
     if if_none_match == entity_tag:
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))
 
-    return [asdict(enrich_process(p)) for p in results]
+    return [convert_to_old_process(enrich_process(p)) for p in results]
 
 
 ws_router = APIRouter()

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from deprecated import deprecated
 from more_itertools import first
 
 from orchestrator.db import ProcessTable
@@ -18,6 +19,9 @@ from orchestrator.workflow import ProcessStat
 from pydantic_forms.core import generate_form
 
 
+@deprecated(
+    "consolidated with `orchestrator.api.helpers.enrich_process` into `enrich_process` in `orchestrator.utils.enrich_process` from version 1.2.3, will be removed in 1.4"
+)
 def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
     subscription = first(process.subscriptions, None)
     if subscription:

@@ -68,7 +68,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     register_custom_serializer()
 
-    def start_process(pid: UUID, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
+    def start_process(process_id: UUID, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
         try:
             workflow = get_workflow(workflow_key)
 
@@ -76,7 +76,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
                 raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
             pstat = ProcessStat(
-                pid,
+                process_id,
                 workflow=workflow,
                 state=Success(state),
                 log=workflow.steps,
@@ -84,45 +84,45 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
             )
 
             safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
-            pid = _run_process_async(pstat.pid, lambda: runwf(pstat, safe_logstep_with_func))
+            process_id = _run_process_async(pstat.process_id, lambda: runwf(pstat, safe_logstep_with_func))
 
         except Exception as exc:
-            local_logger.error("Worker failed to execute workflow", pid=pid, details=str(exc))
+            local_logger.error("Worker failed to execute workflow", process_id=process_id, details=str(exc))
             return None
         else:
-            return pid
+            return process_id
 
-    def resume_process(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
+    def resume_process(process_id: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
         try:
-            process = _get_process(pid)
-            pid = thread_resume_process(process, user_inputs=user_inputs, user=user)
+            process = _get_process(process_id)
+            process_id = thread_resume_process(process, user_inputs=user_inputs, user=user)
         except Exception as exc:
-            local_logger.error("Worker failed to resume workflow", pid=pid, details=str(exc))
+            local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
             return None
         else:
-            return pid
+            return process_id
 
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
     @celery_task(name=NEW_TASK)  # type: ignore
-    def new_task(pid, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
-        local_logger.info("Start task", pid=pid, workflow_key=workflow_key)
-        return start_process(pid, workflow_key, state=state, user=user)
+    def new_task(process_id, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
+        local_logger.info("Start task", process_id=process_id, workflow_key=workflow_key)
+        return start_process(process_id, workflow_key, state=state, user=user)
 
     @celery_task(name=NEW_WORKFLOW)  # type: ignore
-    def new_workflow(pid, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
-        local_logger.info("Start workflow", pid=pid, workflow_key=workflow_key)
-        return start_process(pid, workflow_key, state=state, user=user)
+    def new_workflow(process_id, workflow_key: str, state: Dict[str, Any], user: str) -> Optional[UUID]:
+        local_logger.info("Start workflow", process_id=process_id, workflow_key=workflow_key)
+        return start_process(process_id, workflow_key, state=state, user=user)
 
     @celery_task(name=RESUME_TASK)  # type: ignore
-    def resume_task(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
-        local_logger.info("Resume task", pid=pid)
-        return resume_process(pid, user_inputs=user_inputs, user=user)
+    def resume_task(process_id: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
+        local_logger.info("Resume task", process_id=process_id)
+        return resume_process(process_id, user_inputs=user_inputs, user=user)
 
     @celery_task(name=RESUME_WORKFLOW)  # type: ignore
-    def resume_workflow(pid: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
-        local_logger.info("Resume workflow", pid=pid)
-        return resume_process(pid, user_inputs=user_inputs, user=user)
+    def resume_workflow(process_id: UUID, user_inputs: Optional[List[State]], user: str) -> Optional[UUID]:
+        local_logger.info("Resume workflow", process_id=process_id)
+        return resume_process(process_id, user_inputs=user_inputs, user=user)
 
 
 class CeleryJobWorkerStatus(WorkerStatus):

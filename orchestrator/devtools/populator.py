@@ -89,7 +89,7 @@ class Populator:
         self.done = False
         self.waiting_for_input = False
         self.last_state: dict = {}
-        self.pid = None
+        self.process_id = None
         self._product_name = product_name
 
         organisation = os.getenv("POPULATOR_ORGANISATION") or CWI
@@ -271,10 +271,10 @@ class Populator:
             workflow_name: workflow name
             kwargs: The kwargs
 
-        Returns: the pid of the workflow process
+        Returns: the process_id of the workflow process
 
         """
-        self.log = self.log.bind(pid=None, workflow=workflow_name)
+        self.log = self.log.bind(process_id=None, workflow=workflow_name)
         self.log.info("Starting workflow")
 
         self.custom_input_values.update(kwargs)
@@ -285,10 +285,10 @@ class Populator:
         if "id" not in response_json:
             raise Exception(f"Starting workflow {workflow_name} failed: {response_json}")
 
-        self.pid = pid = response_json["id"]
-        self.log = self.log.bind(pid=self.pid)
+        self.process_id = process_id = response_json["id"]
+        self.log = self.log.bind(process_id=self.process_id)
         self.started = True
-        return pid
+        return process_id
 
     def start_create_workflow(self, **kwargs: Any) -> UUIDstr:
         """Start a create workflow.
@@ -296,7 +296,7 @@ class Populator:
         Args:
             kwargs: values to be used as form input
 
-        Returns: the pid of the workflow process
+        Returns: the process_id of the workflow process
 
         """
         self.log = self.log.bind(subscription_id=None)
@@ -314,7 +314,7 @@ class Populator:
             subscription_id: uuid of the subscription you want to modify
             kwargs: values to be used as form input
 
-        Returns: the pid of the workflow process
+        Returns: the process_id of the workflow process
 
         """
         subscription_id = str(subscription_id)
@@ -335,11 +335,11 @@ class Populator:
             subscription_id: uuid of the subscription you want to terminate
             kwargs: values to be used as form input
 
-        Returns: the pid of the workflow process
+        Returns: the process_id of the workflow process
 
         """
         subscription_id = str(subscription_id)
-        self.log = self.log.bind(pid=None, subscription_id=subscription_id)
+        self.log = self.log.bind(process_id=None, subscription_id=subscription_id)
         self.log.info("Starting terminate workflow")
         return self._start_workflow(self.terminate_workflow, subscription_id=subscription_id, **kwargs)
 
@@ -349,7 +349,7 @@ class Populator:
         Returns: True or False
 
         """
-        response = self.session.get(BASE_API_URL / "processes" / self.pid)
+        response = self.session.get(BASE_API_URL / "processes" / self.process_id)
         if response.status_code == HTTPStatus.OK:
             self.last_state = response.json()
         else:
@@ -396,12 +396,12 @@ class Populator:
 
     def reset(self) -> None:
         """Reset internal state."""
-        self.log = self.log.bind(subscription_id=None, pid=None).unbind("subscription_id", "pid")
+        self.log = self.log.bind(subscription_id=None, process_id=None).unbind("subscription_id", "process_id")
         self.started = False
         self.done = False
         self.waiting_for_input = False
         self.last_state = {}
-        self.pid = None
+        self.process_id = None
 
         # ensure dynamic stuff is also reset
         self.add_default_values()
@@ -421,7 +421,7 @@ class Populator:
             if self.human_input_needed():
                 form = self.get_current_form()
 
-                response = self.provide_user_input("PUT", BASE_API_URL / "processes" / self.pid / "resume", form)
+                response = self.provide_user_input("PUT", BASE_API_URL / "processes" / self.process_id / "resume", form)
                 if response.status_code == HTTPStatus.NO_CONTENT:
                     self.log.info("Resumed process.")
                 else:
