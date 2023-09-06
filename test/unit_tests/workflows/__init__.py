@@ -210,15 +210,14 @@ def resume_workflow(
     process: ProcessStat, step_log: List[Tuple[Step, WFProcess]], input_data: State
 ) -> Tuple[WFProcess, List]:
     # ATTENTION!! This code needs to be as similar as possible to `server.services.processes.resume_process`
-    # The main differences are: we use a different step log function and we don't run in
-    # a sepperate thread
+    # The main differences are: we use a different step log function, and we don't run in a separate thread
     user_data = _sanitize_input(input_data)
 
     persistent = list(filter(lambda p: not (p[1].isfailed() or p[1].issuspend() or p[1].iswaiting()), step_log))
     nr_of_steps_done = len(persistent)
     remaining_steps = process.workflow.steps[nr_of_steps_done:]
 
-    _, current_state = step_log[-1]
+    _, current_state = persistent[-1]
 
     user_input = post_form(remaining_steps[0].form, current_state.unwrap(), user_data)
     state = current_state.map(lambda state: StateMerger.merge(deepcopy(state), user_input))

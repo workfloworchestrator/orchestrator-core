@@ -568,3 +568,35 @@ def test_step_group_with_inputform_resume():
             ("Done", StepStatus.COMPLETE),
         ]
         assert_state(resume_result, {"steps": [1, 2, 3], "name": "Some name", "name_validated": True})
+
+
+def test_step_group_with_failure():
+    side_effect_counter = []
+
+    @step("Effectful step")
+    def effect_step():
+        side_effect_counter.append(1)
+        return {}
+
+    group = step_group("Multistep", begin >> effect_step >> step2 >> fail)
+
+    @workflow("Workflow with step group step", target=Target.CREATE, initial_input_form=const(FormPage))
+    def test_wf():
+        return init >> step1 >> group >> step3 >> done
+
+    with WorkflowInstanceForTests(test_wf, "step_group_test_workflow"):
+        init_state = {}
+
+        result, process, step_log = run_workflow("step_group_test_workflow", init_state)
+        assert_failed(result)
+        assert extract_error(result) == "Failure Message"
+        assert 1 == len(side_effect_counter), "Side effect should be called once"
+
+        step_log = [t for t in step_log if t[0] not in [effect_step, step2, fail]]
+
+        # # Retry workflow
+        persistent = list(filter(lambda p: not (p[1].isfailed() or p[1].issuspend() or p[1].iswaiting()), step_log))
+        _, current_state = persistent[-1]
+        resume_result, step_log = resume_workflow(process, step_log, {})
+        assert_failed(resume_result)
+        assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"
