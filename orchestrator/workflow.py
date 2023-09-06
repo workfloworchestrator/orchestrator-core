@@ -300,19 +300,16 @@ def step_group(name: str, steps: StepList) -> Step:
     """
 
     def func(initial_state: State) -> Process:
-        logger.debug("Inside step group executor", initial_state=initial_state)
         step_log_fn = step_log_fn_var.get()
 
         def dblogstep(step_: Step, p: Process) -> Process:
             # Add sub_step info to state
-            logger.info("Add sub step info to state")
             p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_group": name})
             p = step_log_fn(step_, p)
             # If this was the last sub step, remove sub_step info from state
             step_state = p.unwrap()
             if step_state.get("__sub_step") == steps[-1].name and step_state.get("__step_group") == name:
                 # The step group is finished. Remove sub step data from state
-                logger.info("Step group finished. Removing sub step data from state")
                 p = p.on_success(lambda s: {k: v for k, v in s.items() if k not in ["__sub_step", "__step_group"]})
             return p
 
@@ -500,7 +497,7 @@ class Process(Generic[S]):
         Waiting 2
 
         >>> AwaitingCallback(1).map(inc)
-        Awaiting callback 2
+        AwaitingCallback 2
 
         >>> Abort(1).map(inc)
         Abort 2
@@ -544,7 +541,7 @@ class Process(Generic[S]):
         Waiting 'a'
 
         >>> AwaitingCallback('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
-        Awaiting 'a'
+        AwaitingCallback 'a'
 
         >>> Abort('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Abort 'a'
@@ -577,10 +574,10 @@ class Process(Generic[S]):
         >>> Waiting('a').unwrap()
         'a'
 
-        >>> Abort('a').unwrap()
+        >>> AwaitingCallback('a').unwrap()
         'a'
 
-        >>> AwaitingCallback('a').unwrap()
+        >>> Abort('a').unwrap()
         'a'
 
         >>> Failed('a').unwrap()
@@ -746,28 +743,28 @@ class Process(Generic[S]):
     def isawaitingcallback(self) -> bool:
         """Test if this instance is AwaitingCallback.
 
-        >>> Success('a').iswaiting()
+        >>> Success('a').isawaitingcallback()
         False
 
-        >>> Skipped('a').iswaiting()
+        >>> Skipped('a').isawaitingcallback()
         False
 
-        >>> Suspend('a').iswaiting()
+        >>> Suspend('a').isawaitingcallback()
         False
 
-        >>> Waiting('a').iswaiting()
+        >>> Waiting('a').isawaitingcallback()
         False
 
-        >>> AwaitingCallback('a').iswaiting()
+        >>> AwaitingCallback('a').isawaitingcallback()
         True
 
-        >>> Abort('a').iswaiting()
+        >>> Abort('a').isawaitingcallback()
         False
 
-        >>> Failed('a').iswaiting()
+        >>> Failed('a').isawaitingcallback()
         False
 
-        >>> Complete('a').iswaiting()
+        >>> Complete('a').isawaitingcallback()
         False
         """
         return self._fold(
@@ -1335,9 +1332,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                 )
                 return process
 
-            logger.info("Before process.execute_step", step=step.name, process=process)
             step_result_process = process.execute_step(step)
-            logger.info("After process.execute_step", step=step.name, result=step_result_process)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
             step_result_process = Failed(e)
