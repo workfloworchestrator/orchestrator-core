@@ -289,12 +289,16 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     return decorator
 
 
-# A step group is a sequence of steps that act as a single step.
-# Each step in the step group is a normal step on its own. So they are callables (State) -> Process
-# The state of the group will be the last state of the sub-steps. So if one of the steps goes to FAILED,
-# the group goes to failed. If a step goes to SUSPEND, the group is in SUSPEND. If a step goes to SUCCESS however,
-# the group is still RUNNING. It will be in SUCCESS only of all the sub-steps are in SUCCESS.
 def step_group(name: str, steps: StepList) -> Step:
+    """Add a group of steps to the workflow as a single step.
+
+    A step group is a sequence of steps that act as a single step.
+    Each step in the step group is a normal step on its own. So they are callables (State) -> Process.
+    The state of the group will be the last state of the sub-steps. So if one of the steps goes to FAILED,
+    the group goes to failed. If a step goes to SUSPEND, the group is in SUSPEND. If a step goes to SUCCESS however,
+    the group is still RUNNING. It will be in SUCCESS only of all the sub-steps are in SUCCESS.
+    """
+
     def func(initial_state: State) -> Process:
         logger.debug("Inside step group executor", initial_state=initial_state)
         step_log_fn = step_log_fn_var.get()

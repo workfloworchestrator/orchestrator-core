@@ -170,7 +170,6 @@ def _get_current_step_to_update(
         )
     else:
         # Update last step entry in db
-        logger.info("Will be merged")
         last_db_step.status = process_state.status
         last_db_step.state = step_state
         current_step = last_db_step
