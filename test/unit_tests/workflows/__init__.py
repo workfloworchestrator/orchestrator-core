@@ -217,7 +217,13 @@ def resume_workflow(
     nr_of_steps_done = len(persistent)
     remaining_steps = process.workflow.steps[nr_of_steps_done:]
 
-    _, current_state = persistent[-1]
+    # Make sure we get the last state from the suspend step (since we removed it before)
+    if step_log and step_log[-1][1].issuspend():
+        _, current_state = step_log[-1]
+    elif persistent:
+        _, current_state = persistent[-1]
+    else:
+        current_state = Success({})
 
     user_input = post_form(remaining_steps[0].form, current_state.unwrap(), user_data)
     state = current_state.map(lambda state: StateMerger.merge(deepcopy(state), user_input))
