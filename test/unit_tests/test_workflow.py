@@ -466,11 +466,11 @@ def test_step_group_basic():
         return {"x": n + 1}
 
     @step("Sub step 2")
-    def sub_step2(n: int, x: int):
+    def sub_step2(n, x):
         return {"x": x * n}
 
     @step("Sub step 3")
-    def sub_step3(n: int, x: int):
+    def sub_step3(n, x):
         return {"x": x + n}
 
     group = step_group("Multiple steps", begin >> sub_step1 >> sub_step2 >> sub_step3)
@@ -507,7 +507,7 @@ def test_step_group_basic():
 
 def test_step_group_with_inputform_suspend():
     @step("Sub step")
-    def sub_step(name: str):
+    def sub_step(name):
         return {"name_validate": name}
 
     group = step_group("Multistep", begin >> step2 >> user_action >> sub_step)

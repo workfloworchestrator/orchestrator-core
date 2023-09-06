@@ -100,7 +100,7 @@ def _db_create_process(stat: ProcessStat) -> None:
     db.session.commit()
 
 
-def _update_process(process_id, step: Step, process_state: WFProcess) -> ProcessTable:
+def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
     p = ProcessTable.query.get(process_id)
     if p is None:
         raise ValueError(f"Failed to write failure step to process: process with PID {process_id} not found")
