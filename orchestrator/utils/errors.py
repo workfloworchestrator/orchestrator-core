@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from functools import singledispatch
 from http import HTTPStatus
-from typing import Dict, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 import structlog
 from deprecated import deprecated
@@ -95,7 +95,7 @@ def is_api_exception(ex: Exception) -> bool:
     """Test for swagger-codegen ApiException.
 
     For each API, swagger-codegen generates a new ApiException class. These are not organized into
-    a hierarchy. Hence testing whether one is dealing with one of the ApiException classes without knowing how
+    a hierarchy. Hence, testing whether one is dealing with one of the ApiException classes without knowing how
     many there are and where they are located, needs some special logic.
 
     Args:
@@ -108,18 +108,32 @@ def is_api_exception(ex: Exception) -> bool:
     return ex.__class__.__name__ == "ApiException"
 
 
-def error_state_to_dict(err: Exception) -> ErrorDict:
-    """Return an ErrorDict based on the exception.
+@singledispatch
+def error_state_to_dict(err: Any) -> ErrorDict:
+    """Return an ErrorDict based on the passed error object.
 
     Args:
-        err: Exception
+        err: An error object like an Exception, Error or ErrorDict
     Returns:
         An ErrorDict containing the error message a status_code and a traceback if available
 
     """
-    if isinstance(err, ProcessFailureError):
-        return {"class": type(err).__name__, "error": err.message, "traceback": show_ex(err), "details": err.details}
+    raise NotImplementedError(f"Unsupported error state type: {type(err)}")
 
+
+@error_state_to_dict.register(dict)
+def _(err: ErrorDict) -> ErrorDict:
+    return err
+
+
+@error_state_to_dict.register
+def _(err: ProcessFailureError) -> ErrorDict:
+    return {"class": type(err).__name__, "error": err.message, "traceback": show_ex(err), "details": err.details}
+
+
+@error_state_to_dict.register
+def _(err: Exception) -> ErrorDict:
+    # We can't dispatch on ApiException, see is_api_exception docstring
     if is_api_exception(err):
         err = cast(ApiException, err)
         return {
@@ -130,4 +144,5 @@ def error_state_to_dict(err: Exception) -> ErrorDict:
             "headers": "\n".join(f"{k}: {v}" for k, v in err.headers.items()),
             "traceback": show_ex(err),
         }
+
     return {"class": type(err).__name__, "error": str(err), "traceback": show_ex(err)}

@@ -268,7 +268,6 @@ def processes_filterable(  # noqa: C901
     _range: Union[List[int], None] = list(map(int, range.split(","))) if range else None
     _sort: Union[List[str], None] = sort.split(",") if sort else None
     _filter: Union[List[str], None] = filter.split(",") if filter else None
-    logger.info("processes_filterable() called", range=_range, sort=_sort, filter=_filter)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
