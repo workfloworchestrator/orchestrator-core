@@ -595,8 +595,6 @@ def test_step_group_with_failure():
         step_log = [t for t in step_log if t[0] not in [effect_step, step2, fail]]
 
         # # Retry workflow
-        persistent = list(filter(lambda p: not (p[1].isfailed() or p[1].issuspend() or p[1].iswaiting()), step_log))
-        _, current_state = persistent[-1]
         resume_result, step_log = resume_workflow(process, step_log, {})
         assert_failed(resume_result)
         assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"
