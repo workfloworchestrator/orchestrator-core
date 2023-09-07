@@ -14,7 +14,7 @@
 from typing import Optional
 
 from orchestrator.db import ProcessTable, SubscriptionTable
-from orchestrator.workflow import ProcessStat, Step
+from orchestrator.workflow import ProcessStat, ProcessStatus, Step
 from pydantic_forms.core import generate_form
 
 
@@ -77,6 +77,10 @@ def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) 
 
     details = enrich_process_details(process, p_stat) if p_stat else {}
 
+    last_step_id = None
+    if process.last_status != ProcessStatus.COMPLETED and process.steps:
+        last_step_id = process.steps[-1].step_id
+
     return {
         "process_id": process.process_id,
         "product_id": subscriptions[0]["product"]["product_id"] if subscriptions else None,
@@ -84,6 +88,7 @@ def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) 
         "assignee": process.assignee,
         "last_status": process.last_status,
         "last_step": process.last_step,
+        "last_step_id": last_step_id,
         "is_task": process.is_task,
         "workflow_name": process.workflow_name,
         "workflow_target": process.process_subscriptions[0].workflow_target if process.process_subscriptions else None,

@@ -422,6 +422,7 @@ def test_processes_filterable_response_model(
     del process["process_id"]  # skip process_id as it's dynamic
     del process["product_id"]  # skip product_id as it's dynamic
     del process["product"]  # skip product as it's dynamic
+    del process["last_step_id"]  # skip last_step_id as it's dynamic
     del process["subscriptions"]
     assert process == {
         "customer_id": "2f47f65a-0911-e511-80d0-005056956c1a",

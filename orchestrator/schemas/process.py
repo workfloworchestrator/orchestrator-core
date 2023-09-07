@@ -44,6 +44,7 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     started_at: datetime
     last_status: ProcessStatus
     last_step: Optional[str]
+    last_step_id: Optional[UUID]
     assignee: Assignee
     last_modified_at: datetime
     traceback: Optional[str]

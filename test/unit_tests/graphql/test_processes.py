@@ -18,6 +18,7 @@ process_fields = [
     "processId",
     "isTask",
     "lastStep",
+    "lastStepId",
     "lastStatus",
     "assignee",
     "failedReason",
@@ -43,6 +44,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       processId
       isTask
       lastStep
+      lastStepId
       lastStatus
       assignee
       failedReason
@@ -105,6 +107,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       processId
       isTask
       lastStep
+      lastStepId
       lastStatus
       assignee
       failedReason

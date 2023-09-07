@@ -64,6 +64,7 @@ class ProcessType:
     failed_reason: strawberry.auto
     traceback: strawberry.auto
     last_step: strawberry.auto
+    last_step_id: strawberry.auto
     last_status: strawberry.auto
     created_by: strawberry.auto
     started_at: strawberry.auto
