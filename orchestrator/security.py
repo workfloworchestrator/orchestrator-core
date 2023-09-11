@@ -14,7 +14,7 @@
 from authlib.integrations.starlette_client import OAuth
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import OIDCUser, opa_decision, opa_graphql_decision
+from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, OIDCUser, opa_decision, opa_graphql_decision
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.settings import oauth2_settings
 
@@ -28,6 +28,7 @@ oauth_client_credentials.register(
     client_id=oauth2_settings.OAUTH2_RESOURCE_SERVER_ID,
     client_secret=oauth2_settings.OAUTH2_RESOURCE_SERVER_SECRET,
     request_token_params={"grant_type": "client_credentials"},
+    client_kwargs={"verify": HTTPX_SSL_CONTEXT},
 )
 
 oidc_user = OIDCUser(
