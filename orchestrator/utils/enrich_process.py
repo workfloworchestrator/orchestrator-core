@@ -24,6 +24,7 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
     return {
         "subscription_id": subscription.subscription_id,
         "customer_id": subscription.customer_id,
+        "product_id": prod.product_id,
         "description": subscription.description,
         "insync": subscription.insync,
         "status": subscription.status,
