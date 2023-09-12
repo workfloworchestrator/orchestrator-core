@@ -27,6 +27,7 @@ from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
+from sentry_sdk.tracing import trace
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
@@ -257,6 +258,17 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
     raise_status(HTTPStatus.BAD_REQUEST, message)
 
 
+@trace
+def _calculate_processes_crc32_checksum(results: list[ProcessTable]) -> int:
+    """Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order."""
+    checksum = 0
+    for p in results:
+        checksum = zlib.crc32(p.process_id.bytes, checksum)
+        last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
+        checksum = zlib.crc32(last_modified_as_bytes, checksum)
+    return checksum
+
+
 @router.get("/", response_model=List[ProcessDeprecationsSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
@@ -307,11 +319,7 @@ def processes_filterable(  # noqa: C901
     results = query.all()
 
     # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
-    checksum = 0
-    for p in results:
-        checksum = zlib.crc32(p.process_id.bytes, checksum)
-        last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
-        checksum = zlib.crc32(last_modified_as_bytes, checksum)
+    checksum = _calculate_processes_crc32_checksum(results)
 
     entity_tag = hex(checksum)
     response.headers["ETag"] = f'W/"{entity_tag}"'
