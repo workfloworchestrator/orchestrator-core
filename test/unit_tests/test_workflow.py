@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import reduce
-from typing import List, NoReturn, Tuple
+from typing import Any, List, NoReturn, Tuple, Type
 from unittest import mock
 from uuid import UUID, uuid4
 
@@ -9,6 +9,7 @@ import pytest
 from nwastdlib import const
 from orchestrator.config.assignee import Assignee
 from orchestrator.services.processes import SYSTEM_USER
+from orchestrator.targets import Target
 from orchestrator.types import State, UUIDstr
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.workflow import (
@@ -17,6 +18,9 @@ from orchestrator.workflow import (
     Process,
     ProcessStat,
     Skipped,
+    Step,
+    StepLogFunc,
+    StepStatus,
     Success,
     Suspend,
     Waiting,
@@ -31,6 +35,7 @@ from orchestrator.workflow import (
     retrystep,
     runwf,
     step,
+    step_group,
     workflow,
 )
 from orchestrator.workflow import _purestep as purestep
@@ -67,7 +72,7 @@ def step3(steps):
 
 
 @inputstep("Input Name", assignee=Assignee.SYSTEM)
-def user_action():
+def user_action() -> Type[FormPage]:
     class Form(FormPage):
         name: str
 
@@ -412,10 +417,10 @@ def test_conditionally_skip_a_step():
     assert len([x for x in log if x[1].isskipped()]) == 15, "15 steps should be skipped"
 
 
-def store(log):
-    def _store(_, step, state):
-        log.append((step.name, state))
-        return state
+def store(log) -> StepLogFunc:
+    def _store(_: ProcessStat, step_: Step, process: Process):
+        log.append((step_.name, process))
+        return process
 
     return _store
 
@@ -453,3 +458,143 @@ def test_update_wrapper():
         pass
 
     assert whatever.__doc__ == "Do whatever."
+
+
+def test_step_group_basic():
+    @step("Sub step 1")
+    def sub_step1(n):
+        return {"x": n + 1}
+
+    @step("Sub step 2")
+    def sub_step2(n, x):
+        return {"x": x * n}
+
+    @step("Sub step 3")
+    def sub_step3(n, x):
+        return {"x": x + n}
+
+    group = step_group("Multiple steps", begin >> sub_step1 >> sub_step2 >> sub_step3)
+
+    wf = workflow("Workflow with step group step")(lambda: init >> step1 >> step2 >> group >> step3 >> done)
+
+    log = []
+
+    pstat = create_new_process_stat(wf, {"n": 3})
+    result = runwf(pstat, store(log))
+    assert_complete(result)
+    assert [t[0] for t in log] == [
+        "Start",
+        "Step 1",
+        "Step 2",
+        "Sub step 1",
+        "Sub step 2",
+        "Sub step 3",
+        "Multiple steps",
+        "Step 3",
+        "Done",
+    ]
+
+    def _state_key_fn(p: Process, k: str) -> Any:
+        return p.unwrap().get(k)
+
+    assert [_state_key_fn(t[1], "__step_group") for t in log] == [None] * 3 + ["Multiple steps"] * 3 + [None] * 3
+    assert [_state_key_fn(t[1], "__sub_step") for t in log] == [None] * 3 + [
+        "Sub step 1",
+        "Sub step 2",
+        "Sub step 3",
+    ] + [None] * 3
+
+
+def test_step_group_with_inputform_suspend():
+    @step("Sub step")
+    def sub_step(name):
+        return {"name_validate": name}
+
+    group = step_group("Multistep", begin >> step2 >> user_action >> sub_step)
+
+    wf = workflow("Workflow with step group step")(lambda: init >> step1 >> group >> step3 >> done)
+
+    log = []
+
+    pstat = create_new_process_stat(wf, {})
+    result = runwf(pstat, logstep=store(log))
+
+    assert_suspended(result)
+    assert log == [
+        ("Start", Success({})),
+        ("Step 1", Success({"steps": [1]})),
+        ("Step 2", Success({"steps": [1, 2], "__sub_step": "Step 2", "__step_group": "Multistep"})),
+        ("Input Name", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep"})),
+        ("Multistep", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep"})),
+    ]
+
+
+def test_step_group_with_inputform_resume():
+    """Step group with suspended sub step should resume from the sub step."""
+
+    @step("Sub step")
+    def sub_step():
+        return {"name_validated": True}
+
+    group = step_group("Multistep", begin >> step2 >> user_action >> sub_step)
+
+    class Form(FormPage):
+        subscription_id: UUID
+
+    @workflow("Workflow with step group step", target=Target.CREATE, initial_input_form=const(Form))
+    def test_wf():
+        return init >> step1 >> group >> step3 >> done
+
+    with WorkflowInstanceForTests(test_wf, "step_group_test_workflow"):
+        init_state = {"subscription_id": uuid4()}
+
+        result, process, step_log = run_workflow("step_group_test_workflow", init_state)
+
+        assert_suspended(result)
+        assert result.unwrap()["__sub_step"] == "Input Name"
+        step_log = [t for t in step_log if "__sub_step" not in t[1].unwrap()] + step_log[-1:]
+        resume_result, step_log = resume_workflow(process, step_log, {"name": "Some name"})
+
+        assert_complete(resume_result)
+
+        assert [(t[0].name, t[1].status) for t in step_log] == [
+            ("Start", StepStatus.SUCCESS),
+            ("Step 1", StepStatus.SUCCESS),
+            ("Multistep", StepStatus.SUSPEND),
+            ("Multistep", StepStatus.SUCCESS),
+            ("Sub step", StepStatus.SUCCESS),
+            ("Multistep", StepStatus.SUCCESS),
+            ("Step 3", StepStatus.SUCCESS),
+            ("Done", StepStatus.COMPLETE),
+        ]
+        assert_state(resume_result, {"steps": [1, 2, 3], "name": "Some name", "name_validated": True})
+
+
+def test_step_group_with_failure():
+    side_effect_counter = []
+
+    @step("Effectful step")
+    def effect_step():
+        side_effect_counter.append(1)
+        return {}
+
+    group = step_group("Multistep", begin >> effect_step >> step2 >> fail)
+
+    @workflow("Workflow with step group step", target=Target.CREATE, initial_input_form=const(FormPage))
+    def test_wf():
+        return init >> step1 >> group >> step3 >> done
+
+    with WorkflowInstanceForTests(test_wf, "step_group_test_workflow"):
+        init_state = {}
+
+        result, process, step_log = run_workflow("step_group_test_workflow", init_state)
+        assert_failed(result)
+        assert extract_error(result) == "Failure Message"
+        assert 1 == len(side_effect_counter), "Side effect should be called once"
+
+        step_log = [t for t in step_log if t[0] not in [effect_step, step2, fail]]
+
+        # # Retry workflow
+        resume_result, step_log = resume_workflow(process, step_log, {})
+        assert_failed(resume_result)
+        assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"

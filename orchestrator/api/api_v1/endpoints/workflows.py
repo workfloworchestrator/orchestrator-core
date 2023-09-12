@@ -47,7 +47,7 @@ def get_all_with_product_tags() -> List[WorkflowWithProductTagsSchema]:
             target=wf.target,
             description=wf.description,
             created_at=wf.created_at,
-            product_tags=list(map(lambda t: t[0], tags)),
+            product_tags=[t[0] for t in tags],
         )
 
     return list(map(add_product_tags, all_workflows))
