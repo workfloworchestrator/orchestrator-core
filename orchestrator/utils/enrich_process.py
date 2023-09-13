@@ -53,6 +53,7 @@ def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
             "state": step.state,
             "created_by": step.created_by,
             "step_id": step.step_id,
+            "stepid": step.step_id,
         }
         for step in process.steps
     ]
