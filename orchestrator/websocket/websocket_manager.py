@@ -19,6 +19,7 @@ from fastapi.exceptions import HTTPException
 from httpx import AsyncClient
 from structlog import get_logger
 
+from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT
 from orchestrator.security import oidc_user, opa_security_default
 from orchestrator.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
 from orchestrator.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
@@ -40,7 +41,7 @@ class WebSocketManager:
 
     async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
         try:
-            async with AsyncClient() as client:
+            async with AsyncClient(verify=HTTPX_SSL_CONTEXT) as client:
                 user = await oidc_user(websocket, token=token)  # type: ignore
                 if user:
                     await opa_security_default(websocket, user, client)  # type: ignore

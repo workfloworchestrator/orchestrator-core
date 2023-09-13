@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Annotated, Optional, Union
 from uuid import UUID
 
 import strawberry
-from more_itertools import first
 from strawberry.federation.schema_directives import Key
 from strawberry.scalars import JSON
 from strawberry.unset import UNSET
@@ -117,11 +116,9 @@ class ProcessType:
 
     @authenticated_field(description="Returns the associated product")  # type: ignore
     def product(self) -> Optional[ProductType]:
-        subscription = first(self._original_model.subscriptions, None)  # type: ignore
-        product = None
-        if subscription:
-            product = ProductTable.query.get(subscription.product_id)
-        return product
+        if self.product_id:
+            return ProductType.from_pydantic(ProductTable.query.get(self.product_id))
+        return None
 
     @strawberry.field(description="Returns customer of a subscription")  # type: ignore
     def customer(self) -> DefaultCustomerType:

@@ -14,9 +14,11 @@
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import inspect
 from dataclasses import asdict, dataclass
+from itertools import dropwhile
 from typing import (
     Any,
     Callable,
@@ -64,6 +66,8 @@ logger = structlog.get_logger(__name__)
 StepLogFunc = Callable[["ProcessStat", "Step", "Process"], "Process"]
 StepLogFuncInternal = Callable[["Step", "Process"], "Process"]
 StepToProcessFunc = Callable[[State], "Process"]
+
+step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.ContextVar("log_step_fn")
 
 
 @runtime_checkable
@@ -285,6 +289,44 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     return decorator
 
 
+def step_group(name: str, steps: StepList) -> Step:
+    """Add a group of steps to the workflow as a single step.
+
+    A step group is a sequence of steps that act as a single step.
+    Each step in the step group is a normal step on its own. So they are callables (State) -> Process.
+    The state of the group will be the last state of the sub-steps. So if one of the steps goes to FAILED,
+    the group goes to failed. If a step goes to SUSPEND, the group is in SUSPEND. If a step goes to SUCCESS however,
+    the group is still RUNNING. It will be in SUCCESS only of all the sub-steps are in SUCCESS.
+    """
+
+    def func(initial_state: State) -> Process:
+        step_log_fn = step_log_fn_var.get()
+
+        def dblogstep(step_: Step, p: Process) -> Process:
+            # Add sub_step info to state
+            p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_group": name})
+            p = step_log_fn(step_, p)
+            # If this was the last sub step, remove sub_step info from state
+            step_state = p.unwrap()
+            if step_state.get("__sub_step") == steps[-1].name and step_state.get("__step_group") == name:
+                # The step group is finished. Remove sub step data from state
+                p = p.on_success(lambda s: {k: v for k, v in s.items() if k not in ["__sub_step", "__step_group"]})
+            return p
+
+        # If sub_step information is present in the state. Resume from the corresponding sub step
+        if "__sub_step" in initial_state:
+            step_list = StepList(dropwhile(lambda s: s.name != initial_state.get("__sub_step"), steps))[1:]
+        else:
+            step_list = steps
+
+        process: Process = Success(initial_state)
+        return _exec_steps(step_list, process, dblogstep)
+
+    # Make sure we return a form is a sub step has a form
+    form = next((sub_step.form for sub_step in steps if sub_step.form), None)
+    return make_step_function(func, name, form)
+
+
 def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
     """Part of workflow "DSL" to map a `state -> Process state` function into a workflow step."""
 
@@ -413,6 +455,7 @@ class ProcessStatus(strEnum):
     RUNNING = "running"
     SUSPENDED = "suspended"
     WAITING = "waiting"
+    AWAITING_CALLBACK = "awaiting_callback"
     ABORTED = "aborted"
     FAILED = "failed"
     API_UNAVAILABLE = "api_unavailable"
@@ -426,6 +469,7 @@ class StepStatus(strEnum):
     SKIPPED = "skipped"
     SUSPEND = "suspend"
     WAITING = "waiting"
+    AWAITING_CALLBACK = "awaiting_callback"
     FAILED = "failed"
     ABORT = "abort"
     COMPLETE = "complete"
@@ -452,6 +496,9 @@ class Process(Generic[S]):
         >>> Waiting(1).map(inc)
         Waiting 2
 
+        >>> AwaitingCallback(1).map(inc)
+        AwaitingCallback 2
+
         >>> Abort(1).map(inc)
         Abort 2
 
@@ -463,10 +510,10 @@ class Process(Generic[S]):
         """
 
         def g(x: S) -> Process[S]:
-            Self = self.__class__
-            return Self(f(x))
+            self_ = self.__class__
+            return self_(f(x))
 
-        return self._fold(g, g, g, g, g, g, g)
+        return self._fold(g, g, g, g, g, g, g, g)
 
     def _fold(
         self,
@@ -474,34 +521,38 @@ class Process(Generic[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
     ) -> F:
         """Unwrap the state from the Process category.
 
-        >>> Success('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Success('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Success 'a'
 
-        >>> Skipped('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Skipped('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Skipped 'a'
 
-        >>> Suspend('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Suspend('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Suspend 'a'
 
-        >>> Waiting('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Waiting('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Waiting 'a'
 
-        >>> Abort('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> AwaitingCallback('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
+        AwaitingCallback 'a'
+
+        >>> Abort('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Abort 'a'
 
-        >>> Failed('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Failed('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Failed 'a'
 
-        >>> Complete('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Complete('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Complete 'a'
 
-        >>> Process('a')._fold(Success, Skipped, Suspend, Waiting, Abort, Failed, Complete)
+        >>> Process('a')._fold(Success, Skipped, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
         Traceback (most recent call last):
             ...
         NotImplementedError: Abstract function `_fold` must be implemented by the type constructor
@@ -523,6 +574,9 @@ class Process(Generic[S]):
         >>> Waiting('a').unwrap()
         'a'
 
+        >>> AwaitingCallback('a').unwrap()
+        'a'
+
         >>> Abort('a').unwrap()
         'a'
 
@@ -532,7 +586,7 @@ class Process(Generic[S]):
         >>> Complete('a').unwrap()
         'a'
         """
-        return self._fold(identity, identity, identity, identity, identity, identity, identity)  # type: ignore
+        return self._fold(identity, identity, identity, identity, identity, identity, identity, identity)  # type: ignore
 
     def issuccess(self) -> bool:
         """Test if this instance is Success.
@@ -549,6 +603,9 @@ class Process(Generic[S]):
         >>> Waiting('a').issuccess()
         False
 
+        >>> AwaitingCallback('a').issuccess()
+        False
+
         >>> Abort('a').issuccess()
         False
 
@@ -559,7 +616,14 @@ class Process(Generic[S]):
         False
         """
         return self._fold(
-            const(True), const(False), const(False), const(False), const(False), const(False), const(False)
+            const(True),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
         )
 
     def isskipped(self) -> bool:
@@ -577,6 +641,9 @@ class Process(Generic[S]):
         >>> Waiting('a').isskipped()
         False
 
+        >>> AwaitingCallback('a').isskipped()
+        False
+
         >>> Abort('a').isskipped()
         False
 
@@ -587,7 +654,14 @@ class Process(Generic[S]):
         False
         """
         return self._fold(
-            const(False), const(True), const(False), const(False), const(False), const(False), const(False)
+            const(False),
+            const(True),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
         )
 
     def issuspend(self) -> bool:
@@ -605,6 +679,9 @@ class Process(Generic[S]):
         >>> Waiting('a').issuspend()
         False
 
+        >>> AwaitingCallback('a').issuspend()
+        False
+
         >>> Abort('a').issuspend()
         False
 
@@ -615,35 +692,14 @@ class Process(Generic[S]):
         False
         """
         return self._fold(
-            const(False), const(False), const(True), const(False), const(False), const(False), const(False)
-        )
-
-    def isabort(self) -> bool:
-        """Test if this instance is Abort.
-
-        >>> Success('a').isabort()
-        False
-
-        >>> Skipped('a').isabort()
-        False
-
-        >>> Suspend('a').isabort()
-        False
-
-        >>> Waiting('a').isabort()
-        False
-
-        >>> Abort('a').isabort()
-        True
-
-        >>> Failed('a').isabort()
-        False
-
-        >>> Complete('a').isabort()
-        False
-        """
-        return self._fold(
-            const(False), const(False), const(False), const(False), const(True), const(False), const(False)
+            const(False),
+            const(False),
+            const(True),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
         )
 
     def iswaiting(self) -> bool:
@@ -661,6 +717,9 @@ class Process(Generic[S]):
         >>> Waiting('a').iswaiting()
         True
 
+        >>> AwaitingCallback('a').iswaiting()
+        False
+
         >>> Abort('a').iswaiting()
         False
 
@@ -671,7 +730,90 @@ class Process(Generic[S]):
         False
         """
         return self._fold(
-            const(False), const(False), const(False), const(True), const(False), const(False), const(False)
+            const(False),
+            const(False),
+            const(False),
+            const(True),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+        )
+
+    def isawaitingcallback(self) -> bool:
+        """Test if this instance is AwaitingCallback.
+
+        >>> Success('a').isawaitingcallback()
+        False
+
+        >>> Skipped('a').isawaitingcallback()
+        False
+
+        >>> Suspend('a').isawaitingcallback()
+        False
+
+        >>> Waiting('a').isawaitingcallback()
+        False
+
+        >>> AwaitingCallback('a').isawaitingcallback()
+        True
+
+        >>> Abort('a').isawaitingcallback()
+        False
+
+        >>> Failed('a').isawaitingcallback()
+        False
+
+        >>> Complete('a').isawaitingcallback()
+        False
+        """
+        return self._fold(
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(True),
+            const(False),
+            const(False),
+            const(False),
+        )
+
+    def isabort(self) -> bool:
+        """Test if this instance is Abort.
+
+        >>> Success('a').isabort()
+        False
+
+        >>> Skipped('a').isabort()
+        False
+
+        >>> Suspend('a').isabort()
+        False
+
+        >>> Waiting('a').isabort()
+        False
+
+        >>> AwaitingCallback('a').isabort()
+        False
+
+        >>> Abort('a').isabort()
+        True
+
+        >>> Failed('a').isabort()
+        False
+
+        >>> Complete('a').isabort()
+        False
+        """
+        return self._fold(
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(True),
+            const(False),
+            const(False),
         )
 
     def isfailed(self) -> bool:
@@ -689,6 +831,9 @@ class Process(Generic[S]):
         >>> Waiting('a').isfailed()
         False
 
+        >>> AwaitingCallback('a').isfailed()
+        False
+
         >>> Abort('a').isfailed()
         False
 
@@ -699,7 +844,14 @@ class Process(Generic[S]):
         False
         """
         return self._fold(
-            const(False), const(False), const(False), const(False), const(False), const(True), const(False)
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(True),
+            const(False),
         )
 
     def iscomplete(self) -> bool:
@@ -717,6 +869,9 @@ class Process(Generic[S]):
         >>> Waiting('a').iscomplete()
         False
 
+        >>> AwaitingCallback('a').iscomplete()
+        False
+
         >>> Abort('a').iscomplete()
         False
 
@@ -727,7 +882,14 @@ class Process(Generic[S]):
         True
         """
         return self._fold(
-            const(False), const(False), const(False), const(False), const(False), const(False), const(True)
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(False),
+            const(True),
         )
 
     def __eq__(self, other: object) -> bool:
@@ -743,6 +905,9 @@ class Process(Generic[S]):
         True
 
         >>> Success('a') != Waiting('a')
+        True
+
+        >>> Success('a') != AwaitingCallback('a')
         True
 
         >>> Suspend('a') != Abort('a')
@@ -769,6 +934,9 @@ class Process(Generic[S]):
         >>> Waiting({}).status
         <StepStatus.WAITING: 'waiting'>
 
+        >>> AwaitingCallback({}).status
+        <StepStatus.AWAITING_CALLBACK: 'awaiting_callback'>
+
         >>> Abort({}).status
         <StepStatus.ABORT: 'abort'>
 
@@ -778,7 +946,8 @@ class Process(Generic[S]):
         >>> Complete({}).status
         <StepStatus.COMPLETE: 'complete'>
         """
-        return StepStatus[self.__class__.__name__.upper()]
+        ss = getattr(self, "__name__", self.__class__.__name__).upper()
+        return StepStatus[ss]
 
     @staticmethod
     def from_status(status: StepStatus, state: S) -> Optional[Process]:
@@ -795,6 +964,9 @@ class Process(Generic[S]):
 
         >>> Process.from_status('waiting', {})
         Waiting {}
+
+        >>> Process.from_status('awaiting_callback', {})
+        AwaitingCallback {}
 
         >>> Process.from_status('abort', {})
         Abort {}
@@ -827,6 +999,9 @@ class Process(Generic[S]):
         >>> Waiting({}).overall_status
         <ProcessStatus.WAITING: 'waiting'>
 
+        >>> AwaitingCallback({}).overall_status
+        <ProcessStatus.AWAITING_CALLBACK: 'awaiting_callback'>
+
         >>> Abort({}).overall_status
         <ProcessStatus.ABORTED: 'aborted'>
 
@@ -841,6 +1016,7 @@ class Process(Generic[S]):
             const(ProcessStatus.RUNNING),
             const(ProcessStatus.SUSPENDED),
             const(ProcessStatus.WAITING),
+            const(ProcessStatus.AWAITING_CALLBACK),
             const(ProcessStatus.ABORTED),
             const(ProcessStatus.FAILED),
             const(ProcessStatus.COMPLETED),
@@ -860,6 +1036,9 @@ class Process(Generic[S]):
 
         >>> repr(Waiting({}))
         'Waiting {}'
+
+        >>> repr(AwaitingCallback({}))
+        'AwaitingCallback {}'
 
         >>> repr(Abort({}))
         'Abort {}'
@@ -899,6 +1078,10 @@ class Process(Generic[S]):
         """Apply function on Process state only when Waiting."""
         return self.map(f) if self.iswaiting() else self
 
+    def on_awaiting_callback(self, f: Callable[[S], S]) -> Process[S]:
+        """Apply function on Process state only when AwaitingCallback."""
+        return self.map(f) if self.isawaitingcallback() else self
+
     def on_abort(self, f: Callable[[S], S]) -> Process[S]:
         """Apply function on Process state only when Abort."""
         return self.map(f) if self.isabort() else self
@@ -912,7 +1095,7 @@ class Process(Generic[S]):
         return self.map(f) if self.iscomplete() else self
 
     def execute_step(self, step: Callable[[S], Process[S]]) -> Process[S]:
-        """Execute a step transition based on the a step function.
+        """Execute a step transition based on a step function.
 
         A step can only be executed if the current state is success or skipped.
 
@@ -926,14 +1109,14 @@ class Process(Generic[S]):
 
         """
 
-        return self._fold(step, step, Suspend, Waiting, Abort, Failed, Complete)
+        return self._fold(step, step, Suspend, Waiting, AwaitingCallback, Abort, Failed, Complete)
 
     def abort(self) -> Process[S]:
         """Abort process.
 
         Always works except for completed processes
         """
-        return self._fold(Abort, Abort, Abort, Abort, Abort, Abort, Complete)
+        return self._fold(Abort, Abort, Abort, Abort, Abort, Abort, Abort, Complete)
 
     def resume(self, resume_suspend: Callable[[Process[S]], Process[S]]) -> Process[S]:
         """Resume process.
@@ -957,7 +1140,7 @@ class Process(Generic[S]):
         Failed {'error': 'Exception!!'}
         """
 
-        next_state = self._fold(Success, Success, Success, Success, Abort, Success, Complete)
+        next_state = self._fold(Success, Success, Success, Success, Success, Abort, Success, Complete)
 
         if self.issuspend():
             return resume_suspend(next_state)  # type: ignore
@@ -972,6 +1155,7 @@ class Success(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
@@ -986,6 +1170,7 @@ class Skipped(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
@@ -1000,6 +1185,7 @@ class Suspend(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
@@ -1014,11 +1200,29 @@ class Waiting(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
     ) -> F:
         return waiting(self.s)
+
+
+class AwaitingCallback(Process[S]):
+    __name__ = "Awaiting_Callback"
+
+    def _fold(
+        self,
+        success: Callable[[S], F],
+        skipped: Callable[[S], F],
+        suspend: Callable[[S], F],
+        waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
+        abort: Callable[[S], F],
+        failed: Callable[[S], F],
+        complete: Callable[[S], F],
+    ) -> F:
+        return awaiting_callback(self.s)
 
 
 class Abort(Process[S]):
@@ -1028,6 +1232,7 @@ class Abort(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
@@ -1042,6 +1247,7 @@ class Failed(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
@@ -1056,6 +1262,7 @@ class Complete(Process[S]):
         skipped: Callable[[S], F],
         suspend: Callable[[S], F],
         waiting: Callable[[S], F],
+        awaiting_callback: Callable[[S], F],
         abort: Callable[[S], F],
         failed: Callable[[S], F],
         complete: Callable[[S], F],
@@ -1068,6 +1275,7 @@ _STATUSES = {
     StepStatus.SKIPPED: Skipped,
     StepStatus.SUSPEND: Suspend,
     StepStatus.WAITING: Waiting,
+    StepStatus.AWAITING_CALLBACK: AwaitingCallback,
     StepStatus.ABORT: Abort,
     StepStatus.FAILED: Failed,
     StepStatus.COMPLETE: Complete,
@@ -1118,13 +1326,13 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         try:
             engine_status = EngineSettingsTable.query.one()
             if engine_status.global_lock:
-                raise RuntimeWarning("Exiting from thread workflow engine is Paused or Pausing")
+                # Exiting from thread workflow engine is Paused or Pausing
+                consolelogger.info(
+                    "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
+                )
+                return process
+
             step_result_process = process.execute_step(step)
-        except RuntimeWarning:
-            consolelogger.info(
-                "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
-            )
-            return process
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
             step_result_process = Failed(e)
@@ -1134,9 +1342,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
         result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
-
         process = dblogstep(step, result_to_log)
-
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
         consolelogger.debug("Workflow step executed.", process_status=process.status)
@@ -1157,11 +1363,18 @@ def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
     logger.bind(workflow=pstat.workflow.name)
 
     def resume_suspend(process: Process) -> Process:
-        step = steps.pop(0)
+        state = process.unwrap()
+        if "__step_group" in state:
+            step = steps[0]
+        else:
+            step = steps.pop(0)
         return _logstep(step, process)
 
     next_state = pstat.state.resume(resume_suspend)
-
+    # Set the step_log_fn in the contextvar.
+    # This enables recursive step execution of sub steps with the same StepLogFunc.
+    # Should probably be refactored at some point as contextvars is a kind of global state.
+    step_log_fn_var.set(_logstep)
     return _exec_steps(steps, next_state, _logstep)
 
 

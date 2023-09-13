@@ -61,6 +61,8 @@ class ProcessStepSchema(OrchestratorBaseModel):
     commit_hash: Optional[str] = None
     state: Optional[Dict[str, Any]]
 
+    stepid: Optional[UUID]  # TODO: will be removed in 1.4
+
 
 class ProcessSchema(ProcessBaseSchema):
     product_id: Optional[UUID]

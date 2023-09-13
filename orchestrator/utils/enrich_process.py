@@ -24,6 +24,7 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
     return {
         "subscription_id": subscription.subscription_id,
         "customer_id": subscription.customer_id,
+        "product_id": prod.product_id,
         "description": subscription.description,
         "insync": subscription.insync,
         "status": subscription.status,
@@ -52,6 +53,7 @@ def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
             "state": step.state,
             "created_by": step.created_by,
             "step_id": step.step_id,
+            "stepid": step.step_id,
         }
         for step in process.steps
     ]

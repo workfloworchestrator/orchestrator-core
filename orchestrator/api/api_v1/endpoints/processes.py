@@ -27,6 +27,7 @@ from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
+from sentry_sdk.tracing import trace
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
@@ -257,6 +258,17 @@ def handle_process_error(message: str, **kwargs: Any) -> None:
     raise_status(HTTPStatus.BAD_REQUEST, message)
 
 
+@trace
+def _calculate_processes_crc32_checksum(results: list[ProcessTable]) -> int:
+    """Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order."""
+    checksum = 0
+    for p in results:
+        checksum = zlib.crc32(p.process_id.bytes, checksum)
+        last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
+        checksum = zlib.crc32(last_modified_as_bytes, checksum)
+    return checksum
+
+
 @router.get("/", response_model=List[ProcessDeprecationsSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
@@ -268,7 +280,6 @@ def processes_filterable(  # noqa: C901
     _range: Union[List[int], None] = list(map(int, range.split(","))) if range else None
     _sort: Union[List[str], None] = sort.split(",") if sort else None
     _filter: Union[List[str], None] = filter.split(",") if filter else None
-    logger.info("processes_filterable() called", range=_range, sort=_sort, filter=_filter)
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
@@ -308,11 +319,7 @@ def processes_filterable(  # noqa: C901
     results = query.all()
 
     # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
-    checksum = 0
-    for p in results:
-        checksum = zlib.crc32(p.process_id.bytes, checksum)
-        last_modified_as_bytes = struct.pack("d", p.last_modified_at.timestamp())
-        checksum = zlib.crc32(last_modified_as_bytes, checksum)
+    checksum = _calculate_processes_crc32_checksum(results)
 
     entity_tag = hex(checksum)
     response.headers["ETag"] = f'W/"{entity_tag}"'
