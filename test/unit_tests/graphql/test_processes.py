@@ -460,3 +460,45 @@ def test_single_process_with_subscriptions(
     }
     assert processes[0]["processId"] == process_pid
     assert processes[0]["subscriptions"]["page"][0]["subscriptionId"] == generic_subscription_1
+
+
+def test_processes_sorting_product_tag_asc(
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
+):
+    # when
+
+    data = get_processes_query(sort_by=[{"field": "productTag", "order": "ASC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    processes_data = result["data"]["processes"]
+    processes = processes_data["page"]
+    pageinfo = processes_data["pageInfo"]
+
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": True,
+        "startCursor": 0,
+        "endCursor": 9,
+        "totalItems": 15,
+    }
+
+    assert [process["product"]["tag"] for process in processes] == [
+        "GEN1",
+        "GEN1",
+        "GEN1",
+        "GEN1",
+        "GEN1",
+        "GEN1",
+        "GEN1",
+        "GEN1",
+        "GEN2",
+        "GEN2",
+    ]
