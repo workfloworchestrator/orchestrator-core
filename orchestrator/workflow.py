@@ -345,22 +345,7 @@ def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
     return stepfunc
 
 
-def awaitstep(name: str, result_key: Optional[str] = None) -> Step:
-    """Add step to workflow for awaiting callbacks and validating received data.
-
-    IMPORTANT: The `@awaitstep` wrapped function will not run in the workflow engine and must be free of side effects!
-
-    Example::
-
-        @awaitstep("Await data")
-        def validate(state: State) -> FormGenerator:
-            class Form(FormPage):
-                name: str
-            ext_data = yield Form
-            return ext_data.dict()
-
-    """
-
+def _awaitstep(name: str, result_key: Optional[str] = None) -> Step:
     def await_(state: State) -> Process:
         if result_key:
             state = {**state, "__callback_result_key": result_key}
@@ -389,7 +374,7 @@ def callback_step(
     """
     action_step = step(name=f"{name} - Action")(action_fn)
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
-    await_step = awaitstep(f"{name} - Await callback", result_key=result_key)
+    await_step = _awaitstep(f"{name} - Await callback", result_key=result_key)
     validate_step = step(f"{name} - Validate")(validate_fn)
 
     return step_group(name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step)
