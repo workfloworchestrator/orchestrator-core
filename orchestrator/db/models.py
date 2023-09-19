@@ -117,8 +117,8 @@ class ProcessTable(BaseModel):
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
 
-    stepid = mapped_column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    pid = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+    step_id = mapped_column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
     name = mapped_column(String(), nullable=False)
     status = mapped_column(String(50), nullable=False)
     state = mapped_column(pg.JSONB(), nullable=False)  # type: ignore
