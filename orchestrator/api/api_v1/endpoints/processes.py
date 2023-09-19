@@ -70,6 +70,21 @@ router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
+def check_global_lock() -> None:
+    """Check the global lock of the engine.
+
+    Returns:
+        None or raises an exception
+
+    """
+    engine_settings = EngineSettingsTable.query.one()
+    if engine_settings.global_lock:
+        logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
+        raise_status(
+            HTTPStatus.SERVICE_UNAVAILABLE, detail="Engine is locked cannot accept changes on processes at this time"
+        )
+
+
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete(process_id: UUID) -> None:
     process = ProcessTable.query.filter_by(process_id=process_id).one_or_none()
@@ -83,28 +98,34 @@ def delete(process_id: UUID) -> None:
     db.session.commit()
 
 
-@router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
+@router.post(
+    "/{workflow_key}",
+    response_model=ProcessIdSchema,
+    status_code=HTTPStatus.CREATED,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
 def new_process(
     workflow_key: str,
     request: Request,
     json_data: Optional[List[Dict[str, Any]]] = Body(...),
     user: Optional[OIDCUserModel] = Depends(oidc_user),
 ) -> Dict[str, UUID]:
-    check_global_lock()
-
-    user_name = user.user_name if user else SYSTEM_USER
+    user_name = user.name if user and user.name else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
     process_id = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
 
     return {"id": process_id}
 
 
-@router.put("/{process_id}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put(
+    "/{process_id}/resume",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
 def resume_process_endpoint(
     process_id: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> None:
-    check_global_lock()
-
     process = _get_process(process_id)
 
     if process.last_status == ProcessStatus.COMPLETED:
@@ -116,13 +137,15 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.RESUMED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
 
-    user_name = user.user_name if user else SYSTEM_USER
+    user_name = user.name if user and user.name else SYSTEM_USER
 
     broadcast_func = api_broadcast_process_data(request)
     resume_process(process, user=user_name, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
-@router.put("/resume-all", response_model=ProcessResumeAllSchema)
+@router.put(
+    "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
+)
 async def resume_all_processess_endpoint(
     request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
 ) -> Dict[str, int]:
@@ -131,9 +154,8 @@ async def resume_all_processess_endpoint(
     The retry is started in the background, returning status 200 and number of processes in message.
     When it is already running, refuse and return status 409 instead.
     """
-    check_global_lock()
 
-    user_name = user.user_name if user else SYSTEM_USER
+    user_name = user.name if user and user.name else SYSTEM_USER
 
     # Retrieve processes eligible for resuming
     processes_to_resume = (
@@ -166,7 +188,7 @@ def abort_process_endpoint(
 ) -> None:
     process = _get_process(process_id)
 
-    user_name = user.user_name if user else SYSTEM_USER
+    user_name = user.name if user and user.name else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
     try:
         abort_process(process, user_name, broadcast_func=broadcast_func)
@@ -197,21 +219,6 @@ def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionT
 @router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_process_id(process_id: UUID) -> List[ProcessSubscriptionTable]:
     return ProcessSubscriptionTable.query.filter_by(process_id=process_id).all()
-
-
-def check_global_lock() -> None:
-    """Check the global lock of the engine.
-
-    Returns:
-        None or raises an exception
-
-    """
-    engine_settings = EngineSettingsTable.query.one()
-    if engine_settings.global_lock:
-        logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
-        raise_status(
-            HTTPStatus.SERVICE_UNAVAILABLE, detail="Engine is locked cannot accept changes on processes at this time"
-        )
 
 
 @router.get("/statuses", response_model=List[ProcessStatus])
