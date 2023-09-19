@@ -84,7 +84,7 @@ class UtcTimestamp(TypeDecorator):
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
-    process_pid = mapped_column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
+    process_id = mapped_column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
     workflow_name = mapped_column("workflow", String(255), nullable=False)
     assignee = mapped_column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = mapped_column(String(50), nullable=False)
