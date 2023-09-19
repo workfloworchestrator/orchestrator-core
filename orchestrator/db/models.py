@@ -313,14 +313,12 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
-    # in_use_by: List[ProductBlockTable] = association_proxy(
     in_use_by = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
 
-    # depends_on: List[ProductBlockTable] = association_proxy(
     depends_on = association_proxy(
         "depends_on_block_relations",
         "depends_on",

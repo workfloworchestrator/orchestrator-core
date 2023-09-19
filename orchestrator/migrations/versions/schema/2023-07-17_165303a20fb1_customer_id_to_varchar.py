@@ -7,6 +7,7 @@ Create Date: 2023-07-17 13:53:23.932681
 """
 from pathlib import Path
 
+import sqlalchemy as sa
 from alembic import op
 
 revision = "165303a20fb1"
@@ -20,7 +21,7 @@ def upgrade() -> None:
 
     revision_file_path = Path(__file__)
     with open(revision_file_path.with_suffix(".sql")) as f:
-        conn.execute(f.read())
+        conn.execute(sa.text(f.read()))
 
 
 def downgrade() -> None:
