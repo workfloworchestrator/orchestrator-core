@@ -5,9 +5,7 @@ import structlog
 from orchestrator.db import ProductBlockTable, ResourceTypeTable
 from orchestrator.db.database import SearchQuery
 from orchestrator.db.filters import generic_filter
-from orchestrator.db.filters.generic_filters import (
-    generic_is_like_filter,
-)
+from orchestrator.db.filters.generic_filters import generic_is_like_filter
 
 logger = structlog.get_logger(__name__)
 

@@ -44,10 +44,11 @@ from orchestrator.schemas import (
     ProcessDeprecationsSchema,
     ProcessIdSchema,
     ProcessResumeAllSchema,
+    ProcessStatusCounts,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
+    Reporter,
 )
-from orchestrator.schemas.process import ProcessStatusCounts
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import (
     SYSTEM_USER,
@@ -85,6 +86,14 @@ def check_global_lock() -> None:
         )
 
 
+def resolve_user_name(
+    reporter: Optional[Reporter] = None, resolved_user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> str:
+    if reporter:
+        return reporter
+    return resolved_user.name if resolved_user and resolved_user.name else SYSTEM_USER
+
+
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete(process_id: UUID) -> None:
     process = ProcessTable.query.filter_by(process_id=process_id).one_or_none()
@@ -108,11 +117,10 @@ def new_process(
     workflow_key: str,
     request: Request,
     json_data: Optional[List[Dict[str, Any]]] = Body(...),
-    user: Optional[OIDCUserModel] = Depends(oidc_user),
+    user: str = Depends(resolve_user_name),
 ) -> Dict[str, UUID]:
-    user_name = user.name if user and user.name else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
-    process_id = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
+    process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
 
     return {"id": process_id}
 
@@ -124,7 +132,7 @@ def new_process(
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
 def resume_process_endpoint(
-    process_id: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(resolve_user_name)
 ) -> None:
     process = _get_process(process_id)
 
@@ -137,25 +145,19 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.RESUMED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
 
-    user_name = user.name if user and user.name else SYSTEM_USER
-
     broadcast_func = api_broadcast_process_data(request)
-    resume_process(process, user=user_name, user_inputs=json_data, broadcast_func=broadcast_func)
+    resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(
-    request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
-) -> Dict[str, int]:
+async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> Dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
     When it is already running, refuse and return status 409 instead.
     """
-
-    user_name = user.name if user and user.name else SYSTEM_USER
 
     # Retrieve processes eligible for resuming
     processes_to_resume = (
@@ -174,7 +176,7 @@ async def resume_all_processess_endpoint(
     )
 
     broadcast_func = api_broadcast_process_data(request)
-    if not await _async_resume_processes(processes_to_resume, user_name, broadcast_func=broadcast_func):
+    if not await _async_resume_processes(processes_to_resume, user, broadcast_func=broadcast_func):
         raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
 
     logger.info("Resuming all processes", count=len(processes_to_resume))
@@ -183,15 +185,12 @@ async def resume_all_processess_endpoint(
 
 
 @router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(
-    process_id: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
-) -> None:
+def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(resolve_user_name)) -> None:
     process = _get_process(process_id)
 
-    user_name = user.name if user and user.name else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
     try:
-        abort_process(process, user_name, broadcast_func=broadcast_func)
+        abort_process(process, user, broadcast_func=broadcast_func)
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))

@@ -41,12 +41,7 @@ from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import problem_detail_handler
-from orchestrator.graphql import (
-    Mutation,
-    Query,
-    create_graphql_router,
-    register_domain_models,
-)
+from orchestrator.graphql import Mutation, Query, create_graphql_router, register_domain_models
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.utils.vlans import VlanRanges
