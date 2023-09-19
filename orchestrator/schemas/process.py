@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from pydantic import ConstrainedStr
+
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.subscription import SubscriptionSchema
@@ -110,3 +112,7 @@ class ProcessResumeAllSchema(OrchestratorBaseModel):
 class ProcessStatusCounts(OrchestratorBaseModel):
     process_counts: Dict[ProcessStatus, int]
     task_counts: Dict[ProcessStatus, int]
+
+
+class Reporter(ConstrainedStr):
+    max_length = 100
