@@ -13,6 +13,7 @@
 
 """Module that implements process related API endpoints."""
 
+import json
 import struct
 import zlib
 from http import HTTPStatus
@@ -56,6 +57,7 @@ from orchestrator.services.processes import (
     _get_process,
     abort_process,
     api_broadcast_process_data,
+    continue_awaiting_process,
     load_process,
     resume_process,
     start_process,
@@ -149,6 +151,31 @@ def resume_process_endpoint(
 
     broadcast_func = api_broadcast_process_data(request)
     resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
+
+
+@router.post(
+    "/{process_id}/callback/{token}",
+    response_model=None,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
+def continue_awaiting_process_endpoint(
+    process_id: UUID,
+    token: str,
+    request: Request,
+    json_data: JSON = Body(...),
+) -> None:
+    check_global_lock()
+
+    process = _get_process(process_id)
+
+    if process.last_status != ProcessStatus.AWAITING_CALLBACK:
+        raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
+
+    try:
+        continue_awaiting_process(process, token=token, input_data=json.loads(json_data))
+    except AssertionError as e:
+        raise_status(HTTPStatus.NOT_FOUND, str(e))
 
 
 @router.put(

@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextvars
 import functools
 import inspect
+import secrets
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
 from typing import (
@@ -68,6 +69,8 @@ StepLogFuncInternal = Callable[["Step", "Process"], "Process"]
 StepToProcessFunc = Callable[[State], "Process"]
 
 step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.ContextVar("log_step_fn")
+
+DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
 
 
 @runtime_checkable
@@ -259,7 +262,7 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
     IMPORTANT: In contrast to other workflow steps, the `@inputstep` wrapped function will not run in the
-    workflow engine! This means that it should never do any changes in the database and external systems!
+    workflow engine! This means that it must be free of side effects!
 
     Example::
 
@@ -289,7 +292,7 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     return decorator
 
 
-def step_group(name: str, steps: StepList) -> Step:
+def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
     """Add a group of steps to the workflow as a single step.
 
     A step group is a sequence of steps that act as a single step.
@@ -297,6 +300,11 @@ def step_group(name: str, steps: StepList) -> Step:
     The state of the group will be the last state of the sub-steps. So if one of the steps goes to FAILED,
     the group goes to failed. If a step goes to SUSPEND, the group is in SUSPEND. If a step goes to SUCCESS however,
     the group is still RUNNING. It will be in SUCCESS only of all the sub-steps are in SUCCESS.
+
+    Args:
+        name: The name of the step
+        steps: The sub steps in the step group
+        extract_form: Whether to attach the first form of the sub steps to the step group
     """
 
     def func(initial_state: State) -> Process:
@@ -313,7 +321,7 @@ def step_group(name: str, steps: StepList) -> Step:
                 p = p.on_success(lambda s: {k: v for k, v in s.items() if k not in ["__sub_step", "__step_group"]})
             return p
 
-        # If sub_step information is present in the state. Resume from the corresponding sub step
+        # If sub_step information is present in the state. Resume from the next sub step
         if "__sub_step" in initial_state:
             step_list = StepList(dropwhile(lambda s: s.name != initial_state.get("__sub_step"), steps))[1:]
         else:
@@ -323,8 +331,51 @@ def step_group(name: str, steps: StepList) -> Step:
         return _exec_steps(step_list, process, dblogstep)
 
     # Make sure we return a form is a sub step has a form
-    form = next((sub_step.form for sub_step in steps if sub_step.form), None)
+    form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
     return make_step_function(func, name, form)
+
+
+def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
+    def stepfunc(process_id: UUID) -> State:
+        token = secrets.token_urlsafe()
+        route = f"/processes/{process_id}/callback/{token}"
+        # Also add the token under __callback_token for internal use
+        return {key: route, "__callback_token": token}
+
+    return stepfunc
+
+
+def _awaitstep(name: str, result_key: Optional[str] = None) -> Step:
+    def await_(state: State) -> Process:
+        if result_key:
+            state = {**state, "__callback_result_key": result_key}
+        return AwaitingCallback(state)
+
+    return make_step_function(await_, name)
+
+
+def callback_step(
+    name: str,
+    action_step: Step,
+    validate_step: Step,
+    result_key: Optional[str] = None,
+    callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
+) -> Step:
+    """Creates an asynchronous callback step.
+
+    Internally creates a step group with the following sub steps:
+
+    - Action - This performs the required side effect to an external system. After this, an endpoint is generated and
+    stored with the process and the process goes into AWAITING_CALLBACK state.
+    - Validate - Uses the provided validate_fn to validate the data coming from the external system.
+
+    The data returned in the callback will be merged in the state. An optional result_key parameter can be supplied
+    to specify under which key the data will be merged.
+    """
+    create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
+    await_step = _awaitstep(f"{name} - Await callback", result_key=result_key)
+
+    return step_group(name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step)
 
 
 def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
@@ -337,7 +388,7 @@ def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
 
 
 def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
-    """Use a predicate to control whether or not a step is run."""
+    """Use a predicate to control whether a step is run."""
 
     def _conditional(steps_or_func: Union[StepList, Step]) -> StepList:
         if isinstance(steps_or_func, Step):
@@ -1141,8 +1192,7 @@ class Process(Generic[S]):
         """
 
         next_state = self._fold(Success, Success, Success, Success, Success, Abort, Success, Complete)
-
-        if self.issuspend():
+        if self.issuspend() or self.isawaitingcallback():
             return resume_suspend(next_state)  # type: ignore
 
         return next_state  # type: ignore
@@ -1311,7 +1361,6 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
     process = starting_process
-
     for step in steps:
         # Check if we need to continue with the process
         if not (process.issuccess() or process.isskipped()):
@@ -1331,7 +1380,6 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                     "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
                 )
                 return process
-
             step_result_process = process.execute_step(step)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
