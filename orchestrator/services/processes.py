@@ -563,11 +563,9 @@ def continue_awaiting_process(
 
     # We need to pass the callback data to the worker executor. Currently, this is not supported.
     # Therefore, we update the step state in the db and kick-off resume_workflow
-    # TODO: Allow passing additional data to be merged to the state upon resume_workflow
-    if "__callback_result_key" in state:
-        state = {**state, state["__callback_result_key"]: input_data}
-    else:
-        state = {**state, **input_data}
+    # Possible improvement: Allow passing additional data to be merged to the state upon resume_workflow
+    result_key = state.get("__callback_result_key", "callback_result")
+    state = {**state, result_key: input_data}
 
     current_step = process.steps[-1]
     current_step.state = state
