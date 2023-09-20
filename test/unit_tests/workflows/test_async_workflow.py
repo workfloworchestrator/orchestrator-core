@@ -21,16 +21,17 @@ def step2(steps):
 
 
 def test_workflow_with_callback():
-    def action_fn() -> State:
+    @step("Action")
+    def action() -> State:
         return {"ext_response": "Request received"}
 
-    def validate_fn(state: State) -> State:
-        code = state.get("code")
+    @step("Validate")
+    def validate(code: str) -> State:
         if code != "12345":
             raise ValueError("Response code is wrong")
         return {"status": "ok"}
 
-    call_ext_system = callback_step(name="Call ext system", action_fn=action_fn, validate_fn=validate_fn)
+    call_ext_system = callback_step(name="Call ext system", action_step=action, validate_step=validate)
 
     @workflow("Test wf", target="Target.CREATE")
     def testwf():
@@ -52,14 +53,16 @@ def test_workflow_with_callback():
 
 
 def test_callback_wf_with_custom_callback_route():
-    def action_fn() -> State:
+    @step("Action")
+    def action() -> State:
         return {"ext_response": "Request received"}
 
-    def validate_fn() -> State:
+    @step("Validate")
+    def validate() -> State:
         return {}
 
     call_ext_system = callback_step(
-        name="Call ext system", action_fn=action_fn, validate_fn=validate_fn, callback_route_key="custom_route_key"
+        name="Call ext system", action_step=action, validate_step=validate, callback_route_key="custom_route_key"
     )
 
     @workflow("Test wf", target="Target.CREATE")

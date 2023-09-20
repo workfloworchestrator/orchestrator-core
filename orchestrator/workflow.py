@@ -356,10 +356,10 @@ def _awaitstep(name: str, result_key: Optional[str] = None) -> Step:
 
 def callback_step(
     name: str,
-    action_fn: StepFunc,
-    validate_fn: StepFunc,
-    callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
+    action_step: Step,
+    validate_step: Step,
     result_key: Optional[str] = None,
+    callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
 ) -> Step:
     """Creates an asynchronous callback step.
 
@@ -372,10 +372,8 @@ def callback_step(
     The data returned in the callback will be merged in the state. An optional result_key parameter can be supplied
     to specify under which key the data will be merged.
     """
-    action_step = step(name=f"{name} - Action")(action_fn)
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key)
-    validate_step = step(f"{name} - Validate")(validate_fn)
 
     return step_group(name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step)
 
