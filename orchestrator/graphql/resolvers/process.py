@@ -66,7 +66,7 @@ async def resolve_processes(
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
-        defer("traceback"),
+        defer(ProcessTable.traceback),
     )
 
     query = filter_processes(query, pydantic_filter_by, _error_handler)

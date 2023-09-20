@@ -6,6 +6,7 @@ Create Date: 2023-03-06 10:09:55.675588
 
 """
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "e05bb1967eff"
@@ -85,28 +86,38 @@ FROM subscriptions s
   END $$;
 """
 
-    conn.execute(subscriptions_search_view_ddl)
-    conn.execute(refresh_subscriptions_search_fn)
-    conn.execute("CREATE INDEX subscriptions_search_tsv_idx ON subscriptions_search USING GIN (tsv);")
+    conn.execute(text(subscriptions_search_view_ddl))
+    conn.execute(text(refresh_subscriptions_search_fn))
+    conn.execute(text("CREATE INDEX subscriptions_search_tsv_idx ON subscriptions_search USING GIN (tsv);"))
     conn.execute(
-        "CREATE UNIQUE INDEX subscriptions_search_subscription_id_idx ON subscriptions_search (subscription_id);"
+        text("CREATE UNIQUE INDEX subscriptions_search_subscription_id_idx ON subscriptions_search (subscription_id);")
     )
 
     # Refresh the view when dependent tables change
     conn.execute(
-        "CREATE CONSTRAINT TRIGGER fi_refresh_search AFTER UPDATE ON fixed_inputs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        text(
+            "CREATE CONSTRAINT TRIGGER fi_refresh_search AFTER UPDATE ON fixed_inputs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        )
     )
     conn.execute(
-        "CREATE CONSTRAINT TRIGGER products_refresh_search AFTER UPDATE ON products DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        text(
+            "CREATE CONSTRAINT TRIGGER products_refresh_search AFTER UPDATE ON products DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        )
     )
     conn.execute(
-        "CREATE CONSTRAINT TRIGGER sub_cust_desc_refresh_search AFTER INSERT OR UPDATE OR DELETE ON subscription_customer_descriptions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        text(
+            "CREATE CONSTRAINT TRIGGER sub_cust_desc_refresh_search AFTER INSERT OR UPDATE OR DELETE ON subscription_customer_descriptions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        )
     )
     conn.execute(
-        "CREATE CONSTRAINT TRIGGER siv_refresh_search AFTER INSERT OR UPDATE OR DELETE ON subscription_instance_values DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        text(
+            "CREATE CONSTRAINT TRIGGER siv_refresh_search AFTER INSERT OR UPDATE OR DELETE ON subscription_instance_values DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        )
     )
     conn.execute(
-        "CREATE CONSTRAINT TRIGGER sub_refresh_search AFTER INSERT OR UPDATE OR DELETE ON subscriptions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        text(
+            "CREATE CONSTRAINT TRIGGER sub_refresh_search AFTER INSERT OR UPDATE OR DELETE ON subscriptions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refresh_subscriptions_search_view();"
+        )
     )
 
     # DROP old text-search column and triggers (irreversible)
@@ -120,7 +131,7 @@ FROM subscriptions s
         ("fixed_inputs_trigger", "fixed_inputs"),
     ]
     for trigger, table in old_triggers:
-        conn.execute(f"DROP TRIGGER IF EXISTS {trigger} ON {table};")
+        conn.execute(text(f"DROP TRIGGER IF EXISTS {trigger} ON {table};"))
 
     functions_to_drop = [
         *[trigger for trigger, _ in old_triggers],
@@ -134,13 +145,13 @@ FROM subscriptions s
         "parse_websearch(regconfig, text), parse_websearch(text)",
     ]
     for fn in functions_to_drop:
-        conn.execute(f"DROP FUNCTION IF EXISTS {fn}")
+        conn.execute(text(f"DROP FUNCTION IF EXISTS {fn}"))
 
-    conn.execute("DROP TYPE IF EXISTS tsq_state;")
-    conn.execute("ALTER TABLE subscriptions DROP COLUMN IF EXISTS tsv;")
+    conn.execute(text("DROP TYPE IF EXISTS tsq_state;"))
+    conn.execute(text("ALTER TABLE subscriptions DROP COLUMN IF EXISTS tsv;"))
 
     # Fill the materialized view
-    conn.execute("REFRESH MATERIALIZED VIEW subscriptions_search;")
+    conn.execute(text("REFRESH MATERIALIZED VIEW subscriptions_search;"))
 
 
 def downgrade() -> None:
@@ -153,7 +164,7 @@ def downgrade() -> None:
         ("sub_refresh_search", "subscriptions"),
     ]
     for trigger, table in triggers_to_drop:
-        conn.execute(f"DROP TRIGGER IF EXISTS {trigger} ON {table};")
+        conn.execute(text(f"DROP TRIGGER IF EXISTS {trigger} ON {table};"))
 
-    conn.execute("DROP FUNCTION IF EXISTS refresh_subscriptions_search_view();")
-    conn.execute("DROP MATERIALIZED VIEW IF EXISTS subscriptions_search CASCADE;")
+    conn.execute(text("DROP FUNCTION IF EXISTS refresh_subscriptions_search_view();"))
+    conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS subscriptions_search CASCADE;"))

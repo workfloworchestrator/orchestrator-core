@@ -22,4 +22,4 @@ async def resolve_default_customer(
         )
     ]
     total = len(default_customer_list)
-    return to_graphql_result_page(default_customer_list, first, after, str(total))
+    return to_graphql_result_page(default_customer_list, first, after, total)

@@ -232,7 +232,7 @@ def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
     rows = (
         ProcessTable.query.with_entities(
-            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)
+            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)  # type: ignore
         )
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
         .all()
@@ -295,7 +295,7 @@ def processes_filterable(  # noqa: C901
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
-        defer("traceback"),
+        defer(ProcessTable.traceback),
     )
 
     if _filter is not None:

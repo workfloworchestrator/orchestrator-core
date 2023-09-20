@@ -81,7 +81,7 @@ def run_migrations_online() -> None:
                 logger.info("No changes in schema detected.")
 
     engine = engine_from_config(
-        config.get_section(config.config_ini_section), prefix="sqlalchemy.", poolclass=pool.NullPool
+        config.get_section(config.config_ini_section, default={}), prefix="sqlalchemy.", poolclass=pool.NullPool
     )
 
     connection = engine.connect()

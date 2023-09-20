@@ -6,6 +6,7 @@ Create Date: 2020-12-10 09:22:46.491454
 
 """
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "3323bcb934e7"
@@ -17,7 +18,8 @@ depends_on = None
 def upgrade() -> None:
     conn = op.get_bind()
     conn.execute(
-        """
+        text(
+            """
             DROP TRIGGER IF EXISTS subscriptions_upd_trigger ON subscriptions;
 
             CREATE OR REPLACE FUNCTION subscriptions_upd_trigger() RETURNS trigger
@@ -73,6 +75,7 @@ def upgrade() -> None:
             WHEN (new.tsv IS NULL)
             EXECUTE FUNCTION public.subscriptions_set_tsv_trigger();
         """
+        )
     )
 
 
