@@ -154,7 +154,7 @@ def resume_process_endpoint(
 
 
 @router.post(
-    "/{process_id}/continue/{token}",
+    "/{process_id}/callback/{token}",
     response_model=None,
     status_code=HTTPStatus.OK,
     dependencies=[Depends(check_global_lock, use_cache=False)],

@@ -338,7 +338,7 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
     def stepfunc(process_id: UUID) -> State:
         token = secrets.token_urlsafe()
-        route = f"/processes/{process_id}/continue/{token}"
+        route = f"/processes/{process_id}/callback/{token}"
         # Also add the token under __callback_token for internal use
         return {key: route, "__callback_token": token}
 
