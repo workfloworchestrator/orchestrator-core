@@ -1,5 +1,13 @@
-from orchestrator.types import State
-from orchestrator.workflow import AwaitingCallback, begin, callback_step, done, runwf, step, workflow
+from orchestrator.workflow import (
+    DEFAULT_CALLBACK_ROUTE_KEY,
+    AwaitingCallback,
+    begin,
+    callback_step,
+    done,
+    runwf,
+    step,
+    workflow,
+)
 from test.unit_tests.workflows import (
     WorkflowInstanceForTests,
     _store_step,
@@ -22,11 +30,11 @@ def step2(steps):
 
 def test_workflow_with_callback():
     @step("Action")
-    def action() -> State:
+    def action():
         return {"ext_response": "Request received"}
 
     @step("Validate")
-    def validate(code: str) -> State:
+    def validate(code):
         if code != "12345":
             raise ValueError("Response code is wrong")
         return {"status": "ok"}
@@ -41,7 +49,7 @@ def test_workflow_with_callback():
         result, process, step_log = run_workflow("testwf", {})
         assert_awaiting_callback(result)
         state = result.unwrap()
-        assert "callback_route" in state
+        assert DEFAULT_CALLBACK_ROUTE_KEY in state
         assert state.get("__sub_step") == "Call ext system - Await callback"
 
         step_log = [step_log[0]] + [step_log[-1]]
@@ -54,11 +62,11 @@ def test_workflow_with_callback():
 
 def test_callback_wf_with_custom_callback_route():
     @step("Action")
-    def action() -> State:
+    def action():
         return {"ext_response": "Request received"}
 
     @step("Validate")
-    def validate() -> State:
+    def validate():
         return {}
 
     call_ext_system = callback_step(
@@ -73,5 +81,5 @@ def test_callback_wf_with_custom_callback_route():
         result, process, step_log = run_workflow("testwf", {})
         assert_awaiting_callback(result)
         state = result.unwrap()
-        assert "callback_route" not in state
+        assert DEFAULT_CALLBACK_ROUTE_KEY not in state
         assert "custom_route_key" in state
