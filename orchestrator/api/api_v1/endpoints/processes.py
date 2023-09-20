@@ -91,7 +91,9 @@ def resolve_user_name(
 ) -> str:
     if reporter:
         return reporter
-    return resolved_user.name if resolved_user and resolved_user.name else SYSTEM_USER
+    if resolved_user:
+        return resolved_user.name if resolved_user.name else resolved_user.user_name
+    return SYSTEM_USER
 
 
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
