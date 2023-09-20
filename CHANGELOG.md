@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.1]
+- Added support for asynchronous callback_steps [\#297](https://github.com/workfloworchestrator/orchestrator-core/issues/297)
+
 ## [1.2.0]
  - Removed the opentelemetry dependancy and added warnings to function calls
  - Renamed an error classes and added warnings
