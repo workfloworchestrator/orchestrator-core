@@ -1,6 +1,6 @@
 # Docker Compose Installation Instructions
 
-Here is how you can run the orchestrator-core, orchestrator-core-gui, and netbox with Docker Compose. We have this all setup in our docker-compose.yml file so that you don't have to think about how to start the applications required for this workshop! If you want to read more about how to manually install the Workflow Orchestrator, please refer to [the beginner workshop here](https://workfloworchestrator.org/orchestrator-core/workshops/beginner/debian/). The following Docker images are used in this workshop:
+Here is how you can run the orchestrator-core, orchestrator-core-gui, and netbox with Docker Compose. We have this all setup in our docker-compose.yml file so that you don't have to think about how to start the applications required for this workshop! If you want to read more about how to manually install the Workflow Orchestrator, please refer to [the beginner workshop here](../beginner/debian.md). The following Docker images are used in this workshop:
 
 * [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core/pkgs/container/orchestrator-core): The workflow orchestrator step engine.
 * [orchestrator-core-gui](https://github.com/workfloworchestrator/orchestrator-core-gui/pkgs/container/orchestrator-core-gui): The GUI for the orchestrator-core.
