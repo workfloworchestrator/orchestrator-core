@@ -34,12 +34,12 @@ The goal of the orchestrator is generally not to store data in the orchestrator'
 def initial_input_form_generator(product_name: str) -> FormGenerator:
     """Generates the Node Form to display to the user."""
     logger.debug("Generating initial input form")
-    nodes = netbox.get_devices(status="planned")
-    choices = [node.name for node in nodes]
-    NodeEnum = Choice("Planned nodes", zip(choices, choices))  # type: ignore
+    devices = netbox.get_devices(status="planned")
+    choices = [device.name for device in devices]
+    DeviceEnum = Choice("Planned devices", zip(choices, choices))
 ```
 
-The important part of this function here is `nodes = netbox.get_devices(status="planned")`, where we fetch all devices in netbox that are in the `planned` state using the netbox service and then we construct the rest of the initial input form to present a list of available nodes to run this workflow against. Since we don't have anything in the workflow that then ever changes that status in netbox from planned to a different state, there is nothing stopping us from enrolling the same router over and over again, which is of course not desirable.
+The important part of this function here is `devices = netbox.get_devices(status="planned")`, where we fetch all devices in netbox that are in the `planned` state using the netbox service and then we construct the rest of the initial input form to present a list of available nodes to run this workflow against. Since we don't have anything in the workflow that then ever changes that status in netbox from planned to a different state, there is nothing stopping us from enrolling the same router over and over again, which is of course not desirable.
 
 ### Implement The Update Step
 
