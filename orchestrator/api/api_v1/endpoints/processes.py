@@ -13,6 +13,7 @@
 
 """Module that implements process related API endpoints."""
 
+import json
 import struct
 import zlib
 from http import HTTPStatus
@@ -44,10 +45,11 @@ from orchestrator.schemas import (
     ProcessDeprecationsSchema,
     ProcessIdSchema,
     ProcessResumeAllSchema,
+    ProcessStatusCounts,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
+    Reporter,
 )
-from orchestrator.schemas.process import ProcessStatusCounts
 from orchestrator.security import oidc_user
 from orchestrator.services.processes import (
     SYSTEM_USER,
@@ -55,6 +57,7 @@ from orchestrator.services.processes import (
     _get_process,
     abort_process,
     api_broadcast_process_data,
+    continue_awaiting_process,
     load_process,
     resume_process,
     start_process,
@@ -70,6 +73,31 @@ router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
+def check_global_lock() -> None:
+    """Check the global lock of the engine.
+
+    Returns:
+        None or raises an exception
+
+    """
+    engine_settings = EngineSettingsTable.query.one()
+    if engine_settings.global_lock:
+        logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
+        raise_status(
+            HTTPStatus.SERVICE_UNAVAILABLE, detail="Engine is locked cannot accept changes on processes at this time"
+        )
+
+
+def resolve_user_name(
+    reporter: Optional[Reporter] = None, resolved_user: Optional[OIDCUserModel] = Depends(oidc_user)
+) -> str:
+    if reporter:
+        return reporter
+    if resolved_user:
+        return resolved_user.name if resolved_user.name else resolved_user.user_name
+    return SYSTEM_USER
+
+
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete(process_id: UUID) -> None:
     process = ProcessTable.query.filter_by(process_id=process_id).one_or_none()
@@ -83,28 +111,33 @@ def delete(process_id: UUID) -> None:
     db.session.commit()
 
 
-@router.post("/{workflow_key}", response_model=ProcessIdSchema, status_code=HTTPStatus.CREATED)
+@router.post(
+    "/{workflow_key}",
+    response_model=ProcessIdSchema,
+    status_code=HTTPStatus.CREATED,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
 def new_process(
     workflow_key: str,
     request: Request,
     json_data: Optional[List[Dict[str, Any]]] = Body(...),
-    user: Optional[OIDCUserModel] = Depends(oidc_user),
+    user: str = Depends(resolve_user_name),
 ) -> Dict[str, UUID]:
-    check_global_lock()
-
-    user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
-    process_id = start_process(workflow_key, user_inputs=json_data, user=user_name, broadcast_func=broadcast_func)
+    process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
 
     return {"id": process_id}
 
 
-@router.put("/{process_id}/resume", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put(
+    "/{process_id}/resume",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
 def resume_process_endpoint(
-    process_id: UUID, request: Request, json_data: JSON = Body(...), user: Optional[OIDCUserModel] = Depends(oidc_user)
+    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(resolve_user_name)
 ) -> None:
-    check_global_lock()
-
     process = _get_process(process_id)
 
     if process.last_status == ProcessStatus.COMPLETED:
@@ -116,24 +149,44 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.RESUMED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
 
-    user_name = user.user_name if user else SYSTEM_USER
-
     broadcast_func = api_broadcast_process_data(request)
-    resume_process(process, user=user_name, user_inputs=json_data, broadcast_func=broadcast_func)
+    resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
-@router.put("/resume-all", response_model=ProcessResumeAllSchema)
-async def resume_all_processess_endpoint(
-    request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
-) -> Dict[str, int]:
+@router.post(
+    "/{process_id}/callback/{token}",
+    response_model=None,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
+def continue_awaiting_process_endpoint(
+    process_id: UUID,
+    token: str,
+    request: Request,
+    json_data: JSON = Body(...),
+) -> None:
+    check_global_lock()
+
+    process = _get_process(process_id)
+
+    if process.last_status != ProcessStatus.AWAITING_CALLBACK:
+        raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
+
+    try:
+        continue_awaiting_process(process, token=token, input_data=json.loads(json_data))
+    except AssertionError as e:
+        raise_status(HTTPStatus.NOT_FOUND, str(e))
+
+
+@router.put(
+    "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
+)
+async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> Dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
     When it is already running, refuse and return status 409 instead.
     """
-    check_global_lock()
-
-    user_name = user.user_name if user else SYSTEM_USER
 
     # Retrieve processes eligible for resuming
     processes_to_resume = (
@@ -152,7 +205,7 @@ async def resume_all_processess_endpoint(
     )
 
     broadcast_func = api_broadcast_process_data(request)
-    if not await _async_resume_processes(processes_to_resume, user_name, broadcast_func=broadcast_func):
+    if not await _async_resume_processes(processes_to_resume, user, broadcast_func=broadcast_func):
         raise_status(HTTPStatus.CONFLICT, "Another request to resume all processes is in progress")
 
     logger.info("Resuming all processes", count=len(processes_to_resume))
@@ -161,15 +214,12 @@ async def resume_all_processess_endpoint(
 
 
 @router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(
-    process_id: UUID, request: Request, user: Optional[OIDCUserModel] = Depends(oidc_user)
-) -> None:
+def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(resolve_user_name)) -> None:
     process = _get_process(process_id)
 
-    user_name = user.user_name if user else SYSTEM_USER
     broadcast_func = api_broadcast_process_data(request)
     try:
-        abort_process(process, user_name, broadcast_func=broadcast_func)
+        abort_process(process, user, broadcast_func=broadcast_func)
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
@@ -199,21 +249,6 @@ def process_subscriptions_by_process_process_id(process_id: UUID) -> List[Proces
     return ProcessSubscriptionTable.query.filter_by(process_id=process_id).all()
 
 
-def check_global_lock() -> None:
-    """Check the global lock of the engine.
-
-    Returns:
-        None or raises an exception
-
-    """
-    engine_settings = EngineSettingsTable.query.one()
-    if engine_settings.global_lock:
-        logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
-        raise_status(
-            HTTPStatus.SERVICE_UNAVAILABLE, detail="Engine is locked cannot accept changes on processes at this time"
-        )
-
-
 @router.get("/statuses", response_model=List[ProcessStatus])
 def statuses() -> List[str]:
     return [status.value for status in ProcessStatus]
@@ -224,7 +259,7 @@ def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
     rows = (
         ProcessTable.query.with_entities(
-            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)
+            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)  # type: ignore
         )
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
         .all()
@@ -287,7 +322,7 @@ def processes_filterable(  # noqa: C901
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
-        defer("traceback"),
+        defer(ProcessTable.traceback),
     )
 
     if _filter is not None:

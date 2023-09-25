@@ -249,10 +249,8 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
             ...
             return new_state
 
-    Both `subscription_id` and `sap1` need to be present in the state. However `sap2` can be present but does not need
+    Both `subscription_id` and `sap1` need to be present in the state. However, `sap2` can be present but does not need
     to be. If it is not present in the state it will get the value `None`
-
-    Default values are supported to!
 
     .. _domain-models-processing:
 
@@ -271,12 +269,12 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     It will use the UUID found to retrieve the domain model from the DB and inject it into the step function. None of
     the other data from the domain model (in case of it being a dict representation) will be used! At the end of the
     step function any domain models explicitly returned will be automatically saved to the DB; this includes any new
-    domain models that might be created in the step and returned by the step. Hence the automatic save is not limited
+    domain models that might be created in the step and returned by the step. Hence, the automatic save is not limited
     to domain models requested as part of the step parameter list.
 
     If the key `light_path` was not found in the state, the parameter is interpreted as a request to create a
     domain model of the given type. For that to work correctly the keys `product` and `organisation` need to be
-    present in the state. This will not work for more than one domain model. Eg. you can't request two domain
+    present in the state. This will not work for more than one domain model. E.g. you can't request two domain
     models to be created as we will not know to which of the two domain models `product` is applicable to.
 
     Also supported is wrapping a domain model in ``Optional`` or ``List``. Other types are not supported.
@@ -308,7 +306,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
 def form_inject_args(func: InputStepFunc) -> StateInputStepFunc:
     """See :func:`state_parms` for description.
 
-    This decorator behaves similarly to :func:`inject_args`. `form_inject_args` can be used on generatorfunctions.
+    This decorator behaves similarly to :func:`inject_args`. `form_inject_args` can be used on generator functions.
     """
 
     if inspect.isgeneratorfunction(func):

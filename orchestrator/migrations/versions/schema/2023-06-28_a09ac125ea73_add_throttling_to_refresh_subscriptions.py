@@ -8,6 +8,7 @@ Create Date: 2023-06-28 15:33:36.248121
 from pathlib import Path
 
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "a09ac125ea73"
@@ -21,7 +22,7 @@ def upgrade() -> None:
 
     revision_file_path = Path(__file__)
     with open(revision_file_path.with_suffix(".sql")) as f:
-        conn.execute(f.read())
+        conn.execute(text(f.read()))
 
 
 def downgrade() -> None:

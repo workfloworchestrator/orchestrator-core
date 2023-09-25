@@ -42,7 +42,17 @@ from orchestrator.websocket import (
     websocket_manager,
 )
 from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflow import Failed, ProcessStat, ProcessStatus, Step, StepList, Success, Workflow, abort_wf, runwf
+from orchestrator.workflow import (
+    Failed,
+    ProcessStat,
+    ProcessStatus,
+    Step,
+    StepList,
+    Success,
+    Workflow,
+    abort_wf,
+    runwf,
+)
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
@@ -515,7 +525,6 @@ def resume_process(
 
     """
     pstat = load_process(process)
-    logger.debug("Resume process pstat", pstat=pstat)
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
     except FormValidationError:
@@ -524,6 +533,48 @@ def resume_process(
 
     resume_func = get_execution_context()["resume"]
     return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+
+
+def continue_awaiting_process(
+    process: ProcessTable,
+    *,
+    token: str,
+    input_data: State,
+) -> UUID:
+    """Continue a process awaiting data from a callback.
+
+    Args:
+        process: Process from database
+        token: The token which was generated for the process. This must match.
+        input_data: Data posted to the callback
+
+    Returns:
+        process id
+
+    """
+
+    pstat = load_process(process)
+    state = pstat.state.unwrap()
+
+    # Check if the token matches
+    token_from_state = state.get("__callback_token")
+    if token != token_from_state:
+        raise AssertionError("Invalid token")
+
+    # We need to pass the callback data to the worker executor. Currently, this is not supported.
+    # Therefore, we update the step state in the db and kick-off resume_workflow
+    # Possible improvement: Allow passing additional data to be merged to the state upon resume_workflow
+    result_key = state.get("__callback_result_key", "callback_result")
+    state = {**state, result_key: input_data}
+
+    current_step = process.steps[-1]
+    current_step.state = state
+    db.session.add(current_step)
+    db.session.commit()
+
+    # Continue the workflow
+    resume_func = get_execution_context()["resume"]
+    return resume_func(process)
 
 
 async def _async_resume_processes(
@@ -583,14 +634,18 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Optional[Cal
 
 
 def _recoverwf(wf: Workflow, log: List[WFProcess]) -> Tuple[WFProcess, StepList]:
-    # Remove all extra steps (Failed, Suspended and Waiting steps add extra steps in db)
-    persistent = list(filter(lambda p: not (p.isfailed() or p.issuspend() or p.iswaiting()), log))
+    # Remove all extra steps (Failed, Suspended and (A)waiting steps in db). Only keep cleared steps.
+
+    persistent = list(
+        filter(lambda p: not (p.isfailed() or p.issuspend() or p.iswaiting() or p.isawaitingcallback()), log)
+    )
     stepcount = len(persistent)
 
-    # Make sure we get the last state from the suspend step (since we removed it before)
-    if log and log[-1].issuspend():
+    if log and (log[-1].issuspend() or log[-1].isawaitingcallback()):
+        # Use the state from the suspended/awaiting steps
         state = log[-1]
     elif persistent:
+        # Otherwise, use the state from the last cleared step.
         state = persistent[-1]
     else:
         state = Success({})

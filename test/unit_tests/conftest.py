@@ -10,7 +10,7 @@ import structlog
 from alembic import command
 from alembic.config import Config
 from redis import Redis
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
@@ -173,7 +173,7 @@ def db_uri(worker_id):
         url = url.set(database=f"{url.database}-{worker_id}")
     else:
         url.database = f"{url.database}-{worker_id}"
-    return str(url)
+    return url.render_as_string(hide_password=False)
 
 
 @pytest.fixture(scope="session")
@@ -195,10 +195,10 @@ def database(db_uri):
         url.database = "postgres"
     engine = create_engine(url)
     with closing(engine.connect()) as conn:
-        conn.execute("COMMIT;")
-        conn.execute(f'DROP DATABASE IF EXISTS "{db_to_create}";')
-        conn.execute("COMMIT;")
-        conn.execute(f'CREATE DATABASE "{db_to_create}";')
+        conn.execute(text("COMMIT;"))
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+        conn.execute(text("COMMIT;"))
+        conn.execute(text(f'CREATE DATABASE "{db_to_create}";'))
 
     run_migrations(db_uri)
     db.wrapped_database.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
@@ -208,8 +208,8 @@ def database(db_uri):
     finally:
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
-            conn.execute("COMMIT;")
-            conn.execute(f'DROP DATABASE IF EXISTS "{db_to_create}";')
+            conn.execute(text("COMMIT;"))
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
 @pytest.fixture(autouse=True)

@@ -22,48 +22,52 @@ from orchestrator.types import UUIDstr
 
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     result = conn.execute(
-        sa.text("SELECT resource_type_id FROM resource_types WHERE resource_types.resource_type=:name"), name=name
+        sa.text("SELECT resource_type_id FROM resource_types WHERE resource_types.resource_type=:name"), {"name": name}
     )
     return [x for (x,) in result.fetchall()][0]
 
 
 def get_fixed_input_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
-    result = conn.execute(sa.text("SELECT fixed_input_id FROM fixed_inputs WHERE fixed_inputs.name=:name"), name=name)
+    result = conn.execute(
+        sa.text("SELECT fixed_input_id FROM fixed_inputs WHERE fixed_inputs.name=:name"), {"name": name}
+    )
     return [x for (x,) in result.fetchall()][0]
 
 
 def get_product_block_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     result = conn.execute(
-        sa.text("SELECT product_block_id FROM product_blocks WHERE product_blocks.name=:name"), name=name
+        sa.text("SELECT product_block_id FROM product_blocks WHERE product_blocks.name=:name"), {"name": name}
     )
     return [x for (x,) in result.fetchall()][0]
 
 
 def get_product_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
-    result = conn.execute(sa.text("SELECT product_id FROM products WHERE products.name=:name"), name=name)
+    result = conn.execute(sa.text("SELECT product_id FROM products WHERE products.name=:name"), {"name": name})
     return [x for (x,) in result.fetchall()][0]
 
 
 def get_product_name_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> str:
-    result = conn.execute(sa.text("SELECT name FROM products WHERE product_id=:id"), id=id)
+    result = conn.execute(sa.text("SELECT name FROM products WHERE product_id=:id"), {"id": id})
     return [x for (x,) in result.fetchall()][0]
 
 
 def get_product_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> dict:
-    result = conn.execute(sa.text("SELECT * FROM products WHERE product_id=:id"), id=id)
-    return result.fetchall()[0]
+    result = conn.execute(sa.text("SELECT * FROM products WHERE product_id=:id"), {"id": id})
+
+    return dict(result.mappings().one())
+    # return result.fetchall()[0]
 
 
 def get_product_ids_by_product_type(conn: sa.engine.Connection, product_type: str) -> list[UUID]:
     result = conn.execute(
         sa.text("SELECT product_id FROM products WHERE product_type=:product_type"),
-        product_type=product_type,
+        {"product_type": product_type},
     )
     return [x for (x,) in result.fetchall()]
 
 
 def get_fixed_inputs_by_product_id(conn: sa.engine.Connection, id: Union[UUID, UUIDstr]) -> Sequence:
-    result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), id=id)
+    result = conn.execute(sa.text("SELECT * FROM fixed_inputs WHERE product_id=:id"), {"id": id})
     return result.fetchall()
 
 
@@ -74,8 +78,10 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
             """INSERT INTO resource_types (resource_type, description) VALUES
     (:resource_type, :description) ON CONFLICT DO NOTHING;"""
         ),
-        resource_type=resource_type,
-        description=description,
+        {
+            "resource_type": resource_type,
+            "description": description,
+        },
     )
 
 
@@ -104,7 +110,7 @@ def ensure_default_workflows(conn: sa.engine.Connection) -> None:
         for workflow_uuid in default_workflow_ids
     ]
     conn.execute(
-        sa.dialects.postgresql.insert(product_workflows_table, bind=conn)
+        sa.dialects.postgresql.insert(product_workflows_table)
         .values(product_workflow_table_rows)
         .on_conflict_do_nothing(index_elements=("product_id", "workflow_id"))
     )
@@ -243,7 +249,7 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: Union[UUID, UUID
                 {"fixed_input_id": fixed_input_id, "key": key, "value": value, "product_id": product_id},
             )
         else:
-            conn.execute(insert_fixed_input_without_id, key=key, value=values, product_id=product_id)
+            conn.execute(insert_fixed_input_without_id, {"key": key, "value": values, "product_id": product_id})
             uuids[key] = get_fixed_input_id_by_name(conn, key)
 
     return uuids
@@ -425,12 +431,14 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
                 description, resource_type_id = values
                 conn.execute(
                     insert_resource_type_with_id,
-                    resource_type_id=resource_type_id,
-                    resource_type=resource_type,
-                    description=description,
+                    {
+                        "resource_type_id": resource_type_id,
+                        "resource_type": resource_type,
+                        "description": description,
+                    },
                 )
             else:
-                conn.execute(insert_resource_type_without_id, resource_type=resource_type, description=values)
+                conn.execute(insert_resource_type_without_id, {"resource_type": resource_type, "description": values})
             resource_type_ids.append(get_resource_type_id_by_name(conn, resource_type))
 
     for product_block, resource_types in new.items():
@@ -458,8 +466,10 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: Di
                     resource_type_ids
                 """
             ),
-            product_block_name=product_block,
-            new_resource_types=tuple(resource_types.keys()),
+            {
+                "product_block_name": product_block,
+                "new_resource_types": tuple(resource_types.keys()),
+            },
         )
     return resource_type_ids
 
@@ -614,9 +624,11 @@ def add_products_to_workflow_by_product_tag(
                     WHERE p.tag=:product_tag AND name LIKE :product_name_like
             """
         ),
-        workflow_name=workflow_name,
-        product_tag=product_tag,
-        product_name_like=product_name_like,
+        {
+            "workflow_name": workflow_name,
+            "product_tag": product_tag,
+            "product_name_like": product_name_like,
+        },
     )
 
 
@@ -651,9 +663,11 @@ def remove_products_from_workflow_by_product_tag(
                 )
             """
         ),
-        workflow_name=workflow_name,
-        product_tag=product_tag,
-        product_name_like=product_name_like,
+        {
+            "workflow_name": workflow_name,
+            "product_tag": product_tag,
+            "product_name_like": product_name_like,
+        },
     )
 
 
@@ -682,8 +696,10 @@ def add_product_block_relation_between_products_by_id(
                 VALUES (:in_use_by_id, :depends_on_id)
             """
         ),
-        in_use_by_id=in_use_by_id,
-        depends_on_id=depends_on_id,
+        {
+            "in_use_by_id": in_use_by_id,
+            "depends_on_id": depends_on_id,
+        },
     )
 
 
@@ -712,8 +728,10 @@ def remove_product_block_relation_between_products_by_id(
                 WHERE in_use_by_id=:in_use_by_id AND depends_on_id=:depends_on_id
             """
         ),
-        in_use_by_id=in_use_by_id,
-        depends_on_id=depends_on_id,
+        {
+            "in_use_by_id": in_use_by_id,
+            "depends_on_id": depends_on_id,
+        },
     )
 
 
@@ -730,7 +748,7 @@ def delete_resource_type_by_id(conn: sa.engine.Connection, id: Union[UUID, UUIDs
     delete_resource_type_by_id(conn, resource_type_id)
     ```
     """
-    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type_id=:id"), id=id)
+    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type_id=:id"), {"id": id})
 
 
 def delete_resource_types_from_product_blocks(conn: sa.engine.Connection, delete: Dict) -> None:
@@ -763,8 +781,10 @@ def delete_resource_types_from_product_blocks(conn: sa.engine.Connection, delete
                      resource_types.resource_type_id = product_block_resource_types.resource_type_id AND
                      resource_types.resource_type IN :obsolete_resource_types"""
             ),
-            product_block_name=product_block_name,
-            obsolete_resource_types=tuple(resource_types.keys()),
+            {
+                "product_block_name": product_block_name,
+                "obsolete_resource_types": tuple(resource_types.keys()),
+            },
         )
 
 
@@ -786,13 +806,13 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
                WHERE resource_types.resource_type_id = product_block_resource_types.resource_type_id
                  AND resource_types.resource_type IN :obsolete"""
         ),
-        obsolete=tuple(delete),
+        {"obsolete": tuple(delete)},
     )
-    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type in :obsolete;"), obsolete=tuple(delete))
+    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type in :obsolete;"), {"obsolete": tuple(delete)})
 
 
 def delete_products_by_tag(conn: sa.engine.Connection, name: str) -> None:
-    conn.execute(sa.text("""DELETE FROM products p WHERE p.name=:name"""), tag=name)
+    conn.execute(sa.text("""DELETE FROM products p WHERE p.name=:name"""), {"name": name})
 
 
 def delete_product(conn: sa.engine.Connection, name: str) -> None:
@@ -822,7 +842,7 @@ def delete_product(conn: sa.engine.Connection, name: str) -> None:
             SELECT * from deleted_p;
             """
         ),
-        name=name,
+        {"name": name},
     )
 
 
@@ -853,7 +873,7 @@ def delete_product_block(conn: sa.engine.Connection, name: str) -> None:
             SELECT * from deleted_pb;
             """
         ),
-        name=name,
+        {"name": name},
     )
 
 
@@ -879,7 +899,7 @@ def delete_workflow(conn: sa.engine.Connection, name: str) -> None:
                 WHERE name = :name;
             """
         ),
-        name=name,
+        {"name": name},
     )
 
 
@@ -907,7 +927,7 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
             SELECT * from deleted_pb;
             """
         ),
-        resource_type=resource_type,
+        {"resource_type": resource_type},
     )
 
 
@@ -995,8 +1015,10 @@ def convert_resource_type_relations_to_instance_relations(
             INNER JOIN dependencies AS dep ON si.subscription_id=uuid(dep.subscription_id) ON CONFLICT DO NOTHING
             """
         ),
-        resource_type_id=resource_type_id,
-        domain_model_attr=domain_model_attr,
+        {
+            "resource_type_id": resource_type_id,
+            "domain_model_attr": domain_model_attr,
+        },
     )
 
     if cleanup:
@@ -1007,7 +1029,7 @@ def convert_resource_type_relations_to_instance_relations(
                 WHERE resource_type_id=:resource_type_id
                 """
             ),
-            resource_type_id=resource_type_id,
+            {"resource_type_id": resource_type_id},
         )
 
 
@@ -1044,11 +1066,14 @@ def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
                 inner join instance_relations as ir on si.subscription_instance_id=ir.depends_on_id
             """
         ),
-        domain_model_attr=domain_model_attr,
-        resource_type_id=resource_type_id,
+        {
+            "domain_model_attr": domain_model_attr,
+            "resource_type_id": resource_type_id,
+        },
     )
 
     if cleanup:
         conn.execute(
-            sa.text("DELETE FROM subscription_instance_relations WHERE domain_model_attr=:attr"), attr=domain_model_attr
+            sa.text("DELETE FROM subscription_instance_relations WHERE domain_model_attr=:attr"),
+            {"attr": domain_model_attr},
         )

@@ -3,7 +3,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemy.exc import MultipleResultsFound
 
 from orchestrator.db import ProductTable
 from orchestrator.domain import SubscriptionModel

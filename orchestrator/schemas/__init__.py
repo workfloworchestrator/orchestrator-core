@@ -25,8 +25,10 @@ from orchestrator.schemas.process import (
     ProcessIdSchema,
     ProcessResumeAllSchema,
     ProcessSchema,
+    ProcessStatusCounts,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
+    Reporter,
 )
 from orchestrator.schemas.product import ProductBaseSchema, ProductCRUDSchema, ProductSchema
 from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockEnrichedSchema
@@ -68,4 +70,6 @@ __all__ = (
     "WorkerStatus",
     "WorkflowSchema",
     "WorkflowWithProductTagsSchema",
+    "Reporter",
+    "ProcessStatusCounts",
 )

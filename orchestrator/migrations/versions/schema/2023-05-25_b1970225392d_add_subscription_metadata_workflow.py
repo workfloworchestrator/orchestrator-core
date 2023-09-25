@@ -29,11 +29,11 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),  # type: ignore
         sa.ForeignKeyConstraint(["subscription_id"], ["subscriptions.subscription_id"], ondelete="CASCADE"),
     )
 
 
 def downgrade() -> None:
     conn = op.get_bind()
-    conn.execute(f"DROP TABLE IF EXISTS {METADATA_TABLE_NAME}")
+    conn.execute(sa.text(f"DROP TABLE IF EXISTS {METADATA_TABLE_NAME}"))

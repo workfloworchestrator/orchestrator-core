@@ -33,6 +33,7 @@ from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
+    ProductTable,
     SubscriptionInstanceTable,
     SubscriptionTable,
     db,
@@ -217,7 +218,7 @@ def subscriptions_filterable(
     _filter: Union[List[str], None] = filter.split(",") if filter else None
     logger.info("subscriptions_filterable() called", range=_range, sort=_sort, filter=_filter)
     query = SubscriptionTable.query.join(SubscriptionTable.product).options(
-        contains_eager(SubscriptionTable.product), defer("product_id")
+        contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
     return _query_with_filters(response, query, _range, _sort, _filter)
 
@@ -226,9 +227,9 @@ def subscriptions_filterable(
     "/workflows/{subscription_id}", response_model=SubscriptionWorkflowListsSchema, response_model_exclude_none=True
 )
 def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[str, Union[List[Any], str]]]]:
-    subscription = SubscriptionTable.query.options(joinedload("product"), joinedload("product.workflows")).get(
-        subscription_id
-    )
+    subscription = SubscriptionTable.query.options(
+        joinedload(SubscriptionTable.product), joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows)
+    ).get(subscription_id)
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 

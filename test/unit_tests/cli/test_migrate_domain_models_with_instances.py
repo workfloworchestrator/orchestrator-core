@@ -1,6 +1,8 @@
 import json
 from typing import List, Union
 
+from sqlalchemy import text
+
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
 from orchestrator.db.models import ResourceTypeTable, SubscriptionInstanceValueTable
@@ -43,7 +45,7 @@ def test_migrate_domain_models_new_product_block(
     assert len(downgrade_sql) == 5
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
@@ -52,7 +54,7 @@ def test_migrate_domain_models_new_product_block(
     assert new_model.new_block.str_field == "test"
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -102,7 +104,7 @@ def test_migrate_domain_models_new_product_block_on_product_block(
     assert len(downgrade_sql) == 5
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
@@ -111,7 +113,7 @@ def test_migrate_domain_models_new_product_block_on_product_block(
     assert new_model.block.new_block.str_field == "test"
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -156,7 +158,7 @@ def test_migrate_domain_models_new_resource_type(
     test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     updated_subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
@@ -164,7 +166,7 @@ def test_migrate_domain_models_new_resource_type(
     assert updated_subscription.block.new_int_field == 1
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -206,7 +208,7 @@ def test_migrate_domain_models_new_product_block_and_resource_type(
     assert len(downgrade_sql) == 9
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
@@ -216,7 +218,7 @@ def test_migrate_domain_models_new_product_block_and_resource_type(
     assert new_model.new_block.new_str_field == "new test"
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -263,14 +265,14 @@ def test_migrate_domain_models_update_resource_type(
     test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     updated_subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert updated_subscription.block.new_list_field == [10, 20, 30]
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -323,7 +325,7 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
     test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     updated_instance = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
@@ -331,7 +333,7 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
     assert updated_instance.block.sub_block.new_list_field == [5]
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -393,7 +395,7 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
     test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     updated_subscription = ProductSubListUnionTest.from_subscription(product_sub_list_union_subscription_1)
@@ -408,7 +410,7 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
     assert not int_field_resource
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -426,7 +428,7 @@ def test_migrate_domain_models_remove_product(test_product_type_one, product_one
     assert len(downgrade_sql) == 0
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     SUBSCRIPTION_MODEL_REGISTRY["TestProductOne"] = ProductTypeOneForTest
@@ -455,14 +457,14 @@ def test_migrate_domain_models_remove_fixed_input(
     test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert "test_fixed_input" not in subscription.dict()
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -494,7 +496,7 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
     assert len(int_field_instance_values) == 3
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
@@ -506,7 +508,7 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
     assert len(int_field_instance_values) == 0
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
 
@@ -540,14 +542,14 @@ def test_migrate_domain_models_remove_resource_type(
     assert subscription.block.list_field
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert "list_field" not in subscription.block.dict()
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
 
@@ -599,14 +601,14 @@ def test_migrate_domain_models_update_block_resource_type(
     str_field_value = test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert subscription.block.update_str_field == str_field_value
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()
@@ -663,14 +665,14 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(test_produc
     str_field_value = test_expected_before_upgrade()
 
     for stmt in upgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert subscription.block.update_str_field == str_field_value
 
     for stmt in downgrade_sql:
-        db.session.execute(stmt)
+        db.session.execute(text(stmt))
     db.session.commit()
 
     test_expected_before_upgrade()

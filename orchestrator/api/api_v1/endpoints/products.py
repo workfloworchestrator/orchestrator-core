@@ -47,7 +47,11 @@ def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List
 @router.get("/{product_id}", response_model=ProductSchema)
 def product_by_id(product_id: UUID) -> ProductTable:
     product = (
-        ProductTable.query.options(joinedload("fixed_inputs"), joinedload("product_blocks"), joinedload("workflows"))
+        ProductTable.query.options(
+            joinedload(ProductTable.fixed_inputs),
+            joinedload(ProductTable.product_blocks),
+            joinedload(ProductTable.workflows),
+        )
         .filter_by(product_id=product_id)
         .first()
     )

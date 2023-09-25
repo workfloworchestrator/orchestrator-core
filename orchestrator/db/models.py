@@ -39,7 +39,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import backref, deferred, object_session, relationship
+from sqlalchemy.orm import Mapped, backref, deferred, mapped_column, object_session, relationship
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
@@ -78,25 +78,25 @@ class UtcTimestamp(TypeDecorator):
         return value
 
     def process_result_value(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
-        if value is not None:
-            return value.astimezone(timezone.utc)
-        return value
+        return value.astimezone(timezone.utc) if value else value
 
 
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
-    process_id = Column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow_name = Column("workflow", String(255), nullable=False)
-    assignee = Column(String(50), server_default=Assignee.SYSTEM, nullable=False)
-    last_status = Column(String(50), nullable=False)
-    last_step = Column(String(255), nullable=True)
-    started_at = Column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
-    last_modified_at = Column(UtcTimestamp, server_default=text("current_timestamp()"), onupdate=nowtz, nullable=False)
-    failed_reason = Column(Text())
-    traceback = Column(Text())
-    created_by = Column(String(255), nullable=True)
-    is_task = Column(Boolean, nullable=False, server_default=text("false"), index=True)
+    process_id = mapped_column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
+    workflow_name = mapped_column("workflow", String(255), nullable=False)
+    assignee = mapped_column(String(50), server_default=Assignee.SYSTEM, nullable=False)
+    last_status = mapped_column(String(50), nullable=False)
+    last_step = mapped_column(String(255), nullable=True)
+    started_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+    last_modified_at = mapped_column(
+        UtcTimestamp, server_default=text("current_timestamp()"), onupdate=nowtz, nullable=False
+    )
+    failed_reason = mapped_column(Text())
+    traceback = mapped_column(Text())
+    created_by = mapped_column(String(255), nullable=True)
+    is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
     steps = relationship(
         "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
     )
@@ -116,14 +116,17 @@ class ProcessTable(BaseModel):
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"
-    step_id = Column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String(), nullable=False)
-    status = Column(String(50), nullable=False)
-    state = Column(pg.JSONB(), nullable=False)
-    created_by = Column(String(255), nullable=True)
-    executed_at = Column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
-    commit_hash = Column(String(40), nullable=True, default=GIT_COMMIT_HASH)
+
+    step_id = mapped_column("stepid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    process_id = mapped_column(
+        "pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name = mapped_column(String(), nullable=False)
+    status = mapped_column(String(50), nullable=False)
+    state = mapped_column(pg.JSONB(), nullable=False)  # type: ignore
+    created_by = mapped_column(String(255), nullable=True)
+    executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
     @property
     @deprecated("Changed to 'step_id' from version 1.2.3, will be removed in 1.4")
@@ -138,13 +141,14 @@ class ProcessStepTable(BaseModel):
 
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
-    id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    process_id = Column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), nullable=False, index=True)
+
+    id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), index=True)
     process = relationship("ProcessTable", back_populates="process_subscriptions")
-    subscription_id = Column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
+    subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     subscription = relationship("SubscriptionTable", lazy=True)
-    created_at = Column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
-    workflow_target = Column(String(255), nullable=False, server_default=Target.CREATE)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+    workflow_target = mapped_column(String(255), nullable=False, server_default=Target.CREATE)
 
     @property
     @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
@@ -195,15 +199,16 @@ product_workflows_association = Table(
 
 class ProductTable(BaseModel):
     __tablename__ = "products"
+    __allow_unmapped__ = True
 
-    product_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    name = Column(String(), nullable=False, unique=True)
-    description = Column(Text(), nullable=False)
-    product_type = Column(String(255), nullable=False)
-    tag = Column(String(TAG_LENGTH), nullable=False, index=True)
-    status = Column(String(STATUS_LENGTH), nullable=False)
-    created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
-    end_date = Column(UtcTimestamp)
+    product_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    name = mapped_column(String(), nullable=False, unique=True)
+    description = mapped_column(Text(), nullable=False)
+    product_type = mapped_column(String(255), nullable=False)
+    tag = mapped_column(String(TAG_LENGTH), nullable=False, index=True)
+    status = mapped_column(String(STATUS_LENGTH), nullable=False)
+    created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    end_date = mapped_column(UtcTimestamp)
     product_blocks = relationship(
         "ProductBlockTable",
         secondary=product_product_block_association,
@@ -226,18 +231,20 @@ class ProductTable(BaseModel):
     __table_args__ = {"extend_existing": True}
 
     def find_block_by_name(self, name: str) -> ProductBlockTable:
-        return (
-            object_session(self).query(ProductBlockTable).with_parent(self).filter(ProductBlockTable.name == name).one()
-        )
+        if session := object_session(self):
+            return session.query(ProductBlockTable).with_parent(self).filter(ProductBlockTable.name == name).one()
+        raise AssertionError("Session should not be None")
 
     def fixed_input_value(self, name: str) -> str:
-        return (
-            object_session(self)
-            .query(FixedInputTable)
-            .with_parent(self)
-            .filter(FixedInputTable.name == name)
-            .value(FixedInputTable.value)
-        )
+        if session := object_session(self):
+            return (
+                session.query(FixedInputTable)
+                .with_parent(self)
+                .filter(FixedInputTable.name == name)
+                .with_entities(FixedInputTable.value)
+                .scalar()
+            )
+        raise AssertionError("Session should not be None")
 
     def _subscription_workflow_key(self, target: Target) -> Optional[str]:
         wfs = list(filter(lambda w: w.target == target, self.workflows))
@@ -260,29 +267,27 @@ class ProductTable(BaseModel):
 class FixedInputTable(BaseModel):
     __tablename__ = "fixed_inputs"
 
-    fixed_input_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    name = Column(String(), nullable=False, unique=UniqueConstraint("name", "product_id"))
-    value = Column(String(), nullable=False)
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("current_timestamp()"))
-    product_id = Column(
-        UUIDType,
-        ForeignKey("products.product_id", ondelete="CASCADE"),
-        nullable=False,
-        unique=UniqueConstraint("name", "product_id"),
-    )
+    fixed_input_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    name = mapped_column(String(), nullable=False)
+    value = mapped_column(String(), nullable=False)
+    created_at = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("current_timestamp()"))
+    product_id = mapped_column(UUIDType, ForeignKey("products.product_id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (UniqueConstraint("name", "product_id"), {"extend_existing": True})
 
 
 class ProductBlockTable(BaseModel):
     __tablename__ = "product_blocks"
-    product_block_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    name = Column(String(), nullable=False, unique=True)
-    description = Column(Text(), nullable=False)
-    tag = Column(String(TAG_LENGTH))
-    status = Column(String(STATUS_LENGTH))
-    created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
-    end_date = Column(UtcTimestamp)
+
+    __allow_unmapped__ = True
+
+    product_block_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    name = mapped_column(String(), nullable=False, unique=True)
+    description = mapped_column(Text(), nullable=False)
+    tag = mapped_column(String(TAG_LENGTH))
+    status = mapped_column(String(STATUS_LENGTH))
+    created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    end_date = mapped_column(UtcTimestamp)
     resource_types = relationship(
         "ResourceTypeTable",
         secondary=product_block_resource_type_association,
@@ -292,7 +297,7 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
-    in_use_by_block_relations: list[ProductBlockRelationTable] = relationship(
+    in_use_by_block_relations: Mapped[List[ProductBlockRelationTable]] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -301,7 +306,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.depends_on_id]",
     )
 
-    depends_on_block_relations: list[ProductBlockRelationTable] = relationship(
+    depends_on_block_relations: Mapped[List[ProductBlockRelationTable]] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -310,13 +315,13 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
-    in_use_by: list[ProductBlockTable] = association_proxy(
+    in_use_by = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
 
-    depends_on: list[ProductBlockTable] = association_proxy(
+    depends_on = association_proxy(
         "depends_on_block_relations",
         "depends_on",
         creator=lambda depends_on: ProductBlockRelationTable(depends_on=depends_on),
@@ -331,13 +336,11 @@ class ProductBlockTable(BaseModel):
         return ProductBlockTable.query.filter(ProductBlockTable.tag == tag).one()
 
     def find_resource_type_by_name(self, name: str) -> ResourceTypeTable:
-        return (
-            object_session(self)
-            .query(ResourceTypeTable)
-            .with_parent(self)
-            .filter(ResourceTypeTable.resource_type == name)
-            .one()
-        )
+        if session := object_session(self):
+            return (
+                session.query(ResourceTypeTable).with_parent(self).filter(ResourceTypeTable.resource_type == name).one()
+            )
+        raise AssertionError("Session should not be None")
 
 
 ProductBlockTable.parent_relations = ProductBlockTable.in_use_by_block_relations
@@ -346,14 +349,16 @@ ProductBlockTable.children_relations = ProductBlockTable.depends_on_block_relati
 
 class ProductBlockRelationTable(BaseModel):
     __tablename__ = "product_block_relations"
-    in_use_by_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True)
-
-    depends_on_id = Column(
+    in_use_by_id = mapped_column(
         UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
     )
 
-    min = Column(Integer())
-    max = Column(Integer())
+    depends_on_id = mapped_column(
+        UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
+    )
+
+    min = mapped_column(Integer())
+    max = mapped_column(Integer())
 
 
 ProductBlockRelationTable.parent_id = ProductBlockRelationTable.in_use_by_id
@@ -369,9 +374,9 @@ product_block_relation_index = Index(
 
 class ResourceTypeTable(BaseModel):
     __tablename__ = "resource_types"
-    resource_type_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    resource_type = Column(String(510), nullable=False, unique=True)
-    description = Column(Text())
+    resource_type_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    resource_type = mapped_column(String(510), nullable=False, unique=True)
+    description = mapped_column(Text())
 
     @staticmethod
     def find_by_resource_type(name: str) -> ResourceTypeTable:
@@ -380,11 +385,11 @@ class ResourceTypeTable(BaseModel):
 
 class WorkflowTable(BaseModel):
     __tablename__ = "workflows"
-    workflow_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    name = Column(String(), nullable=False, unique=True)
-    target = Column(String(), nullable=False)
-    description = Column(Text(), nullable=True)
-    created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    name = mapped_column(String(), nullable=False, unique=True)
+    target = mapped_column(String(), nullable=False)
+    description = mapped_column(Text(), nullable=True)
+    created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     products = relationship(
         "ProductTable",
         secondary=product_workflows_association,
@@ -396,15 +401,15 @@ class WorkflowTable(BaseModel):
 
 class SubscriptionInstanceRelationTable(BaseModel):
     __tablename__ = "subscription_instance_relations"
-    in_use_by_id = Column(
+    in_use_by_id = mapped_column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
-    depends_on_id = Column(
+    depends_on_id = mapped_column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
 
-    order_id = Column(Integer(), primary_key=True)
+    order_id = mapped_column(Integer(), primary_key=True)
 
     # Needed to make sure subscription instance is populated in the right domain model attribute, if more than one
     # attribute uses the same product block model.
@@ -425,12 +430,16 @@ subscription_relation_index = Index(
 
 class SubscriptionInstanceTable(BaseModel):
     __tablename__ = "subscription_instances"
-    subscription_instance_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    subscription_id = Column(
+    __allow_unmapped__ = True
+
+    subscription_instance_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    subscription_id = mapped_column(
         UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True
     )
     subscription: SubscriptionTable  # From relation backref
-    product_block_id = Column(UUIDType, ForeignKey("product_blocks.product_block_id"), nullable=False, index=True)
+    product_block_id = mapped_column(
+        UUIDType, ForeignKey("product_blocks.product_block_id"), nullable=False, index=True
+    )
     product_block = relationship("ProductBlockTable", lazy="subquery")
     values = relationship(
         "SubscriptionInstanceValueTable",
@@ -440,9 +449,9 @@ class SubscriptionInstanceTable(BaseModel):
         order_by="asc(SubscriptionInstanceValueTable.value)",
         backref=backref("subscription_instance", lazy=True),
     )
-    label = Column(String(255))
+    label = mapped_column(String(255))
 
-    in_use_by_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
+    in_use_by_block_relations: Mapped[List[SubscriptionInstanceRelationTable]] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -451,7 +460,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.depends_on_id]",
     )
 
-    depends_on_block_relations: list[SubscriptionInstanceRelationTable] = relationship(
+    depends_on_block_relations: Mapped[List[SubscriptionInstanceRelationTable]] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -462,13 +471,13 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
-    in_use_by: list[SubscriptionInstanceTable] = association_proxy(
+    in_use_by = association_proxy(
         "in_use_by_block_relations",
         "in_use_by",
         creator=lambda in_use_by: SubscriptionInstanceRelationTable(in_use_by=in_use_by),
     )
 
-    depends_on: list[SubscriptionInstanceTable] = association_proxy(
+    depends_on = association_proxy(
         "depends_on_block_relations",
         "depends_on",
         creator=lambda depends_on: SubscriptionInstanceRelationTable(depends_on=depends_on),
@@ -491,16 +500,19 @@ subscription_instance_s_pb_ix = Index(
 
 class SubscriptionInstanceValueTable(BaseModel):
     __tablename__ = "subscription_instance_values"
-    subscription_instance_value_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    subscription_instance_id = Column(
+    subscription_instance_value_id = mapped_column(
+        UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True
+    )
+    subscription_instance_id = mapped_column(
         UUIDType,
         ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"),
-        nullable=False,
         index=True,
     )
-    resource_type_id = Column(UUIDType, ForeignKey("resource_types.resource_type_id"), nullable=False, index=True)
+    resource_type_id = mapped_column(
+        UUIDType, ForeignKey("resource_types.resource_type_id"), nullable=False, index=True
+    )
     resource_type = relationship("ResourceTypeTable", lazy="subquery")
-    value = Column(Text(), nullable=False)
+    value = mapped_column(Text(), nullable=False)
 
 
 siv_si_rt_ix = Index(
@@ -513,18 +525,17 @@ siv_si_rt_ix = Index(
 
 class SubscriptionCustomerDescriptionTable(BaseModel):
     __tablename__ = "subscription_customer_descriptions"
-    id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    subscription_id = Column(
+    id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    subscription_id = mapped_column(
         UUIDType,
         ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        unique=UniqueConstraint("customer_id", "subscription_id"),
     )
     subscription = relationship("SubscriptionTable")
-    customer_id = Column(String, nullable=False, index=True, unique=UniqueConstraint("customer_id", "subscription_id"))
-    description = Column(Text(), nullable=False)
-    created_at = Column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    customer_id = mapped_column(String, nullable=False, index=True)
+    description = mapped_column(Text(), nullable=False)
+    created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
 
     __table_args__ = (
         UniqueConstraint("customer_id", "subscription_id", name="uniq_customer_subscription_description"),
@@ -534,16 +545,16 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
 class SubscriptionTable(BaseModel):
     __tablename__ = "subscriptions"
 
-    subscription_id = Column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    description = Column(Text(), nullable=False)
-    status = Column(String(STATUS_LENGTH), nullable=False, index=True)
-    product_id = Column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
+    subscription_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    description = mapped_column(Text(), nullable=False)
+    status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
+    product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     product = relationship("ProductTable")
-    customer_id = Column(String, nullable=False, index=True)
-    insync = Column(Boolean(), nullable=False)
-    start_date = Column(UtcTimestamp, nullable=True)
-    end_date = Column(UtcTimestamp)
-    note = Column(Text())
+    customer_id = mapped_column(String, index=True)
+    insync = mapped_column(Boolean())
+    start_date = mapped_column(UtcTimestamp, nullable=True)
+    end_date = mapped_column(UtcTimestamp)
+    note = mapped_column(Text())
 
     instances = relationship(
         "SubscriptionInstanceTable",
@@ -591,12 +602,12 @@ subscription_customer_ix = Index(
 
 class SubscriptionMetadataTable(BaseModel):
     __tablename__ = "subscription_metadata"
-    subscription_id = Column(
+    subscription_id = mapped_column(
         UUIDType,
         ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    metadata_ = Column("metadata", pg.JSONB(), nullable=False)
+    metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)  # type: ignore
 
     @staticmethod
     def find_by_subscription_id(subscription_id: str) -> Optional[SubscriptionMetadataTable]:
@@ -605,17 +616,17 @@ class SubscriptionMetadataTable(BaseModel):
 
 class SubscriptionSearchView(BaseModel):
     __tablename__ = "subscriptions_search"
-    subscription_id = Column(
+    subscription_id = mapped_column(
         UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True, primary_key=True
     )
 
-    tsv = deferred(Column(TSVectorType))
+    tsv = deferred(mapped_column(TSVectorType))  # type: ignore
 
     subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
 
 
 class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
-    global_lock = Column(Boolean(), default=False, nullable=False, primary_key=True)
-    running_processes = Column(Integer(), default=0, nullable=False)
+    global_lock = mapped_column(Boolean(), default=False, nullable=False, primary_key=True)
+    running_processes = mapped_column(Integer(), default=0, nullable=False)
     __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})

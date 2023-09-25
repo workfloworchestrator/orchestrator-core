@@ -28,7 +28,7 @@ def upgrade() -> None:
             sa.text(
                 "INSERT INTO workflows VALUES (:workflow_id, :name, :target, :description, now()) ON CONFLICT DO NOTHING"
             ),
-            **workflow,
+            workflow,
         )
 
 

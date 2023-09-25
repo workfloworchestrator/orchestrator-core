@@ -40,6 +40,12 @@ def assert_waiting(result):
     ).iswaiting(), f"Unexpected process status. Expected Waiting, but was: {result}"
 
 
+def assert_awaiting_callback(result):
+    assert result.on_failed(
+        _raise_exception
+    ).isawaitingcallback(), f"Unexpected process status. Expected AwaitingCallback, but was: {result}"
+
+
 def assert_suspended(result):
     assert result.on_failed(
         _raise_exception
@@ -213,12 +219,18 @@ def resume_workflow(
     # The main differences are: we use a different step log function, and we don't run in a separate thread
     user_data = _sanitize_input(input_data)
 
-    persistent = list(filter(lambda p: not (p[1].isfailed() or p[1].issuspend() or p[1].iswaiting()), step_log))
+    persistent = list(
+        filter(
+            lambda p: not (p[1].isfailed() or p[1].issuspend() or p[1].iswaiting() or p[1].isawaitingcallback()),
+            step_log,
+        )
+    )
     nr_of_steps_done = len(persistent)
     remaining_steps = process.workflow.steps[nr_of_steps_done:]
 
-    # Make sure we get the last state from the suspend step (since we removed it before)
     if step_log and step_log[-1][1].issuspend():
+        _, current_state = step_log[-1]
+    elif step_log and step_log[-1][1].isawaitingcallback():
         _, current_state = step_log[-1]
     elif persistent:
         _, current_state = persistent[-1]

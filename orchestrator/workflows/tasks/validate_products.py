@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from more_itertools import flatten
 from more_itertools.more import one
@@ -19,7 +19,6 @@ from more_itertools.recipes import first_true
 from pydantic import ValidationError
 from sqlalchemy import not_
 from sqlalchemy.orm import joinedload
-from sqlalchemy.sql.sqltypes import JSON
 
 import orchestrator.workflows
 from orchestrator.api.api_v1.endpoints.fixed_input import fi_configuration
@@ -175,7 +174,7 @@ def check_db_fixed_input_config() -> State:
 @step("Check subscription models")
 def check_subscription_models() -> State:
     subscriptions = SubscriptionTable.query.all()
-    failures: Dict[str, JSON] = {}
+    failures: Dict[str, Any] = {}
     for subscription in subscriptions:
         try:
             SubscriptionModel.from_subscription(subscription.subscription_id)
