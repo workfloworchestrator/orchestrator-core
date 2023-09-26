@@ -12,10 +12,10 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
-from pydantic import Extra
+from pydantic import Extra, Field
 
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.product import ProductBaseSchema
@@ -90,6 +90,7 @@ class SubscriptionSchema(SubscriptionBaseSchema):
     product: Optional[ProductBaseSchema]
     customer_descriptions: Optional[List[SubscriptionDescriptionSchema]]
     tag: Optional[str]
+    metadata_: Optional[Any] = Field(..., alias="metadata")
 
     class Config:
         orm_mode = True

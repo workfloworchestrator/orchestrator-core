@@ -20,7 +20,7 @@ import structlog
 from fastapi import Depends
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
-from sqlalchemy import select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -35,6 +35,7 @@ from orchestrator.db import (
     ProcessTable,
     ProductTable,
     SubscriptionInstanceTable,
+    SubscriptionMetadataTable,
     SubscriptionTable,
     db,
 )
@@ -197,10 +198,29 @@ def depends_on_subscriptions(
     return query_depends_on_subscriptions(subscription_id, filter_statuses).all()
 
 
-@router.get("/", response_model=List[SubscriptionSchema])
+def _add_response_range(stmt: Select, range_: Optional[list[int]], response: Response) -> Select:
+    if range_ is not None and len(range_) == 2:
+        try:
+            range_start = int(range_[0])
+            range_end = int(range_[1])
+            if range_start >= range_end:
+                raise ValueError("range start must be lower than end")
+        except (ValueError, AssertionError):
+            msg = "Invalid range parameters"
+            logger.exception(msg)
+            raise_status(HTTPStatus.BAD_REQUEST, msg)
+
+        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        stmt = stmt.slice(range_start, range_end)
+
+        response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
+    return stmt
+
+
+@router.get("/", response_model=list[SubscriptionSchema])
 def subscriptions_filterable(
     response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
-) -> List[SubscriptionTable]:
+) -> list[dict]:
     """Get subscriptions filtered.
 
     Args:
@@ -213,14 +233,24 @@ def subscriptions_filterable(
         List of subscriptions
 
     """
-    _range: Union[List[int], None] = list(map(int, range.split(","))) if range else None
-    _sort: Union[List[str], None] = sort.split(",") if sort else None
-    _filter: Union[List[str], None] = filter.split(",") if filter else None
+    _range: Optional[list[int]] = list(map(int, range.split(","))) if range else None
+    _sort: Optional[list[str]] = sort.split(",") if sort else None
+    _filter: Optional[list[str]] = filter.split(",") if filter else None
     logger.info("subscriptions_filterable() called", range=_range, sort=_sort, filter=_filter)
-    query = SubscriptionTable.query.join(SubscriptionTable.product).options(
+    stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
+        SubscriptionTable, SubscriptionMetadataTable, isouter=True
+    )
+
+    stmt = stmt.join(SubscriptionTable.product).options(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
-    return _query_with_filters(response, query, _range, _sort, _filter)
+    stmt = _query_with_filters(stmt, _sort, _filter)
+
+    stmt = _add_response_range(stmt, _range, response)
+
+    logger.info(stmt)
+    sequence = db.session.execute(stmt).all()
+    return [{**s.__dict__, "metadata": md} for s, md in sequence]
 
 
 @router.get(
