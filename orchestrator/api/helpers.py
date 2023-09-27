@@ -136,7 +136,7 @@ def query_with_filters(  # noqa: C901
     return _add_sort_to_query(stmt, sort)
 
 
-def add_response_range(stmt: Selectable, range_: list[int] | None, response: Response) -> Selectable:
+def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: Response) -> Selectable:
     if range_ is not None and len(range_) == 2:
         total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
         range_start = int(range_[0])
