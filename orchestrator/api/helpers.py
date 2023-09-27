@@ -71,7 +71,7 @@ def _add_sort_to_query(query: Select, sort: Optional[List[str]]) -> Select:
     return query
 
 
-def _query_with_filters(  # noqa: C901
+def query_with_filters(  # noqa: C901
     stmt: Select,
     sort: Optional[List[str]] = None,
     filters: Optional[List[str]] = None,

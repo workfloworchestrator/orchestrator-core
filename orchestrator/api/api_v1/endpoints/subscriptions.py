@@ -28,7 +28,7 @@ from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters
+from orchestrator.api.helpers import query_with_filters
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
@@ -41,6 +41,7 @@ from orchestrator.db import (
 )
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
+from orchestrator.schemas.subscription import SubscriptionWithMetadata
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     _generate_etag,
@@ -217,7 +218,7 @@ def _add_response_range(stmt: Select, range_: Optional[list[int]], response: Res
     return stmt
 
 
-@router.get("/", response_model=list[SubscriptionSchema])
+@router.get("/", response_model=list[SubscriptionWithMetadata])
 def subscriptions_filterable(
     response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
 ) -> list[dict]:
@@ -244,11 +245,10 @@ def subscriptions_filterable(
     stmt = stmt.join(SubscriptionTable.product).options(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
-    stmt = _query_with_filters(stmt, _sort, _filter)
+    stmt = query_with_filters(stmt, _sort, _filter)
 
     stmt = _add_response_range(stmt, _range, response)
 
-    logger.info(stmt)
     sequence = db.session.execute(stmt).all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]
 

@@ -90,10 +90,13 @@ class SubscriptionSchema(SubscriptionBaseSchema):
     product: Optional[ProductBaseSchema]
     customer_descriptions: Optional[List[SubscriptionDescriptionSchema]]
     tag: Optional[str]
-    metadata_: Optional[Any] = Field(..., alias="metadata")
 
     class Config:
         orm_mode = True
+
+
+class SubscriptionWithMetadata(SubscriptionSchema):
+    metadata_: Optional[Any] = Field(..., alias="metadata")
 
 
 class SubscriptionIdSchema(OrchestratorBaseModel):
