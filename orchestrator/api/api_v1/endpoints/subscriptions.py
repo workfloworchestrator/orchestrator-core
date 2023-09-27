@@ -20,7 +20,7 @@ import structlog
 from fastapi import Depends
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
-from sqlalchemy import Select, func, select
+from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -28,7 +28,7 @@ from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import query_with_filters
+from orchestrator.api.helpers import query_with_filters, add_response_range
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
@@ -199,25 +199,6 @@ def depends_on_subscriptions(
     return query_depends_on_subscriptions(subscription_id, filter_statuses).all()
 
 
-def _add_response_range(stmt: Select, range_: Optional[list[int]], response: Response) -> Select:
-    if range_ is not None and len(range_) == 2:
-        try:
-            range_start = int(range_[0])
-            range_end = int(range_[1])
-            if range_start >= range_end:
-                raise ValueError("range start must be lower than end")
-        except (ValueError, AssertionError):
-            msg = "Invalid range parameters"
-            logger.exception(msg)
-            raise_status(HTTPStatus.BAD_REQUEST, msg)
-
-        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
-        stmt = stmt.slice(range_start, range_end)
-
-        response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
-    return stmt
-
-
 @router.get("/", response_model=list[SubscriptionWithMetadata])
 def subscriptions_filterable(
     response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
@@ -246,8 +227,7 @@ def subscriptions_filterable(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
     stmt = query_with_filters(stmt, _sort, _filter)
-
-    stmt = _add_response_range(stmt, _range, response)
+    stmt = add_response_range(stmt, _range, response)
 
     sequence = db.session.execute(stmt).all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]

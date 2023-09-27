@@ -21,13 +21,15 @@ from uuid import UUID
 
 from deprecated import deprecated
 from more_itertools import chunked, first
-from sqlalchemy import Select, String, cast, func
+from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.sql import expression
+from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
+from orchestrator.db.range.range import apply_range_to_statement, Selectable
 from orchestrator.domain.base import SubscriptionModel
 
 logger = get_logger(__name__)
@@ -132,6 +134,21 @@ def query_with_filters(  # noqa: C901
                         stmt = stmt.filter(cast(SubscriptionTable.__dict__[field], String).ilike("%" + value + "%"))
 
     return _add_sort_to_query(stmt, sort)
+
+
+def add_response_range(stmt: Selectable, range_: list[int] | None, response: Response) -> Selectable:
+    if range_ is not None and len(range_) == 2:
+        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        range_start = int(range_[0])
+        range_end = int(range_[1])
+        try:
+            stmt = apply_range_to_statement(stmt, range_start, range_end)
+        except ValueError as e:
+            logger.exception(e)
+            raise_status(HTTPStatus.BAD_REQUEST, str(e))
+
+        response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
+    return stmt
 
 
 VALID_SORT_KEYS = {
