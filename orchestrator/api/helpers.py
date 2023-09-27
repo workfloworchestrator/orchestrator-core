@@ -29,7 +29,7 @@ from structlog import get_logger
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
-from orchestrator.db.range.range import apply_range_to_statement, Selectable
+from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
 
 logger = get_logger(__name__)

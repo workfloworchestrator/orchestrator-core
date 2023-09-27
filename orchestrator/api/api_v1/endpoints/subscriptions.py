@@ -28,7 +28,7 @@ from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import query_with_filters, add_response_range
+from orchestrator.api.helpers import add_response_range, query_with_filters
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
