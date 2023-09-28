@@ -88,6 +88,8 @@ PYTHONPATH=. python main.py db upgrade heads
 ### Step 7:
 Profit :)
 
+Authentication and authorization are default enabled, to disable set `OAUTH2_ACTIVE` and `OAUTH2_AUTHORIZATION_ACTIVE` to `False`.
+
 ```shell
 uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 ```

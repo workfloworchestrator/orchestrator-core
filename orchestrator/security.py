@@ -15,7 +15,6 @@ from authlib.integrations.starlette_client import OAuth
 
 from nwastdlib.url import URL
 from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, OIDCUser, opa_decision, opa_graphql_decision
-from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.settings import oauth2_settings
 
 oauth_client_credentials = OAuth()
@@ -35,15 +34,12 @@ oidc_user = OIDCUser(
     oauth2_settings.OIDC_CONF_WELL_KNOWN_URL,
     oauth2_settings.OAUTH2_RESOURCE_SERVER_ID,
     oauth2_settings.OAUTH2_RESOURCE_SERVER_SECRET,
-    enabled=oauth2lib_settings.OAUTH2_ACTIVE,
 )
 
-opa_security_default = opa_decision(oauth2_settings.OPA_URL, oidc_user, enabled=oauth2lib_settings.OAUTH2_ACTIVE)
+opa_security_default = opa_decision(oauth2_settings.OPA_URL, oidc_user)
 
 
-opa_security_graphql = opa_graphql_decision(
-    oauth2_settings.OPA_URL, oidc_user, enabled=oauth2lib_settings.OAUTH2_ACTIVE
-)
+opa_security_graphql = opa_graphql_decision(oauth2_settings.OPA_URL, oidc_user)
 
 
 def get_oidc_user() -> OIDCUser:

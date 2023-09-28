@@ -13,11 +13,10 @@
 
 """Module that implements process related API endpoints."""
 
-import json
 import struct
 import zlib
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from uuid import UUID
 
 import structlog
@@ -63,7 +62,7 @@ from orchestrator.services.processes import (
     start_process,
 )
 from orchestrator.settings import app_settings
-from orchestrator.types import JSON
+from orchestrator.types import JSON, State
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
@@ -173,7 +172,7 @@ def continue_awaiting_process_endpoint(
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
 
     try:
-        continue_awaiting_process(process, token=token, input_data=json.loads(json_data))
+        continue_awaiting_process(process, token=token, input_data=cast(json_data, State))
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
 
