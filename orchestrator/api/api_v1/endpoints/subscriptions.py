@@ -215,10 +215,10 @@ def subscriptions_filterable(
         List of subscriptions
 
     """
-    _range: Optional[list[int]] = list(map(int, range.split(","))) if range else None
-    _sort: Optional[list[str]] = sort.split(",") if sort else None
-    _filter: Optional[list[str]] = filter.split(",") if filter else None
-    logger.info("subscriptions_filterable() called", range=_range, sort=_sort, filter=_filter)
+    range_ = list(map(int, range.split(","))) if range else None
+    sort_ = sort.split(",") if sort else None
+    filter_ = filter.split(",") if filter else None
+    logger.info("subscriptions_filterable() called", range=range_, sort=sort_, filter=filter_)
     stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
         SubscriptionTable, SubscriptionMetadataTable, isouter=True
     )
@@ -226,8 +226,8 @@ def subscriptions_filterable(
     stmt = stmt.join(SubscriptionTable.product).options(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
-    stmt = query_with_filters(stmt, _sort, _filter)
-    stmt = add_response_range(stmt, _range, response)
+    stmt = query_with_filters(stmt, sort_, filter_)
+    stmt = add_response_range(stmt, range_, response)
 
     sequence = db.session.execute(stmt).all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]
