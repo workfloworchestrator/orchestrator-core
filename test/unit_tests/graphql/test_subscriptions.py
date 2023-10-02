@@ -974,81 +974,88 @@ def test_single_subscription_with_product_block_instance_schema(
 
     assert "errors" not in result
     assert subscriptions[0]["productBlocksJsonSchema"] == {
-        "title": "ProductBlocks",
-        "type": "object",
-        "properties": {"test_block": [{"$ref": "#/definitions/ProductBlockWithListUnionForTest"}]},
-        "definitions": {
-            "SubBlockTwoForTest": {
-                "title": "SubBlockTwoForTest",
-                "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field_2:\n            Type :class:`~builtins.int`",
-                "type": "object",
-                "properties": {
-                    "name": {"title": "Name", "type": "string"},
-                    "subscription_instance_id": {
-                        "title": "Subscription Instance Id",
-                        "type": "string",
-                        "format": "uuid",
-                    },
-                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
-                    "label": {"title": "Label", "type": "string"},
-                    "int_field_2": {"title": "Int Field 2", "type": "integer"},
-                },
-                "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field_2"],
+        "__schema__": {
+            "title": "ProductBlocks",
+            "type": "object",
+            "properties": {
+                "test_block": {
+                    "title": "Test Block",
+                    "allOf": [{"$ref": "#/definitions/ProductBlockWithListUnionForTest"}],
+                }
             },
-            "SubBlockOneForTest": {
-                "title": "SubBlockOneForTest",
-                "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`",
-                "type": "object",
-                "properties": {
-                    "name": {"title": "Name", "type": "string"},
-                    "subscription_instance_id": {
-                        "title": "Subscription Instance Id",
-                        "type": "string",
-                        "format": "uuid",
-                    },
-                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
-                    "label": {"title": "Label", "type": "string"},
-                    "int_field": {"title": "Int Field", "type": "integer"},
-                    "str_field": {"title": "Str Field", "type": "string"},
-                },
-                "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field", "str_field"],
-            },
-            "ProductBlockWithListUnionForTest": {
-                "title": "ProductBlockWithListUnionForTest",
-                "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`\n        list_field:\n            \n\n            Type :class:`~typing.List`\nBlocks:\n\n        list_union_blocks:\n            \n\n            Type :class:`~typing.List`",
-                "type": "object",
-                "properties": {
-                    "name": {"title": "Name", "type": "string"},
-                    "subscription_instance_id": {
-                        "title": "Subscription Instance Id",
-                        "type": "string",
-                        "format": "uuid",
-                    },
-                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
-                    "label": {"title": "Label", "type": "string"},
-                    "list_union_blocks": {
-                        "title": "List Union Blocks",
-                        "type": "array",
-                        "items": {
-                            "anyOf": [
-                                {"$ref": "#/definitions/SubBlockTwoForTest"},
-                                {"$ref": "#/definitions/SubBlockOneForTest"},
-                            ]
+            "definitions": {
+                "SubBlockTwoForTest": {
+                    "title": "SubBlockTwoForTest",
+                    "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field_2:\n            Type :class:`~builtins.int`",
+                    "type": "object",
+                    "properties": {
+                        "name": {"title": "Name", "type": "string"},
+                        "subscription_instance_id": {
+                            "title": "Subscription Instance Id",
+                            "type": "string",
+                            "format": "uuid",
                         },
+                        "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                        "label": {"title": "Label", "type": "string"},
+                        "int_field_2": {"title": "Int Field 2", "type": "integer"},
                     },
-                    "int_field": {"title": "Int Field", "type": "integer"},
-                    "str_field": {"title": "Str Field", "type": "string"},
-                    "list_field": {"title": "List Field", "type": "array", "items": {"type": "integer"}},
+                    "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field_2"],
                 },
-                "required": [
-                    "name",
-                    "subscription_instance_id",
-                    "owner_subscription_id",
-                    "list_union_blocks",
-                    "int_field",
-                    "str_field",
-                    "list_field",
-                ],
+                "SubBlockOneForTest": {
+                    "title": "SubBlockOneForTest",
+                    "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`",
+                    "type": "object",
+                    "properties": {
+                        "name": {"title": "Name", "type": "string"},
+                        "subscription_instance_id": {
+                            "title": "Subscription Instance Id",
+                            "type": "string",
+                            "format": "uuid",
+                        },
+                        "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                        "label": {"title": "Label", "type": "string"},
+                        "int_field": {"title": "Int Field", "type": "integer"},
+                        "str_field": {"title": "Str Field", "type": "string"},
+                    },
+                    "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field", "str_field"],
+                },
+                "ProductBlockWithListUnionForTest": {
+                    "title": "ProductBlockWithListUnionForTest",
+                    "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`\n        list_field:\n            \n\n            Type :class:`~typing.List`\nBlocks:\n\n        list_union_blocks:\n            \n\n            Type :class:`~typing.List`",
+                    "type": "object",
+                    "properties": {
+                        "name": {"title": "Name", "type": "string"},
+                        "subscription_instance_id": {
+                            "title": "Subscription Instance Id",
+                            "type": "string",
+                            "format": "uuid",
+                        },
+                        "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                        "label": {"title": "Label", "type": "string"},
+                        "list_union_blocks": {
+                            "title": "List Union Blocks",
+                            "type": "array",
+                            "items": {
+                                "anyOf": [
+                                    {"$ref": "#/definitions/SubBlockTwoForTest"},
+                                    {"$ref": "#/definitions/SubBlockOneForTest"},
+                                ]
+                            },
+                        },
+                        "int_field": {"title": "Int Field", "type": "integer"},
+                        "str_field": {"title": "Str Field", "type": "string"},
+                        "list_field": {"title": "List Field", "type": "array", "items": {"type": "integer"}},
+                    },
+                    "required": [
+                        "name",
+                        "subscription_instance_id",
+                        "owner_subscription_id",
+                        "list_union_blocks",
+                        "int_field",
+                        "str_field",
+                        "list_field",
+                    ],
+                },
             },
         },
         "test_block": {

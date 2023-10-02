@@ -97,8 +97,8 @@ async def get_subscription_product_blocks_json_schema(subscription_id: UUID) -> 
 
     def format_property(key: str, item: dict) -> dict:
         data[key] = item["default"]
-        return item["allOf"]
+        del item["default"]
+        return item
 
     json_schema["properties"] = {key: format_property(key, item) for key, item in json_schema["properties"].items()}
-
-    return json_schema | data
+    return {"__schema__": json_schema} | data
