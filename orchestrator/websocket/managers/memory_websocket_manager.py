@@ -68,7 +68,7 @@ class MemoryWebsocketManager:
     async def remove_ws(self, websocket: WebSocket, channel: str) -> None:
         if websocket.client_state != WebSocketState.DISCONNECTED:
             await self.disconnect(websocket)
-        if channel in self.connections_by_pid:
+        if channel in self.connections_by_pid and websocket in self.connections_by_pid[channel]:
             self.connections_by_pid[channel].remove(websocket)
             if len(self.connections_by_pid[channel]):
                 del self.connections_by_pid[channel]
