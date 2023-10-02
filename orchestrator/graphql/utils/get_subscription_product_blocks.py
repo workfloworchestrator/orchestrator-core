@@ -12,20 +12,12 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import build_extended_domain_model
 
 
-class ProductBlockInstancePydantic(BaseModel):
+@strawberry.type
+class ProductBlockInstance:
     id: int
     parent: Optional[int]
     subscription_instance_id: UUID
     owner_subscription_id: UUID
-    product_block_instance_values: dict
-
-
-@strawberry.experimental.pydantic.type(ProductBlockInstancePydantic)
-class ProductBlockInstance:
-    id: strawberry.auto
-    parent: strawberry.auto
-    subscription_instance_id: strawberry.auto
-    owner_subscription_id: strawberry.auto
     product_block_instance_values: JSON
 
     @strawberry.field(description="Returns all resource types of a product block", deprecation_reason="changed to product_block_instance_values")  # type: ignore
