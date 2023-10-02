@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Annotated, Optional, Union
+from typing import Annotated, Optional, Type, Union
 from uuid import UUID
 
 import strawberry
+from pydantic import BaseModel
 from strawberry.federation.schema_directives import Key
 from strawberry.unset import UNSET
 
@@ -19,10 +20,16 @@ from orchestrator.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
 )
+from orchestrator.services.subscriptions import (
+    get_subscription_metadata,
+)
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 
 federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
+
+MetadataDict: dict[str, Optional[Type[BaseModel]]] = {"metadata": None}
+static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "properties": {}, "definitions": {}}
 
 
 @strawberry.federation.interface(description="Virtual base interface for subscriptions", keys=["subscriptionId"])
@@ -121,6 +128,13 @@ class SubscriptionInterface:
             shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
             identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
         )
+
+    @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
+    def metadata(self) -> dict:
+        metadata_class = MetadataDict["metadata"]
+        metadata_schema = metadata_class.schema() if metadata_class else static_metadata_schema
+        metadata = get_subscription_metadata(str(self.subscription_id))
+        return {"__schema__": metadata_schema} | metadata  # type: ignore
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)
