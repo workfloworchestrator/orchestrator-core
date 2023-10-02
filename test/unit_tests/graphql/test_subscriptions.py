@@ -12,6 +12,7 @@
 # limitations under the License.
 import datetime
 import json
+import sys
 from http import HTTPStatus
 from typing import Union
 
@@ -944,6 +945,7 @@ def test_single_subscription_with_in_use_by_subscriptions(
     assert result_in_use_by_ids == expected_in_use_by_ids
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="types get different origin with 3.10 and higher")
 def test_single_subscription_with_product_block_instance_schema(
     fastapi_app_graphql,
     test_client,
