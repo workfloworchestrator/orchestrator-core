@@ -70,7 +70,7 @@ class MemoryWebsocketManager:
             await self.disconnect(websocket)
         if channel in self.connections_by_pid and websocket in self.connections_by_pid[channel]:
             self.connections_by_pid[channel].remove(websocket)
-            if len(self.connections_by_pid[channel]):
+            if not len(self.connections_by_pid[channel]):
                 del self.connections_by_pid[channel]
         self.log_amount_of_connections()
 
