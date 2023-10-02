@@ -191,6 +191,42 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
     ).encode("utf-8")
 
 
+def get_subscriptions_product_block_json_schema_query(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list, None] = None,
+    sort_by: Union[list, None] = None,
+) -> bytes:
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      productBlocksJsonSchema
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
 def get_subscriptions_product_generic_one(
     first: int = 10,
     after: int = 0,
@@ -906,6 +942,140 @@ def test_single_subscription_with_in_use_by_subscriptions(
         subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
     ]
     assert result_in_use_by_ids == expected_in_use_by_ids
+
+
+def test_single_subscription_with_product_block_instance_schema(
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+    product_sub_list_union_subscription_1,
+):
+    # when
+
+    product_type_1_subscriptions_factory(30)
+    subscription_id = str(product_sub_list_union_subscription_1)
+    sub_list_union_subscription = SubscriptionModel.from_subscription(product_sub_list_union_subscription_1)
+    # test_block_instance_id = str(product_sub_list_union_subscription_1.test_block.subscription_instance_id)
+    data = get_subscriptions_product_block_json_schema_query(
+        filter_by=[{"field": "subscriptionId", "value": subscription_id}]
+    )
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+
+    assert "errors" not in result
+    assert subscriptions[0]["productBlocksJsonSchema"] == {
+        "title": "ProductBlocks",
+        "type": "object",
+        "properties": {"test_block": [{"$ref": "#/definitions/ProductBlockWithListUnionForTest"}]},
+        "definitions": {
+            "SubBlockTwoForTest": {
+                "title": "SubBlockTwoForTest",
+                "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field_2:\n            Type :class:`~builtins.int`",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "int_field_2": {"title": "Int Field 2", "type": "integer"},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field_2"],
+            },
+            "SubBlockOneForTest": {
+                "title": "SubBlockOneForTest",
+                "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "int_field": {"title": "Int Field", "type": "integer"},
+                    "str_field": {"title": "Str Field", "type": "string"},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field", "str_field"],
+            },
+            "ProductBlockWithListUnionForTest": {
+                "title": "ProductBlockWithListUnionForTest",
+                "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`\n        list_field:\n            \n\n            Type :class:`~typing.List`\nBlocks:\n\n        list_union_blocks:\n            \n\n            Type :class:`~typing.List`",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "list_union_blocks": {
+                        "title": "List Union Blocks",
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {"$ref": "#/definitions/SubBlockTwoForTest"},
+                                {"$ref": "#/definitions/SubBlockOneForTest"},
+                            ]
+                        },
+                    },
+                    "int_field": {"title": "Int Field", "type": "integer"},
+                    "str_field": {"title": "Str Field", "type": "string"},
+                    "list_field": {"title": "List Field", "type": "array", "items": {"type": "integer"}},
+                },
+                "required": [
+                    "name",
+                    "subscription_instance_id",
+                    "owner_subscription_id",
+                    "list_union_blocks",
+                    "int_field",
+                    "str_field",
+                    "list_field",
+                ],
+            },
+        },
+        "test_block": {
+            "name": "ProductBlockWithListUnionForTest",
+            "subscription_instance_id": str(sub_list_union_subscription.test_block.subscription_instance_id),
+            "owner_subscription_id": subscription_id,
+            "label": None,
+            "list_union_blocks": [
+                {
+                    "name": "SubBlockTwoForTest",
+                    "subscription_instance_id": str(sub_two_subscription_1.test_block.subscription_instance_id),
+                    "owner_subscription_id": str(sub_two_subscription_1.subscription_id),
+                    "label": None,
+                    "int_field_2": 3,
+                },
+                {
+                    "name": "SubBlockOneForTest",
+                    "subscription_instance_id": str(sub_one_subscription_1.test_block.subscription_instance_id),
+                    "owner_subscription_id": str(sub_one_subscription_1.subscription_id),
+                    "label": None,
+                    "int_field": 1,
+                    "str_field": "blah",
+                },
+            ],
+            "int_field": 1,
+            "str_field": "blah",
+            "list_field": [2],
+        },
+    }
 
 
 def expect_fail_test_if_too_many_duplicate_types_in_interface(result):

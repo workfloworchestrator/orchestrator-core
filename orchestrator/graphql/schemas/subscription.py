@@ -52,7 +52,7 @@ class SubscriptionInterface:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
-    async def product_block_instance_shema(self) -> dict:
+    async def product_blocks_json_schema(self) -> dict:
         return await get_subscription_product_blocks_json_schema(self.subscription_id)
 
     @strawberry.field(description="Return all products blocks that are part of a subscription", deprecation_reason="changed to product_block_instances")  # type: ignore

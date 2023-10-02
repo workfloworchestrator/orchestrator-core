@@ -98,7 +98,7 @@ async def get_subscription_product_blocks_json_schema(subscription_id: UUID) -> 
 
     root_block_paths = [path for path in block_paths if "." not in path and path != "product"]
     pydanticModel: type[BaseModel] = type(
-        "Blocks", (BaseModel,), {path: getattr_in(subscription_model, path) for path in root_block_paths}
+        "ProductBlocks", (BaseModel,), {path: getattr_in(subscription_model, path) for path in root_block_paths}
     )
     json_schema: dict = pydanticModel.schema()
     data = {}
