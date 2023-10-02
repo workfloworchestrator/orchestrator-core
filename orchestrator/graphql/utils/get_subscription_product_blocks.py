@@ -3,19 +3,29 @@ from typing import Any, Generator, Optional
 from uuid import UUID
 
 import strawberry
+from pydantic import BaseModel
 from pydantic.utils import to_lower_camel
 from strawberry.scalars import JSON
 
+from orchestrator.api.helpers import getattr_in, product_block_paths
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import build_extended_domain_model
 
 
-@strawberry.type
-class ProductBlockInstance:
+class ProductBlockInstancePydantic(BaseModel):
     id: int
     parent: Optional[int]
     subscription_instance_id: UUID
     owner_subscription_id: UUID
+    product_block_instance_values: dict
+
+
+@strawberry.experimental.pydantic.type(ProductBlockInstancePydantic)
+class ProductBlockInstance:
+    id: strawberry.auto
+    parent: strawberry.auto
+    subscription_instance_id: strawberry.auto
+    owner_subscription_id: strawberry.auto
     product_block_instance_values: JSON
 
     @strawberry.field(description="Returns all resource types of a product block", deprecation_reason="changed to product_block_instance_values")  # type: ignore
@@ -79,3 +89,24 @@ async def get_subscription_product_blocks(
 
     product_blocks = (to_product_block(product_block) for product_block in get_all_product_blocks(subscription, tags))
     return [product_block for product_block in product_blocks if product_block.product_block_instance_values]
+
+
+async def get_subscription_product_blocks_json_schema(subscription_id: UUID) -> dict:
+    subscription_model = SubscriptionModel.from_subscription(subscription_id)
+    subscription = build_extended_domain_model(subscription_model)
+    block_paths = product_block_paths(subscription)
+
+    root_block_paths = [path for path in block_paths if "." not in path and path != "product"]
+    pydanticModel: type[BaseModel] = type(
+        "Blocks", (BaseModel,), {path: getattr_in(subscription_model, path) for path in root_block_paths}
+    )
+    json_schema: dict = pydanticModel.schema()
+    data = {}
+
+    def format_property(key: str, item: dict) -> dict:
+        data[key] = item["default"]
+        return item["allOf"]
+
+    json_schema["properties"] = {key: format_property(key, item) for key, item in json_schema["properties"].items()}
+
+    return json_schema | data

@@ -19,6 +19,7 @@ from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorI
 from orchestrator.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
+    get_subscription_product_blocks_json_schema,
 )
 from orchestrator.services.subscriptions import (
     get_subscription_metadata,
@@ -49,6 +50,10 @@ class SubscriptionInterface:
         self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
     ) -> list[ProductBlockInstance]:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
+
+    @strawberry.field(description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
+    async def product_block_instance_shema(self) -> dict:
+        return await get_subscription_product_blocks_json_schema(self.subscription_id)
 
     @strawberry.field(description="Return all products blocks that are part of a subscription", deprecation_reason="changed to product_block_instances")  # type: ignore
     async def product_blocks(
