@@ -244,6 +244,7 @@ def db_session(database):
 def fastapi_app(database, db_uri):
     from oauth2_lib.settings import oauth2lib_settings
 
+    oauth2lib_settings.OAUTH2_ACTIVE = False
     oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = ["local", "TESTING"]
     app_settings.DATABASE_URI = db_uri
     app = OrchestratorCore(base_settings=app_settings)
@@ -251,6 +252,7 @@ def fastapi_app(database, db_uri):
     app.broadcast_thread.start()
     yield app
     app.broadcast_thread.stop()
+    oauth2lib_settings.OAUTH2_ACTIVE = True
 
 
 @pytest.fixture(scope="session")

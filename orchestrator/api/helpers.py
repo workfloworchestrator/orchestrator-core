@@ -21,15 +21,15 @@ from uuid import UUID
 
 from deprecated import deprecated
 from more_itertools import chunked, first
-from sqlalchemy import String, cast, func
-from sqlalchemy.orm import Query
+from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.sql import expression
 from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
+from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
 
 logger = get_logger(__name__)
@@ -53,7 +53,7 @@ def _process_text_query(q: str) -> str:
         return q
 
 
-def _add_sort_to_query(query: Query, sort: Optional[List[str]]) -> Query:
+def _add_sort_to_query(query: Select, sort: Optional[List[str]]) -> Select:
     if sort is None or len(sort) < 2:
         return query
 
@@ -73,86 +73,81 @@ def _add_sort_to_query(query: Query, sort: Optional[List[str]]) -> Query:
     return query
 
 
-def _query_with_filters(  # noqa: C901
-    response: Response,
-    query: Query,
-    range: Optional[List[int]] = None,
+def query_with_filters(  # noqa: C901
+    stmt: Select,
     sort: Optional[List[str]] = None,
     filters: Optional[List[str]] = None,
-) -> List:
+) -> Select:
     if filters is not None:
-        for filter in chunked(filters, 2):
-            if filter and len(filter) == 2:
-                field = filter[0]
-                value = filter[1]
+        for filter_ in chunked(filters, 2):
+            if filter_ and len(filter_) == 2:
+                field = filter_[0]
+                value = filter_[1]
                 value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja", "insync")
                 if value is not None:
                     if field.endswith("_gt"):
-                        query = query.filter(SubscriptionTable.__dict__[field[:-3]] > value)
+                        stmt = stmt.filter(SubscriptionTable.__dict__[field[:-3]] > value)
                     elif field.endswith("_gte"):
-                        query = query.filter(SubscriptionTable.__dict__[field[:-4]] >= value)
+                        stmt = stmt.filter(SubscriptionTable.__dict__[field[:-4]] >= value)
                     elif field.endswith("_lte"):
-                        query = query.filter(SubscriptionTable.__dict__[field[:-4]] <= value)
+                        stmt = stmt.filter(SubscriptionTable.__dict__[field[:-4]] <= value)
                     elif field.endswith("_lt"):
-                        query = query.filter(SubscriptionTable.__dict__[field[:-3]] < value)
+                        stmt = stmt.filter(SubscriptionTable.__dict__[field[:-3]] < value)
                     elif field.endswith("_ne"):
-                        query = query.filter(SubscriptionTable.__dict__[field[:-3]] != value)
+                        stmt = stmt.filter(SubscriptionTable.__dict__[field[:-3]] != value)
                     elif field == "insync":
-                        query = query.filter(SubscriptionTable.insync.is_(value_as_bool))
+                        stmt = stmt.filter(SubscriptionTable.insync.is_(value_as_bool))
                     elif field == "tags":
                         # For node and port selector form widgets
                         sub_values = value.split("-")
-                        query = query.filter(func.lower(ProductTable.tag).in_([s.lower() for s in sub_values]))
+                        stmt = stmt.filter(func.lower(ProductTable.tag).in_([s.lower() for s in sub_values]))
                     elif field == "tag":
                         # For React table 7
                         sub_values = value.split("-")
-                        query = query.filter(func.lower(ProductTable.tag).in_([s.lower() for s in sub_values]))
+                        stmt = stmt.filter(func.lower(ProductTable.tag).in_([s.lower() for s in sub_values]))
                     elif field == "product":
                         sub_values = value.split("-")
-                        query = query.filter(func.lower(ProductTable.name).in_([s.lower() for s in sub_values]))
+                        stmt = stmt.filter(func.lower(ProductTable.name).in_([s.lower() for s in sub_values]))
                     elif field == "status":
                         # For React table 7
                         statuses = value.split("-")
-                        query = query.filter(SubscriptionTable.status.in_([s.lower() for s in statuses]))
+                        stmt = stmt.filter(SubscriptionTable.status.in_([s.lower() for s in statuses]))
                     elif field == "statuses":
                         # For port subscriptions
                         sub_values = value.split("-")
-                        query = query.filter(SubscriptionTable.status.in_([s.lower() for s in sub_values]))
+                        stmt = stmt.filter(SubscriptionTable.status.in_([s.lower() for s in sub_values]))
                     elif field == "organisation":
-                        query = query.filter(SubscriptionTable.customer_id == value)
+                        stmt = stmt.filter(SubscriptionTable.customer_id == value)
                     elif field == "tsv":
                         # Quote key:value tokens. This will use the FOLLOWED BY operator (https://www.postgresql.org/docs/13/textsearch-controls.html)
                         processed_text_query = _process_text_query(value)
 
                         logger.debug("Running full-text search query:", value=processed_text_query)
                         # TODO: Make 'websearch_to_tsquery' into a sqlalchemy extension
-                        query = query.join(SubscriptionSearchView).filter(
+                        stmt = stmt.join(SubscriptionSearchView).filter(
                             func.websearch_to_tsquery("simple", processed_text_query).op("@@")(
                                 SubscriptionSearchView.tsv
                             )
                         )
 
                     elif field in SubscriptionTable.__dict__:
-                        query = query.filter(cast(SubscriptionTable.__dict__[field], String).ilike("%" + value + "%"))
+                        stmt = stmt.filter(cast(SubscriptionTable.__dict__[field], String).ilike("%" + value + "%"))
 
-    query = _add_sort_to_query(query, sort)
+    return _add_sort_to_query(stmt, sort)
 
-    if range is not None and len(range) == 2:
+
+def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: Response) -> Selectable:
+    if range_ is not None and len(range_) == 2:
+        total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+        range_start, range_end = range_
         try:
-            range_start = int(range[0])
-            range_end = int(range[1])
-            if range_start >= range_end:
-                raise ValueError("range start must be lower than end")
-        except (ValueError, AssertionError):
-            msg = "Invalid range parameters"
-            logger.exception(msg)
-            raise_status(HTTPStatus.BAD_REQUEST, msg)
-        total = query.count()
-        query = query.slice(range_start, range_end)
+            stmt = apply_range_to_statement(stmt, range_start, range_end)
+        except ValueError as e:
+            logger.exception(e)
+            raise_status(HTTPStatus.BAD_REQUEST, str(e))
 
         response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
-
-    return query.all()
+    return stmt
 
 
 VALID_SORT_KEYS = {

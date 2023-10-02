@@ -22,4 +22,4 @@ def validate_products() -> None:
     if not ProcessTable.query.filter(
         ProcessTable.workflow_name == "validate_products", ProcessTable.last_status != "completed"
     ).count():
-        start_process("validate_products")
+        start_process("task_validate_products")

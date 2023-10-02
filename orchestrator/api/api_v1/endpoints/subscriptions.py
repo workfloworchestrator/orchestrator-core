@@ -28,18 +28,20 @@ from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import _query_with_filters
+from orchestrator.api.helpers import add_response_range, query_with_filters
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
     ProductTable,
     SubscriptionInstanceTable,
+    SubscriptionMetadataTable,
     SubscriptionTable,
     db,
 )
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
+from orchestrator.schemas.subscription import SubscriptionWithMetadata
 from orchestrator.security import oidc_user
 from orchestrator.services.subscriptions import (
     _generate_etag,
@@ -197,10 +199,10 @@ def depends_on_subscriptions(
     return query_depends_on_subscriptions(subscription_id, filter_statuses).all()
 
 
-@router.get("/", response_model=List[SubscriptionSchema])
+@router.get("/", response_model=list[SubscriptionWithMetadata])
 def subscriptions_filterable(
     response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
-) -> List[SubscriptionTable]:
+) -> list[dict]:
     """Get subscriptions filtered.
 
     Args:
@@ -213,14 +215,22 @@ def subscriptions_filterable(
         List of subscriptions
 
     """
-    _range: Union[List[int], None] = list(map(int, range.split(","))) if range else None
-    _sort: Union[List[str], None] = sort.split(",") if sort else None
-    _filter: Union[List[str], None] = filter.split(",") if filter else None
-    logger.info("subscriptions_filterable() called", range=_range, sort=_sort, filter=_filter)
-    query = SubscriptionTable.query.join(SubscriptionTable.product).options(
+    range_ = list(map(int, range.split(","))) if range else None
+    sort_ = sort.split(",") if sort else None
+    filter_ = filter.split(",") if filter else None
+    logger.info("subscriptions_filterable() called", range=range_, sort=sort_, filter=filter_)
+    stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
+        SubscriptionTable, SubscriptionMetadataTable, isouter=True
+    )
+
+    stmt = stmt.join(SubscriptionTable.product).options(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
-    return _query_with_filters(response, query, _range, _sort, _filter)
+    stmt = query_with_filters(stmt, sort_, filter_)
+    stmt = add_response_range(stmt, range_, response)
+
+    sequence = db.session.execute(stmt).all()
+    return [{**s.__dict__, "metadata": md} for s, md in sequence]
 
 
 @router.get(

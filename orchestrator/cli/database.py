@@ -255,8 +255,12 @@ def migrate_domain_models(
     if test:
         return sql_upgrade_stmts, sql_downgrade_stmts
 
-    sql_upgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_upgrade_stmts])
-    sql_downgrade_str = "\n".join([f'    conn.execute("""\n{sql_stmt}\n    """)' for sql_stmt in sql_downgrade_stmts])
+    sql_upgrade_str = "\n".join(
+        [f'    conn.execute(sa.text("""\n{sql_stmt}\n    """))' for sql_stmt in sql_upgrade_stmts]
+    )
+    sql_downgrade_str = "\n".join(
+        [f'    conn.execute(sa.text("""\n{sql_stmt}\n    """))' for sql_stmt in sql_downgrade_stmts]
+    )
     create_migration_file(alembic_cfg(), sql_upgrade_str, sql_downgrade_str, message)
     return None
 
