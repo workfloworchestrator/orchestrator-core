@@ -1,0 +1,13 @@
+name: Add a new GitHub Project card linked to a GitHub issue to the specified project column
+on: [issues]
+jobs:
+  github-actions-automate-projects:
+    runs-on: ubuntu-latest
+    steps:
+    - name: add-new-issues-to-repository-based-project-column
+      uses: docker://takanabe/github-actions-automate-projects:v0.0.1
+      if: github.event_name == 'issues' && github.event.action == 'opened'
+      env:
+        GITHUB_TOKEN: ${{ secrets.CI_TOKEN_GITHUB }}
+        GITHUB_PROJECT_URL: https://github.com/orgs/workfloworchestrator/projects/3/
+        GITHUB_PROJECT_COLUMN_NAME: Todo
