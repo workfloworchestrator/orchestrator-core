@@ -9,5 +9,5 @@ jobs:
       if: github.event_name == 'issues' && github.event.action == 'opened'
       env:
         GITHUB_TOKEN: ${{ secrets.CI_TOKEN_GITHUB }}
-        GITHUB_PROJECT_URL: https://github.com/orgs/workfloworchestrator/projects/3
+        GITHUB_PROJECT_URL: https://github.com/orgs/workfloworchestrator/projects/3/
         GITHUB_PROJECT_COLUMN_NAME: To do
