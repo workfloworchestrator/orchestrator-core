@@ -41,5 +41,5 @@ PROCESS_SORT_FUNCTIONS_BY_COLUMN = (
         "modified": generic_column_sort(ProcessTable.last_modified_at),  # TODO: deprecated, remove in 1.4
     }
 )
-
+process_sort_fields = list(PROCESS_SORT_FUNCTIONS_BY_COLUMN.keys())
 sort_processes = generic_sort(PROCESS_SORT_FUNCTIONS_BY_COLUMN)

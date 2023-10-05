@@ -11,4 +11,5 @@ subscription_table_sort = {
 
 SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN = PRODUCT_SORT_FUNCTIONS_BY_COLUMN | subscription_table_sort
 
+subscription_sort_fields = list(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN.keys())
 sort_subscriptions = generic_sort(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN)

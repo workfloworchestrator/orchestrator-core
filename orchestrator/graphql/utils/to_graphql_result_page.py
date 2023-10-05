@@ -1,9 +1,16 @@
-from typing import Any
+from typing import Any, List, Union
 
 from orchestrator.graphql.pagination import Connection, PageInfo
 
 
-def to_graphql_result_page(items: list[Any], first: int, after: int, total: int) -> Connection:
+def to_graphql_result_page(
+    items: list[Any],
+    first: int,
+    after: int,
+    total: int,
+    sort_fields: Union[List[str], None] = None,
+    filter_fields: Union[List[str], None] = None,
+) -> Connection:
     has_next_page = len(items) > first
 
     page_items = items[:first]
@@ -19,5 +26,7 @@ def to_graphql_result_page(items: list[Any], first: int, after: int, total: int)
             start_cursor=start_cursor,
             end_cursor=end_cursor,
             total_items=total if total else None,
+            sort_fields=sort_fields or [],
+            filter_fields=filter_fields or [],
         ),
     )

@@ -18,9 +18,10 @@ from pydantic.utils import to_lower_camel
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.subscription import filter_subscriptions
+from orchestrator.db.filters.subscription import filter_subscriptions, subscription_filter_fields
 from orchestrator.db.range import apply_range_to_query
-from orchestrator.db.sorting import Sort, sort_subscriptions
+from orchestrator.db.sorting import Sort
+from orchestrator.db.sorting.subscription import sort_subscriptions, subscription_sort_fields
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
@@ -81,4 +82,6 @@ async def resolve_subscriptions(
         graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:
         graphql_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
-    return to_graphql_result_page(graphql_subscriptions, first, after, total)
+    return to_graphql_result_page(
+        graphql_subscriptions, first, after, total, subscription_sort_fields, subscription_filter_fields
+    )
