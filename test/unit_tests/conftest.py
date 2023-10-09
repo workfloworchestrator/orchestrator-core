@@ -309,7 +309,7 @@ def test_form_translations(worker_id):
     used_translations = set()
 
     # In order to properly wrap a classmethod we need to do special stuff
-    old_init_subclass = FormPage.__dict__["__init_subclass__"]
+    old_init_subclass = FormPage.__dict__["__pydantic_init_subclass__"]
 
     # Wrap a form function that is certain to be called to extract the used form fields
     @classmethod

@@ -129,10 +129,15 @@ class DomainModel(BaseModel):
     _product_block_fields_: ClassVar[Dict[str, Type]]
     _non_product_block_fields_: ClassVar[Dict[str, Type]]
 
+    def __init_subclass__(
+        cls, *args: Any, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
+    ) -> None:
+        super().__init_subclass__()
+
     def __pydantic__init_subclass__(
         cls, *args: Any, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
-        super().__pydantic__init_subclass__()
+        # super().__pydantic__init_subclass__()
         cls._find_special_fields()
 
         if kwargs.keys():
@@ -588,6 +593,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     owner_subscription_id: UUID
     label: Optional[str] = None
 
+    @classmethod
     def __pydantic_init_subclass__(
         cls,
         *,
@@ -617,7 +623,8 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
                 if issubclass(klass, ProductBlockModel):
                     klass.__names__.add(cls.name)
 
-        cls.__doc__ = make_product_block_docstring(cls, lifecycle)
+        # TODO: pydantic v2 call this at the right (?) moment
+        # cls.__doc__ = make_product_block_docstring(cls, lifecycle)
 
     @classmethod
     def diff_product_block_in_database(cls) -> Dict[str, Set[str]]:

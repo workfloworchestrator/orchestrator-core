@@ -16,32 +16,32 @@ from typing import Any, Generator, List, Optional, Sequence, Type
 from uuid import UUID
 
 import structlog
-from pydantic.errors import EnumMemberError
-from pydantic.validators import uuid_validator
+from pydantic.v1.errors import EnumMemberError
+from pydantic.v1.validators import uuid_validator
 
 from orchestrator.services import products
 from pydantic_forms.types import strEnum
 from pydantic_forms.validators import (  # noqa: F401
     Accept,
     Choice,
-    ChoiceList,
+    # ChoiceList,
     ContactPerson,
-    ContactPersonList,
-    ContactPersonName,
+    # ContactPersonList,
+    # ContactPersonName,
     DisplaySubscription,
     Divider,
     Label,
     ListOfOne,
     ListOfTwo,
     LongText,
-    MigrationSummary,
+    # MigrationSummary,
     OrganisationId,
     Timestamp,
-    UniqueConstrainedList,
+    # UniqueConstrainedList,
     choice_list,
     contact_person_list,
     migration_summary,
-    remove_empty_items,
+    # remove_empty_items,
     timestamp,
     unique_conlist,
 )
@@ -51,10 +51,10 @@ logger = structlog.get_logger(__name__)
 __all__ = [
     "Accept",
     "Choice",
-    "ChoiceList",
+    # "ChoiceList",
     "ContactPerson",
-    "ContactPersonName",
-    "ContactPersonList",
+    # "ContactPersonName",
+    # "ContactPersonList",
     "DisplaySubscription",
     "Divider",
     "Label",
@@ -63,15 +63,15 @@ __all__ = [
     "LongText",
     "ProductIdError",
     "ProductId",
-    "MigrationSummary",
+    # "MigrationSummary",
     "OrganisationId",
     "Timestamp",
-    "UniqueConstrainedList",
+    # "UniqueConstrainedList",
     "choice_list",
     "contact_person_list",
     "migration_summary",
     "product_id",
-    "remove_empty_items",
+    # "remove_empty_items",
     "strEnum",
     "timestamp",
     "unique_conlist",
