@@ -16,7 +16,8 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import BaseSettings, PostgresDsn, RedisDsn
+from pydantic import PostgresDsn, RedisDsn
+from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.types import strEnum
