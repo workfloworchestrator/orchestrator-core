@@ -202,7 +202,7 @@ def get_subscriptions_product_block_json_schema_query(
 query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
   subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
     page {
-      productBlocksJsonSchema
+      _schema
     }
     pageInfo {
       startCursor
@@ -946,7 +946,7 @@ def test_single_subscription_with_in_use_by_subscriptions(
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="types get different origin with 3.10 and higher")
-def test_single_subscription_with_product_block_instance_schema(
+def test_single_subscription_schema(
     fastapi_app_graphql,
     test_client,
     product_type_1_subscriptions_factory,
@@ -958,8 +958,6 @@ def test_single_subscription_with_product_block_instance_schema(
 
     product_type_1_subscriptions_factory(30)
     subscription_id = str(product_sub_list_union_subscription_1)
-    sub_list_union_subscription = SubscriptionModel.from_subscription(product_sub_list_union_subscription_1)
-    # test_block_instance_id = str(product_sub_list_union_subscription_1.test_block.subscription_instance_id)
     data = get_subscriptions_product_block_json_schema_query(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]
     )
@@ -973,116 +971,116 @@ def test_single_subscription_with_product_block_instance_schema(
     subscriptions = subscriptions_data["page"]
 
     assert "errors" not in result
-    assert subscriptions[0]["productBlocksJsonSchema"] == {
-        "__schema__": {
-            "title": "ProductBlocks",
-            "type": "object",
-            "properties": {
-                "test_block": {
-                    "title": "Test Block",
-                    "allOf": [{"$ref": "#/definitions/ProductBlockWithListUnionForTest"}],
-                }
-            },
-            "definitions": {
-                "SubBlockTwoForTest": {
-                    "title": "SubBlockTwoForTest",
-                    "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field_2:\n            Type :class:`~builtins.int`",
-                    "type": "object",
-                    "properties": {
-                        "name": {"title": "Name", "type": "string"},
-                        "subscription_instance_id": {
-                            "title": "Subscription Instance Id",
-                            "type": "string",
-                            "format": "uuid",
-                        },
-                        "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
-                        "label": {"title": "Label", "type": "string"},
-                        "int_field_2": {"title": "Int Field 2", "type": "integer"},
-                    },
-                    "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field_2"],
-                },
-                "SubBlockOneForTest": {
-                    "title": "SubBlockOneForTest",
-                    "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`",
-                    "type": "object",
-                    "properties": {
-                        "name": {"title": "Name", "type": "string"},
-                        "subscription_instance_id": {
-                            "title": "Subscription Instance Id",
-                            "type": "string",
-                            "format": "uuid",
-                        },
-                        "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
-                        "label": {"title": "Label", "type": "string"},
-                        "int_field": {"title": "Int Field", "type": "integer"},
-                        "str_field": {"title": "Str Field", "type": "string"},
-                    },
-                    "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field", "str_field"],
-                },
-                "ProductBlockWithListUnionForTest": {
-                    "title": "ProductBlockWithListUnionForTest",
-                    "description": "Valid for statuses: active\n\n\nInstance Values:\n\n        int_field:\n            Type :class:`~builtins.int`\n        str_field:\n            Type :class:`~builtins.str`\n        list_field:\n            \n\n            Type :class:`~typing.List`\nBlocks:\n\n        list_union_blocks:\n            \n\n            Type :class:`~typing.List`",
-                    "type": "object",
-                    "properties": {
-                        "name": {"title": "Name", "type": "string"},
-                        "subscription_instance_id": {
-                            "title": "Subscription Instance Id",
-                            "type": "string",
-                            "format": "uuid",
-                        },
-                        "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
-                        "label": {"title": "Label", "type": "string"},
-                        "list_union_blocks": {
-                            "title": "List Union Blocks",
-                            "type": "array",
-                            "items": {
-                                "anyOf": [
-                                    {"$ref": "#/definitions/SubBlockTwoForTest"},
-                                    {"$ref": "#/definitions/SubBlockOneForTest"},
-                                ]
-                            },
-                        },
-                        "int_field": {"title": "Int Field", "type": "integer"},
-                        "str_field": {"title": "Str Field", "type": "string"},
-                        "list_field": {"title": "List Field", "type": "array", "items": {"type": "integer"}},
-                    },
-                    "required": [
-                        "name",
-                        "subscription_instance_id",
-                        "owner_subscription_id",
-                        "list_union_blocks",
-                        "int_field",
-                        "str_field",
-                        "list_field",
-                    ],
-                },
-            },
+    assert subscriptions[0]["_schema"] == {
+        "title": "ProductSubListUnionInactive",
+        "description": "Valid for statuses: all others\n\nSee `active` version.",
+        "type": "object",
+        "properties": {
+            "product": {"$ref": "#/definitions/ProductModel"},
+            "customer_id": {"title": "Customer Id", "type": "string"},
+            "subscription_id": {"title": "Subscription Id", "type": "string", "format": "uuid"},
+            "description": {"title": "Description", "default": "Initial subscription", "type": "string"},
+            "status": {"default": "initial", "allOf": [{"$ref": "#/definitions/SubscriptionLifecycle"}]},
+            "insync": {"title": "Insync", "default": False, "type": "boolean"},
+            "start_date": {"title": "Start Date", "type": "string", "format": "date-time"},
+            "end_date": {"title": "End Date", "type": "string", "format": "date-time"},
+            "note": {"title": "Note", "type": "string"},
+            "test_block": {"$ref": "#/definitions/ProductBlockWithListUnionForTestInactive"},
         },
-        "test_block": {
-            "name": "ProductBlockWithListUnionForTest",
-            "subscription_instance_id": str(sub_list_union_subscription.test_block.subscription_instance_id),
-            "owner_subscription_id": subscription_id,
-            "label": None,
-            "list_union_blocks": [
-                {
-                    "name": "SubBlockTwoForTest",
-                    "subscription_instance_id": str(sub_two_subscription_1.test_block.subscription_instance_id),
-                    "owner_subscription_id": str(sub_two_subscription_1.subscription_id),
-                    "label": None,
-                    "int_field_2": 3,
+        "required": ["product", "customer_id"],
+        "definitions": {
+            "ProductLifecycle": {
+                "title": "ProductLifecycle",
+                "description": "An enumeration.",
+                "enum": ["active", "pre production", "phase out", "end of life"],
+                "type": "string",
+            },
+            "ProductModel": {
+                "title": "ProductModel",
+                "description": "Represent the product as defined in the database as a dataclass.",
+                "type": "object",
+                "properties": {
+                    "product_id": {"title": "Product Id", "type": "string", "format": "uuid"},
+                    "name": {"title": "Name", "type": "string"},
+                    "description": {"title": "Description", "type": "string"},
+                    "product_type": {"title": "Product Type", "type": "string"},
+                    "tag": {"title": "Tag", "type": "string"},
+                    "status": {"$ref": "#/definitions/ProductLifecycle"},
+                    "created_at": {"title": "Created At", "type": "string", "format": "date-time"},
+                    "end_date": {"title": "End Date", "type": "string", "format": "date-time"},
                 },
-                {
-                    "name": "SubBlockOneForTest",
-                    "subscription_instance_id": str(sub_one_subscription_1.test_block.subscription_instance_id),
-                    "owner_subscription_id": str(sub_one_subscription_1.subscription_id),
-                    "label": None,
-                    "int_field": 1,
-                    "str_field": "blah",
+                "required": ["product_id", "name", "description", "product_type", "tag", "status"],
+            },
+            "SubscriptionLifecycle": {
+                "title": "SubscriptionLifecycle",
+                "description": "An enumeration.",
+                "enum": ["initial", "active", "migrating", "disabled", "terminated", "provisioning"],
+                "type": "string",
+            },
+            "SubBlockTwoForTestInactive": {
+                "title": "SubBlockTwoForTestInactive",
+                "description": "Valid for statuses: all others\n\nSee `active` version.",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "int_field_2": {"title": "Int Field 2", "type": "integer"},
                 },
-            ],
-            "int_field": 1,
-            "str_field": "blah",
-            "list_field": [2],
+                "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field_2"],
+            },
+            "SubBlockOneForTestInactive": {
+                "title": "SubBlockOneForTestInactive",
+                "description": "Valid for statuses: all others\n\nSee `active` version.",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "int_field": {"title": "Int Field", "type": "integer"},
+                    "str_field": {"title": "Str Field", "type": "string"},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id"],
+            },
+            "ProductBlockWithListUnionForTestInactive": {
+                "title": "ProductBlockWithListUnionForTestInactive",
+                "description": "Valid for statuses: all others\n\nSee `active` version.",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "list_union_blocks": {
+                        "title": "List Union Blocks",
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {"$ref": "#/definitions/SubBlockTwoForTestInactive"},
+                                {"$ref": "#/definitions/SubBlockOneForTestInactive"},
+                            ]
+                        },
+                    },
+                    "int_field": {"title": "Int Field", "type": "integer"},
+                    "str_field": {"title": "Str Field", "type": "string"},
+                    "list_field": {"title": "List Field", "type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id", "list_union_blocks"],
+            },
         },
     }
 
