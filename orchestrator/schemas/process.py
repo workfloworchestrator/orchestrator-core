@@ -12,10 +12,10 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import ConstrainedStr
+from pydantic import Field
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
@@ -114,5 +114,4 @@ class ProcessStatusCounts(OrchestratorBaseModel):
     task_counts: Dict[ProcessStatus, int]
 
 
-class Reporter(ConstrainedStr):
-    max_length = 100
+Reporter = Annotated[str, Field(max_length=100)]

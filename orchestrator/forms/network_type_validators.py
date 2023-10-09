@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, Iterator, Optional
+from typing import Dict, Iterator, Optional
 
 from pydantic import BaseModel, ConstrainedInt, conint, root_validator
 
@@ -41,21 +41,21 @@ class MTU(ConstrainedInt):
     ge = 1500
     le = 9000
 
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        super().__modify_schema__(field_schema)
-        field_schema["multipleOf"] = 7500
+    # @classmethod
+    # def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+    #     super().__modify_schema__(field_schema)
+    #     field_schema["multipleOf"] = 7500
 
 
 class VlanRangesValidator(VlanRanges):
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict) -> None:
-        field_schema.update(
-            pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
-            examples=["345", "20-23,45,50-100"],
-            type="string",
-            format="vlan",
-        )
+    # @classmethod
+    # def __modify_schema__(cls, field_schema: Dict) -> None:
+    #     field_schema.update(
+    #         pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
+    #         examples=["345", "20-23,45,50-100"],
+    #         type="string",
+    #         format="vlan",
+    #     )
 
     @classmethod
     def __get_validators__(cls) -> Iterator:

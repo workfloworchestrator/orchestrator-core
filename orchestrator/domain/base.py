@@ -35,10 +35,12 @@ from uuid import UUID, uuid4
 import structlog
 from more_itertools import first, flatten, last, one, only
 from pydantic import BaseModel, Field, ValidationError
+
+# from pydantic.main import ModelMetaclass
+from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import PrivateAttr
-from pydantic.main import ModelMetaclass
-from pydantic.types import ConstrainedList
-from pydantic.typing import get_args, get_origin
+from pydantic.v1.types import ConstrainedList
+from pydantic.v1.typing import get_args, get_origin
 from sqlalchemy.orm import selectinload
 
 from orchestrator.db import (
@@ -128,10 +130,10 @@ class DomainModel(BaseModel):
     _product_block_fields_: ClassVar[Dict[str, Type]]
     _non_product_block_fields_: ClassVar[Dict[str, Type]]
 
-    def __init_subclass__(
+    def __pydantic__init_subclass__(
         cls, *args: Any, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
-        super().__init_subclass__()
+        super().__pydantic__init_subclass__()
         cls._find_special_fields()
 
         if kwargs.keys():
@@ -587,14 +589,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     owner_subscription_id: UUID
     label: Optional[str] = None
 
-    def __init_subclass__(
+    def __pydantic_init_subclass__(
         cls,
         *,
         product_block_name: Optional[str] = None,
         lifecycle: Optional[List[SubscriptionLifecycle]] = None,
         **kwargs: Any,
     ) -> None:
-        super().__init_subclass__(lifecycle=lifecycle, **kwargs)
+        super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
 
         if product_block_name is not None:
             # This is a concrete product block base class (so not a abstract super class or a specific lifecycle version)
@@ -1035,10 +1037,10 @@ class SubscriptionModel(DomainModel):
 
         return super().__new__(cls)
 
-    def __init_subclass__(
+    def __pydantic_init_subclass__(
         cls, is_base: bool = False, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
-        super().__init_subclass__(lifecycle=lifecycle, **kwargs)
+        super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
 
         if is_base:
             cls.__base_type__ = cls
@@ -1459,8 +1461,8 @@ SI = TypeVar("SI", covariant=True)  # pragma: no mutate
 class SubscriptionInstanceList(ConstrainedList, List[SI]):  # type: ignore
     """Shorthand to create constrained lists of product blocks."""
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
 
         # Copy generic argument (SI) if not set explicitly
         # This makes a lot of assumptions about the internals of `typing`

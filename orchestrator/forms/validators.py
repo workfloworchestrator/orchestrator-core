@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from types import new_class
-from typing import Any, Dict, Generator, List, Optional, Sequence, Type
+from typing import Any, Generator, List, Optional, Sequence, Type
 from uuid import UUID
 
 import structlog
@@ -90,10 +90,10 @@ class ProductIdError(EnumMemberError):
 class ProductId(UUID):
     products: Optional[List[UUID]] = None
 
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        kwargs = {"uniforms": {"productIds": cls.products}} if cls.products else {}
-        field_schema.update(format="productId", **kwargs)
+    # @classmethod
+    # def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+    #     kwargs = {"uniforms": {"productIds": cls.products}} if cls.products else {}
+    #     field_schema.update(format="productId", **kwargs)
 
     @classmethod
     def __get_validators__(cls) -> Generator:

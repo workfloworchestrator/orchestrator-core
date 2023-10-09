@@ -324,12 +324,12 @@ def test_form_translations(worker_id):
         # Because the original is a classmethod we need to conform to the descriptor protocol
         return old_init_subclass.__get__(None, cls)(*args, **kwargs)
 
-    FormPage.__init_subclass__ = init_subclass_wrapper
+    FormPage.__pydantic_init_subclass__ = init_subclass_wrapper
     try:
         yield
     finally:
         # unwrapp and check if all translations are actually used
-        FormPage.__init_subclass__ = old_init_subclass
+        FormPage.__pydantic_init_subclass__ = old_init_subclass
 
         # This check only works when you run without python-xdist because we need one single session
         # TODO this does not work reliable yet
