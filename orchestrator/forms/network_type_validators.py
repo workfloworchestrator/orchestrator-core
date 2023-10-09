@@ -12,9 +12,9 @@
 # limitations under the License.
 
 
-from typing import Dict, Iterator, Optional, Annotated
+from typing import Annotated, Dict, Iterator, Optional
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, conint, model_validator, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, conint, model_validator
 
 from orchestrator.utils.vlans import VlanRanges
 
@@ -37,18 +37,7 @@ class BFD(BaseModel):
         return values
 
 
-MTU = Annotated[int, Field(ge=1500, le=9000)]
-
-
-# class MTU(ConstrainedInt):
-#     ge = 1500
-#     le = 9000
-#
-#     # TODO pydantic V2 migration
-#     # @classmethod
-#     # def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-#     #     super().__modify_schema__(field_schema)
-#     #     field_schema["multipleOf"] = 7500
+MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
 
 
 class VlanRangesValidator(VlanRanges):

@@ -69,7 +69,7 @@ from orchestrator.types import (
     is_union_type,
 )
 from orchestrator.utils.datetime import nowtz
-from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
+from orchestrator.utils.docs import make_subscription_model_docstring
 
 logger = structlog.get_logger(__name__)
 
@@ -1044,6 +1044,7 @@ class SubscriptionModel(DomainModel):
 
         return super().__new__(cls)
 
+    @classmethod
     def __pydantic_init_subclass__(
         cls, is_base: bool = False, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
