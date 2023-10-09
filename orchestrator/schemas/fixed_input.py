@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.schemas.base import OrchestratorBaseModel
 
 TagConfig = Dict[str, List[Dict[str, bool]]]
@@ -32,8 +34,7 @@ class FixedInputSchema(FixedInputBaseSchema):
     created_at: datetime
     product_id: UUID
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FixedInputConfigurationItemSchema(OrchestratorBaseModel):

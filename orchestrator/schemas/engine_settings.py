@@ -14,6 +14,7 @@
 from typing import Optional
 
 import strawberry
+from pydantic import ConfigDict
 
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.types import strEnum
@@ -41,6 +42,4 @@ class EngineSettingsSchema(EngineSettingsBaseSchema):
     global_status: Optional[GlobalStatusEnum]
     running_processes: int
 
-    class Config:
-        orm_mode = True
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

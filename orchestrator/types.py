@@ -17,7 +17,8 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID
 
 import strawberry
-from pydantic.v1.typing import get_args, get_origin, is_union
+from pydantic.v1.typing import is_union
+from typing_extensions import get_args, get_origin
 
 # TODO: eventually enforce code migration for downstream users to import
 # these types from pydantic_forms themselves

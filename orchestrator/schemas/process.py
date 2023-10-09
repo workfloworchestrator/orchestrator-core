@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Annotated, Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
@@ -50,8 +50,7 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     last_modified_at: datetime
     traceback: Optional[str]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProcessStepSchema(OrchestratorBaseModel):
@@ -97,8 +96,7 @@ class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
 
     pid: UUID  # TODO: will be removed in 1.4
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProcessSubscriptionSchema(ProcessSubscriptionBaseSchema):

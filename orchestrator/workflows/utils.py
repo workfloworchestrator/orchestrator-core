@@ -12,11 +12,11 @@
 # limitations under the License.
 
 from inspect import isgeneratorfunction
-from typing import Callable, Dict, Optional, cast
+from typing import Callable, Optional, cast
 from uuid import UUID
 
 from more_itertools import first_true
-from pydantic import validator
+from pydantic import ValidationInfo, field_validator
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms.validators import ProductId
@@ -44,7 +44,7 @@ def _generate_new_subscription_form(workflow_target: str, workflow_name: str) ->
     class NewProductPage(FormPage):
         product: ProductId
 
-        @validator("product", allow_reuse=True)
+        @field_validator("product")
         def product_validator(cls, v: UUID) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
             product = ProductTable.query.get(v)
@@ -112,8 +112,8 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         # we do our own validation here..
         subscription_id: UUID
 
-        @validator("subscription_id", allow_reuse=True)
-        def subscription_validator(cls, v: UUID, values: Dict) -> UUID:  # type: ignore
+        @field_validator("subscription_id")
+        def subscription_validator(cls, v: UUID, _info: ValidationInfo) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
             subscription = SubscriptionTable.query.get(v)
             if subscription is None:

@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
@@ -39,8 +41,7 @@ class ProductBlockEnrichedSchema(OrchestratorBaseModel):
     end_date: Optional[datetime]
     resource_types: Optional[List[ResourceTypeSchema]]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductBlockSchema(ProductBlockBaseSchema):
@@ -50,5 +51,4 @@ class ProductBlockSchema(ProductBlockBaseSchema):
     end_date: Optional[datetime]
     resource_types: Optional[List[ResourceTypeSchema]]  # type: ignore
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.fixed_input import FixedInputBaseSchema, FixedInputSchema
@@ -32,8 +34,7 @@ class ProductBaseSchema(OrchestratorBaseModel):
     created_at: Optional[datetime]
     end_date: Optional[datetime]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductSchema(ProductBaseSchema):

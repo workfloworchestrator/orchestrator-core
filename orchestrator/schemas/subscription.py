@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
 
-from pydantic import Extra, Field
+from pydantic import ConfigDict, Field
 
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.product import ProductBaseSchema
@@ -41,8 +41,7 @@ class SubscriptionRelationSchema(OrchestratorBaseModel):
     depends_on_id: UUID
     order_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionInstanceValueBaseSchema(OrchestratorBaseModel):
@@ -52,8 +51,7 @@ class SubscriptionInstanceValueBaseSchema(OrchestratorBaseModel):
     value: str
     resource_type: ResourceTypeSchema
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionInstanceBase(OrchestratorBaseModel):
@@ -68,8 +66,7 @@ class SubscriptionInstanceBase(OrchestratorBaseModel):
     depends_on_block_relations: List[SubscriptionRelationSchema]
     product_block: ProductBlockSchema
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionBaseSchema(OrchestratorBaseModel):
@@ -91,8 +88,7 @@ class SubscriptionSchema(SubscriptionBaseSchema):
     customer_descriptions: Optional[List[SubscriptionDescriptionSchema]]
     tag: Optional[str]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionWithMetadata(SubscriptionSchema):
@@ -107,5 +103,4 @@ class SubscriptionDomainModelSchema(SubscriptionSchema):
     customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []  # type: ignore
     product: ProductBaseSchema
 
-    class Config:
-        extra = Extra.allow
+    model_config = ConfigDict(extra="allow")

@@ -34,14 +34,12 @@ from uuid import UUID, uuid4
 
 import structlog
 from more_itertools import first, flatten, last, one, only
-from pydantic import BaseModel, Field, ValidationError
-
-# from pydantic.main import ModelMetaclass
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import PrivateAttr
 from pydantic.v1.types import ConstrainedList
-from pydantic.v1.typing import get_args, get_origin
 from sqlalchemy.orm import selectinload
+from typing_extensions import get_args, get_origin
 
 from orchestrator.db import (
     ProductBlockTable,
@@ -103,8 +101,8 @@ def _is_constrained_list_type(type: Type) -> bool:
         is_constrained_list = issubclass(type, ConstrainedList)
     except Exception:
         # Strip generic arguments, it still might be a subclass
-        if get_origin(type):
-            return _is_constrained_list_type(get_origin(type))  # type: ignore
+        if origin := get_origin(type):
+            return _is_constrained_list_type(origin)  # type: ignore
         return False
 
     return is_constrained_list
@@ -121,10 +119,11 @@ class DomainModel(BaseModel):
     Contains all common Product block/Subscription instance code
     """
 
-    class Config:
-        validate_assignment = True  # pragma: no mutate
-        validate_all = True  # pragma: no mutate
-        arbitrary_types_allowed = True  # pragma: no mutate
+    model_config = ConfigDict(
+        validate_assignment=True,
+        arbitrary_types_allowed=True,
+        validate_default=True,
+    )
 
     __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
     _product_block_fields_: ClassVar[Dict[str, Type]]
@@ -979,10 +978,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 class ProductModel(BaseModel):
     """Represent the product as defined in the database as a dataclass."""
 
-    class Config:
-        validate_assignment = True  # pragma: no mutate
-        validate_all = True  # pragma: no mutate
-        arbitrary_types_allowed = True  # pragma: no mutate
+    model_config = ConfigDict(
+        validate_assignment=True,
+        arbitrary_types_allowed=True,
+        validate_default=True,
+    )
 
     product_id: UUID
     name: str
