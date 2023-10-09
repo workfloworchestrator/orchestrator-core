@@ -8,7 +8,6 @@ import pytest
 import pytz
 from pydantic import Field, ValidationError, conlist
 from pydantic.main import BaseModel
-from pydantic.types import ConstrainedList
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import (
@@ -1090,10 +1089,10 @@ def test_subscription_instance_list():
 
 
 def test_is_constrained_list_type():
-    class ListType(ConstrainedList):
-        min_items = 1
-
-    assert _is_constrained_list_type(ListType) is True
+    # class ListType(ConstrainedList):
+    #     min_items = 1
+    #
+    # assert _is_constrained_list_type(ListType) is True
     assert _is_constrained_list_type(SubscriptionInstanceList[int]) is True
     assert _is_constrained_list_type(Optional[int]) is False
     assert _is_constrained_list_type(List[int]) is False
