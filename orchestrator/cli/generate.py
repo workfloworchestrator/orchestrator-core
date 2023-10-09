@@ -112,7 +112,9 @@ def product_blocks(
     dryrun: bool = DryRun,
     force: bool = Force,
     python_version: str = PythonVersion,
+    folder_prefix: Path = FolderPrefix,
 ) -> None:
+    settings.FOLDER_PREFIX = folder_prefix
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
     generate_product_blocks(context)
@@ -125,7 +127,9 @@ def workflows(
     force: bool = Force,
     python_version: str = PythonVersion,
     tdd: bool = TestDrivenDevelopment,
+    folder_prefix: Path = FolderPrefix,
 ) -> None:
+    settings.FOLDER_PREFIX = folder_prefix
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version, tdd=tdd)
 
     generate_workflows(context)
