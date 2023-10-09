@@ -338,13 +338,13 @@ def run_form_generator(
 
     try:
         form = cast(InputForm, next(form_generator))
-        forms.append(form.schema())
+        forms.append(form.model_json_schema())
         for extra_input in chain(extra_inputs, repeat(cast(State, {}))):
-            user_input_data = {field_name: field.default for field_name, field in form.__fields__.items()}
+            user_input_data = {field_name: field.default for field_name, field in form.model_fields.items()}
             user_input_data.update(extra_input)
-            user_input = form.construct(**user_input_data)
+            user_input = form.model_construct(**user_input_data)
             form = form_generator.send(user_input)
-            forms.append(form.schema())
+            forms.append(form.model_json_schema())
     except StopIteration as stop:
         result = stop.value
 

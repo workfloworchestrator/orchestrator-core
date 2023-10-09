@@ -11,13 +11,13 @@ def test_bfd_ok():
         bfd: BFD
 
     model = {"enabled": False, "minimum_interval": None, "multiplier": None}
-    validated_data = Form(bfd=model).dict()
+    validated_data = Form(bfd=model).model_dump()
 
     expected = {"bfd": BFD(enabled=False, minimum_interval=None, multiplier=None)}
     assert expected == validated_data
 
     model = {"enabled": True, "minimum_interval": 600, "multiplier": 3}
-    validated_data = Form(bfd=model).dict()
+    validated_data = Form(bfd=model).model_dump()
 
     expected = {"bfd": BFD(enabled=True, minimum_interval=600, multiplier=3)}
     assert expected == validated_data
@@ -27,7 +27,7 @@ def test_bfd_schema():
     class Form(FormPage):
         bfd: BFD
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "definitions": {
             "BFD": {
@@ -66,16 +66,16 @@ def test_bfd_missing_values():
         bfd: BFD
 
     model = {"enabled": False}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False}}
 
     model = {"enabled": True, "multiplier": 4}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
 
     model = {"enabled": True, "minimum_interval": 600}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
 
     model = {"enabled": False, "minimum_interval": 600, "multiplier": 3}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False}}
 
 
 def test_bfd_wrong_values():
@@ -148,7 +148,7 @@ def test_mtu_schema():
     class Form(FormPage):
         mtu: MTU
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "mtu": {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "title": "Mtu", "type": "integer"}
@@ -168,26 +168,28 @@ def test_mtu_nok():
 
     expected = [
         {
-            "ctx": {"limit_value": 1500},
+            "input": 1499,
+            "ctx": {"ge": 1500},
             "loc": ("mtu",),
-            "msg": "ensure this value is greater than or equal to 1500",
-            "type": "value_error.number.not_ge",
+            "msg": "Input should be greater than or equal to 1500",
+            "type": "greater_than_equal",
         }
     ]
-    assert expected == error_info.value.errors()
+    assert error_info.value.errors(include_url=False) == expected
 
     with pytest.raises(ValidationError) as error_info:
         assert Form(mtu=9001)
 
     expected = [
         {
-            "ctx": {"limit_value": 9000},
+            "input": 9001,
+            "ctx": {"le": 9000},
             "loc": ("mtu",),
-            "msg": "ensure this value is less than or equal to 9000",
-            "type": "value_error.number.not_le",
+            "msg": "Input should be less than or equal to 9000",
+            "type": "less_than_equal",
         },
     ]
-    assert expected == error_info.value.errors()
+    assert error_info.value.errors(include_url=False) == expected
 
 
 def test_vlanranges():
@@ -205,7 +207,7 @@ def test_vlanranges_schema():
     class Form(FormPage):
         vlanranges: VlanRangesValidator
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "vlanranges": {
