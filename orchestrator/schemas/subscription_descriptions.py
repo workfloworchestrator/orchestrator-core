@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.schemas.base import OrchestratorBaseModel
 
 
@@ -28,5 +30,4 @@ class SubscriptionDescriptionSchema(SubscriptionDescriptionBaseSchema):
     id: UUID
     created_at: Optional[datetime]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

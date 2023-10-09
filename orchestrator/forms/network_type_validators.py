@@ -14,22 +14,22 @@
 
 from typing import Dict, Iterator, Optional
 
-from pydantic import BaseModel, ConstrainedInt, conint, root_validator
+from pydantic import BaseModel, ConfigDict, ConstrainedInt, ValidationInfo, conint, model_validator
 
 from orchestrator.utils.vlans import VlanRanges
 
 
 class BFD(BaseModel):
-    class Config:
-        schema_extra = {"format": "optGroup"}
+    model_config = ConfigDict(json_schema_extra={"format": "optGroup"})
 
     # order matters, this should be first
     enabled: bool
     minimum_interval: Optional[conint(ge=1, le=255000)] = 900  # type: ignore
     multiplier: Optional[conint(ge=1, le=255)] = 3  # type: ignore
 
-    @root_validator()
-    def check_optional_fields(cls, values: Dict) -> Dict:  # noqa: B902
+    @model_validator(mode="after")
+    def check_optional_fields(cls, info: ValidationInfo) -> Dict:  # noqa: B902
+        values = info.data
         if not values.get("enabled"):
             values.pop("minimum_interval", None)
             values.pop("multiplier", None)
@@ -41,6 +41,7 @@ class MTU(ConstrainedInt):
     ge = 1500
     le = 9000
 
+    # TODO pydantic V2 migration
     # @classmethod
     # def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
     #     super().__modify_schema__(field_schema)
@@ -48,6 +49,8 @@ class MTU(ConstrainedInt):
 
 
 class VlanRangesValidator(VlanRanges):
+    # TODO pydantic V2 migration (see nwd-api and/or migrate to nwastdlib)
+
     # @classmethod
     # def __modify_schema__(cls, field_schema: Dict) -> None:
     #     field_schema.update(
