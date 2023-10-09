@@ -16,12 +16,13 @@ import re
 from collections.abc import Generator
 from importlib import import_module
 from os import listdir, path
+from pathlib import Path
 from typing import Any, Optional
 
 import structlog
 
 from orchestrator.cli.generator.generator.helpers import get_product_block_file_name, path_to_module, snake_to_camel
-from orchestrator.cli.generator.generator.settings import product_generator_settings
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.domain.base import ProductBlockModel
 
 logger = structlog.getLogger(__name__)
@@ -32,7 +33,7 @@ def get_existing_product_blocks() -> dict[str, Any]:
         def is_product_block(attribute: Any) -> bool:
             return issubclass(attribute, ProductBlockModel)
 
-        product_blocks_path = product_generator_settings.PRODUCT_BLOCKS_PATH
+        product_blocks_path = settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
         product_blocks_module = path_to_module(product_blocks_path)
 
         if not path.exists(product_blocks_path):
@@ -103,9 +104,9 @@ def get_product_blocks_to_import(lists_to_generate: list, existing_product_block
     ]
 
 
-def get_product_block_path(product_block: dict) -> str:
+def get_product_block_path(product_block: dict) -> Path:
     file_name = get_product_block_file_name(product_block)
-    return f"{product_generator_settings.PRODUCT_BLOCKS_PATH}/{file_name}.py"
+    return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH / Path(file_name).with_suffix(".py")
 
 
 def enrich_product_block(product_block: dict) -> dict:

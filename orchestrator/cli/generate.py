@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from pathlib import Path
 from typing import Dict, Optional
 
 import typer
@@ -20,6 +21,7 @@ from jinja2 import Environment, FileSystemLoader
 from orchestrator.cli.generator.generator.migration import generate_product_migration
 from orchestrator.cli.generator.generator.product import generate_product
 from orchestrator.cli.generator.generator.product_block import generate_product_blocks
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.unittest import generate_unit_tests
 from orchestrator.cli.generator.generator.workflow import generate_workflows
 
@@ -87,6 +89,7 @@ DryRun = typer.Option(True, help="Dry run")
 TestDrivenDevelopment = typer.Option(True, "--tdd", help="Force test driven development with failing asserts")
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
 PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
+FolderPrefix = typer.Option("", "--folder-prefix", "-fp", help="Folder prefix, e.g. <folder-prefix>/workflows")
 
 
 @app.command(help="Create product from configuration file")
@@ -95,7 +98,9 @@ def product(
     dryrun: bool = DryRun,
     force: bool = Force,
     python_version: str = PythonVersion,
+    folder_prefix: Path = FolderPrefix,
 ) -> None:
+    settings.FOLDER_PREFIX = folder_prefix
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
 
     generate_product(context)
