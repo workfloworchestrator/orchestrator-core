@@ -3,10 +3,10 @@ from typing import Union
 import structlog
 
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.product_block import filter_product_blocks
+from orchestrator.db.filters.product_block import filter_product_blocks, product_block_filter_fields
 from orchestrator.db.models import ProductBlockTable
 from orchestrator.db.range.range import apply_range_to_query
-from orchestrator.db.sorting.product_block import sort_product_blocks
+from orchestrator.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product_block import ProductBlock
@@ -39,4 +39,6 @@ async def resolve_product_blocks(
 
     product_blocks = query.all()
     graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
-    return to_graphql_result_page(graphql_product_blocks, first, after, total)
+    return to_graphql_result_page(
+        graphql_product_blocks, first, after, total, product_block_sort_fields, product_block_filter_fields
+    )

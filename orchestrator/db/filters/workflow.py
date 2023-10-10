@@ -26,4 +26,5 @@ WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Sear
     BASE_CAMEL | {"products": products_filter} | created_at_range_filters
 )
 
+workflow_filter_fields = list(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_workflows = generic_filter(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN)

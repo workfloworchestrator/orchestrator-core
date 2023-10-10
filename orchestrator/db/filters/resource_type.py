@@ -23,4 +23,5 @@ RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str],
     "productBlocks": product_blocks_filter,
 }
 
+resource_type_filter_fields = list(RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_resource_types = generic_filter(RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN)

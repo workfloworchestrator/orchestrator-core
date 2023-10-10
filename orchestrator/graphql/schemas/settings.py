@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Annotated, Optional, Union
 
 import strawberry
 from strawberry.scalars import JSON
@@ -33,5 +33,5 @@ class CacheClearSuccess:
     deleted: int
 
 
-CacheClearResponse = strawberry.union("CacheClearResponse", types=(CacheClearSuccess, Error))
-StatusUpdateResponse = strawberry.union("StatusUpdateResponse", types=(EngineSettingsType, Error))
+CacheClearResponse = Annotated[Union[CacheClearSuccess, Error], strawberry.union("CacheClearResponse")]
+StatusUpdateResponse = Annotated[Union[EngineSettingsType, Error], strawberry.union("StatusUpdateResponse")]
