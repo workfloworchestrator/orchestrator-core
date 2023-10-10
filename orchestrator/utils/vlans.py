@@ -183,3 +183,12 @@ class VlanRanges(abc.Set):
         if isinstance(v, VlanRanges):
             return v
         return cls(v)
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict) -> None:
+        field_schema.update(
+            pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
+            examples=["345", "20-23,45,50-100"],
+            type="string",
+            format="vlan",
+        )

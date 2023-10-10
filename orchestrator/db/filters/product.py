@@ -26,4 +26,5 @@ PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
     "product_blocks": product_block_filter,
 }
 
+product_filter_fields = list(PRODUCT_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_products = generic_filter(PRODUCT_FILTER_FUNCTIONS_BY_COLUMN)

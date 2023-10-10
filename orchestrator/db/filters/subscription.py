@@ -85,5 +85,5 @@ SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], 
     | end_date_range_filters
 )
 
-
+subscription_filter_fields = list(SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_subscriptions = generic_filter(SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN)

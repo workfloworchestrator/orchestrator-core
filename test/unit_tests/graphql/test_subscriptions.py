@@ -12,6 +12,7 @@
 # limitations under the License.
 import datetime
 import json
+import sys
 from http import HTTPStatus
 from typing import Union
 
@@ -182,6 +183,42 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $qu
             "operationName": "SubscriptionQuery",
             "query": gql_query,
             "variables": {"first": first, "after": after, "sortBy": sort_by if sort_by else [], "query": query},
+        }
+    ).encode("utf-8")
+
+
+def get_subscriptions_product_block_json_schema_query(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list, None] = None,
+    sort_by: Union[list, None] = None,
+) -> bytes:
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      _schema
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
         }
     ).encode("utf-8")
 
@@ -527,18 +564,22 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
                 "invalid_sorting": [{"field": "start_date", "order": "DESC"}],
                 "valid_sort_keys": [
                     "productId",
-                    "name",
-                    "description",
+                    "productName",
+                    "productDescription",
                     "productType",
-                    "tag",
-                    "status",
-                    "createdAt",
-                    "endDate",
+                    "productTag",
+                    "productStatus",
+                    "productCreatedAt",
+                    "productEndDate",
                     "subscriptionId",
+                    "description",
+                    "status",
                     "customerId",
                     "insync",
                     "startDate",
+                    "endDate",
                     "note",
+                    "tag",
                 ],
             },
         }
@@ -910,6 +951,146 @@ def test_single_subscription_with_in_use_by_subscriptions(
         subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
     ]
     assert result_in_use_by_ids == expected_in_use_by_ids
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="types get different origin with 3.10 and higher")
+def test_single_subscription_schema(
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+    product_sub_list_union_subscription_1,
+):
+    # when
+
+    product_type_1_subscriptions_factory(30)
+    subscription_id = str(product_sub_list_union_subscription_1)
+    data = get_subscriptions_product_block_json_schema_query(
+        filter_by=[{"field": "subscriptionId", "value": subscription_id}]
+    )
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+
+    assert "errors" not in result
+    assert subscriptions[0]["_schema"] == {
+        "title": "ProductSubListUnionInactive",
+        "description": "Valid for statuses: all others\n\nSee `active` version.",
+        "type": "object",
+        "properties": {
+            "product": {"$ref": "#/definitions/ProductModel"},
+            "customer_id": {"title": "Customer Id", "type": "string"},
+            "subscription_id": {"title": "Subscription Id", "type": "string", "format": "uuid"},
+            "description": {"title": "Description", "default": "Initial subscription", "type": "string"},
+            "status": {"default": "initial", "allOf": [{"$ref": "#/definitions/SubscriptionLifecycle"}]},
+            "insync": {"title": "Insync", "default": False, "type": "boolean"},
+            "start_date": {"title": "Start Date", "type": "string", "format": "date-time"},
+            "end_date": {"title": "End Date", "type": "string", "format": "date-time"},
+            "note": {"title": "Note", "type": "string"},
+            "test_block": {"$ref": "#/definitions/ProductBlockWithListUnionForTestInactive"},
+        },
+        "required": ["product", "customer_id"],
+        "definitions": {
+            "ProductLifecycle": {
+                "title": "ProductLifecycle",
+                "description": "An enumeration.",
+                "enum": ["active", "pre production", "phase out", "end of life"],
+                "type": "string",
+            },
+            "ProductModel": {
+                "title": "ProductModel",
+                "description": "Represent the product as defined in the database as a dataclass.",
+                "type": "object",
+                "properties": {
+                    "product_id": {"title": "Product Id", "type": "string", "format": "uuid"},
+                    "name": {"title": "Name", "type": "string"},
+                    "description": {"title": "Description", "type": "string"},
+                    "product_type": {"title": "Product Type", "type": "string"},
+                    "tag": {"title": "Tag", "type": "string"},
+                    "status": {"$ref": "#/definitions/ProductLifecycle"},
+                    "created_at": {"title": "Created At", "type": "string", "format": "date-time"},
+                    "end_date": {"title": "End Date", "type": "string", "format": "date-time"},
+                },
+                "required": ["product_id", "name", "description", "product_type", "tag", "status"],
+            },
+            "SubscriptionLifecycle": {
+                "title": "SubscriptionLifecycle",
+                "description": "An enumeration.",
+                "enum": ["initial", "active", "migrating", "disabled", "terminated", "provisioning"],
+                "type": "string",
+            },
+            "SubBlockTwoForTestInactive": {
+                "title": "SubBlockTwoForTestInactive",
+                "description": "Valid for statuses: all others\n\nSee `active` version.",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "int_field_2": {"title": "Int Field 2", "type": "integer"},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id", "int_field_2"],
+            },
+            "SubBlockOneForTestInactive": {
+                "title": "SubBlockOneForTestInactive",
+                "description": "Valid for statuses: all others\n\nSee `active` version.",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "int_field": {"title": "Int Field", "type": "integer"},
+                    "str_field": {"title": "Str Field", "type": "string"},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id"],
+            },
+            "ProductBlockWithListUnionForTestInactive": {
+                "title": "ProductBlockWithListUnionForTestInactive",
+                "description": "Valid for statuses: all others\n\nSee `active` version.",
+                "type": "object",
+                "properties": {
+                    "name": {"title": "Name", "type": "string"},
+                    "subscription_instance_id": {
+                        "title": "Subscription Instance Id",
+                        "type": "string",
+                        "format": "uuid",
+                    },
+                    "owner_subscription_id": {"title": "Owner Subscription Id", "type": "string", "format": "uuid"},
+                    "label": {"title": "Label", "type": "string"},
+                    "list_union_blocks": {
+                        "title": "List Union Blocks",
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {"$ref": "#/definitions/SubBlockTwoForTestInactive"},
+                                {"$ref": "#/definitions/SubBlockOneForTestInactive"},
+                            ]
+                        },
+                    },
+                    "int_field": {"title": "Int Field", "type": "integer"},
+                    "str_field": {"title": "Str Field", "type": "string"},
+                    "list_field": {"title": "List Field", "type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["name", "subscription_instance_id", "owner_subscription_id", "list_union_blocks"],
+            },
+        },
+    }
 
 
 def expect_fail_test_if_too_many_duplicate_types_in_interface(result):

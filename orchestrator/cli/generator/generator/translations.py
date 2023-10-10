@@ -17,13 +17,13 @@ from collections.abc import Callable
 import structlog
 
 from orchestrator.cli.generator.generator.helpers import get_variable
-from orchestrator.cli.generator.generator.settings import product_generator_settings
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 logger = structlog.getLogger(__name__)
 
 
 def read_translations() -> dict:
-    path = product_generator_settings.TRANSLATION_PATH
+    path = settings.FOLDER_PREFIX / settings.TRANSLATION_PATH
     try:
         with open(path) as stream:
             try:

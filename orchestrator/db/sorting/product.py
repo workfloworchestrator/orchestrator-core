@@ -8,4 +8,5 @@ PRODUCT_SORT_FUNCTIONS_BY_COLUMN = {
     to_camel(key): generic_column_sort(value) for [key, value] in inspect(ProductTable).columns.items()
 }
 
+product_sort_fields = list(PRODUCT_SORT_FUNCTIONS_BY_COLUMN.keys())
 sort_products = generic_sort(PRODUCT_SORT_FUNCTIONS_BY_COLUMN)

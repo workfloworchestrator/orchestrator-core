@@ -18,15 +18,15 @@ import structlog
 from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import get_product_file_name, get_workflow, product_types_module
-from orchestrator.cli.generator.generator.settings import product_generator_settings
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.validations import get_validations
 
 logger = structlog.getLogger(__name__)
 
 
-def get_test_product_path(config: dict) -> str:
+def get_test_product_path(config: dict) -> Path:
     file_name = f"test_{get_product_file_name(config)}"
-    return f"{product_generator_settings.TEST_PRODUCT_TYPE_PATH}/{file_name}.py"
+    return settings.TEST_PRODUCT_TYPE_PATH / Path(file_name).with_suffix(".py")
 
 
 def generate_product_type_tests(environment: Environment, config: dict, writer: Callable) -> None:
@@ -37,14 +37,14 @@ def generate_product_type_tests(environment: Environment, config: dict, writer: 
     writer(path, content)
 
 
-def get_test_workflow_path(config: dict, workflow_type: str) -> str:
+def get_test_workflow_path(config: dict, workflow_type: str) -> Path:
     file_name = get_product_file_name(config)
     folder = file_name
 
-    workflow_folder = f"{product_generator_settings.TEST_WORKFLOWS_PATH}/{folder}"
+    workflow_folder = settings.TEST_WORKFLOWS_PATH / Path(folder)
     Path(workflow_folder).mkdir(exist_ok=True)
 
-    return f"{workflow_folder}/test_{workflow_type}_{file_name}.py"
+    return workflow_folder / Path(f"test_{workflow_type}_{file_name}").with_suffix(".py")
 
 
 def generate_workflow_tests(environment: Environment, config: dict, writer: Callable) -> None:

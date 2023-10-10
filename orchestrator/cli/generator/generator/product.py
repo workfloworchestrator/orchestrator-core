@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from pathlib import Path
+
 from orchestrator.cli.generator.generator.fixed_input import (
     get_int_enum_fixed_inputs,
     get_non_standard_fixed_inputs,
@@ -17,12 +19,12 @@ from orchestrator.cli.generator.generator.fixed_input import (
     replace_enum_fixed_inputs,
 )
 from orchestrator.cli.generator.generator.helpers import get_product_file_name, path_to_module, product_types_module
-from orchestrator.cli.generator.generator.settings import product_generator_settings
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 
-def get_product_path(config: dict) -> str:
+def get_product_path(config: dict) -> Path:
     file_name = get_product_file_name(config)
-    return f"{product_generator_settings.PRODUCT_TYPES_PATH}/{file_name}.py"
+    return settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH / Path(file_name).with_suffix(".py")
 
 
 def generate_product(context: dict) -> None:
@@ -41,7 +43,7 @@ def generate_product(context: dict) -> None:
     template = environment.get_template("product.j2")
     content = template.render(
         product=product,
-        product_blocks_module=path_to_module(product_generator_settings.PRODUCT_BLOCKS_PATH),
+        product_blocks_module=path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH),
         product_types_module=product_types_module,
         non_standard_fixed_inputs=non_standard_fixed_inputs,
         fixed_inputs=replace_enum_fixed_inputs(fixed_inputs),

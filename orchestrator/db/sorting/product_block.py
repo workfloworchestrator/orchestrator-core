@@ -8,4 +8,5 @@ PRODUCT_BLOCK_SORT_FUNCTIONS_BY_COLUMN = {
     to_camel(key): generic_column_sort(value) for key, value in inspect(ProductBlockTable).columns.items()
 }
 
+product_block_sort_fields = list(PRODUCT_BLOCK_SORT_FUNCTIONS_BY_COLUMN.keys())
 sort_product_blocks = generic_sort(PRODUCT_BLOCK_SORT_FUNCTIONS_BY_COLUMN)

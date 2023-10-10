@@ -1,13 +1,16 @@
 from datetime import datetime
-from typing import Annotated, Optional, Union
+from typing import Annotated, Optional, Type, Union
 from uuid import UUID
 
 import strawberry
+from pydantic import BaseModel
+from sqlalchemy import select
 from strawberry.federation.schema_directives import Key
 from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db.models import FixedInputTable, SubscriptionTable
+from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
@@ -19,10 +22,16 @@ from orchestrator.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
 )
+from orchestrator.services.subscriptions import (
+    get_subscription_metadata,
+)
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 
 federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
+
+MetadataDict: dict[str, Optional[Type[BaseModel]]] = {"metadata": None}
+static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "properties": {}, "definitions": {}}
 
 
 @strawberry.federation.interface(description="Virtual base interface for subscriptions", keys=["subscriptionId"])
@@ -36,6 +45,18 @@ class SubscriptionInterface:
     status: SubscriptionLifecycle
     insync: bool
     note: Optional[str]
+
+    @strawberry.field(name="_schema", description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
+    async def schema(self) -> dict:
+        product_type_stmt = (
+            select(ProductTable.name)
+            .join(SubscriptionTable)
+            .where(SubscriptionTable.subscription_id == self.subscription_id)
+        )
+        product_name = db.session.execute(product_type_stmt).scalar_one_or_none()
+        subscription_model = SUBSCRIPTION_MODEL_REGISTRY.get(product_name or "")
+        subscription_base_model = getattr(subscription_model, "__base_type__", None) if subscription_model else None
+        return subscription_base_model.schema() if subscription_base_model else {}
 
     @strawberry.field(description="Return all products block instances of a subscription")  # type: ignore
     async def product_block_instances(
@@ -119,6 +140,13 @@ class SubscriptionInterface:
             shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
             identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
         )
+
+    @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
+    def metadata(self) -> dict:
+        metadata_class = MetadataDict["metadata"]
+        metadata_schema = metadata_class.schema() if metadata_class else static_metadata_schema
+        metadata = get_subscription_metadata(str(self.subscription_id))
+        return {"__schema__": metadata_schema} | metadata  # type: ignore
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)

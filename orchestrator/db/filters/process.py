@@ -125,4 +125,5 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], Searc
     }
 )
 
+process_filter_fields = list(PROCESS_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)
