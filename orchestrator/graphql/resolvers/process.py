@@ -19,10 +19,10 @@ from sqlalchemy.orm import defer, joinedload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.process import filter_processes
+from orchestrator.db.filters.process import filter_processes, process_filter_fields
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort
-from orchestrator.db.sorting.process import sort_processes
+from orchestrator.db.sorting.process import process_sort_fields, sort_processes
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -78,4 +78,4 @@ async def resolve_processes(
 
     is_detailed = _is_process_detailed(info)
     graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
-    return to_graphql_result_page(graphql_processes, first, after, total)
+    return to_graphql_result_page(graphql_processes, first, after, total, process_sort_fields, process_filter_fields)

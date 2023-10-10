@@ -3,11 +3,11 @@ from typing import Union
 import structlog
 
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.workflow import filter_workflows
+from orchestrator.db.filters.workflow import filter_workflows, workflow_filter_fields
 from orchestrator.db.models import WorkflowTable
 from orchestrator.db.range.range import apply_range_to_query
 from orchestrator.db.sorting.sorting import Sort
-from orchestrator.db.sorting.workflow import sort_workflows
+from orchestrator.db.sorting.workflow import sort_workflows, workflow_sort_fields
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -37,4 +37,4 @@ async def resolve_workflows(
 
     workflows = query.all()
     graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
-    return to_graphql_result_page(graphql_workflows, first, after, total)
+    return to_graphql_result_page(graphql_workflows, first, after, total, workflow_sort_fields, workflow_filter_fields)

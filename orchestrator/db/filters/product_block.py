@@ -43,4 +43,5 @@ PRODUCT_BLOCK_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str],
     | end_date_range_filters
 )
 
+product_block_filter_fields = list(PRODUCT_BLOCK_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_product_blocks = generic_filter(PRODUCT_BLOCK_FILTER_FUNCTIONS_BY_COLUMN)

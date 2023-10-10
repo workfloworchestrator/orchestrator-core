@@ -8,4 +8,5 @@ WORKFLOW_SORT_FUNCTIONS_BY_COLUMN = {
     to_camel(key): generic_column_sort(value) for key, value in inspect(WorkflowTable).columns.items()
 }
 
+workflow_sort_fields = list(WORKFLOW_SORT_FUNCTIONS_BY_COLUMN.keys())
 sort_workflows = generic_sort(WORKFLOW_SORT_FUNCTIONS_BY_COLUMN)
