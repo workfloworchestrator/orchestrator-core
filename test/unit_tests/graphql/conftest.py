@@ -15,5 +15,14 @@ def fastapi_app_graphql(
     sub_two_subscription_1,
     product_sub_list_union_subscription_1,
 ):
+    from pydantic import BaseModel
+
+    from orchestrator.graphql.schemas.subscription import MetadataDict
+
+    class Metadata(BaseModel):
+        some_metadata_prop: list[str]
+
+    MetadataDict.update({"metadata": Metadata})
+
     fastapi_app.register_graphql()
     return fastapi_app

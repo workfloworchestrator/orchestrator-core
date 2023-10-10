@@ -18,6 +18,7 @@ from typing import Union
 
 import pytest
 
+from orchestrator.db import SubscriptionMetadataTable, db
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
@@ -322,6 +323,37 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       hasPreviousPage
       endCursor
       hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
+def get_subscriptions_with_metadata_and_schema_query(
+    first: int = 1,
+    after: int = 0,
+    filter_by: Union[list, None] = None,
+    sort_by: Union[list, None] = None,
+) -> bytes:
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      subscriptionId
+      metadata
+      _metadataSchema
     }
   }
 }
@@ -962,7 +994,6 @@ def test_single_subscription_schema(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]
     )
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
-
     # then
 
     assert HTTPStatus.OK == response.status_code
@@ -1082,6 +1113,42 @@ def test_single_subscription_schema(
                 "required": ["name", "subscription_instance_id", "owner_subscription_id", "list_union_blocks"],
             },
         },
+    }
+
+
+def test_single_subscription_metadata_and_schema(
+    fastapi_app_graphql,
+    test_client,
+    sub_one_subscription_1,
+):
+    # when
+    expected_metadata = {"some_metadata_prop": ["test value 1", "test 2"]}
+    subscription_id = str(sub_one_subscription_1.subscription_id)
+    subscription_metadata = SubscriptionMetadataTable(subscription_id=subscription_id, metadata_=expected_metadata)
+    db.session.add(subscription_metadata)
+    db.session.commit()
+
+    data = get_subscriptions_with_metadata_and_schema_query(
+        filter_by=[{"field": "subscriptionId", "value": subscription_id}]
+    )
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+
+    assert "errors" not in result
+    assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["metadata"] == expected_metadata
+    assert subscriptions[0]["_metadataSchema"] == {
+        "title": "Metadata",
+        "type": "object",
+        "properties": {
+            "some_metadata_prop": {"title": "Some Metadata Prop", "type": "array", "items": {"type": "string"}}
+        },
+        "required": ["some_metadata_prop"],
     }
 
 
