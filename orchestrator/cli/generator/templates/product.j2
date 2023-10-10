@@ -1,8 +1,10 @@
 {# Product definition -#}
 
-{% if int_enums %}
+{% if int_enums -%}
 from enum import IntEnum
-{% endif %}
+{% endif -%}
+from typing import Optional
+
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 {%- if str_enums %}, strEnum{% endif %}
