@@ -5,16 +5,15 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
-from orchestrator.db.database import SearchQuery
-from orchestrator.db.sorting.sorting import SortOrder, generic_column_sort, generic_sort
+from orchestrator.db.sorting.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
 PROCESS_CAMEL_SORT = {to_camel(key): generic_column_sort(value) for key, value in inspect(ProcessTable).columns.items()}
 PROCESS_SNAKE_SORT = {key: generic_column_sort(value) for key, value in inspect(ProcessTable).columns.items()}
 
 
-def generic_process_relation_sort(field: Column) -> Callable[[SearchQuery, SortOrder], SearchQuery]:
-    def sort_function(query: SearchQuery, order: SortOrder) -> SearchQuery:
+def generic_process_relation_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
+    def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         joined_query = query.join(ProcessSubscriptionTable).join(SubscriptionTable).join(ProductTable)
         if order == SortOrder.DESC:
             return joined_query.order_by(expression.desc(field))

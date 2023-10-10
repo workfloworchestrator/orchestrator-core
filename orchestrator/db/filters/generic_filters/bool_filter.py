@@ -15,11 +15,11 @@ from typing import Callable
 
 from sqlalchemy import Column
 
-from orchestrator.db.database import SearchQuery
+from orchestrator.db.filters.filters import QueryType
 
 
-def generic_bool_filter(field: Column) -> Callable[[SearchQuery, str], SearchQuery]:
-    def bool_filter(query: SearchQuery, value: str) -> SearchQuery:
+def generic_bool_filter(field: Column) -> Callable[[QueryType, str], QueryType]:
+    def bool_filter(query: QueryType, value: str) -> QueryType:
         value_as_bool = value.lower() in ("yes", "y", "true", "1", "ja", "j")
         return query.filter(field.is_(value_as_bool))
 

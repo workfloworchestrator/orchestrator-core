@@ -5,13 +5,12 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.database import SearchQuery
-from orchestrator.db.sorting.sorting import SortOrder, generic_column_sort, generic_sort
+from orchestrator.db.sorting.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
 
-def generic_subscription_relation_sort(field: Column) -> Callable[[SearchQuery, SortOrder], SearchQuery]:
-    def sort_function(query: SearchQuery, order: SortOrder) -> SearchQuery:
+def generic_subscription_relation_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
+    def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         if order == SortOrder.DESC:
             return query.order_by(expression.desc(field))
         return query.order_by(expression.asc(field))

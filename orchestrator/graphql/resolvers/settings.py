@@ -3,10 +3,11 @@ from typing import Union
 import strawberry
 import structlog
 from redis.asyncio import Redis as AIORedis
+from sqlalchemy import select
 
 from oauth2_lib.strawberry import authenticated_mutation_field
 from orchestrator.api.api_v1.endpoints.settings import generate_engine_status_response
-from orchestrator.db import EngineSettingsTable
+from orchestrator.db import EngineSettingsTable, db
 from orchestrator.graphql.schemas.errors import Error
 from orchestrator.graphql.schemas.settings import (
     CACHE_FLUSH_OPTIONS,
@@ -32,7 +33,7 @@ logger = structlog.get_logger(__name__)
 def resolve_settings(info: OrchestratorInfo) -> StatusType:
     selected_fields = get_selected_fields(info)
 
-    db_engine_settings = EngineSettingsTable.query.one()
+    db_engine_settings = db.session.execute(select(EngineSettingsTable)).scalar_one()
     pydantic_orm_resp = generate_engine_status_response(db_engine_settings)
     engine_settings = EngineSettingsType.from_pydantic(pydantic_orm_resp)
 
@@ -70,7 +71,8 @@ async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSucc
 
 
 async def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
-    engine_settings = EngineSettingsTable.query.with_for_update().one()
+    stmt = select(EngineSettingsTable).with_for_update()
+    engine_settings = db.session.execute(stmt).scalar_one()
 
     result = marshall_processes(engine_settings, global_lock)
     if not result:
