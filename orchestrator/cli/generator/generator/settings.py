@@ -10,23 +10,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from pathlib import Path
 
 from pydantic import BaseSettings
 
 
 class ProductGeneratorSettings(BaseSettings):
-    PRODUCT_TYPES_PATH: str = "surf/products/product_types"
-    PRODUCT_BLOCKS_PATH: str = "surf/products/product_blocks"
-    EMAIL_TEMPLATE_PATH: str = "surf/products/services/mail_templates/product_types"
-    WORKFLOWS_PATH: str = "surf/workflows"
-    TEST_PRODUCT_TYPE_PATH: str = "test/unit_tests/domain/product_types"
-    TEST_WORKFLOWS_PATH: str = "test/unit_tests/workflows"
+    FOLDER_PREFIX: Path = Path("")
+
+    PRODUCT_TYPES_PATH: Path = Path("products/product_types")
+    PRODUCT_BLOCKS_PATH: Path = Path("products/product_blocks")
+    EMAIL_TEMPLATE_PATH: Path = Path("products/services/mail_templates/product_types")
+    WORKFLOWS_PATH: Path = Path("workflows")
+    TEST_PRODUCT_TYPE_PATH: Path = Path("test/unit_tests/domain/product_types")
+    TEST_WORKFLOWS_PATH: Path = Path("test/unit_tests/workflows")
 
     # Files that will be updated
-    PRODUCT_REGISTRY_PATH: str = "surf/products/__init__.py"
-    SUBSCRIPTION_DESCRIPTION_PATH: str = "surf/products/services/subscription.py"
-    TRANSLATION_PATH: str = "surf/translations/en-GB.json"
-    MAIL_SINGLE_DISPATCH_PATH: str = "surf/products/services/mail.py"
+    PRODUCT_REGISTRY_PATH: Path = Path("products/__init__.py")
+    SUBSCRIPTION_DESCRIPTION_PATH: Path = Path("products/services/subscription.py")
+    TRANSLATION_PATH: Path = Path("translations/en-GB.json")
+    MAIL_SINGLE_DISPATCH_PATH: Path = Path("products/services/mail.py")
 
 
 product_generator_settings = ProductGeneratorSettings()
