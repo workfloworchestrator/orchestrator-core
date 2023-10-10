@@ -12,10 +12,11 @@
 # limitations under the License.
 import re
 from collections.abc import Generator
+from pathlib import Path
 
 from more_itertools import first, one
 
-from orchestrator.cli.generator.generator.settings import product_generator_settings
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 
 def snake_to_camel(s: str) -> str:
@@ -68,11 +69,11 @@ def insert_into_imports(content: list[str], new_import: str) -> list[str]:
     return list(produce())
 
 
-def path_to_module(path: str) -> str:
-    return path.replace("/", ".")
+def path_to_module(path: Path) -> str:
+    return str(path).replace("/", ".")
 
 
-product_types_module = path_to_module(product_generator_settings.PRODUCT_TYPES_PATH)
+product_types_module = path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH)
 
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:
