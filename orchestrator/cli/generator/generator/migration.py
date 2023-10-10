@@ -12,21 +12,28 @@
 # limitations under the License.
 import re
 import subprocess  # noqa: S404
+from os import environ
+from pathlib import Path
 from typing import Generator, Optional
 
 import structlog
-
-from orchestrator.cli.generator.generator.helpers import get_variable
 
 logger = structlog.getLogger(__name__)
 
 
 def create_migration_file(config: dict) -> Optional[str]:
-    create_migration_command = f'PYTHONPATH=. DATABASE_URI=postgresql://nwa:nwa@localhost/nwa-workflows python main.py db revision --message "Add {config["name"]}" --head=data@head'
+    if not environ.get("DATABASE_URI"):
+        environ.update({"DATABASE_URI": "postgresql://nwa:nwa@localhost/orchestrator-core"})
+    if not environ.get("PYTHONPATH"):
+        environ.update({"PYTHONPATH": "."})
+    logger.info(
+        "creating new db revision", database_uri=environ.get("DATABASE_URI"), pythonpath=environ.get("PYTHONPATH")
+    )
+    create_migration_command = f'python main.py db revision --message "Add {config["name"]}" --head=data@head'
     result = subprocess.check_output(create_migration_command, shell=True, text=True)  # noqa: S602
 
     for line in result.splitlines():
-        if m := re.search("migrations/versions/general/([^ ]+)", line):
+        if m := re.search("migrations/versions/schema/([^ ]+)", line):
             return m[1]
     else:
         return None
@@ -51,18 +58,17 @@ def generate_product_migration(context: dict) -> None:
     writer = context["writer"]
 
     if migration_file := create_migration_file(config):
-        path = f"migrations/versions/general/{migration_file}"
+        path = Path("migrations/versions/schema") / Path(migration_file)
         try:
             with open(path) as stream:
                 original_content = stream.readlines()
         except FileNotFoundError:
-            logger.error("Migration file not found", path=path)
+            logger.error("Migration file not found", path=str(path))
         else:
             revision_info = extract_revision_info(original_content)
-            variable = get_variable(config)
 
             template = environment.get_template("new_product_migration.j2")
-            content = template.render(product=config, variable=variable, **revision_info)
+            content = template.render(product=config, **revision_info)
 
             writer(path, content)
 
