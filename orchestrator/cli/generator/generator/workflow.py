@@ -25,7 +25,7 @@ from orchestrator.cli.generator.generator.helpers import (
     product_types_module,
     root_product_block,
 )
-from orchestrator.cli.generator.generator.settings import product_generator_settings
+from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
 from orchestrator.cli.generator.generator.validations import get_validations, get_validations_for_modify
 
@@ -57,7 +57,7 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
     template = environment.get_template("lazy_workflow_instance.j2")
     content = template.render(product=config)
 
-    path = f"{product_generator_settings.WORKFLOWS_PATH}/__init__.py"
+    path = settings.FOLDER_PREFIX / settings.WORKFLOWS_PATH / Path("__init__.py")
     writer(path, content, append=True)
 
 
@@ -82,18 +82,18 @@ def generate_workflows(context: dict) -> None:
     # insert_lazy_workflow_instances(environment, config, writer)
 
 
-def workflow_folder(config: dict) -> str:
+def workflow_folder(config: dict) -> Path:
     folder = get_product_file_name(config)
-    return f"{product_generator_settings.WORKFLOWS_PATH}/{folder}"
+    return settings.FOLDER_PREFIX / settings.WORKFLOWS_PATH / Path(folder)
 
 
-def shared_workflow_folder(config: dict) -> str:
-    return f"{workflow_folder(config)}/shared"
+def shared_workflow_folder(config: dict) -> Path:
+    return workflow_folder(config) / Path("shared")
 
 
 def create_workflow_paths(config: dict) -> None:
-    path = f"{workflow_folder(config)}/shared"
-    Path(path).mkdir(parents=True, exist_ok=True)
+    path = workflow_folder(config) / Path("shared")
+    path.mkdir(parents=True, exist_ok=True)
 
 
 def get_workflow_path(config: dict, workflow_type: str) -> str:
