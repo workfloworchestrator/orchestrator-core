@@ -143,12 +143,14 @@ class SubscriptionInterface:
             identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
         )
 
+    @strawberry.field(name="_metadataSchema", description="Returns metadata schema of a subscription")  # type: ignore
+    def metadata_schema(self) -> dict:
+        metadata_class = MetadataDict["metadata"]
+        return metadata_class.schema() if metadata_class else static_metadata_schema
+
     @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
     def metadata(self) -> dict:
-        metadata_class = MetadataDict["metadata"]
-        metadata_schema = metadata_class.schema() if metadata_class else static_metadata_schema
-        metadata = get_subscription_metadata(str(self.subscription_id))
-        return {"__schema__": metadata_schema} | metadata  # type: ignore
+        return get_subscription_metadata(str(self.subscription_id)) or {}
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)
