@@ -16,7 +16,7 @@ from typing import Annotated, Dict, Iterator, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, conint, model_validator
 
-from orchestrator.utils.vlans import VlanRanges
+from nwastdlib.vlans import VlanRanges
 
 
 class BFD(BaseModel):
