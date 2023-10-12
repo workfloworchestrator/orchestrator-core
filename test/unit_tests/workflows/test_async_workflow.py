@@ -1,3 +1,7 @@
+import time
+
+from orchestrator import app_settings
+from orchestrator.targets import Target
 from orchestrator.workflow import (
     DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
@@ -83,3 +87,95 @@ def test_callback_wf_with_custom_callback_route():
         state = result.unwrap()
         assert DEFAULT_CALLBACK_ROUTE_KEY not in state
         assert "custom_route_key" in state
+
+
+def test_wf_with_multiple_callback_steps(test_client):
+    app_settings.TESTING = False
+
+    @step("Action - Dry run")
+    def action_dr():
+        return {"phase": "DRY_RUN"}
+
+    @step("Action - For real")
+    def action_fr():
+        return {"phase": "FOR_REAL"}
+
+    @step("Validate")
+    def validate_state(phase, callback_result):
+        if phase == "DRY_RUN":
+            return {"dr_ext_data": callback_result["ext_data"]}
+        if phase == "FOR_REAL":
+            return {"ext_data": callback_result["ext_data"]}
+        raise AssertionError(f"Unknown phase: {phase}")
+
+    @step("Cleanup")
+    def cleanup():
+        return {
+            "phase": None,
+        }
+
+    cb1 = callback_step("Dry run", action_step=action_dr, validate_step=validate_state)
+    cb2 = callback_step("For real", action_step=action_fr, validate_step=validate_state)
+
+    @workflow("Multiple callback wf", target=Target.CREATE)
+    def test_wf():
+        return begin >> cb1 >> cb2 >> cleanup >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf"):
+        # Start workflow
+        response = test_client.post("/api/processes/test_wf", json=[{}])
+        assert response.status_code == 201
+        process_id = response.json()["id"]
+
+        time.sleep(1)
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        assert response_data["status"] == "awaiting_callback"
+        state = response_data["current_state"]
+        assert state["phase"] == "DRY_RUN"
+        assert state["__step_group"] == "Dry run"
+        assert state["__sub_step"] == "Dry run - Await callback"
+        assert "callback_route" in state
+
+        # Continue workflow 1
+        callback_route1 = state["callback_route"]
+        response = test_client.post(callback_route1, json={"ext_data": "12345", "other": "useless data"})
+        assert response.status_code == 200
+
+        time.sleep(1)
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        assert response_data["status"] == "awaiting_callback"
+        state = response_data["current_state"]
+        assert state["dr_ext_data"] == "12345"
+        assert state["phase"] == "FOR_REAL"
+        assert state["__step_group"] == "For real"
+        assert state["__sub_step"] == "For real - Await callback"
+        assert "callback_route" in state
+
+        callback_route2 = state["callback_route"]
+
+        assert callback_route1 != callback_route2, "Randomly generated callback routes should be distinct"
+
+        # Continue workflow 2
+        response = test_client.post(callback_route2, json={"ext_data": "56789", "other": "very useful data"})
+        assert response.status_code == 200
+
+        time.sleep(1)
+
+        # Final check
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+
+        assert response_data["status"] == "completed"
+
+        state = response_data["current_state"]
+        assert state["ext_data"] == "56789"
+
+        assert state["phase"] is None
+
+    app_settings.TESTING = True

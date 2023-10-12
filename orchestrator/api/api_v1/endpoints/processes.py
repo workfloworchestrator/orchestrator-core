@@ -16,7 +16,7 @@
 import struct
 import zlib
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog

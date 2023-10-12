@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import reduce
-from typing import Any, List, NoReturn, Tuple, Type
+from typing import List, NoReturn, Tuple, Type
 from unittest import mock
 from uuid import UUID, uuid4
 
@@ -14,6 +14,7 @@ from orchestrator.types import State, UUIDstr
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.workflow import (
     Abort,
+    Complete,
     Failed,
     Process,
     ProcessStat,
@@ -419,7 +420,14 @@ def test_conditionally_skip_a_step():
 
 def store(log) -> StepLogFunc:
     def _store(_: ProcessStat, step_: Step, process: Process):
-        log.append((step_.name, process))
+        state = process.unwrap()
+        step_name = state.pop("__step_name_override", step_.name)
+        for k in state.get("__remove_keys", []) + ["__remove_keys"]:
+            state.pop(k, None)
+        if state.pop("__replace_last_state", None):
+            log[-1] = (step_name, process)
+        else:
+            log.append((step_name, process))
         return process
 
     return _store
@@ -482,35 +490,22 @@ def test_step_group_basic():
     pstat = create_new_process_stat(wf, {"n": 3})
     result = runwf(pstat, store(log))
     assert_complete(result)
-    assert [t[0] for t in log] == [
-        "Start",
-        "Step 1",
-        "Step 2",
-        "Sub step 1",
-        "Sub step 2",
-        "Sub step 3",
-        "Multiple steps",
-        "Step 3",
-        "Done",
+    assert log == [
+        ("Start", Success({"n": 3})),
+        ("Step 1", Success({"n": 3, "steps": [1]})),
+        ("Step 2", Success({"n": 3, "steps": [1, 2]})),
+        ("Multiple steps", Success({"n": 3, "steps": [1, 2], "x": 15})),
+        ("Step 3", Success({"n": 3, "steps": [1, 2, 3], "x": 15})),
+        ("Done", Complete({"n": 3, "steps": [1, 2, 3], "x": 15})),
     ]
-
-    def _state_key_fn(p: Process, k: str) -> Any:
-        return p.unwrap().get(k)
-
-    assert [_state_key_fn(t[1], "__step_group") for t in log] == [None] * 3 + ["Multiple steps"] * 3 + [None] * 3
-    assert [_state_key_fn(t[1], "__sub_step") for t in log] == [None] * 3 + [
-        "Sub step 1",
-        "Sub step 2",
-        "Sub step 3",
-    ] + [None] * 3
 
 
 def test_step_group_with_inputform_suspend():
-    @step("Sub step")
-    def sub_step(name):
+    @step("Validate name")
+    def validate_name(name):
         return {"name_validate": name}
 
-    group = step_group("Multistep", begin >> step2 >> user_action >> sub_step)
+    group = step_group("Multistep", begin >> step2 >> user_action >> validate_name)
 
     wf = workflow("Workflow with step group step")(lambda: init >> step1 >> group >> step3 >> done)
 
@@ -523,8 +518,6 @@ def test_step_group_with_inputform_suspend():
     assert log == [
         ("Start", Success({})),
         ("Step 1", Success({"steps": [1]})),
-        ("Step 2", Success({"steps": [1, 2], "__sub_step": "Step 2", "__step_group": "Multistep"})),
-        ("Input Name", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep"})),
         ("Multistep", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep"})),
     ]
 
@@ -532,11 +525,11 @@ def test_step_group_with_inputform_suspend():
 def test_step_group_with_inputform_resume():
     """Step group with suspended sub step should resume from the sub step."""
 
-    @step("Sub step")
-    def sub_step():
+    @step("Validate name")
+    def validate_name():
         return {"name_validated": True}
 
-    group = step_group("Multistep", begin >> step2 >> user_action >> sub_step)
+    group = step_group("Multistep", begin >> step2 >> user_action >> validate_name)
 
     class Form(FormPage):
         subscription_id: UUID
@@ -552,7 +545,7 @@ def test_step_group_with_inputform_resume():
 
         assert_suspended(result)
         assert result.unwrap()["__sub_step"] == "Input Name"
-        step_log = [t for t in step_log if "__sub_step" not in t[1].unwrap()] + step_log[-1:]
+
         resume_result, step_log = resume_workflow(process, step_log, {"name": "Some name"})
 
         assert_complete(resume_result)
@@ -561,8 +554,6 @@ def test_step_group_with_inputform_resume():
             ("Start", StepStatus.SUCCESS),
             ("Step 1", StepStatus.SUCCESS),
             ("Multistep", StepStatus.SUSPEND),
-            ("Multistep", StepStatus.SUCCESS),
-            ("Sub step", StepStatus.SUCCESS),
             ("Multistep", StepStatus.SUCCESS),
             ("Step 3", StepStatus.SUCCESS),
             ("Done", StepStatus.COMPLETE),

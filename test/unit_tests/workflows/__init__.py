@@ -156,13 +156,21 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
 
 
 def _store_step(step_log: List[Tuple[Step, WFProcess]]) -> Callable[[ProcessStat, Step, WFProcess], WFProcess]:
-    def __store_step(pstat: ProcessStat, step: Step, state: WFProcess) -> WFProcess:
+    def __store_step(pstat: ProcessStat, step: Step, process: WFProcess) -> WFProcess:
         try:
-            state = state.map(lambda s: json_loads(json_dumps(s)))
+            process = process.map(lambda s: json_loads(json_dumps(s)))
         except Exception:
-            logger.exception("Step state is not valid json", state=state)
-        step_log.append((step, state))
-        return state
+            logger.exception("Step state is not valid json", process=process)
+
+        state = process.unwrap()
+        state.pop("__step_name_override", None)
+        for k in state.get("__remove_keys", []) + ["__remove_keys"]:
+            state.pop(k, None)
+        if state.pop("__replace_last_state", None):
+            step_log[-1] = (step, process)
+        else:
+            step_log.append((step, process))
+        return process
 
     return __store_step
 
@@ -178,8 +186,8 @@ def _sanitize_input(input_data: Union[State, List[State]]) -> List[State]:
 
 def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tuple[WFProcess, ProcessStat, List]:
     # ATTENTION!! This code needs to be as similar as possible to `server.services.processes.start_process`
-    # The main differences are: we use a different step log function and we don't run in
-    # a sepperate thread
+    # The main differences are: we use a different step log function, and we don't run in
+    # a separate thread
     user_data = _sanitize_input(input_data)
     user = "john.doe"
 
