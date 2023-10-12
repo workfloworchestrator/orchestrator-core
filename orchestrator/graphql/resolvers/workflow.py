@@ -1,11 +1,14 @@
 from typing import Union
 
 import structlog
+from sqlalchemy import func, select
+from sqlalchemy.orm import joinedload
 
+from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.workflow import filter_workflows, workflow_filter_fields
 from orchestrator.db.models import WorkflowTable
-from orchestrator.db.range.range import apply_range_to_query
+from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.db.sorting.workflow import sort_workflows, workflow_sort_fields
 from orchestrator.graphql.pagination import Connection
@@ -30,11 +33,12 @@ async def resolve_workflows(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_workflows() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    query = filter_workflows(WorkflowTable.query, pydantic_filter_by, _error_handler)
-    query = sort_workflows(query, pydantic_sort_by, _error_handler)
-    total = query.count()
-    query = apply_range_to_query(query, after, first)
+    stmt = select(WorkflowTable).options(joinedload(WorkflowTable.products))
+    stmt = filter_workflows(stmt, pydantic_filter_by, _error_handler)
+    stmt = sort_workflows(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    workflows = query.all()
+    workflows = db.session.scalars(stmt).unique().all()
     graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
     return to_graphql_result_page(graphql_workflows, first, after, total, workflow_sort_fields, workflow_filter_fields)

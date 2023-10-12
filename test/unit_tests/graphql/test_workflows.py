@@ -67,7 +67,7 @@ def test_workflows_query(test_client):
 
 
 def test_workflows_has_previous_page(test_client):
-    data = get_workflows_query(after=1)
+    data = get_workflows_query(after=1, sort_by={"field": "name", "order": "ASC"})
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
@@ -86,8 +86,11 @@ def test_workflows_has_previous_page(test_client):
     }
 
     assert len(workflows) == 3
-    assert workflows[0]["name"] == "task_clean_up_tasks"
-    assert workflows[1]["name"] == "task_resume_workflows"
+    assert [workflow["name"] for workflow in workflows] == [
+        "task_clean_up_tasks",
+        "task_resume_workflows",
+        "task_validate_products",
+    ]
 
 
 def test_workflows_filter_by_name(test_client):

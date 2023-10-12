@@ -20,8 +20,7 @@ from sqlalchemy.inspection import inspect
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
-from orchestrator.db.database import SearchQuery
-from orchestrator.db.filters.filters import generic_filter
+from orchestrator.db.filters.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_bool_filter,
     generic_is_like_filter,
@@ -32,7 +31,7 @@ from orchestrator.utils.helpers import to_camel
 logger = structlog.get_logger(__name__)
 
 
-def product_filter(query: SearchQuery, value: str) -> SearchQuery:
+def product_filter(query: QueryType, value: str) -> QueryType:
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
         .join(SubscriptionTable)
@@ -43,7 +42,7 @@ def product_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
+def tag_filter(query: QueryType, value: str) -> QueryType:
     tags = value.split("-")
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
@@ -55,7 +54,7 @@ def tag_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
+def subscriptions_filter(query: QueryType, value: str) -> QueryType:
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
         .join(SubscriptionTable)
@@ -65,14 +64,14 @@ def subscriptions_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-def subscription_id_filter(query: SearchQuery, value: str) -> SearchQuery:
+def subscription_id_filter(query: QueryType, value: str) -> QueryType:
     process_subscriptions = db.session.query(ProcessSubscriptionTable).join(SubscriptionTable)
     process_subscriptions = generic_is_like_filter(SubscriptionTable.subscription_id)(process_subscriptions, value)
     process_subscriptions = process_subscriptions.subquery()
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-def target_filter(query: SearchQuery, value: str) -> SearchQuery:
+def target_filter(query: QueryType, value: str) -> QueryType:
     targets = value.split("-")
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
@@ -82,7 +81,7 @@ def target_filter(query: SearchQuery, value: str) -> SearchQuery:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
+def organisation_filter(query: QueryType, value: str) -> QueryType:
     try:
         value_as_uuid = UUID(value)
     except (ValueError, AttributeError):
@@ -102,7 +101,7 @@ def organisation_filter(query: SearchQuery, value: str) -> SearchQuery:
 BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
 BASE_SNAKE = {key: generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
 
-PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
+PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = (
     BASE_CAMEL
     | BASE_SNAKE
     | {

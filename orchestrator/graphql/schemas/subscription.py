@@ -72,9 +72,8 @@ class SubscriptionInterface:
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> strawberry.scalars.JSON:
-        fixed_inputs: list[FixedInputTable] = FixedInputTable.query.filter(
-            FixedInputTable.product_id == self.product.product_id  # type: ignore
-        ).all()
+        stmt = select(FixedInputTable).where(FixedInputTable.product_id == self.product.product_id)  # type: ignore
+        fixed_inputs = db.session.scalars(stmt).all()
         return [{"field": fi.name, "value": fi.value} for fi in fixed_inputs]
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore

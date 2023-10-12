@@ -17,11 +17,10 @@ from typing import Callable, Iterator, TypeVar
 import strawberry
 from more_itertools import partition
 from pydantic import BaseModel
-from sqlalchemy import Column
+from sqlalchemy import Column, Select
 from sqlalchemy.sql import expression
 
 from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.db.database import SearchQuery
 from orchestrator.db.filters import CallableErrorHandler
 
 
@@ -37,7 +36,7 @@ class Sort(BaseModel):
 
 
 GenericType = TypeVar("GenericType")
-QueryType = SearchQuery
+QueryType = Select
 ValidSortFunctionsByColumnType = dict[str, Callable[[QueryType, SortOrder], QueryType]]
 
 
@@ -112,8 +111,8 @@ def generic_sort(
     return _sort
 
 
-def generic_column_sort(field: Column) -> Callable[[SearchQuery, SortOrder], SearchQuery]:
-    def sort_function(query: SearchQuery, order: SortOrder) -> SearchQuery:
+def generic_column_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
+    def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         if order == SortOrder.DESC:
             return query.order_by(expression.desc(field))
         return query.order_by(expression.asc(field))
