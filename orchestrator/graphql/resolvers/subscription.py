@@ -15,11 +15,12 @@ from typing import Union
 
 import structlog
 from pydantic.utils import to_lower_camel
+from sqlalchemy import func, select
 
-from orchestrator.db import ProductTable, SubscriptionTable
+from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import filter_subscriptions, subscription_filter_fields
-from orchestrator.db.range import apply_range_to_query
+from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.subscription import sort_subscriptions, subscription_sort_fields
 from orchestrator.domain.base import SubscriptionModel
@@ -70,14 +71,15 @@ async def resolve_subscriptions(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    query = SubscriptionTable.query.join(ProductTable)
+    stmt = select(SubscriptionTable).join(ProductTable)
 
-    query = filter_subscriptions(query, pydantic_filter_by, _error_handler)
-    query = sort_subscriptions(query, pydantic_sort_by, _error_handler)
-    total = query.count()
-    query = apply_range_to_query(query, after, first)
+    stmt = filter_subscriptions(stmt, pydantic_filter_by, _error_handler)
+    stmt = sort_subscriptions(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    subscriptions = query.all()
+    subscriptions = db.session.scalars(stmt).all()
+
     if _is_subscription_detailed(info):
         graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:

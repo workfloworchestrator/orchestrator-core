@@ -18,8 +18,7 @@ from sqlalchemy import func
 
 from orchestrator.api.helpers import _process_text_query
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.database import SearchQuery
-from orchestrator.db.filters.filters import generic_filter
+from orchestrator.db.filters.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_bool_filter,
     generic_is_like_filter,
@@ -31,7 +30,7 @@ from orchestrator.db.models import SubscriptionSearchView
 logger = structlog.get_logger(__name__)
 
 
-def tsv_filter(query: SearchQuery, value: str) -> SearchQuery:
+def tsv_filter(query: QueryType, value: str) -> QueryType:
     # Quote key:value tokens. This will use the FOLLOWED BY operator (https://www.postgresql.org/docs/13/textsearch-controls.html)
     processed_text_query = _process_text_query(value)
 
@@ -42,7 +41,7 @@ def tsv_filter(query: SearchQuery, value: str) -> SearchQuery:
     )
 
 
-def subscription_list_filter(query: SearchQuery, value: str) -> SearchQuery:
+def subscription_list_filter(query: QueryType, value: str) -> QueryType:
     values = [s.lower() for s in value.split(",")]
     return query.filter(SubscriptionTable.subscription_id.in_(values))
 
@@ -55,7 +54,7 @@ start_date_range_filters = generic_range_filters(SubscriptionTable.start_date)
 end_date_range_filters = generic_range_filters(SubscriptionTable.end_date)
 
 
-SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
+SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = (
     {
         "subscriptionId": generic_is_like_filter(SubscriptionTable.subscription_id),
         "subscriptionIds": subscription_list_filter,

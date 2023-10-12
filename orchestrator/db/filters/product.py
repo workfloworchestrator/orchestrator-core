@@ -3,20 +3,19 @@ from typing import Callable
 import structlog
 
 from orchestrator.db import ProductBlockTable, ProductTable
-from orchestrator.db.database import SearchQuery
-from orchestrator.db.filters import generic_filter
+from orchestrator.db.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_values_in_column_filter
 
 logger = structlog.get_logger(__name__)
 
 
-def product_block_filter(query: SearchQuery, value: str) -> SearchQuery:
+def product_block_filter(query: QueryType, value: str) -> QueryType:
     """Filter ProductBlocks by '-'-separated list of Product block 'name' (column) values."""
     blocks = value.split("-")
     return query.filter(ProductTable.product_blocks.any(ProductBlockTable.name.in_(blocks)))
 
 
-PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = {
+PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = {
     "product_id": generic_is_like_filter(ProductTable.product_id),
     "name": generic_is_like_filter(ProductTable.name),
     "description": generic_is_like_filter(ProductTable.description),
