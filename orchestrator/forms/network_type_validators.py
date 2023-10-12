@@ -12,9 +12,9 @@
 # limitations under the License.
 
 
-from typing import Annotated, Dict, Iterator, Optional
+from typing import Annotated, Dict, Optional, Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, conint, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, conint, model_validator, WrapSerializer, SerializerFunctionWrapHandler
 
 from nwastdlib.vlans import VlanRanges
 
@@ -40,21 +40,14 @@ class BFD(BaseModel):
 MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
 
 
-class VlanRangesValidator(VlanRanges):
-    # TODO pydantic V2 migration (see nwd-api and/or migrate to nwastdlib)
+def _serialize(_unused: Any, _handler: SerializerFunctionWrapHandler) -> dict:
+    return {
+        "pattern": "^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
+        "examples": ["345", "20-23,45,50-100"],
+        "type": "string",
+        "format": "vlanrange",
+    }
 
-    # @classmethod
-    # def __modify_schema__(cls, field_schema: Dict) -> None:
-    #     field_schema.update(
-    #         pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
-    #         examples=["345", "20-23,45,50-100"],
-    #         type="string",
-    #         format="vlan",
-    #     )
 
-    @classmethod
-    def __get_validators__(cls) -> Iterator:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield VlanRanges
+VlanRangesValidator = Annotated[VlanRanges, WrapSerializer(_serialize)]
+
