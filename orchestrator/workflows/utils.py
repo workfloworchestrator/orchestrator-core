@@ -26,7 +26,7 @@ from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle
 from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
-from orchestrator.workflow import Step, StepList, Workflow, conditional, done, init, make_workflow, step
+from orchestrator.workflow import StepList, Workflow, conditional, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
     cache_domain_models,
     remove_domain_model_from_cache,
