@@ -186,7 +186,7 @@ def create_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
-    additional_steps: Optional[StepList] = None,
+    additional_steps: StepList = StepList(),
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
@@ -205,7 +205,7 @@ def create_workflow(
         steplist = (
             init
             >> f()
-            >> (additional_steps if additional_steps else StepList())
+            >> additional_steps
             >> set_status(status)
             >> resync
             >> push_domain_models(cache_domain_models)
@@ -220,7 +220,7 @@ def create_workflow(
 def modify_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
-    additional_steps: Optional[StepList] = None,
+    additional_steps: StepList = StepList(),
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -243,7 +243,7 @@ def modify_workflow(
             >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
             >> f()
-            >> (additional_steps if additional_steps else StepList())
+            >> additional_steps
             >> resync
             >> push_domain_models(cache_domain_models)
             >> done
@@ -257,7 +257,7 @@ def modify_workflow(
 def terminate_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
-    additional_steps: Optional[StepList] = None,
+    additional_steps: StepList = StepList(),
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -280,7 +280,7 @@ def terminate_workflow(
             >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
             >> f()
-            >> (additional_steps if additional_steps else StepList())
+            >> additional_steps
             >> set_status(SubscriptionLifecycle.TERMINATED)
             >> resync
             >> push_domain_models(cache_domain_models)
