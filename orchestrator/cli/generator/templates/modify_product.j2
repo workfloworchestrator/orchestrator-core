@@ -4,20 +4,19 @@ from collections.abc import Generator
 
 import structlog
 
-from orchestrator.forms import FormPage, ReadOnlyField
-from orchestrator.forms.validators import OrganisationId, contact_person_list, Divider
-from orchestrator.types import FormGenerator, State, UUIDstr
+from orchestrator.forms import FormPage
+from orchestrator.forms.validators import OrganisationId, Divider, MigrationSummary
+from orchestrator.types import FormGenerator, State, UUIDstr, SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
+from orchestrator.workflows.utils import modify_workflow
+from orchestrator.workflows.steps import set_status
 
-from surf.forms.validators import JiraTicketId
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
-from surf.products.services.subscription import subscription_description
-from surf.workflows.shared.mail import send_confirmation_email
-from surf.workflows.shared.validate_subscriptions import subscription_update_wrapper
-from surf.workflows.workflow import modify_workflow
 {% if validation_imports %}
 from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {% endif %}
+
+{% include 'additional_modify_imports.j2' %}
 
 logger = structlog.get_logger(__name__)
 
@@ -30,8 +29,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
     class Modify{{ product.type }}Form(FormPage):
         organisation: OrganisationId = subscription.customer_id  # type: ignore
-        contact_persons: contact_person_list(subscription.customer_id) = []  # type:ignore
-        ticket_id: JiraTicketId = JiraTicketId("")
+{% include "additional_modify_input_fields.j2" ignore missing %}
 
         divider_1: Divider
 
@@ -100,12 +98,16 @@ def update_subscription_description(subscription: {{ product.type }}) -> State:
     return {"subscription": subscription}
 
 
-@modify_workflow("Modify {{ product.name }}", initial_input_form=initial_input_form_generator)
+{% include 'additional_create_steps.j2' %}
+
+
+@modify_workflow("Modify {{ product.name }}", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def modify_{{ product.variable }}() -> StepList:
     return (
         begin
-        >> subscription_update_wrapper(update_subscription)
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> update_subscription
         >> update_subscription_description
         # TODO add additional steps if needed
-        >> send_confirmation_email()
+        >> set_status(SubscriptionLifecycle.ACTIVE)
     )

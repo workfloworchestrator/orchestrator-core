@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import sys
 from pathlib import Path
 from typing import Dict, Optional
@@ -76,12 +75,13 @@ def create_context(
         else:
             write_file(path, content, append=append, force=force)
 
-    environment = Environment(
-        loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "generator", "templates")), autoescape=True
-    )
+    search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
+    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True)
 
     config = read_config(config_file)
     config["variable"] = get_variable(config)
+    for pb in config["product_blocks"]:
+        pb["variable"] = get_variable(pb)
 
     return {
         "config": config,
@@ -102,6 +102,7 @@ TestDrivenDevelopment = typer.Option(True, "--tdd", help="Force test driven deve
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
 PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
 FolderPrefix = typer.Option("", "--folder-prefix", "-fp", help="Folder prefix, e.g. <folder-prefix>/workflows")
+CustomTemplates = typer.Option("", "--custom-templates", "-ct", help="Custom templates folder")
 
 
 @app.command(help="Create product from configuration file")
@@ -140,8 +141,10 @@ def workflows(
     python_version: str = PythonVersion,
     tdd: bool = TestDrivenDevelopment,
     folder_prefix: Path = FolderPrefix,
+    custom_templates: Path = CustomTemplates,
 ) -> None:
     settings.FOLDER_PREFIX = folder_prefix
+    settings.CUSTOM_TEMPLATES = custom_templates
     context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version, tdd=tdd)
 
     generate_workflows(context)

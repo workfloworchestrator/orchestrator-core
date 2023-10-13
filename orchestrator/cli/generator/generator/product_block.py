@@ -21,7 +21,12 @@ from typing import Any, Optional
 
 import structlog
 
-from orchestrator.cli.generator.generator.helpers import get_product_block_file_name, path_to_module, snake_to_camel
+from orchestrator.cli.generator.generator.helpers import (
+    create_dunder_init_files,
+    get_product_block_file_name,
+    path_to_module,
+    snake_to_camel,
+)
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.domain.base import ProductBlockModel
 
@@ -104,9 +109,13 @@ def get_product_blocks_to_import(lists_to_generate: list, existing_product_block
     ]
 
 
+def get_product_blocks_folder() -> Path:
+    return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
+
+
 def get_product_block_path(product_block: dict) -> Path:
     file_name = get_product_block_file_name(product_block)
-    return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH / Path(file_name).with_suffix(".py")
+    return get_product_blocks_folder() / Path(file_name).with_suffix(".py")
 
 
 def enrich_product_block(product_block: dict) -> dict:
@@ -160,3 +169,4 @@ def generate_product_blocks(context: dict) -> None:
     product_blocks = config.get("product_blocks", [])
     for product_block in product_blocks:
         generate_product_block(product_block)
+    create_dunder_init_files(get_product_blocks_folder())
