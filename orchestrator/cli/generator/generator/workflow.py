@@ -144,7 +144,11 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
 
     template = environment.get_template("create_product.j2")
     content = template.render(
-        product=config, product_block=product_block, validations=validations, validation_imports=validation_imports
+        product=config,
+        product_block=product_block,
+        validations=validations,
+        validation_imports=validation_imports,
+        product_types_module=product_types_module,
     )
 
     path = get_workflow_path(config, "create")
@@ -159,7 +163,11 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
 
     template = environment.get_template("modify_product.j2")
     content = template.render(
-        product=config, product_block=product_block, validations=validations, validation_imports=validation_imports
+        product=config,
+        product_block=product_block,
+        validations=validations,
+        validation_imports=validation_imports,
+        product_types_module=product_types_module,
     )
 
     path = get_workflow_path(config, "modify")
