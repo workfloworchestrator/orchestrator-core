@@ -322,6 +322,7 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
 
     return _validate_workflow
 
+
 @step("Equalize workflow step count")
 def obsolete_step() -> None:
     """Equalize workflow step counts.
