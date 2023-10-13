@@ -186,7 +186,7 @@ def create_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
-    update_ticket_step: Optional[Step] = None,
+    additional_steps: Optional[StepList] = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
@@ -202,11 +202,10 @@ def create_workflow(
     create_initial_input_form_generator = wrap_create_initial_input_form(initial_input_form)
 
     def _create_workflow(f: Callable[[], StepList]) -> Workflow:
-        execute_ticket_step = conditional(lambda state: state.get("ticket_id", False))
         steplist = (
             init
             >> f()
-            >> execute_ticket_step(update_ticket_step)
+            >> (additional_steps if additional_steps else StepList())
             >> set_status(status)
             >> resync
             >> push_domain_models(cache_domain_models)
@@ -221,7 +220,7 @@ def create_workflow(
 def modify_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
-    update_ticket_step: Optional[Step] = None,
+    additional_steps: Optional[StepList] = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -229,8 +228,8 @@ def modify_workflow(
 
     Example::
 
-        @modify_workflow("create service port") -> StepList:
-        def create_service_port():
+        @modify_workflow("modify service port") -> StepList:
+        def modify_service_port():
             do_something
             >> do_something_else
     """
@@ -238,14 +237,13 @@ def modify_workflow(
     wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
-        execute_ticket_step = conditional(lambda state: state.get("ticket_id", False))
         steplist = (
             init
             >> store_process_subscription(Target.MODIFY)
             >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
             >> f()
-            >> execute_ticket_step(update_ticket_step)
+            >> (additional_steps if additional_steps else StepList())
             >> resync
             >> push_domain_models(cache_domain_models)
             >> done
@@ -259,7 +257,7 @@ def modify_workflow(
 def terminate_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
-    update_ticket_step: Optional[Step] = None,
+    additional_steps: Optional[StepList] = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -267,8 +265,8 @@ def terminate_workflow(
 
     Example::
 
-        @terminate_workflow("create service port") -> StepList:
-        def create_service_port():
+        @terminate_workflow("terminate service port") -> StepList:
+        def terminate_service_port():
             do_something
             >> do_something_else
     """
@@ -276,14 +274,13 @@ def terminate_workflow(
     wrapped_terminate_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
     def _terminate_workflow(f: Callable[[], StepList]) -> Workflow:
-        execute_ticket_step = conditional(lambda state: state.get("ticket_id", False))
         steplist = (
             init
             >> store_process_subscription(Target.TERMINATE)
             >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
             >> f()
-            >> execute_ticket_step(update_ticket_step)
+            >> (additional_steps if additional_steps else StepList())
             >> set_status(SubscriptionLifecycle.TERMINATED)
             >> resync
             >> push_domain_models(cache_domain_models)
@@ -324,7 +321,6 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
         return make_workflow(f, description, validate_initial_input_form_generator, Target.SYSTEM, steplist)
 
     return _validate_workflow
-
 
 @step("Equalize workflow step count")
 def obsolete_step() -> None:
