@@ -170,18 +170,25 @@ def _get_current_step_to_update(
     step_state: State = process_state.unwrap()
     current_step = None
     last_db_step = p.steps[-1] if len(p.steps) else None
+
+    # Core internal: __step_name_override
     step_name = step_state.pop("__step_name_override", step.name)
 
+    # Core internal: __replace_last_state
     if step_state.pop("__replace_last_state", None):
         current_step = last_db_step
         current_step.status = process_state.status
         current_step.state = step_state
 
-    if "__remove_keys" in step_state:
-        keys_to_remove = step_state.get("__remove_keys")
+    # Core internal: __remove_keys
+    try:
+        keys_to_remove = step_state.get("__remove_keys", [])
         keys_to_remove = keys_to_remove if isinstance(keys_to_remove, Iterable) else []
         for k in keys_to_remove:
             step_state.pop(k, None)
+    except TypeError:
+        logger.error("Value for '__keys_to_remove' is not iterable.")
+    finally:
         step_state.pop("__remove_keys", None)
 
     if process_state.isfailed() or process_state.iswaiting():

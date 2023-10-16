@@ -221,7 +221,7 @@ def db_session(database):
     perspective it looks like everything will indeed be committed; allowing for queries on the database to be
     performed to see if functions under test have persisted their changes to the database correctly. However once
     the test function returns this fixture will clean everything up by rolling back the outer transaction; leaving the
-    database in a known state (=empty with the exception of what migrations have added as the initial state).
+    database in a known state (=empty except what migrations have added as the initial state).
 
     Args:
         database: fixture for providing an initialized database.

@@ -302,7 +302,7 @@ def _extend_step_group_steps(name: str, steps: StepList) -> StepList:
     enter_step = begin >> step(f"{name} - Enter")(add_sub_group_info_to_state)
     exit_step = step(f"{name} - Exit")(remove_sub_group_info_from_state)
 
-    return begin >> enter_step >> steps >> exit_step
+    return enter_step >> steps >> exit_step
 
 
 def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
