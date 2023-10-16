@@ -251,7 +251,7 @@ def disable_commit(db: Database, log: BoundLogger) -> Iterator:
 def transactional(db: Database, log: BoundLogger) -> Iterator:
     """Run a step function in an implicit transaction with automatic rollback or commit.
 
-    It will rollback in case of error, commit otherwise. It will also disable the `commit()` method
+    It will roll back in case of error, commit otherwise. It will also disable the `commit()` method
     on `BaseModel.session` for the time `transactional` is in effect.
     """
     try:
@@ -263,6 +263,6 @@ def transactional(db: Database, log: BoundLogger) -> Iterator:
         log.warning("Rolling back transaction.")
         raise
     finally:
-        # Extra safe guard rollback. If the commit failed there is still a failed transaction open.
+        # Extra safeguard rollback. If the commit failed there is still a failed transaction open.
         # BTW: without a transaction in progress this method is a pass-through.
         db.session.rollback()

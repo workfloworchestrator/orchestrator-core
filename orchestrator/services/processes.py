@@ -43,6 +43,7 @@ from orchestrator.websocket import (
 )
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import (
+    CALLBACK_TOKEN_KEY,
     Failed,
     ProcessStat,
     ProcessStatus,
@@ -158,31 +159,36 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
 def _get_current_step_to_update(
     stat: ProcessStat, p: ProcessTable, step: Step, process_state: WFProcess
 ) -> ProcessStepTable:
-    """Checks if last error state is identical to determine if we add a new step or update the last one."""
+    """Checks if last error state is identical to determine if we add a new step or update the last one.
+
+    There are some special internal keys checked to customise how the step is updated in the database.
+    These keys are only used for this purpose and not stored in the database.
+    - '__step_name_override' - When this key is present, the value will be used as the ProcessStepTable.name
+    - '__replace_last_state' - When the value for this key is truthy, the previous state in the db will be overridden
+    - '__remove_keys' - Removes the keys in this given list from the state
+    """
     step_state: State = process_state.unwrap()
     current_step = None
     last_db_step = p.steps[-1] if len(p.steps) else None
-    current_sub_step, current_step_group = step_state.get("__sub_step"), step_state.get("__step_group")
-    db_sub_step, db_step_group = (
-        (last_db_step.state.get("__sub_step"), last_db_step.state.get("__step_group")) if last_db_step else (None, None)
-    )
 
-    if current_sub_step is None and db_sub_step is None:
-        pass  # Skip step group logic
-    elif (db_sub_step is None and current_sub_step) or (db_sub_step and current_sub_step is None):
-        # New entry
-        current_step = ProcessStepTable(
-            process_id=stat.process_id,
-            name=current_step_group or db_step_group,
-            status=process_state.status,
-            state=step_state,
-            created_by=stat.current_user,
-        )
-    else:
-        # Update last step entry in db
-        last_db_step.status = process_state.status
-        last_db_step.state = step_state
+    # Core internal: __step_name_override
+    step_name = step_state.pop("__step_name_override", step.name)
+
+    # Core internal: __replace_last_state
+    if step_state.pop("__replace_last_state", None):
         current_step = last_db_step
+        current_step.status = process_state.status
+        current_step.state = step_state
+
+    # Core internal: __remove_keys
+    try:
+        keys_to_remove = step_state.get("__remove_keys", [])
+        for k in keys_to_remove:
+            step_state.pop(k, None)
+    except TypeError:
+        logger.error("Value for '__keys_to_remove' is not iterable.")
+    finally:
+        step_state.pop("__remove_keys", None)
 
     if process_state.isfailed() or process_state.iswaiting():
         if (
@@ -209,7 +215,7 @@ def _get_current_step_to_update(
         # add a new entry to the process stat
         current_step = ProcessStepTable(
             process_id=stat.process_id,
-            name=step.name,
+            name=step_name,
             status=process_state.status,
             state=step_state,
             created_by=stat.current_user,
@@ -236,7 +242,7 @@ def _db_log_step(
         broadcast_func: Optional function to broadcast process data
 
     Returns:
-        WFProcess
+        WFProcess: The process as stored in the database
 
     """
     p = _update_process(stat.process_id, step, process_state)
@@ -557,7 +563,7 @@ def continue_awaiting_process(
     state = pstat.state.unwrap()
 
     # Check if the token matches
-    token_from_state = state.get("__callback_token")
+    token_from_state = state.get(CALLBACK_TOKEN_KEY)
     if token != token_from_state:
         raise AssertionError("Invalid token")
 
