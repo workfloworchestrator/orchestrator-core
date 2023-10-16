@@ -16,7 +16,7 @@ import threading
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 from uuid import UUID, uuid4
 
 import structlog
