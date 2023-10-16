@@ -30,6 +30,7 @@ classifiers = [
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.9",
@@ -69,7 +70,7 @@ dependencies = [
     "pydantic-forms==0.2.0",
 ]
 description-file = "README.md"
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.9,<3.13"
 
 [project.urls]
 documentation = "https://workfloworchestrator.org/orchestrator-core/"
