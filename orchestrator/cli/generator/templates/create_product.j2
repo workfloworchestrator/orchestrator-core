@@ -1,6 +1,7 @@
 {# Create workflow -#}
 
 from collections.abc import Generator
+from typing import Optional
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Divider, Label, OrganisationId, MigrationSummary
@@ -32,7 +33,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         divider_1: Divider
 
         {% for field in product_block.fields -%}
-        {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning", "active"] -%} | None = None {% endif %}
+        {{ field.name }}: {% if field.required in ["provisioning", "active"] -%}Optional[{{ field.type }}]{% else -%}{{ field.type }}{% endif %}
         {% endfor -%}
 
 {% for validation in validations %}
@@ -77,7 +78,7 @@ def construct_{{ product.variable }}_model(
     product: UUIDstr,
     organisation: UUIDstr,
     {% for field in product_block.fields -%}
-    {{ field.name }}: {{ field.type }}{% if field.required not in ["inactive", "provisioning", "active"] %} | None{% endif %},
+    {{ field.name }}: {% if field.required in ["provisioning", "active"] %}Optional[{{ field.type }}]{% else %}{{ field.type }}{% endif %},
     {% endfor -%}
 ) -> State:
     {{ product.variable }} = {{ product.type }}Inactive.from_product_id(

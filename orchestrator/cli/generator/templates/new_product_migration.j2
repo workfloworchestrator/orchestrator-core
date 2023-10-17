@@ -20,7 +20,8 @@ depends_on = None
 
 new_products = {
     "products": {
-        "{{ product.name }}": {
+        {% for variant_name, variant_fixed_inputs in product_variants -%}
+        "{{ variant_name }}": {
             "product_id": uuid4(),
             "product_type": "{{ product.type }}",
             "description": "{{ product.description }}",
@@ -28,8 +29,12 @@ new_products = {
             "status": "active",
             "product_blocks": [{% for pb in product.product_blocks %} "{{ pb.type }}",{% endfor %}],
             "fixed_inputs": {
+            {%- for fixed_input_type, fixed_input_value in variant_fixed_inputs %}
+                "{{ fixed_input_type }}": "{{ fixed_input_value }}",
+            {%- endfor %}
             },
         },
+        {% endfor -%}
     },
     "product_blocks": {
     {% for pb in product.product_blocks -%}

@@ -1,6 +1,8 @@
 {# Modify workflow -#}
 
 from collections.abc import Generator
+from pydantic_forms.core import ReadOnlyField
+from typing import Optional
 
 import structlog
 
@@ -33,12 +35,12 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
         divider_1: Divider
 
-        {% for field in product_block.fields if field.modifiable is defined -%}
+        {% for field in product_block.fields if not field.modifiable is defined -%}
         {{ field.name }}: {{ field.type }} = ReadOnlyField({{ product_block.name }}.{{ field.name }})
         {% endfor -%}
 
-        {% for field in product_block.fields if not field.modifiable is defined -%}
-        {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning", "active"] -%} | None {% endif %}= {{ product_block.name }}.{{ field.name }}
+        {% for field in product_block.fields if field.modifiable is defined -%}
+        {{ field.name }}: {% if field.required in ["active"] -%}Optional[{{ field.type }}]{% else -%}{{ field.type }}{% endif %} = {{ product_block.name }}.{{ field.name }}
         {% endfor -%}
 
 {% for validation in validations %}
@@ -56,7 +58,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 def create_summary_form(user_input: dict, subscription: {{ product.type }}) -> Generator:
     product_summary_fields = [{% for field in product_block.fields %} "{{ field.name }}",{% endfor -%}]
 
-    before = [str(getattr(subscription.domain_settings, nm)) for nm in product_summary_fields]
+    before = [str(getattr(subscription.{{ product_block.variable }}, nm)) for nm in product_summary_fields]
     after = [str(user_input[nm]) for nm in product_summary_fields]
 
     class ProductSummary(MigrationSummary):
@@ -81,11 +83,11 @@ def create_summary_form(user_input: dict, subscription: {{ product.type }}) -> G
 @step("Update subscription")
 def update_subscription(
     subscription: {{ product.type }}Provisioning,
-    {% for field in product_block.fields if not field.modifiable is defined -%}
-    {{ field.name }}: {{ field.type }}{% if field.required not in ["inactive", "provisioning", "active"] %} | None{% endif %},
+    {% for field in product_block.fields if field.modifiable is defined -%}
+    {{ field.name }}: {% if field.required in ["active"] %}Optional[{{ field.type }}]{% else %}{{ field.type }}{% endif %},
     {% endfor -%}) -> State:
     # TODO: get all modified fields
-    {% for field in product_block.fields if not field.modifiable is defined -%}
+    {% for field in product_block.fields if field.modifiable is defined -%}
     subscription.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
     {% endfor -%}
 

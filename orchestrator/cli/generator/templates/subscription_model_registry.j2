@@ -1,0 +1,9 @@
+from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
+
+SUBSCRIPTION_MODEL_REGISTRY.update(
+    {
+        {% for variant_name, variant_fixed_inputs in product_variants -%}
+        "{{ variant_name }}": {{ product.type }},
+        {% endfor -%}
+    }
+)  # fmt:skip

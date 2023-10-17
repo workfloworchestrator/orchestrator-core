@@ -37,13 +37,12 @@ def read_config(config_file: Path) -> Dict:
         with open(config_file) as stream:
             try:
                 return yaml.safe_load(stream)
-            except yaml.YAMLError:
+            except yaml.YAMLError as exception:
                 logger.error("failed to parse configuration file", config_file=str(config_file))
-    except FileNotFoundError:
+                raise exception
+    except FileNotFoundError as exception:
         logger.error("configuration file not found", config_file=str(config_file))
-
-    # when we cannot get the product configuration somehow, it does not make sense to continue ...
-    sys.exit(1)
+        raise exception
 
 
 def write_file(path: Path, content: str, append: bool, force: bool) -> None:

@@ -1,0 +1,3 @@
+This folder contains example custom templates. Copy this folder to your own
+repository, and add the `--custom-templates <folder>` option to the `generate`
+CLI command line.

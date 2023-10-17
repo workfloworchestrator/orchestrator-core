@@ -66,6 +66,7 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
         if f"workflows.{variable}.create_{variable}" in fp.read():
             logger.warning("not re-adding lazy workflows", product=variable)
         else:
+            fp.close()
             writer(path, content, append=True)
 
 
