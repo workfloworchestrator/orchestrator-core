@@ -1,0 +1,23 @@
+"""Create data head.
+
+Revision ID: {{ revision }}
+Revises:
+Create Date: {{ create_date }}
+
+"""
+import sqlalchemy as sa
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision = "{{ revision }}"
+down_revision = None
+branch_labels = ("data",)
+depends_on = "{{ depends_on }}"
+
+
+def upgrade() -> None:
+    pass
+
+
+def downgrade() -> None:
+    pass
