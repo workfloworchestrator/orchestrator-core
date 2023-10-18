@@ -2,10 +2,15 @@ from typing import TYPE_CHECKING, Annotated, List
 
 import strawberry
 
-from orchestrator.schemas import WorkflowSchema
+from orchestrator.schemas import StepSchema, WorkflowSchema
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.product import ProductType
+
+
+@strawberry.experimental.pydantic.type(model=StepSchema, all_fields=True)
+class Step:
+    pass
 
 
 @strawberry.experimental.pydantic.type(model=WorkflowSchema, all_fields=True)
