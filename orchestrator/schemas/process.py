@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import ConstrainedStr
+from pydantic import ConfigDict, ConstrainedStr
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
@@ -34,72 +34,68 @@ class ProcessForm(OrchestratorBaseModel):
     properties: Dict[str, Any]
     additionalProperties: bool  # noqa: N815
     required: List[str] = []
-    definitions: Optional[Dict[str, Any]]
+    definitions: Optional[Dict[str, Any]] = None
 
 
 class ProcessBaseSchema(OrchestratorBaseModel):
     process_id: UUID
     workflow_name: str
     is_task: bool
-    created_by: Optional[str]
-    failed_reason: Optional[str]
+    created_by: Optional[str] = None
+    failed_reason: Optional[str] = None
     started_at: datetime
     last_status: ProcessStatus
-    last_step: Optional[str]
+    last_step: Optional[str] = None
     assignee: Assignee
     last_modified_at: datetime
-    traceback: Optional[str]
-
-    class Config:
-        orm_mode = True
+    traceback: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProcessStepSchema(OrchestratorBaseModel):
-    step_id: Optional[UUID]
+    step_id: Optional[UUID] = None
     name: str
     status: str
     created_by: Optional[str] = None
-    executed: Optional[datetime]
+    executed: Optional[datetime] = None
     commit_hash: Optional[str] = None
-    state: Optional[Dict[str, Any]]
+    state: Optional[Dict[str, Any]] = None
     state_delta: Optional[Dict[str, Any]] = None
 
-    stepid: Optional[UUID]  # TODO: will be removed in 1.4
+    stepid: Optional[UUID] = None  # TODO: will be removed in 1.4
 
 
 class ProcessSchema(ProcessBaseSchema):
-    product_id: Optional[UUID]
-    customer_id: Optional[str]
-    workflow_target: Optional[Target]
+    product_id: Optional[UUID] = None
+    customer_id: Optional[str] = None
+    workflow_target: Optional[Target] = None
     subscriptions: List[SubscriptionSchema]
-    current_state: Optional[Dict[str, Any]]
-    steps: Optional[List[ProcessStepSchema]]
-    form: Optional[ProcessForm]
+    current_state: Optional[Dict[str, Any]] = None
+    steps: Optional[List[ProcessStepSchema]] = None
+    form: Optional[ProcessForm] = None
 
 
 class ProcessDeprecationsSchema(ProcessSchema):
-    id: Optional[UUID]  # TODO: will be removed in 1.4
-    pid: Optional[UUID]  # TODO: will be removed in 1.4
-    workflow: Optional[str]  # TODO: will be removed in 1.4
-    status: Optional[ProcessStatus]  # TODO: will be removed in 1.4
-    step: Optional[str]  # TODO: will be removed in 1.4
-    started: Optional[datetime]  # TODO: will be removed in 1.4
-    last_modified: Optional[datetime]  # TODO: will be removed in 1.4
-    product: Optional[UUID]  # TODO: will be removed in 1.4
-    customer: Optional[str]  # TODO: will be removed in 1.4
+    id: Optional[UUID] = None  # TODO: will be removed in 1.4
+    pid: Optional[UUID] = None  # TODO: will be removed in 1.4
+    workflow: Optional[str] = None  # TODO: will be removed in 1.4
+    status: Optional[ProcessStatus] = None  # TODO: will be removed in 1.4
+    step: Optional[str] = None  # TODO: will be removed in 1.4
+    started: Optional[datetime] = None  # TODO: will be removed in 1.4
+    last_modified: Optional[datetime] = None  # TODO: will be removed in 1.4
+    product: Optional[UUID] = None  # TODO: will be removed in 1.4
+    customer: Optional[str] = None  # TODO: will be removed in 1.4
 
 
 class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     id: UUID
     process_id: UUID
     subscription_id: UUID
-    workflow_target: Optional[Target]
+    workflow_target: Optional[Target] = None
     created_at: datetime
 
     pid: UUID  # TODO: will be removed in 1.4
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProcessSubscriptionSchema(ProcessSubscriptionBaseSchema):

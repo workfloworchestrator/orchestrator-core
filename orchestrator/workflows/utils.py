@@ -16,7 +16,7 @@ from typing import Callable, Dict, Optional, cast
 from uuid import UUID
 
 from more_itertools import first_true
-from pydantic import validator
+from pydantic import field_validator, validator
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms.validators import ProductId
@@ -44,7 +44,8 @@ def _generate_new_subscription_form(workflow_target: str, workflow_name: str) ->
     class NewProductPage(FormPage):
         product: ProductId
 
-        @validator("product", allow_reuse=True)
+        @field_validator("product")
+        @classmethod
         def product_validator(cls, v: UUID) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
             product = ProductTable.query.get(v)
@@ -112,6 +113,8 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         # we do our own validation here..
         subscription_id: UUID
 
+        # TODO[pydantic]: We couldn't refactor the `validator`, please replace it by `field_validator` manually.
+        # Check https://docs.pydantic.dev/dev-v2/migration/#changes-to-validators for more information.
         @validator("subscription_id", allow_reuse=True)
         def subscription_validator(cls, v: UUID, values: Dict) -> UUID:  # type: ignore
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
