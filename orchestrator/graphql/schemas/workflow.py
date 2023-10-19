@@ -23,6 +23,6 @@ class Workflow:
 
         return [ProductType.from_pydantic(product) for product in self._original_model.products]  # type: ignore
 
-    @strawberry.field(description="Return all steps for this workflow")
+    @strawberry.field(description="Return all steps for this workflow")  # type: ignore
     def steps(self) -> List[Step]:
         return [Step(name=step.name, assignee=step.assignee) for step in get_workflow(self.name).steps]  # type: ignore

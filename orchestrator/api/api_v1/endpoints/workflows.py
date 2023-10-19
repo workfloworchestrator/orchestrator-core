@@ -25,7 +25,10 @@ router = APIRouter()
 
 
 def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
-    steps = [StepSchema(name=step.name) for step in get_workflow(workflow.name).steps]
+    def get_steps() -> list[StepSchema]:
+        if registered_workflow := get_workflow(workflow.name):
+            return [StepSchema(name=step.name) for step in registered_workflow.steps]
+        raise AssertionError(f"Workflow {workflow.name} should be registered")
 
     return WorkflowSchema(
         workflow_id=workflow.workflow_id,
@@ -33,7 +36,7 @@ def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
         target=workflow.target,
         description=workflow.description,
         created_at=workflow.created_at,
-        steps=steps,
+        steps=get_steps(),
     )
 
 
