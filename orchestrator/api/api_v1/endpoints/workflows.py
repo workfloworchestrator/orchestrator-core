@@ -41,7 +41,7 @@ def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
 
 
 @router.get("/", response_model=List[WorkflowSchema])
-def get_all(target: Optional[str] = None, include_steps: Optional[bool] = False) -> List[WorkflowSchema]:
+def get_all(target: Optional[str] = None, include_steps: bool = False) -> List[WorkflowSchema]:
     query = WorkflowTable.query
     if target:
         query = query.filter(WorkflowTable.__dict__["target"] == target)
