@@ -34,7 +34,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from more_itertools import first, flatten, last, one, only
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
 from pydantic.main import ModelMetaclass
 from pydantic.types import ConstrainedList
@@ -119,10 +119,7 @@ class DomainModel(BaseModel):
     Contains all common Product block/Subscription instance code
     """
 
-    class Config:
-        validate_assignment = True  # pragma: no mutate
-        validate_all = True  # pragma: no mutate
-        arbitrary_types_allowed = True  # pragma: no mutate
+    model_config = ConfigDict(validate_assignment=True, validate_default=True, arbitrary_types_allowed=True)
 
     __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
     _product_block_fields_: ClassVar[Dict[str, Type]]
@@ -977,10 +974,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 class ProductModel(BaseModel):
     """Represent the product as defined in the database as a dataclass."""
 
-    class Config:
-        validate_assignment = True  # pragma: no mutate
-        validate_all = True  # pragma: no mutate
-        arbitrary_types_allowed = True  # pragma: no mutate
+    model_config = ConfigDict(validate_assignment=True, validate_default=True, arbitrary_types_allowed=True)
 
     product_id: UUID
     name: str
