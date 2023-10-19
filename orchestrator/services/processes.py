@@ -16,7 +16,7 @@ import threading
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 import structlog
@@ -336,7 +336,7 @@ def _get_process(process_id: UUID) -> ProcessTable:
 
 
 def _run_process_async(process_id: UUID, f: Callable) -> UUID:
-    def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
+    def _update_running_processes(method: str, *args: Any) -> None:
         """Update amount of running processes by one.
 
         Args:
