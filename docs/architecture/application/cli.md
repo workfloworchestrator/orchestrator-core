@@ -1,12 +1,85 @@
-# CLI
+# Command line interface commands
 
-CLI commands
+Top level options:
 
+--install-completion [bash|zsh|fish|powershell|pwsh]  
 
-## db migrate-domain-models command
+Install completion for the specified shell. [default: None]
 
-The purpose of this CLI script is to automatically generate the data migrations that you'll need when you add or change a Domain Model.
-It will inspect your DB and the existing domain models, analyse the differences and it will generate an Alembic data migration in the correct folder.
+--show-completion [bash|zsh|fish|powershell|pwsh]  
+
+Show completion for the specified shell, to copy it or customize the
+installation. [default: None]
+
+## db
+
+Interact with the application database.
+
+### downgrade
+
+The `main.py db downgrade` command will downgrade the database to the previous
+revision or to the optionally specified revision.
+
+Arguments
+
+revision - Rev id to upgrade to [default: -1]
+
+### heads
+
+The `main.py db heads` command shows the Alembic database heads.
+
+### history
+
+The `main.py db history` command lists Alembic revision history in
+chronological order.
+
+Options
+
+--verbose - Verbose output  
+--current - Indicate current revision
+
+### init
+
+The `main.py db init` command initialises an empty migrations environment.
+This command will throw an exception when it detects conflicting files and
+directories.
+
+### merge
+
+The `main.py db merge` command merges database revisions.                     
+
+Arguments
+
+revisions - Add the revision you would like to merge to this command 
+[default: None]
+
+Options
+
+--message TEXT - The revision message
+
+### migrate-domain-models
+
+The `main.py db migrate-domain-models` command creates a revision based on the
+difference between domain models in the source code and those that are defined
+in the database.  
+
+Arguments
+
+message - Migration name [default: None] [required]
+
+Options
+
+--test | --no-test - Optional boolean if you don't want to generate a 
+migration file [default: no-test]  
+--inputs -  stringified dict to prefill inputs [default: {}]  
+--updates - stringified dict to map updates instead of 
+using inputs [default: {}]  
+
+The `python main.py db migrate-domain-model` CLI command is used to
+automatically generate the data migrations that you'll need when you add or
+change a Domain Model.  It will inspect your DB and the existing domain models,
+analyse the differences and it will generate an Alembic data migration in the
+correct folder.
 
 Features:
 
@@ -21,7 +94,7 @@ Below in the documentation these features are discussed in more detail.
 
 !!! warning "BACKUP DATABASE BEFORE USING THE MIGRATION!"
 
-### Args:
+Arguments
 
 - `message`: Message/description of the generated migration.
 - `--test`: Optional boolean if you don't want to generate a migration file.
@@ -41,7 +114,7 @@ Below in the documentation these features are discussed in more detail.
         - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
     - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
 
-### Example
+**Example**
 
 You need products in the `SUBSCRIPTION_MODEL_REGISTRY`, for this example I will use these models (taken out of [example-orchestrator](https://github.com/workfloworchestrator/example-orchestrator-beginner)):
 
@@ -347,3 +420,270 @@ Migration generated. Don't forget to create a database backup before migrating!
 ```
 
 If you are running with `--test`, the SQL file will not be generated.
+
+### migrate-workflows
+
+The `main.py db migrate-workflows` command creates a migration file based on
+the difference between de worfklows code and the workflows that are registered
+in the database.     
+
+Arguments
+
+message - Migration name [default: None] [required]
+
+Options
+
+--test | --no-test - Optional boolean if you don't want to generate a 
+migration file [default: no-test]
+
+### revision
+
+The `main.py db revision` command creates a new Alembic revision file.
+
+Arguments
+
+--message - The revision message [default: None]  
+--version-path - Specify specific path from config for version file 
+[default: None]  
+--autogenerate | --no-autogenerate - Detect schema changes and add 
+migrations [default: no-autogenerate]  
+--head - Determine the head you need to add your migration to. [default: None]  
+
+### upgrade
+
+The `main.py db upgrade` command will upgrade the database to the specified
+revision
+
+Arguments
+
+revision - Rev id to upgrade to [default: none]
+
+## generate
+
+Generate products, workflows and other artifacts.
+
+Products can be described in a YAML configuration file which makes it easy to
+generate product and product block domain models, and skeleton workflows and
+unit tests. Note that this is a one time thing, the generate commands do not
+support updating existing products, product-blocks, workflows and migrations.
+But it does however help in defining new products with stakeholders, will
+generate code that conforms to current workfloworchestrator coding BCP, and
+will actually run (although limited in functionality of course).
+
+After describing a new product in a configuration file, the following commands
+are typically run:
+
+```shell
+python main.py generate product-blocks
+python main.py generate products
+python main.py generate workflows
+python main.py generate migratrion
+```
+
+An example of a simple product configuration:
+
+```yaml
+config:
+  create_summary_forms: true
+name: node
+type: Node
+tag: NODE
+description: "Network node"
+fixed_inputs:
+  - name: node_type
+    type: enum
+    description: "type of node"
+    enum_type: str
+    values:
+      - "Cisco"
+      - "Nokia"
+product_blocks:
+  - name: node
+    type: Node
+    tag: NODE
+    description: "node product block"
+    fields:
+      - name: node_name
+        description: "Unique name of the node"
+        type: str
+        required: provisioning
+        modifiable:
+      - name: node_description
+        description: "Description of the node"
+        type: str
+        modifiable:
+      - name: ims_id
+        description: "ID of the node in the inventory management system"
+        type: int
+        required: active
+```
+
+Next we will describe the different sections in more detail:
+
+**`config` section**
+
+This section sets some global configuration, applicable for most workflows.
+
+```yaml
+config:
+  create_summary_forms: true
+```
+
+- `create_summary_forms` indicates if a summary form will be generated in the
+  create and modify workflows, currently always `true`.
+
+**`fixed_inputs` section**
+
+In this section we define a list of fixed inputs for a product.
+
+```yaml
+fixed_inputs:
+  - name: node_type
+    type: enum
+    description: "type of node"
+    enum_type: str
+    values:
+      - "Cisco"
+      - "Nokia"
+```
+
+A fixed input has a `name` and a `type` field. If the type is a primitive type
+(for example: str, bool, int, UUID), then this is sufficient. In this example
+we use an enum type, so we add additional fields to describe the enumeration
+type and its possible values.
+ 
+**`product_blocks` section**
+
+In this section we define the product blocks that are part of this product.
+They can be either new or refer to previously defined product blocks.
+
+```yaml
+product_blocks:
+  - name: node
+    type: Node
+    tag: NODE
+    description: "node product block"
+    fields:
+      - name: node_name
+        description: "Unique name of the node"
+        type: str
+        required: provisioning
+        modifiable:
+      - name: node_description
+        description: "Description of the node"
+        type: str
+        modifiable:
+      - name: ims_id
+        description: "ID of the node in the inventory management system"
+        type: int
+        required: active
+```
+
+In this example we define a product block with name `node`, type `Node`, and
+tag `NODE`.  `fields` is a list of fields with a type and name. The `required`
+field defines in which lifecycle state the field is required. In previous life
+cycle states the field will be optional. The `modifiable` flag is to indicate
+if this field can be modified in a modify workflow. And the `description` field
+is used in the created migration.
+
+### migration
+
+The `python main.py generate migration` command creates a migration from a
+configuration file.
+
+Options
+
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.9]  
+
+### product
+
+The `python main.py generate product` command creates a product domain model
+from a configuration file.
+
+Options
+
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.9]  
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
+
+### product-blocks
+
+The `python main.py generate product-blocks` command creates product block
+domain models from a configuration file.
+
+Options
+
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.9]  
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
+
+### unit-tests
+
+The `python main.py generate unit-tests` command creates unit tests from a
+configuration file.
+
+Options
+
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.9]  
+--tdd - Force test driven development with failing asserts [default: True]
+
+### unit-tests
+
+The `python main.py generate unit-tests` command creates unit tests from a
+configuration file.
+
+Options
+
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.9]  
+--tdd - Force test driven development with failing asserts [default: True]
+
+### workflows
+
+The `python main.py generate workflows` command creates create, modify,
+terminate and validate workflows from a configuration file. The
+`--custom-templates` option can be used to specify a folder with custom
+templates to add additional import statements, input form fields and workflow
+steps to the create, modify and terminate workflows.
+
+Options
+
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.9]  
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: 
+None]  
+--custom-templates - Custom templates folder [default: None]  
+
+## scheduler
+
+Access all the scheduler functions.
+
+### force
+
+Force the execution of (a) scheduler(s) based on a keyword.
+
+Arguments
+
+keyword - [required]
+
+### run
+
+Loop eternally and run schedulers at configured times.
+
+### show-schedule
+
+Show the currently configured schedule.
