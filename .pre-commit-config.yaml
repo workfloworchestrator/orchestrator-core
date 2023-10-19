@@ -2,22 +2,22 @@ default_language_version:
   python: python3
 repos:
   - repo: https://github.com/psf/black
-    rev: 23.3.0
+    rev: 23.10.0
     hooks:
       - id: black
   - repo: https://github.com/asottile/blacken-docs
-    rev: 1.14.0
+    rev: 1.16.0
     hooks:
       - id: blacken-docs
         additional_dependencies: [ black==23.1.0 ]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.0.275
+    rev: v0.1.0
     hooks:
       - id: ruff
         args: [ --fix, --exit-non-zero-on-fix, --show-fixes ]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: trailing-whitespace
         exclude: .bumpversion.cfg
@@ -73,10 +73,10 @@ repos:
       - id: python-check-mock-methods
       - id: rst-backticks
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.5
+    rev: v0.9.0.6
     hooks:
       - id: shellcheck
   - repo: https://github.com/andreoliwa/nitpick
-    rev: v0.33.2
+    rev: v0.34.0
     hooks:
       - id: nitpick-check
