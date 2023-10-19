@@ -14,17 +14,17 @@
 from typing import Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.schemas.base import OrchestratorBaseModel
 
 
 class ResourceTypeBaseSchema(OrchestratorBaseModel):
     resource_type: str
-    description: Optional[str]
-    resource_type_id: Optional[UUID]
+    description: Optional[str] = None
+    resource_type_id: Optional[UUID] = None
 
 
 class ResourceTypeSchema(ResourceTypeBaseSchema):
     resource_type_id: UUID
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

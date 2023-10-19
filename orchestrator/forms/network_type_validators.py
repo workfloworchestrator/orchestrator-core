@@ -14,21 +14,22 @@
 
 from typing import Any, Dict, Iterator, Optional
 
-from pydantic import BaseModel, ConstrainedInt, conint, root_validator
+from pydantic import BaseModel, ConfigDict, ConstrainedInt, Field, model_validator
+from typing_extensions import Annotated
 
 from orchestrator.utils.vlans import VlanRanges
 
 
 class BFD(BaseModel):
-    class Config:
-        schema_extra = {"format": "optGroup"}
+    model_config = ConfigDict(json_schema_extra={"format": "optGroup"})
 
     # order matters, this should be first
     enabled: bool
-    minimum_interval: Optional[conint(ge=1, le=255000)] = 900  # type: ignore
-    multiplier: Optional[conint(ge=1, le=255)] = 3  # type: ignore
+    minimum_interval: Optional[Annotated[int, Field(ge=1, le=255000)]] = 900  # type: ignore
+    multiplier: Optional[Annotated[int, Field(ge=1, le=255)]] = 3  # type: ignore
 
-    @root_validator()
+    @model_validator()
+    @classmethod
     def check_optional_fields(cls, values: Dict) -> Dict:  # noqa: B902
         if not values.get("enabled"):
             values.pop("minimum_interval", None)
@@ -42,6 +43,8 @@ class MTU(ConstrainedInt):
     le = 9000
 
     @classmethod
+    # TODO[pydantic]: We couldn't refactor `__modify_schema__`, please create the `__get_pydantic_json_schema__` manually.
+    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
     def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
         super().__modify_schema__(field_schema)
         field_schema["multipleOf"] = 7500
@@ -49,6 +52,8 @@ class MTU(ConstrainedInt):
 
 class VlanRangesValidator(VlanRanges):
     @classmethod
+    # TODO[pydantic]: We couldn't refactor `__modify_schema__`, please create the `__get_pydantic_json_schema__` manually.
+    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
     def __modify_schema__(cls, field_schema: Dict) -> None:
         field_schema.update(
             pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
@@ -58,6 +63,8 @@ class VlanRangesValidator(VlanRanges):
         )
 
     @classmethod
+    # TODO[pydantic]: We couldn't refactor `__get_validators__`, please create the `__get_pydantic_core_schema__` manually.
+    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
     def __get_validators__(cls) -> Iterator:
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
