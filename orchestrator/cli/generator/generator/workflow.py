@@ -55,10 +55,19 @@ def add_optional_nso_config(config: dict) -> dict:
 
 def insert_lazy_workflow_instances(environment: Environment, config: dict, writer: Callable) -> None:
     template = environment.get_template("lazy_workflow_instance.j2")
+    variable = config.get("variable", "")
+    # product_blocks = config.get("product_blocks", [])
     content = template.render(product=config)
 
     path = settings.FOLDER_PREFIX / settings.WORKFLOWS_PATH / Path("__init__.py")
-    writer(path, content, append=True)
+    if not path.exists():
+        writer(path, "from orchestrator.workflows import LazyWorkflowInstance\n\n")
+    with open(path, "r") as fp:
+        if f"workflows.{variable}.create_{variable}" in fp.read():
+            logger.warning("not re-adding lazy workflows", product=variable)
+        else:
+            fp.close()
+            writer(path, content, append=True)
 
 
 def generate_workflows(context: dict) -> None:
@@ -79,7 +88,7 @@ def generate_workflows(context: dict) -> None:
 
     add_workflow_translations(config, writer)
 
-    # insert_lazy_workflow_instances(environment, config, writer)
+    insert_lazy_workflow_instances(environment, config, writer)
 
 
 def workflow_folder(config: dict) -> Path:
@@ -96,9 +105,9 @@ def create_workflow_paths(config: dict) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def get_workflow_path(config: dict, workflow_type: str) -> str:
+def get_workflow_path(config: dict, workflow_type: str) -> Path:
     file_name = get_product_file_name(config)
-    return f"{workflow_folder(config)}/{workflow_type}_{file_name}.py"
+    return workflow_folder(config) / Path(f"{workflow_type}_{file_name}").with_suffix(".py")
 
 
 def generate_shared_workflow_files(environment: Environment, config: dict, writer: Callable) -> None:
@@ -108,7 +117,7 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     template = environment.get_template("shared_forms.j2")
     content = template.render(product=config, product_block=product_block, validations=validations)
 
-    path = f"{shared_workflow_folder(config)}/forms.py"
+    path = shared_workflow_folder(config) / Path("forms.py")
 
     writer(path, content)
 
@@ -136,7 +145,11 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
 
     template = environment.get_template("create_product.j2")
     content = template.render(
-        product=config, product_block=product_block, validations=validations, validation_imports=validation_imports
+        product=config,
+        product_block=product_block,
+        validations=validations,
+        validation_imports=validation_imports,
+        product_types_module=product_types_module,
     )
 
     path = get_workflow_path(config, "create")
@@ -151,7 +164,11 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
 
     template = environment.get_template("modify_product.j2")
     content = template.render(
-        product=config, product_block=product_block, validations=validations, validation_imports=validation_imports
+        product=config,
+        product_block=product_block,
+        validations=validations,
+        validation_imports=validation_imports,
+        product_types_module=product_types_module,
     )
 
     path = get_workflow_path(config, "modify")
