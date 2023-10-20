@@ -490,9 +490,12 @@ type: Node
 tag: NODE
 description: "Network node"
 fixed_inputs:
-  - name: node_type
+  - name: node_rack_mountable
+    type: bool
+    description: "is node rack mountable"
+  - name: node_vendor
     type: enum
-    description: "type of node"
+    description: "vendor of node"
     enum_type: str
     values:
       - "Cisco"
@@ -538,9 +541,12 @@ In this section we define a list of fixed inputs for a product.
 
 ```yaml
 fixed_inputs:
-  - name: node_type
+  - name: node_rack_mountable
+    type: bool
+    description: "is node rack mountable"
+  - name: node_vendor
     type: enum
-    description: "type of node"
+    description: "vendor of node"
     enum_type: str
     values:
       - "Cisco"
@@ -548,9 +554,9 @@ fixed_inputs:
 ```
 
 A fixed input has a `name` and a `type` field. If the type is a primitive type
-(for example: str, bool, int, UUID), then this is sufficient. In this example
-we use an enum type, so we add additional fields to describe the enumeration
-type and its possible values.
+(for example: str, bool, int, UUID), then this is sufficient. In the case of
+`node_vendor` we use an enum type, so we add additional fields to describe the
+enumeration type and its possible values.
  
 **`product_blocks` section**
 
@@ -594,8 +600,6 @@ configuration file.
 Options
 
 --config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
 --python-version - Python version for generated code [default: 3.9]  
 
 ### product
@@ -623,19 +627,6 @@ Options
 --force - Force overwrite of existing files  
 --python-version - Python version for generated code [default: 3.9]  
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
-
-### unit-tests
-
-The `python main.py generate unit-tests` command creates unit tests from a
-configuration file.
-
-Options
-
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.9]  
---tdd - Force test driven development with failing asserts [default: True]
 
 ### unit-tests
 

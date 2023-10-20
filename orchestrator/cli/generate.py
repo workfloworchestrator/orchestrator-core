@@ -164,10 +164,8 @@ def unit_tests(
 @app.command(help="Create migration from configuration file")
 def migration(
     config_file: Path = ConfigFile,
-    dryrun: bool = DryRun,
-    force: bool = Force,
     python_version: str = PythonVersion,
 ) -> None:
-    context = create_context(config_file, dryrun=dryrun, force=force, python_version=python_version)
+    context = create_context(config_file, dryrun=False, force=True, python_version=python_version)
 
     generate_product_migration(context)
