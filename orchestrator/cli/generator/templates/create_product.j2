@@ -1,22 +1,22 @@
 {# Create workflow -#}
 
 from collections.abc import Generator
+from typing import Optional
 
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import ContactPersonList, Divider, Label, OrganisationId, MigrationSummary
+from orchestrator.forms.validators import Divider, Label, OrganisationId, MigrationSummary
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
+from orchestrator.workflows.utils import create_workflow
 
-from surf.forms.validators import JiraTicketId
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
-from surf.products.services.subscription import subscription_description
-from surf.workflows.shared.mail import send_confirmation_email
-from surf.workflows.workflow import create_workflow
-{% if validation_imports %}
-from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
-{% endif %}
+{%-if validation_imports %}
+from workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
+{%-endif %}
+
+{% include 'additional_create_imports.j2' %}
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
@@ -27,14 +27,13 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
             title = product_name
 
         organisation: OrganisationId
-        contact_persons: ContactPersonList = []  # type: ignore
-        ticket_id: JiraTicketId = JiraTicketId("")
+{% include "additional_create_input_fields.j2" ignore missing %}
 
         label_{{ product.variable }}_settings: Label
         divider_1: Divider
 
         {% for field in product_block.fields -%}
-        {{ field.name }}: {{ field.type }} {% if field.required not in ["inactive", "provisioning", "active"] -%} | None = None {% endif %}
+        {{ field.name }}: {% if field.required in ["provisioning", "active"] -%}Optional[{{ field.type }}]{% else -%}{{ field.type }}{% endif %}
         {% endfor -%}
 
 {% for validation in validations %}
@@ -79,17 +78,18 @@ def construct_{{ product.variable }}_model(
     product: UUIDstr,
     organisation: UUIDstr,
     {% for field in product_block.fields -%}
-    {{ field.name }}: {{ field.type }}{% if field.required not in ["inactive", "provisioning", "active"] %} | None{% endif %},
-    {% endfor -%}) -> State:
+    {{ field.name }}: {% if field.required in ["provisioning", "active"] %}Optional[{{ field.type }}]{% else %}{{ field.type }}{% endif %},
+    {% endfor -%}
+) -> State:
     {{ product.variable }} = {{ product.type }}Inactive.from_product_id(
         product_id=product,
         customer_id=organisation,
         status=SubscriptionLifecycle.INITIAL,
     )
 
-    {% for field in product_block.fields -%}
+    {%- for field in product_block.fields %}
     {{ product.variable }}.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
-    {% endfor %}
+    {%- endfor %}
 
     {{ product.variable }} = {{ product.type }}Provisioning.from_other_lifecycle({{ product.variable }}, SubscriptionLifecycle.PROVISIONING)
     {{ product.variable }}.description = subscription_description({{ product.variable }})
@@ -101,12 +101,14 @@ def construct_{{ product.variable }}_model(
     }
 
 
-@create_workflow("Create {{ product.name }}", initial_input_form=initial_input_form_generator)
+{% include 'additional_create_steps.j2' %}
+
+
+@create_workflow("Create {{ product.name }}", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_{{ product.variable }}() -> StepList:
     return (
         begin
         >> construct_{{ product.variable }}_model
         >> store_process_subscription(Target.CREATE)
-        # TODO add additional steps
-        >> send_confirmation_email()
+        # TODO add provision step(s)
     )

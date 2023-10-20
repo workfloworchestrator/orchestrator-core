@@ -20,7 +20,8 @@ depends_on = None
 
 new_products = {
     "products": {
-        "{{ product.name }}": {
+        {% for variant_name, variant_fixed_inputs in product_variants -%}
+        "{{ variant_name }}": {
             "product_id": uuid4(),
             "product_type": "{{ product.type }}",
             "description": "{{ product.description }}",
@@ -28,16 +29,19 @@ new_products = {
             "status": "active",
             "product_blocks": [{% for pb in product.product_blocks %} "{{ pb.type }}",{% endfor %}],
             "fixed_inputs": {
-                "domain": Domain.NETHERLIGHT8,
+            {%- for fixed_input_type, fixed_input_value in variant_fixed_inputs %}
+                "{{ fixed_input_type }}": "{{ fixed_input_value }}",
+            {%- endfor %}
             },
         },
+        {% endfor -%}
     },
     "product_blocks": {
-    {% for pb in product.product_blocks %}
+    {% for pb in product.product_blocks -%}
         "{{ pb.type }}": {
             "product_block_id": uuid4(),
             "description": "{{ pb.description }}",
-            "tag": "{{ pb.tag }}"
+            "tag": "{{ pb.tag }}",
             "status": "active",
             "resources": {
             {%- for field in pb.fields %}
@@ -46,32 +50,32 @@ new_products = {
             },
             "depends_on_block_relations": [],
         },
-    {% endfor %}
+    {% endfor -%}
     },
     "workflows": {},
 }
 
 new_workflows = [
     {
-        "name": "create_{{ variable }}",
+        "name": "create_{{ product.variable }}",
         "target": Target.CREATE,
         "description": "Create {{ product.name }}",
         "product_type": "{{ product.type }}",
     },
     {
-        "name": "modify_{{ variable }}",
+        "name": "modify_{{ product.variable }}",
         "target": Target.MODIFY,
         "description": "Modify {{ product.name }}",
         "product_type": "{{ product.type }}",
     },
     {
-        "name": "terminate_{{ variable }}",
+        "name": "terminate_{{ product.variable }}",
         "target": Target.TERMINATE,
         "description": "Terminate {{ product.name }}",
         "product_type": "{{ product.type }}",
     },
     {
-        "name": "validate_{{ variable }}",
+        "name": "validate_{{ product.variable }}",
         "target": Target.SYSTEM,
         "description": "Validate {{ product.name }}",
         "product_type": "{{ product.type }}",
