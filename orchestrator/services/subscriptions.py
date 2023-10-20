@@ -13,7 +13,6 @@
 
 """Module that provides service functions on subscriptions."""
 import pickle  # noqa: S403
-import warnings
 from collections import defaultdict
 from datetime import datetime
 from hashlib import md5
@@ -638,11 +637,3 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
         filter_instance_ids_on_subscription()
 
     return subscription
-
-
-def build_extendend_domain_model(subscription_model: SubscriptionModel, filter_owner_relations: bool = False) -> dict:
-    warnings.warn(
-        "Use build_extended_domain_model() and format_extended_domain_model() instead", DeprecationWarning, stacklevel=1
-    )
-    subscription = build_extended_domain_model(subscription_model)
-    return format_extended_domain_model(subscription, filter_owner_relations=filter_owner_relations)
