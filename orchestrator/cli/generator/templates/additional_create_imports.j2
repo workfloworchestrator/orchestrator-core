@@ -1,0 +1,8 @@
+from orchestrator.domain import SubscriptionModel
+
+
+def subscription_description(subscription: SubscriptionModel) -> str:
+    """The suggested pattern is to implement a subscription service that generates a subscription specific
+       description, in case that is not present the description will just be set to the product name.
+    """
+    return f"{subscription.product.name} subscription"

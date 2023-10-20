@@ -8,7 +8,7 @@ from strawberry.scalars import JSON
 from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db.models import ProductTable
+from orchestrator.db import ProductTable, db
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
 from orchestrator.graphql.schemas.product import ProductType
@@ -116,8 +116,8 @@ class ProcessType:
 
     @authenticated_field(description="Returns the associated product")  # type: ignore
     def product(self) -> Optional[ProductType]:
-        if self.product_id:
-            return ProductType.from_pydantic(ProductTable.query.get(self.product_id))
+        if self.product_id and (product := db.session.get(ProductTable, self.product_id)):
+            return ProductType.from_pydantic(product)
         return None
 
     @strawberry.field(description="Returns customer of a subscription")  # type: ignore

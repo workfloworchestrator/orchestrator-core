@@ -3,22 +3,15 @@
 {%-if validations %}
 from uuid import UUID
 from pydantic import root_validator
-
-from orchestrator.forms import FormPage
-from orchestrator.forms.validators import DisplaySubscription, contact_person_list
-from orchestrator.types import InputForm
-from surf.forms.validators import JiraTicketId
 {% endif %}
-from orchestrator.types import State, UUIDstr
+from orchestrator.forms import FormPage
+from orchestrator.forms.validators import DisplaySubscription
+from orchestrator.types import InputForm, State, UUIDstr
 from orchestrator.workflow import StepList, begin, step
+from orchestrator.workflows.utils import terminate_workflow
 
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
-{% if product.config.send_email %}
-from surf.workflows.shared.mail import send_confirmation_email
-{% endif %}
-from surf.workflows.workflow import
-{%- if not validations %} terminate_initial_input_form_generator,{% endif %} terminate_workflow
-
+{% include 'additional_terminate_imports.j2' ignore missing %}
 
 @step("Load initial state")
 def load_initial_state(subscription: {{ product.type }}) -> State:
@@ -51,21 +44,25 @@ def validate_{{ validation.id }}(cls: FormPage, values: dict) -> dict:
 
     return values
 {% endfor %}
+{% endif -%}
 
 def terminate_initial_input_form_generator(subscription_id: UUIDstr, organisation: UUIDstr) -> InputForm:
     temp_subscription_id = subscription_id
 
     class TerminateForm(FormPage):
         subscription_id: DisplaySubscription = temp_subscription_id  # type: ignore
-        contact_persons: contact_person_list(UUID(organisation)) = []  # type: ignore
-        ticket_id: JiraTicketId | None = None
+{% include "additional_terminate_input_fields.j2" ignore missing -%}
+
         {% for validation in validations %}
         _check_{{ validation.id }}: classmethod = root_validator(allow_reuse=True)(validate_{{ validation.id }})
         {% endfor %}
     return TerminateForm
-{% endif %}
 
-@terminate_workflow("Terminate {{ product.name }}", initial_input_form=terminate_initial_input_form_generator)
+
+{% include 'additional_terminate_steps.j2' %}
+
+
+@terminate_workflow("Terminate {{ product.name }}", initial_input_form=terminate_initial_input_form_generator, additional_steps=additional_steps)
 def terminate_{{ product.variable }}() -> StepList:
     return (
         begin

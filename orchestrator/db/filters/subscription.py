@@ -16,10 +16,13 @@ from typing import Callable
 import structlog
 from sqlalchemy import func
 
+# Import here causes sqlalchemy.func to use proper postgresql syntax
+from sqlalchemy.dialects import postgresql  # noqa: F401
+
 from orchestrator.api.helpers import _process_text_query
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.database import SearchQuery
-from orchestrator.db.filters.filters import generic_filter
+from orchestrator.db.filters.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_bool_filter,
     generic_is_like_filter,
@@ -31,7 +34,7 @@ from orchestrator.db.models import SubscriptionSearchView
 logger = structlog.get_logger(__name__)
 
 
-def tsv_filter(query: SearchQuery, value: str) -> SearchQuery:
+def tsv_filter(query: QueryType, value: str) -> QueryType:
     # Quote key:value tokens. This will use the FOLLOWED BY operator (https://www.postgresql.org/docs/13/textsearch-controls.html)
     processed_text_query = _process_text_query(value)
 
@@ -44,15 +47,12 @@ def tsv_filter(query: SearchQuery, value: str) -> SearchQuery:
 
 def elasticquery_tsv(query: SearchQuery, value: str) -> SearchQuery:
     logger.debug("Running full-text search query:", value=value)
-    # TODO: Make 'websearch_to_tsquery' into a sqlalchemy extension
-    # This is a part of the sqlalchemy.dialects.postgresql module in SQLalchemy >= 2.0
-    # https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#sqlalchemy.dialects.postgresql.websearch_to_tsquery
     return query.join(SubscriptionSearchView).filter(
         func.websearch_to_tsquery("simple", value).op("@@")(SubscriptionSearchView.tsv)
     )
 
 
-def subscription_list_filter(query: SearchQuery, value: str) -> SearchQuery:
+def subscription_list_filter(query: QueryType, value: str) -> QueryType:
     values = [s.lower() for s in value.split(",")]
     return query.filter(SubscriptionTable.subscription_id.in_(values))
 
@@ -65,7 +65,7 @@ start_date_range_filters = generic_range_filters(SubscriptionTable.start_date)
 end_date_range_filters = generic_range_filters(SubscriptionTable.end_date)
 
 
-SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[SearchQuery, str], SearchQuery]] = (
+SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = (
     {
         "subscriptionId": generic_is_like_filter(SubscriptionTable.subscription_id),
         "subscriptionIds": subscription_list_filter,

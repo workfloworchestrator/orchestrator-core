@@ -15,9 +15,9 @@ from typing import Any, Callable, Iterator, Protocol
 
 from more_itertools import partition
 from pydantic import BaseModel
+from sqlalchemy import Select
 
 from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.db.database import SearchQuery
 
 
 class CallableErrorHandler(Protocol):
@@ -30,7 +30,7 @@ class Filter(BaseModel):
     value: str
 
 
-QueryType = SearchQuery
+QueryType = Select
 ValidFilterFunctionsByColumnType = dict[str, Callable[[QueryType, str], QueryType]]
 
 

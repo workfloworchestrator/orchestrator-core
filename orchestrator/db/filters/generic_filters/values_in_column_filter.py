@@ -16,11 +16,11 @@ from typing import Callable
 
 from sqlalchemy import Column, func
 
-from orchestrator.db.database import SearchQuery
+from orchestrator.db.filters.filters import QueryType
 
 
-def generic_values_in_column_filter(field: Column) -> Callable[[SearchQuery, str], SearchQuery]:
-    def list_filter(query: SearchQuery, value: str) -> SearchQuery:
+def generic_values_in_column_filter(field: Column) -> Callable[[QueryType, str], QueryType]:
+    def list_filter(query: QueryType, value: str) -> QueryType:
         values = [s.lower() for s in value.split("-")]
         return query.filter(func.lower(field).in_(values))
 

@@ -72,9 +72,8 @@ class SubscriptionInterface:
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> strawberry.scalars.JSON:
-        fixed_inputs: list[FixedInputTable] = FixedInputTable.query.filter(
-            FixedInputTable.product_id == self.product.product_id  # type: ignore
-        ).all()
+        stmt = select(FixedInputTable).where(FixedInputTable.product_id == self.product.product_id)  # type: ignore
+        fixed_inputs = db.session.scalars(stmt).all()
         return [{"field": fi.name, "value": fi.value} for fi in fixed_inputs]
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore
@@ -141,12 +140,14 @@ class SubscriptionInterface:
             identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
         )
 
+    @strawberry.field(name="_metadataSchema", description="Returns metadata schema of a subscription")  # type: ignore
+    def metadata_schema(self) -> dict:
+        metadata_class = MetadataDict["metadata"]
+        return metadata_class.schema() if metadata_class else static_metadata_schema
+
     @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
     def metadata(self) -> dict:
-        metadata_class = MetadataDict["metadata"]
-        metadata_schema = metadata_class.schema() if metadata_class else static_metadata_schema
-        metadata = get_subscription_metadata(str(self.subscription_id))
-        return {"__schema__": metadata_schema} | metadata  # type: ignore
+        return get_subscription_metadata(str(self.subscription_id)) or {}
 
 
 @strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)

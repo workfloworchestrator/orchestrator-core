@@ -18,7 +18,7 @@ import pytz
 from dateutil.parser import parse
 from sqlalchemy import Column
 
-from orchestrator.db.database import SearchQuery
+from orchestrator.db.filters.filters import QueryType
 
 # from sqlalchemy.sql.expression import ColumnOperators
 from orchestrator.utils.helpers import to_camel
@@ -58,11 +58,11 @@ def get_filter_value_convert_function(field: Column) -> Callable:
     return lambda x: x
 
 
-def generic_range_filter(range_type_fn: Callable, field: Column) -> Callable[[SearchQuery, str], SearchQuery]:
+def generic_range_filter(range_type_fn: Callable, field: Column) -> Callable[[QueryType, str], QueryType]:
     filter_operator = partial(range_type_fn, field)
     convert_filter_value = get_filter_value_convert_function(field)
 
-    def use_filter(query: SearchQuery, value: str) -> SearchQuery:
+    def use_filter(query: QueryType, value: str) -> QueryType:
         converted_value = convert_filter_value(value)
         return query.filter(filter_operator(converted_value))
 
@@ -71,7 +71,7 @@ def generic_range_filter(range_type_fn: Callable, field: Column) -> Callable[[Se
 
 def generic_range_filters(
     column: Column, column_alias: Optional[str] = None
-) -> dict[str, Callable[[SearchQuery, str], SearchQuery]]:
+) -> dict[str, Callable[[QueryType, str], QueryType]]:
     column_name = to_camel(column_alias or column.name)
 
     return {

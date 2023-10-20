@@ -64,24 +64,23 @@ MetadataDict.update({"metadata": Metadata})
 ```
 
 This will result in json schema:
+
 ```Json
 {
-    "__schema__": {
-        "title": "Metadata",
-        "type": "object",
-        "properties": {
-            "some_metadata_prop": {
-                "title": "Some Metadata Prop",
-                "type": "array",
-                "items": {
-                    "type": "string"
-                }
+    "title": "Metadata",
+    "type": "object",
+    "properties": {
+        "some_metadata_prop": {
+            "title": "Some Metadata Prop",
+            "type": "array",
+            "items": {
+                "type": "string"
             }
-        },
-        "required": [
-            "some_metadata_prop"
-        ]
-    }
+        }
+    },
+    "required": [
+        "some_metadata_prop"
+    ]
 }
 ```
 

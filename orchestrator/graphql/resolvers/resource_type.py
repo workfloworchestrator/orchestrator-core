@@ -1,11 +1,13 @@
 from typing import Union
 
 import structlog
+from sqlalchemy import func, select
 
+from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.resource_type import filter_resource_types, resource_type_filter_fields
 from orchestrator.db.models import ResourceTypeTable
-from orchestrator.db.range.range import apply_range_to_query
+from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting.resource_type import resource_type_sort_fields, sort_resource_types
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
@@ -31,13 +33,13 @@ async def resolve_resource_types(
     logger.debug(
         "resolve_resource_types() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by
     )
+    stmt = select(ResourceTypeTable)
+    stmt = filter_resource_types(stmt, pydantic_filter_by, _error_handler)
+    stmt = sort_resource_types(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    query = filter_resource_types(ResourceTypeTable.query, pydantic_filter_by, _error_handler)
-    query = sort_resource_types(query, pydantic_sort_by, _error_handler)
-    total = query.count()
-    query = apply_range_to_query(query, after, first)
-
-    resource_types = query.all()
+    resource_types = db.session.scalars(stmt).all()
     graphql_resource_types = [ResourceType.from_pydantic(p) for p in resource_types]
     return to_graphql_result_page(
         graphql_resource_types, first, after, total, resource_type_sort_fields, resource_type_filter_fields

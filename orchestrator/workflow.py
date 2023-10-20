@@ -63,7 +63,6 @@ from pydantic_forms.types import (
 
 logger = structlog.get_logger(__name__)
 
-
 StepLogFunc = Callable[["ProcessStat", "Step", "Process"], "Process"]
 StepLogFuncInternal = Callable[["Step", "Process"], "Process"]
 StepToProcessFunc = Callable[[State], "Process"]
@@ -71,6 +70,7 @@ StepToProcessFunc = Callable[[State], "Process"]
 step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.ContextVar("log_step_fn")
 
 DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
+CALLBACK_TOKEN_KEY = "__callback_token"  # noqa: S105
 
 
 @runtime_checkable
@@ -292,6 +292,19 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
     return decorator
 
 
+def _extend_step_group_steps(name: str, steps: StepList) -> StepList:
+    def add_sub_group_info_to_state() -> State:
+        return {"__step_name_override": name, "__step_group": name}
+
+    def remove_sub_group_info_from_state() -> State:
+        return {"__remove_keys": ["__step_group", "__sub_step"]}
+
+    enter_step = begin >> step(f"{name} - Enter")(add_sub_group_info_to_state)
+    exit_step = step(f"{name} - Exit")(remove_sub_group_info_from_state)
+
+    return enter_step >> steps >> exit_step
+
+
 def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
     """Add a group of steps to the workflow as a single step.
 
@@ -307,19 +320,10 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
         extract_form: Whether to attach the first form of the sub steps to the step group
     """
 
+    steps = _extend_step_group_steps(name, steps)
+
     def func(initial_state: State) -> Process:
         step_log_fn = step_log_fn_var.get()
-
-        def dblogstep(step_: Step, p: Process) -> Process:
-            # Add sub_step info to state
-            p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_group": name})
-            p = step_log_fn(step_, p)
-            # If this was the last sub step, remove sub_step info from state
-            step_state = p.unwrap()
-            if step_state.get("__sub_step") == steps[-1].name and step_state.get("__step_group") == name:
-                # The step group is finished. Remove sub step data from state
-                p = p.on_success(lambda s: {k: v for k, v in s.items() if k not in ["__sub_step", "__step_group"]})
-            return p
 
         # If sub_step information is present in the state. Resume from the next sub step
         if "__sub_step" in initial_state:
@@ -327,8 +331,18 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
         else:
             step_list = steps
 
+        def dblogstep(step_: Step, p: Process) -> Process:
+            p = p.map(lambda s: s | {"__sub_step": step_.name, "__step_name_override": name})
+            # If this is not the first step to be executed, replace previous state
+            if step_list[0] != step_ or "__sub_step" in initial_state:
+                p = p.map(lambda s: s | {"__replace_last_state": True})
+            return step_log_fn(step_, p)
+
         process: Process = Success(initial_state)
-        return _exec_steps(step_list, process, dblogstep)
+        process = _exec_steps(step_list, process, dblogstep)
+
+        # Add instruction to replace state of last sub step before returning process _exec_steps higher in the call tree
+        return process.map(lambda s: s | {"__replace_last_state": True})
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
@@ -338,9 +352,9 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
     def stepfunc(process_id: UUID) -> State:
         token = secrets.token_urlsafe()
-        route = f"/processes/{process_id}/callback/{token}"
+        route = f"/api/processes/{process_id}/callback/{token}"
         # Also add the token under __callback_token for internal use
-        return {key: route, "__callback_token": token}
+        return {key: route, CALLBACK_TOKEN_KEY: token}
 
     return stepfunc
 
@@ -374,8 +388,10 @@ def callback_step(
     """
     create_endpoint_step = step(f"{name} - Create endpoint")(_create_endpoint_step(key=callback_route_key))
     await_step = _awaitstep(f"{name} - Await callback", result_key=result_key)
-
-    return step_group(name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step)
+    cleanup_step = step(f"{name} - Cleanup callback step")(lambda: {"__remove_keys": [CALLBACK_TOKEN_KEY]})
+    return step_group(
+        name=name, steps=begin >> create_endpoint_step >> action_step >> await_step >> validate_step >> cleanup_step
+    )
 
 
 def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:

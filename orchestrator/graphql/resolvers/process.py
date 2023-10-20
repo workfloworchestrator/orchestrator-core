@@ -15,12 +15,13 @@ from typing import Union
 
 import structlog
 from pydantic.utils import to_lower_camel
-from sqlalchemy.orm import defer, joinedload
+from sqlalchemy import func, select
+from sqlalchemy.orm import defer, selectinload
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes, process_filter_fields
-from orchestrator.db.range import apply_range_to_query
+from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
 from orchestrator.graphql.pagination import Connection
@@ -62,19 +63,19 @@ async def resolve_processes(
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
-    query = ProcessTable.query.options(
-        joinedload(ProcessTable.process_subscriptions)
-        .joinedload(ProcessSubscriptionTable.subscription)
-        .joinedload(SubscriptionTable.product),
+    stmt = select(ProcessTable).options(
+        selectinload(ProcessTable.process_subscriptions)
+        .selectinload(ProcessSubscriptionTable.subscription)
+        .selectinload(SubscriptionTable.product),
         defer(ProcessTable.traceback),
     )
 
-    query = filter_processes(query, pydantic_filter_by, _error_handler)
-    query = sort_processes(query, pydantic_sort_by, _error_handler)
-    total = query.count()
-    query = apply_range_to_query(query, after, first)
+    stmt = filter_processes(stmt, pydantic_filter_by, _error_handler)
+    stmt = sort_processes(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    processes = query.all()
+    processes = db.session.scalars(stmt).all()
 
     is_detailed = _is_process_detailed(info)
     graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]

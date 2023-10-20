@@ -1,11 +1,13 @@
 from typing import Union
 
 import structlog
+from sqlalchemy import func, select
 
+from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.product_block import filter_product_blocks, product_block_filter_fields
 from orchestrator.db.models import ProductBlockTable
-from orchestrator.db.range.range import apply_range_to_query
+from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
@@ -32,12 +34,13 @@ async def resolve_product_blocks(
         "resolve_product_blocks() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by
     )
 
-    query = filter_product_blocks(ProductBlockTable.query, pydantic_filter_by, _error_handler)
-    query = sort_product_blocks(query, pydantic_sort_by, _error_handler)
-    total = query.count()
-    query = apply_range_to_query(query, after, first)
+    stmt = select(ProductBlockTable)
+    stmt = filter_product_blocks(stmt, pydantic_filter_by, _error_handler)
+    stmt = sort_product_blocks(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    product_blocks = query.all()
+    product_blocks = db.session.scalars(stmt).all()
     graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
     return to_graphql_result_page(
         graphql_product_blocks, first, after, total, product_block_sort_fields, product_block_filter_fields
