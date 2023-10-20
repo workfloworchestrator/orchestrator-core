@@ -46,17 +46,18 @@ def create_migration_file(message: str, head: str) -> Optional[Path]:
         return None
 
 
+def get_revisions(result: str) -> Dict[str, str]:
+    def is_revision(line: str) -> Any:
+        match = re.search("^([^ ]+) \\(([^ ]+)\\)", line)
+        return reversed(match.groups()) if match else None
+
+    return dict(revision for line in result.splitlines() if (revision := is_revision(line)))
+
+
 def get_heads() -> dict:
     get_heads_command = "python main.py db heads"
     result = subprocess.check_output(get_heads_command, shell=True, text=True)  # noqa: S602
-
-    heads = {}
-    for line in result.splitlines():
-        if match := re.search("^([^ ]+) \\(([^ ]+)\\)", line):
-            revision, head = match.groups()
-            heads[head] = revision
-
-    return heads
+    return get_revisions(result)
 
 
 def create_data_head(context: dict, depends_on: str) -> None:
@@ -134,11 +135,13 @@ def generate_product_migration(context: dict) -> None:
         if revision_info := get_revision_info(migration_file):
             if "fixed_inputs" in config and config["fixed_inputs"]:
                 fixed_input_values = [
-                    [(fi["name"], str(value)) for value in fi["values"]] for fi in config["fixed_inputs"]
+                    [(fixed_input["name"], str(value)) for value in fixed_input["values"]]
+                    for fixed_input in config["fixed_inputs"]
+                    if "values" in fixed_input
                 ]
                 fixed_input_combinations = list(itertools.product(*fixed_input_values))
                 product_variants = [
-                    (" ".join([config["name"]] + [field[1] for field in combination]), combination)
+                    (" ".join([config["name"]] + [value for name, value in combination]), combination)
                     for combination in fixed_input_combinations
                 ]
             else:
