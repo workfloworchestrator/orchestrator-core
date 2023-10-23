@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
+from nwastdlib.vlans import VlanRanges
 from orchestrator.forms.network_type_validators import BFD, MTU, VlanRangesValidator
-from orchestrator.utils.vlans import VlanRanges
 from pydantic_forms.core import FormPage
 
 
@@ -11,13 +11,13 @@ def test_bfd_ok():
         bfd: BFD
 
     model = {"enabled": False, "minimum_interval": None, "multiplier": None}
-    validated_data = Form(bfd=model).dict()
+    validated_data = Form(bfd=model).model_dump()
 
     expected = {"bfd": BFD(enabled=False, minimum_interval=None, multiplier=None)}
     assert expected == validated_data
 
     model = {"enabled": True, "minimum_interval": 600, "multiplier": 3}
-    validated_data = Form(bfd=model).dict()
+    validated_data = Form(bfd=model).model_dump()
 
     expected = {"bfd": BFD(enabled=True, minimum_interval=600, multiplier=3)}
     assert expected == validated_data
@@ -66,16 +66,16 @@ def test_bfd_missing_values():
         bfd: BFD
 
     model = {"enabled": False}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False}}
 
     model = {"enabled": True, "multiplier": 4}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": True, "multiplier": 4, "minimum_interval": 900}}
 
     model = {"enabled": True, "minimum_interval": 600}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": True, "multiplier": 3, "minimum_interval": 600}}
 
     model = {"enabled": False, "minimum_interval": 600, "multiplier": 3}
-    assert Form(bfd=model).dict() == {"bfd": {"enabled": False}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False}}
 
 
 def test_bfd_wrong_values():
