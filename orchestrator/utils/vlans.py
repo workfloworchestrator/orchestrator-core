@@ -10,11 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 from __future__ import annotations
 
 import operator
+import warnings
 from collections import abc
 from functools import reduce
 from typing import AbstractSet, Any, Iterable, Iterator, List, Optional, Sequence, Tuple, Union, cast
@@ -22,6 +21,13 @@ from typing import AbstractSet, Any, Iterable, Iterator, List, Optional, Sequenc
 from more_itertools import first, last
 
 from orchestrator.utils.functional import expand_ranges, to_ranges
+
+warnings.warn(
+    "VlanRanges will be removed from orchestrator-core in an upcoming release. "
+    "Please import it from nwastdlib.vlans (>= 1.5.0) instead.",
+    DeprecationWarning,
+    stacklevel=1,
+)
 
 
 class VlanRanges(abc.Set):
