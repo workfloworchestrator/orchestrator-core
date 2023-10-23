@@ -25,11 +25,11 @@ from strawberry.scalars import JSON
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
+from nwastdlib.vlans import VlanRanges
 from oauth2_lib.fastapi import OIDCUserModel
 from oauth2_lib.strawberry import OauthContext
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
-from orchestrator.utils.vlans import VlanRanges
 
 
 def serialize_to_string(value: Any) -> str:
