@@ -15,7 +15,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from orchestrator.utils.vlans import VlanRanges
+from nwastdlib.vlans import VlanRanges
 
 
 class OrchestratorBaseModel(BaseModel):
