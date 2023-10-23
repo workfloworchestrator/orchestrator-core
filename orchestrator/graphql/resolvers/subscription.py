@@ -17,7 +17,7 @@ import structlog
 from pydantic.utils import to_lower_camel
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.filters.subscription import elasticquery_tsv, subscription_filter_fields
+from orchestrator.db.filters.subscription import fulltext_query_tsv, subscription_filter_fields
 from orchestrator.db.range import apply_range_to_query
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.subscription import sort_subscriptions, subscription_sort_fields
@@ -75,7 +75,7 @@ async def resolve_subscriptions(
     # query = filter_subscriptions(query, pydantic_filter_by, _error_handler)
     if query:
         logger.debug("Query string supplied by user", query=query)
-        q = elasticquery_tsv(q, query)
+        q = fulltext_query_tsv(q, query)
 
     q = sort_subscriptions(q, pydantic_sort_by, _error_handler)
     total = q.count()

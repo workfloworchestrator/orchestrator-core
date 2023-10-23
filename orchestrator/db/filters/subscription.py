@@ -45,7 +45,7 @@ def tsv_filter(query: QueryType, value: str) -> QueryType:
     )
 
 
-def elasticquery_tsv(query: SearchQuery, value: str) -> SearchQuery:
+def fulltext_query_tsv(query: SearchQuery, value: str) -> SearchQuery:
     logger.debug("Running full-text search query:", value=value)
     return query.join(SubscriptionSearchView).filter(
         func.websearch_to_tsquery("simple", value).op("@@")(SubscriptionSearchView.tsv)

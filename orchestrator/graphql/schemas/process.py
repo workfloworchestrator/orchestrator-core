@@ -132,6 +132,7 @@ class ProcessType:
     async def subscriptions(
         self,
         info: OrchestratorInfo,
+        query: Union[str, None] = None,
         filter_by: Union[list[GraphqlFilter], None] = None,
         sort_by: Union[list[GraphqlSort], None] = None,
         first: int = 10,
@@ -145,5 +146,6 @@ class ProcessType:
         # filter_by_with_related_subscriptions = (filter_by or []) + [
         #     GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
         # ]
-        query_related_subscriptions = " OR ".join(f"subscription_id:{sub_id}" for sub_id in subscription_ids)
+        or_string = " OR ".join(f"subscription_id:{sub_id}" for sub_id in subscription_ids)
+        query_related_subscriptions = f"{or_string}{' ' + (query or '')}"
         return await resolve_subscriptions(info, query_related_subscriptions, sort_by, first, after)
