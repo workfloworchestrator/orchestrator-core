@@ -20,7 +20,6 @@ import typer
 from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
-from pydantic.json import ENCODERS_BY_TYPE
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -44,7 +43,6 @@ from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import Mutation, Query, create_graphql_router, register_domain_models
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
-from orchestrator.utils.vlans import VlanRanges
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
 from pydantic_forms.exception_handlers.fastapi import form_error_handler
@@ -86,9 +84,6 @@ class OrchestratorCore(FastAPI):
             shutdown_functions.extend(
                 [websocket_manager.disconnect_all, self.broadcast_thread.stop, websocket_manager.disconnect_redis]
             )
-
-        # Make sure encoding is done correctly on the response.
-        ENCODERS_BY_TYPE[VlanRanges] = str
 
         super().__init__(
             title=title,

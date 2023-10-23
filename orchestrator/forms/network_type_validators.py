@@ -12,12 +12,12 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, ConstrainedInt, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, WrapSerializer, model_validator
 from typing_extensions import Annotated
 
-from orchestrator.utils.vlans import VlanRanges
+from nwastdlib.vlans import VlanRanges
 
 
 class BFD(BaseModel):
@@ -38,35 +38,17 @@ class BFD(BaseModel):
         return values
 
 
-class MTU(ConstrainedInt):
-    ge = 1500
-    le = 9000
-
-    @classmethod
-    # TODO[pydantic]: We couldn't refactor `__modify_schema__`, please create the `__get_pydantic_json_schema__` manually.
-    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        super().__modify_schema__(field_schema)
-        field_schema["multipleOf"] = 7500
+MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
 
 
-class VlanRangesValidator(VlanRanges):
-    @classmethod
-    # TODO[pydantic]: We couldn't refactor `__modify_schema__`, please create the `__get_pydantic_json_schema__` manually.
-    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
-    def __modify_schema__(cls, field_schema: Dict) -> None:
-        field_schema.update(
-            pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
-            examples=["345", "20-23,45,50-100"],
-            type="string",
-            format="vlan",
-        )
+def _serialize_vlanranges(_unused: Any, _handler: SerializerFunctionWrapHandler) -> dict:
+    return {
+        "pattern": "^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
+        "examples": ["345", "20-23,45,50-100"],
+        "type": "string",
+        "format": "vlanrange",
+    }
 
-    @classmethod
-    # TODO[pydantic]: We couldn't refactor `__get_validators__`, please create the `__get_pydantic_core_schema__` manually.
-    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
-    def __get_validators__(cls) -> Iterator:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield VlanRanges
+
+# TODO Make sure this serializes to str, previously had `ENCODERS_BY_TYPE[VlanRanges]=str`
+VlanRangesValidator = Annotated[VlanRanges, WrapSerializer(_serialize_vlanranges)]
