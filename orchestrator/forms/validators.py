@@ -21,12 +21,10 @@ from pydantic.validators import uuid_validator
 
 from orchestrator.services import products
 from pydantic_forms.types import strEnum
-from pydantic_forms.validators import (  # noqa: F401
+from pydantic_forms.validators import (
     Accept,
     Choice,
-    ChoiceList,
     ContactPerson,
-    ContactPersonList,
     ContactPersonName,
     DisplaySubscription,
     Divider,
@@ -41,7 +39,6 @@ from pydantic_forms.validators import (  # noqa: F401
     choice_list,
     contact_person_list,
     migration_summary,
-    remove_empty_items,
     timestamp,
     unique_conlist,
 )
@@ -51,10 +48,8 @@ logger = structlog.get_logger(__name__)
 __all__ = [
     "Accept",
     "Choice",
-    "ChoiceList",
     "ContactPerson",
     "ContactPersonName",
-    "ContactPersonList",
     "DisplaySubscription",
     "Divider",
     "Label",
@@ -71,7 +66,6 @@ __all__ = [
     "contact_person_list",
     "migration_summary",
     "product_id",
-    "remove_empty_items",
     "strEnum",
     "timestamp",
     "unique_conlist",
@@ -125,3 +119,19 @@ class ProductId(UUID):
 def product_id(products: Optional[List[UUID]] = None) -> Type[ProductId]:
     namespace = {"products": products}
     return new_class("ProductIdSpecific", (ProductId,), {}, lambda ns: ns.update(namespace))
+
+
+def remove_empty_items(v: list) -> list:
+    """Remove Falsy values from list.
+
+    Sees dicts with all Falsy values as Falsy.
+    This is used to allow people to submit list fields which are "empty" but are not really empty like:
+    `[{}, None, {name:"", email:""}]`
+
+    Example:
+        >>> remove_empty_items([{}, None, [], {"a":""}])
+        []
+    """
+    if v:
+        return list(filter(lambda i: bool(i) and (not isinstance(i, dict) or any(i.values())), v))
+    return v
