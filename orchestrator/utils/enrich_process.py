@@ -16,7 +16,7 @@ from typing import Optional
 from more_itertools import first
 
 from orchestrator.db import ProcessStepTable, ProcessTable, SubscriptionTable
-from orchestrator.utils.get_updated_fields import get_updated_fields
+from orchestrator.utils.get_updated_properties import get_dict_updates
 from orchestrator.workflow import ProcessStat, Step, StepStatus
 from pydantic_forms.core import generate_form
 
@@ -48,12 +48,12 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
 step_finish_statuses = [StepStatus.SUCCESS, StepStatus.SKIPPED, StepStatus.COMPLETE]
 
 
-def find_previous_step(steps: list[ProcessStepTable], index: int) -> ProcessStepTable | None:
+def find_previous_step(steps: list[ProcessStepTable], index: int) -> Optional[ProcessStepTable]:
     return first([step for step in reversed(steps[:index]) if step.status in step_finish_statuses], None)
 
 
-def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable | None) -> dict:
-    state_delta = get_updated_fields(previous_step.state, step.state) if previous_step else step.state
+def enrich_step_details(step: ProcessStepTable, previous_step: Optional[ProcessStepTable]) -> dict:
+    state_delta = get_dict_updates(previous_step.state, step.state) if previous_step else step.state
 
     return {
         "name": step.name,

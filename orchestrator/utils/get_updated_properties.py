@@ -14,12 +14,12 @@
 from typing import Any
 
 
-def get_dict_updates(obj1: dict, obj2: dict, delta: bool = False) -> dict:
+def get_dict_updates(obj1: dict, obj2: dict) -> dict:
     updated = {}
     for key in obj2:
         if key in obj1:
             if isinstance(obj1[key], dict) and isinstance(obj2[key], dict):
-                nested_updates = get_updated_fields(obj1[key], obj2[key])
+                nested_updates = get_updated_properties(obj1[key], obj2[key])
                 if nested_updates:
                     updated[key] = nested_updates
             elif obj1[key] != obj2[key]:
@@ -29,9 +29,9 @@ def get_dict_updates(obj1: dict, obj2: dict, delta: bool = False) -> dict:
     return updated
 
 
-def get_updated_fields(obj1: Any, obj2: Any, delta: bool = False) -> dict | Any | None:
+def get_updated_properties(obj1: Any, obj2: Any) -> Any:
     if isinstance(obj1, dict) and isinstance(obj2, dict):
-        return get_dict_updates(obj1, obj2, delta)
+        return get_dict_updates(obj1, obj2)
     if obj1 != obj2:
         return obj2
     return None

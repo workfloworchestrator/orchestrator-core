@@ -1,4 +1,4 @@
-from orchestrator.utils.get_updated_fields import get_updated_fields
+from orchestrator.utils.get_updated_properties import get_updated_properties
 
 
 def test_get_updated_fields_with_root_props():
@@ -14,7 +14,7 @@ def test_get_updated_fields_with_root_props():
         "new_prop": "new",
     }
 
-    updated_props = get_updated_fields(obj1, obj2)
+    updated_props = get_updated_properties(obj1, obj2)
 
     assert updated_props == {
         "update": "updated_prop",
@@ -39,7 +39,7 @@ def test_get_updated_fields_with_list_props():
         "list_new": [10, 11, 12],
     }
 
-    updated_props = get_updated_fields(obj1, obj2)
+    updated_props = get_updated_properties(obj1, obj2)
 
     assert updated_props == {
         "list_update_item": [80, 2, 20],
@@ -90,7 +90,7 @@ def test_get_updated_fields_with_dict_props():
         },
     }
 
-    updated_props = get_updated_fields(obj1, obj2)
+    updated_props = get_updated_properties(obj1, obj2)
 
     assert updated_props == {
         "dict_update": {"update": "updated prop"},
@@ -117,7 +117,7 @@ def test_get_updated_fields_with_mixed_props():
         "list_dict": [{"test": "update"}],
     }
 
-    updated_props = get_updated_fields(obj1, obj2)
+    updated_props = get_updated_properties(obj1, obj2)
 
     assert updated_props == {
         "update": "updated",
