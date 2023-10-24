@@ -17,7 +17,7 @@ from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 from uuid import UUID
 
-from pydantic.typing import get_args
+from typing_extensions import get_args
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import State, StepFunc, is_list_type, is_optional_type

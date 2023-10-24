@@ -1,11 +1,12 @@
-from typing import TypeVar, Union
+from typing import Union
 
 import pytest
+from pydantic import conlist
 
 from orchestrator.db import ProductTable, db
 from orchestrator.db.models import FixedInputTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import SubscriptionInstanceList, SubscriptionModel
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 
@@ -14,22 +15,26 @@ def test_product_type_list_union(test_product_sub_block_one, test_product_sub_bl
     SubBlockOneForTestInactive, SubBlockOneForTestProvisioning, SubBlockOneForTest = test_product_sub_block_one
     SubBlockTwoForTestInactive, SubBlockTwoForTestProvisioning, SubBlockTwoForTest = test_product_sub_block_two
 
-    T = TypeVar("T", covariant=True)
+    # T = TypeVar("T", covariant=True)
 
-    class ListOfPorts(SubscriptionInstanceList[T]):
-        min_items = 1
+    # class ListOfPorts(SubscriptionInstanceList[T]):
+    #     min_items = 1
+
+    def list_of_ports(t):
+        # return Annotated[t, Field(min_length=1, union_mode="left_to_right")]
+        return conlist(t, min_length=1)
 
     class ProductListUnionInactive(SubscriptionModel, is_base=True):
         test_fixed_input: bool
-        list_union_blocks: ListOfPorts[Union[SubBlockTwoForTestInactive, SubBlockOneForTestInactive]]
+        list_union_blocks: list_of_ports(Union[SubBlockTwoForTestInactive, SubBlockOneForTestInactive])
 
     class ProductListUnionProvisioning(ProductListUnionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         test_fixed_input: bool
-        list_union_blocks: ListOfPorts[Union[SubBlockTwoForTestProvisioning, SubBlockOneForTestProvisioning]]
+        list_union_blocks: list_of_ports(Union[SubBlockTwoForTestProvisioning, SubBlockOneForTestProvisioning])
 
     class ProductListUnion(ProductListUnionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
-        list_union_blocks: ListOfPorts[Union[SubBlockTwoForTest, SubBlockOneForTest]]
+        list_union_blocks: list_of_ports(Union[SubBlockTwoForTest, SubBlockOneForTest])
 
     SUBSCRIPTION_MODEL_REGISTRY["ProductListUnion"] = ProductListUnion
     yield ProductListUnionInactive, ProductListUnionProvisioning, ProductListUnion

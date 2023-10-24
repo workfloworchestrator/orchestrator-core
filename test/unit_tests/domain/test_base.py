@@ -1,6 +1,6 @@
 import sys
 from datetime import datetime
-from typing import List, Optional, TypeVar
+from typing import List, Optional
 from unittest import mock
 from uuid import uuid4
 
@@ -8,7 +8,6 @@ import pytest
 import pytz
 from pydantic import Field, ValidationError, conlist
 from pydantic.main import BaseModel
-from pydantic.types import ConstrainedList
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import (
@@ -22,9 +21,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import (
     DomainModel,
     ProductBlockModel,
-    SubscriptionInstanceList,
     SubscriptionModel,
-    _is_constrained_list_type,
     serializable_property,
 )
 from orchestrator.domain.lifecycle import ProductLifecycle
@@ -584,7 +581,9 @@ def test_product_blocks_per_lifecycle(
 
     with pytest.raises(
         ValidationError,
-        match=r"2 validation errors for SubBlockOneForTest\nint_field\n  field required .+\nstr_field\n  field required .+",
+        match=(
+            r"2 validation errors for SubBlockOneForTest\nint_field\n\s+Field required.+\n.+\nstr_field\n\s+Field required"
+        ),  # Note: the . does not match newlines
     ):
         ProductTypeOneForTest(
             product=test_product_model,
@@ -600,7 +599,10 @@ def test_product_blocks_per_lifecycle(
             test_fixed_input=False,
         )
 
-    with pytest.raises(ValidationError, match=r"5 validation errors for ProductTypeOneForTest"):
+    with pytest.raises(
+        ValidationError,
+        match=r"1 validation error for ProductTypeOneForTest\nblock\n.+dictionary or instance of ProductBlockOneForTest",
+    ):
         ProductTypeOneForTest(
             product=test_product_model,
             customer_id=str(uuid4()),
@@ -616,7 +618,7 @@ def test_product_blocks_per_lifecycle(
         )
 
     with pytest.raises(
-        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n  field required .+"
+        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n\s+Field required .+"
     ):
         ProductTypeOneForTest(
             product=test_product_model,
@@ -632,7 +634,7 @@ def test_product_blocks_per_lifecycle(
         )
 
     with pytest.raises(
-        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n  field required .+"
+        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n\s+Field required .+"
     ):
         ProductTypeOneForTest(
             product=test_product_model,
@@ -663,9 +665,12 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     )
 
     # Does not work if constraints are not met
-    with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
+    with pytest.raises(
+        ValidationError,
+        match=r"int_field\n\s+Input should be a valid integer.+\n.+\nstr_field\n\s+Input should be a valid string",
+    ):
         product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
-    with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
+    with pytest.raises(ValidationError, match=r"int_field\n\s+Input should be a valid integer"):
         product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
 
     # Set first value
@@ -677,7 +682,7 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     product_type.block.list_field = [1]
 
     # Does not work if constraints are not met
-    with pytest.raises(ValidationError, match=r"str_field\n  none is not an allowed value"):
+    with pytest.raises(ValidationError, match=r"str_field\n\s+Input should be a valid string"):
         product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
 
     # works with correct data
@@ -806,7 +811,7 @@ def test_update_constrained_lists(test_product_one, test_product_block_one):
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     class TestConListProductType(SubscriptionModel, is_base=True):
-        saps: conlist(ProductBlockOneForTestInactive, min_items=1, max_items=4)
+        saps: conlist(ProductBlockOneForTestInactive, min_length=1, max_length=4)
 
     # Creates
     ip = TestConListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
@@ -1071,50 +1076,25 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
 
 
 def test_subscription_instance_list():
-    T = TypeVar("T")
+    # T = TypeVar("T")
 
-    class Max2List(SubscriptionInstanceList[T]):
-        max_items = 2
+    # class Max2List(SubscriptionInstanceList[T]):
+    #     max_items = 2
+    #
+    # # Also check generic subclass
+    # class ConList(Max2List[T]):
+    #     min_items = 1
 
-    # Also check generic subclass
-    class ConList(Max2List[T]):
-        min_items = 1
+    def custom_conlist(t):
+        return conlist(t, min_length=1, max_length=2)
 
     class Model(BaseModel):
-        list_field: ConList[int]
+        list_field: custom_conlist(int)
 
     with pytest.raises(ValidationError):
         Model(list_field=["a"])
 
     Model(list_field=[1])
-
-
-def test_is_constrained_list_type():
-    class ListType(ConstrainedList):
-        min_items = 1
-
-    assert _is_constrained_list_type(ListType) is True
-    assert _is_constrained_list_type(SubscriptionInstanceList[int]) is True
-    assert _is_constrained_list_type(Optional[int]) is False
-    assert _is_constrained_list_type(List[int]) is False
-
-
-def test_product_block_with_si_list(test_product_one):
-    """Test a SubscriptionInstanceList within a ProductBlockModel.
-
-    This provides test coverage for SubscriptionInstanceList.__init_subclass__()
-    """
-
-    class ListOfValues(SubscriptionInstanceList[float]):
-        max_items = 3
-
-    class ProductBlockOneForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneForTest"):
-        values: ListOfValues = Field(default_factory=list)
-
-    block = ProductBlockOneForTestInactive(
-        subscription_instance_id=uuid4(), owner_subscription_id=uuid4(), values=["1.3", 2]
-    )
-    assert block.dict()["values"] == [1.3, 2.0]
 
 
 def test_diff_in_db_empty(test_product_one, test_product_type_one):

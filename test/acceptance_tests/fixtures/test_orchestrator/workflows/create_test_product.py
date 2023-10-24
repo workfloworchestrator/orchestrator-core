@@ -15,6 +15,7 @@
 from ipaddress import IPv4Address, IPv6Address
 from uuid import UUID
 
+from pydantic import ConfigDict
 from structlog import get_logger
 
 from orchestrator.targets import Target
@@ -32,8 +33,7 @@ logger = get_logger(__name__)
 
 def initial_input_form_generator(product_name: str, product: UUIDstr) -> FormGenerator:
     class CreateTestProductForm(FormPage):
-        class Config:
-            title = product_name
+        model_config = ConfigDict(title=product_name)
 
         organisation: OrganisationId
 
