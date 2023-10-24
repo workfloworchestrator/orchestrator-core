@@ -145,7 +145,7 @@ class SubscriptionInterface:
     @strawberry.field(name="_metadataSchema", description="Returns metadata schema of a subscription")  # type: ignore
     def metadata_schema(self) -> dict:
         metadata_class = MetadataDict["metadata"]
-        return metadata_class.schema() if metadata_class else static_metadata_schema
+        return metadata_class.model_json_schema() if metadata_class else static_metadata_schema
 
     @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
     def metadata(self) -> dict:
