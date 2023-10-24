@@ -186,7 +186,7 @@ def create_workflow(
     description: str,
     initial_input_form: Optional[InputStepFunc] = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
-    additional_steps: StepList = begin,
+    additional_steps: StepList = StepList(),  # noqa: B008
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
