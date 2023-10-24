@@ -15,21 +15,20 @@
 from datetime import timedelta
 
 from orchestrator.db import ProcessTable, db
+from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
 
 
-@step("Clean up tasks older than one week")
+@step("Clean up completed tasks older than TASK_LOG_RETENTION_DAYS")
 def remove_tasks() -> State:
-    delta = timedelta(days=3)
-    now = nowtz()
-    three_days_ago = now - delta
+    cutoff = nowtz() - timedelta(days=app_settings.TASK_LOG_RETENTION_DAYS)
     tasks = (
         ProcessTable.query.filter(ProcessTable.is_task.is_(True))
         .filter(ProcessTable.last_status == ProcessStatus.COMPLETED)
-        .filter(ProcessTable.last_modified_at <= three_days_ago)
+        .filter(ProcessTable.last_modified_at <= cutoff)
         .all()
     )
     count = 0

@@ -77,6 +77,7 @@ class AppSettings(BaseSettings):
     DEFAULT_CUSTOMER_FULLNAME: str = "Default::Orchestrator-Core Customer"
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
+    TASK_LOG_RETENTION_DAYS: int = 3
 
 
 class Oauth2Settings(BaseSettings):
