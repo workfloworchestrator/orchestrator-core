@@ -1,8 +1,8 @@
 {% macro optional(field, type) -%}
 {% if python_version == "3.9" -%}
-Optional[{{ type }}] = {% if field.default is defined %} {{ field.default }}{% else %} None {% endif %}
+Optional[{{ type }}] ={% if field.default is defined %} {{ field.default }}{% else %} None {% endif %}
 {%- else -%}
-{{ type }} | None = {% if field.default is defined %} {{ field.default }}{% else %} None {% endif %}
+{{ type }} | None ={% if field.default is defined %} {{ field.default }}{% else %} None {% endif %}
 {%- endif -%}
 {%- endmacro %}
 

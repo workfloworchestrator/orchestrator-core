@@ -597,17 +597,22 @@ product_blocks:
 ```
 
 In this example we define a product block with name `port`, type `Port`, and
-tag `PORT`.  `fields` is a list of fields with a `type` and `name`. The `type`
-can be a simple type, or a type prefixed with a module path that causes this
-type to be imported from that path, or an existig product block that causes the
-import of that product block in all its lifecycle states, or it can be a list
-with items of type `list_type` with a minimum and maximum number of items.  The
-`required` attribute defines in which lifecycle state the field is required. In
-previous life cycle states the field will be optional. If the field is optional
-in one of the lifecycle states then the `default` attribute specifies an
-optional default value.  The `modifiable` flag is to indicate if this field can
-be modified in a modify workflow. And the `description` field is used in the
-created migration.
+tag `PORT`.  The `fields` describe the resource types, they all have a `type`
+and `name`. The `type` can be a simple type, or a type prefixed with a module
+path that causes this type to be imported from that path, or an existing
+product block that causes the import of that product block in all its lifecycle
+states, or it can be a list with items of type `list_type` with a `min_items`
+and `max_items` number of items.
+
+The `required` attribute defines in which lifecycle state the field is
+required.  A value of `inactive` makes the resource type required in the input
+form.  The other possible values are `provisioning` and `active`. In earlier
+life cycle states the resource type will be optional. If `required` is not
+specified the resource type will always be optional. If the resource type is
+optional in one of its lifecycle states then the `default` attribute specifies
+an optional default value.  The `modifiable` flag is to indicate if this
+resource type can be modified in a modify workflow. And the `description` is
+used in the created migration.
 
 ### migration
 

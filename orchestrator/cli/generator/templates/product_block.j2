@@ -32,7 +32,7 @@ class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_nam
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Inactive")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "Inactive") -%}
-    {{ field.name }}: {% if field.required not in ["inactive"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
+    {{ field.name }}: {{ optional(field, type) }}
     {% endif -%}
     {% endfor %}
 
@@ -42,7 +42,7 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Provisioning")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "Provisioning") -%}
-    {{ field.name }}: {% if field.required not in ["inactive"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
+    {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
     {% endif -%}
     {% endfor %}
     @serializable_property
@@ -57,6 +57,6 @@ class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, l
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "") -%}
-    {{ field.name }}: {% if field.required not in ["inactive"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
+    {{ field.name }}: {% if field.required not in ["inactive", "provisioning", "active"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
     {% endif -%}
     {% endfor %}
