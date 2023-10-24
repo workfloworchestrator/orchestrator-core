@@ -25,8 +25,8 @@ class BFD(BaseModel):
 
     # order matters, this should be first
     enabled: bool
-    minimum_interval: Optional[Annotated[int, Field(ge=1, le=255000)]] = 900  # type: ignore
-    multiplier: Optional[Annotated[int, Field(ge=1, le=255)]] = 3  # type: ignore
+    minimum_interval: Optional[Annotated[int, Field(ge=1, le=255000)]] = 900
+    multiplier: Optional[Annotated[int, Field(ge=1, le=255)]] = 3
 
     @model_validator()
     @classmethod
