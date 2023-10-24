@@ -12,11 +12,11 @@
 # limitations under the License.
 
 from inspect import isgeneratorfunction
-from typing import Callable, Dict, Optional, cast
+from typing import Callable, Optional, cast
 from uuid import UUID
 
 from more_itertools import first_true
-from pydantic import field_validator, validator
+from pydantic import field_validator
 
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.forms.validators import ProductId
@@ -40,15 +40,15 @@ from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, StateInputStepFunc
 
 
-def _generate_new_subscription_form(workflow_target: str, workflow_name: str) -> InputForm:
+def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:
     class NewProductPage(FormPage):
         product: ProductId
 
         @field_validator("product")
         @classmethod
-        def product_validator(cls, v: UUID) -> UUID:  # type: ignore
+        def product_validator(cls, product_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
-            product = ProductTable.query.get(v)
+            product = ProductTable.query.get(product_id)
             if product is None:
                 raise ValueError("Product not found")
 
@@ -58,7 +58,7 @@ def _generate_new_subscription_form(workflow_target: str, workflow_name: str) ->
             if current_workflow != workflow_name:
                 raise ValueError("This workflow is not valid for this product")
 
-            return v
+            return product_id
 
     return NewProductPage
 
@@ -113,12 +113,11 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         # we do our own validation here..
         subscription_id: UUID
 
-        # TODO[pydantic]: We couldn't refactor the `validator`, please replace it by `field_validator` manually.
-        # Check https://docs.pydantic.dev/dev-v2/migration/#changes-to-validators for more information.
-        @validator("subscription_id", allow_reuse=True)
-        def subscription_validator(cls, v: UUID, values: Dict) -> UUID:  # type: ignore
+        @field_validator("subscription_id")
+        @classmethod
+        def subscription_validator(cls, subscription_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
-            subscription = SubscriptionTable.query.get(v)
+            subscription = SubscriptionTable.query.get(subscription_id)
             if subscription is None:
                 raise ValueError("Subscription not found")
 
@@ -135,7 +134,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
                 message = TRANSLATIONS.get(current_workflow["reason"], current_workflow["reason"])
                 raise ValueError(f"This workflow cannot be started: {message}")
 
-            return v
+            return subscription_id
 
     return ModifySubscriptionPage
 
