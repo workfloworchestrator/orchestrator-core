@@ -101,8 +101,8 @@ def _is_constrained_list_type(type: Type) -> bool:
         is_constrained_list = issubclass(type, ConstrainedList)
     except Exception:
         # Strip generic arguments, it still might be a subclass
-        if get_origin(type):
-            return _is_constrained_list_type(get_origin(type))  # type: ignore
+        if origin := get_origin(type):
+            return _is_constrained_list_type(origin)
         return False
 
     return is_constrained_list
@@ -145,7 +145,7 @@ class DomainModel(BaseModel):
                     if is_union_type(
                         product_block_field_type
                     ):  # added to support a list with union of multiple product blocks.
-                        product_block_field_type = get_args(product_block_field_type)  # type: ignore
+                        product_block_field_type = get_args(product_block_field_type)
 
                     if isinstance(product_block_field_type, tuple):
                         for field_type in product_block_field_type:
@@ -164,7 +164,9 @@ class DomainModel(BaseModel):
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
-                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(product_block_field_type)  # type: ignore
+                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(
+                    product_block_field_type
+                )
             # exclude non-Optional Unions as they contain more than one useful element.
             elif is_list_type(product_block_field_type) or (
                 is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
@@ -522,7 +524,7 @@ def get_depends_on_product_block_type_list(
     product_blocks_types_in_model = []
     for product_block_type in product_block_types.values():
         if is_union_type(product_block_type):
-            for union_product_block_type in get_args(product_block_type):  # type: ignore
+            for union_product_block_type in get_args(product_block_type):
                 if not isinstance(None, union_product_block_type):
                     product_blocks_types_in_model.append(union_product_block_type)
         else:

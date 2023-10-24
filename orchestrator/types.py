@@ -213,9 +213,9 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
             for arg in get_args(t):
                 if is_list_type(arg, test_type):
                     return True
-        elif get_origin(t) == Literal:  # type:ignore
+        elif get_origin(t) == Literal:
             return False  # Literal cannot contain lists see pep 586
-        elif issubclass(get_origin(t), list):  # type: ignore
+        elif issubclass(get_origin(t), list):
             if test_type and get_args(t):
                 first_arg = get_args(t)[0]
                 # To support a list with union of multiple product blocks.
