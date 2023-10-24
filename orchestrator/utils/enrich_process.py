@@ -13,8 +13,11 @@
 
 from typing import Optional
 
-from orchestrator.db import ProcessTable, SubscriptionTable
-from orchestrator.workflow import ProcessStat, Step
+from more_itertools import first
+
+from orchestrator.db import ProcessStepTable, ProcessTable, SubscriptionTable
+from orchestrator.utils.get_updated_fields import get_updated_fields
+from orchestrator.workflow import ProcessStat, Step, StepStatus
 from pydantic_forms.core import generate_form
 
 
@@ -42,31 +45,42 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
     }
 
 
+step_finish_statuses = [StepStatus.SUCCESS, StepStatus.SKIPPED, StepStatus.COMPLETE]
+
+
+def find_previous_step(steps: list[ProcessStepTable], index: int) -> ProcessStepTable | None:
+    return first([step for step in reversed(steps[:index]) if step.status in step_finish_statuses], None)
+
+
+def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable | None) -> dict:
+    state_delta = get_updated_fields(previous_step.state, step.state) if previous_step else step.state
+
+    return {
+        "name": step.name,
+        "executed": step.executed_at.timestamp(),
+        "status": step.status,
+        "state": step.state,
+        "created_by": step.created_by,
+        "step_id": step.step_id,
+        "stepid": step.step_id,
+        "state_delta": state_delta,
+    }
+
+
 def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
     current_state = p_stat.state.unwrap() if p_stat.state else None
-
-    steps = [
-        {
-            "name": step.name,
-            "executed": step.executed_at.timestamp(),
-            "status": step.status,
-            "state": step.state,
-            "created_by": step.created_by,
-            "step_id": step.step_id,
-            "stepid": step.step_id,
-        }
-        for step in process.steps
-    ]
+    steps: list[ProcessStepTable] = process.steps
+    dict_steps = [enrich_step_details(step, find_previous_step(steps, index)) for index, step in enumerate(steps)]
 
     def step_fn(step: Step) -> dict:
         return {"name": step.name, "status": "pending"}
 
-    steps += list(map(step_fn, p_stat.log)) if p_stat.log else []
+    dict_steps += list(map(step_fn, p_stat.log)) if p_stat.log else []
     form = p_stat.log[0].form if p_stat.log else None
     generated_form = generate_form(form, current_state, []) if form and current_state else None
 
     return {
-        "steps": steps,
+        "steps": dict_steps,
         "form": generated_form,
         "current_state": current_state,
     }
