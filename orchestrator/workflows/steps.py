@@ -180,7 +180,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
         return {"cached_subscription_ids": cached_subscription_ids}
 
     def _cache_other_subscriptions(product_block: ProductBlockModel) -> None:
-        for field in product_block.__fields__:
+        for field in product_block.model_fields:
             # subscription_instance is a ProductBlockModel or an arbitrary type
             subscription_instance: Union[ProductBlockModel, Any] = getattr(product_block, field)
             # If subscription_instance is a list, we need to step into it and loop.
@@ -195,7 +195,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
                 if not subscription_instance.owner_subscription_id == subscription.subscription_id:
                     cached_subscription_ids.add(subscription_instance.owner_subscription_id)
 
-    for field in subscription.__fields__:
+    for field in subscription.model_fields:
         # There always is a single Root Product Block, it cannot be a list, so no need to check.
         instance: Union[ProductBlockModel, Any] = getattr(subscription, field)
         if isinstance(instance, ProductBlockModel):
