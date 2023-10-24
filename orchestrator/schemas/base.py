@@ -19,8 +19,8 @@ from nwastdlib.vlans import VlanRanges
 
 
 class OrchestratorBaseModel(BaseModel):
-    # TODO[pydantic]: The following keys were removed: `json_encoders`.
-    # Check https://docs.pydantic.dev/dev-v2/migration/#changes-to-config for more information.
+    # TODO json_encoders is deprecated and will be removed in Pydantic 3.x
+    #  The new way is to decorate each field with @field_serializer("name_of_field", when_used="json")
     model_config = ConfigDict(
         json_encoders={
             VlanRanges: lambda vlanrange: str(vlanrange),

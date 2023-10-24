@@ -32,7 +32,7 @@ def test_happy_flow(generic_subscription_1, validation_workflow_instance):
 def test_no_subscription(validation_workflow_instance):
     with pytest.raises(FormValidationError) as error_info:
         run_workflow("validation_workflow", {"subscription_id": None})
-    assert "none is not an allowed value" in str(error_info.value)
+    assert "UUID input should be a string, bytes or UUID object".lower() in str(error_info.value).lower()
 
 
 def test_failed_validation(generic_subscription_1: str, validation_workflow_instance) -> None:

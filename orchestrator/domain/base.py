@@ -28,18 +28,18 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
     get_type_hints,
 )
 from uuid import UUID, uuid4
 
 import structlog
-from more_itertools import first, flatten, last, one, only
+import typing_extensions
+from more_itertools import first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
-from pydantic.main import ModelMetaclass
-from pydantic.types import ConstrainedList
-from pydantic.typing import get_args, get_origin
 from sqlalchemy.orm import selectinload
+from typing_extensions import get_args
 
 from orchestrator.db import (
     ProductBlockTable,
@@ -62,11 +62,14 @@ from orchestrator.types import (
     State,
     SubscriptionLifecycle,
     UUIDstr,
+    filter_nonetype,
+    get_origin_and_args,
     get_possible_product_block_types,
     is_list_type,
     is_of_type,
     is_optional_type,
     is_union_type,
+    list_factory,
 )
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
@@ -82,30 +85,6 @@ class serializable_property(property):
     """Inherit from property class to mark a field in a product block as serializable."""
 
     pass
-
-
-def _is_constrained_list_type(type: Type) -> bool:
-    """Check if type is a constained list type.
-
-    Example:
-        >>> _is_constrained_list_type(List[int])
-        False
-        >>> class ListType(ConstrainedList):
-        ...     min_items = 1
-        >>> _is_constrained_list_type(ListType)
-        True
-
-    """
-    # subclass on typing.List throws exception and there is no good way to test for this
-    try:
-        is_constrained_list = issubclass(type, ConstrainedList)
-    except Exception:
-        # Strip generic arguments, it still might be a subclass
-        if origin := get_origin(type):
-            return _is_constrained_list_type(origin)
-        return False
-
-    return is_constrained_list
 
 
 T = TypeVar("T")  # pragma: no mutate
@@ -128,7 +107,16 @@ class DomainModel(BaseModel):
     def __init_subclass__(
         cls, *args: Any, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
-        super().__init_subclass__()
+        pass
+
+    @classmethod
+    def __pydantic_init_subclass__(
+        cls,
+        *args: Any,
+        lifecycle: Optional[List[SubscriptionLifecycle]] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__pydantic_init_subclass__()
         cls._find_special_fields()
 
         if kwargs.keys():
@@ -138,20 +126,28 @@ class DomainModel(BaseModel):
                 kwargs=kwargs.keys(),
             )
 
-        # Check if dependency subscription instance models conform to the same lifecycle
-        for product_block_field_name, product_block_field_type in cls._get_depends_on_product_block_types().items():
-            if lifecycle:
-                for lifecycle_status in lifecycle:
-                    if is_union_type(
-                        product_block_field_type
-                    ):  # added to support a list with union of multiple product blocks.
-                        product_block_field_type = get_args(product_block_field_type)
+        if not lifecycle:
+            return
 
-                    if isinstance(product_block_field_type, tuple):
-                        for field_type in product_block_field_type:
-                            validate_lifecycle_status(product_block_field_name, field_type, lifecycle_status)
-                    else:
-                        validate_lifecycle_status(product_block_field_name, product_block_field_type, lifecycle_status)
+        # Check if dependency subscription instance models conform to the same lifecycle
+        for product_block_field_name, _product_block_field_type in cls._get_depends_on_product_block_types().items():
+            # TODO change below to use
+            # origin, args = get_origin_and_args(_product_block_field_type)
+
+            # First unpack the union value
+            product_block_field_type = get_args(_product_block_field_type)
+
+            if is_optional_type(product_block_field_type):
+                types = [first(get_args(product_block_field_type))]
+            elif isinstance(product_block_field_type, tuple):
+                types = product_block_field_type
+            elif is_union_type(product_block_field_type):
+                types = get_args(product_block_field_type)
+            else:
+                types = [product_block_field_type]
+            for lifecycle_status in lifecycle:
+                for field_type in types:
+                    validate_lifecycle_status(product_block_field_name, field_type, lifecycle_status)
 
     @classmethod
     def _get_depends_on_product_block_types(
@@ -159,19 +155,19 @@ class DomainModel(BaseModel):
     ) -> Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]:
         """Return all the product block model types.
 
-        This strips any List[..] or Optional[...] types.
+        This strips any List[], Optional[] or Annotated[] types.
         """
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
-                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(
-                    product_block_field_type
-                )
-            # exclude non-Optional Unions as they contain more than one useful element.
+                # exclude non-Optional Unions as they contain more than one useful element.
+                _origin, args = get_origin_and_args(product_block_field_type)
+                field_type = cast(Tuple[Type[ProductBlockModel]], args)
             elif is_list_type(product_block_field_type) or (
                 is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
             ):
-                field_type = first(get_args(product_block_field_type))
+                _origin, args = get_origin_and_args(product_block_field_type)
+                field_type = first(args)
             else:
                 field_type = product_block_field_type
 
@@ -199,8 +195,8 @@ class DomainModel(BaseModel):
 
         annotations = get_annotations(cls)
 
-        # Retrieve type hints with evaluated ForwardRefs (for nested blocks)
-        type_hints = get_type_hints(cls, localns={cls.__name__: cls})
+        # Retrieve type hints with evaluated ForwardRefs (for nested blocks) and extra annotations
+        type_hints = get_type_hints(cls, localns={cls.__name__: cls}, include_extras=True)
 
         # But this also returns inherited fields so cross-check against the annotations
         final_annotations = {k: type_hints[k] for k in annotations}
@@ -222,7 +218,7 @@ class DomainModel(BaseModel):
 
             # Figure out if this field_name has an alias. Needed sometimes for serializable properties that
             # have a 'real' property with the same name that has a field alias.
-            if field := cls.__fields__.get(field_name):
+            if (field := cls.model_fields.get(field_name)) and field.alias:
                 field_name = field.alias
 
             # We only want fields that are on this class and not on the related product blocks
@@ -257,19 +253,7 @@ class DomainModel(BaseModel):
                 continue
 
             if is_list_type(product_block_field_type):
-                if _is_constrained_list_type(product_block_field_type):
-                    product_block_model = one(get_args(product_block_field_type))
-                    if is_union_type(product_block_model):
-                        product_block_model = last(get_args(product_block_model))
-                    default_value = product_block_field_type()
-                    # if constrainedlist has minimum, return that minimum else empty list
-                    if product_block_field_type.min_items:
-                        logger.debug("creating min_items", type=product_block_field_type)  # pragma: no mutate
-                        for _ in range(product_block_field_type.min_items):
-                            default_value.append(product_block_model.new(subscription_id=subscription_id))
-                else:
-                    # a list field of ProductBlockModels without limits gets an empty list
-                    default_value = []
+                default_value = list_factory(product_block_field_type, subscription_id=subscription_id)
             elif is_optional_type(product_block_field_type, ProductBlockModel):
                 default_value = None
             elif is_union_type(product_block_field_type):
@@ -348,7 +332,8 @@ class DomainModel(BaseModel):
 
             product_block_model: Any = product_block_field_type
             if is_list_type(product_block_field_type):
-                product_block_model = one(get_args(product_block_field_type))
+                _origin, args = get_origin_and_args(product_block_field_type)
+                product_block_model = one(args)
 
             possible_product_block_types = get_possible_product_block_types(product_block_model)
             field_type_names = list(possible_product_block_types.keys())
@@ -358,8 +343,6 @@ class DomainModel(BaseModel):
             if is_list_type(product_block_field_type):
                 if product_block_field_name not in grouped_instances:
                     product_block_model_list = []
-                    if _is_constrained_list_type(product_block_field_type):
-                        product_block_model_list = product_block_field_type()
 
                 product_block_model_list.extend(
                     possible_product_block_types[instance.product_block.name].from_db(
@@ -387,14 +370,17 @@ class DomainModel(BaseModel):
 
     @classmethod
     def _data_from_lifecycle(cls, other: "DomainModel", status: SubscriptionLifecycle, subscription_id: UUID) -> Dict:
-        data = other.dict()
+        data = other.model_dump()
 
         for field_name, field_type in cls._product_block_fields_.items():
             value = getattr(other, field_name)
+            if value is None:
+                continue
 
+            _origin, args = get_origin_and_args(field_type)
             if is_list_type(field_type):
                 data[field_name] = []
-                list_field_type = one(get_args(field_type))
+                list_field_type = one(args)
                 possible_product_block_types = get_possible_product_block_types(list_field_type)
 
                 for item in value:
@@ -405,12 +391,20 @@ class DomainModel(BaseModel):
                 if is_union_type(field_type):
                     if is_optional_type(field_type):
                         data[field_name] = None
-                    field_types = get_args(field_type)
-                    for f_type in field_types:
-                        if value and not isinstance(None, f_type) and f_type.name == value.name:
+                    for f_type in filter_nonetype(args):
+                        if f_type.name == value.name:
                             field_type = f_type
-                if value:
-                    data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
+                            break
+                    else:
+                        logger.warning(
+                            "Cannot determine type for product block field value",
+                            field_name=field_name,
+                            field_type=field_type,
+                            value_name=value.name,
+                        )
+                        continue
+
+                data[field_name] = field_type._from_other_lifecycle(value, status, subscription_id)
         return data
 
     def _save_instances(
@@ -463,8 +457,12 @@ class DomainModel(BaseModel):
 
         return list(get_all_props())
 
-    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        """Override the dict function to include serializable properties."""
+    @typing_extensions.deprecated("dict() is deprecated and will be removed in the future, use model_dump() instead")
+    def dict(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return self.model_dump(*args, **kwargs)
+
+    def model_dump(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Override the model_dump function to include serializable properties."""
         attribs = super().model_dump(**kwargs)
         props = self.get_properties()
 
@@ -480,7 +478,8 @@ class DomainModel(BaseModel):
         return attribs
 
 
-class ProductBlockModelMeta(ModelMetaclass):
+# class ProductBlockModelMeta(ModelMetaclass):
+class ProductBlockModelMeta(type(BaseModel)):  # type: ignore
     """Metaclass used to create product block instances.
 
     This metaclass is used to make sure the class contains product block metadata.
@@ -524,7 +523,9 @@ def get_depends_on_product_block_type_list(
     product_blocks_types_in_model = []
     for product_block_type in product_block_types.values():
         if is_union_type(product_block_type):
-            for union_product_block_type in get_args(product_block_type):
+            _origin, args = get_origin_and_args(product_block_type)
+            # for union_product_block_type in get_args(product_block_type):
+            for union_product_block_type in args:
                 if not isinstance(None, union_product_block_type):
                     product_blocks_types_in_model.append(union_product_block_type)
         else:
@@ -586,14 +587,15 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     owner_subscription_id: UUID
     label: Optional[str] = None
 
-    def __init_subclass__(
+    @classmethod
+    def __pydantic_init_subclass__(
         cls,
         *,
         product_block_name: Optional[str] = None,
         lifecycle: Optional[List[SubscriptionLifecycle]] = None,
         **kwargs: Any,
     ) -> None:
-        super().__init_subclass__(lifecycle=lifecycle, **kwargs)
+        super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
 
         if product_block_name is not None:
             # This is a concrete product block base class (so not a abstract super class or a specific lifecycle version)
@@ -1031,10 +1033,11 @@ class SubscriptionModel(DomainModel):
 
         return super().__new__(cls)
 
-    def __init_subclass__(
+    @classmethod
+    def __pydantic_init_subclass__(
         cls, is_base: bool = False, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
-        super().__init_subclass__(lifecycle=lifecycle, **kwargs)
+        super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
 
         if is_base:
             cls.__base_type__ = cls
@@ -1450,20 +1453,3 @@ def validate_lifecycle_change(
 
 
 SI = TypeVar("SI", covariant=True)  # pragma: no mutate
-
-
-class SubscriptionInstanceList(ConstrainedList, List[SI]):  # type: ignore
-    """Shorthand to create constrained lists of product blocks."""
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-
-        # Copy generic argument (SI) if not set explicitly
-        # This makes a lot of assumptions about the internals of `typing`
-        if "__orig_bases__" in cls.__dict__ and cls.__dict__["__orig_bases__"]:
-            generic_base_cls = cls.__dict__["__orig_bases__"][0]
-            if not hasattr(generic_base_cls, "item_type") and get_args(generic_base_cls):
-                cls.item_type = get_args(generic_base_cls)[0]
-
-        # Make sure __args__ is set
-        cls.__args__ = (cls.item_type,)
