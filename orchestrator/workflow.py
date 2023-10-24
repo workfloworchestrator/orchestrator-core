@@ -177,8 +177,8 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
 
     # If f is a SimpleInputFormGenerator convert to new style generator function
     def form_generator(state: State) -> FormGenerator:
-        user_input = yield cast(StateSimpleInputFormGenerator, f)(state)
-        return user_input.dict()
+        user_input: FormPage = yield cast(StateSimpleInputFormGenerator, f)(state)
+        return user_input.model_dump()
 
     return form_generator
 

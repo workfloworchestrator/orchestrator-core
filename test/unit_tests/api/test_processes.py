@@ -21,6 +21,7 @@ from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
+from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
@@ -200,19 +201,26 @@ def test_complete_workflow(test_client, test_workflow):
     steps = process["steps"]
     assert "success" == steps[0]["status"]
 
-    # Check validation
-    user_input = {
-        "generic_select": 123,
-    }
+    # Check type validation
+    user_input = {"generic_select": 123}
+    response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    assert response.json()["validation_errors"] == [
+        {"input": 123, "loc": ["generic_select"], "msg": "Input should be a valid string", "type": "string_type"}
+        | URL_STR_TYPE
+    ]
 
+    # Check choice validation
+    user_input = {"generic_select": "123"}
     response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert response.json()["validation_errors"] == [
         {
+            "ctx": {"expected": "'A', 'B' or 'C'"},
+            "input": "123",
             "loc": ["generic_select"],
-            "msg": "value is not a valid enumeration member; permitted: 'A', 'B', 'C'",
-            "type": "type_error.enum",
-            "ctx": {"enum_values": ["A", "B", "C"]},
+            "msg": "Input should be 'A', 'B' or 'C'",
+            "type": "enum",
         }
     ]
 
@@ -296,10 +304,11 @@ def test_resume_validations(test_client, started_process):
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert [
         {
-            "ctx": {"enum_values": ["A", "B", "C"]},
+            "type": "string_type",
             "loc": ["generic_select"],
-            "msg": "value is not a valid enumeration member; permitted: 'A', 'B', 'C'",
-            "type": "type_error.enum",
+            "msg": "Input should be a valid string",
+            "input": 123,
+            "url": "https://errors.pydantic.dev/2.4/v/string_type",
         }
     ] == response.json()["validation_errors"]
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()

@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ConfigDict
 
 from orchestrator.types import strEnum
 from orchestrator.utils.json import json_dumps, json_loads
@@ -71,8 +72,7 @@ def test_post_process_wizard():
         class TestForm1(FormPage):
             generic_select1: TestChoices
 
-            class Config:
-                title = "Some title"
+            model_config = ConfigDict(title="Some title")
 
         class TestForm2(FormPage):
             generic_select2: TestChoices
@@ -150,9 +150,7 @@ def test_generate_form():
     def input_form(state):
         class TestForm1(FormPage):
             generic_select1: TestChoices
-
-            class Config:
-                title = "Some title"
+            model_config = ConfigDict(title="Some title")
 
         class TestForm2(FormPage):
             generic_select2: TestChoices
