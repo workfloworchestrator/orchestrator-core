@@ -147,14 +147,14 @@ def test_constrained_list_schema():
         "title": "unknown",
         "type": "object",
     }
-    assert expected == UniqueConListModel.schema()
+    assert expected == UniqueConListModel.model_json_schema()
 
 
 def test_accept_ok():
     class Form(FormPage):
         accept: Accept
 
-    validated_data = Form(accept="ACCEPTED").dict()
+    validated_data = Form(accept="ACCEPTED").model_dump()
 
     expected = {"accept": True}
     assert expected == json_loads(json_dumps(validated_data))
@@ -178,7 +178,7 @@ def test_accept_schema():
         "title": "unknown",
         "type": "object",
     }
-    assert expected == Form.schema()
+    assert expected == Form.model_json_schema()
 
 
 def test_accept_schema_with_data():
@@ -203,7 +203,7 @@ def test_accept_schema_with_data():
         "title": "unknown",
         "type": "object",
     }
-    assert expected == Form.schema()
+    assert expected == Form.model_json_schema()
 
 
 def test_accept_nok():
@@ -298,7 +298,7 @@ def test_choice_schema():
         choice: LegChoice
         choice_label: LegChoiceLabel
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "definitions": {
             "LegChoice": {
@@ -390,7 +390,7 @@ def test_choice_list_schema():
         choice: choice_list(LegChoice)
         choice_label: choice_list(LegChoiceLabel)
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "definitions": {
             "LegChoice": {
@@ -462,7 +462,7 @@ def test_contact_persons():
 
     validated_data = Form(
         contact_persons=[{"name": "test1", "email": "a@b.nl", "phone": ""}, {"name": "test2", "email": "a@b.nl"}]
-    ).dict()
+    ).model_dump()
 
     expected = {
         "contact_persons": [
@@ -486,7 +486,7 @@ def test_contact_persons_schema():
         contact_persons_org: OrgContactPersonList
         contact_persons_org2: contact_person_list(org_id, "foo")  # noqa: F821
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "definitions": {
             "ContactPerson": {
@@ -575,7 +575,7 @@ def test_long_text_schema():
     class Form(FormPage):
         long_text: LongText
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {"long_text": {"format": "long", "title": "Long Text", "type": "string"}},
         "required": ["long_text"],
@@ -590,8 +590,8 @@ def test_display():
         label: Label
         migration_summary: migration_summary({"headers": ["one"]})  # noqa: F821
 
-    assert Form().dict() == {"display_sub": None, "label": None, "migration_summary": None}
-    assert Form(display_sub="foo", label="bar", migration_summary="baz").dict() == {
+    assert Form().model_dump() == {"display_sub": None, "label": None, "migration_summary": None}
+    assert Form(display_sub="foo", label="bar", migration_summary="baz").model_dump() == {
         "display_sub": None,
         "label": None,
         "migration_summary": None,
@@ -603,8 +603,8 @@ def test_labels_with_value_and_dividers():
         label: Label = "value"
         divider: Divider
 
-    assert Form().dict() == {"label": "value", "divider": None}
-    assert Form(label="fob", divider="baz").dict() == {
+    assert Form().model_dump() == {"label": "value", "divider": None}
+    assert Form(label="fob", divider="baz").model_dump() == {
         "label": "value",
         "divider": None,
     }
@@ -618,7 +618,7 @@ def test_display_only_schema():
         label: Label
         migration_summary: migration_summary({"headers": ["one"]})  # noqa: F821
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "display_sub": {
@@ -644,7 +644,7 @@ def test_read_only_field_schema():
     class Form(FormPage):
         read_only: int = ReadOnlyField(1, const=False)
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "read_only": {
@@ -664,7 +664,7 @@ def test_organisation_id_schema():
     class Form(FormPage):
         org_id: OrganisationId
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {"org_id": {"format": "organisationId", "title": "Org Id", "type": "string"}},
         "required": ["org_id"],
@@ -684,12 +684,12 @@ def test_display_default():
         label: Label = "bla"
         migration_summary: Summary = "foo"
 
-    assert Form().dict() == {
+    assert Form().model_dump() == {
         "display_sub": some_sub_id,
         "label": "bla",
         "migration_summary": "foo",
     }
-    assert Form(display_sub="").dict() == {
+    assert Form(display_sub="").model_dump() == {
         "display_sub": some_sub_id,
         "label": "bla",
         "migration_summary": "foo",
@@ -720,7 +720,7 @@ def test_product_id_schema():
         product_x: product_id([product_x_id])
         product_id: ProductId
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "product_id": {"format": "productId", "title": "Product Id", "type": "string"},
@@ -781,7 +781,7 @@ def test_migration_summary_schema():
         ms1: Summary
         ms2: migration_summary("bar")  # noqa: F821
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "ms1": {"format": "summary", "title": "Ms1", "type": "string", "uniforms": {"data": "foo"}},
@@ -877,4 +877,4 @@ def test_list_of_two_schema():
         "title": "unknown",
         "type": "object",
     }
-    assert expected == Form.schema()
+    assert expected == Form.model_json_schema()
