@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, WrapSerializer, model_validator
 from typing_extensions import Annotated
@@ -28,14 +28,13 @@ class BFD(BaseModel):
     minimum_interval: Optional[Annotated[int, Field(ge=1, le=255000)]] = 900
     multiplier: Optional[Annotated[int, Field(ge=1, le=255)]] = 3
 
-    @model_validator()
-    @classmethod
-    def check_optional_fields(cls, values: Dict) -> Dict:  # noqa: B902
-        if not values.get("enabled"):
-            values.pop("minimum_interval", None)
-            values.pop("multiplier", None)
+    @model_validator(mode="after")
+    def check_optional_fields(self) -> "BFD":
+        if not self.enabled:
+            self.minimum_interval = None
+            self.multiplier = None
 
-        return values
+        return self
 
 
 MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
