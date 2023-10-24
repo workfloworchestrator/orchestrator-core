@@ -79,7 +79,7 @@ async def set_global_status(
         )
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         user_name = user.user_name if user else SYSTEM_USER
-        settings.post_update_to_slack(EngineSettingsSchema.from_orm(result), user_name)
+        settings.post_update_to_slack(EngineSettingsSchema.model_validate(result), user_name)
 
     status_response = generate_engine_status_response(result)
     if websocket_manager.enabled:
@@ -158,15 +158,15 @@ def generate_engine_status_response(
     """
 
     if engine_settings.global_lock and engine_settings.running_processes > 0:
-        result = EngineSettingsSchema.from_orm(engine_settings)
+        result = EngineSettingsSchema.model_validate(engine_settings)
         result.global_status = GlobalStatusEnum.PAUSING
         return result
 
     if engine_settings.global_lock and engine_settings.running_processes == 0:
-        result = EngineSettingsSchema.from_orm(engine_settings)
+        result = EngineSettingsSchema.model_validate(engine_settings)
         result.global_status = GlobalStatusEnum.PAUSED
         return result
 
-    result = EngineSettingsSchema.from_orm(engine_settings)
+    result = EngineSettingsSchema.model_validate(engine_settings)
     result.global_status = GlobalStatusEnum.RUNNING
     return result

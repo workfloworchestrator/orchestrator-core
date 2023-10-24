@@ -27,7 +27,7 @@ def test_bfd_schema():
     class Form(FormPage):
         bfd: BFD
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "definitions": {
             "BFD": {
@@ -148,7 +148,7 @@ def test_mtu_schema():
     class Form(FormPage):
         mtu: MTU
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "mtu": {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "title": "Mtu", "type": "integer"}
@@ -205,7 +205,7 @@ def test_vlanranges_schema():
     class Form(FormPage):
         vlanranges: VlanRangesValidator
 
-    assert Form.schema() == {
+    assert Form.model_json_schema() == {
         "additionalProperties": False,
         "properties": {
             "vlanranges": {

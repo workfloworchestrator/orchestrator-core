@@ -463,7 +463,7 @@ class DomainModel(BaseModel):
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Override the dict function to include serializable properties."""
-        attribs = super().dict(**kwargs)
+        attribs = super().model_dump(**kwargs)
         props = self.get_properties()
 
         # Include and exclude properties

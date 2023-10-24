@@ -64,7 +64,7 @@ def _merge(cls: Type, d: Dict) -> None:
 
 def save(cls: Type, json_data: BaseModel) -> None:
     try:
-        json_dict = transform_json(json_data.dict())
+        json_dict = transform_json(json_data.model_dump())
         _merge(cls, json_dict)
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
@@ -72,14 +72,14 @@ def save(cls: Type, json_data: BaseModel) -> None:
 
 def create_or_update(cls: Type, obj: BaseModel) -> None:
     try:
-        json_dict = transform_json(obj.dict())
+        json_dict = transform_json(obj.model_dump())
         _merge(cls, json_dict)
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
 def update(cls: Type, base_model: BaseModel) -> None:
-    json_dict = transform_json(base_model.dict())
+    json_dict = transform_json(base_model.model_dump())
     pk = list({k: v for k, v, *_ in cls.__table__.columns._collection if v.primary_key}.keys())[0]
     instance = cls.query.filter(cls.__dict__[pk] == json_dict[pk])
     if not instance:

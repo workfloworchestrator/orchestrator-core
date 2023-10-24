@@ -148,7 +148,7 @@ def to_serializable(o: Any) -> Any:
         # api_client models all have a to_dict function
         return o.to_dict()
     if isinstance(o, BaseModel):
-        return o.dict()
+        return o.model_dump()
     if isinstance(o, Set):
         return list(o)
     raise TypeError(f"Could not serialize object of type {o.__class__.__name__} to JSON")
