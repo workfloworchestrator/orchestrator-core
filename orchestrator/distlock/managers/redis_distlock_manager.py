@@ -38,7 +38,7 @@ class RedisDistLockManager:
         self.redis_address = redis_address
 
     async def connect_redis(self) -> None:
-        self.redis_conn = AIORedis.from_url(self.redis_address)
+        self.redis_conn = AIORedis.from_url(str(self.redis_address))
 
     async def disconnect_redis(self) -> None:
         if self.redis_conn:
@@ -79,7 +79,7 @@ class RedisDistLockManager:
     def release_sync(self, lock: Lock) -> None:
         redis_conn: Optional[Redis] = None
         try:
-            redis_conn = Redis.from_url(app_settings.CACHE_URI)
+            redis_conn = Redis.from_url(str(app_settings.CACHE_URI))
             sync_lock: SyncLock = SyncLock(
                 redis=redis_conn,
                 name=lock.name,  # type: ignore
