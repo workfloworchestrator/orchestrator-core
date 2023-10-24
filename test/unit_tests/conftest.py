@@ -629,7 +629,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(app_settings.CACHE_URI)
+        cache = Redis.from_url(str(app_settings.CACHE_URI))
         # Clear cache before using this fixture
         cache.flushdb()
 
