@@ -326,7 +326,7 @@ def run_form_generator(
         You can run this without extra_inputs
         >>> forms, result = run_form_generator(form_generator({"state_field": 1}))
         >>> forms
-        [{'title': 'unknown', 'type': 'object', 'properties': {'field': {'title': 'Field', 'default': 'foo', 'type': 'string'}}, 'additionalProperties': False}]
+        [{'additionalProperties': False, 'properties': {'field': {'default': 'foo', 'title': 'Field', 'type': 'string'}}, 'title': 'unknown', 'type': 'object'}]
         >>> result
         {'field': 'foo', 'bar': 42}
 
@@ -334,7 +334,7 @@ def run_form_generator(
         Or with extra_inputs:
         >>> forms, result = run_form_generator(form_generator({'state_field': 1}), [{'field':'baz'}])
         >>> forms
-        [{'title': 'unknown', 'type': 'object', 'properties': {'field': {'title': 'Field', 'default': 'foo', 'type': 'string'}}, 'additionalProperties': False}]
+        [{'additionalProperties': False, 'properties': {'field': {'default': 'foo', 'title': 'Field', 'type': 'string'}}, 'title': 'unknown', 'type': 'object'}]
         >>> result
         {'field': 'baz', 'bar': 42}
 
