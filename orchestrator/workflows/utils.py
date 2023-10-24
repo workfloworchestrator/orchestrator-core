@@ -218,7 +218,9 @@ def create_workflow(
 
 
 def modify_workflow(
-    description: str, initial_input_form: Optional[InputStepFunc] = None, additional_steps: Optional[StepList] = None
+    description: str,
+    initial_input_form: Optional[InputStepFunc] = None,
+    additional_steps: Optional[StepList] = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -253,7 +255,9 @@ def modify_workflow(
 
 
 def terminate_workflow(
-    description: str, initial_input_form: Optional[InputStepFunc] = None, additional_steps: Optional[StepList] = None
+    description: str,
+    initial_input_form: Optional[InputStepFunc] = None,
+    additional_steps: Optional[StepList] = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
