@@ -20,14 +20,13 @@ body:
     id: feature
     attributes:
       label: What should we build?
-      description: What feature are we missing? What would an ideal solution look like
+      description: What feature are we missing? What would an ideal solution look like?
       placeholder: Tell us what we should build!
-      value: "A great new feature"
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      label: Relevant pseudo code
+      description: Please write, copy or paste any relevant log output and or code. This will be automatically formatted into code, so no need for backticks.
       render: shell
