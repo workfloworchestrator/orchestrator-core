@@ -43,6 +43,7 @@ class ProcessStepType:
     executed: strawberry.auto
     commit_hash: strawberry.auto
     state: Union[JSON, None]
+    state_delta: Union[JSON, None]
 
     @authenticated_field(
         description="Returns step id",
