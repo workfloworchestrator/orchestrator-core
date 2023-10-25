@@ -17,6 +17,7 @@ from pydantic import BaseSettings
 
 class ProductGeneratorSettings(BaseSettings):
     FOLDER_PREFIX: Path = Path("")
+    CUSTOM_TEMPLATES: Path = Path("")
 
     PRODUCT_TYPES_PATH: Path = Path("products/product_types")
     PRODUCT_BLOCKS_PATH: Path = Path("products/product_blocks")

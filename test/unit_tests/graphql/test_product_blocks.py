@@ -107,6 +107,7 @@ def test_product_blocks_query(test_client):
             "inUseBy": [],
         },
     ]
+    product_blocks.sort(key=lambda x: x["name"])  # No sort in the query; sort before the assert to prevent flaky tests
     assert product_blocks == expected
 
 
@@ -173,7 +174,7 @@ def test_product_block_query_with_relations(test_client):
         },
     ]
 
-    exclude_paths = exclude_paths = [f"root[{i}]['createdAt']" for i in range(len(expected))]
+    exclude_paths = [f"root[{i}]['createdAt']" for i in range(len(expected))]
     assert_no_diff(expected, product_blocks, exclude_paths=exclude_paths)
 
 
@@ -196,6 +197,7 @@ def test_product_blocks_has_previous_page(test_client):
     }
 
     assert len(product_blocks) == 5
+    product_blocks.sort(key=lambda x: x["name"])  # No sort in the query; sort before the assert to prevent flaky tests
     assert product_blocks[0]["name"] == "PB_2"
     assert product_blocks[1]["name"] == "PB_3"
 

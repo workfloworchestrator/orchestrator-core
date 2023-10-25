@@ -18,13 +18,22 @@ from orchestrator.cli.generator.generator.fixed_input import (
     get_str_enum_fixed_inputs,
     replace_enum_fixed_inputs,
 )
-from orchestrator.cli.generator.generator.helpers import get_product_file_name, path_to_module, product_types_module
+from orchestrator.cli.generator.generator.helpers import (
+    create_dunder_init_files,
+    get_product_file_name,
+    path_to_module,
+    product_types_module,
+)
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
+
+
+def get_product_types_folder() -> Path:
+    return settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH
 
 
 def get_product_path(config: dict) -> Path:
     file_name = get_product_file_name(config)
-    return settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH / Path(file_name).with_suffix(".py")
+    return get_product_types_folder() / Path(file_name).with_suffix(".py")
 
 
 def generate_product(context: dict) -> None:
@@ -54,3 +63,4 @@ def generate_product(context: dict) -> None:
 
     path = get_product_path(config)
     writer(path, content)
+    create_dunder_init_files(get_product_types_folder())
