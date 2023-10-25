@@ -2,13 +2,11 @@ import json
 from http import HTTPStatus
 from typing import Union
 
-from fastapi import Response
-
 
 def get_workflows_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
+    filter_by: Union[list[dict[str, str]], None] = None,
     sort_by: Union[list[dict[str, str]], None] = None,
 ) -> bytes:
     query = """
@@ -19,6 +17,10 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
       name
       description
       createdAt
+      steps {
+        name
+        assignee
+      }
     }
     pageInfo {
       endCursor
@@ -46,7 +48,7 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
 
 def test_workflows_query(test_client):
     data = get_workflows_query(first=2)
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -56,6 +58,8 @@ def test_workflows_query(test_client):
 
     assert "errors" not in result
     assert len(workflows) == 2
+
+    assert all(len(workflow["steps"]) > 0 for workflow in workflows)
 
     assert pageinfo == {
         "hasPreviousPage": False,
@@ -67,8 +71,8 @@ def test_workflows_query(test_client):
 
 
 def test_workflows_has_previous_page(test_client):
-    data = get_workflows_query(after=1, sort_by={"field": "name", "order": "ASC"})
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    data = get_workflows_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -98,7 +102,7 @@ def test_workflows_filter_by_name(test_client):
         filter_by=[{"field": "name", "value": "task_"}],
         sort_by=[{"field": "name", "order": "ASC"}],
     )
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]
@@ -122,7 +126,7 @@ def test_workflows_filter_by_product(test_client):
         filter_by=[{"field": "products", "value": "Product 1"}],
         sort_by=[{"field": "name", "order": "ASC"}],
     )
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]
@@ -142,7 +146,7 @@ def test_workflows_filter_by_product(test_client):
 
 def test_workflows_sort_by_resource_type_desc(test_client):
     data = get_workflows_query(sort_by=[{"field": "name", "order": "DESC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
 

@@ -1,11 +1,18 @@
-from typing import TYPE_CHECKING, Annotated, List
+from typing import TYPE_CHECKING, Annotated, List, Optional
 
 import strawberry
 
-from orchestrator.schemas import WorkflowSchema
+from orchestrator.config.assignee import Assignee
+from orchestrator.schemas import StepSchema, WorkflowSchema
+from orchestrator.workflows import get_workflow
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.product import ProductType
+
+
+@strawberry.experimental.pydantic.type(model=StepSchema, all_fields=True)
+class Step:
+    assignee: Optional[Assignee]
 
 
 @strawberry.experimental.pydantic.type(model=WorkflowSchema, all_fields=True)
@@ -15,3 +22,7 @@ class Workflow:
         from orchestrator.graphql.schemas.product import ProductType
 
         return [ProductType.from_pydantic(product) for product in self._original_model.products]  # type: ignore
+
+    @strawberry.field(description="Return all steps for this workflow")  # type: ignore
+    def steps(self) -> List[Step]:
+        return [Step(name=step.name, assignee=step.assignee) for step in get_workflow(self.name).steps]  # type: ignore
