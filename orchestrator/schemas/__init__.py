@@ -38,7 +38,12 @@ from orchestrator.schemas.subscription_descriptions import (
     SubscriptionDescriptionBaseSchema,
     SubscriptionDescriptionSchema,
 )
-from orchestrator.schemas.workflow import SubscriptionWorkflowListsSchema, WorkflowSchema, WorkflowWithProductTagsSchema
+from orchestrator.schemas.workflow import (
+    StepSchema,
+    SubscriptionWorkflowListsSchema,
+    WorkflowSchema,
+    WorkflowWithProductTagsSchema,
+)
 
 __all__ = (
     "EngineSettingsSchema",
@@ -59,6 +64,7 @@ __all__ = (
     "ProcessDeprecationsSchema",
     "ProcessIdSchema",
     "ProcessSubscriptionBaseSchema",
+    "StepSchema",
     "SubscriptionDescriptionBaseSchema",
     "SubscriptionDescriptionSchema",
     "SubscriptionSchema",

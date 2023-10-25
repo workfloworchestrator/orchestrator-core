@@ -17,32 +17,42 @@ PRODUCT_ID = "fb28e465-87fd-4d23-9c75-ed036529e416"
 def test_workflows(test_client):
     response = test_client.get("/api/workflows")
 
-    assert HTTPStatus.OK == response.status_code
+    assert response.status_code == HTTPStatus.OK
     workflows = response.json()
 
     assert len(workflows) == WorkflowTable.query.count()
-    for workflow in workflows:
-        assert workflow["name"] is not None
-        assert workflow["target"] is not None
+    assert all(workflow["name"] is not None for workflow in workflows)
+    assert all(workflow["target"] is not None for workflow in workflows)
 
 
-def test_workflows_by_target(test_client):
-    for target, num_wfs in [
-        (Target.CREATE, WorkflowTable.query.filter(WorkflowTable.target == Target.CREATE).count()),
-        (Target.TERMINATE, WorkflowTable.query.filter(WorkflowTable.target == Target.TERMINATE).count()),
-        (Target.MODIFY, WorkflowTable.query.filter(WorkflowTable.target == Target.MODIFY).count()),
-    ]:
-        response = test_client.get(f"/api/workflows?target={target}")
-        workflows = response.json()
-        assert len(workflows) == num_wfs
-        for wf in workflows:
-            assert target == wf["target"]
+@pytest.mark.parametrize("target", (Target.CREATE, Target.TERMINATE, Target.MODIFY))
+def test_workflows_by_target(target, test_client):
+    response = test_client.get(f"/api/workflows?target={target}")
+    workflows = response.json()
+
+    num_wfs = WorkflowTable.query.filter(WorkflowTable.target == target).count()
+    assert len(workflows) == num_wfs
+    assert all(target == workflow["target"] for workflow in workflows)
+
+
+@pytest.mark.parametrize(
+    "include_steps, predicate",
+    ((False, lambda workflow: workflow["steps"] is None), (True, lambda workflow: len(workflow["steps"]) > 0)),
+)
+def test_workflows_include_steps(include_steps, predicate, test_client):
+    response = test_client.get(f"/api/workflows?include_steps={include_steps}")
+
+    assert response.status_code == HTTPStatus.OK
+    workflows = response.json()
+
+    assert len(workflows) == WorkflowTable.query.count()
+    assert all(predicate(workflow) for workflow in workflows)
 
 
 def test_get_all_with_product_tags(test_client):
     response = test_client.get("/api/workflows/with_product_tags")
 
-    assert HTTPStatus.OK == response.status_code
+    assert response.status_code == HTTPStatus.OK
     assert len(response.json()) == WorkflowTable.query.count()
 
 
