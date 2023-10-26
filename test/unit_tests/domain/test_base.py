@@ -1099,6 +1099,24 @@ def test_is_constrained_list_type():
     assert _is_constrained_list_type(List[int]) is False
 
 
+def test_product_block_with_si_list(test_product_one):
+    """Test a SubscriptionInstanceList within a ProductBlockModel.
+
+    This provides test coverage for SubscriptionInstanceList.__init_subclass__()
+    """
+
+    class ListOfValues(SubscriptionInstanceList[float]):
+        max_items = 3
+
+    class ProductBlockOneForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneForTest"):
+        values: ListOfValues = Field(default_factory=list)
+
+    block = ProductBlockOneForTestInactive(
+        subscription_instance_id=uuid4(), owner_subscription_id=uuid4(), values=["1.3", 2]
+    )
+    assert block.dict()["values"] == [1.3, 2.0]
+
+
 def test_diff_in_db_empty(test_product_one, test_product_type_one):
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
