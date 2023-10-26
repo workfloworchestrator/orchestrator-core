@@ -580,6 +580,10 @@ def _generate_etag(model: dict) -> str:
     return md5(encoded).hexdigest()  # noqa: S303, S324
 
 
+def convert_subscription_instance(obj: Any) -> dict[str, str]:
+    return {"subscription_instance_id": str(obj.subscription_instance_id), "subscription_id": str(obj.subscription_id)}
+
+
 def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     """Create a subscription dict from the SubscriptionModel with additional keys."""
     customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
@@ -592,8 +596,11 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     def inject_in_use_by_ids(path_to_block: str) -> None:
         if not (in_use_by_subs := getattr_in(subscription_model, f"{path_to_block}.in_use_by")):
             return
-        block_instance_ids = [obj.in_use_by_id for obj in in_use_by_subs.col]
-        update_in(subscription, f"{path_to_block}.in_use_by_ids", block_instance_ids)
+
+        in_use_by_ids = [obj.in_use_by_id for obj in in_use_by_subs.col]
+        in_use_by_relations = [convert_subscription_instance(instance) for instance in in_use_by_subs]
+        update_in(subscription, f"{path_to_block}.in_use_by_ids", in_use_by_ids)
+        update_in(subscription, f"{path_to_block}.in_use_by_relations", in_use_by_relations)
 
     # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
     for path in paths:
