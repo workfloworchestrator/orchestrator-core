@@ -68,6 +68,7 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
         subscriptionInstanceId
         ownerSubscriptionId
         productBlockInstanceValues
+        inUseByIds
       }
       product {
         productId
@@ -121,6 +122,10 @@ query SubscriptionQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $fi
       note
       startDate
       endDate
+      productBlockInstances {
+        ownerSubscriptionId
+        inUseByIds
+      }
       processes(sortBy: [{field: "startedAt", order: ASC}]) {
         page {
           processId
@@ -838,6 +843,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
                 {"field": "label", "value": None},
                 {"field": "rt1", "value": "Value1"},
             ],
+            "inUseByIds": [],
         },
         {
             "id": 1,
@@ -850,6 +856,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
                 {"field": "rt2", "value": 42},
                 {"field": "rt3", "value": "Value2"},
             ],
+            "inUseByIds": [],
         },
     ]
 
@@ -975,6 +982,11 @@ def test_single_subscription_with_in_use_by_subscriptions(
         subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
     ]
     assert result_in_use_by_ids == expected_in_use_by_ids
+
+    list_sub = SubscriptionModel.from_subscription(product_sub_list_union_subscription_1)
+    assert subscriptions[0]["productBlockInstances"] == [
+        {"ownerSubscriptionId": subscription_id, "inUseByIds": [str(list_sub.test_block.subscription_instance_id)]}
+    ]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="types get different origin with 3.10 and higher")
