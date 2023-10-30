@@ -12,12 +12,10 @@
 # limitations under the License.
 
 
-from typing import Any, Optional
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, WrapSerializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Annotated
-
-from nwastdlib.vlans import VlanRanges
 
 
 class BFD(BaseModel):
@@ -38,16 +36,3 @@ class BFD(BaseModel):
 
 
 MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
-
-
-def _serialize_vlanranges(_unused: Any, _handler: SerializerFunctionWrapHandler) -> dict:
-    return {
-        "pattern": "^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
-        "examples": ["345", "20-23,45,50-100"],
-        "type": "string",
-        "format": "vlanrange",
-    }
-
-
-# TODO Make sure this serializes to str, previously had `ENCODERS_BY_TYPE[VlanRanges]=str`
-VlanRangesValidator = Annotated[VlanRanges, WrapSerializer(_serialize_vlanranges)]
