@@ -16,7 +16,6 @@ from collections.abc import Callable
 
 import structlog
 
-from orchestrator.cli.generator.generator.helpers import get_variable
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 logger = structlog.getLogger(__name__)
@@ -31,14 +30,14 @@ def read_translations() -> dict:
             except ValueError:
                 logger.error("Failed to parse translation file.")
     except FileNotFoundError:
-        logger.error("File not found", path=path)
+        logger.error("File not found", path=str(path))
 
     return {}
 
 
 def add_workflow_translations(config: dict, writer: Callable) -> None:
     if translations := read_translations():
-        variable = get_variable(config)
+        variable = config["variable"]
         name = config["name"]
         workflows = {
             f"create_{variable}": f"Create {name}",
@@ -48,5 +47,5 @@ def add_workflow_translations(config: dict, writer: Callable) -> None:
         }
         translations["workflow"] = translations["workflow"] | workflows
 
-        path = ""
-        writer(path, translations["workflow"])
+        path = settings.FOLDER_PREFIX / settings.TRANSLATION_PATH
+        writer(path, json.dumps(translations))

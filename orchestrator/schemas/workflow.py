@@ -26,9 +26,14 @@ class WorkflowBaseSchema(OrchestratorBaseModel):
     created_at: Optional[datetime]
 
 
+class StepSchema(OrchestratorBaseModel):
+    name: str
+
+
 class WorkflowSchema(WorkflowBaseSchema):
     workflow_id: UUID
     created_at: datetime
+    steps: Optional[List[StepSchema]]
 
     class Config:
         orm_mode = True

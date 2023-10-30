@@ -62,6 +62,7 @@ nav:
   - Getting Started:
     - Base Application: getting-started/base.md
     - Development setup: getting-started/development.md
+    - Preparing source folder: getting-started/prepare-source-folder.md
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md
@@ -89,6 +90,7 @@ nav:
       - Api Docs: architecture/application/api.md
       - Scaling: architecture/application/scaling.md
       - Python version: architecture/application/python.md
+      - GraphQL: architecture/application/graphql.md
   - Workshops:
     - Beginner:
       - Overview: workshops/beginner/overview.md

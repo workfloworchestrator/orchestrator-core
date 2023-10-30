@@ -16,7 +16,7 @@
 import struct
 import zlib
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import structlog
@@ -162,7 +162,7 @@ def continue_awaiting_process_endpoint(
     process_id: UUID,
     token: str,
     request: Request,
-    json_data: JSON = Body(...),
+    json_data: State = Body(...),
 ) -> None:
     check_global_lock()
 
@@ -172,7 +172,7 @@ def continue_awaiting_process_endpoint(
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
 
     try:
-        continue_awaiting_process(process, token=token, input_data=cast(json_data, State))
+        continue_awaiting_process(process, token=token, input_data=json_data)
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
 

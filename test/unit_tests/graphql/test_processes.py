@@ -159,6 +159,45 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
     ).encode("utf-8")
 
 
+def get_processes_state_updates_and_delta(
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
+) -> bytes:
+    query = """
+query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
+  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+    page {
+      steps {
+        stateDelta
+        status
+      }
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "ProcessQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
 def test_processes_has_next_page(
     test_client,
     mocked_processes,
@@ -501,4 +540,40 @@ def test_processes_sorting_product_tag_asc(
         "GEN1",
         "GEN2",
         "GEN2",
+    ]
+
+
+def test_processes_state_updates_and_delta(
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
+):
+    # when
+
+    process_pid = str(mocked_processes[0])
+    data = get_processes_state_updates_and_delta(filter_by=[{"field": "processId", "value": process_pid}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    assert "errors" not in result
+    processes_data = result["data"]["processes"]
+    processes = processes_data["page"]
+
+    assert [process["steps"] for process in processes] == [
+        [
+            {"stateDelta": {}, "status": "success"},
+            {
+                "stateDelta": {"subscription_id": generic_subscription_1},
+                "status": "success",
+            },
+            {"stateDelta": {}, "status": "success"},
+            {"stateDelta": {}, "status": "suspend"},
+            {"stateDelta": None, "status": "pending"},
+            {"stateDelta": None, "status": "pending"},
+        ]
     ]

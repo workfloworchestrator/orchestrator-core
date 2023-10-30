@@ -14,9 +14,12 @@ import re
 from collections.abc import Generator
 from pathlib import Path
 
+import structlog
 from more_itertools import first, one
 
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
+
+logger = structlog.getLogger(__name__)
 
 
 def snake_to_camel(s: str) -> str:
@@ -78,3 +81,12 @@ product_types_module = path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:
     return f'from {product_types_module}.{product["variable"]} import {product["type"]}{lifecycle}\n'
+
+
+def create_dunder_init_files(path: Path) -> None:
+    folder = Path("")
+    for part in path.parts:
+        if (folder := folder / part).is_dir():
+            if not (dunder_init_file := folder / Path("__init__.py")).exists():
+                logger.info("creating missing dunder init", path=str(dunder_init_file))
+                open(dunder_init_file, "x").close()

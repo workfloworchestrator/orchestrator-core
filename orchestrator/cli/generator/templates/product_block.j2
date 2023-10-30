@@ -1,6 +1,9 @@
 {# Product block definition -#}
 
-{% from 'macros.j2' import optional, list_field with context %}
+{% from 'macros.j2' import optional, list_field with context -%}
+{% if python_version == "3.9" -%}
+from typing import Optional
+{% endif -%}
 
 {% for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
