@@ -92,7 +92,7 @@ class Workflow(Protocol):
     name: str
     description: str
     initial_input_form: Optional[InputFormGenerator] = None
-    target: Optional[Target] = None
+    target: Target
     steps: StepList
 
     def __call__(self) -> NoReturn:
@@ -187,7 +187,7 @@ def make_workflow(
     f: Callable,
     description: str,
     initial_input_form: Optional[InputStepFunc],
-    target: Optional[Target],
+    target: Target,
     steps: StepList,
 ) -> Workflow:
     @functools.wraps(f)
@@ -464,7 +464,7 @@ def focussteps(key: str) -> Callable[[Union[Step, StepList]], StepList]:
 
 
 def workflow(
-    description: str, initial_input_form: Optional[InputStepFunc] = None, target: Optional[Target] = None
+    description: str, initial_input_form: Optional[InputStepFunc] = None, target: Target = Target.SYSTEM
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
