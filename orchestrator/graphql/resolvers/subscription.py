@@ -14,7 +14,7 @@
 from typing import Optional, cast
 
 import structlog
-from pydantic.utils import to_lower_camel
+from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import Select, func, select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
