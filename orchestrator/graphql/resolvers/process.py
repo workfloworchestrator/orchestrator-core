@@ -14,7 +14,7 @@
 from typing import Union
 
 import structlog
-from pydantic.utils import to_lower_camel
+from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import func, select
 from sqlalchemy.orm import defer, selectinload
 

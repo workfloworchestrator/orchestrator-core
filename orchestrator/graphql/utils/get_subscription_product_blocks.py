@@ -3,7 +3,7 @@ from typing import Any, Generator, Optional
 from uuid import UUID
 
 import strawberry
-from pydantic.utils import to_lower_camel
+from pydantic.alias_generators import to_camel as to_lower_camel
 from strawberry.scalars import JSON
 
 from orchestrator.domain.base import SubscriptionModel
