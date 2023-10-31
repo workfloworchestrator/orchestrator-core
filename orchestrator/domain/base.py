@@ -258,7 +258,8 @@ class DomainModel(BaseModel):
                 default_value = None
             elif is_union_type(product_block_field_type):
                 raise ValueError(
-                    "Union Types must always be `Optional` when calling `.new().` We are unable to detect which type to intialise and Union types always cross subscription boundaries."
+                    "Union Types must always be `Optional` when calling `.new().` We are unable to detect which "
+                    "type to intialise and Union types always cross subscription boundaries."
                 )
             else:
                 product_block_model = product_block_field_type
@@ -567,7 +568,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     >>> example1 = BlockInactive()  # doctest:+SKIP
 
     Create a new instance based on a dict in the state:
-    >>> example2 = BlockInactive(\*\*state)  # doctest:+SKIP
+    >>> example2 = BlockInactive(**state)  # doctest:+SKIP
 
     To retrieve a ProductBlockModel from the database.:
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
@@ -1009,7 +1010,7 @@ class SubscriptionModel(DomainModel):
     >>> example1 = SubscriptionInactive.from_product_id(product_id, customer_id)  # doctest:+SKIP
 
     Create a new instance based on a dict in the state:
-    >>> example2 = SubscriptionInactive(\*\*state)  # doctest:+SKIP
+    >>> example2 = SubscriptionInactive(**state)  # doctest:+SKIP
 
     To retrieve a ProductBlockModel from the database:
     >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP
