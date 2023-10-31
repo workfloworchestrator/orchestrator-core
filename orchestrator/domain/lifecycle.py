@@ -58,7 +58,9 @@ def validate_lifecycle_status(
     specialized_type = lookup_specialized_type(product_block_field_type, lifecycle_status)
     if not issubclass(product_block_field_type, specialized_type):
         raise AssertionError(
-            f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {product_block_field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
+            f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} "
+            f"(based on {product_block_field_type.__name__}) is not suitable for the lifecycle status "
+            f"({lifecycle_status}) of this model"
         )
 
 
