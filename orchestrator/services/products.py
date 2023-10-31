@@ -22,15 +22,19 @@ from orchestrator.db import ProductTable
 from orchestrator.types import UUIDstr
 
 
-def get_product_by_id(product_id: Union[UUID, UUIDstr]) -> ProductTable:
+def get_product_by_id(product_id: Union[UUID, UUIDstr], join_fixed_inputs: bool = True) -> ProductTable:
     """Get product by id.
 
     Args:
         product_id: ProductTable id uuid
+        join_fixed_inputs: whether to join the fixed inputs in the same query or not
 
     Returns: ProductTable object
 
     """
+    if not join_fixed_inputs:
+        return ProductTable.query.get(product_id)
+
     return ProductTable.query.options(joinedload(ProductTable.fixed_inputs)).get(product_id)
 
 
