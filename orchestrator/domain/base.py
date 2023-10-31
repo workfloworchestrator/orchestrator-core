@@ -498,22 +498,22 @@ class ProductBlockModelMeta(type(BaseModel)):  # type: ignore
     tag: str
     registry: Dict[str, Type["ProductBlockModel"]] = {}  # pragma: no mutate
 
-    def _fix_pb_data(self) -> None:
-        if not self.name:
-            raise ValueError(f"Cannot create instance of abstract class. Use one of {self.__names__}")
+    def _fix_pb_data(cls) -> None:
+        if not cls.name:
+            raise ValueError(f"Cannot create instance of abstract class. Use one of {cls.__names__}")
 
         # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we can't
         # access the db. So now we do it just before we instantiate the instance
-        if not hasattr(self, "product_block_id"):
-            product_block = ProductBlockTable.query.filter(ProductBlockTable.name == self.name).one()
-            self.product_block_id = product_block.product_block_id
-            self.description = product_block.description
-            self.tag = product_block.tag
+        if not hasattr(cls, "product_block_id"):
+            product_block = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one()
+            cls.product_block_id = product_block.product_block_id
+            cls.description = product_block.description
+            cls.tag = product_block.tag
 
-    def __call__(self, *args: Any, **kwargs: Any) -> B:  # type: ignore
-        self._fix_pb_data()
+    def __call__(cls, *args: Any, **kwargs: Any) -> B:  # type: ignore
+        cls._fix_pb_data()
 
-        kwargs["name"] = self.name
+        kwargs["name"] = cls.name
 
         return super().__call__(*args, **kwargs)
 
