@@ -229,7 +229,7 @@ class DomainModel(BaseModel):
 
     @classmethod
     def _init_instances(  # noqa: C901
-        cls, subscription_id: UUID, skip_keys: Optional[List[str]] = None
+        cls, subscription_id: UUID, skip_keys: Optional[Set[str]] = None
     ) -> Dict[str, Union[List["ProductBlockModel"], "ProductBlockModel"]]:
         """Initialize default subscription instances.
 
@@ -238,14 +238,14 @@ class DomainModel(BaseModel):
 
         Args:
             subscription_id: The UUID of the subscription
-            skip_keys: list of fields on the class to skip when creating dummy instances.
+            skip_keys: set of fields on the class to skip when creating dummy instances.
 
         Returns:
             A dict with instances to pass to the new model
 
         """
         if skip_keys is None:
-            skip_keys = []
+            skip_keys = set()
 
         instances: Dict[str, Union[List[ProductBlockModel], ProductBlockModel]] = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
@@ -692,7 +692,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         This is similar to `from_product_id()`
         """
-        sub_instances = cls._init_instances(subscription_id, list(kwargs.keys()))
+        sub_instances = cls._init_instances(subscription_id, set(kwargs.keys()))
 
         subscription_instance_id = uuid4()
 
