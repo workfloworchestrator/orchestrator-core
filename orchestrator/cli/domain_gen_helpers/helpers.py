@@ -1,9 +1,11 @@
 from itertools import groupby
-from typing import Dict, Set
+from typing import Dict, Iterable, Set, Type
 
 import structlog
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql.dml import UpdateBase
+
+from orchestrator.domain.base import ProductBlockModel
 
 logger = structlog.get_logger(__name__)
 
@@ -47,3 +49,7 @@ def map_create_product_block_relations(model_diffs: Dict[str, Dict[str, Set[str]
 
 def map_delete_product_block_relations(model_diffs: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Set[str]]:
     return generic_mapper("missing_product_blocks_in_model", model_diffs)
+
+
+def get_product_block_names(pbs: list[Type[ProductBlockModel]]) -> Iterable[str]:
+    return filter(None, (pb.name for pb in pbs))

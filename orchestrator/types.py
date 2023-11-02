@@ -261,7 +261,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     return False
 
 
-def get_origin_and_args(t: Any) -> tuple[Union[Any, None], tuple[Any]]:
+def get_origin_and_args(t: Any) -> tuple[Any, tuple[Any, ...]]:
     """Return the origin and args of the given type.
 
     When wrapped in Annotated[] this is removed.
@@ -358,11 +358,11 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
 
 
 def get_possible_product_block_types(
-    list_field_type: Union["ProductBlockModel", Union["ProductBlockModel"]]
-) -> dict[str, "ProductBlockModel"]:
+    list_field_type: Union[type["ProductBlockModel"], Union[type["ProductBlockModel"]]]
+) -> dict[str, type["ProductBlockModel"]]:
     _origin, list_item_field_type_args = get_origin_and_args(list_field_type)
     if not is_union_type(list_field_type):
-        return {list_field_type.name: list_field_type}
+        return {list_field_type.name: list_field_type} if list_field_type.name else {}
 
     possible_product_block_types = {}
     for list_item_field_type in filter_nonetype(list_item_field_type_args):
@@ -391,8 +391,8 @@ def has_list_in_mro(type_: Any) -> bool:
         return False
 
 
-def yield_min_length(type_args: tuple) -> Iterable[int]:
-    """Given a tuple with type args, yield min_length values found in Pydantic metadata."""
+def yield_min_length(type_args: Iterable) -> Iterable[int]:
+    """Given an iterable of type args, yield min_length values found in Pydantic metadata."""
     for type_arg in type_args:
         if isinstance(type_arg, Len) or isinstance(type_arg, MinLen):
             yield type_arg.min_length
@@ -412,7 +412,7 @@ def _get_default_type(type_: Any) -> Any:
     return type_
 
 
-def list_factory(type_: Any, *init_args, **init_kwargs) -> list:
+def list_factory(type_: Any, *init_args: Any, **init_kwargs: Any) -> list:
     """Given a list type, create a list with optionally values.
 
     Args:

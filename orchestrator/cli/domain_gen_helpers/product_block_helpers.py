@@ -5,7 +5,7 @@ from more_itertools import flatten
 from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
-from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
+from orchestrator.cli.domain_gen_helpers.helpers import get_product_block_names, sql_compile
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt, str_fmt
@@ -86,8 +86,8 @@ def map_product_block_additional_relations(changes: DomainModelChanges) -> Domai
 
         product_blocks_in_model = block_class._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
-        for product_block in product_blocks_types_in_model:
-            changes.create_product_block_relations.setdefault(product_block.name, set()).add(block_name)  # type:ignore
+        for product_block_name in get_product_block_names(product_blocks_types_in_model):
+            changes.create_product_block_relations.setdefault(product_block_name, set()).add(block_name)
     return changes
 
 

@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -37,6 +38,7 @@ import structlog
 import typing_extensions
 from more_itertools import first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import PrivateAttr
 from sqlalchemy.orm import selectinload
 from typing_extensions import get_args
@@ -50,6 +52,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.domain.helpers import _to_product_block_field_type_iterable
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
     lookup_specialized_type,
@@ -101,7 +104,12 @@ class DomainModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True, validate_default=True, arbitrary_types_allowed=True)
 
     __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
-    _product_block_fields_: ClassVar[Dict[str, Type]]
+    _product_block_fields_: ClassVar[
+        Dict[
+            str,
+            Union[Union[Type["ProductBlockModel"]], Type["ProductBlockModel"]],
+        ]
+    ]
     _non_product_block_fields_: ClassVar[Dict[str, Type]]
 
     def __init_subclass__(
@@ -130,24 +138,11 @@ class DomainModel(BaseModel):
             return
 
         # Check if dependency subscription instance models conform to the same lifecycle
-        for product_block_field_name, _product_block_field_type in cls._get_depends_on_product_block_types().items():
-            # TODO change below to use
-            # origin, args = get_origin_and_args(_product_block_field_type)
+        for product_block_field_name, product_block_field_type in cls._get_depends_on_product_block_types().items():
+            field_types = _to_product_block_field_type_iterable(product_block_field_type)
 
-            # First unpack the union value
-            product_block_field_type = get_args(_product_block_field_type)
-
-            if is_optional_type(product_block_field_type):
-                types = [first(get_args(product_block_field_type))]
-            elif isinstance(product_block_field_type, tuple):
-                types = product_block_field_type
-            elif is_union_type(product_block_field_type):
-                types = get_args(product_block_field_type)
-            else:
-                types = [product_block_field_type]
-            for lifecycle_status in lifecycle:
-                for field_type in types:
-                    validate_lifecycle_status(product_block_field_name, field_type, lifecycle_status)
+            for lifecycle_status, field_type in itertools.product(lifecycle, field_types):
+                validate_lifecycle_status(product_block_field_name, field_type, lifecycle_status)
 
     @classmethod
     def _get_depends_on_product_block_types(
@@ -159,6 +154,7 @@ class DomainModel(BaseModel):
         """
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
+            field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
                 # exclude non-Optional Unions as they contain more than one useful element.
                 _origin, args = get_origin_and_args(product_block_field_type)
@@ -230,7 +226,7 @@ class DomainModel(BaseModel):
     @classmethod
     def _init_instances(  # noqa: C901
         cls, subscription_id: UUID, skip_keys: Optional[Set[str]] = None
-    ) -> Dict[str, Union[List["ProductBlockModel"], "ProductBlockModel"]]:
+    ) -> Dict[str, Union[List["ProductBlockModel"], "ProductBlockModel", None]]:
         """Initialize default subscription instances.
 
         When a new domain model is created that is not loaded from an existing subscription.
@@ -242,31 +238,38 @@ class DomainModel(BaseModel):
 
         Returns:
             A dict with instances to pass to the new model
-
         """
         if skip_keys is None:
             skip_keys = set()
 
-        instances: Dict[str, Union[List[ProductBlockModel], ProductBlockModel]] = {}
-        for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
-            if product_block_field_name in skip_keys:
-                continue
+        product_block_field_names = set(cls._product_block_fields_) - skip_keys
+        return {
+            product_block_field_name: cls._init_instance(product_block_field_name, subscription_id)
+            for product_block_field_name in product_block_field_names
+        }
 
-            if is_list_type(product_block_field_type):
-                default_value = list_factory(product_block_field_type, subscription_id=subscription_id)
-            elif is_optional_type(product_block_field_type, ProductBlockModel):
-                default_value = None
-            elif is_union_type(product_block_field_type):
-                raise ValueError(
-                    "Union Types must always be `Optional` when calling `.new().` We are unable to detect which "
-                    "type to intialise and Union types always cross subscription boundaries."
-                )
-            else:
-                product_block_model = product_block_field_type
-                # Scalar field of a ProductBlockModel expects 1 instance
-                default_value = product_block_model.new(subscription_id=subscription_id)
-            instances[product_block_field_name] = default_value
-        return instances
+    @classmethod
+    def _init_instance(
+        cls, product_block_field_name: str, subscription_id: UUID
+    ) -> Union["ProductBlockModel", List["ProductBlockModel"], None]:
+        """Initialize a default subscription instance."""
+        product_block_field_type = cls._product_block_fields_[product_block_field_name]
+
+        if is_list_type(product_block_field_type):
+            return list_factory(product_block_field_type, subscription_id=subscription_id)
+
+        if is_optional_type(product_block_field_type, ProductBlockModel):
+            return None
+
+        if is_union_type(product_block_field_type):
+            raise ValueError(
+                "Union Types must always be `Optional` when calling `.new().` We are unable to detect which "
+                "type to intialise and Union types always cross subscription boundaries."
+            )
+
+        product_block_model = product_block_field_type
+        # Scalar field of a ProductBlockModel expects 1 instance
+        return product_block_model.new(subscription_id=subscription_id)
 
     @classmethod
     def _load_instances(  # noqa: C901
@@ -328,6 +331,7 @@ class DomainModel(BaseModel):
 
             return domain_filter
 
+        product_block_model_list: list[ProductBlockModel] = []
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             filter_func = match_domain_model_attr_if_possible(product_block_field_name)
 
@@ -479,8 +483,8 @@ class DomainModel(BaseModel):
         return attribs
 
 
-# class ProductBlockModelMeta(ModelMetaclass):
-class ProductBlockModelMeta(type(BaseModel)):  # type: ignore
+# class ProductBlockModelMeta(type(BaseModel)):  # type: ignore[misc]
+class ProductBlockModelMeta(ModelMetaclass):
     """Metaclass used to create product block instances.
 
     This metaclass is used to make sure the class contains product block metadata.
@@ -525,15 +529,13 @@ def get_depends_on_product_block_type_list(
     for product_block_type in product_block_types.values():
         if is_union_type(product_block_type):
             _origin, args = get_origin_and_args(product_block_type)
-            # for union_product_block_type in get_args(product_block_type):
-            for union_product_block_type in args:
-                if not isinstance(None, union_product_block_type):
-                    product_blocks_types_in_model.append(union_product_block_type)
+            product_blocks_types_in_model.extend(list(filter_nonetype(args)))
         else:
             product_blocks_types_in_model.append(product_block_type)
 
     if product_blocks_types_in_model and isinstance(first(product_blocks_types_in_model), tuple):
         return one(product_blocks_types_in_model)
+
     return product_blocks_types_in_model
 
 
@@ -582,14 +584,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     _db_model: SubscriptionInstanceTable = PrivateAttr()
 
     # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
-    # Is actually optional since abstract classes don't have it. In practice, it is always set
-    name: str
+    # Is actually optional since abstract classes don't have it.
+    name: Optional[str]
     subscription_instance_id: UUID
     owner_subscription_id: UUID
     label: Optional[str] = None
 
     @classmethod
-    def __pydantic_init_subclass__(
+    def __pydantic_init_subclass__(  # type: ignore[override]
         cls,
         *,
         product_block_name: Optional[str] = None,
@@ -1035,7 +1037,7 @@ class SubscriptionModel(DomainModel):
         return super().__new__(cls)
 
     @classmethod
-    def __pydantic_init_subclass__(
+    def __pydantic_init_subclass__(  # type: ignore[override]
         cls, is_base: bool = False, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
     ) -> None:
         super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
