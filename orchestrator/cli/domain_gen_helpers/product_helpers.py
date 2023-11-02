@@ -4,7 +4,7 @@ from typing import Dict, Generator, List, Set, Type, Union
 from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
-from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
+from orchestrator.cli.domain_gen_helpers.helpers import get_product_block_names, sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import get_user_input
@@ -49,8 +49,8 @@ def map_product_additional_relations(changes: DomainModelChanges) -> DomainModel
 
         product_blocks_in_model = product_class._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
-        for product_block in product_blocks_types_in_model:
-            changes.create_product_to_block_relations.setdefault(product_block.name, set()).add(product_name)
+        for product_block_name in get_product_block_names(product_blocks_types_in_model):
+            changes.create_product_to_block_relations.setdefault(product_block_name, set()).add(product_name)
     return changes
 
 
