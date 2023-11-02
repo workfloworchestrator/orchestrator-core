@@ -15,15 +15,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from nwastdlib.vlans import VlanRanges
-
 
 class OrchestratorBaseModel(BaseModel):
     # TODO json_encoders is deprecated and will be removed in Pydantic 3.x
     #  The new way is to decorate each field with @field_serializer("name_of_field", when_used="json")
     model_config = ConfigDict(
         json_encoders={
-            VlanRanges: lambda vlanrange: str(vlanrange),
             datetime: lambda dt: dt.timestamp(),
         }
     )
