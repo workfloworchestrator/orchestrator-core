@@ -38,7 +38,6 @@ import structlog
 import typing_extensions
 from more_itertools import first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import PrivateAttr
 from sqlalchemy.orm import selectinload
 from typing_extensions import get_args
@@ -483,45 +482,6 @@ class DomainModel(BaseModel):
         return attribs
 
 
-# class ProductBlockModelMeta(type(BaseModel)):  # type: ignore[misc]
-class ProductBlockModelMeta(ModelMetaclass):
-    """Metaclass used to create product block instances.
-
-    This metaclass is used to make sure the class contains product block metadata.
-
-    This metaclass should not be used directly in the class definition. Instead a new product block model should inherit
-    from ProductBlockModel which has this metaclass defined.
-
-    You can find some examples in: :ref:`domain-models`
-    """
-
-    __names__: Set[str]
-    name: Optional[str]
-    product_block_id: UUID
-    description: str
-    tag: str
-    registry: Dict[str, Type["ProductBlockModel"]] = {}  # pragma: no mutate
-
-    def _fix_pb_data(cls) -> None:
-        if not cls.name:
-            raise ValueError(f"Cannot create instance of abstract class. Use one of {cls.__names__}")
-
-        # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we can't
-        # access the db. So now we do it just before we instantiate the instance
-        if not hasattr(cls, "product_block_id"):
-            product_block = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one()
-            cls.product_block_id = product_block.product_block_id
-            cls.description = product_block.description
-            cls.tag = product_block.tag
-
-    def __call__(cls, *args: Any, **kwargs: Any) -> B:  # type: ignore
-        cls._fix_pb_data()
-
-        kwargs["name"] = cls.name
-
-        return super().__call__(*args, **kwargs)
-
-
 def get_depends_on_product_block_type_list(
     product_block_types: Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]
 ) -> List[Type["ProductBlockModel"]]:
@@ -539,7 +499,7 @@ def get_depends_on_product_block_type_list(
     return product_blocks_types_in_model
 
 
-class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
+class ProductBlockModel(DomainModel):
     r"""Base class for all product block models.
 
     This class should have been called SubscriptionInstanceModel.
@@ -576,7 +536,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
     """
 
-    registry: ClassVar[Dict[str, Type["ProductBlockModel"]]]  # pragma: no mutate
+    registry: ClassVar[Dict[str, Type["ProductBlockModel"]]] = {}  # pragma: no mutate
     __names__: ClassVar[Set[str]] = set()
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
@@ -589,6 +549,19 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     subscription_instance_id: UUID
     owner_subscription_id: UUID
     label: Optional[str] = None
+
+    @classmethod
+    def _fix_pb_data(cls) -> None:
+        if not cls.name:
+            raise ValueError(f"Cannot create instance of abstract class. Use one of {cls.__names__}")
+
+        # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we can't
+        # access the db. So now we do it just before we instantiate the instance
+        if not hasattr(cls, "product_block_id"):
+            product_block = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one()
+            cls.product_block_id = product_block.product_block_id
+            cls.description = product_block.description
+            cls.tag = product_block.tag
 
     @classmethod
     def __pydantic_init_subclass__(  # type: ignore[override]
@@ -605,7 +578,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             cls.name = product_block_name
             cls.__base_type__ = cls
             cls.__names__ = {cls.name}
-            ProductBlockModel.registry[cls.name] = cls
+            cls.registry[cls.name] = cls
         elif lifecycle is None:
             # Abstract class, no product block name
             cls.name = None
@@ -708,7 +681,14 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             subscription_id=subscription_id,
         )
         db.session.enable_relationship_loading(db_model)
-        model = cls(subscription_instance_id=subscription_instance_id, owner_subscription_id=subscription_id, **sub_instances, **kwargs)  # type: ignore
+        model = cls(
+            name=cls.name,
+            subscription_instance_id=subscription_instance_id,
+            owner_subscription_id=subscription_id,
+            label=db_model.label,
+            **sub_instances,
+            **kwargs,
+        )
         model._db_model = db_model
         return model
 
@@ -805,12 +785,13 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
 
         try:
             model = cls(
+                name=cls.name,
                 subscription_instance_id=subscription_instance_id,
                 owner_subscription_id=subscription_instance.subscription_id,
-                subscription=subscription_instance.subscription,
                 label=label,
+                subscription=subscription_instance.subscription,
                 **instance_values,  # type: ignore
-                **sub_instances,  # type: ignore
+                **sub_instances,
             )
             model._db_model = subscription_instance
 
