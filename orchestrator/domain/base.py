@@ -100,7 +100,7 @@ class DomainModel(BaseModel):
     Contains all common Product block/Subscription instance code
     """
 
-    model_config = ConfigDict(validate_assignment=True, validate_default=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(validate_assignment=True, validate_default=True)
 
     __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
     _product_block_fields_: ClassVar[
@@ -962,7 +962,7 @@ class ProductBlockModel(DomainModel):
 class ProductModel(BaseModel):
     """Represent the product as defined in the database as a dataclass."""
 
-    model_config = ConfigDict(validate_assignment=True, validate_default=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(validate_assignment=True, validate_default=True)
 
     product_id: UUID
     name: str
