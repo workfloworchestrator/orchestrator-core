@@ -698,10 +698,10 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     # works with correct data
     product_type_new = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
     assert product_type_new.status == SubscriptionLifecycle.ACTIVE
-    expected_dict = product_type.dict()
+    expected_dict = product_type.model_dump()
     expected_dict["status"] = SubscriptionLifecycle.ACTIVE
     expected_dict["start_date"] = mock.ANY
-    assert product_type_new.dict() == expected_dict
+    assert product_type_new.model_dump() == expected_dict
     assert isinstance(product_type_new.start_date, datetime)
 
 
@@ -736,7 +736,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
         == 1
     )
 
-    assert model.dict() == {
+    assert model.model_dump() == {
         "block": {
             "int_field": None,
             "label": None,
@@ -793,18 +793,18 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
     db.session.commit()
 
     new_model = ProductTypeOneForTest.from_subscription(model.subscription_id)
-    assert model.dict() == new_model.dict()
+    assert model.model_dump() == new_model.model_dump()
 
     # Second save also works as expected
     new_model.save()
     db.session.commit()
 
     latest_model = ProductTypeOneForTest.from_subscription(model.subscription_id)
-    assert new_model.dict() == latest_model.dict()
+    assert new_model.model_dump() == latest_model.model_dump()
 
     # Loading blocks also works
     block = ProductBlockOneForTest.from_db(model.block.subscription_instance_id)
-    assert block.dict() == model.block.dict()
+    assert block.model_dump() == model.block.model_dump()
 
 
 def test_update_constrained_lists(test_product_one, test_product_block_one):
@@ -827,7 +827,7 @@ def test_update_constrained_lists(test_product_one, test_product_block_one):
     ip2 = TestConListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert ip.dict() == ip2.dict()
+    assert ip.model_dump() == ip2.model_dump()
 
     # Test constraint
     with pytest.raises(ValidationError):
@@ -854,7 +854,7 @@ def test_update_lists(test_product_one, test_product_block_one):
     ip2 = TestListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert ip.dict() == ip2.dict()
+    assert ip.model_dump() == ip2.model_dump()
 
 
 def test_update_optional(test_product_one, test_product_block_one):
@@ -877,7 +877,7 @@ def test_update_optional(test_product_one, test_product_block_one):
     ip2 = TestListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert ip.dict() == ip2.dict()
+    assert ip.model_dump() == ip2.model_dump()
 
 
 def test_generic_from_subscription(test_product_one, test_product_type_one):
@@ -1067,11 +1067,11 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
     assert isinstance(test_model.block, ProductBlockOneForTest)
 
     block = AbstractProductBlockOneForTest.from_db(test_model.block.subscription_instance_id)
-    assert block.dict() == test_model.block.dict()
+    assert block.model_dump() == test_model.block.model_dump()
     assert isinstance(block, ProductBlockOneForTest)
 
     block = ProductBlockOneForTest.from_db(test_model.block.subscription_instance_id)
-    assert block.dict() == test_model.block.dict()
+    assert block.model_dump() == test_model.block.model_dump()
     assert isinstance(block, ProductBlockOneForTest)
 
 
@@ -1255,7 +1255,7 @@ def test_serializable_property():
 
     block = DerivedDomainModel(int_field=13)
 
-    assert block.dict() == {"int_field": 13, "double_int_field": 26}
+    assert block.model_dump() == {"int_field": 13, "double_int_field": 26}
 
 
 def test_inherited_serializable_property():
@@ -1278,7 +1278,7 @@ def test_inherited_serializable_property():
 
     block = ActiveDomainModel(int_field=1)
 
-    assert block.dict() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
+    assert block.model_dump() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
 
 
 def test_subscription_save_list_with_zero_values(

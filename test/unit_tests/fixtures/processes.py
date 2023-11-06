@@ -42,7 +42,7 @@ def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> Ge
             generic_select: TestChoice
 
         user_input = yield TestForm
-        return user_input.dict()
+        return user_input.model_dump()
 
     @workflow("Workflow")
     def workflow_for_testing_processes_py():

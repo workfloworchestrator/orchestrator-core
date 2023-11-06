@@ -54,8 +54,8 @@ def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = Non
     ```
     subscription = YOUR_DOMAIN_MODEL.from_subscription(subscription_id)
     subscription_backup = {}
-    subscription_backup[subscription.subscription_id] = deepcopy(subscription.dict())
-    subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.dict())
+    subscription_backup[subscription.subscription_id] = deepcopy(subscription.model_dump())
+    subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.model_dump())
     return {..., "__old_subscriptions__": subscription_backup }
     ```
 
@@ -86,7 +86,7 @@ def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = Non
         logger.info("Creating backup of subscription details in the state", subscription_id=str(subscription_id))
         subscription_backup = __old_subscriptions__ or {}
         if isinstance(subscription, SubscriptionModel):
-            subscription_backup[str(subscription_id)] = deepcopy(subscription.dict())
+            subscription_backup[str(subscription_id)] = deepcopy(subscription.model_dump())
         else:
             subscription_backup[str(subscription_id)] = to_serializable(subscription)  # type: ignore
 

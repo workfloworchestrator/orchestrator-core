@@ -365,7 +365,7 @@ def test_input_in_substate() -> None:
 
         user_input = yield TestForm
 
-        return user_input.dict()
+        return user_input.model_dump()
 
     wf = workflow("Workflow with user interaction")(
         lambda: begin >> input_action >> purestep("process inputs")(Success)
