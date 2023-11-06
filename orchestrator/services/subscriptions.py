@@ -115,7 +115,7 @@ def update_subscription_status(subscription_id: UUIDstr, status: str) -> Subscri
 
 
 def update_subscription_description(subscription_id: UUIDstr, description: str) -> SubscriptionTable:
-    """Update a subscriptions' description.
+    """Update a subscription's description.
 
     Args:
         subscription_id: subscription id of the subscription to update
