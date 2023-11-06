@@ -271,7 +271,7 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
             class Form(FormPage):
                 name: str
             user_input = yield Form
-            return {**user_input.dict(), "some extra key": True}
+            return {**user_input.model_dump(), "some extra key": True}
 
     """
 

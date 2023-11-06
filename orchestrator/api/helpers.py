@@ -303,7 +303,7 @@ def getattr_in(obj: Any, attr: str) -> Any:
 
 
 def product_block_paths(subscription: Union[SubscriptionModel, dict]) -> List[str]:
-    _subscription = subscription.dict() if isinstance(subscription, SubscriptionModel) else subscription
+    _subscription = subscription.model_dump() if isinstance(subscription, SubscriptionModel) else subscription
 
     def get_dict_items(d: dict) -> Generator:
         for k, v in d.items():
