@@ -10,16 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Type, Union
 from uuid import UUID
 
 import strawberry
 from annotated_types import Len, MinLen
 from more_itertools import first, last
 from pydantic.fields import FieldInfo
-from pydantic.v1.typing import is_union  # TODO find replacement
 from typing_extensions import get_args, get_origin
 
 # TODO: eventually enforce code migration for downstream users to import
@@ -79,6 +79,18 @@ __all__ = [
 
 if TYPE_CHECKING:
     from orchestrator.domain.base import ProductBlockModel
+
+if sys.version_info < (3, 10):
+
+    def is_union(tp: Optional[Type[Any]]) -> bool:
+        return tp is Union  # type: ignore[comparison-overlap]
+
+else:
+    import types
+
+    def is_union(tp: Optional[Type[Any]]) -> bool:
+        return tp is Union or tp is types.UnionType  # type: ignore[comparison-overlap]
+
 
 # ErrorState is either a string containing an error message, a catched Exception or a tuple containing a message and
 # a HTTP status code
