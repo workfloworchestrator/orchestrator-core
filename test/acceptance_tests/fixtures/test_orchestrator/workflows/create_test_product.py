@@ -46,7 +46,7 @@ def initial_input_form_generator(product_name: str, product: UUIDstr) -> FormGen
 
     user_input = yield CreateTestProductForm
 
-    return user_input.dict()
+    return user_input.model_dump()
 
 
 @step("Construct Subscription model")
