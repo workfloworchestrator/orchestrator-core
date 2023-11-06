@@ -12,6 +12,7 @@
 # limitations under the License.
 import itertools
 import sys
+import warnings
 from collections import defaultdict
 from datetime import datetime
 from itertools import groupby, zip_longest
@@ -463,6 +464,11 @@ class DomainModel(BaseModel):
 
     @typing_extensions.deprecated("dict() is deprecated and will be removed in the future, use model_dump() instead")
     def dict(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        warnings.warn(
+            "dict() is deprecated and will be removed in the future, use model_dump() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.model_dump(*args, **kwargs)
 
     def model_dump(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:

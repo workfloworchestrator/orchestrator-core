@@ -89,7 +89,7 @@ def wrap_create_initial_input_form(initial_input_form: Optional[InputStepFunc]) 
             user_input = yield from cast(FormGenerator, form)
         else:
             user_input_model = yield cast(InputForm, form)
-            user_input = user_input_model.dict()
+            user_input = user_input_model.model_dump()
 
         return {**begin_state, **user_input}
 
@@ -169,7 +169,7 @@ def wrap_modify_initial_input_form(initial_input_form: Optional[InputStepFunc]) 
             user_input = yield from cast(FormGenerator, form)
         else:
             user_input_model = yield cast(InputForm, form)
-            user_input = user_input_model.dict()
+            user_input = user_input_model.model_dump()
 
         return {**begin_state, **user_input}
 

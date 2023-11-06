@@ -589,7 +589,7 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
     ).all()
 
-    subscription = subscription_model.dict()
+    subscription = subscription_model.model_dump()
     paths = product_block_paths(subscription)
 
     def inject_in_use_by_ids(path_to_block: str) -> None:

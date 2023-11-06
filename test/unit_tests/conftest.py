@@ -9,6 +9,7 @@ import requests
 import structlog
 from alembic import command
 from alembic.config import Config
+from pydantic import BaseModel as PydanticBaseModel
 from redis import Redis
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
@@ -313,10 +314,10 @@ def test_form_translations(worker_id):
 
     # Wrap a form function that is certain to be called to extract the used form fields
     @classmethod
-    def init_subclass_wrapper(cls, *args, **kwargs: Any) -> None:
+    def init_subclass_wrapper(cls: type[PydanticBaseModel], *args, **kwargs: Any) -> None:
         # Skip forms in test modules
         if "test" not in cls.__module__:
-            for field_name in cls.__fields__:
+            for field_name in cls.model_fields:
                 used_translations.add(field_name)
                 if field_name not in translations and f"{field_name}_accept" not in translations:
                     pytest.fail(f"Missing translation for field {field_name} in  {cls.__name__}")
