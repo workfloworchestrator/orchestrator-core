@@ -16,7 +16,6 @@ from uuid import UUID
 
 import structlog
 from pydantic import AfterValidator, Field
-from pydantic.v1 import EnumMemberError  # TODO find replacement
 
 from orchestrator.services.products import get_product_by_id
 from pydantic_forms.types import strEnum
@@ -71,9 +70,12 @@ __all__ = [
 ]
 
 
-class ProductIdError(EnumMemberError):
+class ProductIdError(ValueError):
     code = "product_id"
     enum_values: Sequence[Any]  # Required kwarg
+
+    def __init__(self, **ctx: Any) -> None:
+        self.__dict__ = ctx
 
     def __str__(self) -> str:
         permitted = ", ".join(repr(v) for v in self.enum_values)
