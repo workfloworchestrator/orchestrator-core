@@ -1014,3 +1014,19 @@ def test_product_block_paths(generic_subscription_1, generic_subscription_2):
     subscription_2 = SubscriptionModel.from_subscription(generic_subscription_2)
     assert product_block_paths(subscription_1) == ["product", "pb_1", "pb_2"]
     assert product_block_paths(subscription_2) == ["product", "pb_3"]
+
+
+@pytest.mark.parametrize(
+    "query, num_matches",
+    [
+        ("id", 7),
+        ("tag:(POR* | LP)", 1),
+        ("tag:SP", 3),
+        ("tag:(POR* | LP) | tag:SP", 4),
+        ("tag:(POR* | LP) | tag:SP -status:initial", 3),
+    ],
+)
+def test_subscriptions_search(query, num_matches, seed, test_client, refresh_subscriptions_search_view):
+    response = test_client.get(f"/api/subscriptions/search?query={query}")
+    result = response.json()
+    assert len(result) == num_matches

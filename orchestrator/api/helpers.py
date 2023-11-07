@@ -31,6 +31,7 @@ from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.utils.search_query import create_ts_query_string
 
 logger = get_logger(__name__)
 
@@ -148,6 +149,19 @@ def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: 
 
         response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
     return stmt
+
+
+MAX_QUERY_STRING_LENGTH = 512
+
+
+def add_subscription_search_query_filter(stmt: Select, search_query: str) -> Select:
+    if len(search_query) > MAX_QUERY_STRING_LENGTH:
+        raise_status(HTTPStatus.BAD_REQUEST, f"Max query length of {MAX_QUERY_STRING_LENGTH} characters exceeded.")
+
+    ts_query = create_ts_query_string(search_query)
+    return stmt.join(SubscriptionSearchView).filter(
+        func.to_tsquery("simple", ts_query).op("@@")(SubscriptionSearchView.tsv)
+    )
 
 
 VALID_SORT_KEYS = {
