@@ -151,7 +151,13 @@ def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: 
     return stmt
 
 
+MAX_QUERY_STRING_LENGTH = 512
+
+
 def add_subscription_search_query_filter(stmt: Select, search_query: str) -> Select:
+    if len(search_query) > MAX_QUERY_STRING_LENGTH:
+        raise_status(HTTPStatus.BAD_REQUEST, f"Max query length of {MAX_QUERY_STRING_LENGTH} characters exceeded.")
+
     ts_query = create_ts_query_string(search_query)
     return stmt.join(SubscriptionSearchView).filter(
         func.to_tsquery("simple", ts_query).op("@@")(SubscriptionSearchView.tsv)
