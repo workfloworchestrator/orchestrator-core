@@ -13,7 +13,21 @@
 import sys
 from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 from uuid import UUID
 
 import strawberry
@@ -104,6 +118,8 @@ ErrorDict = Dict[str, Union[str, int, List[Dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
 BroadcastFunc = Callable[[UUID, Dict], None]
+
+SI = TypeVar("SI")
 
 
 @strawberry.enum
