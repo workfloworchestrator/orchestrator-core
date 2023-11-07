@@ -1442,6 +1442,3 @@ def validate_lifecycle_change(
         subscription_description=other.description,
         status=status,
     )
-
-
-SI = TypeVar("SI", covariant=True)  # pragma: no mutate
