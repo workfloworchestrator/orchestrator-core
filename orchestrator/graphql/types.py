@@ -100,6 +100,13 @@ IPv6InterfaceType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
+IntType = strawberry.scalar(
+    NewType("Int", int),
+    description="An arbitrary precision integer",
+    serialize=lambda v: v,
+    parse_value=lambda v: v,
+)
+
 SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
     dict: JSON,
     VlanRanges: VlanRangesType,
@@ -107,4 +114,5 @@ SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
     IPv6Address: IPv6AddressType,
     IPv4Interface: IPv4InterfaceType,
     IPv6Interface: IPv6InterfaceType,
+    int: IntType
 }
