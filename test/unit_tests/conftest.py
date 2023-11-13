@@ -644,6 +644,10 @@ def cache_fixture(monkeypatch):
                 print("failed to delete cache key", key, str(exc))  # noqa: T001, T201
 
 
+def do_refresh_subscriptions_search_view():
+    db.session.execute(text("REFRESH MATERIALIZED VIEW subscriptions_search"))
+
+
 @pytest.fixture
 def refresh_subscriptions_search_view():
-    db.session.execute(text("REFRESH MATERIALIZED VIEW subscriptions_search"))
+    do_refresh_subscriptions_search_view()

@@ -16,7 +16,7 @@ from typing import Callable
 import structlog
 from sqlalchemy import func
 
-from orchestrator.api.helpers import _process_text_query
+from orchestrator.api.helpers import _process_text_query, add_subscription_search_query_filter
 from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
@@ -76,3 +76,5 @@ SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], Qu
 
 subscription_filter_fields = list(SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_subscriptions = generic_filter(SUBSCRIPTION_FILTER_FUNCTIONS_BY_COLUMN)
+
+filter_by_query_string = add_subscription_search_query_filter
