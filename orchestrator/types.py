@@ -10,7 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections.abc
 import sys
+import typing
 from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
 from typing import (
@@ -266,6 +268,15 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     False
     >>> is_list_type(Annotated[list[str], "foo"], str)
     True
+    >>> from typing import Sequence
+    >>> is_list_type(Annotated[Sequence[str], "foo"], str)
+    True
+    >>> is_list_type({"foo": "bar"})
+    False
+    >>> is_list_type((1, 2, 3))
+    False
+    >>> is_list_type({1, 2, 3})
+    False
     """
     t_origin, t_args = get_origin_and_args(t)
     if t_origin is None:
@@ -277,10 +288,10 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
                 return True
     elif t_origin == Literal:
         return False  # Literal cannot contain lists see pep 586
-    elif issubclass(t_origin, list):
+    elif issubclass(t_origin, list) or t_origin in (collections.abc.Sequence, typing.Sequence):
         if test_type and t_args:
             first_arg = first(t_args)
-            # To support a list with union of multiple product blocks.
+            # To support a list/sequence with union of multiple product blocks.
             if is_union_type(first_arg) and get_args(first_arg) and not is_union_type(test_type):
                 first_arg = get_args(first_arg)[0]
             return is_of_type(first_arg, test_type)
