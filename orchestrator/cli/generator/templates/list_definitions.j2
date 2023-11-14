@@ -2,10 +2,6 @@
 T = TypeVar("T", covariant=True)
 
 {% for list_type in lists_to_generate %}
-class ListOf{{ list_type.name | capitalize }}(SubscriptionInstanceList[T]):
-    min_items = {{ list_type.min_items }}
-    {% if list_type.max_items -%}
-    max_items = {{ list_type.max_items }}
-    {% endif %}
+ListOf{{ list_type.name | capitalize }} = Annotated[Sequence[SI], Len(min_length={{ list_type.min_items }}{% if list_type.max_items -%}, max_length={{ list_type.max_items }}{% endif %})]
 {% endfor %}
 {% endif -%}

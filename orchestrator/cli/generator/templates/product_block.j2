@@ -12,10 +12,10 @@ from {{ namespace }} import {{ type }}
 from typing import TypeVar
 {% endif -%}
 {% if constrained_ints_to_generate %}
-from pydantic import ConstrainedInt
+from typing import Annotated
+from annotated_types import Ge, Le
 {% endif -%}
 {% if "UUID" in product_block.fields | map(attribute="type") %}
-from orchestrator.domain.base import SubscriptionInstanceList
 from uuid import UUID
 {% endif %}
 {% for module, type in product_blocks_to_import %}
