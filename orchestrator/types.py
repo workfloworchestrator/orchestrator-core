@@ -33,7 +33,7 @@ from typing import (
 from uuid import UUID
 
 import strawberry
-from annotated_types import Len, MinLen
+from annotated_types import Len, MaxLen, MinLen
 from more_itertools import first, last
 from pydantic.fields import FieldInfo
 from typing_extensions import get_args, get_origin
@@ -439,6 +439,15 @@ def yield_min_length(type_args: Iterable) -> Iterable[int]:
             yield from yield_min_length(type_arg.metadata)
 
 
+def yield_max_length(type_args: Iterable) -> Iterable[int]:
+    """Given an iterable of type args, yield max_length values found in Pydantic metadata."""
+    for type_arg in type_args:
+        if isinstance(type_arg, Len) or isinstance(type_arg, MaxLen):
+            yield type_arg.max_length
+        if isinstance(type_arg, FieldInfo):
+            yield from yield_min_length(type_arg.metadata)
+
+
 def _get_default_type(type_: Any) -> Any:
     """Given a type, return the default type."""
     type_ = first(get_args(type_))
@@ -461,7 +470,7 @@ def list_factory(type_: Any, *init_args: Any, **init_kwargs: Any) -> list:
 
     >>> from annotated_types import Len
     >>> from pydantic import conlist, Field
-    >>> from typing import get_args, List, Annotated
+    >>> from typing import get_args, List, Annotated, Sequence
     >>> list_factory(list)
     []
     >>> list_factory(list[int])
@@ -482,6 +491,8 @@ def list_factory(type_: Any, *init_args: Any, **init_kwargs: Any) -> list:
     True
     >>> list_factory(conlist(dict, min_length=1), foo="bar")
     [{'foo': 'bar'}]
+    >>> list_factory(Annotated[Sequence[int], Len(min_length=1)], 3)
+    [3]
     """
     from orchestrator.domain.base import ProductBlockModel
 
@@ -494,7 +505,7 @@ def list_factory(type_: Any, *init_args: Any, **init_kwargs: Any) -> list:
         # List with annotations but without a type
         return []
 
-    if not has_list_in_mro(base_type):
+    if not is_list_type(base_type):
         raise TypeError(f"Tried to initialize a list for a non-list pb field: {type_=}")
 
     # Look for a type_arg specifying a minimum length
