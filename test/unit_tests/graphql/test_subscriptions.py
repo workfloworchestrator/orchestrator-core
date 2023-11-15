@@ -14,7 +14,7 @@ import datetime
 import json
 import sys
 from http import HTTPStatus
-from typing import Optional, Union
+from typing import Optional
 
 import pytest
 
@@ -256,8 +256,8 @@ def get_subscriptions_product_block_json_schema_query(
 def get_subscriptions_product_generic_one(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
     query_string: Optional[str] = None,
 ) -> bytes:
     query = build_subscriptions_query(
