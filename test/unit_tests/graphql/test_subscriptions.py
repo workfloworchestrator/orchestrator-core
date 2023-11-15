@@ -45,14 +45,6 @@ subscription_product_fields = [
     "endDate",
 ]
 
-SUBSCRIPTION_QUERY_VARIABLES = """
-    $first: Int!,
-    $after: Int!,
-    $sortBy: [GraphqlSort!],
-    $filterBy: [GraphqlFilter!],
-    $query: String
-    """
-
 
 def build_subscriptions_query(body: str) -> str:
     return f"""
@@ -872,10 +864,8 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     _, GenericProductOne = generic_product_type_1
     subscription_ids = product_type_1_subscriptions_factory(30)
     do_refresh_subscriptions_search_view()
-
     subscription_id = subscription_ids[10]
-    qarg = query_args(subscription_id)
-    data = get_subscriptions_query(**qarg)
+    data = get_subscriptions_query(**query_args(subscription_id))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     subscription = GenericProductOne.from_subscription(subscription_id)
