@@ -114,5 +114,5 @@ SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
     IPv6Address: IPv6AddressType,
     IPv4Interface: IPv4InterfaceType,
     IPv6Interface: IPv6InterfaceType,
-    int: IntType
+    int: IntType,
 }

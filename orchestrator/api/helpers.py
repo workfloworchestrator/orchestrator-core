@@ -27,6 +27,7 @@ from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
+from orchestrator.cli.generator.generator.helpers import camel_to_snake
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.db.range.range import Selectable, apply_range_to_statement
@@ -155,10 +156,15 @@ MAX_QUERY_STRING_LENGTH = 512
 
 
 def add_subscription_search_query_filter(stmt: Select, search_query: str) -> Select:
+    """Filters the Select statement on the contents of the query string.
+
+    The Select statement should read from SubscriptionTable as a source.
+    The query will first be converted from camelCase to snake_case before parsing.
+    """
     if len(search_query) > MAX_QUERY_STRING_LENGTH:
         raise_status(HTTPStatus.BAD_REQUEST, f"Max query length of {MAX_QUERY_STRING_LENGTH} characters exceeded.")
 
-    ts_query = create_ts_query_string(search_query)
+    ts_query = create_ts_query_string(camel_to_snake(search_query))
     return stmt.join(SubscriptionSearchView).filter(
         func.to_tsquery("simple", ts_query).op("@@")(SubscriptionSearchView.tsv)
     )

@@ -14,14 +14,14 @@ import datetime
 import json
 import sys
 from http import HTTPStatus
-from typing import Union, Optional
+from typing import Optional, Union
 
 import pytest
 
 from orchestrator.db import SubscriptionMetadataTable, db
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.conftest import refresh_subscriptions_search_view, do_refresh_subscriptions_search_view
+from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 
 subscription_fields = [
     "endDate",
@@ -55,7 +55,7 @@ SUBSCRIPTION_QUERY_VARIABLES = """
 
 
 def build_subscriptions_query(body: str) -> str:
-    gql_query = f"""
+    return f"""
 query SubscriptionQuery(
     $first: Int!,
     $after: Int!,
@@ -67,17 +67,17 @@ query SubscriptionQuery(
     {body}
 }}
 """
-    return gql_query
 
 
 def get_subscriptions_query(
-        first: int = 10,
-        after: int = 0,
-        filter_by: Optional[list[dict]] = None,
-        sort_by: Optional[list] = None,
-        query_string: Optional[str] = None,
+    first: int = 10,
+    after: int = 0,
+    filter_by: Optional[list[dict]] = None,
+    sort_by: Optional[list] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
-    gql_query = build_subscriptions_query("""{
+    gql_query = build_subscriptions_query(
+        """{
     page {
       description
       subscriptionId
@@ -114,7 +114,7 @@ def get_subscriptions_query(
     }
   }
 """
-                                          )
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -124,20 +124,21 @@ def get_subscriptions_query(
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
 
 
 def get_subscriptions_query_with_relations(
-        first: int = 10,
-        after: int = 0,
-        filter_by: Optional[list[dict[str, str]]] = None,
-        sort_by: Optional[list[dict[str, str]]] = None,
-        query_string: Optional[str] = None,
+    first: int = 10,
+    after: int = 0,
+    filter_by: Optional[list[dict[str, str]]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       description
       subscriptionId
@@ -206,7 +207,8 @@ def get_subscriptions_query_with_relations(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -216,20 +218,21 @@ def get_subscriptions_query_with_relations(
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
 
 
 def get_subscriptions_product_block_json_schema_query(
-        first: int = 10,
-        after: int = 0,
-        filter_by: Optional[list[dict[str, str]]] = None,
-        sort_by: Optional[list[dict[str, str]]] = None,
-        query_string: Optional[str] = None,
+    first: int = 10,
+    after: int = 0,
+    filter_by: Optional[list[dict[str, str]]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       _schema
     }
@@ -241,7 +244,8 @@ def get_subscriptions_product_block_json_schema_query(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -251,20 +255,21 @@ def get_subscriptions_product_block_json_schema_query(
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
 
 
 def get_subscriptions_product_generic_one(
-        first: int = 10,
-        after: int = 0,
-        filter_by: Union[list[str], None] = None,
-        sort_by: Union[list[dict[str, str]], None] = None,
-        query_string: Optional[str] = None,
+    first: int = 10,
+    after: int = 0,
+    filter_by: Union[list[str], None] = None,
+    sort_by: Union[list[dict[str, str]], None] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       ... on GenericProductOneSubscription {
         description
@@ -291,7 +296,8 @@ def get_subscriptions_product_generic_one(
       hasNextPage
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -301,20 +307,21 @@ def get_subscriptions_product_generic_one(
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
 
 
 def get_subscriptions_product_sub_list_union(
-        first: int = 10,
-        after: int = 0,
-        filter_by: Optional[list[dict[str, str]]] = None,
-        sort_by: Optional[list[str]] = None,
-        query_string: Optional[str] = None,
+    first: int = 10,
+    after: int = 0,
+    filter_by: Optional[list[dict[str, str]]] = None,
+    sort_by: Optional[list[str]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
-    query = build_subscriptions_query("""{
+    query = build_subscriptions_query(
+        """{
     page {
       ... on ProductSubListUnionSubscription {
         description
@@ -351,7 +358,8 @@ def get_subscriptions_product_sub_list_union(
       hasNextPage
     }
   }
-    """)
+    """
+    )
 
     return json.dumps(
         {
@@ -362,27 +370,29 @@ def get_subscriptions_product_sub_list_union(
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
 
 
 def get_subscriptions_with_metadata_and_schema_query(
-        first: int = 1,
-        after: int = 0,
-        filter_by: Optional[list[dict[str, str]]] = None,
-        sort_by: Optional[list[dict[str, str]]] = None,
-        query_string: Optional[str] = None,
+    first: int = 1,
+    after: int = 0,
+    filter_by: Optional[list[dict[str, str]]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
-    gql_query = build_subscriptions_query("""{
+    gql_query = build_subscriptions_query(
+        """{
     page {
       subscriptionId
       metadata
       _metadataSchema
     }
   }
-    """)
+    """
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -392,7 +402,7 @@ def get_subscriptions_with_metadata_and_schema_query(
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -672,7 +682,16 @@ def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscri
     assert "Value 'test' does not exist in 'SortOrder'" in result["errors"][0]["message"]
 
 
-def test_subscriptions_filtering_on_status(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "status", "value": SubscriptionLifecycle.TERMINATED}]},
+        {"query_string": "status:terminated"},
+    ],
+)
+def test_subscriptions_filtering_on_status(
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args
+):
     # when
 
     subscription_ids = product_type_1_subscriptions_factory(30)
@@ -686,19 +705,17 @@ def test_subscriptions_filtering_on_status(test_client, product_type_1_subscript
     subscription_9.save()
     do_refresh_subscriptions_search_view()
 
-    query1 = get_subscriptions_query(filter_by=[{"field": "status", "value": SubscriptionLifecycle.TERMINATED}])
-    query2 = get_subscriptions_query(query_string="status:terminated")
+    subscription_query = get_subscriptions_query(**query_args)
 
-    response = test_client.post("/api/graphql", content=query1, headers={"Content-Type": "application/json"})
-    response2 = test_client.post("/api/graphql", content=query2, headers={"Content-Type": "application/json"})
+    response = test_client.post(
+        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    )
 
     # then
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    result2 = response2.json()
     subscriptions_data = result["data"]["subscriptions"]
-    subscriptions_data2 = result2["data"]["subscriptions"]
 
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
@@ -717,9 +734,6 @@ def test_subscriptions_filtering_on_status(test_client, product_type_1_subscript
     assert result_subscription_ids == {str(subscription_1.subscription_id), str(subscription_9.subscription_id)}
     assert subscriptions[0]["status"] == "TERMINATED"
     assert subscriptions[1]["status"] == "TERMINATED"
-
-    assert pageinfo == subscriptions_data2["pageInfo"]
-    assert result_subscription_ids == {s["subscriptionId"] for s in subscriptions_data2["page"]}
 
 
 def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
@@ -765,7 +779,7 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
 
 
 def test_subscriptions_filtering_with_invalid_filter(
-        test_client, product_type_1_subscriptions_factory, generic_product_type_1
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1
 ):
     # when
 
@@ -842,13 +856,26 @@ def test_subscriptions_filtering_with_invalid_filter(
         assert subscription["status"] == "TERMINATED"
 
 
-def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1):
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        lambda sid: {"filter_by": [{"field": "subscriptionId", "value": sid}]},
+        lambda sid: {"query_string": f"subscription_id:{sid}"},
+        lambda sid: {"query_string": f"subscriptionId:{sid}"},
+        lambda sid: {"query_string": f"{sid}"},
+        lambda sid: {"query_string": f"{sid.split('-')[0]}"},
+    ],
+)
+def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args):
     # when
 
     _, GenericProductOne = generic_product_type_1
     subscription_ids = product_type_1_subscriptions_factory(30)
+    do_refresh_subscriptions_search_view()
+
     subscription_id = subscription_ids[10]
-    data = get_subscriptions_query(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    qarg = query_args(subscription_id)
+    data = get_subscriptions_query(**qarg)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     subscription = GenericProductOne.from_subscription(subscription_id)
@@ -900,20 +927,30 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     ]
 
 
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        lambda sid: {"filter_by": [{"field": "subscriptionId", "value": sid}]},
+        lambda sid: {"query_string": sid},
+    ],
+)
 def test_single_subscription_with_processes(
-        fastapi_app_graphql,
-        test_client,
-        product_type_1_subscriptions_factory,
-        mocked_processes,
-        mocked_processes_resumeall,  # noqa: F811
-        generic_subscription_2,  # noqa: F811
-        generic_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    mocked_processes,
+    mocked_processes_resumeall,  # noqa: F811
+    generic_subscription_2,  # noqa: F811
+    generic_subscription_1,
+    query_args,
 ):
     # when
 
     product_type_1_subscriptions_factory(30)
     subscription_id = generic_subscription_1
-    data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    do_refresh_subscriptions_search_view()
+
+    data = get_subscriptions_query_with_relations(**query_args(subscription_id))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -938,18 +975,20 @@ def test_single_subscription_with_processes(
 
 
 def test_single_subscription_with_depends_on_subscriptions(
-        fastapi_app_graphql,
-        test_client,
-        product_type_1_subscriptions_factory,
-        sub_one_subscription_1,
-        sub_two_subscription_1,
-        product_sub_list_union_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
     product_type_1_subscriptions_factory(30)
+    do_refresh_subscriptions_search_view()
+
     subscription_id = str(product_sub_list_union_subscription_1)
-    data = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
+    data = get_subscriptions_query_with_relations(query_string=subscription_id)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     expected_depends_on_ids = {
@@ -981,22 +1020,24 @@ def test_single_subscription_with_depends_on_subscriptions(
 
 
 def test_single_subscription_with_in_use_by_subscriptions(
-        fastapi_app_graphql,
-        test_client,
-        product_type_1_subscriptions_factory,
-        sub_one_subscription_1,
-        product_sub_list_union_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
     product_type_1_subscriptions_factory(30)
     do_refresh_subscriptions_search_view()
     subscription_id = str(sub_one_subscription_1.subscription_id)
-    query1 = get_subscriptions_query_with_relations(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
-    query2 = get_subscriptions_query_with_relations(query_string=subscription_id.split("-")[0])
+    subscription_query = get_subscriptions_query_with_relations(
+        filter_by=[{"field": "subscriptionId", "value": subscription_id}]
+    )
 
-    response = test_client.post("/api/graphql", content=query1, headers={"Content-Type": "application/json"})
-    response2 = test_client.post("/api/graphql", content=query2, headers={"Content-Type": "application/json"})
+    response = test_client.post(
+        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
+    )
 
     expected_in_use_by_ids = [str(product_sub_list_union_subscription_1)]
 
@@ -1004,7 +1045,6 @@ def test_single_subscription_with_in_use_by_subscriptions(
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    result2 = response2.json()
     subscriptions_data = result["data"]["subscriptions"]
     subscriptions = subscriptions_data["page"]
     pageinfo = subscriptions_data["pageInfo"]
@@ -1039,18 +1079,15 @@ def test_single_subscription_with_in_use_by_subscriptions(
         }
     ]
 
-    assert pageinfo == result2["data"]["subscriptions"]["pageInfo"]
-    assert subscriptions == result2["data"]["subscriptions"]["page"]
-
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="types get different origin with 3.10 and higher")
 def test_single_subscription_schema(
-        fastapi_app_graphql,
-        test_client,
-        product_type_1_subscriptions_factory,
-        sub_one_subscription_1,
-        sub_two_subscription_1,
-        product_sub_list_union_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
+    sub_one_subscription_1,
+    sub_two_subscription_1,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
@@ -1183,9 +1220,9 @@ def test_single_subscription_schema(
 
 
 def test_single_subscription_metadata_and_schema(
-        fastapi_app_graphql,
-        test_client,
-        sub_one_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    sub_one_subscription_1,
 ):
     # when
     expected_metadata = {"some_metadata_prop": ["test value 1", "test 2"]}
@@ -1224,9 +1261,9 @@ def expect_fail_test_if_too_many_duplicate_types_in_interface(result):
 
 
 def test_subscriptions_product_generic_one(
-        fastapi_app_graphql,
-        test_client,
-        product_type_1_subscriptions_factory,
+    fastapi_app_graphql,
+    test_client,
+    product_type_1_subscriptions_factory,
 ):
     # when
 
@@ -1259,9 +1296,9 @@ def test_subscriptions_product_generic_one(
 
 
 def test_single_subscription_product_list_union_type(
-        fastapi_app_graphql,
-        test_client,
-        product_sub_list_union_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
@@ -1297,9 +1334,9 @@ def test_single_subscription_product_list_union_type(
 
 
 def test_single_subscription_product_list_union_type_provisioning_subscription(
-        fastapi_app_graphql,
-        test_client,
-        product_sub_list_union_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_sub_list_union_subscription_1,
 ):
     # when
 
@@ -1339,9 +1376,9 @@ def test_single_subscription_product_list_union_type_provisioning_subscription(
 
 
 def test_single_subscription_product_list_union_type_terminated_subscription(
-        fastapi_app_graphql,
-        test_client,
-        product_sub_list_union_subscription_1,
+    fastapi_app_graphql,
+    test_client,
+    product_sub_list_union_subscription_1,
 ):
     # when
 

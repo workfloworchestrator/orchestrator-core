@@ -19,7 +19,11 @@ from sqlalchemy import func, select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.subscription import filter_subscriptions, subscription_filter_fields, add_subscription_search_query_filter
+from orchestrator.db.filters.subscription import (
+    filter_by_query_string,
+    filter_subscriptions,
+    subscription_filter_fields,
+)
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.subscription import sort_subscriptions, subscription_sort_fields
@@ -70,21 +74,25 @@ async def resolve_subscriptions(
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by, query=query)
+    logger.debug(
+        "resolve_subscription() called",
+        range=[after, after + first],
+        sort=sort_by,
+        filter=pydantic_filter_by,
+        query=query,
+    )
 
     stmt = select(SubscriptionTable).join(ProductTable)
 
     stmt = filter_subscriptions(stmt, pydantic_filter_by, _error_handler)
     if query is not None:
-        logger.info("ADDING SEARCH QUERY FILTER")
-        stmt = add_subscription_search_query_filter(stmt, query)
+        stmt = filter_by_query_string(stmt, query)
 
     stmt = sort_subscriptions(stmt, pydantic_sort_by, _error_handler)
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     subscriptions = db.session.scalars(stmt).all()
-    logger.info("SUBSCRIPTIONS RESULT", result=subscriptions)
     if _is_subscription_detailed(info):
         graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:
