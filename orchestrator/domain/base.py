@@ -720,6 +720,9 @@ class ProductBlockModel(DomainModel):
             if is_list_type(field_type):
                 instance_values_dict[field_name] = []
                 list_field_names.add(field_name)
+            elif is_optional_type(field_type):
+                # Initialize "optional required" fields
+                instance_values_dict[field_name] = None
 
         for siv in instance_values:
             # check the type of the siv in the instance and act accordingly: only lists and scalar values supported
