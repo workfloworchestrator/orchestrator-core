@@ -174,6 +174,8 @@ def migrate_file(f: Path) -> int:
     imports = {
         "SI": move_import(f, "SI", "orchestrator.domain.base", "orchestrator.types"),
         "VlanRanges": move_import(f, "VlanRanges", "orchestrator.utils.vlans", "nwastdlib.vlans"),
+        "ReadOnlyField_forms": move_import(f, "ReadOnlyField", "pydantic_forms.core", "pydantic_forms.validators"),
+        "ReadOnlyField_core": move_import(f, "ReadOnlyField", "orchestrator.forms", "pydantic_forms.validators"),
     }
     lines = []
     if replaced_lists := ", ".join(rewrite_subscription_instance_lists(f)):
