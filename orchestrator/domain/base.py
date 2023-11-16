@@ -689,6 +689,11 @@ class ProductBlockModel(DomainModel):
             subscription_id=subscription_id,
         )
         db.session.enable_relationship_loading(db_model)
+
+        if kwargs_name := kwargs.pop("name", None):
+            # Not allowed to change the product block model name at runtime. This is only possible through
+            # the `product_block_name=..` metaclass parameter
+            logger.warning("Ignoring `name` keyword to ProductBlockModel.new()", rejected_name=kwargs_name)
         model = cls(
             name=cls.name,
             subscription_instance_id=subscription_instance_id,
