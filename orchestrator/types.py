@@ -431,7 +431,7 @@ def has_list_in_mro(type_: Any) -> bool:
 
 
 def yield_min_length(type_args: Iterable) -> Iterable[int]:
-    """Given an iterable of type args, yield min_length values found in Pydantic metadata."""
+    """Given an iterable of type args, yield min_length values found in typing metadata."""
     for type_arg in type_args:
         if isinstance(type_arg, Len) or isinstance(type_arg, MinLen):
             yield type_arg.min_length
@@ -440,12 +440,23 @@ def yield_min_length(type_args: Iterable) -> Iterable[int]:
 
 
 def yield_max_length(type_args: Iterable) -> Iterable[int]:
-    """Given an iterable of type args, yield max_length values found in Pydantic metadata."""
+    """Given an iterable of type args, yield max_length values found in typing metadata."""
     for type_arg in type_args:
         if isinstance(type_arg, Len) or isinstance(type_arg, MaxLen):
             yield type_arg.max_length
         if isinstance(type_arg, FieldInfo):
-            yield from yield_min_length(type_arg.metadata)
+            yield from yield_max_length(type_arg.metadata)
+
+
+def get_iterable_max_length(iterable_type: Any, reduce_func: Callable = last) -> int:
+    """Return the max_length for the given annotated iterable type.
+
+    Args:
+        iterable_type: the iterable type (i.e. list, List, Sequence)
+        reduce_func: callable to reduce multiple max_length values to one value.
+            Defaults to `more_itertools.last`
+    """
+    return reduce_func(yield_max_length(get_args(iterable_type)))
 
 
 def _get_default_type(type_: Any) -> Any:
