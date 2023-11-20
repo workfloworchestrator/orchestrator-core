@@ -94,16 +94,17 @@ class Parser:
 
     The following grammar is used. Nodenames starting with a _ will not appear in the final parse tree.
     <Query> ::= <AndExpression> ('|' <AndExpression>)*
-    <AndExpression> ::= <Term>*
-    <_Term> ::= [<Negation>] <PositiveTerm>
+    <AndExpression> ::= <_Term>*
+    <_Term> ::= [<Negation>] <_PositiveTerm>
     <Negation> ::= '-'
     <_PositiveTerm> ::= <Group> | <_Value> | <KVTerm>
     <Group> ::= '(' <Query> ')'
     <Phrase> ::= '"' (<Word> | <PrefixWord>)* '"'
     <KVTerm> ::= <Value> ':' (<_Value> | <ValueGroup>)
+    <_SearchWord> ::= <Word> | <PrefixWord>
     <PrefixWord> ::= <Word> '*'
     <Word> ::= <text without "*()!:<> or whitespace>
-    <_Value> ::= <Phrase> | <SearchWord>
+    <_Value> ::= <Phrase> | <_SearchWord>
     <ValueGroup> ::= '(' <Value> ('|' <Value>)* ')'
     """
 

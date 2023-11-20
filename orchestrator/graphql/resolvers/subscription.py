@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+from typing import Optional
 
 import structlog
 from pydantic.utils import to_lower_camel
@@ -19,7 +19,11 @@ from sqlalchemy import func, select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.subscription import filter_subscriptions, subscription_filter_fields
+from orchestrator.db.filters.subscription import (
+    filter_by_query_string,
+    filter_subscriptions,
+    subscription_filter_fields,
+)
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.subscription import sort_subscriptions, subscription_sort_fields
@@ -60,26 +64,35 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
 
 async def resolve_subscriptions(
     info: OrchestratorInfo,
-    filter_by: Union[list[GraphqlFilter], None] = None,
-    sort_by: Union[list[GraphqlSort], None] = None,
+    filter_by: Optional[list[GraphqlFilter]] = None,
+    sort_by: Optional[list[GraphqlSort]] = None,
     first: int = 10,
     after: int = 0,
+    query: Optional[str] = None,
 ) -> Connection[SubscriptionInterface]:
     _error_handler = create_resolver_error_handler(info)
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
-    logger.debug("resolve_subscription() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
+    logger.debug(
+        "resolve_subscription() called",
+        range=[after, after + first],
+        sort=sort_by,
+        filter=pydantic_filter_by,
+        query=query,
+    )
 
     stmt = select(SubscriptionTable).join(ProductTable)
 
     stmt = filter_subscriptions(stmt, pydantic_filter_by, _error_handler)
+    if query is not None:
+        stmt = filter_by_query_string(stmt, query)
+
     stmt = sort_subscriptions(stmt, pydantic_sort_by, _error_handler)
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     subscriptions = db.session.scalars(stmt).all()
-
     if _is_subscription_detailed(info):
         graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
     else:
