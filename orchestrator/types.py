@@ -433,7 +433,7 @@ def has_list_in_mro(type_: Any) -> bool:
 def yield_min_length(type_args: Iterable) -> Iterable[int]:
     """Given an iterable of type args, yield min_length values found in typing metadata."""
     for type_arg in type_args:
-        if isinstance(type_arg, Len) or isinstance(type_arg, MinLen):
+        if isinstance(type_arg, (Len, MinLen)):
             yield type_arg.min_length
         if isinstance(type_arg, FieldInfo):
             yield from yield_min_length(type_arg.metadata)
@@ -442,7 +442,7 @@ def yield_min_length(type_args: Iterable) -> Iterable[int]:
 def yield_max_length(type_args: Iterable) -> Iterable[int]:
     """Given an iterable of type args, yield max_length values found in typing metadata."""
     for type_arg in type_args:
-        if isinstance(type_arg, Len) or isinstance(type_arg, MaxLen):
+        if isinstance(type_arg, (Len, MaxLen)) and type_arg.max_length is not None:
             yield type_arg.max_length
         if isinstance(type_arg, FieldInfo):
             yield from yield_max_length(type_arg.metadata)
