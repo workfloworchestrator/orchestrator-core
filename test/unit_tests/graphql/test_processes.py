@@ -51,12 +51,6 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       createdBy
       startedAt
       lastModifiedAt
-      pid
-      step
-      status
-      workflow
-      started
-      lastModified
       product {
         productId
         name
