@@ -303,13 +303,8 @@ def test_resume_validations(test_client, started_process):
     response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": 123}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert [
-        {
-            "type": "string_type",
-            "loc": ["generic_select"],
-            "msg": "Input should be a valid string",
-            "input": 123,
-            "url": "https://errors.pydantic.dev/2.4/v/string_type",
-        }
+        {"type": "string_type", "loc": ["generic_select"], "msg": "Input should be a valid string", "input": 123}
+        | URL_STR_TYPE
     ] == response.json()["validation_errors"]
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
