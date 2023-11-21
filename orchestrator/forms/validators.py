@@ -102,7 +102,7 @@ def product_id(product_ids: Optional[List[UUID]] = None) -> Type[ProductId]:
     return Annotated[  # type: ignore[return-value]
         ProductId,
         AfterValidator(partial(_validate_in_products, set(product_ids or []))),
-        Field(json_schema_extra={"format": "productId"} | schema),
+        Field(json_schema_extra={"format": "productId"} | schema),  # type: ignore[arg-type]
     ]
 
 
