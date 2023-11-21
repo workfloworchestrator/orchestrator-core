@@ -180,7 +180,7 @@ def test_product_query(test_client, generic_product_1, generic_product_2, generi
 
 
 def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
-    data = get_product_query(after=1)
+    data = get_product_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
@@ -199,7 +199,7 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
 
     assert len(products) == 5
     product_names = [product["name"] for product in products]
-    assert product_names == ["Product 2", "ProductSubOne", "ProductSubTwo", "ProductSubListUnion", "Product 3"]
+    assert product_names == ["Product 2", "Product 3", "ProductSubListUnion", "ProductSubOne", "ProductSubTwo"]
 
 
 def test_products_filter_by_product_block(test_client, generic_product_1, generic_product_2, generic_product_3):

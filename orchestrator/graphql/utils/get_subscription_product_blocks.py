@@ -52,6 +52,9 @@ def get_all_product_blocks(subscription: dict[str, Any], _tags: Optional[list[st
     return list(locate_product_block(subscription))
 
 
+pb_instance_property_keys = ("id", "parent", "owner_subscription_id", "subscription_instance_id", "in_use_by_relations")
+
+
 async def get_subscription_product_blocks(
     subscription_id: UUID, tags: Optional[list[str]] = None, product_block_instance_values: Optional[list[str]] = None
 ) -> list[ProductBlockInstance]:
@@ -60,13 +63,13 @@ async def get_subscription_product_blocks(
 
     def to_product_block(product_block: dict[str, Any]) -> ProductBlockInstance:
         def is_resource_type(candidate: Any) -> bool:
-            return isinstance(candidate, (bool, str, int, float, type(None)))
+            return not isinstance(candidate, (list, dict))
 
         def requested_resource_type(key: str) -> bool:
             return not product_block_instance_values or key in product_block_instance_values
 
         def included(key: str, value: Any) -> bool:
-            return is_resource_type(value) and requested_resource_type(key) and key not in ("id", "parent")
+            return is_resource_type(value) and requested_resource_type(key) and key not in pb_instance_property_keys
 
         return ProductBlockInstance(
             id=product_block["id"],
@@ -74,7 +77,9 @@ async def get_subscription_product_blocks(
             owner_subscription_id=product_block["owner_subscription_id"],
             subscription_instance_id=product_block["subscription_instance_id"],
             product_block_instance_values=[
-                {"field": to_lower_camel(k), "value": v} for k, v in product_block.items() if included(k, v)
+                {"field": to_lower_camel(k), "value": v if isinstance(v, (str, int, float, type(None))) else str(v)}
+                for k, v in product_block.items()
+                if included(k, v)
             ],
             in_use_by_relations=product_block.get("in_use_by_relations", []),
         )
