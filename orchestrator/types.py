@@ -222,7 +222,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_list_type(List[Any], int)
     True
     >>> is_list_type(list, int)
-    True
+    False
     >>> is_list_type(Optional[List[int]])
     True
     >>> is_list_type(Optional[List[int]], int)
@@ -263,7 +263,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     >>> is_list_type(Annotated[list, "foo"])
     True
     >>> is_list_type(Annotated[list, "foo"], int)
-    True
+    False
     >>> is_list_type(Annotated[list[str], "foo"], int)
     False
     >>> is_list_type(Annotated[list[str], "foo"], str)
@@ -280,7 +280,7 @@ def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
     """
     t_origin, t_args = get_origin_and_args(t)
     if t_origin is None:
-        return has_list_in_mro(t)
+        return test_type is None and has_list_in_mro(t)
 
     if is_optional_type(t) or is_union_type(t):
         for arg in t_args:
