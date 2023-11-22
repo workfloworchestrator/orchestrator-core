@@ -1,6 +1,9 @@
 import pytest
+from sqlalchemy import select, table, column
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 
-from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor
+from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
 def _parse_tree_and_tsquery(q: str) -> tuple[tuple, str]:
@@ -51,7 +54,7 @@ def test_parse_query_with_phrase():
 )
 def test_parse_errors(query, msg):
     with pytest.raises(
-        ParseError,
+            ParseError,
     ):
         _parse_tree_and_tsquery(query)
 
@@ -87,3 +90,18 @@ def test_parse_complex_query():
             " & !(not <-> this & or <-> this) & something & else",
         ]
     )
+
+
+def test_sqlalchemy_select():
+    id_, name, description, tag = column("id"), column("name"), column("description"), column("tag")
+    my_table = table("MyTable", id_, name, description)
+    mappings = {
+        "id": id_, "name": name, "description": description, "tag": tag
+    }
+    base_stmt = select(my_table)
+    q = "a word description:something name:daniel | id:my_id name:pi* | \"a b c\":\"more Words\" tag:(t1|t2|t3) -name:floris"
+    stmt = create_sqlalchemy_select(base_stmt, q, mappings)
+    compiled_stmt = stmt.compile(dialect=postgresql.dialect())
+    print(compiled_stmt.statement)
+    print(compiled_stmt.params)
+    assert str(compiled_stmt.string) == ""

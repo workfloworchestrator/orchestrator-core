@@ -4,6 +4,7 @@ from itertools import chain
 from typing import Any, Iterable, Iterator, Optional, Union, cast
 
 import structlog
+from sqlalchemy import Select, SQLColumnExpression, CompoundSelect, or_, not_
 
 logger = structlog.getLogger(__name__)
 
@@ -345,5 +346,90 @@ class TSQueryVisitor:
         return "".join(acc)
 
 
+class SQLAlchemyVisitor:
+
+    def __init__(self, stmt: Select, mappings: dict[str, SQLColumnExpression]):
+        self.base_stmt = stmt
+        self.mappings = mappings
+
+    @staticmethod
+    def _phrase_to_ilike_str(phrase: Node):
+        acc = []
+        for node in phrase[1]:
+            if node[0] == "Word":
+                acc.append(node[1])
+            elif node[1] == "PrefixWord":
+                acc.append(f"{node[1]}%")
+        return " ".join(acc)
+
+    def visit_kv_term(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        key_node, value_node = node[1]
+        if key_node[0] == "Word":
+            col = self.mappings.get(key_node[1])  # Non-existing columns will emit `where false`, returning no results
+            if value_node[0] == "Word":
+                cond_expr = (col != value_node[1]) if is_negated else (col == value_node[1])
+                return stmt.where(cond_expr)
+            elif value_node[0] == "PrefixWord":
+                cond_expr = col.not_ilike(f"{value_node[1]}%") if is_negated else col.ilike(f"{value_node[1]}%")
+                return stmt.where(cond_expr)
+            elif value_node[0] == "Phrase":
+                ilike_str = self._phrase_to_ilike_str(value_node[1])
+                cond_expr = col.not_ilike(ilike_str) if is_negated else col.ilike(ilike_str)
+                return stmt.where(cond_expr)
+            elif value_node[0] == "ValueGroup":
+                # Support only Words (no PrefixWords) so we can use the SQL IN-operator.
+                val_list = [w[1] for w in value_node[1] if w[0] == "Word"]
+                cond_expr = col.notin_(val_list) if is_negated else col.in_(val_list)
+                return stmt.where(cond_expr)
+        else:
+            # Only Word key_nodes are supported. Skipping term
+            return stmt
+
+    def visit_search_word(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        # The dynamically generated list of expression may not be empty, so we prepend with a "default" False
+        or_expr = or_(False, *(col == node[1] for col in self.mappings.values()))
+        return stmt.where(or_expr if not is_negated else not_(or_expr))
+
+    def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        # Implement select_from subquery pattern
+        raise NotImplementedError("Visit group is not yet implemented.")
+
+    def visit_term(self, stmt: Select, node: Node, is_negated: bool = False) -> Select:
+        node_type = node[0]
+        if node_type == "KVTerm":
+            return self.visit_kv_term(stmt, node, is_negated)
+        elif node_type == "Negation":
+            return self.visit_term(stmt, node[1], is_negated=True)
+        elif node_type in ["Word", "PrefixWord"]:
+            return self.visit_search_word(stmt, node, is_negated)
+        elif node_type == "Group":
+            return self.visit_group(stmt, node, is_negated)
+        else:
+            raise Exception("Only KVTerms are supported at the moment")
+
+    def visit_and_expression(self, stmt: Select, node: Node) -> Select:
+        for term in node[1]:
+            stmt = self.visit_term(stmt, term)
+        return stmt
+
+    def visit_query(self, stmt: Select, node: Node) -> CompoundSelect:
+        # Create union
+        if len(node) > 1:
+            stmt = self.visit_and_expression(stmt, node[1][0])
+            stmt = stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
+            return stmt
+
+    def visit(self, parse_tree: Node) -> CompoundSelect | Select:
+        node_type = parse_tree[0]
+        if node_type == "Query":
+            return self.visit_query(self.base_stmt, parse_tree)
+        return self.base_stmt
+
+
 def create_ts_query_string(search_query: str) -> str:
     return TSQueryVisitor.visit(Parser(Lexer(search_query).lex()).parse())
+
+
+def create_sqlalchemy_select(stmt: Select, search_query: str,
+                             mappings: dict[str, SQLColumnExpression]) -> Select | CompoundSelect:
+    return SQLAlchemyVisitor(stmt, mappings).visit(Parser(Lexer(search_query).lex()).parse())
