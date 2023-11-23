@@ -1300,6 +1300,14 @@ def test_nested_serializable_property():
     assert model.dict() == {"derived": {"int_field": 13, "double_int_field": 26}}
 
 
+def test_property_with_tag(test_product_block_one, test_product_one, test_product_block_one_db):
+    ProductBlockOneForTestInactive, _, _ = test_product_block_one
+
+    block = ProductBlockOneForTestInactive.new(int_field=1, subscription_id=uuid4())
+
+    assert block.title == "TEST ProductBlockOneForTestInactive int_field=1"
+
+
 def test_subscription_save_list_with_zero_values(
     test_product_type_one, test_product_sub_block_one, product_one_subscription_1
 ):
