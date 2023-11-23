@@ -1281,6 +1281,14 @@ def test_inherited_serializable_property():
     assert block.model_dump() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
 
 
+def test_property_with_tag(test_product_block_one, test_product_one, test_product_block_one_db):
+    ProductBlockOneForTestInactive, _, _ = test_product_block_one
+
+    block = ProductBlockOneForTestInactive.new(int_field=1, subscription_id=uuid4())
+
+    assert block.title == "TEST ProductBlockOneForTestInactive int_field=1"
+
+
 def test_subscription_save_list_with_zero_values(
     test_product_type_one, test_product_sub_block_one, product_one_subscription_1
 ):
