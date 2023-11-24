@@ -794,6 +794,7 @@ class ProductBlockModel(DomainModel):
 
         data = cls._data_from_lifecycle(other, status, subscription_id)
 
+        cls._fix_pb_data()
         model = cls(**data)
         model._db_model = other._db_model
         return model
@@ -837,6 +838,7 @@ class ProductBlockModel(DomainModel):
         instance_values = cls._load_instances_values(subscription_instance.values)
         sub_instances = cls._load_instances(subscription_instance.depends_on, status)
 
+        cls._fix_pb_data()
         try:
             model = cls(
                 name=cls.name,
@@ -1189,6 +1191,7 @@ class SubscriptionModel(DomainModel):
         fixed_inputs = {fi.name: fi.value for fi in product_db.fixed_inputs}
         instances = cls._init_instances(subscription_id)
 
+        cls._fix_pb_data()
         model = cls(
             product=product,
             customer_id=customer_id,
@@ -1234,6 +1237,7 @@ class SubscriptionModel(DomainModel):
         if data["end_date"] is None and status == SubscriptionLifecycle.TERMINATED:
             data["end_date"] = nowtz()
 
+        cls._fix_pb_data()
         model = cls(**data)
         model._db_model = other._db_model
 
@@ -1294,6 +1298,7 @@ class SubscriptionModel(DomainModel):
         else:
             instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type:ignore
 
+        cls._fix_pb_data()
         try:
             model = cls(
                 product=product,
@@ -1344,6 +1349,7 @@ class SubscriptionModel(DomainModel):
 
         instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
+        cls._fix_pb_data()
         try:
             model = cls(
                 product=product,

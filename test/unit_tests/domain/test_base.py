@@ -1307,3 +1307,15 @@ def test_subscription_save_bool_list_with_false_values(
 
     subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
     assert subscription.block.list_field == [True, False, True, False]
+
+
+def test_product_block_lazy_load_tag(test_product_one, test_product_type_one, test_product_block_one_db):
+    class ProductBlockOneForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneForTest"):
+        str_field: Optional[str] = None
+
+    pb = ProductBlockOneForTestInactive.new(uuid4())
+
+    assert pb.tag == "TEST"
+    assert (
+        getattr(pb, "tag", None) == "TEST"
+    ), "tag attribute should be lazy loaded through ProductBlockModel._fix_pb_data()"
