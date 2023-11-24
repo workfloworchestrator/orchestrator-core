@@ -243,6 +243,13 @@ class DomainModel(BaseModel):
             skip_keys = set()
 
         product_block_field_names = set(cls._product_block_fields_) - skip_keys
+        logger.warning(
+            "Init subscription instances",
+            klass=cls,
+            subscription_id=subscription_id,
+            names=product_block_field_names,
+            skipped=skip_keys,
+        )
         return {
             product_block_field_name: cls._init_instance(product_block_field_name, subscription_id)
             for product_block_field_name in product_block_field_names
@@ -256,9 +263,20 @@ class DomainModel(BaseModel):
         product_block_field_type = cls._product_block_fields_[product_block_field_name]
 
         if is_list_type(product_block_field_type):
+            logger.warning(
+                "Init subscription instance to list",
+                product_block_field_name=product_block_field_name,
+                product_block_field_type=product_block_field_type,
+            )
             return list_factory(product_block_field_type, subscription_id=subscription_id)
 
         if is_optional_type(product_block_field_type, ProductBlockModel):
+            logger.warning(
+                "Init subscription instance to None",
+                product_block_field_name=product_block_field_name,
+                product_block_field_type=product_block_field_type,
+            )
+
             return None
 
         if is_union_type(product_block_field_type):
@@ -269,6 +287,11 @@ class DomainModel(BaseModel):
 
         product_block_model = product_block_field_type
         # Scalar field of a ProductBlockModel expects 1 instance
+        logger.warning(
+            "Init subscription instance to PbModel",
+            product_block_field_name=product_block_field_name,
+            product_block_field_type=product_block_field_type,
+        )
         return product_block_model.new(subscription_id=subscription_id)
 
     @classmethod
@@ -375,6 +398,8 @@ class DomainModel(BaseModel):
 
     @classmethod
     def _data_from_lifecycle(cls, other: "DomainModel", status: SubscriptionLifecycle, subscription_id: UUID) -> Dict:
+        logger.warning("DomainModel._data_from_lifecycle", klass=cls, other=other, subscription_id=subscription_id)
+
         data = other.model_dump()
 
         for field_name, field_type in cls._product_block_fields_.items():
@@ -473,6 +498,7 @@ class DomainModel(BaseModel):
 
     def model_dump(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         """Override the model_dump function to include serializable properties."""
+
         attribs = super().model_dump(**kwargs)
         props = self.get_properties()
 
@@ -481,6 +507,7 @@ class DomainModel(BaseModel):
             props = [prop for prop in props if prop in include]
         if exclude := kwargs.get("exclude"):
             props = [prop for prop in props if prop not in exclude]
+        logger.warning("DomainModel.model_dump", self_=self, props=props)
 
         # Update the attribute dict with the properties
         if props:
@@ -566,10 +593,13 @@ class ProductBlockModel(DomainModel):
         # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we can't
         # access the db. So now we do it just before we instantiate the instance
         if not hasattr(cls, "product_block_id"):
+            logger.warning("ProductBlockModel._fix_pb_data - setting product_block_id and tag on class", klass=cls)
             product_block = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one()
             cls.product_block_id = product_block.product_block_id
             cls.description = product_block.description
             cls.tag = product_block.tag
+        else:
+            logger.warning("ProductBlockModel._fix_pb_data - NOT setting product_block_id and tag on class", klass=cls)
 
     @classmethod
     def __pydantic_init_subclass__(  # type: ignore[override]
@@ -579,6 +609,8 @@ class ProductBlockModel(DomainModel):
         lifecycle: Optional[List[SubscriptionLifecycle]] = None,
         **kwargs: Any,
     ) -> None:
+        logger.warning("ProductBlockModel.__pydantic_init_subclass__", klass=cls)
+
         super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
 
         if product_block_name is not None:
@@ -676,6 +708,8 @@ class ProductBlockModel(DomainModel):
 
         This is similar to `from_product_id()`
         """
+        logger.warning("ProductBlockModel.new", klass=cls)
+
         sub_instances = cls._init_instances(subscription_id, set(kwargs.keys()))
 
         subscription_instance_id = uuid4()
@@ -746,6 +780,10 @@ class ProductBlockModel(DomainModel):
         status: SubscriptionLifecycle,
         subscription_id: UUID,
     ) -> B:
+        logger.warning(
+            "ProductBlockModel._from_other_lifecycle", klass=cls, other=other, subscription_id=subscription_id
+        )
+
         """Create new domain model from instance while changing the status.
 
         This makes sure we always have a specific instance.
