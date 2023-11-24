@@ -104,6 +104,10 @@ class OrchestratorCore(FastAPI):
 
         init_database(base_settings)
 
+        for model in SUBSCRIPTION_MODEL_REGISTRY.values():
+            for product_block in model._product_block_fields_.values():
+                product_block._fix_pb_data()
+
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
         self.add_middleware(DBSessionMiddleware, database=db)
