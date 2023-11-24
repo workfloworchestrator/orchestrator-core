@@ -756,6 +756,7 @@ class ProductBlockModel(DomainModel):
 
         data = cls._data_from_lifecycle(other, status, subscription_id)
 
+        cls._fix_pb_data()
         model = cls(**data)
         model._db_model = other._db_model
         return model
@@ -799,6 +800,7 @@ class ProductBlockModel(DomainModel):
         instance_values = cls._load_instances_values(subscription_instance.values)
         sub_instances = cls._load_instances(subscription_instance.depends_on, status)
 
+        cls._fix_pb_data()
         try:
             model = cls(
                 name=cls.name,
