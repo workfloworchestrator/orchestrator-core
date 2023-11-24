@@ -39,7 +39,6 @@ from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
-from orchestrator.domain.base import ProductBlockModel
 from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import Mutation, Query, create_graphql_router, register_domain_models
 from orchestrator.services.processes import ProcessDataBroadcastThread
@@ -104,9 +103,6 @@ class OrchestratorCore(FastAPI):
         self.include_router(api_router, prefix="/api")
 
         init_database(base_settings)
-
-        for model in ProductBlockModel.registry.values():
-            model._fix_pb_data()
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
         self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
