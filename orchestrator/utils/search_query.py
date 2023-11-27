@@ -1,10 +1,12 @@
 import re
 from enum import Enum
 from itertools import chain
-from typing import Any, Iterable, Iterator, Optional, Union, cast
+from typing import Any, Iterable, Iterator, Optional, Union, cast, Type
 
 import structlog
 from sqlalchemy import Select, SQLColumnExpression, CompoundSelect, or_, not_
+from sqlalchemy.orm import MappedColumn
+from orchestrator.db.database import BaseModel
 
 logger = structlog.getLogger(__name__)
 
@@ -348,9 +350,11 @@ class TSQueryVisitor:
 
 class SQLAlchemyVisitor:
 
-    def __init__(self, stmt: Select, mappings: dict[str, SQLColumnExpression]):
+    def __init__(self, stmt: Select, mappings: dict[str, SQLColumnExpression], base_table: BaseModel, join_key: MappedColumn):
         self.base_stmt = stmt
         self.mappings = mappings
+        self.base_table = base_table
+        self.join_key = join_key
 
     @staticmethod
     def _phrase_to_ilike_str(phrase: Node):
@@ -391,8 +395,10 @@ class SQLAlchemyVisitor:
         return stmt.where(or_expr if not is_negated else not_(or_expr))
 
     def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
-        # Implement select_from subquery pattern
-        raise NotImplementedError("Visit group is not yet implemented.")
+        subquery = self.visit_query(self.base_stmt, node).cte()
+        if is_negated:
+            return stmt.outerjoin_from(self.base_table, subquery, subquery.c[self.join_key.name] == None)
+        return stmt.join_from(self.base_table, subquery, self.join_key == subquery.c[self.join_key.name])
 
     def visit_term(self, stmt: Select, node: Node, is_negated: bool = False) -> Select:
         node_type = node[0]
@@ -413,11 +419,11 @@ class SQLAlchemyVisitor:
         return stmt
 
     def visit_query(self, stmt: Select, node: Node) -> CompoundSelect:
-        # Create union
-        if len(node) > 1:
-            stmt = self.visit_and_expression(stmt, node[1][0])
+        stmt = self.visit_and_expression(stmt, node[1][0])
+        if len(node[1]) > 1:
+            # Create union
             stmt = stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
-            return stmt
+        return stmt
 
     def visit(self, parse_tree: Node) -> CompoundSelect | Select:
         node_type = parse_tree[0]
@@ -431,5 +437,5 @@ def create_ts_query_string(search_query: str) -> str:
 
 
 def create_sqlalchemy_select(stmt: Select, search_query: str,
-                             mappings: dict[str, SQLColumnExpression]) -> Select | CompoundSelect:
-    return SQLAlchemyVisitor(stmt, mappings).visit(Parser(Lexer(search_query).lex()).parse())
+                             mappings: dict[str, SQLColumnExpression], base_table: Type[BaseModel], join_key: MappedColumn) -> Select | CompoundSelect:
+    return SQLAlchemyVisitor(stmt, mappings, base_table, join_key).visit(Parser(Lexer(search_query).lex()).parse())

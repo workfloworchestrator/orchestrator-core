@@ -17,6 +17,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy.inspection import inspect
+from sqlalchemy.orm import MappedColumn
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
@@ -102,27 +103,35 @@ BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in ins
 BASE_SNAKE = {key: generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
 
 PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = (
-    BASE_CAMEL
-    | BASE_SNAKE
-    | {
-        "isTask": generic_bool_filter(ProcessTable.is_task),
-        "is_task": generic_bool_filter(ProcessTable.is_task),
-        "assignee": generic_values_in_column_filter(ProcessTable.assignee),
-        "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
-        "product": product_filter,
-        "productTag": tag_filter,
-        "subscriptions": subscriptions_filter,
-        "subscriptionId": subscription_id_filter,
-        "subscription_id": subscription_id_filter,
-        "target": target_filter,
-        "organisation": organisation_filter,
-        "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
-        "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
-        "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
-        "tag": tag_filter,  # TODO: will be removed in 1.4
-        "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: will be removed in 1.4
-    }
+        BASE_CAMEL
+        | BASE_SNAKE
+        | {
+            "isTask": generic_bool_filter(ProcessTable.is_task),
+            "is_task": generic_bool_filter(ProcessTable.is_task),
+            "assignee": generic_values_in_column_filter(ProcessTable.assignee),
+            "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
+            "product": product_filter,
+            "productTag": tag_filter,
+            "subscriptions": subscriptions_filter,
+            "subscriptionId": subscription_id_filter,
+            "subscription_id": subscription_id_filter,
+            "target": target_filter,
+            "organisation": organisation_filter,
+            "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
+            "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
+            "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
+            "tag": tag_filter,  # TODO: will be removed in 1.4
+            "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: will be removed in 1.4
+        }
 )
 
+PROCESS_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = (
+        {k: column for key, column in inspect(ProcessTable).columns.items() for k in [key, to_camel(key)]}
+        | {
+            "product": ProductTable.product_type,
+            "productTag": ProductTable.tag,
+            "target": ProcessSubscriptionTable.workflow_target
+        }
+)
 process_filter_fields = list(PROCESS_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)

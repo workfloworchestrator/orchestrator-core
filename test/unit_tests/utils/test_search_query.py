@@ -1,8 +1,6 @@
 import pytest
 from sqlalchemy import select, table, column
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
-
 from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
@@ -21,6 +19,13 @@ def test_parse_simple_query():
         [("AndExpression", [("Word", "simple"), ("Word", "query"), ("Word", "with"), ("Word", "words")])],
     )
     assert tsquery == "simple & query & with & words"
+
+
+def test_searchbox():
+    q = "word1|word2 tag:(abc|def)"
+    parse_tree, tsquery = _parse_tree_and_tsquery(q)
+    # assert parse_tree == ()
+    assert tsquery == ""
 
 
 def test_parse_query_with_phrase():
@@ -99,9 +104,23 @@ def test_sqlalchemy_select():
         "id": id_, "name": name, "description": description, "tag": tag
     }
     base_stmt = select(my_table)
-    q = "a word description:something name:daniel | id:my_id name:pi* | \"a b c\":\"more Words\" tag:(t1|t2|t3) -name:floris"
-    stmt = create_sqlalchemy_select(base_stmt, q, mappings)
+    # q = "a word description:something name:daniel | id:my_id name:pi* | \"a b c\":\"more Words\" tag:(t1|t2|t3) -name:floris"
+    q = "something -(not this)"
+    stmt = create_sqlalchemy_select(base_stmt, q, mappings, my_table, my_table.c.id)
     compiled_stmt = stmt.compile(dialect=postgresql.dialect())
     print(compiled_stmt.statement)
     print(compiled_stmt.params)
     assert str(compiled_stmt.string) == ""
+
+
+def test_sqlalchemy_join():
+    table1 = table('t1', column('a'), column('name'), column('description'))
+    subquery1 = select(table1).where(table1.c.name == 'x').cte()
+    subquery2 = select(table1).where(table1.c.description == 'y').cte()
+    s = (select(table1)
+         .outerjoin_from(table1, subquery1, table1.c.a == subquery1.c.a)
+         .join_from(table1, subquery2, table1.c.a == subquery2.c.a))
+    compiled_stmt = s.compile(dialect=postgresql.dialect())
+    print(f"\n{compiled_stmt.statement}")
+    print(compiled_stmt.params)
+    assert str(compiled_stmt.string)
