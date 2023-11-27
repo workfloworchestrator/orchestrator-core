@@ -381,10 +381,18 @@ class SQLAlchemyVisitor:
                 cond_expr = col.not_ilike(ilike_str) if is_negated else col.ilike(ilike_str)
                 return stmt.where(cond_expr)
             elif value_node[0] == "ValueGroup":
-                # Support only Words (no PrefixWords) so we can use the SQL IN-operator.
-                val_list = [w[1] for w in value_node[1] if w[0] == "Word"]
-                cond_expr = col.notin_(val_list) if is_negated else col.in_(val_list)
-                return stmt.where(cond_expr)
+                word_list = [w[1] for w in value_node[1] if w[0] == "Word"]
+                if word_list:
+                    cond_expr = col.notin_(word_list) if is_negated else col.in_(word_list)
+                    stmt = stmt.where(cond_expr)
+
+                pre_list = [col.ilike(f"{w[1]}%") for w in value_node[1] if w[0] == "PrefixWord"]
+                if pre_list:
+                    or_expr = or_(False, *pre_list)
+                    cond_expr = or_expr if not is_negated else not_(or_expr)
+                    stmt = stmt.where(cond_expr)
+
+                return stmt
         else:
             # Only Word key_nodes are supported. Skipping term
             return stmt

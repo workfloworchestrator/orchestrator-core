@@ -1,6 +1,8 @@
 from typing import Callable
 
 import structlog
+from sqlalchemy import inspect
+from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable
 from orchestrator.db.filters import QueryType, generic_filter
@@ -9,6 +11,7 @@ from orchestrator.db.filters.generic_filters import (
     generic_range_filters,
     generic_values_in_column_filter,
 )
+from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
 
@@ -40,6 +43,14 @@ PRODUCT_BLOCK_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], Q
     }
     | created_at_range_filters
     | end_date_range_filters
+)
+
+PRODUCT_BLOCK_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = (
+        {k: column for key, column in inspect(ProductBlockTable).columns.items() for k in [key, to_camel(key)]}
+        | {
+            "resource_type": ResourceTypeTable.resource_type,
+            "resourceType": ResourceTypeTable.resource_type
+        }
 )
 
 product_block_filter_fields = list(PRODUCT_BLOCK_FILTER_FUNCTIONS_BY_COLUMN.keys())
