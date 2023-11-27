@@ -2,6 +2,7 @@ from typing import Callable
 
 import structlog
 from sqlalchemy.inspection import inspect
+from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.db.filters import QueryType, generic_filter
@@ -23,6 +24,12 @@ BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in ins
 
 WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = (
     BASE_CAMEL | {"products": products_filter} | created_at_range_filters
+)
+
+WORKFLOW_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = (
+        {k: column for key, column in inspect(WorkflowTable).columns.items() for k in [key, to_camel(key)]}
+        | {
+        }
 )
 
 workflow_filter_fields = list(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN.keys())
