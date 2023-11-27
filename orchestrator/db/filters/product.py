@@ -1,10 +1,13 @@
 from typing import Callable
 
 import structlog
+from sqlalchemy import inspect
+from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductBlockTable, ProductTable
 from orchestrator.db.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_values_in_column_filter
+from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
 
@@ -24,6 +27,14 @@ PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
     "tag": generic_values_in_column_filter(ProductTable.tag),
     "product_blocks": product_block_filter,
 }
+
+PRODUCT_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = (
+        {k: column for key, column in inspect(ProductTable).columns.items() for k in [key, to_camel(key)]}
+        | {
+            "productBlock": ProductBlockTable.name,
+            "product_block": ProductBlockTable.name
+        }
+)
 
 product_filter_fields = list(PRODUCT_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_products = generic_filter(PRODUCT_FILTER_FUNCTIONS_BY_COLUMN)
