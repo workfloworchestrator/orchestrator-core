@@ -1,19 +1,21 @@
 import json
 from http import HTTPStatus
-from typing import Union
+from typing import Optional
 
+import pytest
 from fastapi import Response
 
 
 def get_resource_types_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None
 ) -> bytes:
     query = """
-query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
-  resourceTypes(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
+query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
+  resourceTypes(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy, query: $query) {
     page {
       resourceTypeId
       resourceType
@@ -38,6 +40,7 @@ query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
+                "query": query_string
             },
         }
     ).encode("utf-8")
@@ -89,18 +92,23 @@ def test_resource_types_has_previous_page(test_client):
     assert resource_types[1]["resourceType"] == "rt_3"
 
 
-def test_resource_types_filter_by_resource_type(test_client):
-    data = get_resource_types_query(
-        filter_by=[{"field": "resourceType", "value": "rt_"}],
-        sort_by=[{"field": "resourceType", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "resourceType", "value": "rt_"}]},
+        {"query_string": "resourceType:(rt_1|rt_2|rt_3)"},
+        {"query_string": "resourceType:rt_*"},
+    ],
+)
+def test_resource_types_filter_by_resource_type(test_client, query_args):
+    data = get_resource_types_query(**query_args, sort_by=[{"field": "resourceType", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     resource_types_data = result["data"]["resourceTypes"]
     resource_types = resource_types_data["page"]
     pageinfo = resource_types_data["pageInfo"]
-
+    print(result)
     assert "errors" not in result
     assert pageinfo == {
         "endCursor": 2,
