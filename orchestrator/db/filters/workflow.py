@@ -26,11 +26,9 @@ WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryT
     BASE_CAMEL | {"products": products_filter} | created_at_range_filters
 )
 
-WORKFLOW_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = (
-        {k: column for key, column in inspect(WorkflowTable).columns.items() for k in [key, to_camel(key)]}
-        | {
-        }
-)
+WORKFLOW_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = {
+    k: column for key, column in inspect(WorkflowTable).columns.items() for k in [key, to_camel(key)]
+} | {}
 
 workflow_filter_fields = list(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_workflows = generic_filter(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN)

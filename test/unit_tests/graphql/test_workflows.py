@@ -10,7 +10,7 @@ def get_workflows_query(
     after: int = 0,
     filter_by: Optional[list[dict[str, str]]] = None,
     sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
 query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
@@ -44,7 +44,7 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")

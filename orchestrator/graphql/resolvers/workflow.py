@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Optional, Union
 
 import structlog
 from sqlalchemy import func, select
@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.workflow import filter_workflows, workflow_filter_fields, WORKFLOW_TABLE_COLUMN_MAPPINGS
+from orchestrator.db.filters.workflow import WORKFLOW_TABLE_COLUMN_MAPPINGS, filter_workflows, workflow_filter_fields
 from orchestrator.db.models import WorkflowTable
 from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.sorting import Sort
@@ -27,7 +27,7 @@ async def resolve_workflows(
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
     after: int = 0,
-    query: Optional[str] = None
+    query: Optional[str] = None,
 ) -> Connection[Workflow]:
     _error_handler = create_resolver_error_handler(info)
 
@@ -40,10 +40,11 @@ async def resolve_workflows(
 
     if query is not None:
         stmt = create_sqlalchemy_select(
-            stmt, query,
+            stmt,
+            query,
             mappings=WORKFLOW_TABLE_COLUMN_MAPPINGS,
             base_table=WorkflowTable,
-            join_key=WorkflowTable.workflow_id
+            join_key=WorkflowTable.workflow_id,
         )
 
     stmt = sort_workflows(stmt, pydantic_sort_by, _error_handler)

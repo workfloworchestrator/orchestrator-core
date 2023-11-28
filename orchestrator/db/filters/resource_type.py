@@ -1,13 +1,15 @@
 from typing import Callable
 
 import structlog
-from sqlalchemy import inspect
+from sqlalchemy import inspect, BinaryExpression
 from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductBlockTable, ResourceTypeTable
 from orchestrator.db.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import generic_is_like_filter
+from orchestrator.db.filters.generic_filters.is_like_filter import generic_is_like_clause
 from orchestrator.utils.helpers import to_camel
+from orchestrator.utils.search_query import WhereCondGenerator, Node
 
 logger = structlog.get_logger(__name__)
 
@@ -18,6 +20,12 @@ def product_blocks_filter(query: QueryType, value: str) -> QueryType:
     return query.filter(ResourceTypeTable.product_blocks.any(ProductBlockTable.name.in_(product_blocks)))
 
 
+def product_blocks_clause(node: Node) -> BinaryExpression:
+    if node[0] == "Phrase":
+        return ResourceTypeTable.product_blocks.any(ProductBlockTable.name.in_(w[1] for w in node[1]))
+    return ResourceTypeTable.product_blocks.any(ProductBlockTable.name.ilike(node[1]))
+
+
 RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = {
     "resourceTypeId": generic_is_like_filter(ResourceTypeTable.resource_type_id),
     "resourceType": generic_is_like_filter(ResourceTypeTable.resource_type),
@@ -25,12 +33,19 @@ RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], Q
     "productBlocks": product_blocks_filter,
 }
 
-RESOURCE_TYPE_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = (
-        {k: column for key, column in inspect(ResourceTypeTable).columns.items() for k in [key, to_camel(key)]}
-        | {
-            "product_block": ProductBlockTable.name,
-            "productBlock": ProductBlockTable.name
-        }
-)
+RESOURCE_TYPE_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = {
+                                                                   k: column for key, column in
+                                                                   inspect(ResourceTypeTable).columns.items() for k in
+                                                                   [key, to_camel(key)]
+                                                               } | {"product_block": ProductBlockTable.name,
+                                                                    "productBlock": ProductBlockTable.name}
 resource_type_filter_fields = list(RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_resource_types = generic_filter(RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN)
+
+RESOURCE_TYPE_TABLE_COLUMN_CLAUSES: dict[str, WhereCondGenerator] = {
+    k: generic_is_like_clause(column)
+    for key, column in inspect(ResourceTypeTable).columns.items() for k in [key, to_camel(key)]
+} | {
+    "product_block": product_blocks_clause,
+    "productBlock": product_blocks_clause,
+}

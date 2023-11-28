@@ -1,12 +1,14 @@
-from typing import Union, Optional
+from typing import Optional, Union
 
 import structlog
 from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.resource_type import filter_resource_types, resource_type_filter_fields, \
-    RESOURCE_TYPE_TABLE_COLUMN_MAPPINGS
+from orchestrator.db.filters.resource_type import (
+    filter_resource_types,
+    resource_type_filter_fields, RESOURCE_TYPE_TABLE_COLUMN_CLAUSES,
+)
 from orchestrator.db.models import ResourceTypeTable
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting.resource_type import resource_type_sort_fields, sort_resource_types
@@ -22,12 +24,12 @@ logger = structlog.get_logger(__name__)
 
 
 async def resolve_resource_types(
-        info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
-        first: int = 10,
-        after: int = 0,
-        query: Optional[str] = None
+    info: OrchestratorInfo,
+    filter_by: Union[list[GraphqlFilter], None] = None,
+    sort_by: Union[list[GraphqlSort], None] = None,
+    first: int = 10,
+    after: int = 0,
+    query: Optional[str] = None,
 ) -> Connection[ResourceType]:
     _error_handler = create_resolver_error_handler(info)
 
@@ -38,13 +40,14 @@ async def resolve_resource_types(
     )
     stmt = select(ResourceTypeTable)
     stmt = filter_resource_types(stmt, pydantic_filter_by, _error_handler)
-
+    print(RESOURCE_TYPE_TABLE_COLUMN_CLAUSES)
     if query is not None:
         stmt = create_sqlalchemy_select(
-            stmt, query,
-            mappings=RESOURCE_TYPE_TABLE_COLUMN_MAPPINGS,
+            stmt,
+            query,
+            mappings=RESOURCE_TYPE_TABLE_COLUMN_CLAUSES,
             base_table=ResourceTypeTable,
-            join_key=ResourceTypeTable.resource_type_id
+            join_key=ResourceTypeTable.resource_type_id,
         )
 
     stmt = sort_resource_types(stmt, pydantic_sort_by, _error_handler)

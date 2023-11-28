@@ -84,7 +84,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -96,7 +96,6 @@ def get_processes_query_with_subscriptions(
     filter_by: Optional[list[str]] = None,
     sort_by: Optional[list[dict[str, str]]] = None,
     query_string: Optional[str] = None,
-
 ) -> bytes:
     query = """
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {
@@ -154,7 +153,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -195,7 +194,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -340,7 +339,7 @@ def test_processes_has_filtering(
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
-    query_args
+    query_args,
 ):
     # when
 
@@ -462,7 +461,7 @@ def test_single_process(
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
-    query_args
+    query_args,
 ):
     process_pid = str(mocked_processes[0])
     # when
@@ -503,7 +502,7 @@ def test_single_process_with_subscriptions(
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
-    query_args
+    query_args,
 ):
     process_pid = str(mocked_processes[0])
     # when
@@ -586,7 +585,7 @@ def test_processes_state_updates_and_delta(
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
-    query_args
+    query_args,
 ):
     # when
 

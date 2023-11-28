@@ -1,11 +1,12 @@
-from typing import Union, Optional
+from typing import Optional, Union
 
 import structlog
 from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.product import filter_products, product_filter_fields, PRODUCT_TABLE_COLUMN_MAPPINGS
+from orchestrator.db.filters.product import filter_products, product_filter_fields, \
+    PRODUCT_TABLE_COLUMN_CLAUSES
 from orchestrator.db.models import ProductTable
 from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.product import product_sort_fields, sort_products
@@ -21,12 +22,12 @@ logger = structlog.get_logger(__name__)
 
 
 async def resolve_products(
-        info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
-        first: int = 10,
-        after: int = 0,
-        query: Optional[str] = None
+    info: OrchestratorInfo,
+    filter_by: Union[list[GraphqlFilter], None] = None,
+    sort_by: Union[list[GraphqlSort], None] = None,
+    first: int = 10,
+    after: int = 0,
+    query: Optional[str] = None,
 ) -> Connection[ProductType]:
     _error_handler = create_resolver_error_handler(info)
 
@@ -38,8 +39,13 @@ async def resolve_products(
     stmt = filter_products(stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:
-        stmt = create_sqlalchemy_select(stmt, query, mappings=PRODUCT_TABLE_COLUMN_MAPPINGS, base_table=ProductTable,
-                                        join_key=ProductTable.product_id)
+        stmt = create_sqlalchemy_select(
+            stmt,
+            query,
+            mappings=PRODUCT_TABLE_COLUMN_CLAUSES,
+            base_table=ProductTable,
+            join_key=ProductTable.product_id,
+        )
 
     stmt = sort_products(stmt, pydantic_sort_by, _error_handler)
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))

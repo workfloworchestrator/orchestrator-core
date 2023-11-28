@@ -73,7 +73,7 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -84,7 +84,7 @@ def get_products_with_related_subscriptions_query(
     after: int = 0,
     filter_by: Optional[list[str]] = None,
     sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
 query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
@@ -157,7 +157,7 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -207,12 +207,16 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
     assert product_names == ["Product 2", "ProductSubOne", "ProductSubTwo", "ProductSubListUnion", "Product 3"]
 
 
-# Doesn't work with search query. Requires special handling
-def test_products_filter_by_product_block(test_client, generic_product_1, generic_product_2, generic_product_3):
-    data = get_product_query(
-        filter_by=[{"field": "product_blocks", "value": "PB_1-PB_3"}],
-        sort_by=[{"field": "name", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "product_blocks", "value": "PB_1-PB_3"}]},
+        {"query_string": f"product_block:(PB_1|PB_3)"},
+        # {"query_string": f"productBlock:PB_1 | product_block:PB_3"}, Doesn't work yet :(
+    ],
+)
+def test_products_filter_by_product_block(test_client, generic_product_1, generic_product_2, generic_product_3, query_args):
+    data = get_product_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -255,17 +259,12 @@ def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2,
     "query_args",
     [
         lambda product_id: {"filter_by": [{"field": "product_id", "value": product_id}]},
-        lambda product_id:{"query_string": f"product_id:{product_id}"},
+        lambda product_id: {"query_string": f"product_id:{product_id}"},
         lambda product_id: {"query_string": f"productId:{product_id}"},
     ],
 )
 def test_single_product_with_subscriptions(
-    test_client,
-    mocked_processes,
-    generic_product_1,
-    generic_subscription_2,
-    generic_subscription_1,
-    query_args
+    test_client, mocked_processes, generic_product_1, generic_subscription_2, generic_subscription_1, query_args
 ):
     product_id = str(generic_product_1.product_id)
     # when

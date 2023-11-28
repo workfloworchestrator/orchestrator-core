@@ -20,7 +20,7 @@ from sqlalchemy.orm import defer, selectinload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.process import filter_processes, process_filter_fields, PROCESS_TABLE_COLUMN_MAPPINGS
+from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_MAPPINGS, filter_processes, process_filter_fields
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
@@ -74,7 +74,13 @@ async def resolve_processes(
 
     stmt = filter_processes(stmt, pydantic_filter_by, _error_handler)
     if query is not None:
-        stmt = create_sqlalchemy_select(stmt, query, mappings=PROCESS_TABLE_COLUMN_MAPPINGS, base_table=ProcessTable, join_key=ProcessTable.process_id)
+        stmt = create_sqlalchemy_select(
+            stmt,
+            query,
+            mappings=PROCESS_TABLE_COLUMN_MAPPINGS,
+            base_table=ProcessTable,
+            join_key=ProcessTable.process_id,
+        )
 
     stmt = sort_processes(stmt, pydantic_sort_by, _error_handler)
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))

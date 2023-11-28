@@ -11,7 +11,7 @@ def get_resource_types_query(
     after: int = 0,
     filter_by: Optional[list[str]] = None,
     sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
 query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
@@ -40,7 +40,7 @@ query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -120,11 +120,17 @@ def test_resource_types_filter_by_resource_type(test_client, query_args):
     assert [rt["resourceType"] for rt in resource_types] == ["rt_1", "rt_2", "rt_3"]
 
 
-def test_resource_types_filter_by_product_blocks(test_client):
-    data = get_resource_types_query(
-        filter_by=[{"field": "productBlocks", "value": "PB_1"}],
-        sort_by=[{"field": "resourceType", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "productBlocks", "value": "PB_1"}]},
+        {"query_string": '"product_block":"PB_1"'},
+        {"query_string": "productBlock:PB_1"},
+        # {"query_string": "PB_1"}, Trouble comparing arbitrary text with UUID columns
+    ],
+)
+def test_resource_types_filter_by_product_blocks(test_client, query_args):
+    data = get_resource_types_query(**query_args, sort_by=[{"field": "resourceType", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()

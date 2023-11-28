@@ -14,12 +14,12 @@
 
 from typing import Callable
 
-from sqlalchemy import Column, func
+from sqlalchemy import func, ColumnClause
 
 from orchestrator.db.filters.filters import QueryType
 
 
-def generic_values_in_column_filter(field: Column) -> Callable[[QueryType, str], QueryType]:
+def generic_values_in_column_filter(field: ColumnClause) -> Callable[[QueryType, str], QueryType]:
     def list_filter(query: QueryType, value: str) -> QueryType:
         values = [s.lower() for s in value.split("-")]
         return query.filter(func.lower(field).in_(values))

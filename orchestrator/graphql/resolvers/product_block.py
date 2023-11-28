@@ -1,12 +1,15 @@
-from typing import Union, Optional
+from typing import Optional, Union
 
 import structlog
 from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.product_block import filter_product_blocks, product_block_filter_fields, \
-    PRODUCT_BLOCK_TABLE_COLUMN_MAPPINGS
+from orchestrator.db.filters.product_block import (
+    filter_product_blocks,
+    product_block_filter_fields,
+    PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES,
+)
 from orchestrator.db.models import ProductBlockTable
 from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
@@ -22,13 +25,12 @@ logger = structlog.get_logger(__name__)
 
 
 async def resolve_product_blocks(
-        info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
-        first: int = 10,
-        after: int = 0,
-        query: Optional[str] = None
-
+    info: OrchestratorInfo,
+    filter_by: Union[list[GraphqlFilter], None] = None,
+    sort_by: Union[list[GraphqlSort], None] = None,
+    first: int = 10,
+    after: int = 0,
+    query: Optional[str] = None,
 ) -> Connection[ProductBlock]:
     _error_handler = create_resolver_error_handler(info)
 
@@ -43,10 +45,11 @@ async def resolve_product_blocks(
 
     if query is not None:
         stmt = create_sqlalchemy_select(
-            stmt, query,
-            mappings=PRODUCT_BLOCK_TABLE_COLUMN_MAPPINGS,
+            stmt,
+            query,
+            mappings=PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES,
             base_table=ProductBlockTable,
-            join_key=ProductBlockTable.product_block_id
+            join_key=ProductBlockTable.product_block_id,
         )
 
     stmt = sort_product_blocks(stmt, pydantic_sort_by, _error_handler)

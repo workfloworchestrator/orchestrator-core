@@ -4,16 +4,20 @@ from typing import Optional
 
 import pytest
 from fastapi import Response
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
+from orchestrator.db import ProductBlockTable, db, ResourceTypeTable
+from orchestrator.graphql.schemas.product_block import ProductBlock
 from test.unit_tests.helpers import assert_no_diff
 
 
 def get_product_blocks_query(
-        first: int = 10,
-        after: int = 0,
-        filter_by: Optional[list[str]] = None,
-        sort_by: Optional[list[dict[str, str]]] = None,
-        query_string: Optional[str] = None
+    first: int = 10,
+    after: int = 0,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
 query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
@@ -57,7 +61,7 @@ query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
-                "query": query_string
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -111,7 +115,8 @@ def test_product_blocks_query(test_client):
         },
     ]
     product_blocks.sort(
-        key=lambda x: x["name"])  # No sort in the query; sort before the `assert` to prevent flaky tests
+        key=lambda x: x["name"]
+    )  # No sort in the query; sort before the `assert` to prevent flaky tests
     assert product_blocks == expected
 
 
@@ -216,7 +221,7 @@ def test_product_blocks_has_previous_page(test_client):
     "query_args",
     [
         {"filter_by": [{"field": "resource_types", "value": "rt_1"}]},
-        # {"query_string": "resourceType:rt_1"}, Does not yet work. Requires special handling
+        {"query_string": "resourceType:rt_1"},
     ],
 )
 def test_product_blocks_filter_by_resource_types(test_client, query_args):

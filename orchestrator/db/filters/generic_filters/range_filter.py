@@ -16,19 +16,18 @@ from typing import Callable, Optional
 
 import pytz
 from dateutil.parser import parse
-from sqlalchemy import Column
+from sqlalchemy import ColumnClause
 
 from orchestrator.db.filters.filters import QueryType
 
-# from sqlalchemy.sql.expression import ColumnOperators
 from orchestrator.utils.helpers import to_camel
 
 RANGE_TYPES = {
-    "gt": Column.__gt__,
-    "gte": Column.__ge__,
-    "lt": Column.__lt__,
-    "lte": Column.__le__,
-    "ne": Column.__ne__,
+    "gt": ColumnClause.__gt__,
+    "gte": ColumnClause.__ge__,
+    "lt": ColumnClause.__lt__,
+    "lte": ColumnClause.__le__,
+    "ne": ColumnClause.__ne__,
 }
 
 
@@ -50,7 +49,7 @@ def convert_to_int(value: str) -> int:
         raise ValueError(f"{value} is not a valid integer")
 
 
-def get_filter_value_convert_function(field: Column) -> Callable:
+def get_filter_value_convert_function(field: ColumnClause) -> Callable:
     if field.type.python_type == datetime:
         return convert_to_date
     if field.type.python_type == int:
@@ -58,7 +57,7 @@ def get_filter_value_convert_function(field: Column) -> Callable:
     return lambda x: x
 
 
-def generic_range_filter(range_type_fn: Callable, field: Column) -> Callable[[QueryType, str], QueryType]:
+def generic_range_filter(range_type_fn: Callable, field: ColumnClause) -> Callable[[QueryType, str], QueryType]:
     filter_operator = partial(range_type_fn, field)
     convert_filter_value = get_filter_value_convert_function(field)
 
@@ -70,7 +69,7 @@ def generic_range_filter(range_type_fn: Callable, field: Column) -> Callable[[Qu
 
 
 def generic_range_filters(
-    column: Column, column_alias: Optional[str] = None
+    column: ColumnClause, column_alias: Optional[str] = None
 ) -> dict[str, Callable[[QueryType, str], QueryType]]:
     column_name = to_camel(column_alias or column.name)
 

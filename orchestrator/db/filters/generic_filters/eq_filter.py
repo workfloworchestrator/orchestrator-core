@@ -14,19 +14,13 @@
 
 from typing import Callable
 
-from sqlalchemy import String, cast, BinaryExpression, ColumnClause
-
-from orchestrator.db.filters.filters import QueryType
-
-
-def generic_is_like_filter(field: ColumnClause) -> Callable[[QueryType, str], QueryType]:
-    def like_filter(query: QueryType, value: str) -> QueryType:
-        return query.filter(cast(field, String).ilike("%" + value + "%"))
-
-    return like_filter
+from sqlalchemy import ColumnClause, BinaryExpression
+from sqlalchemy.sql.operators import eq
 
 
-def generic_is_like_clause(field: ColumnClause) -> Callable[[tuple], BinaryExpression]:
-    def like_clause(node: tuple[str, str]) -> BinaryExpression:
-        return field.ilike(f"%{node[1]}%")
-    return like_clause
+def generic_eq_clause(field: ColumnClause) -> Callable[[tuple], BinaryExpression]:
+    def eq_clause(node: tuple[str, str]) -> BinaryExpression:
+        if node[0] == "PrefixWord":
+            return field.ilike(f"{node[1]}%")
+        return eq(field, node[1])
+    return eq_clause

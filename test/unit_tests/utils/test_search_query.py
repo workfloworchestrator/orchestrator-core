@@ -1,6 +1,9 @@
 import pytest
-from sqlalchemy import select, table, column
+from sqlalchemy import select, table, column, or_, not_
 from sqlalchemy.dialects import postgresql
+
+from orchestrator.db.filters.generic_filters.eq_filter import generic_eq_clause
+from orchestrator.db.filters.generic_filters.is_like_filter import generic_is_like_clause
 from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
@@ -19,13 +22,6 @@ def test_parse_simple_query():
         [("AndExpression", [("Word", "simple"), ("Word", "query"), ("Word", "with"), ("Word", "words")])],
     )
     assert tsquery == "simple & query & with & words"
-
-
-def test_searchbox():
-    q = "word1|word2 tag:(abc|def)"
-    parse_tree, tsquery = _parse_tree_and_tsquery(q)
-    # assert parse_tree == ()
-    assert tsquery == ""
 
 
 def test_parse_query_with_phrase():
@@ -101,7 +97,10 @@ def test_sqlalchemy_select():
     id_, name, description, tag = column("id"), column("name"), column("description"), column("tag")
     my_table = table("MyTable", id_, name, description)
     mappings = {
-        "id": id_, "name": name, "description": description, "tag": tag
+        "id": generic_is_like_clause(id_),
+        "name": generic_is_like_clause(name),
+        "description": generic_is_like_clause(description),
+        "tag": generic_eq_clause(tag),
     }
     base_stmt = select(my_table)
     # q = "a word description:something name:daniel | id:my_id name:pi* | \"a b c\":\"more Words\" tag:(t1|t2|t3) -name:floris"
@@ -114,12 +113,13 @@ def test_sqlalchemy_select():
 
 
 def test_sqlalchemy_join():
-    table1 = table('t1', column('a'), column('name'), column('description'))
-    subquery1 = select(table1).where(table1.c.name == 'x').cte()
-    subquery2 = select(table1).where(table1.c.description == 'y').cte()
-    s = (select(table1)
-         .outerjoin_from(table1, subquery1, table1.c.a == subquery1.c.a)
-         .join_from(table1, subquery2, table1.c.a == subquery2.c.a))
+    table1 = table("t1", column("a"), column("name"), column("description"))
+    s = select(table1).where(table1.c.a == 'a').where(table1.c.name.in_(['a', 'b', 'c']));
+    print(type(table1.c.a == 'a'))
+    print(type(not_(table1.c.a == 'a')))
+    print(type(table1.c.name.in_(['a', 'b', 'c'])))
+    print(type(table1.c.name.not_in(['a', 'b', 'c'])))
+    print(type(or_(table1.c.a.ilike('a'), table1.c.description.ilike('b'))))
     compiled_stmt = s.compile(dialect=postgresql.dialect())
     print(f"\n{compiled_stmt.statement}")
     print(compiled_stmt.params)
