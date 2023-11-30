@@ -26,12 +26,12 @@ logger = structlog.get_logger(__name__)
 
 
 async def resolve_resource_types(
-        info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
-        first: int = 10,
-        after: int = 0,
-        query: Optional[str] = None,
+    info: OrchestratorInfo,
+    filter_by: Union[list[GraphqlFilter], None] = None,
+    sort_by: Union[list[GraphqlSort], None] = None,
+    first: int = 10,
+    after: int = 0,
+    query: Optional[str] = None,
 ) -> Connection[ResourceType]:
     _error_handler = create_resolver_error_handler(info)
 

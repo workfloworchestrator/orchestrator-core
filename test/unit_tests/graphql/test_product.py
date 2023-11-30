@@ -215,7 +215,9 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
         # {"query_string": f"productBlock:PB_1 | product_block:PB_3"}, Doesn't work yet :(
     ],
 )
-def test_products_filter_by_product_block(test_client, generic_product_1, generic_product_2, generic_product_3, query_args):
+def test_products_filter_by_product_block(
+    test_client, generic_product_1, generic_product_2, generic_product_3, query_args
+):
     data = get_product_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code

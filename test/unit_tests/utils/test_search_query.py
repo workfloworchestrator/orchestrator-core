@@ -55,7 +55,7 @@ def test_parse_query_with_phrase():
 )
 def test_parse_errors(query, msg):
     with pytest.raises(
-            ParseError,
+        ParseError,
     ):
         _parse_tree_and_tsquery(query)
 
@@ -114,7 +114,7 @@ def test_sqlalchemy_select():
 
 def test_sqlalchemy_join():
     table1 = table("t1", column("a"), column("name"), column("description"))
-    s = select(table1).where(table1.c.a == 'a').union(select(table1).where(table1.c.name.in_(['a', 'b', 'c'])))
+    s = select(table1).where(table1.c.a == "a").union(select(table1).where(table1.c.name.in_(["a", "b", "c"])))
     compiled_stmt = s.compile(dialect=postgresql.dialect())
     print(f"\n{compiled_stmt.statement}")
     print(compiled_stmt.params)
