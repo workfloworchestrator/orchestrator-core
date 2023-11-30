@@ -79,3 +79,10 @@ def inferred_filter(field: ColumnClause) -> Callable[[Node], BinaryExpression]:
         return _filter_as_string(field)
 
     raise Exception(f"Unsupported column type for generic filter: {field}")
+
+
+def node_to_str_val(node: Node) -> str:
+    if node[0] in ["Phrase", "ValueGroup"]:
+        return " ".join(w[1] for w in node[1])
+    else:
+        return node[1]

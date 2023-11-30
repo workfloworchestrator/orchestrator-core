@@ -1,10 +1,9 @@
 from typing import Optional, Union
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.workflow import filter_workflows, workflow_filter_fields, \
     WORKFLOW_TABLE_COLUMN_CLAUSES
@@ -13,6 +12,7 @@ from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.db.sorting.workflow import sort_workflows, workflow_sort_fields
 from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.resolvers.helpers import rows_total_from_statement
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
@@ -49,9 +49,8 @@ async def resolve_workflows(
         )
 
     stmt = sort_workflows(stmt, pydantic_sort_by, _error_handler)
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    workflows = db.session.scalars(stmt).unique().all()
+    workflows, total = rows_total_from_statement(stmt, WorkflowTable, unique=True)
     graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
     return to_graphql_result_page(graphql_workflows, first, after, total, workflow_sort_fields, workflow_filter_fields)

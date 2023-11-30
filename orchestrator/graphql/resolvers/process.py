@@ -20,11 +20,12 @@ from sqlalchemy.orm import defer, selectinload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_MAPPINGS, filter_processes, process_filter_fields
+from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_CLAUSES, filter_processes, process_filter_fields
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
 from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.resolvers.helpers import rows_total_from_statement
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
@@ -77,16 +78,15 @@ async def resolve_processes(
         stmt = create_sqlalchemy_select(
             stmt,
             query,
-            mappings=PROCESS_TABLE_COLUMN_MAPPINGS,
+            mappings=PROCESS_TABLE_COLUMN_CLAUSES,
             base_table=ProcessTable,
             join_key=ProcessTable.process_id,
         )
 
     stmt = sort_processes(stmt, pydantic_sort_by, _error_handler)
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    processes = db.session.scalars(stmt).all()
+    processes, total = rows_total_from_statement(stmt, ProcessTable)
 
     is_detailed = _is_process_detailed(info)
     graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]

@@ -1,9 +1,8 @@
 from typing import Optional, Union
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import select
 
-from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.product import filter_products, product_filter_fields, \
     PRODUCT_TABLE_COLUMN_CLAUSES
@@ -12,6 +11,7 @@ from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.product import product_sort_fields, sort_products
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.resolvers.helpers import rows_total_from_statement
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
@@ -48,9 +48,9 @@ async def resolve_products(
         )
 
     stmt = sort_products(stmt, pydantic_sort_by, _error_handler)
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    products = db.session.scalars(stmt).all()
+    products, total = rows_total_from_statement(stmt, ProductTable)
+
     graphql_products = [ProductType.from_pydantic(p) for p in products]
     return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields, product_filter_fields)

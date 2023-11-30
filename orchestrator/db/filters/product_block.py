@@ -8,7 +8,7 @@ from orchestrator.db.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_range_filters,
-    generic_values_in_column_filter, inferred_filter,
+    generic_values_in_column_filter, inferred_filter, node_to_str_val,
 )
 from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import Node, WhereCondGenerator
@@ -23,7 +23,7 @@ def products_filter(query: QueryType, value: str) -> QueryType:
 
 
 def products_clause(node: Node) -> BinaryExpression:
-    return ProductBlockTable.products.any(ProductTable.name.ilike(node[1]))
+    return ProductBlockTable.products.any(ProductTable.name.ilike(node_to_str_val(node)))
 
 
 def resource_types_filter(query: QueryType, value: str) -> QueryType:
@@ -33,7 +33,7 @@ def resource_types_filter(query: QueryType, value: str) -> QueryType:
 
 
 def resource_types_clause(node: Node) -> BinaryExpression:
-    return ProductBlockTable.resource_types.any(ResourceTypeTable.resource_type == node[1])
+    return ProductBlockTable.resource_types.any(ResourceTypeTable.resource_type.ilike(node_to_str_val(node)))
 
 
 created_at_range_filters = generic_range_filters(ProductBlockTable.created_at)

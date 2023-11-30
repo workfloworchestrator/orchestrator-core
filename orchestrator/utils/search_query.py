@@ -411,7 +411,7 @@ class SQLAlchemyVisitor:
             return self.visit_kv_term(stmt, node, is_negated)
         if node_type == "Negation":
             return self.visit_term(stmt, node[1], is_negated=True)
-        if node_type in ["Word", "PrefixWord"]:
+        if node_type in ["Word", "PrefixWord", "Phrase"]:
             return self.visit_search_word(stmt, node, is_negated)
         if node_type == "Group":
             return self.visit_group(stmt, node, is_negated)

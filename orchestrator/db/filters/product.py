@@ -2,11 +2,11 @@ from typing import Callable
 
 import structlog
 from sqlalchemy import inspect, BinaryExpression
-from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductBlockTable, ProductTable
 from orchestrator.db.filters import QueryType, generic_filter
-from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_values_in_column_filter
+from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_values_in_column_filter, \
+    node_to_str_val
 from orchestrator.db.filters.generic_filters.is_like_filter import generic_is_like_clause
 from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import WhereCondGenerator, Node
@@ -21,7 +21,7 @@ def product_block_filter(query: QueryType, value: str) -> QueryType:
 
 
 def product_block_clause(node: Node) -> BinaryExpression:
-    return ProductTable.product_blocks.any(ProductBlockTable.name.ilike(node[1]))
+    return ProductTable.product_blocks.any(ProductBlockTable.name.ilike(node_to_str_val(node)))
 
 
 PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = {

@@ -6,7 +6,8 @@ from sqlalchemy.inspection import inspect
 
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.db.filters import QueryType, generic_filter
-from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_range_filters, inferred_filter
+from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_range_filters, inferred_filter, \
+    node_to_str_val
 from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import WhereCondGenerator, Node
 
@@ -22,10 +23,7 @@ def products_filter(query: QueryType, value: str) -> QueryType:
 
 
 def products_clause(node: Node) -> BinaryExpression:
-    if node[0] in ["Phrase", "ValueGroup"]:
-        val = " ".join(w[1] for w in node[1])
-        return WorkflowTable.products.any(ProductTable.name.ilike(val))
-    return WorkflowTable.products.any(ProductTable.name.ilike(node[1]))
+    return WorkflowTable.products.any(ProductTable.name.ilike(node_to_str_val(node)))
 
 
 BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in inspect(WorkflowTable).columns.items()}

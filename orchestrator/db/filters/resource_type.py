@@ -6,7 +6,7 @@ from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductBlockTable, ResourceTypeTable
 from orchestrator.db.filters import QueryType, generic_filter
-from orchestrator.db.filters.generic_filters import generic_is_like_filter
+from orchestrator.db.filters.generic_filters import generic_is_like_filter, node_to_str_val
 from orchestrator.db.filters.generic_filters.is_like_filter import generic_is_like_clause
 from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import WhereCondGenerator, Node
@@ -21,9 +21,7 @@ def product_blocks_filter(query: QueryType, value: str) -> QueryType:
 
 
 def product_blocks_clause(node: Node) -> BinaryExpression:
-    if node[0] == "Phrase":
-        return ResourceTypeTable.product_blocks.any(ProductBlockTable.name.in_(w[1] for w in node[1]))
-    return ResourceTypeTable.product_blocks.any(ProductBlockTable.name.ilike(node[1]))
+    return ResourceTypeTable.product_blocks.any(ProductBlockTable.name.ilike(node_to_str_val(node)))
 
 
 RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = {
@@ -43,9 +41,11 @@ resource_type_filter_fields = list(RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN.keys
 filter_resource_types = generic_filter(RESOURCE_TYPE_FILTER_FUNCTIONS_BY_COLUMN)
 
 RESOURCE_TYPE_TABLE_COLUMN_CLAUSES: dict[str, WhereCondGenerator] = {
-    k: generic_is_like_clause(column)
-    for key, column in inspect(ResourceTypeTable).columns.items() for k in [key, to_camel(key)]
-} | {
-    "product_block": product_blocks_clause,
-    "productBlock": product_blocks_clause,
-}
+                                                                        k: generic_is_like_clause(column)
+                                                                        for key, column in
+                                                                        inspect(ResourceTypeTable).columns.items() for k
+                                                                        in [key, to_camel(key)]
+                                                                    } | {
+                                                                        "product_block": product_blocks_clause,
+                                                                        "productBlock": product_blocks_clause,
+                                                                    }
