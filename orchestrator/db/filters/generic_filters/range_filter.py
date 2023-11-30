@@ -19,7 +19,6 @@ from dateutil.parser import parse
 from sqlalchemy import ColumnClause
 
 from orchestrator.db.filters.filters import QueryType
-
 from orchestrator.utils.helpers import to_camel
 
 RANGE_TYPES = {

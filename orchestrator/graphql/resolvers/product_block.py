@@ -1,20 +1,21 @@
 from typing import Optional, Union
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 
+from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.product_block import (
+    PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES,
     filter_product_blocks,
     product_block_filter_fields,
-    PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES,
 )
 from orchestrator.db.models import ProductBlockTable
 from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.helpers import rows_total_from_statement
+from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
@@ -40,21 +41,25 @@ async def resolve_product_blocks(
         "resolve_product_blocks() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by
     )
 
-    stmt = select(ProductBlockTable)
-    stmt = filter_product_blocks(stmt, pydantic_filter_by, _error_handler)
+    select_stmt = select(ProductBlockTable)
+    select_stmt = filter_product_blocks(select_stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:
         stmt = create_sqlalchemy_select(
-            stmt,
+            select_stmt,
             query,
             mappings=PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES,
             base_table=ProductBlockTable,
             join_key=ProductBlockTable.product_block_id,
         )
+    else:
+        stmt = select_stmt
 
     stmt = sort_product_blocks(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
-    product_blocks, total = rows_total_from_statement(stmt, ProductBlockTable)
+
+    product_blocks = rows_from_statement(stmt, ProductBlockTable)
     graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
     return to_graphql_result_page(
         graphql_product_blocks, first, after, total, product_block_sort_fields, product_block_filter_fields

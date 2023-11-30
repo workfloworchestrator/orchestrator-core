@@ -24,7 +24,8 @@ from orchestrator.db.filters.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_bool_filter,
     generic_is_like_filter,
-    generic_values_in_column_filter, inferred_filter,
+    generic_values_in_column_filter,
+    inferred_filter,
 )
 from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import WhereCondGenerator

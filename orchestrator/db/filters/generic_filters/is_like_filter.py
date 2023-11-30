@@ -14,7 +14,7 @@
 
 from typing import Callable
 
-from sqlalchemy import String, cast, BinaryExpression, ColumnClause
+from sqlalchemy import BinaryExpression, ColumnClause, String, cast
 
 from orchestrator.db.filters.filters import QueryType
 
@@ -29,4 +29,5 @@ def generic_is_like_filter(field: ColumnClause) -> Callable[[QueryType, str], Qu
 def generic_is_like_clause(field: ColumnClause) -> Callable[[tuple], BinaryExpression]:
     def like_clause(node: tuple[str, str]) -> BinaryExpression:
         return field.ilike(f"%{node[1]}%")
+
     return like_clause

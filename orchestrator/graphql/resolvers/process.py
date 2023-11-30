@@ -25,7 +25,7 @@ from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.helpers import rows_total_from_statement
+from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
@@ -66,27 +66,30 @@ async def resolve_processes(
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
-    stmt = select(ProcessTable).options(
+    select_stmt = select(ProcessTable).options(
         selectinload(ProcessTable.process_subscriptions)
         .selectinload(ProcessSubscriptionTable.subscription)
         .selectinload(SubscriptionTable.product),
         defer(ProcessTable.traceback),
     )
 
-    stmt = filter_processes(stmt, pydantic_filter_by, _error_handler)
+    select_stmt = filter_processes(select_stmt, pydantic_filter_by, _error_handler)
     if query is not None:
         stmt = create_sqlalchemy_select(
-            stmt,
+            select_stmt,
             query,
             mappings=PROCESS_TABLE_COLUMN_CLAUSES,
             base_table=ProcessTable,
             join_key=ProcessTable.process_id,
         )
+    else:
+        stmt = select_stmt
 
     stmt = sort_processes(stmt, pydantic_sort_by, _error_handler)
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    processes, total = rows_total_from_statement(stmt, ProcessTable)
+    processes = rows_from_statement(stmt, ProcessTable)
 
     is_detailed = _is_process_detailed(info)
     graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]

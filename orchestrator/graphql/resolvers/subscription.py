@@ -11,11 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, cast
 
 import structlog
 from pydantic.utils import to_lower_camel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, Select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
@@ -88,7 +88,7 @@ async def resolve_subscriptions(
     if query is not None:
         stmt = filter_by_query_string(stmt, query)
 
-    stmt = sort_subscriptions(stmt, pydantic_sort_by, _error_handler)
+    stmt = cast(Select, sort_subscriptions(stmt, pydantic_sort_by, _error_handler))
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 

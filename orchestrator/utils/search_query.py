@@ -1,13 +1,18 @@
 import re
 from enum import Enum
 from itertools import chain
-from typing import Any, Iterable, Iterator, Optional, Type, Union, cast, Callable
+from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union, cast
 
 import structlog
-from sqlalchemy import CompoundSelect, Select, SQLColumnExpression, not_, or_, ClauseElement, BinaryExpression, \
-    BooleanClauseList, select
+from sqlalchemy import (
+    BinaryExpression,
+    BooleanClauseList,
+    CompoundSelect,
+    Select,
+    not_,
+    or_,
+)
 from sqlalchemy.orm import MappedColumn
-from sqlalchemy.sql.selectable import ExecutableReturnsRows
 
 from orchestrator.db.database import BaseModel
 
@@ -363,16 +368,6 @@ class SQLAlchemyVisitor:
         self.base_table = base_table
         self.join_key = join_key
 
-    @staticmethod
-    def _phrase_to_ilike_str(phrase: Node):
-        acc = []
-        for node in phrase[1]:
-            if node[0] == "Word":
-                acc.append(node[1])
-            elif node[1] == "PrefixWord":
-                acc.append(f"{node[1]}%")
-        return " ".join(acc)
-
     def visit_kv_term(self, stmt: Select, node: Node, is_negated: bool) -> Select:
         key_node, value_node = node[1]
         if key_node[0] == "Word":
@@ -386,8 +381,8 @@ class SQLAlchemyVisitor:
             if value_node[0] == "ValueGroup":
                 ors = [cond_expr_fn(vg_node) for vg_node in value_node[1]]
                 or_expr = or_(False, *ors)
-                cond_expr = or_expr if not is_negated else not_(or_expr)
-                return stmt.where(cond_expr)
+                cond_expr2 = or_expr if not is_negated else not_(or_expr)
+                return stmt.where(cond_expr2)
 
         # Only Word or single-term Phrase key-nodes are supported.
         if key_node[0] == "Phrase" and len(key_node[1]) == 1:
@@ -402,7 +397,7 @@ class SQLAlchemyVisitor:
     def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
         subquery = self.visit_query(self.base_stmt, node).cte()
         if is_negated:
-            return stmt.outerjoin_from(self.base_table, subquery, subquery.c[self.join_key.name] is None)
+            return stmt.outerjoin_from(self.base_table, subquery, subquery.c[self.join_key.name] is None)  # type:ignore
         return stmt.join_from(self.base_table, subquery, self.join_key == subquery.c[self.join_key.name])
 
     def visit_term(self, stmt: Select, node: Node, is_negated: bool = False) -> Select:
@@ -422,11 +417,10 @@ class SQLAlchemyVisitor:
             stmt = self.visit_term(stmt, term)
         return stmt
 
-    def visit_query(self, stmt: Select, node: Node) -> CompoundSelect:
+    def visit_query(self, stmt: Select, node: Node) -> Select | CompoundSelect:
         stmt = self.visit_and_expression(stmt, node[1][0])
         if len(node[1]) > 1:
-            # Create union
-            stmt = stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
+            return stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
         return stmt
 
     def visit(self, parse_tree: Node) -> CompoundSelect | Select:

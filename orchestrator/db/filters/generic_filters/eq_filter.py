@@ -14,7 +14,7 @@
 
 from typing import Callable
 
-from sqlalchemy import ColumnClause, BinaryExpression
+from sqlalchemy import BinaryExpression, ColumnClause
 from sqlalchemy.sql.operators import eq
 
 
@@ -23,4 +23,5 @@ def generic_eq_clause(field: ColumnClause) -> Callable[[tuple], BinaryExpression
         if node[0] == "PrefixWord":
             return field.ilike(f"{node[1]}%")
         return eq(field, node[1])
+
     return eq_clause

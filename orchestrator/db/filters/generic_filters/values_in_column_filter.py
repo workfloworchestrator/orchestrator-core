@@ -14,7 +14,7 @@
 
 from typing import Callable
 
-from sqlalchemy import func, ColumnClause
+from sqlalchemy import ColumnClause, func
 
 from orchestrator.db.filters.filters import QueryType
 
