@@ -1,13 +1,14 @@
 from typing import Callable
 
 import structlog
+from sqlalchemy import BinaryExpression
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.db.filters import QueryType, generic_filter
-from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_range_filters
+from orchestrator.db.filters.generic_filters import generic_is_like_filter, generic_range_filters, inferred_filter
 from orchestrator.utils.helpers import to_camel
+from orchestrator.utils.search_query import WhereCondGenerator, Node
 
 logger = structlog.get_logger(__name__)
 
@@ -20,15 +21,26 @@ def products_filter(query: QueryType, value: str) -> QueryType:
     return query.filter(WorkflowTable.products.any(ProductTable.name.in_(products)))
 
 
+def products_clause(node: Node) -> BinaryExpression:
+    if node[0] in ["Phrase", "ValueGroup"]:
+        val = " ".join(w[1] for w in node[1])
+        return WorkflowTable.products.any(ProductTable.name.ilike(val))
+    return WorkflowTable.products.any(ProductTable.name.ilike(node[1]))
+
+
 BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in inspect(WorkflowTable).columns.items()}
 
 WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryType]] = (
     BASE_CAMEL | {"products": products_filter} | created_at_range_filters
 )
 
-WORKFLOW_TABLE_COLUMN_MAPPINGS: dict[str, MappedColumn] = {
-    k: column for key, column in inspect(WorkflowTable).columns.items() for k in [key, to_camel(key)]
-} | {}
+
+WORKFLOW_TABLE_COLUMN_CLAUSES: dict[str, WhereCondGenerator] = {
+    k: inferred_filter(column) for key, column in inspect(WorkflowTable).columns.items() for k in [key, to_camel(key)]
+} | {
+    "product": products_clause
+}
+
 
 workflow_filter_fields = list(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_workflows = generic_filter(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN)

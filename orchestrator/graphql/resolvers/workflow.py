@@ -6,7 +6,8 @@ from sqlalchemy.orm import joinedload
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.workflow import WORKFLOW_TABLE_COLUMN_MAPPINGS, filter_workflows, workflow_filter_fields
+from orchestrator.db.filters.workflow import filter_workflows, workflow_filter_fields, \
+    WORKFLOW_TABLE_COLUMN_CLAUSES
 from orchestrator.db.models import WorkflowTable
 from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.sorting import Sort
@@ -42,7 +43,7 @@ async def resolve_workflows(
         stmt = create_sqlalchemy_select(
             stmt,
             query,
-            mappings=WORKFLOW_TABLE_COLUMN_MAPPINGS,
+            mappings=WORKFLOW_TABLE_COLUMN_CLAUSES,
             base_table=WorkflowTable,
             join_key=WorkflowTable.workflow_id,
         )

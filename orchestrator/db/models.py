@@ -40,7 +40,7 @@ from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import Mapped, backref, deferred, mapped_column, object_session, relationship
-from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.schema import UniqueConstraint, Column
 from sqlalchemy_utils import TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee

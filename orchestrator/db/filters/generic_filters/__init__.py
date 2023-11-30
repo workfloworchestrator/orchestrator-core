@@ -9,6 +9,7 @@ from orchestrator.db.filters.generic_filters.range_filter import (
     get_filter_value_convert_function,
 )
 from orchestrator.db.filters.generic_filters.values_in_column_filter import generic_values_in_column_filter
+from orchestrator.db.filters.generic_filters.inferred_filter import inferred_filter
 
 __all__ = [
     "RANGE_TYPES",
@@ -20,4 +21,5 @@ __all__ = [
     "generic_is_like_filter",
     "generic_values_in_column_filter",
     "generic_bool_filter",
+    "inferred_filter"
 ]

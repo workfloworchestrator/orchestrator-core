@@ -5,8 +5,9 @@ from typing import Any, Iterable, Iterator, Optional, Type, Union, cast, Callabl
 
 import structlog
 from sqlalchemy import CompoundSelect, Select, SQLColumnExpression, not_, or_, ClauseElement, BinaryExpression, \
-    BooleanClauseList
+    BooleanClauseList, select
 from sqlalchemy.orm import MappedColumn
+from sqlalchemy.sql.selectable import ExecutableReturnsRows
 
 from orchestrator.db.database import BaseModel
 

@@ -114,12 +114,7 @@ def test_sqlalchemy_select():
 
 def test_sqlalchemy_join():
     table1 = table("t1", column("a"), column("name"), column("description"))
-    s = select(table1).where(table1.c.a == 'a').where(table1.c.name.in_(['a', 'b', 'c']));
-    print(type(table1.c.a == 'a'))
-    print(type(not_(table1.c.a == 'a')))
-    print(type(table1.c.name.in_(['a', 'b', 'c'])))
-    print(type(table1.c.name.not_in(['a', 'b', 'c'])))
-    print(type(or_(table1.c.a.ilike('a'), table1.c.description.ilike('b'))))
+    s = select(table1).where(table1.c.a == 'a').union(select(table1).where(table1.c.name.in_(['a', 'b', 'c'])))
     compiled_stmt = s.compile(dialect=postgresql.dialect())
     print(f"\n{compiled_stmt.statement}")
     print(compiled_stmt.params)

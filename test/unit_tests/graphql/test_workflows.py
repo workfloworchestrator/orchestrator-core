@@ -129,18 +129,21 @@ def test_workflows_filter_by_name(test_client, query_args):
     assert [rt["name"] for rt in workflows] == expected_workflows
 
 
-def test_workflows_filter_by_product(test_client):
-    data = get_workflows_query(
-        filter_by=[{"field": "products", "value": "Product 1"}],
-        sort_by=[{"field": "name", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "products", "value": "Product 1"}]},
+        {"query_string": 'product:"Product 1"'},
+    ],
+)
+def test_workflows_filter_by_product(test_client, query_args):
+    data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]
     workflows = workflows_data["page"]
     pageinfo = workflows_data["pageInfo"]
-
     assert "errors" not in result
     assert pageinfo == {
         "endCursor": 0,
