@@ -12,11 +12,10 @@
 # limitations under the License.
 import uuid
 from datetime import datetime
-from typing import Callable, Union
+from typing import Callable
 
 from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, String, cast
 from sqlalchemy.sql.functions import coalesce
-from sqlalchemy.sql.roles import ExpressionElementRole
 
 from orchestrator.utils.search_query import Node
 
@@ -34,7 +33,7 @@ def _coalesce_if_nullable(field: ColumnElement) -> ColumnElement:
 
 
 def _filter_string(field: ColumnElement) -> Callable[[Node], BinaryExpression]:
-    upd_field = _coalesce_if_nullable(field)
+    field = _coalesce_if_nullable(field)
 
     def _clause_gen(node: Node) -> BinaryExpression:
         if node[0] == "Phrase":

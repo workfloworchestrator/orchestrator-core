@@ -1,7 +1,7 @@
-from typing import Optional, Union, cast
+from typing import Optional, Union
 
 import structlog
-from sqlalchemy import func, select, CompoundSelect, Select
+from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter

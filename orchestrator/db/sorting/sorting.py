@@ -17,7 +17,7 @@ from typing import Callable, Iterator, TypeVar, Union
 import strawberry
 from more_itertools import partition
 from pydantic import BaseModel
-from sqlalchemy import Column, Select, CompoundSelect
+from sqlalchemy import Column, CompoundSelect, Select
 from sqlalchemy.sql import expression
 
 from orchestrator.api.error_handling import ProblemDetailException
