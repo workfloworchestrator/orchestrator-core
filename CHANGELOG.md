@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.5]
+- Refactor SQLAlchemy queries to use v2 select statements in graphql resolvers [\#386]
+- Refactoring of callback steps
+- Add TASK_LOG_RETENTION_DAYS env setting
+- Add list of steps to workflow endpoints
+- Add stateDelta information to process steps in graphql
+- Add inUseByRelations data to subscription.productBlockInstances
+- Added generic parser to support complex search queries [\#413]
+- Several other fixes
+
 ## [1.3.1]
 - Added support for asynchronous callback_steps [\#297](https://github.com/workfloworchestrator/orchestrator-core/issues/297)
 
