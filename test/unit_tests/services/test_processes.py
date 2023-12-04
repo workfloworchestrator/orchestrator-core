@@ -789,7 +789,12 @@ def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process
     mock_get_workflow.assert_called_once_with(mock.sentinel.wf_name)
 
     mock_post_form.reset_mock()
-    mock_post_form.side_effect = FormValidationError("", [])
+
+    class MockEmptyValidationError:
+        def errors(self):
+            return []
+
+    mock_post_form.side_effect = FormValidationError("", MockEmptyValidationError())
 
     with pytest.raises(FormValidationError):
         start_process(mock.sentinel.wf_name, None, mock.sentinel.user)
