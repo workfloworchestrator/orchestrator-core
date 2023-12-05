@@ -16,13 +16,13 @@ import copy
 import os
 from http import HTTPStatus
 from time import sleep
-from typing import Any, TypedDict, Union
+from typing import Any, Iterable, TypedDict, Union
 from uuid import UUID
 
 import jsonref
 import requests
 import structlog
-from more_itertools import first_true
+from more_itertools import first, first_true
 
 from nwastdlib.url import URL
 from orchestrator.types import State
@@ -39,6 +39,7 @@ class JSONSubSchema(TypedDict, total=False):
     uniforms: dict
     enum: list
     allOf: list
+    anyOf: list
 
 
 class JSONSchema(JSONSubSchema, total=False):
@@ -79,6 +80,47 @@ def resolve_all_of(input_field: JSONSchema) -> None:
     """
     for object in input_field.get("allOf", []):
         input_field.update(object)
+
+
+def get_input_field_types(input_field: JSONSchema) -> Iterable[str]:
+    """Yield all possible types for the given input field.
+
+    Example:
+        >>> list(get_input_field_types({"type": "foo"}))
+        ['foo']
+        >>> list(get_input_field_types({'anyOf': [], "type": "foo"}))
+        ['foo']
+        >>> list(get_input_field_types({'anyOf': [{"type": "foo"}, {}, {"type": "bar"}]}))
+        ['foo', 'bar']
+        >>> list(get_input_field_types({'anyOf': [{"type": "foo"}], "type": "bar"}))
+        ['foo', 'bar']
+    """
+
+    def yield_type(v: dict) -> Iterable[str]:
+        if "type" in v:
+            yield v["type"]
+
+    for item in input_field.get("anyOf", []):
+        yield from yield_type(item)
+
+    yield from yield_type(input_field)
+
+
+def first_not_none_key(d: dict[str, Any], keys: list[str]) -> Any:
+    """Get the dict value for the first existing key that is not None.
+
+    Examples:
+        >>> first_not_none_key({}, [])
+        >>> first_not_none_key({}, ["foo"])
+        >>> first_not_none_key({"foo": "bar"}, [])
+        >>> first_not_none_key({"foo": "bar"}, ["bar"])
+        >>> first_not_none_key({"foo": "bar"}, ["foo"])
+        'bar'
+        >>> first_not_none_key({"foo": None}, ["foo"])
+        >>> first_not_none_key({"foo": None, "oof": "rab"}, ["foo", "oof"])
+        'rab'
+    """
+    return first(filter(None, (d.get(k) for k in keys)), None)
 
 
 class Populator:
@@ -182,11 +224,14 @@ class Populator:
         field_name: str
         input_field: JSONSchema
         for field_name, input_field in form["properties"].items():  # type: ignore
-            resolve_all_of(input_field)
+            log = self.log.bind(field_name=field_name, input_field=input_field)
 
-            log = self.log.bind(field_name=field_name)
-            # Todo: make toggle?
-            # log = self.log.bind(input_field=input_field)
+            if all_of := input_field.get("allOf"):
+                resolve_all_of(input_field)
+                # Warning for now because I'm wondering why/where we need this
+                log.warning("Combined allOf for input field", all_of=all_of)
+
+            input_field_types = list(get_input_field_types(input_field))
 
             # Read only always has a value that should be returned as is
             if "const" in input_field:
@@ -201,7 +246,7 @@ class Populator:
                 value = self.custom_input_values.get(input_field.get("format"))
 
             if value is None:
-                value = self.custom_input_values.get(input_field["type"])
+                value = first_not_none_key(self.custom_input_values, input_field_types)
 
             # Before resolving we check if we cannot use the default/current
             if value is None:
@@ -214,7 +259,7 @@ class Populator:
                 value = self.default_input_values.get(input_field.get("format", ""))
 
             if value is None:
-                value = self.default_input_values.get(input_field["type"])
+                value = first_not_none_key(self.default_input_values, input_field_types)
 
             if value is None:
                 # try to call a function based on the field_name
@@ -243,14 +288,15 @@ class Populator:
             if value is None:
                 # try to call a function based on the input_field["type"]
                 log.info("Trying to resolve input field with custom function based on type.")
-                try:
-                    func_name = f"resolve_{input_field['type']}"
-                    log = log.bind(func_name=func_name)
-                    log.info("Calling custom function.")
-                    value = getattr(self, func_name)(input_field)
-                except AttributeError:
-                    log.warning("Unable to resolve custom function based on type.")
-                    value = None
+                for input_field_type in input_field_types:
+                    try:
+                        func_name = f"resolve_{input_field_type}"
+                        log = log.bind(func_name=func_name)
+                        log.info("Calling custom function.")
+                        value = getattr(self, func_name)(input_field)
+                    except AttributeError:
+                        log.warning("Unable to resolve custom function based on type.", type_=input_field_type)
+                        value = None
 
             # If enum just pick the first or leave empty if there are no options to select
             if value is None and "enum" in input_field and input_field["enum"]:
