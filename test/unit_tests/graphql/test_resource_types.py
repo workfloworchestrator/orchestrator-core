@@ -119,7 +119,6 @@ def test_resource_types_filter_by_resource_type(test_client, query_args):
     assert [rt["resourceType"] for rt in resource_types] == ["rt_1", "rt_2", "rt_3"]
 
 
-
 @pytest.mark.parametrize(
     "query_args",
     [
