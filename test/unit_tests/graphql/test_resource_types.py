@@ -108,7 +108,6 @@ def test_resource_types_filter_by_resource_type(test_client, query_args):
     resource_types_data = result["data"]["resourceTypes"]
     resource_types = resource_types_data["page"]
     pageinfo = resource_types_data["pageInfo"]
-    print(result)
     assert "errors" not in result
     assert pageinfo == {
         "endCursor": 2,

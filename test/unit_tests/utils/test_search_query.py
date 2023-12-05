@@ -1,10 +1,6 @@
 import pytest
-from sqlalchemy import column, select, table
-from sqlalchemy.dialects import postgresql
 
-from orchestrator.db.filters.generic_filters.eq_filter import generic_eq_clause
-from orchestrator.db.filters.generic_filters.is_like_filter import generic_is_like_clause
-from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
+from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor
 
 
 def _parse_tree_and_tsquery(q: str) -> tuple[tuple, str]:
