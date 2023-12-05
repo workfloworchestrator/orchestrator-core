@@ -89,7 +89,11 @@ def map_product_blocks_in_class(
         model_class._get_depends_on_product_block_types()
     )
 
-    new_blocks = {block.name: block for block in product_blocks_types_in_model if block.name not in product_blocks}
+    new_blocks = {
+        block.name: block
+        for block in product_blocks_types_in_model
+        if (block.name not in product_blocks) and (block.name is not None)
+    }
     product_blocks = {**product_blocks, **new_blocks}
 
     blocks_map = {

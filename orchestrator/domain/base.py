@@ -167,7 +167,9 @@ class DomainModel(BaseModel):
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
-                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(product_block_field_type)  # type: ignore
+                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(
+                    product_block_field_type
+                )
             # exclude non-Optional Unions as they contain more than one useful element.
             elif is_list_type(product_block_field_type) or (
                 is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
@@ -581,7 +583,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     _db_model: SubscriptionInstanceTable = PrivateAttr()
 
     # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
-    # Is actually optional since abstract classes dont have it. In practice it is always set
+    # Is actually optional since abstract classes don't have it. In practice, it is always set
     name: str
     subscription_instance_id: UUID
     owner_subscription_id: UUID
@@ -604,11 +606,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             ProductBlockModel.registry[cls.name] = cls
         elif lifecycle is None:
             # Abstract class, no product block name
-            cls.name = None  # type:ignore
+            cls.name = ""
             cls.__names__ = set()
 
         # For everything except abstract classes
-        if cls.name is not None:
+        if cls.name:
             register_specialized_type(cls, lifecycle)
 
             # Add ourselves to any super class. That way we can match a superclass to an instance when loading

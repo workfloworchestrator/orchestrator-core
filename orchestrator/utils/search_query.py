@@ -417,13 +417,13 @@ class SQLAlchemyVisitor:
             stmt = self.visit_term(stmt, term)
         return stmt
 
-    def visit_query(self, stmt: Select, node: Node) -> Select | CompoundSelect:
+    def visit_query(self, stmt: Select, node: Node) -> Union[Select, CompoundSelect]:
         stmt = self.visit_and_expression(stmt, node[1][0])
         if len(node[1]) > 1:
             return stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
         return stmt
 
-    def visit(self, parse_tree: Node) -> CompoundSelect | Select:
+    def visit(self, parse_tree: Node) -> Union[Select, CompoundSelect]:
         node_type = parse_tree[0]
         if node_type == "Query":
             return self.visit_query(self.base_stmt, parse_tree)
@@ -440,5 +440,5 @@ def create_sqlalchemy_select(
     mappings: dict[str, WhereCondGenerator],
     base_table: Type[BaseModel],
     join_key: MappedColumn,
-) -> Select | CompoundSelect:
+) -> Union[Select, CompoundSelect]:
     return SQLAlchemyVisitor(stmt, mappings, base_table, join_key).visit(Parser(Lexer(search_query).lex()).parse())

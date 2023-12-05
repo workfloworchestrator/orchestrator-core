@@ -87,7 +87,7 @@ def map_product_block_additional_relations(changes: DomainModelChanges) -> Domai
         product_blocks_in_model = block_class._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
         for product_block in product_blocks_types_in_model:
-            changes.create_product_block_relations.setdefault(product_block.name, set()).add(block_name)
+            changes.create_product_block_relations.setdefault(product_block.name, set()).add(block_name)  # type:ignore
     return changes
 
 
