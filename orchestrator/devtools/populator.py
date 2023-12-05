@@ -96,7 +96,7 @@ def get_input_field_types(input_field: JSONSchema) -> Iterable[str]:
         ['foo', 'bar']
     """
 
-    def yield_type(v: dict) -> Iterable[str]:
+    def yield_type(v: Union[dict, JSONSchema]) -> Iterable[str]:
         if "type" in v:
             yield v["type"]
 
