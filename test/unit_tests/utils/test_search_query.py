@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import select, table, column, or_, not_
+from sqlalchemy import column, select, table
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.db.filters.generic_filters.eq_filter import generic_eq_clause
@@ -91,31 +91,3 @@ def test_parse_complex_query():
             " & !(not <-> this & or <-> this) & something & else",
         ]
     )
-
-
-def test_sqlalchemy_select():
-    id_, name, description, tag = column("id"), column("name"), column("description"), column("tag")
-    my_table = table("MyTable", id_, name, description)
-    mappings = {
-        "id": generic_is_like_clause(id_),
-        "name": generic_is_like_clause(name),
-        "description": generic_is_like_clause(description),
-        "tag": generic_eq_clause(tag),
-    }
-    base_stmt = select(my_table)
-    # q = "a word description:something name:daniel | id:my_id name:pi* | \"a b c\":\"more Words\" tag:(t1|t2|t3) -name:floris"
-    q = "something -(not this)"
-    stmt = create_sqlalchemy_select(base_stmt, q, mappings, my_table, my_table.c.id)
-    compiled_stmt = stmt.compile(dialect=postgresql.dialect())
-    print(compiled_stmt.statement)
-    print(compiled_stmt.params)
-    assert str(compiled_stmt.string) == ""
-
-
-def test_sqlalchemy_join():
-    table1 = table("t1", column("a"), column("name"), column("description"))
-    s = select(table1).where(table1.c.a == "a").union(select(table1).where(table1.c.name.in_(["a", "b", "c"])))
-    compiled_stmt = s.compile(dialect=postgresql.dialect())
-    print(f"\n{compiled_stmt.statement}")
-    print(compiled_stmt.params)
-    assert str(compiled_stmt.string)

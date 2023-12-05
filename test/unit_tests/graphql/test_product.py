@@ -211,7 +211,7 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
     "query_args",
     [
         {"filter_by": [{"field": "product_blocks", "value": "PB_1-PB_3"}]},
-        {"query_string": f"product_block:(PB_1|PB_3)"},
+        {"query_string": "product_block:(PB_1|PB_3)"},
         # {"query_string": f"productBlock:PB_1 | product_block:PB_3"}, Doesn't work yet :(
     ],
 )

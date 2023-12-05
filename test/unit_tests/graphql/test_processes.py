@@ -12,7 +12,7 @@
 # limitations under the License.
 import json
 from http import HTTPStatus
-from typing import Union, Optional
+from typing import Optional
 
 import pytest
 
@@ -329,8 +329,8 @@ def test_processes_sorting_desc(
     "query_args",
     [
         {"filter_by": [{"field": "lastStatus", "value": "completed"}]},
-        {"query_string": f"lastStatus:completed"},
-        {"query_string": f"last_status:completed"},
+        {"query_string": "lastStatus:completed"},
+        {"query_string": "last_status:completed"},
     ],
 )
 def test_processes_has_filtering(

@@ -4,11 +4,7 @@ from typing import Optional
 
 import pytest
 from fastapi import Response
-from sqlalchemy import select
-from sqlalchemy.dialects import postgresql
 
-from orchestrator.db import ProductBlockTable, db, ResourceTypeTable
-from orchestrator.graphql.schemas.product_block import ProductBlock
 from test.unit_tests.helpers import assert_no_diff
 
 
