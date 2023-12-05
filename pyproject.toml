@@ -86,7 +86,7 @@ test = [
     "deepdiff",
     "ruff",
     "jsonref",
-    "mypy==1.4.1",
+    "mypy==1.7.1",
     "pytest",
     "pytest-cov",
     "pytest-httpx",
