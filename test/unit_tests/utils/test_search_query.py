@@ -67,7 +67,7 @@ def test_parse_edge_cases():
 def test_parse_complex_query():
     q = "".join(
         [
-            '"phrase1 phrase2 phrase3" word1 word2 prefixword* field1:(val1 | val2* | val3)',
+            '"phrase1 phrase2 phrase3" word1 word2 prefixword* field1:(val1 | val2* | "val3 val4*")',
             " | ",
             '"phrase21 phrase22" ((klm tag:lp) | (sinica tag:fw)) -("not this" "or this") something else',
         ]
@@ -81,7 +81,7 @@ def test_parse_complex_query():
     assert len(second_subexpression[1]) == 5, "subexpression 2 has 5 terms"
     assert tsquery == "".join(
         [
-            "phrase1 <-> phrase2 <-> phrase3 & word1 & word2 & prefixword:* & field1 <-> (val1 | val2:* | val3)",
+            "phrase1 <-> phrase2 <-> phrase3 & word1 & word2 & prefixword:* & field1 <-> (val1 | val2:* | val3 <-> val4:*)",
             " | ",
             "phrase21 <-> phrase22 & ((klm & tag <-> lp) | (sinica & tag <-> fw))",
             " & !(not <-> this & or <-> this) & something & else",

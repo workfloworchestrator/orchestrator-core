@@ -15,7 +15,7 @@ class Token(Enum):
     ASTERISK = "*"
     LPAREN = "("
     RPAREN = ")"
-    SEMICOLON = ":"
+    COLON = ":"
     QUOTE = '"'
     END = "$"
 
@@ -29,7 +29,7 @@ SPECIAL_CHARS = {
     "*": Token.ASTERISK,
     "(": Token.LPAREN,
     ")": Token.RPAREN,
-    ":": Token.SEMICOLON,
+    ":": Token.COLON,
     '"': Token.QUOTE,
 }
 
@@ -42,7 +42,7 @@ Lexeme = Union[tuple[Token], tuple[Token, Any]]
 
 
 class Lexer:
-    word_boundary_regex = r'[()|!:<>*\s"]'
+    word_boundary_regex = re.compile(r'[()|!:<>*\s"]')
 
     def __init__(self, source: str):
         self.source = source
@@ -202,7 +202,7 @@ class Parser:
         if not value:
             return None
         next_token = self.peek()
-        if next_token and next_token[0] == Token.SEMICOLON:
+        if next_token and next_token[0] == Token.COLON:
             # It's a KVTerm, e.g. status:active
             self.next_token()
             next_token = self.peek()
@@ -269,7 +269,7 @@ class TSQueryVisitor:
         if value_node[0] == "ValueGroup":
             acc.append("(")
             for v in value_node[1]:
-                TSQueryVisitor.visit_search_word(v, acc)
+                TSQueryVisitor.visit_term(v, acc)
                 acc.append(" | ")
             acc.pop()
             acc.append(")")
