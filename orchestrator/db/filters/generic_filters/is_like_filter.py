@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from typing import Callable
+from typing import Any, Callable
 
 from sqlalchemy import BinaryExpression, ColumnClause, String, cast
 
@@ -26,7 +26,7 @@ def generic_is_like_filter(field: ColumnClause) -> Callable[[QueryType, str], Qu
     return like_filter
 
 
-def generic_is_like_clause(field: ColumnClause) -> Callable[[tuple], BinaryExpression]:
+def generic_is_like_clause(field: ColumnClause) -> Callable[[tuple[str, Any]], BinaryExpression]:
     def like_clause(node: tuple[str, str]) -> BinaryExpression:
         return field.ilike(f"%{node[1]}%")
 

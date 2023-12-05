@@ -167,9 +167,7 @@ class DomainModel(BaseModel):
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
-                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(
-                    product_block_field_type
-                )
+                field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]] = get_args(product_block_field_type)  # type: ignore
             # exclude non-Optional Unions as they contain more than one useful element.
             elif is_list_type(product_block_field_type) or (
                 is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
@@ -606,11 +604,11 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             ProductBlockModel.registry[cls.name] = cls
         elif lifecycle is None:
             # Abstract class, no product block name
-            cls.name = ""
+            cls.name = None
             cls.__names__ = set()
 
         # For everything except abstract classes
-        if cls.name:
+        if cls.name is not None:
             register_specialized_type(cls, lifecycle)
 
             # Add ourselves to any super class. That way we can match a superclass to an instance when loading

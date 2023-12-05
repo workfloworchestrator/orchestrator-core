@@ -12,13 +12,13 @@
 # limitations under the License.
 
 
-from typing import Callable
+from typing import Any, Callable
 
 from sqlalchemy import BinaryExpression, ColumnClause
 from sqlalchemy.sql.operators import eq
 
 
-def generic_eq_clause(field: ColumnClause) -> Callable[[tuple], BinaryExpression]:
+def generic_eq_clause(field: ColumnClause) -> Callable[[tuple[str, Any]], BinaryExpression]:
     def eq_clause(node: tuple[str, str]) -> BinaryExpression:
         if node[0] == "PrefixWord":
             return field.ilike(f"{node[1]}%")
