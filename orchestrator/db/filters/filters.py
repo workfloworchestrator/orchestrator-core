@@ -91,7 +91,7 @@ def generic_filter(
             handle_filter_error(
                 "Invalid filter arguments",
                 invalid_filters=invalid_list,
-                valid_filter_keys=valid_filter_functions_by_column_KEYS,
+                valid_filter_keys=sorted(valid_filter_functions_by_column_KEYS),
             )
 
         return _apply_filters(query, valid_filter_items, handle_filter_error)

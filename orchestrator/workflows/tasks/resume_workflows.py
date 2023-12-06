@@ -14,6 +14,7 @@
 from typing import List
 
 import structlog
+from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, db
 from orchestrator.services import processes
@@ -26,8 +27,10 @@ logger = structlog.get_logger(__name__)
 
 @step("Find waiting workflows")
 def find_waiting_workflows() -> State:
-    processes = ProcessTable.query.filter(ProcessTable.last_status == ProcessStatus.WAITING).all()
-    waiting_process_ids = [str(process.process_id) for process in processes]
+    waiting_processes = db.session.scalars(
+        select(ProcessTable).filter(ProcessTable.last_status == ProcessStatus.WAITING)
+    ).all()
+    waiting_process_ids = [str(process.process_id) for process in waiting_processes]
     return {"number_of_waiting_processes": len(waiting_process_ids), "waiting_process_ids": waiting_process_ids}
 
 

@@ -4,6 +4,13 @@ from typing import Optional
 
 import pytest
 
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
+    add_soft_deleted_workflows(10)
+
 
 def get_workflows_query(
     first: int = 10,

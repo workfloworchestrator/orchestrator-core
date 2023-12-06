@@ -17,11 +17,12 @@ from uuid import UUID
 
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
-from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable
+from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable, db
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas import ProductCRUDSchema, ProductSchema
 from orchestrator.services.products import get_tags, get_types
@@ -46,15 +47,16 @@ def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List
 
 @router.get("/{product_id}", response_model=ProductSchema)
 def product_by_id(product_id: UUID) -> ProductTable:
-    product = (
-        ProductTable.query.options(
+    stmt = (
+        select(ProductTable)
+        .options(
             joinedload(ProductTable.fixed_inputs),
             joinedload(ProductTable.product_blocks),
             joinedload(ProductTable.workflows),
         )
-        .filter_by(product_id=product_id)
-        .first()
+        .filter(ProductTable.product_id == product_id)
     )
+    product = db.session.scalars(stmt).unique().one_or_none()
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
     return product

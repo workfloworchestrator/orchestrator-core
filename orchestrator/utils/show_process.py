@@ -56,8 +56,8 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
         "id": process.pid,
         "pid": process.pid,  # list and single get differentiate with this value and the above.
         "process_id": process.pid,  # for graphql consistency with id property names.
-        "workflow": process.workflow,
-        "workflow_name": process.workflow,
+        "workflow": process.workflow_name,
+        "workflow_name": process.workflow_name,
         "product": product_id,
         "customer": customer_id,
         "assignee": process.assignee,

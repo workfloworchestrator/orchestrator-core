@@ -16,6 +16,14 @@ from typing import Optional
 
 import pytest
 
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
+    add_soft_deleted_workflows(10)
+
+
 process_fields = [
     "processId",
     "isTask",
@@ -24,6 +32,7 @@ process_fields = [
     "assignee",
     "failedReason",
     "traceback",
+    "workflowId",
     "workflowName",
     "createdBy",
     "startedAt",
@@ -50,6 +59,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       assignee
       failedReason
       traceback
+      workflowId
       workflowName
       createdBy
       startedAt
@@ -108,6 +118,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       assignee
       failedReason
       traceback
+      workflowId
       workflowName
       createdBy
       startedAt
@@ -400,37 +411,39 @@ def test_processes_filtering_with_invalid_filter(
             "extensions": {
                 "invalid_filters": [{"field": "test", "value": "invalid"}],
                 "valid_filter_keys": [
-                    "processId",
-                    "workflowName",
                     "assignee",
+                    "createdBy",
+                    "created_by",
+                    "creator",
+                    "failedReason",
+                    "failed_reason",
+                    "isTask",
+                    "is_task",
+                    "istask",
+                    "lastModifiedAt",
                     "lastStatus",
                     "lastStep",
-                    "startedAt",
-                    "lastModifiedAt",
-                    "failedReason",
-                    "traceback",
-                    "createdBy",
-                    "isTask",
-                    "process_id",
-                    "workflow_name",
+                    "last_modified_at",
                     "last_status",
                     "last_step",
-                    "started_at",
-                    "last_modified_at",
-                    "failed_reason",
-                    "created_by",
-                    "is_task",
+                    "organisation",
+                    "processId",
+                    "process_id",
                     "product",
                     "productTag",
-                    "subscriptions",
+                    "startedAt",
+                    "started_at",
+                    "status",
                     "subscriptionId",
                     "subscription_id",
-                    "target",
-                    "organisation",
-                    "istask",
-                    "status",
+                    "subscriptions",
                     "tag",
-                    "creator",
+                    "target",
+                    "traceback",
+                    "workflowId",
+                    "workflowName",
+                    "workflow_id",
+                    "workflow_name",
                 ],
             },
         }

@@ -1,8 +1,10 @@
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessStepTable, ProcessTable, db
+from orchestrator.db import ProcessStepTable, ProcessTable, WorkflowTable, db
+from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.workflows import assert_complete, assert_state, extract_state, run_workflow
@@ -16,8 +18,9 @@ def task():
 
     generic_step = ProcessStepTable(name="generic-step", status="success", state=state)
 
+    wf_old = WorkflowTable(workflow_id=uuid4(), name="nice and old task", target=Target.SYSTEM)
     task_old = ProcessTable(
-        workflow_name="nice and old task",
+        workflow_id=wf_old.workflow_id,
         last_status=ProcessStatus.COMPLETED,
         last_step="Awesome last step",
         started_at=three_weeks_ago,
@@ -25,9 +28,10 @@ def task():
         steps=[generic_step],
         is_task=True,
     )
+    wf_new = WorkflowTable(workflow_id=uuid4(), name="nice and new task", target=Target.SYSTEM)
 
     task_new = ProcessTable(
-        workflow_name="nice and new task",
+        workflow_id=wf_new.workflow_id,
         last_status=ProcessStatus.COMPLETED,
         last_step="Awesome last step",
         started_at=three_weeks_ago,
@@ -35,9 +39,10 @@ def task():
         steps=[generic_step],
         is_task=True,
     )
+    wf = WorkflowTable(workflow_id=uuid4(), name="nice process", target=Target.SYSTEM)
 
     process = ProcessTable(
-        workflow_name="nice process",
+        workflow_id=wf.workflow_id,
         last_status=ProcessStatus.COMPLETED,
         last_step="Awesome last step",
         started_at=three_weeks_ago,
@@ -45,10 +50,7 @@ def task():
         steps=[generic_step],
         is_task=False,
     )
-    db.session.add(generic_step)
-    db.session.add(task_old)
-    db.session.add(task_new)
-    db.session.add(process)
+    db.session.add_all([wf_old, wf_new, wf, generic_step, task_old, task_new, process])
     db.session.commit()
 
 
