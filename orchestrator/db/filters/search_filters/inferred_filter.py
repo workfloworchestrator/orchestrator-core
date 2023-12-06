@@ -21,7 +21,6 @@ from orchestrator.utils.search_query import Node
 
 
 def _phrase_to_ilike_str(phrase_node: Node) -> str:
-
     def to_str(node: Node) -> str:
         node_type, value = node
         return f"{value}%" if node_type == "PrefixWord" else f"{value}"
