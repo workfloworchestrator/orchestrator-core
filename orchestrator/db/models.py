@@ -383,6 +383,14 @@ class ResourceTypeTable(BaseModel):
         return ResourceTypeTable.query.filter(ResourceTypeTable.resource_type == name).one()
 
 
+workflow_processes_association = Table(
+    "workflow_processes",
+    BaseModel.metadata,
+    Column("workflow_id", UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True),
+    Column("process_id", UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class WorkflowTable(BaseModel):
     __tablename__ = "workflows"
     workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
@@ -393,6 +401,13 @@ class WorkflowTable(BaseModel):
     products = relationship(
         "ProductTable",
         secondary=product_workflows_association,
+        lazy="select",
+        passive_deletes=True,
+        back_populates="workflows",
+    )
+    processes = relationship(
+        "ProcessTable",
+        secondary=workflow_processes_association,
         lazy="select",
         passive_deletes=True,
         back_populates="workflows",
