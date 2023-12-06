@@ -9,11 +9,10 @@ from orchestrator.db.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_range_filters,
-    inferred_filter,
-    node_to_str_val,
 )
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
 from orchestrator.utils.helpers import to_camel
-from orchestrator.utils.search_query import Node, WhereCondGenerator
+from orchestrator.utils.search_query import Node
 
 logger = structlog.get_logger(__name__)
 
@@ -37,9 +36,7 @@ WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryT
 )
 
 
-WORKFLOW_TABLE_COLUMN_CLAUSES: dict[str, WhereCondGenerator] = {
-    k: inferred_filter(column) for key, column in inspect(WorkflowTable).columns.items() for k in [key, to_camel(key)]
-} | {"product": products_clause}
+WORKFLOW_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(WorkflowTable) | {"product": products_clause}
 
 
 workflow_filter_fields = list(WORKFLOW_FILTER_FUNCTIONS_BY_COLUMN.keys())

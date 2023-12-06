@@ -1,7 +1,7 @@
 from typing import Callable
 
 import structlog
-from sqlalchemy import BinaryExpression, inspect
+from sqlalchemy import BinaryExpression
 
 from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable
 from orchestrator.db.filters import QueryType, generic_filter
@@ -9,11 +9,9 @@ from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_range_filters,
     generic_values_in_column_filter,
-    inferred_filter,
-    node_to_str_val,
 )
-from orchestrator.utils.helpers import to_camel
-from orchestrator.utils.search_query import Node, WhereCondGenerator
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
+from orchestrator.utils.search_query import Node
 
 logger = structlog.get_logger(__name__)
 
@@ -55,11 +53,7 @@ PRODUCT_BLOCK_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], Q
     | end_date_range_filters
 )
 
-PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES: dict[str, WhereCondGenerator] = {
-    k: inferred_filter(column)
-    for key, column in inspect(ProductBlockTable).columns.items()
-    for k in [key, to_camel(key)]
-} | {
+PRODUCT_BLOCK_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProductBlockTable) | {
     # "product": products_clause,
     "resource_type": resource_types_clause,
     "resourceType": resource_types_clause,

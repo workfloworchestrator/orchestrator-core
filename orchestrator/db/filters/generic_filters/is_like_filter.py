@@ -12,9 +12,9 @@
 # limitations under the License.
 
 
-from typing import Any, Callable
+from typing import Callable
 
-from sqlalchemy import BinaryExpression, ColumnClause, String, cast
+from sqlalchemy import ColumnClause, String, cast
 
 from orchestrator.db.filters.filters import QueryType
 
@@ -24,10 +24,3 @@ def generic_is_like_filter(field: ColumnClause) -> Callable[[QueryType, str], Qu
         return query.filter(cast(field, String).ilike("%" + value + "%"))
 
     return like_filter
-
-
-def generic_is_like_clause(field: ColumnClause) -> Callable[[tuple[str, Any]], BinaryExpression]:
-    def like_clause(node: tuple[str, str]) -> BinaryExpression:
-        return field.ilike(f"%{node[1]}%")
-
-    return like_clause

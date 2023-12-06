@@ -25,10 +25,9 @@ from orchestrator.db.filters.generic_filters import (
     generic_bool_filter,
     generic_is_like_filter,
     generic_values_in_column_filter,
-    inferred_filter,
 )
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses
 from orchestrator.utils.helpers import to_camel
-from orchestrator.utils.search_query import WhereCondGenerator
 
 logger = structlog.get_logger(__name__)
 
@@ -126,9 +125,7 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
     }
 )
 
-PROCESS_TABLE_COLUMN_CLAUSES: dict[str, WhereCondGenerator] = {
-    k: inferred_filter(column) for key, column in inspect(ProcessTable).columns.items() for k in [key, to_camel(key)]
-}
+PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable)
 
 process_filter_fields = list(PROCESS_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)
