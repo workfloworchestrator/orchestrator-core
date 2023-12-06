@@ -14,12 +14,12 @@
 
 from typing import Callable
 
-from sqlalchemy import Column, String, cast
+from sqlalchemy import ColumnClause, String, cast
 
 from orchestrator.db.filters.filters import QueryType
 
 
-def generic_is_like_filter(field: Column) -> Callable[[QueryType, str], QueryType]:
+def generic_is_like_filter(field: ColumnClause) -> Callable[[QueryType, str], QueryType]:
     def like_filter(query: QueryType, value: str) -> QueryType:
         return query.filter(cast(field, String).ilike("%" + value + "%"))
 

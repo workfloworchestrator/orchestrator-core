@@ -1,9 +1,20 @@
 import re
 from enum import Enum
 from itertools import chain
-from typing import Any, Iterable, Iterator, Optional, Union, cast
+from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union, cast
 
 import structlog
+from sqlalchemy import (
+    BinaryExpression,
+    BooleanClauseList,
+    CompoundSelect,
+    Select,
+    not_,
+    or_,
+)
+from sqlalchemy.orm import MappedColumn
+
+from orchestrator.db.database import BaseModel
 
 logger = structlog.getLogger(__name__)
 
@@ -345,5 +356,89 @@ class TSQueryVisitor:
         return "".join(acc)
 
 
+WhereCondGenerator = Callable[[Node], Union[BinaryExpression, BooleanClauseList]]
+
+
+class SQLAlchemyVisitor:
+    def __init__(
+        self, stmt: Select, mappings: dict[str, WhereCondGenerator], base_table: Type[BaseModel], join_key: MappedColumn
+    ):
+        self.base_stmt = stmt
+        self.mappings = mappings
+        self.base_table = base_table
+        self.join_key = join_key
+
+    def visit_kv_term(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        key_node, value_node = node[1]
+        if key_node[0] == "Word":
+            cond_expr_fn = self.mappings.get(key_node[1])
+            if not cond_expr_fn:
+                # Non-existing columns will emit `where false`, returning no results
+                return stmt.where()
+            if value_node[0] in ["Word", "PrefixWord", "Phrase"]:
+                cond_expr = cond_expr_fn(value_node)
+                return stmt.where(cond_expr if not is_negated else not_(cond_expr))
+            if value_node[0] == "ValueGroup":
+                ors = [cond_expr_fn(vg_node) for vg_node in value_node[1]]
+                or_expr = or_(False, *ors)
+                cond_expr2 = or_expr if not is_negated else not_(or_expr)
+                return stmt.where(cond_expr2)
+
+        # Only Word or single-term Phrase key-nodes are supported.
+        if key_node[0] == "Phrase" and len(key_node[1]) == 1:
+            return self.visit_kv_term(stmt, ("KVTerm", (key_node[1][0], value_node)), is_negated)
+        return stmt
+
+    def visit_search_word(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        # The dynamically generated list of expression may not be empty, so we prepend with a "default" False
+        or_expr = or_(False, *(cond_expr_fn(node) for cond_expr_fn in self.mappings.values()))
+        return stmt.where(or_expr if not is_negated else not_(or_expr))
+
+    def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        subquery = self.visit_query(self.base_stmt, node).cte()
+        if is_negated:
+            return stmt.outerjoin_from(self.base_table, subquery, subquery.c[self.join_key.name] is None)  # type:ignore
+        return stmt.join_from(self.base_table, subquery, self.join_key == subquery.c[self.join_key.name])
+
+    def visit_term(self, stmt: Select, node: Node, is_negated: bool = False) -> Select:
+        node_type = node[0]
+        if node_type == "KVTerm":
+            return self.visit_kv_term(stmt, node, is_negated)
+        if node_type == "Negation":
+            return self.visit_term(stmt, node[1], is_negated=True)
+        if node_type in ["Word", "PrefixWord", "Phrase"]:
+            return self.visit_search_word(stmt, node, is_negated)
+        if node_type == "Group":
+            return self.visit_group(stmt, node, is_negated)
+        raise Exception(f"Unexpected term node type: {node_type}")
+
+    def visit_and_expression(self, stmt: Select, node: Node) -> Select:
+        for term in node[1]:
+            stmt = self.visit_term(stmt, term)
+        return stmt
+
+    def visit_query(self, stmt: Select, node: Node) -> Union[Select, CompoundSelect]:
+        stmt = self.visit_and_expression(stmt, node[1][0])
+        if len(node[1]) > 1:
+            return stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
+        return stmt
+
+    def visit(self, parse_tree: Node) -> Union[Select, CompoundSelect]:
+        node_type = parse_tree[0]
+        if node_type == "Query":
+            return self.visit_query(self.base_stmt, parse_tree)
+        return self.base_stmt
+
+
 def create_ts_query_string(search_query: str) -> str:
     return TSQueryVisitor.visit(Parser(Lexer(search_query).lex()).parse())
+
+
+def create_sqlalchemy_select(
+    stmt: Select,
+    search_query: str,
+    mappings: dict[str, WhereCondGenerator],
+    base_table: Type[BaseModel],
+    join_key: MappedColumn,
+) -> Union[Select, CompoundSelect]:
+    return SQLAlchemyVisitor(stmt, mappings, base_table, join_key).visit(Parser(Lexer(search_query).lex()).parse())

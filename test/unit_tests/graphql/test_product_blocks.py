@@ -1,7 +1,8 @@
 import json
 from http import HTTPStatus
-from typing import Union
+from typing import Optional
 
+import pytest
 from fastapi import Response
 
 from test.unit_tests.helpers import assert_no_diff
@@ -10,12 +11,13 @@ from test.unit_tests.helpers import assert_no_diff
 def get_product_blocks_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
-query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
-  productBlocks(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
+query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
+  productBlocks(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy, query: $query) {
     page {
       name
       endDate
@@ -55,6 +57,7 @@ query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -107,12 +110,21 @@ def test_product_blocks_query(test_client):
             "inUseBy": [],
         },
     ]
-    product_blocks.sort(key=lambda x: x["name"])  # No sort in the query; sort before the assert to prevent flaky tests
+    product_blocks.sort(
+        key=lambda x: x["name"]
+    )  # No sort in the query; sort before the `assert` to prevent flaky tests
     assert product_blocks == expected
 
 
-def test_product_block_query_with_relations(test_client):
-    data = get_product_blocks_query(filter_by={"field": "name", "value": "ForTest"})
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "name", "value": "ForTest"}]},
+        {"query_string": "name:(SubBlock* | ProductBlock*)"},
+    ],
+)
+def test_product_block_query_with_relations(test_client, query_args):
+    data = get_product_blocks_query(**query_args)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
@@ -122,7 +134,6 @@ def test_product_block_query_with_relations(test_client):
     pageinfo = product_blocks_data["pageInfo"]
 
     assert len(product_blocks) == 3
-
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": False,
@@ -202,11 +213,15 @@ def test_product_blocks_has_previous_page(test_client):
     assert product_blocks[1]["name"] == "PB_3"
 
 
-def test_product_blocks_filter_by_resource_types(test_client):
-    data = get_product_blocks_query(
-        filter_by=[{"field": "resource_types", "value": "rt_1"}],
-        sort_by=[{"field": "name", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "resource_types", "value": "rt_1"}]},
+        {"query_string": "resourceType:rt_1"},
+    ],
+)
+def test_product_blocks_filter_by_resource_types(test_client, query_args):
+    data = get_product_blocks_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()

@@ -26,6 +26,7 @@ from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_values_in_column_filter,
 )
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses
 from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
@@ -123,6 +124,8 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
         "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: will be removed in 1.4
     }
 )
+
+PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable)
 
 process_filter_fields = list(PROCESS_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)

@@ -13,14 +13,14 @@
 
 from typing import Callable
 
-from sqlalchemy import Column
+from sqlalchemy import ColumnClause
 
 from orchestrator.db.filters.filters import QueryType
 
 
-def generic_bool_filter(field: Column) -> Callable[[QueryType, str], QueryType]:
+def generic_bool_filter(field: ColumnClause) -> Callable[[QueryType, str], QueryType]:
     def bool_filter(query: QueryType, value: str) -> QueryType:
-        value_as_bool = value.lower() in ("yes", "y", "true", "1", "ja", "j")
+        value_as_bool = value.lower() in ("yes", "y", "true", "1")
         return query.filter(field.is_(value_as_bool))
 
     return bool_filter

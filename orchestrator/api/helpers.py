@@ -85,7 +85,7 @@ def query_with_filters(  # noqa: C901
             if filter_ and len(filter_) == 2:
                 field = filter_[0]
                 value = filter_[1]
-                value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja", "insync")
+                value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "insync")
                 if value is not None:
                     if field.endswith("_gt"):
                         stmt = stmt.filter(SubscriptionTable.__dict__[field[:-3]] > value)

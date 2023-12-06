@@ -581,7 +581,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
     _db_model: SubscriptionInstanceTable = PrivateAttr()
 
     # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
-    # Is actually optional since abstract classes dont have it. In practice it is always set
+    # Is actually optional since abstract classes don't have it. In practice, it is always set
     name: str
     subscription_instance_id: UUID
     owner_subscription_id: UUID
@@ -604,7 +604,7 @@ class ProductBlockModel(DomainModel, metaclass=ProductBlockModelMeta):
             ProductBlockModel.registry[cls.name] = cls
         elif lifecycle is None:
             # Abstract class, no product block name
-            cls.name = None  # type:ignore
+            cls.name = None
             cls.__names__ = set()
 
         # For everything except abstract classes
