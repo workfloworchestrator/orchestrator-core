@@ -21,7 +21,12 @@ from orchestrator.utils.search_query import Node
 
 
 def _phrase_to_ilike_str(phrase_node: Node) -> str:
-    return " ".join(f"{w[1]}{'%' if w[0] == 'PrefixWord' else ''}" for w in phrase_node[1])
+
+    def to_str(node: Node) -> str:
+        node_type, value = node
+        return f"{value}%" if node_type == "PrefixWord" else f"{value}"
+
+    return " ".join(to_str(w) for w in phrase_node[1])
 
 
 def _coalesce_if_nullable(field: ColumnElement) -> ColumnElement:
