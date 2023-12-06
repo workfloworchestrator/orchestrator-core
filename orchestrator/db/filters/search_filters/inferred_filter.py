@@ -51,7 +51,7 @@ def _filter_as_string(field: ColumnClause) -> Callable[[Node], BinaryExpression]
 
 
 def _value_as_bool(v: str) -> bool:
-    return v.lower() in ("yes", "y", "true", "1", "ja", "j")
+    return v.lower() in ("yes", "y", "true", "1")
 
 
 def _filter_bool(field: ColumnClause) -> Callable[[Node], BinaryExpression]:
