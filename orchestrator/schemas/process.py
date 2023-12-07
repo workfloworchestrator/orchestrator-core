@@ -15,7 +15,8 @@ from datetime import datetime
 from typing import Annotated, Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_serializer
+from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.schemas.base import OrchestratorBaseModel
@@ -34,7 +35,19 @@ class ProcessForm(OrchestratorBaseModel):
     properties: Dict[str, Any]
     additionalProperties: bool  # noqa: N815
     required: List[str] = []
-    definitions: Optional[Dict[str, Any]] = None
+    definitions: Optional[Dict[str, Any]] = Field(None, validation_alias="$defs")
+
+    @model_serializer(mode="wrap", when_used="json")
+    def serialize_defs(self, handler: SerializerFunctionWrapHandler, _info: ValidationInfo) -> dict[str, Any]:
+        """Serialize ProcessForm model.
+
+        Pydantic 2.x renamed 'definitions' to '$defs' to be compliant with JSONSchema.
+        Python doesn't allow variables starting with $ so we keep the field name 'definitions', we set a
+        validation_alias '$defs' for the input, and in the json output this serializer renames it to '$defs'.
+        """
+        serialized = handler(self)
+        serialized["$defs"] = serialized.pop("definitions")
+        return serialized
 
 
 class ProcessBaseSchema(OrchestratorBaseModel):
