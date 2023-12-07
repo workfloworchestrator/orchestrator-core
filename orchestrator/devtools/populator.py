@@ -306,6 +306,10 @@ class Populator:
                 # Ignore divider elements
                 value = ""
 
+            if value is None and input_field.get("format") == "summary":
+                # Ignore migration elements
+                continue
+
             log.debug("Resolved input_field.", value=value)
             data[field_name] = value
         return data
