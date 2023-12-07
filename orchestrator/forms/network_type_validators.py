@@ -12,9 +12,9 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 from typing_extensions import Annotated
 
 
@@ -33,6 +33,15 @@ class BFD(BaseModel):
             self.multiplier = None
 
         return self
+
+    @model_serializer
+    def bfd_serializer(self) -> dict[str, Any]:
+        if not self.enabled:
+            # If BFD is disabled the interval and multiplier are None. We need to exclude them from
+            # the output to prevent overriding their default values in the form
+            return {"enabled": self.enabled}
+
+        return {"enabled": self.enabled, "minimum_interval": self.minimum_interval, "multiplier": self.multiplier}
 
 
 MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
