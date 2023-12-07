@@ -72,10 +72,10 @@ def test_bfd_disabled_missing_values():
         bfd: BFD
 
     model = {"enabled": False}
-    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False, "minimum_interval": None, "multiplier": None}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False}}
 
     model = {"enabled": False, "minimum_interval": 600, "multiplier": 3}
-    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False, "minimum_interval": None, "multiplier": None}}
+    assert Form(bfd=model).model_dump() == {"bfd": {"enabled": False}}
 
 
 def test_bfd_wrong_minimum_interval_ge():
