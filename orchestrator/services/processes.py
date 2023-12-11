@@ -27,7 +27,14 @@ from sqlalchemy.orm import joinedload
 from nwastdlib.ex import show_ex
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    WorkflowTable,
+    db,
+)
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.settings import ExecutorType, app_settings
@@ -100,9 +107,13 @@ def shutdown_thread_pool() -> None:
 
 
 def _db_create_process(stat: ProcessStat) -> None:
+    wf_table = WorkflowTable.find_by_workflow_name(stat.workflow.name)
+    if not wf_table:
+        raise AssertionError(f"No workflow found with name: {stat.workflow.name}")
+
     p = ProcessTable(
         process_id=stat.process_id,
-        workflow_name=stat.workflow.name,
+        workflow_id=wf_table.workflow_id,
         last_status=ProcessStatus.CREATED,
         created_by=stat.current_user,
         is_task=stat.workflow.target == Target.SYSTEM,
@@ -674,7 +685,7 @@ def _restore_log(steps: List[ProcessStepTable]) -> List[WFProcess]:
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
-    workflow = get_workflow(process.workflow_name)
+    workflow = get_workflow(str(process.workflow_name))
 
     if not workflow:
         workflow = removed_workflow

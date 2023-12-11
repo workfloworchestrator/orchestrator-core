@@ -311,7 +311,6 @@ def test_workflows_processes():
     assert_state(result, {"name": "completion"})
 
 
-
 def test_abort_workflow():
     wf = workflow("Workflow with user interaction")(lambda: begin >> step1 >> user_action)
 

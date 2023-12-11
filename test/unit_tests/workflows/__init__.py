@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import structlog
 
-from orchestrator.db import ProcessTable
+from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.processes import StateMerger, _db_create_process
 from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
@@ -131,9 +131,16 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
 
     def __enter__(self):
         ALL_WORKFLOWS[self.name] = self
+        self.workflow_instance = WorkflowTable(
+            name=self.name, target=self.workflow.target, description=self.workflow.description
+        )
+        db.session.add(self.workflow_instance)
+        db.session.commit()
 
     def __exit__(self, _exc_type, _exc_value, _traceback):
         del ALL_WORKFLOWS[self.name]
+        db.session.delete(self.workflow_instance)
+        del self.workflow_instance
 
     def instantiate(self) -> Workflow:
         """Import and instantiate a workflow and return it.

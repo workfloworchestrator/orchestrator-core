@@ -85,7 +85,9 @@ class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
     process_id = mapped_column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow_name = mapped_column("workflow", String(255), nullable=False)
+    workflow_id = mapped_column(
+        "workflow_id", UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), nullable=False
+    )
     assignee = mapped_column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = mapped_column(String(50), nullable=False)
     last_step = mapped_column(String(255), nullable=True)
@@ -103,15 +105,16 @@ class ProcessTable(BaseModel):
     process_subscriptions = relationship("ProcessSubscriptionTable", lazy=True, passive_deletes=True)
     subscriptions = association_proxy("process_subscriptions", "subscription")
 
+    workflow = relationship("WorkflowTable", back_populates="processes")
+
     @property
     @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
     def pid(self) -> Column:
         return self.process_id
 
     @property
-    @deprecated("Changed to 'workflow_name' from version 1.2.3, will be removed in 1.4")
-    def workflow(self) -> Column:
-        return self.workflow_name
+    def workflow_name(self) -> Column:
+        return self.workflow.name
 
 
 class ProcessStepTable(BaseModel):
@@ -383,14 +386,6 @@ class ResourceTypeTable(BaseModel):
         return ResourceTypeTable.query.filter(ResourceTypeTable.resource_type == name).one()
 
 
-workflow_processes_association = Table(
-    "workflow_processes",
-    BaseModel.metadata,
-    Column("workflow_id", UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True),
-    Column("process_id", UUIDType, ForeignKey("processes.process_id", ondelete="CASCADE"), primary_key=True),
-)
-
-
 class WorkflowTable(BaseModel):
     __tablename__ = "workflows"
     workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
@@ -406,12 +401,12 @@ class WorkflowTable(BaseModel):
         back_populates="workflows",
     )
     processes = relationship(
-        "ProcessTable",
-        secondary=workflow_processes_association,
-        lazy="select",
-        passive_deletes=True,
-        back_populates="workflows",
+        "ProcessTable", lazy="select", cascade="delete", passive_deletes=True, back_populates="workflow"
     )
+
+    @staticmethod
+    def find_by_workflow_name(name: str) -> WorkflowTable:
+        return WorkflowTable.query.filter(WorkflowTable.name == name).scalar()
 
 
 class SubscriptionInstanceRelationTable(BaseModel):
