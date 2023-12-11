@@ -212,9 +212,11 @@ class Database:
         """
         token = self.request_context.set(str(uuid4()))
         self.scoped_session(**kwargs)
-        yield self
-        self.scoped_session.remove()
-        self.request_context.reset(token)
+        try:
+            yield self
+        finally:
+            self.scoped_session.remove()
+            self.request_context.reset(token)
 
 
 class DBSessionMiddleware(BaseHTTPMiddleware):
