@@ -24,6 +24,9 @@ def upgrade() -> None:
     # Update (column_name, column_type) to (processes.workflow_id, UUID)
     op.execute("ALTER TABLE processes RENAME COLUMN workflow TO workflow_id;")
     op.execute("ALTER TABLE processes ALTER COLUMN workflow_id TYPE uuid USING workflow_id::uuid;")
+    op.execute(
+        "ALTER TABLE processes ADD CONSTRAINT processes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id);"
+    )
 
 
 def downgrade() -> None:

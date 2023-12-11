@@ -64,7 +64,7 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
         process_id = uuid4()
         process = ProcessTable(
             process_id=process_id,
-            workflow_name=test_workflow,
+            workflow_id=uuid4(),
             last_status=status,
             last_step="Modify",
             started_at=started,
@@ -125,7 +125,7 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
         process_id = uuid4()
         process = ProcessTable(
             process_id=process_id,
-            workflow_name=test_workflow,
+            workflow_id=uuid4(),
             last_status=status,
             last_step="Modify",
             started_at=started,

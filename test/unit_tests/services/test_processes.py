@@ -29,6 +29,7 @@ from orchestrator.workflow import (
     ProcessStat,
     ProcessStatus,
     Skipped,
+    StepList,
     StepStatus,
     Success,
     Suspend,
@@ -38,13 +39,23 @@ from orchestrator.workflow import (
     step,
 )
 from pydantic_forms.exceptions import FormValidationError
+from test.unit_tests.workflows import store_workflow
 
 
-def test_db_create_process():
+def _workflow_test_fn():
+    pass
+
+
+@pytest.fixture
+def simple_workflow():
+    wf = make_workflow(_workflow_test_fn, "wf description", None, Target.SYSTEM, StepList())
+    wf.name = "wf name"
+    return store_workflow(wf)
+
+
+def test_db_create_process(simple_workflow):
     process_id = uuid4()
-    workflow = make_workflow(lambda: None, "wf description", None, Target.SYSTEM, [])
-    workflow.name = "wf name"
-    pstat = ProcessStat(process_id, workflow, None, None, current_user="user")
+    pstat = ProcessStat(process_id, simple_workflow, None, None, current_user="user")
 
     _db_create_process(pstat)
 
@@ -54,10 +65,13 @@ def test_db_create_process():
     assert process.is_task
 
 
-def test_process_log_db_step_success():
+def test_process_log_db_step_success(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -99,10 +113,13 @@ def test_process_log_db_step_success():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_skipped():
+def test_process_log_db_step_skipped(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -144,10 +161,13 @@ def test_process_log_db_step_skipped():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_suspend():
+def test_process_log_db_step_suspend(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -189,10 +209,13 @@ def test_process_log_db_step_suspend():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_waiting():
+def test_process_log_db_step_waiting(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -237,10 +260,13 @@ def test_process_log_db_step_waiting():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_failed():
+def test_process_log_db_step_failed(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -289,11 +315,11 @@ def test_process_log_db_step_failed():
     assert p.assignee == Assignee.SYSTEM
 
 
-def test_process_log_db_step_assertion_failed():
+def test_process_log_db_step_assertion_failed(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
         process_id=process_id,
-        workflow_name="workflow_key",
+        workflow_id=simple_workflow.workflow_id,
         last_status=ProcessStatus.CREATED,
         created_by=SYSTEM_USER,
         is_task=True,
@@ -345,11 +371,11 @@ def test_process_log_db_step_assertion_failed():
     assert p.assignee == Assignee.NOC
 
 
-def test_process_log_db_step_api_failed():
+def test_process_log_db_step_api_failed(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
         process_id=process_id,
-        workflow_name="workflow_key",
+        workflow_id=simple_workflow.workflow_id,
         last_status=ProcessStatus.CREATED,
         created_by=SYSTEM_USER,
         is_task=True,
@@ -407,10 +433,13 @@ def test_process_log_db_step_api_failed():
     assert p.assignee == Assignee.SYSTEM
 
 
-def test_process_log_db_step_abort():
+def test_process_log_db_step_abort(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -452,10 +481,13 @@ def test_process_log_db_step_abort():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_complete():
+def test_process_log_db_step_complete(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -497,7 +529,7 @@ def test_process_log_db_step_complete():
     assert p.assignee == "assignee"
 
 
-def test_process_log_db_step_no_process_id():
+def test_process_log_db_step_no_process_id(simple_workflow):
     process_id = uuid4()
 
     pstat = ProcessStat(process_id, None, None, None, current_user="user")
@@ -510,10 +542,13 @@ def test_process_log_db_step_no_process_id():
     assert f"Failed to write failure step to process: process with PID {process_id} not found" in str(exc_info.value)
 
 
-def test_process_log_db_step_deduplication():
+def test_process_log_db_step_deduplication(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -566,10 +601,13 @@ def test_process_log_db_step_deduplication():
     assert p.assignee == Assignee.SYSTEM
 
 
-def test_safe_logstep():
+def test_safe_logstep(simple_workflow):
     process_id = uuid4()
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
@@ -681,7 +719,7 @@ def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
     assert "Completed resuming processes" in caplog.text
 
 
-def test_db_log_process_ex():
+def test_db_log_process_ex(simple_workflow):
     process_id = uuid4()
 
     # No exceptions!
@@ -689,7 +727,10 @@ def test_db_log_process_ex():
 
     # Now with existing process
     p = ProcessTable(
-        process_id=process_id, workflow_name="workflow_key", last_status=ProcessStatus.CREATED, created_by=SYSTEM_USER
+        process_id=process_id,
+        workflow_id=simple_workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        created_by=SYSTEM_USER,
     )
     db.session.add(p)
     db.session.commit()
