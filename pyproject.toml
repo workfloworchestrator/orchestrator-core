@@ -63,12 +63,13 @@ dependencies = [
     "structlog",
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
-    "nwa-stdlib~=1.5.3",
+#    "nwa-stdlib~=1.5.3",
+    "nwa-stdlib@git+https://github.com/workfloworchestrator/nwa-stdlib@vlanranges-final",
     "oauth2-lib==1.4.1",
     "tabulate==0.9.0",
     "strawberry-graphql==0.209.8",
-    "pydantic-forms==1.0.0a2",
-#    "pydantic-forms@git+https://github.com/workfloworchestrator/pydantic-forms@pydantic_2_x_mark",
+#    "pydantic-forms==1.0.0a2",
+    "pydantic-forms@git+https://github.com/workfloworchestrator/pydantic-forms@pydantic_2_x_mark",
 ]
 
 description-file = "README.md"
