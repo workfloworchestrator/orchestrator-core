@@ -19,6 +19,7 @@ from fastapi.routing import APIRouter
 
 from orchestrator.db import ProductTable, WorkflowTable
 from orchestrator.schemas import StepSchema, WorkflowSchema, WorkflowWithProductTagsSchema
+from orchestrator.services.workflows import get_workflows
 from orchestrator.workflows import get_workflow
 
 router = APIRouter()
@@ -42,16 +43,7 @@ def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
 
 @router.get("/", response_model=List[WorkflowSchema])
 def get_all(target: Optional[str] = None, include_steps: bool = False) -> List[WorkflowSchema]:
-    query = WorkflowTable.query
-    if target:
-        query = query.filter(WorkflowTable.__dict__["target"] == target)
-
-    workflows = query.all()
-
-    if include_steps:
-        return [_add_steps_to_workflow(workflow) for workflow in workflows]
-
-    return workflows
+    return list(get_workflows({"target": target} if target else None, include_steps))
 
 
 @router.get("/with_product_tags", response_model=List[WorkflowWithProductTagsSchema])

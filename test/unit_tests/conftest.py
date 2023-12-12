@@ -607,8 +607,8 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 
 @pytest.fixture
 def validation_workflow_instance():
-    with WorkflowInstanceForTests(validation_workflow, "validation_workflow"):
-        yield "created validation workflow"
+    with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
+        yield ctx
 
 
 @pytest.fixture

@@ -7,6 +7,7 @@ Create Date: 2023-12-06 15:33:46.997517
 """
 import sqlalchemy as sa
 from alembic import op
+from orchestrator import db
 
 # revision identifiers, used by Alembic.
 revision = "048219045729"
@@ -25,8 +26,12 @@ def upgrade() -> None:
     op.execute("ALTER TABLE processes RENAME COLUMN workflow TO workflow_id;")
     op.execute("ALTER TABLE processes ALTER COLUMN workflow_id TYPE uuid USING workflow_id::uuid;")
     op.execute(
-        "ALTER TABLE processes ADD CONSTRAINT processes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id);"
+        """ALTER TABLE processes 
+        ADD CONSTRAINT processes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id);"""
     )
+
+    # Add deleted_at column to workflows table
+    op.add_column("workflows", column=sa.Column("deleted_at", db.UtcTimestamp(timezone=True)))
 
 
 def downgrade() -> None:
@@ -37,3 +42,4 @@ def downgrade() -> None:
         type_=sa.String(),
     )
     op.execute("UPDATE processes SET workflow = wf.name FROM workflows wf WHERE processes.workflow = wf.workflow_id;")
+    op.drop_column("processes", column_name="deleted_at")

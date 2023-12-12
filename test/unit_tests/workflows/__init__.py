@@ -145,6 +145,7 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
     def __enter__(self):
         ALL_WORKFLOWS[self.name] = self
         self.workflow_instance = store_workflow(self.workflow, name=self.name)
+        return self.workflow_instance
 
     def __exit__(self, _exc_type, _exc_value, _traceback):
         del ALL_WORKFLOWS[self.name]

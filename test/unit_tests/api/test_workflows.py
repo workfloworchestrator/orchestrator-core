@@ -3,8 +3,9 @@ from os import getenv
 
 import pytest
 from redis import Redis
+from sqlalchemy import select, func, delete
 
-from orchestrator.db import WorkflowTable
+from orchestrator.db import db, WorkflowTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -23,6 +24,19 @@ def test_workflows(test_client):
     assert len(workflows) == WorkflowTable.query.count()
     assert all(workflow["name"] is not None for workflow in workflows)
     assert all(workflow["target"] is not None for workflow in workflows)
+
+
+def test_deleted_workflows_are_filtered(test_client):
+    workflows = db.session.scalars(select(WorkflowTable)).all()
+    num_workflows = len(workflows)
+    db.session.add(workflows[0].delete())
+    db.session.commit()
+
+    response = test_client.get("/api/workflows")
+
+    assert response.status_code == HTTPStatus.OK
+    workflows = response.json()
+    assert len(workflows) == num_workflows - 1
 
 
 @pytest.mark.parametrize("target", (Target.CREATE, Target.TERMINATE, Target.MODIFY))

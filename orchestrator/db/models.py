@@ -34,6 +34,8 @@ from sqlalchemy import (
     TypeDecorator,
     UniqueConstraint,
     text,
+    select,
+    Select,
 )
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.engine import Dialect
@@ -393,6 +395,8 @@ class WorkflowTable(BaseModel):
     target = mapped_column(String(), nullable=False)
     description = mapped_column(Text(), nullable=True)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    deleted_at = mapped_column(UtcTimestamp, deferred=True)
+
     products = relationship(
         "ProductTable",
         secondary=product_workflows_association,
@@ -400,13 +404,19 @@ class WorkflowTable(BaseModel):
         passive_deletes=True,
         back_populates="workflows",
     )
-    processes = relationship(
-        "ProcessTable", lazy="select", cascade="delete", passive_deletes=True, back_populates="workflow"
-    )
+    processes = relationship("ProcessTable", lazy="select", cascade="all, delete-orphan", back_populates="workflow")
 
     @staticmethod
     def find_by_workflow_name(name: str) -> WorkflowTable:
         return WorkflowTable.query.filter(WorkflowTable.name == name).scalar()
+
+    @staticmethod
+    def select() -> Select:
+        return select(WorkflowTable).filter(WorkflowTable.deleted_at.is_(None))
+
+    def delete(self) -> WorkflowTable:
+        self.deleted_at = nowtz()
+        return self
 
 
 class SubscriptionInstanceRelationTable(BaseModel):

@@ -21,10 +21,9 @@ def validation_workflow() -> StepList:
 
 def test_happy_flow(generic_subscription_1, validation_workflow_instance):
     product = SubscriptionTable.query.get(generic_subscription_1).product
-    product.workflows.append(WorkflowTable(name="validation_workflow", target=Target.SYSTEM))
+    product.workflows.append(validation_workflow_instance)
     db.session.add(product)
     db.session.commit()
-
     result, process, step_log = run_workflow("validation_workflow", {"subscription_id": generic_subscription_1})
     assert_complete(result)
 
@@ -35,7 +34,7 @@ def test_no_subscription(validation_workflow_instance):
     assert "none is not an allowed value" in str(error_info.value)
 
 
-def test_failed_validation(generic_subscription_1: str, validation_workflow_instance) -> None:
+def test_failed_validation(generic_subscription_1: str) -> None:
     @step("Fail")
     def fail():
         raise ValueError("Failed")
@@ -44,9 +43,9 @@ def test_failed_validation(generic_subscription_1: str, validation_workflow_inst
     def failing_validation_workflow() -> StepList:
         return begin >> fail
 
-    with WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow"):
+    with WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow") as failing_validation_wf_table:
         product = SubscriptionTable.query.get(generic_subscription_1).product
-        product.workflows.append(WorkflowTable(name="failing_validation_workflow", target=Target.SYSTEM))
+        product.workflows.append(failing_validation_wf_table)
         db.session.add(product)
         db.session.commit()
 
