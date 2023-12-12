@@ -92,4 +92,7 @@ def test_parse_complex_query():
 def test_query_with_underscores():
     q = 'word_with_underscores prefix_word* key_value:term_1 key_value2:(val_1 | "val_2" | val_3*)'
     parse_tree, tsquery = _parse_tree_and_tsquery(q)
-    assert tsquery == 'word <-> with <-> underscores & prefix <-> word:* & key <-> value <-> term <-> 1 & key <-> value2 <-> (val <-> 1 | val <-> 2 | val <-> 3:*)'
+    assert (
+        tsquery
+        == "word <-> with <-> underscores & prefix <-> word:* & key <-> value <-> term <-> 1 & key <-> value2 <-> (val <-> 1 | val <-> 2 | val <-> 3:*)"
+    )
