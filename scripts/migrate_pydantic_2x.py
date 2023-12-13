@@ -170,6 +170,38 @@ def move_import(f: Path, symbol: str, old_module: str, new_module: str) -> bool:
     return True
 
 
+re_serializable_property = re.compile(r"^(\s+)(@serializable_property)([^\n]*)\n", flags=re.MULTILINE)
+
+
+def replace_serializable_props(f: Path) -> bool:
+    """Replace @serializable_property with pydantic's @computed_field and updates imports.
+
+    As an example, this changes:
+
+      @serializable_property
+      def title():
+        ...
+
+    To:
+
+      @computed_field  # type: ignore[misc]
+      @property
+      def title():
+        ...
+
+    The type:ignore is recommended by pydantic to silence mypy; if you don't use mypy it's not needed.
+    """
+    text = f.read_text()
+    text, changed = remove_imports(text, "orchestrator.domain.base", "serializable_property")
+    if not changed:
+        return False
+    text = insert_import(text, "from pydantic import computed_field")
+    text = re_serializable_property.sub(r"\1@computed_field  # type: ignore[misc]\3\1@property\n", text)
+    with f.open(mode="w"):
+        f.write_text(text)
+    return True
+
+
 def migrate_file(f: Path) -> int:
     imports = {
         "SI": move_import(f, "SI", "orchestrator.domain.base", "orchestrator.types"),
@@ -180,6 +212,8 @@ def migrate_file(f: Path) -> int:
     lines = []
     if replaced_lists := ", ".join(rewrite_subscription_instance_lists(f)):
         lines.append(f"replaced subscription instance lists [{replaced_lists}]")
+    if replace_serializable_props(f):
+        lines.append("replaced serializable properties")
     lines.extend([f"Moved {k} import" for k, v in imports.items() if v])
 
     if lines:
