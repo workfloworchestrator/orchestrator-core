@@ -1301,6 +1301,25 @@ def test_inherited_serializable_property():
     assert block.dict() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
 
 
+def test_nested_serializable_property():
+    """Ensure that nested serializable property's are included in the serialized model."""
+
+    class DerivedDomainModel(DomainModel):
+        @serializable_property  # type: ignore
+        def double_int_field(self) -> int:
+            # This property is serialized
+            return 2 * self.int_field
+
+        int_field: int
+
+    class ParentDomainModel(DomainModel):
+        derived: DerivedDomainModel
+
+    model = ParentDomainModel(derived=DerivedDomainModel(int_field=13))
+
+    assert model.dict() == {"derived": {"int_field": 13, "double_int_field": 26}}
+
+
 def test_subscription_save_list_with_zero_values(
     test_product_type_one, test_product_sub_block_one, product_one_subscription_1
 ):
