@@ -36,7 +36,7 @@ def caching_models_enabled() -> bool:
 
 def to_redis(subscription: Dict[str, Any]) -> None:
     if caching_models_enabled():
-        logger.info("Setting cache for subscription.", subscription=subscription["subscription_id"])
+        logger.info("Setting cache for subscription", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
         cache.set(f"domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
         cache.set(f"domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
@@ -45,14 +45,17 @@ def to_redis(subscription: Dict[str, Any]) -> None:
 
 
 def from_redis(subscription_id: UUID) -> Optional[Tuple[Any, str]]:
+    log = logger.bind(subscription_id=subscription_id)
     if caching_models_enabled():
-        logger.info("Retrieving subscription from cache", subscription=subscription_id)
+        log.debug("Try to retrieve subscription from cache")
         obj = cache.get(f"domain:{subscription_id}")
         etag = cache.get(f"domain:etag:{subscription_id}")
         if obj and etag:
+            log.info("Retrieved subscription from cache")
             return json_loads(obj), etag.decode("utf-8")
+        log.info("Subscription not found in cache")
         return None
-    logger.warning("Caching disabled, not loading subscription", subscription=subscription_id)
+    log.warning("Caching disabled, not loading subscription")
     return None
 
 
