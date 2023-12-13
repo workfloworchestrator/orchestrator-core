@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 import pytz
-from pydantic import Field, ValidationError, conlist
+from pydantic import Field, ValidationError, computed_field, conlist
 from pydantic.main import BaseModel
 from sqlalchemy.exc import NoResultFound
 
@@ -22,7 +22,6 @@ from orchestrator.domain.base import (
     DomainModel,
     ProductBlockModel,
     SubscriptionModel,
-    serializable_property,
 )
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
@@ -1241,7 +1240,8 @@ def test_from_other_lifecycle_sub(test_product_one, test_product_block_one, test
 
 def test_serializable_property():
     class DerivedDomainModel(DomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def double_int_field(self) -> int:
             # This property is serialized
             return 2 * self.int_field
@@ -1260,18 +1260,21 @@ def test_serializable_property():
 
 def test_inherited_serializable_property():
     class ProvisioningDomainModel(DomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def double_int_field(self) -> int:
             return 2 * self.int_field
 
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def triple_int_field(self) -> int:
             return 3 * self.int_field
 
         int_field: int
 
     class ActiveDomainModel(ProvisioningDomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def triple_int_field(self) -> int:
             # override the base property
             return 30 * self.int_field
@@ -1285,7 +1288,8 @@ def test_nested_serializable_property():
     """Ensure that nested serializable property's are included in the serialized model."""
 
     class DerivedDomainModel(DomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def double_int_field(self) -> int:
             # This property is serialized
             return 2 * self.int_field
@@ -1297,7 +1301,7 @@ def test_nested_serializable_property():
 
     model = ParentDomainModel(derived=DerivedDomainModel(int_field=13))
 
-    assert model.dict() == {"derived": {"int_field": 13, "double_int_field": 26}}
+    assert model.model_dump() == {"derived": {"int_field": 13, "double_int_field": 26}}
 
 
 def test_property_with_tag(test_product_block_one, test_product_one, test_product_block_one_db):
