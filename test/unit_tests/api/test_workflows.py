@@ -3,14 +3,16 @@ from os import getenv
 
 import pytest
 from redis import Redis
-from sqlalchemy import select, func, delete
+from sqlalchemy import func, select
 
 from orchestrator.db import db, WorkflowTable
 from orchestrator.domain.base import SubscriptionModel
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.functional import orig
 from orchestrator.workflows.steps import cache_domain_models
+from orchestrator.services.workflows import get_workflows
 
 PRODUCT_ID = "fb28e465-87fd-4d23-9c75-ed036529e416"
 
@@ -26,25 +28,24 @@ def test_workflows(test_client):
     assert all(workflow["target"] is not None for workflow in workflows)
 
 
-def test_deleted_workflows_are_filtered(test_client):
-    workflows = db.session.scalars(select(WorkflowTable)).all()
-    num_workflows = len(workflows)
-    db.session.add(workflows[0].delete())
-    db.session.commit()
+def test_deleted_workflows_are_filtered(test_client, add_soft_deleted_workflows):
+    add_soft_deleted_workflows(10)
 
+    all_workflows = get_workflows(include_deleted=True)
     response = test_client.get("/api/workflows")
 
     assert response.status_code == HTTPStatus.OK
     workflows = response.json()
-    assert len(workflows) == num_workflows - 1
+    assert len(workflows) == len(all_workflows) - 10
 
 
 @pytest.mark.parametrize("target", (Target.CREATE, Target.TERMINATE, Target.MODIFY))
-def test_workflows_by_target(target, test_client):
+def test_workflows_by_target(target, test_client, add_soft_deleted_workflows):
+    add_soft_deleted_workflows(10)
     response = test_client.get(f"/api/workflows?target={target}")
     workflows = response.json()
 
-    num_wfs = WorkflowTable.query.filter(WorkflowTable.target == target).count()
+    num_wfs = db.session.scalar(select(func.count(WorkflowTable.workflow_id)).where(WorkflowTable.target == target))
     assert len(workflows) == num_wfs
     assert all(target == workflow["target"] for workflow in workflows)
 
@@ -63,7 +64,8 @@ def test_workflows_include_steps(include_steps, predicate, test_client):
     assert all(predicate(workflow) for workflow in workflows)
 
 
-def test_get_all_with_product_tags(test_client):
+def test_get_all_with_product_tags(test_client, add_soft_deleted_workflows):
+    add_soft_deleted_workflows(10)
     response = test_client.get("/api/workflows/with_product_tags")
 
     assert response.status_code == HTTPStatus.OK

@@ -1,6 +1,6 @@
 from typing import Optional, Iterable
 
-from sqlalchemy import Select
+from sqlalchemy import select, Select
 
 from orchestrator.db import WorkflowTable, db
 from orchestrator.schemas import WorkflowSchema, StepSchema
@@ -23,13 +23,16 @@ def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
     )
 
 
-def get_workflows(filters: Optional[dict] = None, include_steps: bool = False) -> Iterable[WorkflowSchema]:
+def get_workflows(
+    filters: Optional[dict] = None, include_steps: bool = False, include_deleted: bool = False
+) -> Iterable[WorkflowSchema]:
     def _add_filter(stmt: Select) -> Select:
         for k, v in (filters or {}).items():
             stmt = stmt.where(WorkflowTable.__dict__[k] == v)
         return stmt
 
-    workflows = db.session.scalars(_add_filter(WorkflowTable.select())).all()
+    stmt = select(WorkflowTable) if include_deleted else WorkflowTable.select()
+    workflows = db.session.scalars(_add_filter(stmt)).all()
 
     if include_steps:
         workflows = [_add_steps_to_workflow(wf) for wf in workflows]

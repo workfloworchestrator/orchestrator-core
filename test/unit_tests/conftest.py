@@ -178,7 +178,7 @@ def db_uri(worker_id):
 
 @pytest.fixture(scope="session")
 def database(db_uri):
-    """Create database and run migrations and cleanup afterwards.
+    """Create database and run migrations and cleanup afterward.
 
     Args:
         db_uri: fixture for providing the application context and an initialized database. Although specifying this
