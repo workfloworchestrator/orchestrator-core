@@ -21,7 +21,8 @@ from uuid import UUID
 {% for module, type in product_blocks_to_import %}
 from {{ module }} import {{ type }}Block, {{ type }}BlockInactive
 {% endfor %}
-from orchestrator.domain.base import ProductBlockModel, serializable_property
+from pydantic import computed_field
+from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
 {% include "list_definitions.j2" %}
@@ -44,7 +45,8 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
     {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field) }} {% else -%} {{field.type}} {% endif %}
     {% endif -%}
     {% endfor %}
-    @serializable_property
+    @computed_field
+    @property
     def title(self) -> str:
         # TODO: format correct title string
         return f"{self.name}"

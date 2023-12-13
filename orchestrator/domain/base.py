@@ -22,7 +22,6 @@ from typing import (
     Callable,
     ClassVar,
     Dict,
-    Generator,
     List,
     Optional,
     Set,
@@ -81,12 +80,6 @@ logger = structlog.get_logger(__name__)
 
 
 class ProductNotInRegistryError(Exception):
-    pass
-
-
-class serializable_property(property):
-    """Inherit from property class to mark a field in a product block as serializable."""
-
     pass
 
 
@@ -451,17 +444,6 @@ class DomainModel(BaseModel):
 
         return saved_instances, depends_on_instances
 
-    @classmethod
-    def get_properties(cls) -> list[Any]:
-        def get_props(klass: type) -> Generator:
-            yield from (prop for prop in klass.__dict__ if isinstance(klass.__dict__[prop], serializable_property))
-
-        def get_all_props() -> Generator:
-            for klass in cls.mro():
-                yield from get_props(klass)
-
-        return list(get_all_props())
-
     @typing_extensions.deprecated("dict() is deprecated and will be removed in the future, use model_dump() instead")
     def dict(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         warnings.warn(
@@ -470,22 +452,6 @@ class DomainModel(BaseModel):
             stacklevel=2,
         )
         return self.model_dump(*args, **kwargs)
-
-    def model_dump(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Override the model_dump function to include serializable properties."""
-        attribs = super().model_dump(**kwargs)
-        props = self.get_properties()
-
-        # Include and exclude properties
-        if include := kwargs.get("include"):
-            props = [prop for prop in props if prop in include]
-        if exclude := kwargs.get("exclude"):
-            props = [prop for prop in props if prop not in exclude]
-
-        # Update the attribute dict with the properties
-        if props:
-            attribs.update({prop: getattr(self, prop) for prop in props})
-        return attribs
 
 
 def get_depends_on_product_block_type_list(
