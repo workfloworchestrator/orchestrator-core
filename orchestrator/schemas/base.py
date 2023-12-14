@@ -17,8 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class OrchestratorBaseModel(BaseModel):
-    # TODO json_encoders is deprecated and will be removed in Pydantic 3.x
-    #  The new way is to decorate each field with @field_serializer("name_of_field", when_used="json")
+    # TODO #429 json_encoders is deprecated and will be removed in Pydantic 3.x
     model_config = ConfigDict(
         json_encoders={
             datetime: lambda dt: dt.timestamp(),

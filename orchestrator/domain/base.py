@@ -517,7 +517,7 @@ class ProductBlockModel(DomainModel):
 
     # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
     # Is actually optional since abstract classes don't have it.
-    # TODO name is used as both a ClassVar and a pydantic Field, for which Pydantic 2.x raises
+    # TODO #427 name is used as both a ClassVar and a pydantic Field, for which Pydantic 2.x raises
     #  warnings (which may become errors)
     name: Optional[str]
     subscription_instance_id: UUID
