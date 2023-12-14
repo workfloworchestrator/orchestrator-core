@@ -1077,15 +1077,6 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
 
 
 def test_subscription_instance_list():
-    # T = TypeVar("T")
-
-    # class Max2List(SubscriptionInstanceList[T]):
-    #     max_items = 2
-    #
-    # # Also check generic subclass
-    # class ConList(Max2List[T]):
-    #     min_items = 1
-
     def custom_conlist(t):
         return conlist(t, min_length=1, max_length=2)
 

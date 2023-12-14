@@ -15,13 +15,7 @@ def test_product_type_list_union(test_product_sub_block_one, test_product_sub_bl
     SubBlockOneForTestInactive, SubBlockOneForTestProvisioning, SubBlockOneForTest = test_product_sub_block_one
     SubBlockTwoForTestInactive, SubBlockTwoForTestProvisioning, SubBlockTwoForTest = test_product_sub_block_two
 
-    # T = TypeVar("T", covariant=True)
-
-    # class ListOfPorts(SubscriptionInstanceList[T]):
-    #     min_items = 1
-
     def list_of_ports(t):
-        # return Annotated[t, Field(min_length=1, union_mode="left_to_right")]
         return conlist(t, min_length=1)
 
     class ProductListUnionInactive(SubscriptionModel, is_base=True):
