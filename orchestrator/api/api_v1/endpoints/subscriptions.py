@@ -47,6 +47,7 @@ from orchestrator.services.subscriptions import (
     _generate_etag,
     build_extended_domain_model,
     format_extended_domain_model,
+    format_special_types,
     get_subscription,
     get_subscription_metadata,
     query_depends_on_subscriptions,
@@ -117,7 +118,8 @@ def subscription_details_by_id_with_domain_model(
             response.status_code = HTTPStatus.NOT_MODIFIED
             return None
         response.headers["ETag"] = etag
-        return format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
+        filtered = format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
+        return format_special_types(filtered)
 
     if cache_response := from_redis(subscription_id):
         return _build_response(*cache_response)
