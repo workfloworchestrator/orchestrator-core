@@ -88,6 +88,7 @@ test = [
     "black",
     "blinker",
     "deepdiff",
+    "dirty-equals",
     "ruff",
     "jsonref",
     "mypy==1.6.1",
