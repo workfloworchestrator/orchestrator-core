@@ -51,20 +51,19 @@ repos:
   #       exclude: (test/.*|migrations/.*)
 
   # This hook uses the `mypy` executable installed in your local environment
-  # Commented out while working on pydantic v2
-  # - repo: local
-  #   hooks:
-  #     - id: mypy
-  #       name: mypy
-  #       language: system
-  #       entry: "mypy"
-  #       types: [ python ]
-  #       require_serial: true
-  #       verbose: true
-  #       args:
-  #         - --no-warn-unused-ignores
-  #         - --allow-untyped-decorators
-  #       exclude: (test/.*|migrations/.*)
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        language: system
+        entry: "mypy"
+        types: [ python ]
+        require_serial: true
+        verbose: true
+        args:
+          - --no-warn-unused-ignores
+          - --allow-untyped-decorators
+        exclude: (test/.*|migrations/.*)
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
