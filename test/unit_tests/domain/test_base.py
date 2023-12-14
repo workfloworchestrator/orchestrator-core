@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 import pytz
+from dirty_equals import IsUUID
 from pydantic import Field, ValidationError, computed_field, conlist
 from pydantic.main import BaseModel
 from sqlalchemy.exc import NoResultFound
@@ -740,6 +741,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
             "int_field": None,
             "label": None,
             "list_field": [],
+            "title": "TEST ProductBlockOneForTestInactive int_field=None",
             "name": "ProductBlockOneForTest",
             "str_field": "A",
             "sub_block": {
@@ -747,13 +749,13 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
                 "label": None,
                 "name": "SubBlockOneForTest",
                 "str_field": None,
-                "subscription_instance_id": mock.ANY,
-                "owner_subscription_id": mock.ANY,
+                "subscription_instance_id": IsUUID(),
+                "owner_subscription_id": IsUUID(),
             },
             "sub_block_2": None,
             "sub_block_list": [],
-            "owner_subscription_id": mock.ANY,
-            "subscription_instance_id": mock.ANY,
+            "owner_subscription_id": IsUUID(),
+            "subscription_instance_id": IsUUID(),
         },
         "customer_id": customer_id,
         "description": "Desc",
@@ -772,7 +774,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
         },
         "start_date": datetime(2021, 1, 1, 1, 1, 1, tzinfo=pytz.utc),
         "status": SubscriptionLifecycle.INITIAL,
-        "subscription_id": mock.ANY,
+        "subscription_id": IsUUID(),
         "test_fixed_input": False,
     }
 
