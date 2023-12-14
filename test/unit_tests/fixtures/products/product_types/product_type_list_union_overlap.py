@@ -15,10 +15,6 @@ def test_product_type_list_union_overlap(test_product_block_one, test_product_su
     ProductBlockOneForTestInactive, ProductBlockOneForTestProvisioning, ProductBlockOneForTest = test_product_block_one
     SubBlockOneForTestInactive, SubBlockOneForTestProvisioning, SubBlockOneForTest = test_product_sub_block_one
 
-    # T = TypeVar("T", covariant=True)
-    # class ListOfPorts(SubscriptionInstanceList[T]):
-    #     min_items = 1
-
     def list_of_ports(t):
         return conlist(t, min_length=1)
 
