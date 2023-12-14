@@ -44,6 +44,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
+from orchestrator.utils.helpers import is_ipaddress_type
 
 logger = structlog.get_logger(__name__)
 
@@ -607,6 +608,30 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
 
     subscription["customer_descriptions"] = customer_descriptions
 
+    return subscription
+
+
+def format_special_types(subscription: dict) -> dict:
+    """Modifies the subscription dict in-place, formatting special types to string.
+
+    This function was added during the Pydantic 2.x migration to handle serialization errors on ipaddress types.
+    Background: https://github.com/pydantic/pydantic/issues/6669
+
+    The problem lies with SubscriptionDomainModelSchema which allows extra untyped fields.
+    It might be possible with a model_serializer but couldn't get this to work, therefore this workaround.
+    """
+
+    def format_value(v: Any) -> Any:
+        if is_ipaddress_type(v):
+            return str(v)
+        if isinstance(v, dict):
+            return format_special_types(v)
+        if isinstance(v, list):
+            return [format_value(item) for item in v]
+        return v
+
+    for k, v in subscription.items():
+        subscription[k] = format_value(v)
     return subscription
 
 

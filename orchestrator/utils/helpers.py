@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Any, Callable, TypeVar, Union
 
 import structlog
@@ -88,3 +89,7 @@ def to_camel(s: str) -> str:
 
 def to_snake(s: str) -> str:
     return "".join(["_" + c.lower() if c.isupper() else c for c in s]).lstrip("_")
+
+
+def is_ipaddress_type(v: Any) -> bool:
+    return isinstance(v, (IPv4Address, IPv6Address, IPv4Network, IPv6Network))
