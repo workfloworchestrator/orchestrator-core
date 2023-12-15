@@ -1,3 +1,7 @@
+"""Helper script to rewrite your orchestrator codebase for orchestrator-core 2.0.0.
+
+Refer to the 2.0 migration guide documentation for background.
+"""
 import re
 import sys
 from pathlib import Path
@@ -35,7 +39,7 @@ def remove_imports(text: str, module: str, symbol: str) -> tuple[str, bool]:
 def insert_import(text: str, import_stmt: str) -> str:
     # Find the first import line and add our line above that
     # Rely on ruff & black for formatting
-    return re.sub(r"(^from .+$)", f"{import_stmt}\n" + r"\1", text, count=1, flags=re.M)
+    return re.sub(r"(^(?:from .+|import .+)$)", f"{import_stmt}\n" + r"\1", text, count=1, flags=re.M)
 
 
 def find_and_remove_aliases(text: str, symbol: str) -> tuple[str, list[str]]:
@@ -61,44 +65,7 @@ def has_word(text: str, word: str) -> bool:
 def rewrite_subscription_instance_lists(f: Path) -> list[str]:
     """Rewrite all SubscriptionInstanceList occurrences in a file and fix the imports.
 
-    # TODO move this to documentation
-    # Examples
-
-    1. Generic Sequence
-
-        class ListMax2(SubscriptionInstanceList[SI]):
-            max_items = 2
-
-    becomes
-
-        ListMax2 = Annotated[Sequence[SI], Len(max_length=2)]
-
-    Which can then be used in a pydantic model with a type subscription
-
-        class MyModel(BaseModel):
-            values: ListMax2[int]
-
-    Which _can_ also be reused in a new type (but...);
-
-        ListMin1Max2 = Annotated[ListMax2, Len(min_length=1)]
-
-    Which works for pydantic, but mypy (1.6.1) complains with "error: Bad number of arguments for type alias"
-    It's best to construct the annotated list at once.
-
-
-    2. Typed List
-
-        class ListMax2Numbers(SubscriptionInstanceList[int]):
-            max_items = 2
-
-    becomes
-
-        ListMax2Numbers = Annotated[list[int], Len(max_length=2)]
-
-    Which can then be used in a pydantic model without a type subscription
-
-        class MyModel(BaseModel):
-            values: ListMax2Numbers
+    Refer to the "SubscriptionInstanceList" section in the 2.0 migration guide for details.
 
     Returns:
         names of any replaced SI Lists.
@@ -124,8 +91,7 @@ def rewrite_subscription_instance_lists(f: Path) -> list[str]:
 
     def replace_si_list(match: re.Match) -> str:
         subscript_type = match.group("type")
-        iterable_type = "Sequence" if subscript_type == "SI" else "list"
-        result = "\n%s = Annotated[%s[%s], Len(%s)]\n"
+        result = "\n%s = Annotated[list[%s], Len(%s)]\n"
 
         def len_params() -> Iterable[str]:
             if min_items := match.group("min_items"):
@@ -133,15 +99,13 @@ def rewrite_subscription_instance_lists(f: Path) -> list[str]:
             if max_items := match.group("max_items"):
                 yield f"max_length={max_items}"
 
-        return result % (match.group("name"), iterable_type, subscript_type, ", ".join(len_params()))
+        return result % (match.group("name"), subscript_type, ", ".join(len_params()))
 
     names = [match[0] for match in re.findall(rgx, text, flags=re.M)]
-    # TODO replaces empty lines before/after the class.. not sure why
     text = re.sub(rgx, replace_si_list, text, flags=re.M)
 
     symbols = {
         "Len": "from annotated_types import Len",
-        "Sequence": "from collections.abc import Sequence",
         "Annotated": "from typing import Annotated",
     }
 
@@ -150,7 +114,7 @@ def rewrite_subscription_instance_lists(f: Path) -> list[str]:
             # Assumes that if the symbol is already in the file, it was also imported
             continue
         if not has_word(text, symbol):
-            # Not every symbol (i.e. Sequence) may be necessary
+            # Not every symbol may be necessary
             continue
         text = insert_import(text, import_stmt)
 
@@ -208,6 +172,7 @@ def migrate_file(f: Path) -> int:
         "VlanRanges": move_import(f, "VlanRanges", "orchestrator.utils.vlans", "nwastdlib.vlans"),
         "ReadOnlyField_forms": move_import(f, "ReadOnlyField", "pydantic_forms.core", "pydantic_forms.validators"),
         "ReadOnlyField_core": move_import(f, "ReadOnlyField", "orchestrator.forms", "pydantic_forms.validators"),
+        "pydantic BaseSettings": move_import(f, "BaseSettings", "pydantic", "pydantic_settings"),
     }
     lines = []
     if replaced_lists := ", ".join(rewrite_subscription_instance_lists(f)):

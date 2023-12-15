@@ -25,6 +25,7 @@ repos:
       - id: check-docstring-first
       - id: check-json
       - id: check-yaml
+        exclude: mkdocs.yml
       - id: debug-statements
       - id: requirements-txt-fixer
       - id: detect-private-key
