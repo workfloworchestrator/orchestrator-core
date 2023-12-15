@@ -208,7 +208,7 @@ ban-relative-imports = "all"
 [tool.ruff.per-file-ignores]
 "orchestrator/api/*" = ["B008"]
 "orchestrator/cli/*" = ["B008"]
-"scripts/*" = ["S101", "T201"]
+"orchestrator/devtools/scripts/*" = ["S101", "T201"]
 "test/*" = ["S101", "B033", "N816", "N802"]
 
 [tool.ruff.pydocstyle]
