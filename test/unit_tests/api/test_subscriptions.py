@@ -19,7 +19,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionInstanceRelationTable
+from orchestrator.db.models import SubscriptionInstanceRelationTable, WorkflowTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
@@ -28,6 +28,7 @@ from orchestrator.services.subscriptions import (
     unsync,
 )
 from orchestrator.settings import app_settings
+from orchestrator.targets import Target
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.utils.redis import to_redis
 from orchestrator.workflow import ProcessStatus
@@ -849,12 +850,11 @@ def test_depends_on_subscriptions_insync_direct_relations(seed_with_direct_relat
 
 
 def test_delete_subscription(responses, seed, test_client):
+    wf = WorkflowTable(workflow_id=uuid4(), name="statisch_lichtpad_aanvragen", target=Target.CREATE, description="Test")
+    db.session.add(wf)
+
     process_id = str(uuid4())
-    db.session.add(
-        ProcessTable(
-            process_id=process_id, workflow_name="statisch_lichtpad_aanvragen", last_status=ProcessStatus.CREATED
-        )
-    )
+    db.session.add(ProcessTable(process_id=process_id, workflow_id=wf.workflow_id, last_status=ProcessStatus.CREATED))
     db.session.add(ProcessSubscriptionTable(process_id=process_id, subscription_id=PORT_A_SUBSCRIPTION_ID))
     db.session.commit()
 
@@ -977,18 +977,18 @@ def test_set_in_sync(seed, test_client):
 
 
 def _create_failed_process(subscription_id):
+    wf = WorkflowTable(workflow_id=uuid4(), name="validate_ip_prefix", target=Target.SYSTEM)
     process_id = uuid4()
-
     process = ProcessTable(
         process_id=process_id,
-        workflow_name="validate_ip_prefix",
+        workflow_id=wf.workflow_id,
         last_status=ProcessStatus.FAILED,
         last_step="Verify references in NSO",
         assignee="NOC",
         is_task=False,
     )
     process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)
-
+    db.session.add(wf)
     db.session.add(process)
     db.session.add(process_subscription)
 
