@@ -28,14 +28,14 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Select,
     String,
     Table,
     Text,
     TypeDecorator,
     UniqueConstraint,
-    text,
     select,
-    Select,
+    text,
 )
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.engine import Dialect
@@ -225,6 +225,8 @@ class ProductTable(BaseModel):
     workflows = relationship(
         "WorkflowTable",
         secondary=product_workflows_association,
+        secondaryjoin="and_(products_workflows.c.workflow_id == WorkflowTable.workflow_id, "
+        "WorkflowTable.deleted_at == None)",
         lazy="select",
         cascade_backrefs=False,
         passive_deletes=True,

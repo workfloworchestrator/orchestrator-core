@@ -4,10 +4,10 @@ from uuid import uuid4
 
 import pytest
 import pytz
+from sqlalchemy import delete
 
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, WorkflowTable, db
-from orchestrator.targets import Target
+from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.workflow import done, init, inputstep, step, workflow
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, UUIDstr
@@ -48,12 +48,8 @@ def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> Ge
     def workflow_for_testing_processes_py():
         return init >> insert_object >> check_object >> modify >> done
 
-    with WorkflowInstanceForTests(workflow_for_testing_processes_py, "workflow_for_testing_processes_py"):
-        db_workflow = WorkflowTable(name="workflow_for_testing_processes_py", target=Target.MODIFY)
-        db.session.add(db_workflow)
-        db.session.commit()
-
-        yield "workflow_for_testing_processes_py"
+    with WorkflowInstanceForTests(workflow_for_testing_processes_py, "workflow_for_testing_processes_py") as wf:
+        yield wf
 
 
 @pytest.fixture
@@ -64,7 +60,7 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
         process_id = uuid4()
         process = ProcessTable(
             process_id=process_id,
-            workflow_id=uuid4(),
+            workflow_id=test_workflow.workflow_id,
             last_status=status,
             last_step="Modify",
             started_at=started,
@@ -125,7 +121,7 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
         process_id = uuid4()
         process = ProcessTable(
             process_id=process_id,
-            workflow_id=uuid4(),
+            workflow_id=test_workflow.workflow_id,
             last_status=status,
             last_step="Modify",
             started_at=started,
@@ -165,7 +161,7 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
 
         return process_id
 
-    return [
+    mock_processes = [
         mock_process(generic_subscription_1, "api_unavailable", first_datetime, is_task=True),
         mock_process(
             generic_subscription_1, "suspended", first_datetime + timedelta(days=1), assignee="NOC", is_task=True
@@ -179,3 +175,5 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
         mock_process(None, "running", first_datetime + timedelta(days=4), is_task=True),
         mock_process(None, "resumed", first_datetime + timedelta(days=5), is_task=True),
     ]
+    yield mock_processes
+    db.session.execute(delete(ProcessTable).where(ProcessTable.process_id.in_(mock_processes)))

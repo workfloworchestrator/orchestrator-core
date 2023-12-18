@@ -1,7 +1,6 @@
 import pytest
 
-from orchestrator.db import SubscriptionTable, WorkflowTable, db
-from orchestrator.targets import Target
+from orchestrator.db import SubscriptionTable, db
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.exceptions import FormValidationError
@@ -43,7 +42,9 @@ def test_failed_validation(generic_subscription_1: str) -> None:
     def failing_validation_workflow() -> StepList:
         return begin >> fail
 
-    with WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow") as failing_validation_wf_table:
+    with WorkflowInstanceForTests(
+        failing_validation_workflow, "failing_validation_workflow"
+    ) as failing_validation_wf_table:
         product = SubscriptionTable.query.get(generic_subscription_1).product
         product.workflows.append(failing_validation_wf_table)
         db.session.add(product)

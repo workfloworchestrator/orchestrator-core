@@ -1,17 +1,20 @@
-from typing import Optional, Iterable
+from typing import Iterable, Optional
 
-from sqlalchemy import select, Select
+from sqlalchemy import Select, select
 
 from orchestrator.db import WorkflowTable, db
-from orchestrator.schemas import WorkflowSchema, StepSchema
+from orchestrator.schemas import StepSchema, WorkflowSchema
 from orchestrator.workflows import get_workflow
 
 
-def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
-    def get_steps() -> list[StepSchema]:
-        if registered_workflow := get_workflow(workflow.name):
-            return [StepSchema(name=step.name) for step in registered_workflow.steps]
-        raise AssertionError(f"Workflow {workflow.name} should be registered")
+def _get_steps(workflow: WorkflowTable) -> list[StepSchema]:
+    if registered_workflow := get_workflow(workflow.name):
+        return [StepSchema(name=step.name) for step in registered_workflow.steps]
+    raise AssertionError(f"Workflow {workflow.name} should be registered")
+
+
+def _to_workflow_schema(workflow: WorkflowTable, include_steps: bool = False) -> WorkflowSchema:
+    extra_kwargs = {"steps": _get_steps(workflow)} if include_steps else {}
 
     return WorkflowSchema(
         workflow_id=workflow.workflow_id,
@@ -19,7 +22,7 @@ def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
         target=workflow.target,
         description=workflow.description,
         created_at=workflow.created_at,
-        steps=get_steps(),
+        **extra_kwargs,
     )
 
 
@@ -34,7 +37,4 @@ def get_workflows(
     stmt = select(WorkflowTable) if include_deleted else WorkflowTable.select()
     workflows = db.session.scalars(_add_filter(stmt)).all()
 
-    if include_steps:
-        workflows = [_add_steps_to_workflow(wf) for wf in workflows]
-
-    return workflows
+    return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]

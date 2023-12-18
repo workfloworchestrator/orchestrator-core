@@ -123,7 +123,8 @@ def seed():
     db.session.commit()
 
 
-def test_fetch_all_products(seed, test_client):
+def test_fetch_all_products(seed, test_client, add_soft_deleted_workflows):
+    add_soft_deleted_workflows(10)
     response = test_client.get("/api/products")
 
     assert HTTPStatus.OK == response.status_code

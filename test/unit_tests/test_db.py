@@ -3,6 +3,7 @@ from unittest import mock
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import ResourceTypeTable, SubscriptionTable, WorkflowTable, db, transactional
@@ -71,7 +72,9 @@ def test_transactional_no_commit():
     assert str(ex.value) == "Lets rollback"
 
     assert (
-        db.session.query(WorkflowTable).filter(WorkflowTable.name == "Test transactional should not be committed").all()
+        db.session.scalars(
+            select(WorkflowTable).filter(WorkflowTable.name == "Test transactional should not be committed")
+        ).all()
         == []
     )
     logger.assert_has_calls(
@@ -113,9 +116,10 @@ def test_transactional_no_commit_second_thread():
     # https://github.com/PyCQA/flake8-bugbear/issues/334
     assert str(ex.value) == "Lets rollback"
 
-    assert db.session.query(WorkflowTable).filter(WorkflowTable.name == "Test transactional should be committed").one()
     assert (
-        db.session.query(WorkflowTable).filter(WorkflowTable.name == "Test transactional should not be committed").all()
+        db.session.execute(
+            select(WorkflowTable).filter(WorkflowTable.name == "Test transactional should not be committed")
+        ).all()
         == []
     )
     logger.assert_has_calls(

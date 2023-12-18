@@ -7,6 +7,7 @@ Create Date: 2023-12-06 15:33:46.997517
 """
 import sqlalchemy as sa
 from alembic import op
+
 from orchestrator import db
 
 # revision identifiers, used by Alembic.
@@ -26,7 +27,7 @@ def upgrade() -> None:
     op.execute("ALTER TABLE processes RENAME COLUMN workflow TO workflow_id;")
     op.execute("ALTER TABLE processes ALTER COLUMN workflow_id TYPE uuid USING workflow_id::uuid;")
     op.execute(
-        """ALTER TABLE processes 
+        """ALTER TABLE processes
         ADD CONSTRAINT processes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id);"""
     )
 

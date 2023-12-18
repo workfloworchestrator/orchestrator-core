@@ -18,37 +18,21 @@ from typing import List, Optional
 from fastapi.routing import APIRouter
 
 from orchestrator.db import ProductTable, WorkflowTable
-from orchestrator.schemas import StepSchema, WorkflowSchema, WorkflowWithProductTagsSchema
+from orchestrator.schemas import WorkflowSchema, WorkflowWithProductTagsSchema
 from orchestrator.services.workflows import get_workflows
-from orchestrator.workflows import get_workflow
 
 router = APIRouter()
 
 
-def _add_steps_to_workflow(workflow: WorkflowTable) -> WorkflowSchema:
-    def get_steps() -> list[StepSchema]:
-        if registered_workflow := get_workflow(workflow.name):
-            return [StepSchema(name=step.name) for step in registered_workflow.steps]
-        raise AssertionError(f"Workflow {workflow.name} should be registered")
-
-    return WorkflowSchema(
-        workflow_id=workflow.workflow_id,
-        name=workflow.name,
-        target=workflow.target,
-        description=workflow.description,
-        created_at=workflow.created_at,
-        steps=get_steps(),
-    )
-
-
 @router.get("/", response_model=List[WorkflowSchema])
 def get_all(target: Optional[str] = None, include_steps: bool = False) -> List[WorkflowSchema]:
-    return list(get_workflows({"target": target} if target else None, include_steps))
+    filters = {"target": target} if target else None
+    return list(get_workflows(filters=filters, include_steps=include_steps))
 
 
 @router.get("/with_product_tags", response_model=List[WorkflowWithProductTagsSchema])
 def get_all_with_product_tags() -> List[WorkflowWithProductTagsSchema]:
-    all_workflows = WorkflowTable.query.all()
+    all_workflows = get_workflows()
 
     def add_product_tags(wf: WorkflowTable) -> WorkflowWithProductTagsSchema:
         tags = (

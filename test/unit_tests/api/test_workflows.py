@@ -5,14 +5,13 @@ import pytest
 from redis import Redis
 from sqlalchemy import func, select
 
-from orchestrator.db import db, WorkflowTable
+from orchestrator.db import WorkflowTable, db
 from orchestrator.domain.base import SubscriptionModel
-from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows
+from orchestrator.services.workflows import get_workflows
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.functional import orig
 from orchestrator.workflows.steps import cache_domain_models
-from orchestrator.services.workflows import get_workflows
 
 PRODUCT_ID = "fb28e465-87fd-4d23-9c75-ed036529e416"
 
@@ -69,7 +68,8 @@ def test_get_all_with_product_tags(test_client, add_soft_deleted_workflows):
     response = test_client.get("/api/workflows/with_product_tags")
 
     assert response.status_code == HTTPStatus.OK
-    assert len(response.json()) == WorkflowTable.query.count()
+    num_wfs = len(db.session.scalars(WorkflowTable.select()).all())
+    assert len(response.json()) == num_wfs
 
 
 @pytest.mark.skipif(
