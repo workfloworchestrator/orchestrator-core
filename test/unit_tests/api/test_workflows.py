@@ -12,13 +12,13 @@ from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.functional import orig
 from orchestrator.workflows.steps import cache_domain_models
-from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 PRODUCT_ID = "fb28e465-87fd-4d23-9c75-ed036529e416"
 
 
 @pytest.fixture(autouse=True)
-def _add_soft_deleted_workflows(add_soft_deleted_workflows):
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
     add_soft_deleted_workflows(10)
 
 

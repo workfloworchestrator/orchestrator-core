@@ -14,7 +14,7 @@ from orchestrator.db import (
     db,
 )
 from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
-from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 PRODUCT_ID = uuid4()
 MSP_PRODUCT_ID = uuid4()
@@ -26,7 +26,7 @@ depends_on_SUBSCRIPTION_ID = uuid4()
 
 
 @pytest.fixture(autouse=True)
-def _add_soft_deleted_workflows(add_soft_deleted_workflows):
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
     add_soft_deleted_workflows(10)
 
 
