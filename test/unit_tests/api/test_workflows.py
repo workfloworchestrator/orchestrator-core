@@ -39,7 +39,7 @@ def test_deleted_workflows_are_filtered(test_client):
 
     assert response.status_code == HTTPStatus.OK
     workflows = response.json()
-    assert len(workflows) == len(all_workflows) - 10
+    assert len(workflows) == len(list(all_workflows)) - 10
 
 
 @pytest.mark.parametrize("target", (Target.CREATE, Target.TERMINATE, Target.MODIFY))
