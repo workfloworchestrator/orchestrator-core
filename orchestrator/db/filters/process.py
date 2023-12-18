@@ -100,7 +100,7 @@ def organisation_filter(query: QueryType, value: str) -> QueryType:
 
 
 def workflow_name_filter(query: QueryType, value: str) -> QueryType:
-    return query.join(WorkflowTable).filter(WorkflowTable.deleted_at is None, WorkflowTable.name == value)
+    return query.join(WorkflowTable).filter(WorkflowTable.deleted_at.is_(None), WorkflowTable.name == value)
 
 
 BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
