@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 
 from orchestrator.db import SubscriptionTable, db
@@ -42,16 +44,15 @@ def test_failed_validation(generic_subscription_1: str) -> None:
     def failing_validation_workflow() -> StepList:
         return begin >> fail
 
-    with WorkflowInstanceForTests(
-        failing_validation_workflow, "failing_validation_workflow"
-    ) as failing_validation_wf_table:
-        product = SubscriptionTable.query.get(generic_subscription_1).product
-        product.workflows.append(failing_validation_wf_table)
-        db.session.add(product)
-        db.session.commit()
+    with mock.patch.object(db.session, "rollback"):
+        with WorkflowInstanceForTests(failing_validation_workflow, "failing_validation_workflow") as failing_wf:
+            product = SubscriptionTable.query.get(generic_subscription_1).product
+            product.workflows.append(failing_wf)
+            db.session.add(product)
+            db.session.commit()
 
-        result, process, step_log = run_workflow(
-            "failing_validation_workflow", {"subscription_id": generic_subscription_1}
-        )
-        assert_failed(result)
-        assert "Failed" in extract_error(result)
+            result, process, step_log = run_workflow(
+                "failing_validation_workflow", {"subscription_id": generic_subscription_1}
+            )
+            assert_failed(result)
+            assert "Failed" in extract_error(result)

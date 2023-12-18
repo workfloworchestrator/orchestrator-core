@@ -101,6 +101,7 @@ def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) 
         "last_status": process.last_status,
         "last_step": process.last_step,
         "is_task": process.is_task,
+        "workflow_id": process.workflow_id,
         "workflow_name": process.workflow_name,
         "workflow_target": process.process_subscriptions[0].workflow_target if process.process_subscriptions else None,
         "failed_reason": process.failed_reason,

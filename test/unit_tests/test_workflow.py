@@ -8,6 +8,7 @@ import pytest
 
 from nwastdlib import const
 from orchestrator.config.assignee import Assignee
+from orchestrator.db import db
 from orchestrator.services.processes import SYSTEM_USER
 from orchestrator.targets import Target
 from orchestrator.types import State, UUIDstr
@@ -586,17 +587,19 @@ def test_step_group_with_failure():
     def test_wf():
         return init >> step1 >> group >> step3 >> done
 
-    with WorkflowInstanceForTests(test_wf, "step_group_test_workflow"):
-        init_state = {}
+    # A failed step will cause an unwanted rollback for testing purposes. Disable the rollback within the following scope
+    with mock.patch.object(db.session, "rollback"):
+        with WorkflowInstanceForTests(test_wf, "step_group_test_workflow"):
+            init_state = {}
 
-        result, process, step_log = run_workflow("step_group_test_workflow", init_state)
-        assert_failed(result)
-        assert extract_error(result) == "Failure Message"
-        assert 1 == len(side_effect_counter), "Side effect should be called once"
+            result, process, step_log = run_workflow("step_group_test_workflow", init_state)
+            assert_failed(result)
+            assert extract_error(result) == "Failure Message"
+            assert 1 == len(side_effect_counter), "Side effect should be called once"
 
-        step_log = [t for t in step_log if t[0] not in [effect_step, step2, fail]]
+            step_log = [t for t in step_log if t[0] not in [effect_step, step2, fail]]
 
-        # # Retry workflow
-        resume_result, step_log = resume_workflow(process, step_log, {})
-        assert_failed(resume_result)
-        assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"
+            # # Retry workflow
+            resume_result, step_log = resume_workflow(process, step_log, {})
+            assert_failed(resume_result)
+            assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"

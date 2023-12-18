@@ -19,7 +19,7 @@ import structlog
 from sqlalchemy.inspection import inspect
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, db
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.db.filters.filters import QueryType, generic_filter
 from orchestrator.db.filters.generic_filters import (
     generic_bool_filter,
@@ -99,6 +99,10 @@ def organisation_filter(query: QueryType, value: str) -> QueryType:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
+def workflow_name_filter(query: QueryType, value: str) -> QueryType:
+    return query.join(WorkflowTable).filter(WorkflowTable.deleted_at is None, WorkflowTable.name == value)
+
+
 BASE_CAMEL = {to_camel(key): generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
 BASE_SNAKE = {key: generic_is_like_filter(value) for key, value in inspect(ProcessTable).columns.items()}
 
@@ -117,6 +121,8 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
         "subscription_id": subscription_id_filter,
         "target": target_filter,
         "organisation": organisation_filter,
+        "workflow_name": workflow_name_filter,
+        "workflowName": workflow_name_filter,
         "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
         "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
         "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4

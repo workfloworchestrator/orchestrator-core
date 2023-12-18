@@ -414,11 +414,12 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
-    del process["id"]  # skip product_id as it's dynamic
-    del process["pid"]  # skip product_id as it's dynamic
+    del process["id"]  # skip process_id as it's dynamic
+    del process["pid"]  # skip process_id as it's dynamic
     del process["process_id"]  # skip process_id as it's dynamic
     del process["product_id"]  # skip product_id as it's dynamic
     del process["product"]  # skip product as it's dynamic
+    del process["workflow_id"]  # skip workflow_id as it's dynamic
     del process["subscriptions"]
     assert process == {
         "customer_id": "2f47f65a-0911-e511-80d0-005056956c1a",

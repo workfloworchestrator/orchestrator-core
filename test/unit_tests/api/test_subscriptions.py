@@ -850,7 +850,9 @@ def test_depends_on_subscriptions_insync_direct_relations(seed_with_direct_relat
 
 
 def test_delete_subscription(responses, seed, test_client):
-    wf = WorkflowTable(workflow_id=uuid4(), name="statisch_lichtpad_aanvragen", target=Target.CREATE, description="Test")
+    wf = WorkflowTable(
+        workflow_id=uuid4(), name="statisch_lichtpad_aanvragen", target=Target.CREATE, description="Test"
+    )
     db.session.add(wf)
 
     process_id = str(uuid4())

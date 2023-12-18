@@ -20,7 +20,11 @@ from sqlalchemy.orm import defer, selectinload
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_CLAUSES, filter_processes, process_filter_fields
+from orchestrator.db.filters.process import (
+    PROCESS_TABLE_COLUMN_CLAUSES,
+    filter_processes,
+    process_filter_fields,
+)
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
@@ -72,7 +76,6 @@ async def resolve_processes(
         .selectinload(SubscriptionTable.product),
         defer(ProcessTable.traceback),
     )
-
     select_stmt = filter_processes(select_stmt, pydantic_filter_by, _error_handler)
     if query is not None:
         stmt = create_sqlalchemy_select(
@@ -90,7 +93,6 @@ async def resolve_processes(
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     processes = rows_from_statement(stmt, ProcessTable)
-
     is_detailed = _is_process_detailed(info)
     graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
     return to_graphql_result_page(graphql_processes, first, after, total, process_sort_fields, process_filter_fields)

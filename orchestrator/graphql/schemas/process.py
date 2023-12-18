@@ -58,6 +58,7 @@ class ProcessType:
     process_id: strawberry.auto
     product_id: strawberry.auto
     customer_id: strawberry.auto
+    workflow_id: strawberry.auto
     workflow_name: strawberry.auto
     workflow_target: strawberry.auto
     assignee: strawberry.auto
