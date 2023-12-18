@@ -34,7 +34,7 @@ def get_all(target: Optional[str] = None, include_steps: bool = False) -> List[W
 def get_all_with_product_tags() -> List[WorkflowWithProductTagsSchema]:
     all_workflows = get_workflows()
 
-    def add_product_tags(wf: WorkflowTable) -> WorkflowWithProductTagsSchema:
+    def add_product_tags(wf: WorkflowSchema) -> WorkflowWithProductTagsSchema:
         tags = (
             ProductTable.query.with_entities(ProductTable.tag.distinct())
             .join(WorkflowTable, ProductTable.workflows)
