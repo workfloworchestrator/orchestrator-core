@@ -14,6 +14,7 @@ from orchestrator.db import (
     db,
 )
 from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows
 
 PRODUCT_ID = uuid4()
 MSP_PRODUCT_ID = uuid4()
@@ -22,6 +23,11 @@ PROTECTED_MSP_SSP_ID = uuid4()
 REDUNDANT_MSP_SSP_ID = uuid4()
 SUBSCRIPTION_ID = uuid4()
 depends_on_SUBSCRIPTION_ID = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):
+    add_soft_deleted_workflows(10)
 
 
 @pytest.fixture
@@ -123,8 +129,7 @@ def seed():
     db.session.commit()
 
 
-def test_fetch_all_products(seed, test_client, add_soft_deleted_workflows):
-    add_soft_deleted_workflows(10)
+def test_fetch_all_products(seed, test_client):
     response = test_client.get("/api/products")
 
     assert HTTPStatus.OK == response.status_code

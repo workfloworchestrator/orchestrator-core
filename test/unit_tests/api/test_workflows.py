@@ -12,8 +12,14 @@ from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.functional import orig
 from orchestrator.workflows.steps import cache_domain_models
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows
 
 PRODUCT_ID = "fb28e465-87fd-4d23-9c75-ed036529e416"
+
+
+@pytest.fixture(autouse=True)
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):
+    add_soft_deleted_workflows(10)
 
 
 def test_workflows(test_client):
@@ -22,14 +28,12 @@ def test_workflows(test_client):
     assert response.status_code == HTTPStatus.OK
     workflows = response.json()
 
-    assert len(workflows) == WorkflowTable.query.count()
+    assert len(workflows) == len(list(get_workflows()))
     assert all(workflow["name"] is not None for workflow in workflows)
     assert all(workflow["target"] is not None for workflow in workflows)
 
 
-def test_deleted_workflows_are_filtered(test_client, add_soft_deleted_workflows):
-    add_soft_deleted_workflows(10)
-
+def test_deleted_workflows_are_filtered(test_client):
     all_workflows = get_workflows(include_deleted=True)
     response = test_client.get("/api/workflows")
 
@@ -39,8 +43,7 @@ def test_deleted_workflows_are_filtered(test_client, add_soft_deleted_workflows)
 
 
 @pytest.mark.parametrize("target", (Target.CREATE, Target.TERMINATE, Target.MODIFY))
-def test_workflows_by_target(target, test_client, add_soft_deleted_workflows):
-    add_soft_deleted_workflows(10)
+def test_workflows_by_target(target, test_client):
     response = test_client.get(f"/api/workflows?target={target}")
     workflows = response.json()
 
@@ -59,12 +62,11 @@ def test_workflows_include_steps(include_steps, predicate, test_client):
     assert response.status_code == HTTPStatus.OK
     workflows = response.json()
 
-    assert len(workflows) == WorkflowTable.query.count()
+    assert len(workflows) == len(list(get_workflows()))
     assert all(predicate(workflow) for workflow in workflows)
 
 
-def test_get_all_with_product_tags(test_client, add_soft_deleted_workflows):
-    add_soft_deleted_workflows(10)
+def test_get_all_with_product_tags(test_client):
     response = test_client.get("/api/workflows/with_product_tags")
 
     assert response.status_code == HTTPStatus.OK
