@@ -54,9 +54,11 @@ class SubscriptionInterface:
             .where(SubscriptionTable.subscription_id == self.subscription_id)
         )
         product_name = db.session.execute(product_type_stmt).scalar_one_or_none()
-        subscription_model = SUBSCRIPTION_MODEL_REGISTRY.get(product_name or "")
-        subscription_base_model = getattr(subscription_model, "__base_type__", None) if subscription_model else None
-        return subscription_base_model.schema() if subscription_base_model else {}
+        if not product_name:
+            return {}
+        subscription_model = SUBSCRIPTION_MODEL_REGISTRY[product_name]
+        subscription_base_model = subscription_model.__base_type__
+        return subscription_base_model.model_json_schema() if subscription_base_model else {}
 
     @strawberry.field(description="Return all products block instances of a subscription")  # type: ignore
     async def product_block_instances(
@@ -145,7 +147,7 @@ class SubscriptionInterface:
     @strawberry.field(name="_metadataSchema", description="Returns metadata schema of a subscription")  # type: ignore
     def metadata_schema(self) -> dict:
         metadata_class = MetadataDict["metadata"]
-        return metadata_class.schema() if metadata_class else static_metadata_schema
+        return metadata_class.model_json_schema() if metadata_class else static_metadata_schema
 
     @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
     def metadata(self) -> dict:

@@ -78,7 +78,6 @@ import re
 from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Any, Dict, List, Sequence, Set, Tuple, Union
 from uuid import UUID
 
@@ -88,6 +87,7 @@ import structlog
 from pydantic import BaseModel
 
 from orchestrator.utils.datetime import isoformat
+from orchestrator.utils.helpers import is_ipaddress_type
 
 PY_JSON_TYPES = Union[Dict[str, Any], List, str, int, float, bool, None, object]  # pragma: no mutate
 
@@ -131,12 +131,7 @@ def to_serializable(o: Any) -> Any:
     """
     if isinstance(o, UUID):
         return str(o)
-    if (
-        isinstance(o, IPv4Address)
-        or isinstance(o, IPv6Address)
-        or isinstance(o, IPv4Network)
-        or isinstance(o, IPv6Network)
-    ):
+    if is_ipaddress_type(o):
         return str(o)
     if isinstance(o, datetime):
         return isoformat(o)
@@ -148,7 +143,7 @@ def to_serializable(o: Any) -> Any:
         # api_client models all have a to_dict function
         return o.to_dict()
     if isinstance(o, BaseModel):
-        return o.dict()
+        return o.model_dump()
     if isinstance(o, Set):
         return list(o)
     raise TypeError(f"Could not serialize object of type {o.__class__.__name__} to JSON")

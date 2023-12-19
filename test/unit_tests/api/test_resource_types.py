@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from orchestrator.db import ProductBlockTable, ResourceTypeTable, db
+from test.unit_tests.helpers import URL_MISSING
 
 RESOURCE_TYPE_ID = "f51f9542-e83f-42e5-a590-0284dd5493e4"
 
@@ -42,7 +43,9 @@ def test_save_invalid_resource_type(seed, test_client):
 
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
     assert {
-        "detail": [{"loc": ["body", "resource_type"], "msg": "field required", "type": "value_error.missing"}]
+        "detail": [
+            {"type": "missing", "loc": ["body", "resource_type"], "msg": "Field required", "input": {}} | URL_MISSING
+        ]
     } == response.json()
 
 

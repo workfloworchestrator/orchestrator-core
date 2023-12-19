@@ -1,14 +1,14 @@
 import sys
 from datetime import datetime
-from typing import List, Optional, TypeVar
+from typing import List, Optional
 from unittest import mock
 from uuid import uuid4
 
 import pytest
 import pytz
-from pydantic import Field, ValidationError, conlist
+from dirty_equals import IsUUID
+from pydantic import Field, ValidationError, computed_field, conlist
 from pydantic.main import BaseModel
-from pydantic.types import ConstrainedList
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import (
@@ -22,10 +22,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import (
     DomainModel,
     ProductBlockModel,
-    SubscriptionInstanceList,
     SubscriptionModel,
-    _is_constrained_list_type,
-    serializable_property,
 )
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
@@ -584,7 +581,9 @@ def test_product_blocks_per_lifecycle(
 
     with pytest.raises(
         ValidationError,
-        match=r"2 validation errors for SubBlockOneForTest\nint_field\n  field required .+\nstr_field\n  field required .+",
+        match=(
+            r"2 validation errors for SubBlockOneForTest\nint_field\n\s+Field required.+\n.+\nstr_field\n\s+Field required"
+        ),  # Note: the . does not match newlines
     ):
         ProductTypeOneForTest(
             product=test_product_model,
@@ -600,7 +599,10 @@ def test_product_blocks_per_lifecycle(
             test_fixed_input=False,
         )
 
-    with pytest.raises(ValidationError, match=r"5 validation errors for ProductTypeOneForTest"):
+    with pytest.raises(
+        ValidationError,
+        match=r"1 validation error for ProductTypeOneForTest\nblock\n.+dictionary or instance of ProductBlockOneForTest",
+    ):
         ProductTypeOneForTest(
             product=test_product_model,
             customer_id=str(uuid4()),
@@ -616,7 +618,7 @@ def test_product_blocks_per_lifecycle(
         )
 
     with pytest.raises(
-        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n  field required .+"
+        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n\s+Field required .+"
     ):
         ProductTypeOneForTest(
             product=test_product_model,
@@ -632,7 +634,7 @@ def test_product_blocks_per_lifecycle(
         )
 
     with pytest.raises(
-        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n  field required .+"
+        ValidationError, match=r"1 validation error for ProductTypeOneForTest\nblock\n\s+Field required .+"
     ):
         ProductTypeOneForTest(
             product=test_product_model,
@@ -663,9 +665,12 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     )
 
     # Does not work if constraints are not met
-    with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
+    with pytest.raises(
+        ValidationError,
+        match=r"int_field\n\s+Input should be a valid integer.+\n.+\nstr_field\n\s+Input should be a valid string",
+    ):
         product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
-    with pytest.raises(ValidationError, match=r"int_field\n  none is not an allowed value"):
+    with pytest.raises(ValidationError, match=r"int_field\n\s+Input should be a valid integer"):
         product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.PROVISIONING)
 
     # Set first value
@@ -677,7 +682,7 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     product_type.block.list_field = [1]
 
     # Does not work if constraints are not met
-    with pytest.raises(ValidationError, match=r"str_field\n  none is not an allowed value"):
+    with pytest.raises(ValidationError, match=r"str_field\n\s+Input should be a valid string"):
         product_type = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
 
     # works with correct data
@@ -693,10 +698,10 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     # works with correct data
     product_type_new = SubscriptionModel.from_other_lifecycle(product_type, SubscriptionLifecycle.ACTIVE)
     assert product_type_new.status == SubscriptionLifecycle.ACTIVE
-    expected_dict = product_type.dict()
+    expected_dict = product_type.model_dump()
     expected_dict["status"] = SubscriptionLifecycle.ACTIVE
     expected_dict["start_date"] = mock.ANY
-    assert product_type_new.dict() == expected_dict
+    assert product_type_new.model_dump() == expected_dict
     assert isinstance(product_type_new.start_date, datetime)
 
 
@@ -731,11 +736,12 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
         == 1
     )
 
-    assert model.dict() == {
+    assert model.model_dump() == {
         "block": {
             "int_field": None,
             "label": None,
             "list_field": [],
+            "title": "TEST ProductBlockOneForTestInactive int_field=None",
             "name": "ProductBlockOneForTest",
             "str_field": "A",
             "sub_block": {
@@ -743,13 +749,13 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
                 "label": None,
                 "name": "SubBlockOneForTest",
                 "str_field": None,
-                "subscription_instance_id": mock.ANY,
-                "owner_subscription_id": mock.ANY,
+                "subscription_instance_id": IsUUID(),
+                "owner_subscription_id": IsUUID(),
             },
             "sub_block_2": None,
             "sub_block_list": [],
-            "owner_subscription_id": mock.ANY,
-            "subscription_instance_id": mock.ANY,
+            "owner_subscription_id": IsUUID(),
+            "subscription_instance_id": IsUUID(),
         },
         "customer_id": customer_id,
         "description": "Desc",
@@ -768,7 +774,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
         },
         "start_date": datetime(2021, 1, 1, 1, 1, 1, tzinfo=pytz.utc),
         "status": SubscriptionLifecycle.INITIAL,
-        "subscription_id": mock.ANY,
+        "subscription_id": IsUUID(),
         "test_fixed_input": False,
     }
 
@@ -788,25 +794,25 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
     db.session.commit()
 
     new_model = ProductTypeOneForTest.from_subscription(model.subscription_id)
-    assert model.dict() == new_model.dict()
+    assert model.model_dump() == new_model.model_dump()
 
     # Second save also works as expected
     new_model.save()
     db.session.commit()
 
     latest_model = ProductTypeOneForTest.from_subscription(model.subscription_id)
-    assert new_model.dict() == latest_model.dict()
+    assert new_model.model_dump() == latest_model.model_dump()
 
     # Loading blocks also works
     block = ProductBlockOneForTest.from_db(model.block.subscription_instance_id)
-    assert block.dict() == model.block.dict()
+    assert block.model_dump() == model.block.model_dump()
 
 
 def test_update_constrained_lists(test_product_one, test_product_block_one):
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     class TestConListProductType(SubscriptionModel, is_base=True):
-        saps: conlist(ProductBlockOneForTestInactive, min_items=1, max_items=4)
+        saps: conlist(ProductBlockOneForTestInactive, min_length=1, max_length=4)
 
     # Creates
     ip = TestConListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
@@ -822,7 +828,7 @@ def test_update_constrained_lists(test_product_one, test_product_block_one):
     ip2 = TestConListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert ip.dict() == ip2.dict()
+    assert ip.model_dump() == ip2.model_dump()
 
     # Test constraint
     with pytest.raises(ValidationError):
@@ -849,7 +855,7 @@ def test_update_lists(test_product_one, test_product_block_one):
     ip2 = TestListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert ip.dict() == ip2.dict()
+    assert ip.model_dump() == ip2.model_dump()
 
 
 def test_update_optional(test_product_one, test_product_block_one):
@@ -872,7 +878,7 @@ def test_update_optional(test_product_one, test_product_block_one):
     ip2 = TestListProductType.from_subscription(ip.subscription_id)
 
     # Old default saps should not be saved
-    assert ip.dict() == ip2.dict()
+    assert ip.model_dump() == ip2.model_dump()
 
 
 def test_generic_from_subscription(test_product_one, test_product_type_one):
@@ -1062,59 +1068,25 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
     assert isinstance(test_model.block, ProductBlockOneForTest)
 
     block = AbstractProductBlockOneForTest.from_db(test_model.block.subscription_instance_id)
-    assert block.dict() == test_model.block.dict()
+    assert block.model_dump() == test_model.block.model_dump()
     assert isinstance(block, ProductBlockOneForTest)
 
     block = ProductBlockOneForTest.from_db(test_model.block.subscription_instance_id)
-    assert block.dict() == test_model.block.dict()
+    assert block.model_dump() == test_model.block.model_dump()
     assert isinstance(block, ProductBlockOneForTest)
 
 
 def test_subscription_instance_list():
-    T = TypeVar("T")
-
-    class Max2List(SubscriptionInstanceList[T]):
-        max_items = 2
-
-    # Also check generic subclass
-    class ConList(Max2List[T]):
-        min_items = 1
+    def custom_conlist(t):
+        return conlist(t, min_length=1, max_length=2)
 
     class Model(BaseModel):
-        list_field: ConList[int]
+        list_field: custom_conlist(int)
 
     with pytest.raises(ValidationError):
         Model(list_field=["a"])
 
     Model(list_field=[1])
-
-
-def test_is_constrained_list_type():
-    class ListType(ConstrainedList):
-        min_items = 1
-
-    assert _is_constrained_list_type(ListType) is True
-    assert _is_constrained_list_type(SubscriptionInstanceList[int]) is True
-    assert _is_constrained_list_type(Optional[int]) is False
-    assert _is_constrained_list_type(List[int]) is False
-
-
-def test_product_block_with_si_list(test_product_one):
-    """Test a SubscriptionInstanceList within a ProductBlockModel.
-
-    This provides test coverage for SubscriptionInstanceList.__init_subclass__()
-    """
-
-    class ListOfValues(SubscriptionInstanceList[float]):
-        max_items = 3
-
-    class ProductBlockOneForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneForTest"):
-        values: ListOfValues = Field(default_factory=list)
-
-    block = ProductBlockOneForTestInactive(
-        subscription_instance_id=uuid4(), owner_subscription_id=uuid4(), values=["1.3", 2]
-    )
-    assert block.dict()["values"] == [1.3, 2.0]
 
 
 def test_diff_in_db_empty(test_product_one, test_product_type_one):
@@ -1261,7 +1233,8 @@ def test_from_other_lifecycle_sub(test_product_one, test_product_block_one, test
 
 def test_serializable_property():
     class DerivedDomainModel(DomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def double_int_field(self) -> int:
             # This property is serialized
             return 2 * self.int_field
@@ -1275,37 +1248,41 @@ def test_serializable_property():
 
     block = DerivedDomainModel(int_field=13)
 
-    assert block.dict() == {"int_field": 13, "double_int_field": 26}
+    assert block.model_dump() == {"int_field": 13, "double_int_field": 26}
 
 
 def test_inherited_serializable_property():
     class ProvisioningDomainModel(DomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def double_int_field(self) -> int:
             return 2 * self.int_field
 
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def triple_int_field(self) -> int:
             return 3 * self.int_field
 
         int_field: int
 
     class ActiveDomainModel(ProvisioningDomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def triple_int_field(self) -> int:
             # override the base property
             return 30 * self.int_field
 
     block = ActiveDomainModel(int_field=1)
 
-    assert block.dict() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
+    assert block.model_dump() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
 
 
 def test_nested_serializable_property():
     """Ensure that nested serializable property's are included in the serialized model."""
 
     class DerivedDomainModel(DomainModel):
-        @serializable_property  # type: ignore
+        @computed_field  # type: ignore[misc]
+        @property
         def double_int_field(self) -> int:
             # This property is serialized
             return 2 * self.int_field
@@ -1317,7 +1294,15 @@ def test_nested_serializable_property():
 
     model = ParentDomainModel(derived=DerivedDomainModel(int_field=13))
 
-    assert model.dict() == {"derived": {"int_field": 13, "double_int_field": 26}}
+    assert model.model_dump() == {"derived": {"int_field": 13, "double_int_field": 26}}
+
+
+def test_property_with_tag(test_product_block_one, test_product_one, test_product_block_one_db):
+    ProductBlockOneForTestInactive, _, _ = test_product_block_one
+
+    block = ProductBlockOneForTestInactive.new(int_field=1, subscription_id=uuid4())
+
+    assert block.title == "TEST ProductBlockOneForTestInactive int_field=1"
 
 
 def test_subscription_save_list_with_zero_values(

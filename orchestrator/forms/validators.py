@@ -10,23 +10,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from types import new_class
-from typing import Any, Dict, Generator, List, Optional, Sequence, Type
+from functools import partial
+from typing import Annotated, Any, List, Optional, Sequence, Type
 from uuid import UUID
 
 import structlog
-from pydantic.errors import EnumMemberError
-from pydantic.validators import uuid_validator
+from pydantic import AfterValidator, Field
 
-from orchestrator.services import products
+from orchestrator.services.products import get_product_by_id
 from pydantic_forms.types import strEnum
-from pydantic_forms.validators import (  # noqa: F401
+from pydantic_forms.validators import (
     Accept,
     Choice,
-    ChoiceList,
     ContactPerson,
-    ContactPersonList,
     ContactPersonName,
     DisplaySubscription,
     Divider,
@@ -37,11 +33,9 @@ from pydantic_forms.validators import (  # noqa: F401
     MigrationSummary,
     OrganisationId,
     Timestamp,
-    UniqueConstrainedList,
     choice_list,
     contact_person_list,
     migration_summary,
-    remove_empty_items,
     timestamp,
     unique_conlist,
 )
@@ -51,10 +45,8 @@ logger = structlog.get_logger(__name__)
 __all__ = [
     "Accept",
     "Choice",
-    "ChoiceList",
     "ContactPerson",
     "ContactPersonName",
-    "ContactPersonList",
     "DisplaySubscription",
     "Divider",
     "Label",
@@ -66,58 +58,65 @@ __all__ = [
     "MigrationSummary",
     "OrganisationId",
     "Timestamp",
-    "UniqueConstrainedList",
     "choice_list",
     "contact_person_list",
     "migration_summary",
     "product_id",
-    "remove_empty_items",
     "strEnum",
     "timestamp",
     "unique_conlist",
 ]
 
 
-class ProductIdError(EnumMemberError):
+class ProductIdError(ValueError):
     code = "product_id"
     enum_values: Sequence[Any]  # Required kwarg
+
+    def __init__(self, **ctx: Any) -> None:
+        self.__dict__ = ctx
 
     def __str__(self) -> str:
         permitted = ", ".join(repr(v) for v in self.enum_values)
         return f"value is not a valid enumeration member; permitted: {permitted}"
 
 
-class ProductId(UUID):
-    products: Optional[List[UUID]] = None
+def _validate_is_product(id_: UUID) -> UUID:
+    if not get_product_by_id(id_, join_fixed_inputs=False):
+        raise ValueError("Product not found")
 
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        kwargs = {"uniforms": {"productIds": cls.products}} if cls.products else {}
-        field_schema.update(format="productId", **kwargs)
-
-    @classmethod
-    def __get_validators__(cls) -> Generator:
-        yield uuid_validator
-        yield cls.is_product
-        if cls.products:
-            yield cls.in_products
-
-    @classmethod
-    def is_product(cls, v: UUID) -> UUID:
-        product = products.get_product_by_id(v)
-        if product is None:
-            raise ValueError("Product not found")
-
-        return v
-
-    @classmethod
-    def in_products(cls, v: UUID) -> UUID:
-        if cls.products and v not in cls.products:
-            raise ProductIdError(enum_values=list(map(str, cls.products)))
-
-        return v
+    return id_
 
 
-def product_id(products: Optional[List[UUID]] = None) -> Type[ProductId]:
-    namespace = {"products": products}
-    return new_class("ProductIdSpecific", (ProductId,), {}, lambda ns: ns.update(namespace))
+def _validate_in_products(product_ids: set[UUID], id_: UUID) -> UUID:
+    if product_ids and id_ not in product_ids:
+        raise ProductIdError(enum_values=list(map(str, product_ids)))
+
+    return id_
+
+
+ProductId = Annotated[UUID, AfterValidator(_validate_is_product), Field(json_schema_extra={"format": "productId"})]
+
+
+def product_id(product_ids: Optional[List[UUID]] = None) -> Type[ProductId]:
+    schema = {"uniforms": {"productIds": product_ids}} if product_ids else {}
+    return Annotated[  # type: ignore[return-value]
+        ProductId,
+        AfterValidator(partial(_validate_in_products, set(product_ids or []))),
+        Field(json_schema_extra={"format": "productId"} | schema),  # type: ignore[arg-type]
+    ]
+
+
+def remove_empty_items(v: list) -> list:
+    """Remove Falsy values from list.
+
+    Sees dicts with all Falsy values as Falsy.
+    This is used to allow people to submit list fields which are "empty" but are not really empty like:
+    `[{}, None, {name:"", email:""}]`
+
+    Example:
+        >>> remove_empty_items([{}, None, [], {"a":""}])
+        []
+    """
+    if v:
+        return list(filter(lambda i: bool(i) and (not isinstance(i, dict) or any(i.values())), v))
+    return v

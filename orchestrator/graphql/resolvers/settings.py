@@ -61,7 +61,7 @@ def resolve_settings(info: OrchestratorInfo) -> StatusType:
 
 # Mutations
 async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSuccess, Error]:
-    cache: AIORedis = AIORedis.from_url(app_settings.CACHE_URI)
+    cache: AIORedis = AIORedis.from_url(str(app_settings.CACHE_URI))
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
 
@@ -82,7 +82,7 @@ async def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, 
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         oidc_user = await info.context.get_current_user
         user_name = oidc_user.name if oidc_user else SYSTEM_USER
-        post_update_to_slack(EngineSettingsSchema.from_orm(result), user_name)
+        post_update_to_slack(EngineSettingsSchema.model_validate(result), user_name)
 
     status_response = generate_engine_status_response(result)
     return EngineSettingsType.from_pydantic(status_response)

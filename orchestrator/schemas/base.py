@@ -13,14 +13,13 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
-
-from orchestrator.utils.vlans import VlanRanges
+from pydantic import BaseModel, ConfigDict
 
 
 class OrchestratorBaseModel(BaseModel):
-    class Config:
-        json_encoders = {
-            VlanRanges: lambda vlanrange: str(vlanrange),
+    # TODO #429 json_encoders is deprecated and will be removed in Pydantic 3.x
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda dt: dt.timestamp(),
         }
+    )

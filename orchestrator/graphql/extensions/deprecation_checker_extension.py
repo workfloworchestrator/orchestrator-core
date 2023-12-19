@@ -88,8 +88,8 @@ def get_deprecated_paths(type_definition: TypeDefinition) -> DeprecatedPaths:
             field_path = path + [to_camel(field.name)]
             if field.deprecation_reason:
                 deprecated_paths["/".join(field_path)] = field.deprecation_reason
-            elif hasattr(field.type, "_type_definition") and field.type._type_definition.fields:
-                to_inspect.append((field_path, field.type._type_definition.fields))
+            elif hasattr(field.type, "__strawberry_definition__") and field.type.__strawberry_definition__.fields:
+                to_inspect.append((field_path, field.type.__strawberry_definition__.fields))
     return deprecated_paths
 
 
@@ -97,7 +97,7 @@ def make_deprecation_checker_extension(
     query: Union[Type, None] = None, mutation: Union[Type, None] = None
 ) -> type[DeprecationCheckerExtension]:
     def deprecations_for(_type: Union[Type, None]) -> DeprecatedPaths:
-        type_def: Union[TypeDefinition, None] = getattr(_type, "_type_definition", None) if _type else None
+        type_def: Union[TypeDefinition, None] = getattr(_type, "__strawberry_definition__", None) if _type else None
         if not type_def:
             return {}
         return get_deprecated_paths(type_def) if type_def else {}

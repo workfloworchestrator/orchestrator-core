@@ -13,7 +13,6 @@
 
 """Module that provides service functions on subscriptions."""
 import pickle  # noqa: S403
-import warnings
 from collections import defaultdict
 from datetime import datetime
 from hashlib import md5
@@ -45,6 +44,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
+from orchestrator.utils.helpers import is_ipaddress_type
 
 logger = structlog.get_logger(__name__)
 
@@ -590,7 +590,7 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
     ).all()
 
-    subscription = subscription_model.dict()
+    subscription = subscription_model.model_dump()
     paths = product_block_paths(subscription)
 
     def inject_in_use_by_ids(path_to_block: str) -> None:
@@ -608,6 +608,30 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
 
     subscription["customer_descriptions"] = customer_descriptions
 
+    return subscription
+
+
+def format_special_types(subscription: dict) -> dict:
+    """Modifies the subscription dict in-place, formatting special types to string.
+
+    This function was added during the Pydantic 2.x migration to handle serialization errors on ipaddress types.
+    Background: https://github.com/pydantic/pydantic/issues/6669
+
+    The problem lies with SubscriptionDomainModelSchema which allows extra untyped fields.
+    It might be possible with a model_serializer but couldn't get this to work, therefore this workaround.
+    """
+
+    def format_value(v: Any) -> Any:
+        if is_ipaddress_type(v):
+            return str(v)
+        if isinstance(v, dict):
+            return format_special_types(v)
+        if isinstance(v, list):
+            return [format_value(item) for item in v]
+        return v
+
+    for k, v in subscription.items():
+        subscription[k] = format_value(v)
     return subscription
 
 
@@ -638,11 +662,3 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
         filter_instance_ids_on_subscription()
 
     return subscription
-
-
-def build_extendend_domain_model(subscription_model: SubscriptionModel, filter_owner_relations: bool = False) -> dict:
-    warnings.warn(
-        "Use build_extended_domain_model() and format_extended_domain_model() instead", DeprecationWarning, stacklevel=1
-    )
-    subscription = build_extended_domain_model(subscription_model)
-    return format_extended_domain_model(subscription, filter_owner_relations=filter_owner_relations)

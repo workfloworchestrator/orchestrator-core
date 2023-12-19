@@ -17,7 +17,7 @@ def test_product_block_paths(sub_list_union_overlap_subscription_1):
 
     # Check that SubscriptionModel and subscription dict work the same
     assert product_block_paths(sub_list_union_overlap_subscription_1) == product_block_paths(
-        sub_list_union_overlap_subscription_1.dict()
+        sub_list_union_overlap_subscription_1.model_dump()
     )
 
 

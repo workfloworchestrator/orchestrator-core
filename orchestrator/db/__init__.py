@@ -66,7 +66,7 @@ db = cast(Database, wrapped_db)
 
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
-    wrapped_db.update(Database(settings.DATABASE_URI))
+    wrapped_db.update(Database(str(settings.DATABASE_URI)))
     return db
 
 

@@ -9,6 +9,7 @@ import requests
 import structlog
 from alembic import command
 from alembic.config import Config
+from pydantic import BaseModel as PydanticBaseModel
 from redis import Redis
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
@@ -309,14 +310,14 @@ def test_form_translations(worker_id):
     used_translations = set()
 
     # In order to properly wrap a classmethod we need to do special stuff
-    old_init_subclass = FormPage.__dict__["__init_subclass__"]
+    old_init_subclass = FormPage.__dict__["__pydantic_init_subclass__"]
 
     # Wrap a form function that is certain to be called to extract the used form fields
     @classmethod
-    def init_subclass_wrapper(cls, *args, **kwargs: Any) -> None:
+    def init_subclass_wrapper(cls: type[PydanticBaseModel], *args, **kwargs: Any) -> None:
         # Skip forms in test modules
         if "test" not in cls.__module__:
-            for field_name in cls.__fields__:
+            for field_name in cls.model_fields:
                 used_translations.add(field_name)
                 if field_name not in translations and f"{field_name}_accept" not in translations:
                     pytest.fail(f"Missing translation for field {field_name} in  {cls.__name__}")
@@ -324,12 +325,12 @@ def test_form_translations(worker_id):
         # Because the original is a classmethod we need to conform to the descriptor protocol
         return old_init_subclass.__get__(None, cls)(*args, **kwargs)
 
-    FormPage.__init_subclass__ = init_subclass_wrapper
+    FormPage.__pydantic_init_subclass__ = init_subclass_wrapper
     try:
         yield
     finally:
         # unwrapp and check if all translations are actually used
-        FormPage.__init_subclass__ = old_init_subclass
+        FormPage.__pydantic_init_subclass__ = old_init_subclass
 
         # This check only works when you run without python-xdist because we need one single session
         # TODO this does not work reliable yet
@@ -629,7 +630,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(app_settings.CACHE_URI)
+        cache = Redis.from_url(str(app_settings.CACHE_URI))
         # Clear cache before using this fixture
         cache.flushdb()
 

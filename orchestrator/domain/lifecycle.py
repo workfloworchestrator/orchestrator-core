@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, TypeVar
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, TypeVar
 
 import strawberry
 import structlog
@@ -53,12 +53,14 @@ def lookup_specialized_type(block: Type, lifecycle: Optional[SubscriptionLifecyc
 
 
 def validate_lifecycle_status(
-    product_block_field_name: str, product_block_field_type: Any, lifecycle_status: SubscriptionLifecycle
+    product_block_field_name: str, product_block_field_type: Type, lifecycle_status: SubscriptionLifecycle
 ) -> None:
     specialized_type = lookup_specialized_type(product_block_field_type, lifecycle_status)
     if not issubclass(product_block_field_type, specialized_type):
         raise AssertionError(
-            f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} (based on {product_block_field_type.__name__}) is not suitable for the lifecycle status ({lifecycle_status}) of this model"
+            f"The lifecycle status of the type for the field: {product_block_field_name}, {specialized_type.__name__} "
+            f"(based on {product_block_field_type.__name__}) is not suitable for the lifecycle status "
+            f"({lifecycle_status}) of this model"
         )
 
 

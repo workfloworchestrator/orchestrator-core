@@ -12,54 +12,36 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, ConstrainedInt, conint, root_validator
-
-from orchestrator.utils.vlans import VlanRanges
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from typing_extensions import Annotated
 
 
 class BFD(BaseModel):
-    class Config:
-        schema_extra = {"format": "optGroup"}
+    model_config = ConfigDict(json_schema_extra={"format": "optGroup"})
 
     # order matters, this should be first
     enabled: bool
-    minimum_interval: Optional[conint(ge=1, le=255000)] = 900  # type: ignore
-    multiplier: Optional[conint(ge=1, le=255)] = 3  # type: ignore
+    minimum_interval: Optional[Annotated[int, Field(ge=1, le=255000)]] = 900
+    multiplier: Optional[Annotated[int, Field(ge=1, le=255)]] = 3
 
-    @root_validator()
-    def check_optional_fields(cls, values: Dict) -> Dict:  # noqa: B902
-        if not values.get("enabled"):
-            values.pop("minimum_interval", None)
-            values.pop("multiplier", None)
+    @model_validator(mode="after")
+    def check_optional_fields(self) -> "BFD":
+        if not self.enabled:
+            self.minimum_interval = None
+            self.multiplier = None
 
-        return values
+        return self
+
+    @model_serializer
+    def bfd_serializer(self) -> dict[str, Any]:
+        if not self.enabled:
+            # If BFD is disabled the interval and multiplier are None. We need to exclude them from
+            # the output to prevent overriding their default values in the form
+            return {"enabled": self.enabled}
+
+        return {"enabled": self.enabled, "minimum_interval": self.minimum_interval, "multiplier": self.multiplier}
 
 
-class MTU(ConstrainedInt):
-    ge = 1500
-    le = 9000
-
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        super().__modify_schema__(field_schema)
-        field_schema["multipleOf"] = 7500
-
-
-class VlanRangesValidator(VlanRanges):
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict) -> None:
-        field_schema.update(
-            pattern="^([1-4][0-9]{0,3}(-[1-4][0-9]{0,3})?,?)+$",
-            examples=["345", "20-23,45,50-100"],
-            type="string",
-            format="vlan",
-        )
-
-    @classmethod
-    def __get_validators__(cls) -> Iterator:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield VlanRanges
+MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]

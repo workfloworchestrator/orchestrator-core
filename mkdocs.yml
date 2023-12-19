@@ -46,7 +46,7 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.inlinehilite
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - attr_list
   - codehilite
 
@@ -126,6 +126,8 @@ nav:
         - Introduction: workshops/advanced/workflow-introduction.md
         - Create Node: workshops/advanced/node-workflow.md
         - Create Circuit: workshops/advanced/circuit-workflow.md
+    - Migration guide:
+        - 2.0: migration-guide/2.0.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md

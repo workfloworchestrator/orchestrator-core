@@ -15,40 +15,38 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceTypeSchema
 
 
 class ProductBlockBaseSchema(OrchestratorBaseModel):
-    product_block_id: Optional[UUID]
+    product_block_id: Optional[UUID] = None
     name: str
     description: str
-    tag: Optional[str]
-    status: Optional[ProductLifecycle]
-    resource_types: Optional[List[ResourceTypeBaseSchema]]
+    tag: Optional[str] = None
+    status: Optional[ProductLifecycle] = None
+    resource_types: Optional[List[ResourceTypeBaseSchema]] = None
 
 
 class ProductBlockEnrichedSchema(OrchestratorBaseModel):
     product_block_id: UUID
     name: str
     description: str
-    tag: Optional[str]
+    tag: Optional[str] = None
     status: ProductLifecycle
-    created_at: Optional[datetime]
-    end_date: Optional[datetime]
-    resource_types: Optional[List[ResourceTypeSchema]]
-
-    class Config:
-        orm_mode = True
+    created_at: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    resource_types: Optional[List[ResourceTypeSchema]] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductBlockSchema(ProductBlockBaseSchema):
     product_block_id: UUID
     status: ProductLifecycle
     created_at: datetime
-    end_date: Optional[datetime]
-    resource_types: Optional[List[ResourceTypeSchema]]  # type: ignore
-
-    class Config:
-        orm_mode = True
+    end_date: Optional[datetime] = None
+    resource_types: Optional[List[ResourceTypeSchema]] = None  # type: ignore
+    model_config = ConfigDict(from_attributes=True)
