@@ -32,9 +32,12 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
-from orchestrator.graphql.utils.is_query_detailed import is_query_detailed
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.graphql.utils import (
+    create_resolver_error_handler,
+    is_query_detailed,
+    is_querying_page_data,
+    to_graphql_result_page,
+)
 from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
@@ -92,11 +95,13 @@ async def resolve_subscriptions(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    subscriptions = db.session.scalars(stmt).all()
-    if _is_subscription_detailed(info):
-        graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
-    else:
-        graphql_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
+    graphql_subscriptions = []
+    if is_querying_page_data(info):
+        subscriptions = db.session.scalars(stmt).all()
+        if _is_subscription_detailed(info):
+            graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
+        else:
+            graphql_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
     return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields, subscription_filter_fields
     )

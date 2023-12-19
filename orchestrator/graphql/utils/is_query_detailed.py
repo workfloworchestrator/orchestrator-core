@@ -6,15 +6,12 @@ from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField
 from orchestrator.graphql.types import OrchestratorInfo
 
 
-def get_selections(selected_field: Selection) -> list[Selection]:
-    def has_field_name(selection: Selection, field_name: str) -> bool:
+def get_selected_field_selections(selected_field: Selection, name: str) -> list[Selection]:
+    def is_named_field(selection: Selection, field_name: str) -> bool:
         return isinstance(selection, SelectedField) and selection.name == field_name
 
-    page_field = [selection for selection in selected_field.selections if has_field_name(selection, "page")]
-
-    if not page_field:
-        return selected_field.selections
-    return one(page_field).selections
+    page_field = [selection for selection in selected_field.selections if is_named_field(selection, name)]
+    return one(page_field).selections if page_field else []
 
 
 def is_query_detailed(basic_fields: tuple) -> Callable[[OrchestratorInfo], bool]:
@@ -37,7 +34,13 @@ def is_query_detailed(basic_fields: tuple) -> Callable[[OrchestratorInfo], bool]
                 return any(has_details(s) for s in selection.selections)
             return selection.name not in basic_fields
 
-        fields = flatten(get_selections(field) for field in info.selected_fields)
+        fields = flatten(
+            (get_selected_field_selections(field, "page") or field.selections) for field in info.selected_fields
+        )
         return any(has_details(selection) for selection in fields if selection)
 
     return _is_model_info_detailed
+
+
+def is_querying_page_data(info: OrchestratorInfo) -> bool:
+    return any(flatten(get_selected_field_selections(field, "page") for field in info.selected_fields))

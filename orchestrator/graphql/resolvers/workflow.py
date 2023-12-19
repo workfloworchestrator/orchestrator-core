@@ -15,8 +15,7 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
@@ -55,6 +54,8 @@ async def resolve_workflows(
 
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    workflows = rows_from_statement(stmt, WorkflowTable, unique=True)
-    graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
+    graphql_workflows = []
+    if is_querying_page_data(info):
+        workflows = rows_from_statement(stmt, WorkflowTable, unique=True)
+        graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
     return to_graphql_result_page(graphql_workflows, first, after, total, workflow_sort_fields, workflow_filter_fields)

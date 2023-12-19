@@ -18,8 +18,7 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
@@ -58,8 +57,10 @@ async def resolve_resource_types(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    resource_types = rows_from_statement(stmt, ResourceTypeTable)
-    graphql_resource_types = [ResourceType.from_pydantic(p) for p in resource_types]
+    graphql_resource_types = []
+    if is_querying_page_data(info):
+        resource_types = rows_from_statement(stmt, ResourceTypeTable)
+        graphql_resource_types = [ResourceType.from_pydantic(p) for p in resource_types]
     return to_graphql_result_page(
         graphql_resource_types, first, after, total, resource_type_sort_fields, resource_type_filter_fields
     )

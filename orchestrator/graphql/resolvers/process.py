@@ -28,9 +28,12 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
-from orchestrator.graphql.utils.is_query_detailed import is_query_detailed
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.graphql.utils import (
+    create_resolver_error_handler,
+    is_query_detailed,
+    is_querying_page_data,
+    to_graphql_result_page,
+)
 from orchestrator.schemas.process import ProcessSchema
 from orchestrator.services.processes import load_process
 from orchestrator.utils.enrich_process import enrich_process
@@ -89,8 +92,9 @@ async def resolve_processes(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    processes = rows_from_statement(stmt, ProcessTable)
-
-    is_detailed = _is_process_detailed(info)
-    graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
+    graphql_processes = []
+    if is_querying_page_data(info):
+        processes = rows_from_statement(stmt, ProcessTable)
+        is_detailed = _is_process_detailed(info)
+        graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
     return to_graphql_result_page(graphql_processes, first, after, total, process_sort_fields, process_filter_fields)
