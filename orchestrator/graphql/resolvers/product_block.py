@@ -18,8 +18,7 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
 from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
@@ -59,8 +58,10 @@ async def resolve_product_blocks(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    product_blocks = rows_from_statement(stmt, ProductBlockTable)
-    graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
+    graphql_product_blocks = []
+    if is_querying_page_data(info):
+        product_blocks = rows_from_statement(stmt, ProductBlockTable)
+        graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
     return to_graphql_result_page(
         graphql_product_blocks, first, after, total, product_block_sort_fields, product_block_filter_fields
     )
