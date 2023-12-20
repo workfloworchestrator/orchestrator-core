@@ -6,9 +6,9 @@ Create Date: 2023-12-06 15:33:46.997517
 
 """
 import sqlalchemy as sa
-from sqlalchemy.exc import IntegrityError
 import sqlalchemy_utils
 from alembic import op
+from sqlalchemy.exc import IntegrityError
 
 from orchestrator import db
 
@@ -23,21 +23,25 @@ def upgrade() -> None:
     # Add new processes.workflow_id column
     op.add_column("processes", column=sa.Column("workflow_id", sqlalchemy_utils.types.uuid.UUIDType()))
     # Fill workflow_id column based on the workflow name
-    op.execute("UPDATE processes SET workflow_id = wf.workflow_id FROM workflows wf WHERE processes.workflow = wf.name;")
+    op.execute(
+        "UPDATE processes SET workflow_id = wf.workflow_id FROM workflows wf WHERE processes.workflow = wf.name;"
+    )
 
     try:
         op.alter_column("processes", "workflow_id", nullable=False)
     except IntegrityError:
-        raise Exception("""
+        raise Exception(
+            """
         Migration failed due to processes.workflow rows that have a workflow name that no longer exists.
-        
+
         After this update, each process must be linked to a workflow.
-        
+
         Follow these steps:
         1) Make a backup of the processes that are not linked to a workflow (i.e. processes.workflow does match a workflows.name).
         2) Manually delete the rows in processes that are not linked to a workflow.
         3) Re-run this migration.
-        """)
+        """
+        )
 
     op.execute(
         """ALTER TABLE processes
