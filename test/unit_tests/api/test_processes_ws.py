@@ -9,9 +9,8 @@ from fastapi import status
 from fastapi.websockets import WebSocketDisconnect
 
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, WorkflowTable, db
+from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.settings import app_settings
-from orchestrator.targets import Target
 from orchestrator.types import UUIDstr
 from orchestrator.utils.json import json_loads
 from orchestrator.websocket import websocket_manager
@@ -41,10 +40,6 @@ def long_running_workflow():
         return init >> long_running_step >> immediate_step >> long_running_step >> done
 
     with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
-        db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
-        db.session.add(db_workflow)
-        db.session.commit()
-
         yield "long_running_workflow_py"
 
 
@@ -72,12 +67,8 @@ def test_workflow_2(generic_subscription_1: UUIDstr, generic_product_type_1) -> 
     def workflow_for_testing_processes_2_py():
         return init >> insert_object >> check_object >> immediate_step >> done
 
-    with WorkflowInstanceForTests(workflow_for_testing_processes_2_py, "workflow_for_testing_processes_2_py"):
-        db_workflow = WorkflowTable(name="workflow_for_testing_processes_2_py", target=Target.MODIFY)
-        db.session.add(db_workflow)
-        db.session.commit()
-
-        yield "workflow_for_testing_processes_2_py"
+    with WorkflowInstanceForTests(workflow_for_testing_processes_2_py, "workflow_for_testing_processes_2_py") as wf:
+        yield wf
 
 
 @pytest.fixture
@@ -214,10 +205,10 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
     if websocket_manager.broadcaster_type != "memory":
         pytest.skip("test does not work with redis")
 
-    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
+    response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
     assert (
-        HTTPStatus.CREATED == response.status_code
+        response.status_code == HTTPStatus.CREATED
     ), f"Invalid response status code (response data: {response.json()})"
 
     process_id = response.json()["id"]
@@ -250,10 +241,10 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
     if websocket_manager.broadcaster_type != "memory":
         pytest.skip("test does not work with redis")
 
-    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
+    response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
     assert (
-        HTTPStatus.CREATED == response.status_code
+        response.status_code == HTTPStatus.CREATED
     ), f"Invalid response status code (response data: {response.json()})"
 
     process_id = response.json()["id"]
@@ -349,18 +340,18 @@ def test_websocket_process_list_multiple_workflows(test_client, test_workflow, t
     try:
         with test_client.websocket_connect("api/processes/all/?token=") as websocket:
             # start test_workflow
-            test_workflow_response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
+            test_workflow_response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
             assert (
-                HTTPStatus.CREATED == test_workflow_response.status_code
+                test_workflow_response.status_code == HTTPStatus.CREATED
             ), f"Invalid response status code (response data: {test_workflow_response.json()})"
 
             test_workflow_1_pid = test_workflow_response.json()["id"]
 
             # Start test_workflow_2
-            response = test_client.post(f"/api/processes/{test_workflow_2}", json=[{}])
+            response = test_client.post(f"/api/processes/{test_workflow_2.name}", json=[{}])
             assert (
-                HTTPStatus.CREATED == response.status_code
+                response.status_code == HTTPStatus.CREATED
             ), f"Invalid response status code (response data: {response.json()})"
 
             test_workflow_2_pid = response.json()["id"]

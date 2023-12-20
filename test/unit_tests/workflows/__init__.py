@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import structlog
 
-from orchestrator.db import ProcessTable
+from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.processes import StateMerger, _db_create_process
 from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
@@ -20,6 +20,18 @@ from pydantic_forms.types import FormGenerator, InputForm
 from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
 
 logger = structlog.get_logger(__name__)
+
+
+def store_workflow(wf: Workflow, name: Optional[str] = None) -> WorkflowTable:
+    wf_table = WorkflowTable(name=name or wf.name, target=wf.target, description=wf.description)
+    db.session.add(wf_table)
+    db.session.commit()
+    return wf_table
+
+
+def delete_workflow(wf: WorkflowTable) -> None:
+    db.session.delete(wf)
+    db.session.commit()
 
 
 def _raise_exception(state):
@@ -126,14 +138,19 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
     is_callable: bool
 
     def __init__(self, workflow: Workflow, name: str) -> None:
+        super().__init__("orchestrator.test", name)
         self.workflow = workflow
         self.name = name
 
     def __enter__(self):
         ALL_WORKFLOWS[self.name] = self
+        self.workflow_instance = store_workflow(self.workflow, name=self.name)
+        return self.workflow_instance
 
     def __exit__(self, _exc_type, _exc_value, _traceback):
         del ALL_WORKFLOWS[self.name]
+        delete_workflow(self.workflow_instance)
+        del self.workflow_instance
 
     def instantiate(self) -> Workflow:
         """Import and instantiate a workflow and return it.

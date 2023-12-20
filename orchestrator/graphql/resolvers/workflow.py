@@ -35,7 +35,7 @@ async def resolve_workflows(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_workflows() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    select_stmt = select(WorkflowTable).options(joinedload(WorkflowTable.products))
+    select_stmt = WorkflowTable.select().options(joinedload(WorkflowTable.products))
     select_stmt = filter_workflows(select_stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:

@@ -14,7 +14,6 @@ from orchestrator.db import (
     ProcessSubscriptionTable,
     ProcessTable,
     SubscriptionTable,
-    WorkflowTable,
     db,
 )
 from orchestrator.services.processes import shutdown_thread_pool
@@ -40,17 +39,15 @@ def long_running_workflow():
         return init >> long_running_step >> long_running_step >> done
 
     with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
-        db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
-        db.session.add(db_workflow)
-        db.session.commit()
-
         yield "long_running_workflow_py"
 
 
 @pytest.fixture
 def started_process(test_workflow, generic_subscription_1):
     process_id = uuid4()
-    process = ProcessTable(process_id=process_id, workflow_name=test_workflow, last_status=ProcessStatus.SUSPENDED)
+    process = ProcessTable(
+        process_id=process_id, workflow_id=test_workflow.workflow_id, last_status=ProcessStatus.SUSPENDED
+    )
     init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
     insert_step = ProcessStepTable(
         process_id=process_id,
@@ -183,7 +180,7 @@ def test_service_unavailable_engine_locked(test_client, test_workflow):
 
 
 def test_complete_workflow(test_client, test_workflow):
-    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
+    response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
     assert (
         HTTPStatus.CREATED == response.status_code
@@ -421,11 +418,12 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
-    del process["id"]  # skip product_id as it's dynamic
-    del process["pid"]  # skip product_id as it's dynamic
+    del process["id"]  # skip process_id as it's dynamic
+    del process["pid"]  # skip process_id as it's dynamic
     del process["process_id"]  # skip process_id as it's dynamic
     del process["product_id"]  # skip product_id as it's dynamic
     del process["product"]  # skip product as it's dynamic
+    del process["workflow_id"]  # skip workflow_id as it's dynamic
     del process["subscriptions"]
     assert process == {
         "customer_id": "2f47f65a-0911-e511-80d0-005056956c1a",

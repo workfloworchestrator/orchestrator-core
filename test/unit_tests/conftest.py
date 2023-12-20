@@ -179,7 +179,7 @@ def db_uri(worker_id):
 
 @pytest.fixture(scope="session")
 def database(db_uri):
-    """Create database and run migrations and cleanup afterwards.
+    """Create database and run migrations and cleanup afterward.
 
     Args:
         db_uri: fixture for providing the application context and an initialized database. Although specifying this
@@ -423,7 +423,7 @@ def generic_product_block_3(generic_resource_type_2):
 
 @pytest.fixture
 def generic_product_1(generic_product_block_1, generic_product_block_2):
-    workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").one()
+    workflow = WorkflowTable.find_by_workflow_name("modify_note")
     p = ProductTable(
         name="Product 1",
         description="Generic Product One",
@@ -440,7 +440,7 @@ def generic_product_1(generic_product_block_1, generic_product_block_2):
 
 @pytest.fixture
 def generic_product_2(generic_product_block_3):
-    workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").one()
+    workflow = WorkflowTable.find_by_workflow_name("modify_note")
 
     p = ProductTable(
         name="Product 2",
@@ -608,8 +608,8 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 
 @pytest.fixture
 def validation_workflow_instance():
-    with WorkflowInstanceForTests(validation_workflow, "validation_workflow"):
-        yield "created validation workflow"
+    with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
+        yield ctx
 
 
 @pytest.fixture

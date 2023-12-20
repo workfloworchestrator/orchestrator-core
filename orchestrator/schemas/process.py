@@ -52,6 +52,7 @@ class ProcessForm(OrchestratorBaseModel):
 
 class ProcessBaseSchema(OrchestratorBaseModel):
     process_id: UUID
+    workflow_id: UUID
     workflow_name: str
     is_task: bool
     created_by: Optional[str] = None
