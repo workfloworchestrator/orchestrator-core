@@ -16,6 +16,7 @@ from typing import Optional
 import requests
 import structlog
 from requests.exceptions import RequestException
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import EngineSettingsTable, ProcessTable, db
@@ -99,3 +100,12 @@ def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bo
         engine_settings.global_lock = True
         db.session.commit()
         return None
+
+
+def reset_search_index() -> None:
+    try:
+        db.session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY subscriptions_search;"))
+    except SQLAlchemyError as e:
+        logger.exception(e)
+
+    return
