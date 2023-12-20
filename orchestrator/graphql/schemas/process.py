@@ -10,7 +10,7 @@ from strawberry.unset import UNSET
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import ProductTable, db
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
-from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
+from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
@@ -123,11 +123,11 @@ class ProcessType:
         return None
 
     @strawberry.field(description="Returns customer of a subscription")  # type: ignore
-    def customer(self) -> DefaultCustomerType:
-        return DefaultCustomerType(
+    def customer(self) -> CustomerType:
+        return CustomerType(
+            customer_id=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
             fullname=app_settings.DEFAULT_CUSTOMER_FULLNAME,
             shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
-            identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
