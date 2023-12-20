@@ -54,6 +54,12 @@ def get_cache_names() -> dict[str, str]:
     return CACHE_FLUSH_OPTIONS
 
 
+@router.post("/search-index/reset")
+async def reset_search_index() -> None:
+    settings.reset_search_index()
+    return
+
+
 @router.put("/status", response_model=EngineSettingsSchema)
 async def set_global_status(
     body: EngineSettingsBaseSchema, user: Optional[OIDCUserModel] = Depends(oidc_user)
