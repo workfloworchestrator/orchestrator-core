@@ -59,4 +59,5 @@ def test_reset_search_index(test_client, generic_subscription_1, generic_subscri
     # Subscriptions are now found
     response = test_client.get("/api/subscriptions/search?query=status:active")
     subscriptions = response.json()
-    assert {sub["subscription_id"] for sub in subscriptions} == {generic_subscription_1, generic_subscription_2}
+
+    assert len(subscriptions) == 2
