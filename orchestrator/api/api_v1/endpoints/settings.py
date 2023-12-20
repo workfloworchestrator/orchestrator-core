@@ -56,8 +56,7 @@ def get_cache_names() -> dict[str, str]:
 
 @router.post("/search-index/reset")
 async def reset_search_index() -> None:
-    settings.reset_search_index()
-    return
+   return settings.reset_search_index()
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
