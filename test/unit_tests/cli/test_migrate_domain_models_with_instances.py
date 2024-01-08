@@ -1,13 +1,14 @@
 import json
 from typing import List, Union
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
 from orchestrator.db.models import ResourceTypeTable, SubscriptionInstanceValueTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
+from orchestrator.services.resource_types import get_resource_types
 from orchestrator.types import SubscriptionLifecycle
 
 
@@ -152,7 +153,7 @@ def test_migrate_domain_models_new_resource_type(
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
         assert "new_int_field" not in subscription.block.model_dump()
 
-        new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
+        new_int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "new_int_field"])
         assert not new_int_field_resource
 
     test_expected_before_upgrade()
@@ -259,7 +260,7 @@ def test_migrate_domain_models_update_resource_type(
         assert subscription.block.list_field == [10, 20, 30]
         assert "new_int_field" not in subscription.block.model_dump()
 
-        new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
+        new_int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "new_int_field"])
         assert not new_int_field_resource
 
     test_expected_before_upgrade()
@@ -319,7 +320,7 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
         assert "new_int_field" not in subscription.block.model_dump()
         assert "new_int_field" not in subscription.block.sub_block.model_dump()
 
-        new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
+        new_int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "new_int_field"])
         assert not new_int_field_resource
 
     test_expected_before_upgrade()
@@ -389,7 +390,7 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
         assert "changed_int_field" not in subscription.test_block.list_union_blocks[0].model_dump()
         assert "changed_int_field" not in subscription.test_block.list_union_blocks[1].model_dump()
 
-        new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
+        new_int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "new_int_field"])
         assert not new_int_field_resource
 
     test_expected_before_upgrade()
@@ -406,7 +407,7 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
     assert "int_field" not in updated_subscription.test_block.list_union_blocks[0].model_dump()
     assert "int_field" not in updated_subscription.test_block.list_union_blocks[1].model_dump()
 
-    int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "int_field").all()
+    int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "int_field"])
     assert not int_field_resource
 
     for stmt in downgrade_sql:
@@ -487,12 +488,14 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
     assert subscription.block
     assert subscription.block.int_field
 
-    int_field_resource: List[ResourceTypeTable] = ResourceTypeTable.query.where(
-        ResourceTypeTable.resource_type == "int_field"
-    ).all()
-    int_field_instance_values = SubscriptionInstanceValueTable.query.where(
-        SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
-    ).all()
+    int_field_resource: List[ResourceTypeTable] = get_resource_types(
+        filters=[ResourceTypeTable.resource_type == "int_field"]
+    )
+    int_field_instance_values = db.session.scalars(
+        select(SubscriptionInstanceValueTable).where(
+            SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
+        )
+    )
     assert len(int_field_instance_values) == 3
 
     for stmt in upgrade_sql:
@@ -502,9 +505,11 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
     assert "block" not in subscription.model_dump()
 
-    int_field_instance_values = SubscriptionInstanceValueTable.query.where(
-        SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
-    ).all()
+    int_field_instance_values = db.session.scalars(
+        select(SubscriptionInstanceValueTable).where(
+            SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
+        )
+    )
     assert len(int_field_instance_values) == 0
 
     for stmt in downgrade_sql:
@@ -589,9 +594,7 @@ def test_migrate_domain_models_update_block_resource_type(
         assert subscription.block.str_field
         assert "update_str_field" not in subscription.block.model_dump()
 
-        new_str_field_resource = ResourceTypeTable.query.where(
-            ResourceTypeTable.resource_type == "update_str_field"
-        ).all()
+        new_str_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "update_str_field"])
         assert not new_str_field_resource
         return subscription.block.str_field
 
@@ -653,9 +656,7 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(test_produc
         assert subscription.block.str_field
         assert "update_str_field" not in subscription.block.model_dump()
 
-        new_str_field_resource = ResourceTypeTable.query.where(
-            ResourceTypeTable.resource_type == "update_str_field"
-        ).all()
+        new_str_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "update_str_field"])
         assert not new_str_field_resource
         return subscription.block.str_field
 

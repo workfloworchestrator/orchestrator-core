@@ -1,13 +1,14 @@
 import json
 from typing import List, Union
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from orchestrator.cli.database import migrate_domain_models
 from orchestrator.db import db
 from orchestrator.db.models import ProductTable, ResourceTypeTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.services.resource_types import get_resource_types
 from orchestrator.types import SubscriptionLifecycle
 
 
@@ -30,10 +31,11 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
     assert len(upgrade_sql) == 9
     assert len(downgrade_sql) == 18
 
-    product_id = (
-        ProductTable.query.where(ProductTable.name == "TestProductOne").with_entities(ProductTable.product_id).all()
-    )
-    assert not product_id
+    def fetch_product_ids(product_name):
+        return db.session.scalars(select(ProductTable.product_id).where(ProductTable.name == product_name)).all()
+
+    product_ids = fetch_product_ids("TestProductOne")
+    assert not product_ids
 
     temp_product = ProductTable(
         name="TestProductOne",
@@ -68,21 +70,17 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
         db.session.execute(text(stmt))
     db.session.commit()
 
-    product_id = (
-        ProductTable.query.where(ProductTable.name == "TestProductOne").with_entities(ProductTable.product_id).all()
-    )
-    assert product_id[0][0]
-    diff = ProductTypeOneForTest.diff_product_in_database(product_id[0][0])
+    product_ids = fetch_product_ids("TestProductOne")
+    assert product_ids[0][0]
+    diff = ProductTypeOneForTest.diff_product_in_database(product_ids[0][0])
     assert diff == {}
 
     for stmt in downgrade_sql:
         db.session.execute(text(stmt))
     db.session.commit()
 
-    product_id = (
-        ProductTable.query.where(ProductTable.name == "TestProductOne").with_entities(ProductTable.product_id).all()
-    )
-    assert not product_id
+    product_ids = fetch_product_ids("TestProductOne")
+    assert not product_ids
 
 
 def test_migrate_domain_models_new_fixed_input(test_product_one, test_product_type_one, test_product_block_one):
@@ -565,8 +563,8 @@ def test_migrate_domain_models_update_block_resource_type(
     def test_expected_before_upgrade():
         before_diff = ProductTypeOneForTestNew.diff_product_in_database(test_product_one)
         assert before_diff == expected_old_diff
-        int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "int_field").all()
-        new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
+        int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "int_field"])
+        new_int_field_resource = get_resource_types(filters=[ResourceTypeTable.resource_type == "new_int_field"])
         assert int_field_resource
         assert not new_int_field_resource
 
@@ -605,10 +603,8 @@ def test_migrate_domain_models_remove_product(test_product_one, test_product_typ
         db.session.execute(text(stmt))
     db.session.commit()
 
-    product_id = (
-        ProductTable.query.where(ProductTable.name == "TestProductOne").with_entities(ProductTable.product_id).all()
-    )
-    assert not product_id
+    product_ids = db.session.scalars(select(ProductTable.product_id).where(ProductTable.name == "TestProductOne")).all()
+    assert not product_ids
 
     for stmt in downgrade_sql:
         db.session.execute(text(stmt))

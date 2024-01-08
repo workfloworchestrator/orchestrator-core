@@ -32,17 +32,17 @@ router = APIRouter()
 
 @router.get("/", response_model=List[ProductSchema])
 def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List[ProductSchema]:
-    query = ProductTable.query.options(
+    stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
         selectinload(ProductTable.fixed_inputs),
         selectinload(ProductTable.product_blocks).selectinload(ProductBlockTable.resource_types),
     )
     if tag:
-        query = query.filter(ProductTable.__dict__["tag"] == tag)
+        stmt = stmt.filter(ProductTable.__dict__["tag"] == tag)
     if product_type:
-        query = query.filter(ProductTable.__dict__["product_type"] == product_type)
+        stmt = stmt.filter(ProductTable.__dict__["product_type"] == product_type)
 
-    return query.all()
+    return list(db.session.scalars(stmt))
 
 
 @router.get("/{product_id}", response_model=ProductSchema)
@@ -74,7 +74,8 @@ def update_product(data: ProductCRUDSchema = Body(...)) -> None:
 
 @router.delete("/{product_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete_product(product_id: UUID) -> None:
-    subscriptions = SubscriptionTable.query.filter(SubscriptionTable.product_id == product_id).all()
+    subscriptions_stmt = select(SubscriptionTable).filter(SubscriptionTable.product_id == product_id)
+    subscriptions = db.session.scalars(subscriptions_stmt).all()
     if len(subscriptions) > 0:
         error_subscriptions = ", ".join(map(lambda sub: sub.description, subscriptions))
         raise_status(HTTPStatus.BAD_REQUEST, f"Product {product_id} is used in Subscriptions: {error_subscriptions}")

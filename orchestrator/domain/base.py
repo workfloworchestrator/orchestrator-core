@@ -39,6 +39,7 @@ import typing_extensions
 from more_itertools import first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing_extensions import get_args
 
@@ -532,7 +533,9 @@ class ProductBlockModel(DomainModel):
         # Would have been nice to do this in __init_subclass__ but that runs outside the app context so we can't
         # access the db. So now we do it just before we instantiate the instance
         if not hasattr(cls, "product_block_id"):
-            product_block = ProductBlockTable.query.filter(ProductBlockTable.name == cls.name).one()
+            product_block = db.session.scalars(
+                select(ProductBlockTable).filter(ProductBlockTable.name == cls.name)
+            ).one()
             cls.product_block_id = product_block.product_block_id
             cls.description = product_block.description
             cls.tag = product_block.tag
@@ -579,8 +582,8 @@ class ProductBlockModel(DomainModel):
             # This is a superclass we can't check that
             return {}
 
-        product_block_db: ProductBlockTable = ProductBlockTable.query.filter(
-            ProductBlockTable.name == cls.name
+        product_block_db = db.session.scalars(
+            select(ProductBlockTable).where(ProductBlockTable.name == cls.name)
         ).one_or_none()
         product_blocks_in_db = {pb.name for pb in product_block_db.depends_on} if product_block_db else set()
 
@@ -745,7 +748,7 @@ class ProductBlockModel(DomainModel):
         """
         # Fill values from actual subscription
         if subscription_instance_id:
-            subscription_instance = SubscriptionInstanceTable.query.get(subscription_instance_id)
+            subscription_instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
         if subscription_instance:
             subscription_instance_id = subscription_instance.subscription_instance_id
         assert subscription_instance_id  # noqa: S101
@@ -884,8 +887,8 @@ class ProductBlockModel(DomainModel):
             raise ValueError(f"Cannot create instance of abstract class. Use one of {self.__names__}")
 
         # Make sure we have a valid subscription instance database model
-        subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(
-            self.subscription_instance_id
+        subscription_instance: Optional[SubscriptionInstanceTable] = db.session.get(
+            SubscriptionInstanceTable, self.subscription_instance_id
         )
         if subscription_instance:
             # Make sure we do not use a mapped session.
@@ -1021,7 +1024,7 @@ class SubscriptionModel(DomainModel):
 
         This is only needed to check if the domain model and database models match which would be done during testing...
         """
-        product_db = ProductTable.query.get(product_id)
+        product_db = db.session.get(ProductTable, product_id)
         product_blocks_in_db = {pb.name for pb in product_db.product_blocks} if product_db else set()
 
         product_blocks_in_model = cls._get_depends_on_product_block_types()
@@ -1068,7 +1071,7 @@ class SubscriptionModel(DomainModel):
         }
 
         missing_data: Dict[str, Dict[str, Union[Set[str], Dict[str, Set[str]]]]] = {}
-        if diff:
+        if diff and product_db:
             missing_data[product_db.name] = diff
 
         return missing_data
@@ -1087,7 +1090,10 @@ class SubscriptionModel(DomainModel):
     ) -> S:
         """Use product_id (and customer_id) to return required fields of a new empty subscription."""
         # Caller wants a new instance and provided a product_id and customer_id
-        product_db = ProductTable.query.get(product_id)
+        product_db = db.session.get(ProductTable, product_id)
+        if not product_db:
+            raise KeyError("Could not find a product for the given product_id")
+
         product = ProductModel(
             product_id=product_db.product_id,
             name=product_db.name,
@@ -1172,13 +1178,19 @@ class SubscriptionModel(DomainModel):
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
     def _get_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> Any:
-        return SubscriptionTable.query.options(
-            selectinload(SubscriptionTable.instances)
-            .selectinload(SubscriptionInstanceTable.product_block)
-            .selectinload(ProductBlockTable.resource_types),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.in_use_by_block_relations),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-        ).get(subscription_id)
+        return db.session.get(
+            SubscriptionTable,
+            subscription_id,
+            options=[
+                selectinload(SubscriptionTable.instances)
+                .selectinload(SubscriptionInstanceTable.product_block)
+                .selectinload(ProductBlockTable.resource_types),
+                selectinload(SubscriptionTable.instances).selectinload(
+                    SubscriptionInstanceTable.in_use_by_block_relations
+                ),
+                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+            ],
+        )
 
     @classmethod
     def _to_product_model(cls: Type[S], product: ProductTable) -> ProductModel:
@@ -1201,6 +1213,8 @@ class SubscriptionModel(DomainModel):
         new_root: Optional[Tuple[str, ProductBlockModel]] = None,
     ) -> S:
         db_product = get_product_by_id(new_product_id)
+        if not db_product:
+            raise KeyError("Could not find a product for the given product_id")
 
         subscription = cls._get_subscription(old_instantiation.subscription_id)
         product = cls._to_product_model(db_product)
@@ -1304,12 +1318,16 @@ class SubscriptionModel(DomainModel):
                 f"Lifecycle status {self.status.value} requires specialized type {specialized_type!r}, was: {type(self)!r}"
             )
 
-        sub = SubscriptionTable.query.options(
-            selectinload(SubscriptionTable.instances)
-            .selectinload(SubscriptionInstanceTable.product_block)
-            .selectinload(ProductBlockTable.resource_types),
-            selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-        ).get(self.subscription_id)
+        sub = db.session.get(
+            SubscriptionTable,
+            self.subscription_id,
+            options=[
+                selectinload(SubscriptionTable.instances)
+                .selectinload(SubscriptionInstanceTable.product_block)
+                .selectinload(ProductBlockTable.resource_types),
+                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+            ],
+        )
         if not sub:
             sub = self._db_model
 

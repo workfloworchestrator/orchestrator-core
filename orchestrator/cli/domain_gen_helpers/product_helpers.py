@@ -1,6 +1,7 @@
 from itertools import chain
 from typing import Dict, Generator, List, Set, Type, Union
 
+from sqlalchemy import select
 from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
@@ -9,6 +10,7 @@ from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_produc
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt, str_fmt
+from orchestrator.db import db
 from orchestrator.db.models import (
     ProcessSubscriptionTable,
     ProcessTable,
@@ -24,12 +26,8 @@ def get_product_id(product_name: str) -> ScalarSelect:
     return get_product_ids([product_name])
 
 
-def get_product_ids(product_names: Union[List[str], Set[str]]) -> ScalarSelect:
-    return (
-        ProductTable.query.where(ProductTable.name.in_(product_names))
-        .with_entities(ProductTable.product_id)
-        .scalar_subquery()
-    )
+def get_product_ids(product_names: Union[list[str], set[str]]) -> ScalarSelect:
+    return select(ProductTable.product_id).where(ProductTable.name.in_(product_names)).scalar_subquery()
 
 
 def map_product_additional_relations(changes: DomainModelChanges) -> DomainModelChanges:
@@ -95,7 +93,7 @@ def generate_create_products_sql(
     ]
 
 
-def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
+def generate_delete_products_sql(delete_products: set[str]) -> list[str]:
     """Generate SQL to delete products.
 
     Args:
@@ -106,16 +104,16 @@ def generate_delete_products_sql(delete_products: Set[str]) -> List[str]:
     if not delete_products:
         return []
 
-    def delete_product_relations_sql(product_names: Set[str]) -> List[str]:
+    def delete_product_relations_sql(product_names: set[str]) -> list[str]:
         product_ids = get_product_ids(product_names)
         subscription_ids = (
-            SubscriptionTable.query.where(SubscriptionTable.product_id.in_(product_ids))
-            .with_entities(SubscriptionTable.subscription_id)
+            select(SubscriptionTable.subscription_id)
+            .where(SubscriptionTable.product_id.in_(product_ids))
             .scalar_subquery()
         )
         process_ids = (
-            ProcessSubscriptionTable.query.where(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
-            .with_entities(ProcessSubscriptionTable.process_id)
+            select(ProcessSubscriptionTable.process_id)
+            .where(ProcessSubscriptionTable.subscription_id.in_(subscription_ids))
             .scalar_subquery()
         )
         return [
@@ -163,7 +161,7 @@ def generate_create_product_relations_sql(create_block_relations: Dict[str, Set[
     return [create_block_relation(*item) for item in create_block_relations.items()]
 
 
-def generate_create_product_instance_relations_sql(product_to_block_relations: Dict[str, Set[str]]) -> List[str]:
+def generate_create_product_instance_relations_sql(product_to_block_relations: dict[str, set[str]]) -> list[str]:
     """Generate SQL to create subscription instances for existing subscriptions.
 
     Args:
@@ -174,18 +172,17 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: D
     Returns: List of SQL strings to create subscription instances.
     """
 
-    def create_subscription_instance_relations(block_name: str, product_names: Set[str]) -> Generator[str, None, None]:
+    def create_subscription_instance_relations(block_name: str, product_names: set[str]) -> Generator[str, None, None]:
         product_block_id = get_product_block_id(block_name)
 
         def map_subscription_instance_relations(
             product_name: str,
         ) -> Generator[Dict[str, Union[str, ScalarSelect]], None, None]:
             product_id_sql = get_product_id(product_name)
-            subscription_ids = (
-                SubscriptionTable.query.where(SubscriptionTable.product_id.in_(product_id_sql))
-                .with_entities(SubscriptionTable.subscription_id)
-                .all()
+            subscription_ids_stmt = select(SubscriptionTable.subscription_id).where(
+                SubscriptionTable.product_id.in_(product_id_sql)
             )
+            subscription_ids = db.session.scalars(subscription_ids_stmt)
 
             for subscription_id in subscription_ids:
                 yield {"subscription_id": subscription_id[0], "product_block_id": product_block_id}

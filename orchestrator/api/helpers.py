@@ -137,7 +137,9 @@ def query_with_filters(  # noqa: C901
     return _add_sort_to_query(stmt, sort)
 
 
-def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: Response) -> Selectable:
+def add_response_range(
+    stmt: Selectable, range_: Optional[list[int]], response: Response, unit: str = "items"
+) -> Selectable:
     if range_ is not None and len(range_) == 2:
         total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
         range_start, range_end = range_
@@ -147,7 +149,7 @@ def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: 
             logger.exception(e)
             raise_status(HTTPStatus.BAD_REQUEST, str(e))
 
-        response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
+        response.headers["Content-Range"] = f"{unit} {range_start}-{range_end}/{total}"
     return stmt
 
 

@@ -12,17 +12,24 @@
 # limitations under the License.
 
 
-from typing import List, Union
+from typing import Optional, Union
 from uuid import UUID
 
-from more_itertools.more import one
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.db import ProductTable
+from orchestrator.db import ProductTable, db
 from orchestrator.types import UUIDstr
 
 
-def get_product_by_id(product_id: Union[UUID, UUIDstr], join_fixed_inputs: bool = True) -> ProductTable:
+def get_products(*, filters: Optional[list] = None) -> list[ProductTable]:
+    stmt = select(ProductTable)
+    for clause in filters or []:
+        stmt = stmt.where(clause)
+    return list(db.session.scalars(stmt))
+
+
+def get_product_by_id(product_id: Union[UUID, UUIDstr], join_fixed_inputs: bool = True) -> Optional[ProductTable]:
     """Get product by id.
 
     Args:
@@ -33,20 +40,21 @@ def get_product_by_id(product_id: Union[UUID, UUIDstr], join_fixed_inputs: bool 
 
     """
     if not join_fixed_inputs:
-        return ProductTable.query.get(product_id)
+        return db.session.get(ProductTable, product_id)
 
-    return ProductTable.query.options(joinedload(ProductTable.fixed_inputs)).get(product_id)
+    return db.session.get(ProductTable, product_id, options=[joinedload(ProductTable.fixed_inputs)])
 
 
 def get_product_by_name(name: str) -> ProductTable:
-    return ProductTable.query.options(joinedload(ProductTable.fixed_inputs)).filter(ProductTable.name == name).one()
+    stmt = select(ProductTable).options(joinedload(ProductTable.fixed_inputs)).where(ProductTable.name == name)
+    return db.session.scalars(stmt).unique().one()
 
 
-def get_types() -> List[str]:
-    return list(
-        map(one, ProductTable.query.distinct(ProductTable.product_type).with_entities(ProductTable.product_type))
-    )
+def get_types() -> list[str]:
+    stmt = select(ProductTable.product_type).distinct()
+    return list(db.session.scalars(stmt))
 
 
-def get_tags() -> List[str]:
-    return list(map(one, ProductTable.query.distinct(ProductTable.tag).with_entities(ProductTable.tag)))
+def get_tags() -> list[str]:
+    stmt = select(ProductTable.tag).distinct()
+    return list(db.session.scalars(stmt))

@@ -20,7 +20,7 @@ import structlog
 from fastapi import Depends
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -72,11 +72,14 @@ def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptio
     for process_subscription in process_subscriptions:
         process_id = str(process_subscription.process_id)
         subscription_id = str(process_subscription.subscription_id)
-        ProcessSubscriptionTable.query.filter(ProcessSubscriptionTable.process_id == process_id).delete()
-        ProcessStepTable.query.filter(ProcessStepTable.process_id == process_id).delete()
-        ProcessTable.query.filter(ProcessTable.process_id == process_id).delete()
-        subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).first()
-        _delete_subscription_tree(subscription)
+        db.session.execute(delete(ProcessSubscriptionTable).filter(ProcessSubscriptionTable.process_id == process_id))
+        db.session.execute(delete(ProcessStepTable).filter(ProcessStepTable.process_id == process_id))
+        db.session.execute(delete(ProcessTable).filter(ProcessTable.process_id == process_id))
+        subscription = db.session.scalars(
+            select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
+        ).first()
+        if subscription:
+            _delete_subscription_tree(subscription)
 
 
 def _filter_statuses(filter_statuses: Optional[str] = None) -> List[str]:
@@ -106,7 +109,8 @@ def _filter_statuses(filter_statuses: Optional[str] = None) -> List[str]:
 @router.get("/all", response_model=List[SubscriptionSchema])
 def subscriptions_all() -> List[SubscriptionTable]:
     """Return subscriptions with only a join on products."""
-    return SubscriptionTable.query.all()
+    stmt = select(SubscriptionTable)
+    return list(db.session.scalars(stmt))
 
 
 @router.get("/domain-model/{subscription_id}", response_model=Optional[SubscriptionDomainModelSchema])
@@ -138,11 +142,13 @@ def subscription_details_by_id_with_domain_model(
 
 @router.delete("/{subscription_id}", response_model=None)
 def delete_subscription(subscription_id: UUID) -> None:
-    all_process_subscriptions = ProcessSubscriptionTable.query.filter_by(subscription_id=subscription_id).all()
+    stmt = select(ProcessSubscriptionTable).filter_by(subscription_id=subscription_id)
+    all_process_subscriptions = list(db.session.scalars(stmt))
     if len(all_process_subscriptions) > 0:
         _delete_process_subscriptions(all_process_subscriptions)
         return
-    subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).first()
+
+    subscription = db.session.get(SubscriptionTable, subscription_id)
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
@@ -229,7 +235,7 @@ def subscriptions_filterable(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
     stmt = query_with_filters(stmt, sort_, filter_)
-    stmt = add_response_range(stmt, range_, response)
+    stmt = add_response_range(stmt, range_, response, unit="subscriptions")
 
     sequence = db.session.execute(stmt).all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]
@@ -262,7 +268,7 @@ def subscriptions_search(
         contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
     )
     stmt = add_subscription_search_query_filter(stmt, query)
-    stmt = add_response_range(stmt, range_, response)
+    stmt = add_response_range(stmt, range_, response, unit="subscriptions")
     sequence = db.session.execute(stmt).all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]
 
@@ -271,9 +277,14 @@ def subscriptions_search(
     "/workflows/{subscription_id}", response_model=SubscriptionWorkflowListsSchema, response_model_exclude_none=True
 )
 def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[str, Union[List[Any], str]]]]:
-    subscription = SubscriptionTable.query.options(
-        joinedload(SubscriptionTable.product), joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows)
-    ).get(subscription_id)
+    subscription = db.session.get(
+        SubscriptionTable,
+        subscription_id,
+        options=[
+            joinedload(SubscriptionTable.product),
+            joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows),
+        ],
+    )
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
@@ -284,7 +295,7 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
 def subscription_instance_in_use_by(
     subscription_instance_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
 ) -> List[UUID]:
-    subscription_instance: SubscriptionInstanceTable = SubscriptionInstanceTable.query.get(subscription_instance_id)
+    subscription_instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
 
     if not subscription_instance:
         raise_status(HTTPStatus.NOT_FOUND)
@@ -293,12 +304,8 @@ def subscription_instance_in_use_by(
     if filter_statuses:
         in_use_by_instances = [sub for sub in in_use_by_instances if sub.subscription.status in filter_statuses]
 
-    return list(
-        filter(
-            lambda sub_id: sub_id != subscription_instance.subscription_id,
-            {sub.subscription_id for sub in in_use_by_instances},
-        )
-    )
+    unique_ids = {sub.subscription_id for sub in in_use_by_instances}
+    return [sub_id for sub_id in unique_ids if sub_id != subscription_instance.subscription_id]
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
@@ -306,14 +313,15 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
     def failed_processes() -> List[str]:
         if app_settings.DISABLE_INSYNC_CHECK:
             return []
-        _failed_processes = (
-            ProcessSubscriptionTable.query.join(ProcessTable)
+        stmt = (
+            select(ProcessSubscriptionTable)
+            .join(ProcessTable)
             .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
             .filter(~ProcessTable.is_task)
             .filter(ProcessTable.last_status != "completed")
             .filter(ProcessTable.last_status != "aborted")
-            .all()
         )
+        _failed_processes = db.session.scalars(stmt)
         return [str(p.process_id) for p in _failed_processes]
 
     try:

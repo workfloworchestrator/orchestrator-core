@@ -2,6 +2,7 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import delete
 
 from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable, db
 from test.unit_tests.config import IMS_CIRCUIT_ID
@@ -12,7 +13,7 @@ PRODUCT_BLOCK_ID = "f51f9542-e83f-42e5-a590-0284dd5493e4"
 
 @pytest.fixture
 def seed():
-    ProductBlockTable.query.delete()
+    db.session.execute(delete(ProductBlockTable))
     resources = [ResourceTypeTable(resource_type=IMS_CIRCUIT_ID, description="IMS Circuit Id")]
     product_blocks = [
         ProductBlockTable(

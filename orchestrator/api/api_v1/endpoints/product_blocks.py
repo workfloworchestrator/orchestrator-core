@@ -17,11 +17,12 @@ from uuid import UUID
 
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
-from orchestrator.db import ProductBlockTable, ProductTable
+from orchestrator.db import ProductBlockTable, ProductTable, db
 from orchestrator.schemas import ProductBlockBaseSchema
 from orchestrator.schemas import ProductBlockEnrichedSchema as ProductBlockSchema
 
@@ -30,16 +31,18 @@ router = APIRouter()
 
 @router.get("/", response_model=List[ProductBlockSchema])
 def fetch() -> List[ProductBlockTable]:
-    return ProductBlockTable.query.options(joinedload(ProductBlockTable.resource_types)).all()
+    stmt = select(ProductBlockTable).options(joinedload(ProductBlockTable.resource_types))
+    return list(db.session.scalars(stmt))
 
 
 @router.get("/{product_block_id}", response_model=ProductBlockSchema)
 def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
-    product_block = (
-        ProductBlockTable.query.options(joinedload(ProductBlockTable.resource_types))
+    product_block_stmt = (
+        select(ProductBlockTable)
+        .options(joinedload(ProductBlockTable.resource_types))
         .filter_by(product_block_id=product_block_id)
-        .first()
     )
+    product_block = db.session.scalars(product_block_stmt).first()
     if not product_block:
         raise_status(HTTPStatus.NOT_FOUND, f"Product block id {product_block_id} not found")
     return product_block
@@ -57,9 +60,10 @@ def update_product_block(data: ProductBlockBaseSchema = Body(...)) -> None:
 
 @router.delete("/{product_block_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete_product_block(product_block_id: UUID) -> None:
-    products = ProductTable.query.filter(
+    products_stmt = select(ProductTable).filter(
         ProductTable.product_blocks.any(ProductBlockTable.product_block_id == product_block_id)
-    ).all()
+    )
+    products = list(db.session.scalars(products_stmt))
     if len(products) > 0:
         error_products = ", ".join(map(lambda product: product.name, products))
         raise_status(HTTPStatus.BAD_REQUEST, f"ProductBlock {product_block_id} is used in Products: {error_products}")

@@ -21,7 +21,7 @@ def validation_workflow() -> StepList:
 
 
 def test_happy_flow(generic_subscription_1, validation_workflow_instance):
-    product = SubscriptionTable.query.get(generic_subscription_1).product
+    product = db.session.get(SubscriptionTable, generic_subscription_1).product
     product.workflows.append(validation_workflow_instance)
     db.session.add(product)
     db.session.commit()

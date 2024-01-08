@@ -4,6 +4,7 @@ from uuid import UUID
 
 import structlog
 from more_itertools import flatten
+from sqlalchemy import func, select
 from sqlalchemy.sql.expression import Delete, Insert, Update
 from sqlalchemy.sql.selectable import ScalarSelect
 
@@ -12,6 +13,7 @@ from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_produc
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
+from orchestrator.db import db
 from orchestrator.db.models import (
     ProductBlockTable,
     ProductTable,
@@ -32,13 +34,13 @@ def get_resource_type(resource_type: str) -> ScalarSelect:
 
 def get_resource_types(resource_types: Union[List[str], Set[str]]) -> ScalarSelect:
     return (
-        ResourceTypeTable.query.where(ResourceTypeTable.resource_type.in_(resource_types))
-        .with_entities(ResourceTypeTable.resource_type_id)
+        select(ResourceTypeTable.resource_type_id)
+        .where(ResourceTypeTable.resource_type.in_(resource_types))
         .scalar_subquery()
     )
 
 
-def map_create_resource_types(resource_type_names: Set[str], updated_resource_types: Set[str]) -> Set[str]:
+def map_create_resource_types(resource_type_names: set[str], updated_resource_types: set[str]) -> set[str]:
     """Map resource types to create.
 
     Args:
@@ -47,12 +49,12 @@ def map_create_resource_types(resource_type_names: Set[str], updated_resource_ty
 
     Returns: List of resource type names that can be created.
     """
-    existing_resource_types = (
-        ResourceTypeTable.query.where(ResourceTypeTable.resource_type.in_(resource_type_names))
-        .with_entities(ResourceTypeTable.resource_type)
-        .all()
+    existing_resource_types = set(
+        db.session.scalars(
+            select(ResourceTypeTable.resource_type).where(ResourceTypeTable.resource_type.in_(resource_type_names))
+        )
     )
-    existing_resource_types = {*[r_type[0] for r_type in existing_resource_types], *updated_resource_types}
+    existing_resource_types.update(updated_resource_types)
     return {rt for rt in resource_type_names if rt not in existing_resource_types}
 
 
@@ -94,9 +96,9 @@ def rename_resource_type_inputs(
 
 
 def map_rename_resource_types(
-    block_diffs: Dict[str, Dict[str, Set[str]]],
-    product_blocks: Dict[str, Type[ProductBlockModel]],
-) -> Dict[str, str]:
+    block_diffs: dict[str, dict[str, set[str]]],
+    product_blocks: dict[str, Type[ProductBlockModel]],
+) -> dict[str, str]:
     """Map resource types to rename.
 
     Args:
@@ -112,12 +114,10 @@ def map_rename_resource_types(
         - value: new resource type name.
     """
 
-    renamed_resource_types: Dict[str, str] = {}
-    new_resource_types: Set[str] = set()
-    existing_resource_types = {
-        rt for rt, in ResourceTypeTable.query.with_entities(ResourceTypeTable.resource_type).all()
-    }
-    possible_rt_choices: Dict[str, Set[str]] = defaultdict(set)
+    renamed_resource_types: dict[str, str] = {}
+    new_resource_types: set[str] = set()
+    existing_resource_types = list(db.session.scalars(select(ResourceTypeTable.resource_type)))
+    possible_rt_choices: dict[str, set[str]] = defaultdict(set)
 
     for diff in block_diffs.values():
         db_resource_types = list(diff.get("missing_resource_types_in_model", set()))
@@ -229,11 +229,8 @@ def map_delete_resource_types(
     Returns: List of resource type names that can be deleted.
     """
     resource_type_names = resource_types.keys()
-    existing_resource_types = (
-        ResourceTypeTable.query.where(ResourceTypeTable.resource_type.in_(resource_type_names))
-        .with_entities(ResourceTypeTable.resource_type)
-        .all()
-    )
+    stmt = select(ResourceTypeTable.resource_type).where(ResourceTypeTable.resource_type.in_(resource_type_names))
+    existing_resource_types = db.session.scalars(stmt)
     existing_names = [r_type[0] for r_type in existing_resource_types if r_type[0] in resource_type_names]
     rt_with_existing_instances = {
         *find_resource_within_blocks(existing_names, product_blocks),
@@ -243,15 +240,26 @@ def map_delete_resource_types(
 
 
 def get_product_instance_count(product_id: UUID) -> int:
-    return SubscriptionTable.query.where(SubscriptionTable.product_id == product_id).count()
+    return (
+        db.session.scalar(
+            select(func.count()).select_from(SubscriptionTable).where(SubscriptionTable.product_id == product_id)
+        )
+        or 0
+    )
 
 
 def get_block_instance_count(product_block_id: UUID) -> int:
-    return SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id == product_block_id).count()
+    stmt = (
+        select(func.count())
+        .select_from(SubscriptionInstanceTable)
+        .where(SubscriptionInstanceTable.product_block_id == product_block_id)
+    )
+    return db.session.scalar(stmt) or 0
 
 
 def _has_product_existing_instances(product_name: str) -> bool:
-    product: ProductTable = ProductTable.query.where(ProductTable.name == product_name).first()
+    stmt = select(ProductTable).where(ProductTable.name == product_name)
+    product: Optional[ProductTable] = db.session.scalars(stmt).first()
     return bool(product and get_product_instance_count(product.product_id))
 
 
@@ -259,7 +267,7 @@ def _find_new_relations(block_name: str, relations: Dict[str, Set[str]]) -> Set[
     return set(flatten((list(v) for k, v in relations.items() if block_name in k)))
 
 
-def map_create_resource_type_instances(changes: DomainModelChanges) -> Dict[str, Set[str]]:
+def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str, set[str]]:
     """Map resource types that need a default value.
 
     Resource types need a default value when the related product block is used in an existing instance or will be used in an existing instance.
@@ -273,7 +281,8 @@ def map_create_resource_type_instances(changes: DomainModelChanges) -> Dict[str,
     """
 
     def _has_existing_instances(block_name: str) -> bool:
-        block: ProductBlockTable = ProductBlockTable.query.where(ProductBlockTable.name == block_name).first()
+        stmt = select(ProductBlockTable).where(ProductBlockTable.name == block_name)
+        block: Optional[ProductBlockTable] = db.session.scalars(stmt).first()
         if block and get_block_instance_count(block.product_block_id):
             return True
 
@@ -310,11 +319,8 @@ def generate_create_resource_types_sql(
 
     def create_resource_type(resource_type: str) -> str:
         if revert:
-            description = (
-                ResourceTypeTable.query.where(ResourceTypeTable.resource_type == resource_type)
-                .with_entities(ResourceTypeTable.description)
-                .one()
-            )[0]
+            stmt = select(ResourceTypeTable.description).where(ResourceTypeTable.resource_type == resource_type)
+            description = db.session.scalars(stmt).one()
         else:
             description = inputs.get(resource_type, {}).get("description") or get_user_input(
                 f"Supply description for new resource type {str_fmt(resource_type, flags=[COLOR.MAGENTA])}: "
@@ -465,8 +471,8 @@ def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str,
         block_ids_sql = get_product_block_ids(block_names)
         resource_type_id_sql = get_resource_type(resource_type)
         subscription_instance_id_sql = (
-            SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.subscription_instance_id.in_(block_ids_sql))
-            .with_entities(SubscriptionInstanceTable.subscription_instance_id)
+            select(SubscriptionInstanceTable.subscription_instance_id)
+            .where(SubscriptionInstanceTable.subscription_instance_id.in_(block_ids_sql))
             .scalar_subquery()
         )
         return [
@@ -533,12 +539,10 @@ def generate_update_resource_type_instance_values_sql(block_rt_updates: Dict[str
     Returns: List of SQL strings to update resource types.
     """
 
-    def update_block_resource_types(block_name: str, rt_updates: Dict[str, str]) -> List[str]:
+    def update_block_resource_types(block_name: str, rt_updates: dict[str, str]) -> list[str]:
         instance_ids_sql = (
-            SubscriptionInstanceTable.query.where(
-                SubscriptionInstanceTable.product_block_id.in_(get_product_block_id(block_name))
-            )
-            .with_entities(SubscriptionInstanceTable.subscription_instance_id)
+            select(SubscriptionInstanceTable.subscription_instance_id)
+            .where(SubscriptionInstanceTable.product_block_id.in_(get_product_block_id(block_name)))
             .scalar_subquery()
         )
 

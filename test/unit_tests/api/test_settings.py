@@ -1,10 +1,11 @@
 from http import HTTPStatus
 
-from orchestrator.db import EngineSettingsTable, db
+from orchestrator.db import db
+from orchestrator.services.settings import get_engine_settings
 
 
 def test_get_engine_status(test_client):
-    engine_settings = EngineSettingsTable.query.one()
+    engine_settings = get_engine_settings()
     response = test_client.get("/api/settings/status")
     assert response.status_code == HTTPStatus.OK
     assert response.json()["running_processes"] == 0

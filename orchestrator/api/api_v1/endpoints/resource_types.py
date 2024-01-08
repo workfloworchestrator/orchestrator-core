@@ -17,23 +17,26 @@ from uuid import UUID
 
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
+from sqlalchemy import select
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
-from orchestrator.db import ProductBlockTable, ResourceTypeTable
+from orchestrator.db import ProductBlockTable, ResourceTypeTable, db
 from orchestrator.schemas import ResourceTypeBaseSchema, ResourceTypeSchema
+from orchestrator.services.resource_types import get_resource_types
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[ResourceTypeSchema])
 def fetch() -> List[ResourceTypeTable]:
-    return ResourceTypeTable.query.all()
+    return get_resource_types()
 
 
 @router.get("/{resource_type_id}", response_model=ResourceTypeSchema)
 def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
-    resource_type = ResourceTypeTable.query.filter_by(resource_type_id=resource_type_id).first()
+    resource_type_stmt = select(ResourceTypeTable).filter_by(resource_type_id=resource_type_id)
+    resource_type = db.session.scalars(resource_type_stmt).first()
     if not resource_type:
         raise_status(HTTPStatus.NOT_FOUND, f"Resource type {resource_type_id} not found")
     return resource_type
@@ -51,9 +54,10 @@ def update_resource_type(data: ResourceTypeSchema = Body(...)) -> None:
 
 @router.delete("/{resource_type_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete_resource_type(resource_type_id: UUID) -> None:
-    product_blocks = ProductBlockTable.query.filter(
+    product_blocks_stmt = select(ProductBlockTable).filter(
         ProductBlockTable.resource_types.any(ResourceTypeTable.resource_type_id == str(resource_type_id))
-    ).all()
+    )
+    product_blocks = db.session.scalars(product_blocks_stmt).all()
     if len(product_blocks) > 0:
         error_products_block = ", ".join(map(lambda pb: pb.name, product_blocks))
         raise_status(

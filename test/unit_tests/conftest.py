@@ -11,7 +11,7 @@ from alembic import command
 from alembic.config import Config
 from pydantic import BaseModel as PydanticBaseModel
 from redis import Redis
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
@@ -423,7 +423,7 @@ def generic_product_block_3(generic_resource_type_2):
 
 @pytest.fixture
 def generic_product_1(generic_product_block_1, generic_product_block_2):
-    workflow = WorkflowTable.find_by_workflow_name("modify_note")
+    workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
     p = ProductTable(
         name="Product 1",
         description="Generic Product One",
@@ -440,7 +440,7 @@ def generic_product_1(generic_product_block_1, generic_product_block_2):
 
 @pytest.fixture
 def generic_product_2(generic_product_block_3):
-    workflow = WorkflowTable.find_by_workflow_name("modify_note")
+    workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
 
     p = ProductTable(
         name="Product 2",
