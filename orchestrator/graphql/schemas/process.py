@@ -58,6 +58,7 @@ class ProcessType:
     process_id: strawberry.auto
     product_id: strawberry.auto
     customer_id: strawberry.auto
+    workflow_id: strawberry.auto
     workflow_name: strawberry.auto
     workflow_target: strawberry.auto
     assignee: strawberry.auto
@@ -110,7 +111,7 @@ class ProcessType:
 
     @authenticated_field(
         description="Returns process last modified at datetime",
-        deprecation_reason="Changed to 'last_modifiedAt' from version 1.2.3, will be removed in 1.4",
+        deprecation_reason="Changed to 'lastModifiedAt' from version 1.2.3, will be removed in 1.4",
     )  # type: ignore
     def last_modified(self) -> datetime:
         return self.last_modified_at

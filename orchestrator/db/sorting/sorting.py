@@ -12,12 +12,12 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Callable, Iterator, TypeVar
+from typing import Callable, Iterator, TypeVar, Union
 
 import strawberry
 from more_itertools import partition
 from pydantic import BaseModel
-from sqlalchemy import Column, Select
+from sqlalchemy import Column, CompoundSelect, Select
 from sqlalchemy.sql import expression
 
 from orchestrator.api.error_handling import ProblemDetailException
@@ -36,7 +36,7 @@ class Sort(BaseModel):
 
 
 GenericType = TypeVar("GenericType")
-QueryType = Select
+QueryType = Union[Select, CompoundSelect]
 ValidSortFunctionsByColumnType = dict[str, Callable[[QueryType, SortOrder], QueryType]]
 
 

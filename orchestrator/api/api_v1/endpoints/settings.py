@@ -41,7 +41,7 @@ CACHE_FLUSH_OPTIONS: dict[str, str] = {
 
 @router.delete("/cache/{name}")
 async def clear_cache(name: str) -> Union[int, None]:
-    cache: AIORedis = AIORedis.from_url(app_settings.CACHE_URI)
+    cache: AIORedis = AIORedis.from_url(str(app_settings.CACHE_URI))
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
 
@@ -52,6 +52,11 @@ async def clear_cache(name: str) -> Union[int, None]:
 @router.get("/cache-names")
 def get_cache_names() -> dict[str, str]:
     return CACHE_FLUSH_OPTIONS
+
+
+@router.post("/search-index/reset")
+async def reset_search_index() -> None:
+    return settings.reset_search_index()
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
@@ -79,7 +84,7 @@ async def set_global_status(
         )
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
         user_name = user.user_name if user else SYSTEM_USER
-        settings.post_update_to_slack(EngineSettingsSchema.from_orm(result), user_name)
+        settings.post_update_to_slack(EngineSettingsSchema.model_validate(result), user_name)
 
     status_response = generate_engine_status_response(result)
     if websocket_manager.enabled:
@@ -158,15 +163,15 @@ def generate_engine_status_response(
     """
 
     if engine_settings.global_lock and engine_settings.running_processes > 0:
-        result = EngineSettingsSchema.from_orm(engine_settings)
+        result = EngineSettingsSchema.model_validate(engine_settings)
         result.global_status = GlobalStatusEnum.PAUSING
         return result
 
     if engine_settings.global_lock and engine_settings.running_processes == 0:
-        result = EngineSettingsSchema.from_orm(engine_settings)
+        result = EngineSettingsSchema.model_validate(engine_settings)
         result.global_status = GlobalStatusEnum.PAUSED
         return result
 
-    result = EngineSettingsSchema.from_orm(engine_settings)
+    result = EngineSettingsSchema.model_validate(engine_settings)
     result.global_status = GlobalStatusEnum.RUNNING
     return result

@@ -25,7 +25,7 @@ def to_graphql_result_page(
             has_next_page=has_next_page,
             start_cursor=start_cursor,
             end_cursor=end_cursor,
-            total_items=total if total else None,
+            total_items=total if total else 0,
             sort_fields=sort_fields or [],
             filter_fields=filter_fields or [],
         ),

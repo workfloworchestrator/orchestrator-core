@@ -28,10 +28,13 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Select,
     String,
     Table,
     Text,
     TypeDecorator,
+    UniqueConstraint,
+    select,
     text,
 )
 from sqlalchemy.dialects import postgresql as pg
@@ -40,7 +43,6 @@ from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import Mapped, backref, deferred, mapped_column, object_session, relationship
-from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy_utils import TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
@@ -85,7 +87,9 @@ class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
     process_id = mapped_column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow_name = mapped_column("workflow", String(255), nullable=False)
+    workflow_id = mapped_column(
+        "workflow_id", UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), nullable=False
+    )
     assignee = mapped_column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = mapped_column(String(50), nullable=False)
     last_step = mapped_column(String(255), nullable=True)
@@ -103,15 +107,16 @@ class ProcessTable(BaseModel):
     process_subscriptions = relationship("ProcessSubscriptionTable", lazy=True, passive_deletes=True)
     subscriptions = association_proxy("process_subscriptions", "subscription")
 
+    workflow = relationship("WorkflowTable", back_populates="processes")
+
     @property
     @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
     def pid(self) -> Column:
         return self.process_id
 
     @property
-    @deprecated("Changed to 'workflow_name' from version 1.2.3, will be removed in 1.4")
-    def workflow(self) -> Column:
-        return self.workflow_name
+    def workflow_name(self) -> Column:
+        return self.workflow.name
 
 
 class ProcessStepTable(BaseModel):
@@ -220,6 +225,8 @@ class ProductTable(BaseModel):
     workflows = relationship(
         "WorkflowTable",
         secondary=product_workflows_association,
+        secondaryjoin="and_(products_workflows.c.workflow_id == WorkflowTable.workflow_id, "
+        "WorkflowTable.deleted_at == None)",
         lazy="select",
         cascade_backrefs=False,
         passive_deletes=True,
@@ -390,6 +397,8 @@ class WorkflowTable(BaseModel):
     target = mapped_column(String(), nullable=False)
     description = mapped_column(Text(), nullable=True)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    deleted_at = mapped_column(UtcTimestamp, deferred=True)
+
     products = relationship(
         "ProductTable",
         secondary=product_workflows_association,
@@ -397,6 +406,19 @@ class WorkflowTable(BaseModel):
         passive_deletes=True,
         back_populates="workflows",
     )
+    processes = relationship("ProcessTable", lazy="select", cascade="all, delete-orphan", back_populates="workflow")
+
+    @staticmethod
+    def find_by_workflow_name(name: str) -> WorkflowTable:
+        return WorkflowTable.query.filter(WorkflowTable.name == name).scalar()
+
+    @staticmethod
+    def select() -> Select:
+        return select(WorkflowTable).filter(WorkflowTable.deleted_at.is_(None))
+
+    def delete(self) -> WorkflowTable:
+        self.deleted_at = nowtz()
+        return self
 
 
 class SubscriptionInstanceRelationTable(BaseModel):

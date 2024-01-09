@@ -87,11 +87,11 @@ def generic_filter(
         handle_filter_error: CallableErrorHandler,
     ) -> QueryType:
         invalid_filter_items, valid_filter_items = _validate_filters(filter_by)
-        if invalid_list := [item.dict() for item in invalid_filter_items]:
+        if invalid_list := [item.model_dump() for item in invalid_filter_items]:
             handle_filter_error(
                 "Invalid filter arguments",
                 invalid_filters=invalid_list,
-                valid_filter_keys=valid_filter_functions_by_column_KEYS,
+                valid_filter_keys=sorted(valid_filter_functions_by_column_KEYS),
             )
 
         return _apply_filters(query, valid_filter_items, handle_filter_error)

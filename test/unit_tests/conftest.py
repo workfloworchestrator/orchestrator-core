@@ -9,6 +9,7 @@ import requests
 import structlog
 from alembic import command
 from alembic.config import Config
+from pydantic import BaseModel as PydanticBaseModel
 from redis import Redis
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
@@ -178,7 +179,7 @@ def db_uri(worker_id):
 
 @pytest.fixture(scope="session")
 def database(db_uri):
-    """Create database and run migrations and cleanup afterwards.
+    """Create database and run migrations and cleanup afterward.
 
     Args:
         db_uri: fixture for providing the application context and an initialized database. Although specifying this
@@ -309,14 +310,14 @@ def test_form_translations(worker_id):
     used_translations = set()
 
     # In order to properly wrap a classmethod we need to do special stuff
-    old_init_subclass = FormPage.__dict__["__init_subclass__"]
+    old_init_subclass = FormPage.__dict__["__pydantic_init_subclass__"]
 
     # Wrap a form function that is certain to be called to extract the used form fields
     @classmethod
-    def init_subclass_wrapper(cls, *args, **kwargs: Any) -> None:
+    def init_subclass_wrapper(cls: type[PydanticBaseModel], *args, **kwargs: Any) -> None:
         # Skip forms in test modules
         if "test" not in cls.__module__:
-            for field_name in cls.__fields__:
+            for field_name in cls.model_fields:
                 used_translations.add(field_name)
                 if field_name not in translations and f"{field_name}_accept" not in translations:
                     pytest.fail(f"Missing translation for field {field_name} in  {cls.__name__}")
@@ -324,12 +325,12 @@ def test_form_translations(worker_id):
         # Because the original is a classmethod we need to conform to the descriptor protocol
         return old_init_subclass.__get__(None, cls)(*args, **kwargs)
 
-    FormPage.__init_subclass__ = init_subclass_wrapper
+    FormPage.__pydantic_init_subclass__ = init_subclass_wrapper
     try:
         yield
     finally:
         # unwrapp and check if all translations are actually used
-        FormPage.__init_subclass__ = old_init_subclass
+        FormPage.__pydantic_init_subclass__ = old_init_subclass
 
         # This check only works when you run without python-xdist because we need one single session
         # TODO this does not work reliable yet
@@ -422,7 +423,7 @@ def generic_product_block_3(generic_resource_type_2):
 
 @pytest.fixture
 def generic_product_1(generic_product_block_1, generic_product_block_2):
-    workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").one()
+    workflow = WorkflowTable.find_by_workflow_name("modify_note")
     p = ProductTable(
         name="Product 1",
         description="Generic Product One",
@@ -439,7 +440,7 @@ def generic_product_1(generic_product_block_1, generic_product_block_2):
 
 @pytest.fixture
 def generic_product_2(generic_product_block_3):
-    workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").one()
+    workflow = WorkflowTable.find_by_workflow_name("modify_note")
 
     p = ProductTable(
         name="Product 2",
@@ -607,8 +608,8 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 
 @pytest.fixture
 def validation_workflow_instance():
-    with WorkflowInstanceForTests(validation_workflow, "validation_workflow"):
-        yield "created validation workflow"
+    with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
+        yield ctx
 
 
 @pytest.fixture
@@ -629,7 +630,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(app_settings.CACHE_URI)
+        cache = Redis.from_url(str(app_settings.CACHE_URI))
         # Clear cache before using this fixture
         cache.flushdb()
 
@@ -642,3 +643,12 @@ def cache_fixture(monkeypatch):
                 cache.delete(key)
             except Exception as exc:
                 print("failed to delete cache key", key, str(exc))  # noqa: T001, T201
+
+
+def do_refresh_subscriptions_search_view():
+    db.session.execute(text("REFRESH MATERIALIZED VIEW subscriptions_search"))
+
+
+@pytest.fixture
+def refresh_subscriptions_search_view():
+    do_refresh_subscriptions_search_view()

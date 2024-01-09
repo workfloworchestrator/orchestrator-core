@@ -28,7 +28,7 @@ from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import add_response_range, query_with_filters
+from orchestrator.api.helpers import add_response_range, add_subscription_search_query_filter, query_with_filters
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
@@ -47,6 +47,7 @@ from orchestrator.services.subscriptions import (
     _generate_etag,
     build_extended_domain_model,
     format_extended_domain_model,
+    format_special_types,
     get_subscription,
     get_subscription_metadata,
     query_depends_on_subscriptions,
@@ -117,7 +118,8 @@ def subscription_details_by_id_with_domain_model(
             response.status_code = HTTPStatus.NOT_MODIFIED
             return None
         response.headers["ETag"] = etag
-        return format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
+        filtered = format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
+        return format_special_types(filtered)
 
     if cache_response := from_redis(subscription_id):
         return _build_response(*cache_response)
@@ -229,6 +231,38 @@ def subscriptions_filterable(
     stmt = query_with_filters(stmt, sort_, filter_)
     stmt = add_response_range(stmt, range_, response)
 
+    sequence = db.session.execute(stmt).all()
+    return [{**s.__dict__, "metadata": md} for s, md in sequence]
+
+
+@router.get("/search", response_model=list[SubscriptionWithMetadata])
+def subscriptions_search(
+    response: Response, query: str, range: Optional[str] = None, sort: Optional[str] = None
+) -> list[dict]:
+    """Get subscriptions filtered based on a search query string.
+
+    Args:
+        response: Fastapi Response object
+        query: The search query
+        range: Range
+        sort: Sort
+
+    Returns:
+        List of subscriptions
+
+    """
+    range_ = list(map(int, range.split(","))) if range else None
+    sort_ = sort.split(",") if sort else None
+    logger.info("subscriptions_search() called", range=range_, sort=sort_)
+    stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
+        SubscriptionTable, SubscriptionMetadataTable, isouter=True
+    )
+
+    stmt = stmt.join(SubscriptionTable.product).options(
+        contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
+    )
+    stmt = add_subscription_search_query_filter(stmt, query)
+    stmt = add_response_range(stmt, range_, response)
     sequence = db.session.execute(stmt).all()
     return [{**s.__dict__, "metadata": md} for s, md in sequence]
 

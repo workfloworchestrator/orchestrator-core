@@ -74,7 +74,9 @@ websocket_manager = cast(WebSocketManager, wrapped_websocket_manager)
 
 # The Global WebSocketManager is set after calling this function
 def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
-    wrapped_websocket_manager.update(WebSocketManager(settings.ENABLE_WEBSOCKETS, settings.WEBSOCKET_BROADCASTER_URL))
+    wrapped_websocket_manager.update(
+        WebSocketManager(settings.ENABLE_WEBSOCKETS, str(settings.WEBSOCKET_BROADCASTER_URL))
+    )
     return websocket_manager
 
 

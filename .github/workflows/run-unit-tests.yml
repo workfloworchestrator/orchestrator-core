@@ -14,7 +14,7 @@ jobs:
     container: python:${{ matrix.python-version }}-slim
     services:
       postgres:
-        image: postgres:12-alpine
+        image: postgres:15-alpine
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa

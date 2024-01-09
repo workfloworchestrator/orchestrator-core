@@ -43,14 +43,15 @@ dependencies = [
     "click==8.*",
     "deprecated",
     "deepmerge==0.1.0",
-    "fastapi~=0.99.1",
+    "fastapi~=0.103.2",
     "fastapi-etag==0.4.0",
     "more-itertools~=9.0.0",
     "itsdangerous",
     "Jinja2==3.1.2",
     "orjson==3.9.5",
     "psycopg2-binary==2.9.5",
-    "pydantic[email]==1.10.9,<2.0.0",
+    "pydantic[email]~=2.5.1",
+    "pydantic-settings~=2.1.0",
     "python-dateutil==2.8.2",
     "python-rapidjson==1.9",
     "pytz==2023.3",
@@ -62,12 +63,13 @@ dependencies = [
     "structlog",
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
-    "nwa-stdlib~=1.4.9",
-    "oauth2-lib==1.4.1",
+    "nwa-stdlib~=1.5.4",
+    "oauth2-lib~=1.4.2",
     "tabulate==0.9.0",
-    "strawberry-graphql==0.203.3",
-    "pydantic-forms==0.2.0",
+    "strawberry-graphql==0.209.8",
+    "pydantic-forms==1.0.0",
 ]
+
 description-file = "README.md"
 requires-python = ">=3.9,<3.12"
 
@@ -84,15 +86,16 @@ test = [
     "black",
     "blinker",
     "deepdiff",
+    "dirty-equals",
     "ruff",
     "jsonref",
-    "mypy==1.4.1",
+    "mypy==1.6.1",
     "pytest",
     "pytest-cov",
     "pytest-httpx",
     "pytest-xdist",
     "requests-mock",
-#    "sqlalchemy[mypy]",
+    #    "sqlalchemy[mypy]",
     "urllib3_mock",
     "types-Deprecated",
     "types-Jinja2",
@@ -203,6 +206,7 @@ ban-relative-imports = "all"
 [tool.ruff.per-file-ignores]
 "orchestrator/api/*" = ["B008"]
 "orchestrator/cli/*" = ["B008"]
+"orchestrator/devtools/scripts/*" = ["S101", "T201"]
 "test/*" = ["S101", "B033", "N816", "N802"]
 
 [tool.ruff.pydocstyle]

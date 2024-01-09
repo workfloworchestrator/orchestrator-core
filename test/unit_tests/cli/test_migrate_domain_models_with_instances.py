@@ -37,7 +37,7 @@ def test_migrate_domain_models_new_product_block(
 
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-        assert "new_block" not in subscription.block.dict()
+        assert "new_block" not in subscription.block.model_dump()
 
     test_expected_before_upgrade()
 
@@ -96,7 +96,7 @@ def test_migrate_domain_models_new_product_block_on_product_block(
 
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-        assert "new_block" not in subscription.block.dict()
+        assert "new_block" not in subscription.block.model_dump()
 
     test_expected_before_upgrade()
 
@@ -150,7 +150,7 @@ def test_migrate_domain_models_new_resource_type(
 
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-        assert "new_int_field" not in subscription.block.dict()
+        assert "new_int_field" not in subscription.block.model_dump()
 
         new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
         assert not new_int_field_resource
@@ -200,7 +200,7 @@ def test_migrate_domain_models_new_product_block_and_resource_type(
 
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-        assert "new_block" not in subscription.block.dict()
+        assert "new_block" not in subscription.block.model_dump()
 
     test_expected_before_upgrade()
 
@@ -257,7 +257,7 @@ def test_migrate_domain_models_update_resource_type(
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
         assert subscription.block.list_field == [10, 20, 30]
-        assert "new_int_field" not in subscription.block.dict()
+        assert "new_int_field" not in subscription.block.model_dump()
 
         new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
         assert not new_int_field_resource
@@ -316,8 +316,8 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
         assert subscription.block.list_field == [10, 20, 30]
-        assert "new_int_field" not in subscription.block.dict()
-        assert "new_int_field" not in subscription.block.sub_block.dict()
+        assert "new_int_field" not in subscription.block.model_dump()
+        assert "new_int_field" not in subscription.block.sub_block.model_dump()
 
         new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
         assert not new_int_field_resource
@@ -384,10 +384,10 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
         subscription = ProductSubListUnion.from_subscription(product_sub_list_union_subscription_1)
         assert subscription.test_block.int_field == 1
         assert subscription.test_block.list_union_blocks[1].int_field == 1
-        assert "int_field" not in subscription.test_block.list_union_blocks[0].dict()
-        assert "changed_int_field" not in subscription.test_block.dict()
-        assert "changed_int_field" not in subscription.test_block.list_union_blocks[0].dict()
-        assert "changed_int_field" not in subscription.test_block.list_union_blocks[1].dict()
+        assert "int_field" not in subscription.test_block.list_union_blocks[0].model_dump()
+        assert "changed_int_field" not in subscription.test_block.model_dump()
+        assert "changed_int_field" not in subscription.test_block.list_union_blocks[0].model_dump()
+        assert "changed_int_field" not in subscription.test_block.list_union_blocks[1].model_dump()
 
         new_int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "new_int_field").all()
         assert not new_int_field_resource
@@ -402,9 +402,9 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
     assert updated_subscription.test_block.changed_int_field == 1
     assert updated_subscription.test_block.list_union_blocks[0].changed_int_field == 2
     assert updated_subscription.test_block.list_union_blocks[1].changed_int_field == 1
-    assert "int_field" not in updated_subscription.test_block.dict()
-    assert "int_field" not in updated_subscription.test_block.list_union_blocks[0].dict()
-    assert "int_field" not in updated_subscription.test_block.list_union_blocks[1].dict()
+    assert "int_field" not in updated_subscription.test_block.model_dump()
+    assert "int_field" not in updated_subscription.test_block.list_union_blocks[0].model_dump()
+    assert "int_field" not in updated_subscription.test_block.list_union_blocks[1].model_dump()
 
     int_field_resource = ResourceTypeTable.query.where(ResourceTypeTable.resource_type == "int_field").all()
     assert not int_field_resource
@@ -461,7 +461,7 @@ def test_migrate_domain_models_remove_fixed_input(
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
-    assert "test_fixed_input" not in subscription.dict()
+    assert "test_fixed_input" not in subscription.model_dump()
 
     for stmt in downgrade_sql:
         db.session.execute(text(stmt))
@@ -500,7 +500,7 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
-    assert "block" not in subscription.dict()
+    assert "block" not in subscription.model_dump()
 
     int_field_instance_values = SubscriptionInstanceValueTable.query.where(
         SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
@@ -546,7 +546,7 @@ def test_migrate_domain_models_remove_resource_type(
     db.session.commit()
 
     subscription = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
-    assert "list_field" not in subscription.block.dict()
+    assert "list_field" not in subscription.block.model_dump()
 
     for stmt in downgrade_sql:
         db.session.execute(text(stmt))
@@ -587,7 +587,7 @@ def test_migrate_domain_models_update_block_resource_type(
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
         assert subscription.block.str_field
-        assert "update_str_field" not in subscription.block.dict()
+        assert "update_str_field" not in subscription.block.model_dump()
 
         new_str_field_resource = ResourceTypeTable.query.where(
             ResourceTypeTable.resource_type == "update_str_field"
@@ -651,7 +651,7 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(test_produc
     def test_expected_before_upgrade():
         subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
         assert subscription.block.str_field
-        assert "update_str_field" not in subscription.block.dict()
+        assert "update_str_field" not in subscription.block.model_dump()
 
         new_str_field_resource = ResourceTypeTable.query.where(
             ResourceTypeTable.resource_type == "update_str_field"

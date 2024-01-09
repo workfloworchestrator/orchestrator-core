@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 import pytest
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from orchestrator.db import ProductBlockTable, db
 from orchestrator.domain.base import ProductBlockModel, ProductModel
@@ -20,6 +20,11 @@ def test_product_block_one(test_product_sub_block_one):
         int_field: Optional[int] = None
         str_field: Optional[str] = None
         list_field: List[int] = Field(default_factory=list)
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def title(self) -> str:
+            return f"{self.tag} ProductBlockOneForTestInactive int_field={self.int_field}"
 
     class ProductBlockOneForTestProvisioning(
         ProductBlockOneForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]

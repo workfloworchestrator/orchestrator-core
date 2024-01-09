@@ -14,13 +14,13 @@ from orchestrator.db import (
     ProcessSubscriptionTable,
     ProcessTable,
     SubscriptionTable,
-    WorkflowTable,
     db,
 )
 from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
+from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
@@ -39,17 +39,15 @@ def long_running_workflow():
         return init >> long_running_step >> long_running_step >> done
 
     with WorkflowInstanceForTests(long_running_workflow_py, "long_running_workflow_py"):
-        db_workflow = WorkflowTable(name="long_running_workflow_py", target=Target.MODIFY)
-        db.session.add(db_workflow)
-        db.session.commit()
-
         yield "long_running_workflow_py"
 
 
 @pytest.fixture
 def started_process(test_workflow, generic_subscription_1):
     process_id = uuid4()
-    process = ProcessTable(process_id=process_id, workflow_name=test_workflow, last_status=ProcessStatus.SUSPENDED)
+    process = ProcessTable(
+        process_id=process_id, workflow_id=test_workflow.workflow_id, last_status=ProcessStatus.SUSPENDED
+    )
     init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
     insert_step = ProcessStepTable(
         process_id=process_id,
@@ -182,7 +180,7 @@ def test_service_unavailable_engine_locked(test_client, test_workflow):
 
 
 def test_complete_workflow(test_client, test_workflow):
-    response = test_client.post(f"/api/processes/{test_workflow}", json=[{}])
+    response = test_client.post(f"/api/processes/{test_workflow.name}", json=[{}])
 
     assert (
         HTTPStatus.CREATED == response.status_code
@@ -200,19 +198,26 @@ def test_complete_workflow(test_client, test_workflow):
     steps = process["steps"]
     assert "success" == steps[0]["status"]
 
-    # Check validation
-    user_input = {
-        "generic_select": 123,
-    }
+    # Check type validation
+    user_input = {"generic_select": 123}
+    response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    assert response.json()["validation_errors"] == [
+        {"input": 123, "loc": ["generic_select"], "msg": "Input should be a valid string", "type": "string_type"}
+        | URL_STR_TYPE
+    ]
 
+    # Check choice validation
+    user_input = {"generic_select": "123"}
     response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert response.json()["validation_errors"] == [
         {
+            "ctx": {"expected": "'A', 'B' or 'C'"},
+            "input": "123",
             "loc": ["generic_select"],
-            "msg": "value is not a valid enumeration member; permitted: 'A', 'B', 'C'",
-            "type": "type_error.enum",
-            "ctx": {"enum_values": ["A", "B", "C"]},
+            "msg": "Input should be 'A', 'B' or 'C'",
+            "type": "enum",
         }
     ]
 
@@ -295,12 +300,8 @@ def test_resume_validations(test_client, started_process):
     response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": 123}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert [
-        {
-            "ctx": {"enum_values": ["A", "B", "C"]},
-            "loc": ["generic_select"],
-            "msg": "value is not a valid enumeration member; permitted: 'A', 'B', 'C'",
-            "type": "type_error.enum",
-        }
+        {"type": "string_type", "loc": ["generic_select"], "msg": "Input should be a valid string", "input": 123}
+        | URL_STR_TYPE
     ] == response.json()["validation_errors"]
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()
     excuted_steps_before = [step for step in process_info_before["steps"] if step.get("executed")]
@@ -417,11 +418,12 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
-    del process["id"]  # skip product_id as it's dynamic
-    del process["pid"]  # skip product_id as it's dynamic
+    del process["id"]  # skip process_id as it's dynamic
+    del process["pid"]  # skip process_id as it's dynamic
     del process["process_id"]  # skip process_id as it's dynamic
     del process["product_id"]  # skip product_id as it's dynamic
     del process["product"]  # skip product as it's dynamic
+    del process["workflow_id"]  # skip workflow_id as it's dynamic
     del process["subscriptions"]
     assert process == {
         "customer_id": "2f47f65a-0911-e511-80d0-005056956c1a",

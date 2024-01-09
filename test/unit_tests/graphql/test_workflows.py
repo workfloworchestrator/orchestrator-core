@@ -1,17 +1,27 @@
 import json
 from http import HTTPStatus
-from typing import Union
+from typing import Optional
+
+import pytest
+
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
+    add_soft_deleted_workflows(10)
 
 
 def get_workflows_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[dict[str, str]], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[dict[str, str]]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
-query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
-  workflows(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
+query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {
+  workflows(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy, query: $query) {
     page {
       workflowId
       name
@@ -41,6 +51,7 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -97,11 +108,15 @@ def test_workflows_has_previous_page(test_client):
     ]
 
 
-def test_workflows_filter_by_name(test_client):
-    data = get_workflows_query(
-        filter_by=[{"field": "name", "value": "task_"}],
-        sort_by=[{"field": "name", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "name", "value": "task_"}]},
+        {"query_string": "name:task_*"},
+    ],
+)
+def test_workflows_filter_by_name(test_client, query_args):
+    data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
@@ -121,18 +136,21 @@ def test_workflows_filter_by_name(test_client):
     assert [rt["name"] for rt in workflows] == expected_workflows
 
 
-def test_workflows_filter_by_product(test_client):
-    data = get_workflows_query(
-        filter_by=[{"field": "products", "value": "Product 1"}],
-        sort_by=[{"field": "name", "order": "ASC"}],
-    )
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "products", "value": "Product 1"}]},
+        {"query_string": 'product:"Product 1"'},
+    ],
+)
+def test_workflows_filter_by_product(test_client, query_args):
+    data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]
     workflows = workflows_data["page"]
     pageinfo = workflows_data["pageInfo"]
-
     assert "errors" not in result
     assert pageinfo == {
         "endCursor": 0,

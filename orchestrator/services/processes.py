@@ -16,7 +16,7 @@ import threading
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 import structlog
@@ -27,7 +27,14 @@ from sqlalchemy.orm import joinedload
 from nwastdlib.ex import show_ex
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db import (
+    EngineSettingsTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    WorkflowTable,
+    db,
+)
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.settings import ExecutorType, app_settings
@@ -100,9 +107,13 @@ def shutdown_thread_pool() -> None:
 
 
 def _db_create_process(stat: ProcessStat) -> None:
+    wf_table = WorkflowTable.find_by_workflow_name(stat.workflow.name)
+    if not wf_table:
+        raise AssertionError(f"No workflow found with name: {stat.workflow.name}")
+
     p = ProcessTable(
         process_id=stat.process_id,
-        workflow_name=stat.workflow.name,
+        workflow_id=wf_table.workflow_id,
         last_status=ProcessStatus.CREATED,
         created_by=stat.current_user,
         is_task=stat.workflow.target == Target.SYSTEM,
@@ -336,7 +347,7 @@ def _get_process(process_id: UUID) -> ProcessTable:
 
 
 def _run_process_async(process_id: UUID, f: Callable) -> UUID:
-    def _update_running_processes(method: Literal["+", "-"], *args: Any) -> None:
+    def _update_running_processes(method: str, *args: Any) -> None:
         """Update amount of running processes by one.
 
         Args:
@@ -674,7 +685,7 @@ def _restore_log(steps: List[ProcessStepTable]) -> List[WFProcess]:
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
-    workflow = get_workflow(process.workflow_name)
+    workflow = get_workflow(str(process.workflow_name))
 
     if not workflow:
         workflow = removed_workflow

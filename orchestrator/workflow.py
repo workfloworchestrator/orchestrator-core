@@ -92,7 +92,7 @@ class Workflow(Protocol):
     name: str
     description: str
     initial_input_form: Optional[InputFormGenerator] = None
-    target: Optional[Target] = None
+    target: Target
     steps: StepList
 
     def __call__(self) -> NoReturn:
@@ -177,8 +177,8 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
 
     # If f is a SimpleInputFormGenerator convert to new style generator function
     def form_generator(state: State) -> FormGenerator:
-        user_input = yield cast(StateSimpleInputFormGenerator, f)(state)
-        return user_input.dict()
+        user_input: FormPage = yield cast(StateSimpleInputFormGenerator, f)(state)
+        return user_input.model_dump()
 
     return form_generator
 
@@ -187,7 +187,7 @@ def make_workflow(
     f: Callable,
     description: str,
     initial_input_form: Optional[InputStepFunc],
-    target: Optional[Target],
+    target: Target,
     steps: StepList,
 ) -> Workflow:
     @functools.wraps(f)
@@ -271,7 +271,7 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
             class Form(FormPage):
                 name: str
             user_input = yield Form
-            return {**user_input.dict(), "some extra key": True}
+            return {**user_input.model_dump(), "some extra key": True}
 
     """
 
@@ -464,7 +464,7 @@ def focussteps(key: str) -> Callable[[Union[Step, StepList]], StepList]:
 
 
 def workflow(
-    description: str, initial_input_form: Optional[InputStepFunc] = None, target: Optional[Target] = None
+    description: str, initial_input_form: Optional[InputStepFunc] = None, target: Target = Target.SYSTEM
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 

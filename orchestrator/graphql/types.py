@@ -25,11 +25,11 @@ from strawberry.scalars import JSON
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
 
+from nwastdlib.vlans import VlanRanges
 from oauth2_lib.fastapi import OIDCUserModel
 from oauth2_lib.strawberry import OauthContext
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
-from orchestrator.utils.vlans import VlanRanges
 
 
 def serialize_to_string(value: Any) -> str:
@@ -100,6 +100,13 @@ IPv6InterfaceType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
+IntType = strawberry.scalar(
+    NewType("Int", int),
+    description="An arbitrary precision integer",
+    serialize=lambda v: v,
+    parse_value=lambda v: v,
+)
+
 SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
     dict: JSON,
     VlanRanges: VlanRangesType,
@@ -107,4 +114,5 @@ SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
     IPv6Address: IPv6AddressType,
     IPv4Interface: IPv4InterfaceType,
     IPv6Interface: IPv6InterfaceType,
+    int: IntType,
 }

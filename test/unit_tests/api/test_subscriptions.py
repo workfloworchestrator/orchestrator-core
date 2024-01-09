@@ -1,5 +1,7 @@
 from http import HTTPStatus
+from ipaddress import IPv4Address
 from os import getenv
+from unittest import mock
 from uuid import uuid4
 
 import pytest
@@ -19,7 +21,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.db.models import SubscriptionInstanceRelationTable
+from orchestrator.db.models import SubscriptionInstanceRelationTable, WorkflowTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
@@ -28,6 +30,7 @@ from orchestrator.services.subscriptions import (
     unsync,
 )
 from orchestrator.settings import app_settings
+from orchestrator.targets import Target
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.utils.redis import to_redis
 from orchestrator.workflow import ProcessStatus
@@ -849,12 +852,13 @@ def test_depends_on_subscriptions_insync_direct_relations(seed_with_direct_relat
 
 
 def test_delete_subscription(responses, seed, test_client):
-    process_id = str(uuid4())
-    db.session.add(
-        ProcessTable(
-            process_id=process_id, workflow_name="statisch_lichtpad_aanvragen", last_status=ProcessStatus.CREATED
-        )
+    wf = WorkflowTable(
+        workflow_id=uuid4(), name="statisch_lichtpad_aanvragen", target=Target.CREATE, description="Test"
     )
+    db.session.add(wf)
+
+    process_id = str(uuid4())
+    db.session.add(ProcessTable(process_id=process_id, workflow_id=wf.workflow_id, last_status=ProcessStatus.CREATED))
     db.session.add(ProcessSubscriptionTable(process_id=process_id, subscription_id=PORT_A_SUBSCRIPTION_ID))
     db.session.commit()
 
@@ -924,7 +928,7 @@ def test_subscription_detail_with_domain_model_cache(test_client, generic_subscr
 
     response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
 
-    cache = Redis.from_url(app_settings.CACHE_URI)
+    cache = Redis.from_url(str(app_settings.CACHE_URI))
     result = cache.get(f"domain:{generic_subscription_1}")
     cached_model = json_dumps(json_loads(result))
     cached_etag = cache.get(f"domain:etag:{generic_subscription_1}")
@@ -941,6 +945,59 @@ def test_subscription_detail_with_in_use_by_ids_filtered_self(test_client, produ
     response = test_client.get(URL("api/subscriptions/domain-model") / product_one_subscription_1)
     assert response.status_code == HTTPStatus.OK
     assert not response.json()["block"]["sub_block"]["in_use_by_ids"]
+
+
+@mock.patch("orchestrator.api.api_v1.endpoints.subscriptions.from_redis")
+def test_subscription_detail_special_fields(mock_from_redis, test_client):
+    """Test that a subscription with special field types is correctly serialized by Pydantic.
+
+    https://github.com/pydantic/pydantic/issues/6669
+    """
+    standard_fields = {
+        "subscription_id": "fabd6359-cb37-4a1c-bfc4-5c15aea7c888",
+        "description": "desc",
+        "status": "active",
+        "customer_id": "f711c6fe-6de3-40bd-a4e7-9ac9d183a788",
+        "insync": True,
+        "product": {
+            "name": "fake name",
+            "description": "fake description",
+            "product_type": "fake type",
+            "status": "active",
+            "tag": "fake tag",
+        },
+    }
+    # Make the from_redis function return an IPv4Address - this wouldn't happen normally but it's easier
+    # to mock than SubscriptionModel.from_subscription, and tests the special field formatting all the same
+    special_fields = {"ip_address": IPv4Address("127.0.0.1")}
+    mock_from_redis.return_value = (standard_fields | special_fields, "etag ofzo")
+
+    response = test_client.get(URL("api/subscriptions/domain-model") / "fabd6359-cb37-4a1c-bfc4-5c15aea7c888")
+    assert response.json() == {
+        "subscription_id": "fabd6359-cb37-4a1c-bfc4-5c15aea7c888",
+        "start_date": None,
+        "description": "desc",
+        "status": "active",
+        "product_id": None,
+        "customer_id": "f711c6fe-6de3-40bd-a4e7-9ac9d183a788",
+        "insync": True,
+        "note": None,
+        "name": None,
+        "end_date": None,
+        "product": {
+            "product_id": None,
+            "name": "fake name",
+            "description": "fake description",
+            "product_type": "fake type",
+            "status": "active",
+            "tag": "fake tag",
+            "created_at": None,
+            "end_date": None,
+        },
+        "customer_descriptions": [],
+        "tag": None,
+        "ip_address": "127.0.0.1",
+    }
 
 
 def test_subscription_detail_with_in_use_by_ids_not_filtered_self(test_client, product_one_subscription_1):
@@ -977,18 +1034,18 @@ def test_set_in_sync(seed, test_client):
 
 
 def _create_failed_process(subscription_id):
+    wf = WorkflowTable(workflow_id=uuid4(), name="validate_ip_prefix", target=Target.SYSTEM)
     process_id = uuid4()
-
     process = ProcessTable(
         process_id=process_id,
-        workflow_name="validate_ip_prefix",
+        workflow_id=wf.workflow_id,
         last_status=ProcessStatus.FAILED,
         last_step="Verify references in NSO",
         assignee="NOC",
         is_task=False,
     )
     process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)
-
+    db.session.add(wf)
     db.session.add(process)
     db.session.add(process_subscription)
 
@@ -1014,3 +1071,19 @@ def test_product_block_paths(generic_subscription_1, generic_subscription_2):
     subscription_2 = SubscriptionModel.from_subscription(generic_subscription_2)
     assert product_block_paths(subscription_1) == ["product", "pb_1", "pb_2"]
     assert product_block_paths(subscription_2) == ["product", "pb_3"]
+
+
+@pytest.mark.parametrize(
+    "query, num_matches",
+    [
+        ("id", 7),
+        ("tag:(POR* | LP)", 1),
+        ("tag:SP", 3),
+        ("tag:(POR* | LP) | tag:SP", 4),
+        ("tag:(POR* | LP) | tag:SP -status:initial", 3),
+    ],
+)
+def test_subscriptions_search(query, num_matches, seed, test_client, refresh_subscriptions_search_view):
+    response = test_client.get(f"/api/subscriptions/search?query={query}")
+    result = response.json()
+    assert len(result) == num_matches

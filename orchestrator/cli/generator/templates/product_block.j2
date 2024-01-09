@@ -12,7 +12,8 @@ from {{ namespace }} import {{ type }}
 from typing import TypeVar
 {% endif -%}
 {% if constrained_ints_to_generate %}
-from pydantic import ConstrainedInt
+from typing import Annotated
+from annotated_types import Ge, Le
 {% endif -%}
 {% if "UUID" in product_block.fields | map(attribute="type") %}
 from uuid import UUID
@@ -20,7 +21,8 @@ from uuid import UUID
 {% for module, type in product_blocks_to_import %}
 from {{ module }} import {{ type }}BlockInactive, {{ type }}BlockProvisioning, {{ type }}Block
 {% endfor %}
-from orchestrator.domain.base import ProductBlockModel, serializable_property
+from pydantic import computed_field
+from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
 {% include "list_definitions.j2" %}
@@ -45,7 +47,8 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
     {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
     {% endif -%}
     {% endfor %}
-    @serializable_property
+    @computed_field
+    @property
     def title(self) -> str:
         # TODO: format correct title string
         return f"{self.name}"

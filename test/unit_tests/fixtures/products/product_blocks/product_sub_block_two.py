@@ -8,7 +8,7 @@ from orchestrator.types import SubscriptionLifecycle
 @pytest.fixture
 def test_product_sub_block_two():
     class SubBlockTwoForTestInactive(ProductBlockModel, product_block_name="SubBlockTwoForTest"):
-        int_field_2: int
+        int_field_2: int  # TODO #430 inactive productblocks should not have required fields
 
     class SubBlockTwoForTestProvisioning(SubBlockTwoForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         int_field_2: int

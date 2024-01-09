@@ -24,7 +24,7 @@ def test_resume_workflow():
 
         user_input = yield WaitForm
         meer = [*steden, stad]
-        return {**user_input.dict(), "steden": meer}
+        return {**user_input.model_dump(), "steden": meer}
 
     @step("Test step 3")
     def fakestep3(steden):

@@ -27,10 +27,12 @@ from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
+from orchestrator.cli.generator.generator.helpers import camel_to_snake
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.utils.search_query import create_ts_query_string
 
 logger = get_logger(__name__)
 
@@ -83,7 +85,7 @@ def query_with_filters(  # noqa: C901
             if filter_ and len(filter_) == 2:
                 field = filter_[0]
                 value = filter_[1]
-                value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "ja", "insync")
+                value_as_bool = value.lower() in ("yes", "y", "ye", "true", "1", "insync")
                 if value is not None:
                     if field.endswith("_gt"):
                         stmt = stmt.filter(SubscriptionTable.__dict__[field[:-3]] > value)
@@ -148,6 +150,24 @@ def add_response_range(stmt: Selectable, range_: Optional[list[int]], response: 
 
         response.headers["Content-Range"] = f"subscriptions {range_start}-{range_end}/{total}"
     return stmt
+
+
+MAX_QUERY_STRING_LENGTH = 512
+
+
+def add_subscription_search_query_filter(stmt: Select, search_query: str) -> Select:
+    """Filters the Select statement on the contents of the query string.
+
+    The Select statement should read from SubscriptionTable as a source.
+    The query will first be converted from camelCase to snake_case before parsing.
+    """
+    if len(search_query) > MAX_QUERY_STRING_LENGTH:
+        raise_status(HTTPStatus.BAD_REQUEST, f"Max query length of {MAX_QUERY_STRING_LENGTH} characters exceeded.")
+
+    ts_query = create_ts_query_string(camel_to_snake(search_query))
+    return stmt.join(SubscriptionSearchView).filter(
+        func.to_tsquery("simple", ts_query).op("@@")(SubscriptionSearchView.tsv)
+    )
 
 
 VALID_SORT_KEYS = {
@@ -237,7 +257,7 @@ def enrich_process(p: ProcessTable) -> _ProcessListItem:
         last_status=p.last_status,
         last_step=p.last_step,
         subscriptions=subscriptions,
-        workflow=p.workflow_name,
+        workflow=str(p.workflow_name),
         workflow_target=first([ps.workflow_target for ps in p.process_subscriptions], None),
         is_task=p.is_task,
     )
@@ -283,7 +303,7 @@ def getattr_in(obj: Any, attr: str) -> Any:
 
 
 def product_block_paths(subscription: Union[SubscriptionModel, dict]) -> List[str]:
-    _subscription = subscription.dict() if isinstance(subscription, SubscriptionModel) else subscription
+    _subscription = subscription.model_dump() if isinstance(subscription, SubscriptionModel) else subscription
 
     def get_dict_items(d: dict) -> Generator:
         for k, v in d.items():

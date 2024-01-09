@@ -1,6 +1,6 @@
 from typing import Callable
 
-from sqlalchemy import Column
+from sqlalchemy import Column, Select
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
@@ -14,7 +14,11 @@ PROCESS_SNAKE_SORT = {key: generic_column_sort(value) for key, value in inspect(
 
 def generic_process_relation_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
-        joined_query = query.join(ProcessSubscriptionTable).join(SubscriptionTable).join(ProductTable)
+        if isinstance(query, Select):
+            joined_query: QueryType = query.join(ProcessSubscriptionTable).join(SubscriptionTable).join(ProductTable)
+        else:
+            # Can't join on CompoundSelect
+            joined_query = query
         if order == SortOrder.DESC:
             return joined_query.order_by(expression.desc(field))
         return joined_query.order_by(expression.asc(field))

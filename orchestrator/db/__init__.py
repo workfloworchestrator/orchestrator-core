@@ -45,7 +45,7 @@ class WrappedDatabase:
 
     def update(self, wrappee: Database) -> None:
         self.wrapped_database = wrappee
-        logger.warning("Database object configured, all methods referencing `db` should work.")
+        logger.info("Database object configured, all methods referencing `db` should work.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_database, Database):
@@ -66,7 +66,7 @@ db = cast(Database, wrapped_db)
 
 # The Global Database is set after calling this function
 def init_database(settings: AppSettings) -> Database:
-    wrapped_db.update(Database(settings.DATABASE_URI))
+    wrapped_db.update(Database(str(settings.DATABASE_URI)))
     return db
 
 

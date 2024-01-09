@@ -12,7 +12,17 @@
 # limitations under the License.
 import json
 from http import HTTPStatus
-from typing import Union
+from typing import Optional
+
+import pytest
+
+from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
+    add_soft_deleted_workflows(10)
+
 
 process_fields = [
     "processId",
@@ -22,6 +32,7 @@ process_fields = [
     "assignee",
     "failedReason",
     "traceback",
+    "workflowId",
     "workflowName",
     "createdBy",
     "startedAt",
@@ -33,12 +44,13 @@ process_fields = [
 def get_processes_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
-query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
-  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {
+  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy, query: $query) {
     page {
       processId
       isTask
@@ -47,16 +59,11 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       assignee
       failedReason
       traceback
+      workflowId
       workflowName
       createdBy
       startedAt
       lastModifiedAt
-      pid
-      step
-      status
-      workflow
-      started
-      lastModified
       product {
         productId
         name
@@ -87,6 +94,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -95,12 +103,13 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
 def get_processes_query_with_subscriptions(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
-query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
-  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {
+  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy, query: $query) {
     page {
       processId
       isTask
@@ -109,6 +118,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       assignee
       failedReason
       traceback
+      workflowId
       workflowName
       createdBy
       startedAt
@@ -154,6 +164,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -162,12 +173,13 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
 def get_processes_state_updates_and_delta(
     first: int = 10,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: Optional[list[str]] = None,
+    sort_by: Optional[list[dict[str, str]]] = None,
+    query_string: Optional[str] = None,
 ) -> bytes:
     query = """
-query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!]) {
-  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy) {
+query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {
+  processes(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy, query: $query) {
     page {
       steps {
         stateDelta
@@ -193,6 +205,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
                 "after": after,
                 "sortBy": sort_by if sort_by else [],
                 "filterBy": filter_by if filter_by else [],
+                "query": query_string,
             },
         }
     ).encode("utf-8")
@@ -323,16 +336,25 @@ def test_processes_sorting_desc(
     assert processes[4]["startedAt"] == "2020-01-18T09:30:00+00:00"
 
 
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        {"filter_by": [{"field": "lastStatus", "value": "completed"}]},
+        {"query_string": "lastStatus:completed"},
+        {"query_string": "last_status:completed"},
+    ],
+)
 def test_processes_has_filtering(
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
+    query_args,
 ):
     # when
 
-    data = get_processes_query(filter_by=[{"field": "lastStatus", "value": "completed"}])
+    data = get_processes_query(**query_args)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -389,37 +411,39 @@ def test_processes_filtering_with_invalid_filter(
             "extensions": {
                 "invalid_filters": [{"field": "test", "value": "invalid"}],
                 "valid_filter_keys": [
-                    "processId",
-                    "workflowName",
                     "assignee",
+                    "createdBy",
+                    "created_by",
+                    "creator",
+                    "failedReason",
+                    "failed_reason",
+                    "isTask",
+                    "is_task",
+                    "istask",
+                    "lastModifiedAt",
                     "lastStatus",
                     "lastStep",
-                    "startedAt",
-                    "lastModifiedAt",
-                    "failedReason",
-                    "traceback",
-                    "createdBy",
-                    "isTask",
-                    "process_id",
-                    "workflow_name",
+                    "last_modified_at",
                     "last_status",
                     "last_step",
-                    "started_at",
-                    "last_modified_at",
-                    "failed_reason",
-                    "created_by",
-                    "is_task",
+                    "organisation",
+                    "processId",
+                    "process_id",
                     "product",
                     "productTag",
-                    "subscriptions",
+                    "startedAt",
+                    "started_at",
+                    "status",
                     "subscriptionId",
                     "subscription_id",
-                    "target",
-                    "organisation",
-                    "istask",
-                    "status",
+                    "subscriptions",
                     "tag",
-                    "creator",
+                    "target",
+                    "traceback",
+                    "workflowId",
+                    "workflowName",
+                    "workflow_id",
+                    "workflow_name",
                 ],
             },
         }
@@ -436,17 +460,26 @@ def test_processes_filtering_with_invalid_filter(
         assert process["lastStatus"] == "COMPLETED"
 
 
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        lambda pid: {"filter_by": [{"field": "processId", "value": pid}]},
+        lambda pid: {"query_string": f"processId:{pid}"},
+        lambda pid: {"query_string": f"process_id:{pid}"},
+    ],
+)
 def test_single_process(
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
+    query_args,
 ):
     process_pid = str(mocked_processes[0])
     # when
 
-    data = get_processes_query(filter_by=[{"field": "processId", "value": process_pid}])
+    data = get_processes_query(**query_args(process_pid))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -468,21 +501,29 @@ def test_single_process(
     assert processes[0]["processId"] == process_pid
 
 
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        lambda pid: {"filter_by": [{"field": "processId", "value": pid}]},
+        lambda pid: {"query_string": f"processId:{pid}"},
+        lambda pid: {"query_string": f"process_id:{pid}"},
+    ],
+)
 def test_single_process_with_subscriptions(
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
+    query_args,
 ):
     process_pid = str(mocked_processes[0])
     # when
 
-    data = get_processes_query_with_subscriptions(filter_by=[{"field": "processId", "value": process_pid}])
+    data = get_processes_query_with_subscriptions(**query_args(process_pid))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
-
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     processes_data = result["data"]["processes"]
@@ -543,17 +584,26 @@ def test_processes_sorting_product_tag_asc(
     ]
 
 
+@pytest.mark.parametrize(
+    "query_args",
+    [
+        lambda pid: {"filter_by": [{"field": "processId", "value": pid}]},
+        lambda pid: {"query_string": f"processId:{pid}"},
+        lambda pid: {"query_string": f"process_id:{pid}"},
+    ],
+)
 def test_processes_state_updates_and_delta(
     test_client,
     mocked_processes,
     mocked_processes_resumeall,
     generic_subscription_2,
     generic_subscription_1,
+    query_args,
 ):
     # when
 
     process_pid = str(mocked_processes[0])
-    data = get_processes_state_updates_and_delta(filter_by=[{"field": "processId", "value": process_pid}])
+    data = get_processes_state_updates_and_delta(**query_args(process_pid))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then

@@ -3,7 +3,7 @@
 [![codecov](https://codecov.io/gh/workfloworchestrator/orchestrator-core/branch/main/graph/badge.svg?token=5ANQFI2DHS)](https://codecov.io/gh/workfloworchestrator/orchestrator-core)
 [![pypi_version](https://img.shields.io/pypi/v/orchestrator-core?color=%2334D058&label=pypi%20package)](https://pypi.org/project/orchestrator-core)
 [![Supported python versions](https://img.shields.io/pypi/pyversions/orchestrator-core.svg?color=%2334D058)](https://pypi.org/project/orchestrator-core)
-<p align="center"><em>Production ready Orchestration Framework to manage product lifecyle and workflows. Easy to use, Built on top of FastAPI</em></p>
+<p style="text-align: center"><em>Production ready Orchestration Framework to manage product lifecycle and workflows. Easy to use, Built on top of FastAPI</em></p>
 
 
 ## Documentation
@@ -73,6 +73,8 @@ More info can be found in `docs/architecture/application/graphql.md`
 
 example:
 ```python
+from orchestrator import OrchestratorCore
+from orchestrator.settings import AppSettings
 app = OrchestratorCore(base_settings=AppSettings())
 # register SUBSCRIPTION_MODEL_REGISTRY
 app.register_graphql()

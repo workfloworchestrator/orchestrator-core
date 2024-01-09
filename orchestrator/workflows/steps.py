@@ -54,8 +54,8 @@ def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = Non
     ```
     subscription = YOUR_DOMAIN_MODEL.from_subscription(subscription_id)
     subscription_backup = {}
-    subscription_backup[subscription.subscription_id] = deepcopy(subscription.dict())
-    subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.dict())
+    subscription_backup[subscription.subscription_id] = deepcopy(subscription.model_dump())
+    subscription_backup[second_subscription.subscription_id] = deepcopy(second_subscription.model_dump())
     return {..., "__old_subscriptions__": subscription_backup }
     ```
 
@@ -86,7 +86,7 @@ def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = Non
         logger.info("Creating backup of subscription details in the state", subscription_id=str(subscription_id))
         subscription_backup = __old_subscriptions__ or {}
         if isinstance(subscription, SubscriptionModel):
-            subscription_backup[str(subscription_id)] = deepcopy(subscription.dict())
+            subscription_backup[str(subscription_id)] = deepcopy(subscription.model_dump())
         else:
             subscription_backup[str(subscription_id)] = to_serializable(subscription)  # type: ignore
 
@@ -180,7 +180,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
         return {"cached_subscription_ids": cached_subscription_ids}
 
     def _cache_other_subscriptions(product_block: ProductBlockModel) -> None:
-        for field in product_block.__fields__:
+        for field in product_block.model_fields:
             # subscription_instance is a ProductBlockModel or an arbitrary type
             subscription_instance: Union[ProductBlockModel, Any] = getattr(product_block, field)
             # If subscription_instance is a list, we need to step into it and loop.
@@ -195,7 +195,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
                 if not subscription_instance.owner_subscription_id == subscription.subscription_id:
                     cached_subscription_ids.add(subscription_instance.owner_subscription_id)
 
-    for field in subscription.__fields__:
+    for field in subscription.model_fields:
         # There always is a single Root Product Block, it cannot be a list, so no need to check.
         instance: Union[ProductBlockModel, Any] = getattr(subscription, field)
         if isinstance(instance, ProductBlockModel):

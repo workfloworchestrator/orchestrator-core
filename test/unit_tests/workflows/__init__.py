@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import structlog
 
-from orchestrator.db import ProcessTable
+from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.processes import StateMerger, _db_create_process
 from orchestrator.types import State
 from orchestrator.utils.json import json_dumps, json_loads
@@ -20,6 +20,18 @@ from pydantic_forms.types import FormGenerator, InputForm
 from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
 
 logger = structlog.get_logger(__name__)
+
+
+def store_workflow(wf: Workflow, name: Optional[str] = None) -> WorkflowTable:
+    wf_table = WorkflowTable(name=name or wf.name, target=wf.target, description=wf.description)
+    db.session.add(wf_table)
+    db.session.commit()
+    return wf_table
+
+
+def delete_workflow(wf: WorkflowTable) -> None:
+    db.session.delete(wf)
+    db.session.commit()
 
 
 def _raise_exception(state):
@@ -126,14 +138,19 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
     is_callable: bool
 
     def __init__(self, workflow: Workflow, name: str) -> None:
+        super().__init__("orchestrator.test", name)
         self.workflow = workflow
         self.name = name
 
     def __enter__(self):
         ALL_WORKFLOWS[self.name] = self
+        self.workflow_instance = store_workflow(self.workflow, name=self.name)
+        return self.workflow_instance
 
     def __exit__(self, _exc_type, _exc_value, _traceback):
         del ALL_WORKFLOWS[self.name]
+        delete_workflow(self.workflow_instance)
+        del self.workflow_instance
 
     def instantiate(self) -> Workflow:
         """Import and instantiate a workflow and return it.
@@ -321,12 +338,12 @@ def run_form_generator(
         ...     class TestForm(FormPage):
         ...         field: str = "foo"
         ...     user_input = yield TestForm
-        ...     return {**user_input.dict(), "bar": 42}
+        ...     return {**user_input.model_dump(), "bar": 42}
 
         You can run this without extra_inputs
         >>> forms, result = run_form_generator(form_generator({"state_field": 1}))
         >>> forms
-        [{'title': 'unknown', 'type': 'object', 'properties': {'field': {'title': 'Field', 'default': 'foo', 'type': 'string'}}, 'additionalProperties': False}]
+        [{'additionalProperties': False, 'properties': {'field': {'default': 'foo', 'title': 'Field', 'type': 'string'}}, 'title': 'unknown', 'type': 'object'}]
         >>> result
         {'field': 'foo', 'bar': 42}
 
@@ -334,7 +351,7 @@ def run_form_generator(
         Or with extra_inputs:
         >>> forms, result = run_form_generator(form_generator({'state_field': 1}), [{'field':'baz'}])
         >>> forms
-        [{'title': 'unknown', 'type': 'object', 'properties': {'field': {'title': 'Field', 'default': 'foo', 'type': 'string'}}, 'additionalProperties': False}]
+        [{'additionalProperties': False, 'properties': {'field': {'default': 'foo', 'title': 'Field', 'type': 'string'}}, 'title': 'unknown', 'type': 'object'}]
         >>> result
         {'field': 'baz', 'bar': 42}
 
@@ -346,13 +363,13 @@ def run_form_generator(
 
     try:
         form = cast(InputForm, next(form_generator))
-        forms.append(form.schema())
+        forms.append(form.model_json_schema())
         for extra_input in chain(extra_inputs, repeat(cast(State, {}))):
-            user_input_data = {field_name: field.default for field_name, field in form.__fields__.items()}
+            user_input_data = {field_name: field.default for field_name, field in form.model_fields.items()}
             user_input_data.update(extra_input)
-            user_input = form.construct(**user_input_data)
+            user_input = form.model_construct(**user_input_data)
             form = form_generator.send(user_input)
-            forms.append(form.schema())
+            forms.append(form.model_json_schema())
     except StopIteration as stop:
         result = stop.value
 

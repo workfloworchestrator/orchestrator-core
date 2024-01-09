@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 import structlog
 from sqlalchemy import func, select
@@ -6,16 +6,17 @@ from sqlalchemy.orm import joinedload
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
-from orchestrator.db.filters.workflow import filter_workflows, workflow_filter_fields
+from orchestrator.db.filters.workflow import WORKFLOW_TABLE_COLUMN_CLAUSES, filter_workflows, workflow_filter_fields
 from orchestrator.db.models import WorkflowTable
 from orchestrator.db.range.range import apply_range_to_statement
 from orchestrator.db.sorting.sorting import Sort
 from orchestrator.db.sorting.workflow import sort_workflows, workflow_sort_fields
 from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.graphql.utils.create_resolver_error_handler import create_resolver_error_handler
-from orchestrator.graphql.utils.to_graphql_result_page import to_graphql_result_page
+from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
+from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
 
@@ -26,6 +27,7 @@ async def resolve_workflows(
     sort_by: Union[list[GraphqlSort], None] = None,
     first: int = 10,
     after: int = 0,
+    query: Optional[str] = None,
 ) -> Connection[Workflow]:
     _error_handler = create_resolver_error_handler(info)
 
@@ -33,12 +35,27 @@ async def resolve_workflows(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_workflows() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    stmt = select(WorkflowTable).options(joinedload(WorkflowTable.products))
-    stmt = filter_workflows(stmt, pydantic_filter_by, _error_handler)
+    select_stmt = WorkflowTable.select().options(joinedload(WorkflowTable.products))
+    select_stmt = filter_workflows(select_stmt, pydantic_filter_by, _error_handler)
+
+    if query is not None:
+        stmt = create_sqlalchemy_select(
+            select_stmt,
+            query,
+            mappings=WORKFLOW_TABLE_COLUMN_CLAUSES,
+            base_table=WorkflowTable,
+            join_key=WorkflowTable.workflow_id,
+        )
+    else:
+        stmt = select_stmt
+
     stmt = sort_workflows(stmt, pydantic_sort_by, _error_handler)
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    workflows = db.session.scalars(stmt).unique().all()
-    graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
+    graphql_workflows = []
+    if is_querying_page_data(info):
+        workflows = rows_from_statement(stmt, WorkflowTable, unique=True)
+        graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
     return to_graphql_result_page(graphql_workflows, first, after, total, workflow_sort_fields, workflow_filter_fields)

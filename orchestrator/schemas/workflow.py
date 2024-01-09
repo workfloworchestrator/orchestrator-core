@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
+
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.targets import Target
 
@@ -22,8 +24,8 @@ from orchestrator.targets import Target
 class WorkflowBaseSchema(OrchestratorBaseModel):
     name: str
     target: Target
-    description: Optional[str]
-    created_at: Optional[datetime]
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class StepSchema(OrchestratorBaseModel):
@@ -33,10 +35,9 @@ class StepSchema(OrchestratorBaseModel):
 class WorkflowSchema(WorkflowBaseSchema):
     workflow_id: UUID
     created_at: datetime
-    steps: Optional[List[StepSchema]]
+    steps: Optional[List[StepSchema]] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowWithProductTagsSchema(WorkflowBaseSchema):
@@ -45,19 +46,19 @@ class WorkflowWithProductTagsSchema(WorkflowBaseSchema):
 
 class WorkflowListItemSchema(OrchestratorBaseModel):
     name: str
-    description: Optional[str]
-    reason: Optional[str]
-    usable_when: Optional[List[Any]]
-    status: Optional[str]
-    action: Optional[str]
-    locked_relations: Optional[List[UUID]]
-    unterminated_parents: Optional[List[UUID]]
-    unterminated_in_use_by_subscriptions: Optional[List[UUID]]
+    description: Optional[str] = None
+    reason: Optional[str] = None
+    usable_when: Optional[List[Any]] = None
+    status: Optional[str] = None
+    action: Optional[str] = None
+    locked_relations: Optional[List[UUID]] = None
+    unterminated_parents: Optional[List[UUID]] = None
+    unterminated_in_use_by_subscriptions: Optional[List[UUID]] = None
 
 
 class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
-    reason: Optional[str]
-    locked_relations: Optional[List[UUID]]
+    reason: Optional[str] = None
+    locked_relations: Optional[List[UUID]] = None
     create: List[WorkflowListItemSchema]
     modify: List[WorkflowListItemSchema]
     terminate: List[WorkflowListItemSchema]
