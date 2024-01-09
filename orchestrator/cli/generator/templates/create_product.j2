@@ -17,6 +17,7 @@ from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 {%-if validation_imports %}
 from workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {%-endif %}
+from workflows.shared import create_summary_form
 
 {% include 'additional_create_imports.j2' %}
 
@@ -46,35 +47,12 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 {% endfor %}
 
     user_input = yield Create{{ product.type }}Form
-
     user_input_dict = user_input.dict()
-    yield from create_summary_form(user_input_dict, product_name)
+
+    summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
     return user_input_dict
-
-
-def create_summary_form(
-    user_input: dict,
-    product_name: str,
-) -> Generator:
-    product_summary_fields = [{% for field in product_block.fields %} "{{ field.name }}",{% endfor -%}]
-
-    class ProductSummary(MigrationSummary):
-        data = {
-            "labels": product_summary_fields,
-            "columns": [[str(user_input[nm]) for nm in product_summary_fields]],
-        }
-
-    class SummaryForm(FormPage):
-        class Config:
-            title = f"{product_name} Summary"
-
-        product_summary: ProductSummary
-        divider_1: Divider
-
-        # TODO fill in additional details if needed
-
-    yield SummaryForm
 
 
 @step("Construct Subscription model")
