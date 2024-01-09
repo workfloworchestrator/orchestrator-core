@@ -33,7 +33,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         divider_1: Divider
 
         {% for field in product_block.fields -%}
-        {{ field.name }}: {% if field.required in ["provisioning", "active"] -%}Optional[{{ field.type }}]{% else -%}{{ field.type }}{% endif %}
+        {{ field.name }}: {% if field.required not in ["inactive"] -%}Optional[{{ field.type }}]{% else -%}{{ field.type }}{% endif %}
         {% endfor -%}
 
 {% for validation in validations %}
@@ -78,7 +78,7 @@ def construct_{{ product.variable }}_model(
     product: UUIDstr,
     organisation: UUIDstr,
     {% for field in product_block.fields -%}
-    {{ field.name }}: {% if field.required in ["provisioning", "active"] %}Optional[{{ field.type }}]{% else %}{{ field.type }}{% endif %},
+    {{ field.name }}: {% if field.required not in ["inactive"] %}Optional[{{ field.type }}]{% else %}{{ field.type }}{% endif %},
     {% endfor -%}
 ) -> State:
     {{ product.variable }} = {{ product.type }}Inactive.from_product_id(

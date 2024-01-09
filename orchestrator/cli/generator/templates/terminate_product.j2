@@ -68,7 +68,4 @@ def terminate_{{ product.variable }}() -> StepList:
         begin
         >> load_initial_state
         # TODO: fill in additional steps if needed
-        {%- if product.config.send_email %}
-        >> send_confirmation_email()
-        {% endif %}
     )
