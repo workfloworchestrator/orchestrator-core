@@ -1,9 +1,9 @@
-{% macro optional(field, type) -%}
-{% if python_version == "3.9" -%}
-Optional[{{ type }}] ={% if field.default is defined %} {{ field.default }}{% else %} None {% endif %}
-{%- else -%}
-{{ type }} | None ={% if field.default is defined %} {{ field.default }}{% else %} None {% endif %}
-{%- endif -%}
+{% macro required(field, type, required_in) -%}
+{{ type }}{% if field.required not in required_in %} | None{% endif %}
+{%- endmacro %}
+
+{% macro default(field) -%}
+{% if field.default is defined %}{{ field.default }}{% else %}None{% endif %}
 {%- endmacro %}
 
 {% macro list_field(name, list_type) -%}
