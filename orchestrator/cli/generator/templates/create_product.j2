@@ -36,8 +36,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         {% for field in product_block.fields -%}
         {% if field.type not in existing_product_blocks -%}
-        {{ field.name }}: {{ required(field, ["inactive"]) }}{% if field.default is defined %} = {{field.default}}{% endif %}
-        {%- endif -%}
+        {{ field.name }}: {{ required(field, field.type, ["inactive"]) }}{% if field.default is defined %} = {{field.default}}{% endif %}
+        {%- endif %}
         {% endfor -%}
 
 {% for validation in validations %}
@@ -83,8 +83,8 @@ def construct_{{ product.variable }}_model(
     organisation: UUIDstr,
     {% for field in product_block.fields -%}
     {% if field.type not in existing_product_blocks -%}
-    {{ field.name }}: {{ required(field, ["inactive"]) }},
-    {%- endif -%}
+    {{ field.name }}: {{ required(field, field.type, ["inactive"]) }},
+    {%- endif %}
     {% endfor -%}
 ) -> State:
     {{ product.variable }} = {{ product.type }}Inactive.from_product_id(
