@@ -2,8 +2,9 @@
 
 {% from 'macros.j2' import required with context -%}
 
-
 from collections.abc import Generator
+
+import structlog
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Divider, Label, OrganisationId, MigrationSummary
@@ -20,6 +21,9 @@ from workflows.{{ product.variable }}.shared.forms import {{ validation_imports 
 from workflows.shared import create_summary_form
 
 {% include 'additional_create_imports.j2' %}
+
+
+logger = structlog.get_logger(__name__)
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
