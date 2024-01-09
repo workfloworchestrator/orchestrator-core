@@ -14,10 +14,12 @@ from orchestrator.workflows.utils import modify_workflow
 from orchestrator.workflows.steps import set_status
 
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
-{% if validation_imports %}
+{% if validation_imports -%}
 from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
-{% endif %}
+{%- endif %}
+{% if product.config.summary_forms -%}
 from workflows.shared import modify_summary_form
+{%- endif %}
 
 {% include 'additional_modify_imports.j2' %}
 
@@ -51,9 +53,10 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
     user_input = yield Modify{{ product.type }}Form
     user_input_dict = user_input.dict()
-
+    {% if product.config.summary_forms %}
     summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
     yield from modify_summary_form(user_input_dict, subscription.{{ product_block.name }}, summary_fields)
+    {%- endif %}
 
     return user_input_dict | {"subscription": subscription}
 

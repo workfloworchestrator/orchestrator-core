@@ -18,7 +18,9 @@ from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 {%-if validation_imports %}
 from workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {%-endif %}
+{% if product.config.summary_forms -%}
 from workflows.shared import create_summary_form
+{%- endif %}
 
 {% include 'additional_create_imports.j2' %}
 
@@ -52,9 +54,10 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
     user_input = yield Create{{ product.type }}Form
     user_input_dict = user_input.dict()
-
+    {% if product.config.summary_forms %}
     summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    {%- endif %}
 
     return user_input_dict
 
