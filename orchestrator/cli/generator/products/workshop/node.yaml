@@ -4,7 +4,6 @@
 
 config:
   create_summary_forms: false
-  send_email: false
 name: Node
 type: node
 product_blocks:
