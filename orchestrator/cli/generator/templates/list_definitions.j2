@@ -1,4 +1,6 @@
 {% if lists_to_generate %}
+from orchestrator.domain.base import SubscriptionInstanceList
+
 T = TypeVar("T", covariant=True)
 
 {% for list_type in lists_to_generate %}

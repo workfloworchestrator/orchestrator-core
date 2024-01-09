@@ -101,11 +101,9 @@ def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
     return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]
 
 
-def get_product_blocks_to_import(lists_to_generate: list, existing_product_blocks: dict) -> list[tuple]:
+def get_product_blocks_to_import(label: str, fields: list, existing_product_blocks: dict) -> list[tuple]:
     return [
-        (module, lt["list_type"])
-        for lt in lists_to_generate
-        if (module := existing_product_blocks.get(f'{lt["list_type"]}Block'))
+        (module, field[label]) for field in fields if (module := existing_product_blocks.get(f"{field[label]}Block"))
     ]
 
 
@@ -150,8 +148,13 @@ def generate_product_blocks(context: dict) -> None:
 
         lists_to_generate = get_lists_to_generate(fields)
 
-        product_blocks_to_import = get_product_blocks_to_import(lists_to_generate, existing_product_blocks)
-
+        product_blocks_to_import = list(
+            set(
+                get_product_blocks_to_import("list_type", lists_to_generate, existing_product_blocks)
+                + get_product_blocks_to_import("type", fields, existing_product_blocks)
+            )
+        )
+        product_block_types = [type for module, type in product_blocks_to_import]
         constrained_ints_to_generate = [field for field in fields if is_constrained_int(field)]
 
         path = get_product_block_path(product_block)
@@ -159,6 +162,7 @@ def generate_product_blocks(context: dict) -> None:
             lists_to_generate=lists_to_generate,
             product_block=enrich_product_block(product_block),
             product_blocks_to_import=product_blocks_to_import,
+            product_block_types=product_block_types,
             constrained_ints_to_generate=constrained_ints_to_generate,
             types_to_import=types_to_import,
             python_version=python_version,

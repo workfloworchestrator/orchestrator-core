@@ -11,7 +11,7 @@ from orchestrator.workflows.utils import validate_workflow
 
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 
-from surf.workflows.shared.crm import load_organisation_info
+{# from surf.workflows.shared.crm import load_organisation_info #}
 
 logger = structlog.get_logger(__name__)
 
@@ -63,7 +63,7 @@ def validate_{{ product.variable }}() -> StepList:
     return (
         begin
         >> load_initial_state_{{ product.variable }}
-        >> load_organisation_info
+{#        >> load_organisation_info #}
 {%- for validation in validations %}
         >> check_{{ validation.id }}
 {%- endfor %}
