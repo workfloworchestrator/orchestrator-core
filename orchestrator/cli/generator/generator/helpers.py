@@ -67,7 +67,8 @@ def path_to_module(path: Path) -> str:
     return str(path).replace("/", ".")
 
 
-product_types_module = path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH)
+def get_product_types_module() -> str:
+    return path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH)
 
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:

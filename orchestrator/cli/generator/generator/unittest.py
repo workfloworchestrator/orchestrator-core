@@ -17,7 +17,7 @@ from pathlib import Path
 import structlog
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import get_product_file_name, get_workflow, product_types_module
+from orchestrator.cli.generator.generator.helpers import get_product_file_name, get_workflow, get_product_types_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.validations import get_validations
 
@@ -31,7 +31,7 @@ def get_test_product_path(config: dict) -> Path:
 
 def generate_product_type_tests(environment: Environment, config: dict, writer: Callable) -> None:
     template = environment.get_template("test_product_type.j2")
-    content = template.render(product=config, product_types_module=product_types_module)
+    content = template.render(product=config, product_types_module=get_product_types_module())
 
     path = get_test_product_path(config)
     writer(path, content)
@@ -58,7 +58,7 @@ def generate_test_create_workflow(environment: Environment, config: dict, writer
     validations, _ = get_validations(config)
 
     template = environment.get_template("test_create_workflow.j2")
-    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
+    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
 
     path = get_test_workflow_path(config, "create")
     writer(path, content)
@@ -68,7 +68,7 @@ def generate_test_modify_workflow(environment: Environment, config: dict, writer
     validations, _ = get_validations(config)
 
     template = environment.get_template("test_modify_workflow.j2")
-    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
+    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
 
     path = get_test_workflow_path(config, "modify")
     writer(path, content)
@@ -79,7 +79,7 @@ def generate_test_validate_workflow(environment: Environment, config: dict, writ
     validations = workflow.get("validations", [])
 
     template = environment.get_template("test_validate_workflow.j2")
-    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
+    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
 
     path = get_test_workflow_path(config, "validate")
     writer(path, content)
@@ -90,7 +90,7 @@ def generate_test_terminate_workflow(environment: Environment, config: dict, wri
     validations = workflow.get("validations", [])
 
     template = environment.get_template("test_terminate_workflow.j2")
-    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
+    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
 
     path = get_test_workflow_path(config, "terminate")
     writer(path, content)

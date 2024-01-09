@@ -22,7 +22,7 @@ from jinja2 import Environment
 from orchestrator.cli.generator.generator.helpers import (
     get_product_file_name,
     get_workflow,
-    product_types_module,
+    get_product_types_module,
     root_product_block,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
@@ -157,7 +157,7 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
         product_block=product_block,
         validations=validations,
         validation_imports=validation_imports,
-        product_types_module=product_types_module,
+        product_types_module=get_product_types_module(),
     )
 
     path = get_product_workflow_path(config, "create")
@@ -176,7 +176,7 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
         product_block=product_block,
         validations=validations,
         validation_imports=validation_imports,
-        product_types_module=product_types_module,
+        product_types_module=get_product_types_module(),
     )
 
     path = get_product_workflow_path(config, "modify")
@@ -190,7 +190,7 @@ def generate_validate_workflow(environment: Environment, config: dict, writer: C
     validations = workflow.get("validations", [])
 
     template = environment.get_template("validate_product.j2")
-    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
+    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
 
     path = get_product_workflow_path(config, "validate")
 
@@ -203,7 +203,7 @@ def generate_terminate_workflow(environment: Environment, config: dict, writer: 
     validations = workflow.get("validations", [])
 
     template = environment.get_template("terminate_product.j2")
-    content = template.render(product=config, validations=validations, product_types_module=product_types_module)
+    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
 
     path = get_product_workflow_path(config, "terminate")
 

@@ -22,7 +22,7 @@ from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_product_file_name,
     path_to_module,
-    product_types_module,
+    get_product_types_module,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
@@ -53,7 +53,7 @@ def generate_product(context: dict) -> None:
     content = template.render(
         product=product,
         product_blocks_module=path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH),
-        product_types_module=product_types_module,
+        product_types_module=get_product_types_module(),
         non_standard_fixed_inputs=non_standard_fixed_inputs,
         fixed_inputs=replace_enum_fixed_inputs(fixed_inputs),
         product_blocks=product_blocks,

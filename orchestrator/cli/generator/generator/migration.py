@@ -22,7 +22,7 @@ import structlog
 from alembic.util import rev_id  # type: ignore[attr-defined]
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import product_types_module
+from orchestrator.cli.generator.generator.helpers import get_product_types_module
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 logger = structlog.getLogger(__name__)
@@ -95,7 +95,7 @@ def update_subscription_model_registry(
     product_variable = config.get("variable", "")
     product_type = config.get("type", "")
     content = template.render(
-        product=config, product_variants=product_variants, product_types_module=product_types_module
+        product=config, product_variants=product_variants, product_types_module=get_product_types_module()
     )
 
     path = settings.FOLDER_PREFIX / settings.PRODUCT_REGISTRY_PATH
@@ -104,7 +104,7 @@ def update_subscription_model_registry(
             fp.close()
             writer(path, "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n\n", append=True)
     with open(path, "r") as fp:
-        if f"from {product_types_module}.{product_variable} import {product_type}" not in fp.read():
+        if f"from {get_product_types_module()}.{product_variable} import {product_type}" not in fp.read():
             fp.close()
             writer(path, content, append=True)
         else:
