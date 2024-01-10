@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 
 from more_itertools import flatten, one
 from strawberry.types.nodes import FragmentSpread, InlineFragment, SelectedField, Selection
@@ -14,11 +14,14 @@ def get_selected_field_selections(selected_field: Selection, name: str) -> list[
     return one(page_field).selections if page_field else []
 
 
-def is_query_detailed(basic_fields: tuple) -> Callable[[OrchestratorInfo], bool]:
+def is_query_detailed(
+    basic_fields: tuple, type_conditions: Optional[tuple] = None
+) -> Callable[[OrchestratorInfo], bool]:
     """Function wrapper that validates GraphQL queries against provided basic_fields.
 
     Args:
         basic_fields: tuple of the basic fields.
+        type_conditions: optional tuple of the type conditions.
 
     Returns:
         Function that validates if a GraphQL query includes fields beyond the specified basic_fields.
@@ -29,6 +32,8 @@ def is_query_detailed(basic_fields: tuple) -> Callable[[OrchestratorInfo], bool]
 
         def has_details(selection: Selection) -> bool:
             if isinstance(selection, InlineFragment):
+                if type_conditions and selection.type_condition not in type_conditions:
+                    return True
                 return any(has_details(selection) for selection in selection.selections)
             if isinstance(selection, FragmentSpread):
                 return any(has_details(s) for s in selection.selections)

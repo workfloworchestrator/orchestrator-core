@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import Any, Callable, TypeVar, Union
+from typing import Any, Callable, Union
 
 import strawberry
 import structlog
@@ -21,7 +21,6 @@ from graphql import GraphQLError, GraphQLFormattedError
 from graphql.error.graphql_error import format_error
 from httpx import HTTPStatusError
 from starlette.requests import Request
-from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.fastapi import GraphQLRouter
 from strawberry.http import GraphQLHTTPResponse
 from strawberry.tools import merge_types
@@ -29,6 +28,8 @@ from strawberry.types import ExecutionContext, ExecutionResult
 from strawberry.utils.logging import StrawberryLogger
 
 from oauth2_lib.strawberry import authenticated_field
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.graphql.autoregistration import register_domain_models
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.error_collector_extension import ErrorCollectorExtension
 from orchestrator.graphql.pagination import Connection
@@ -43,13 +44,14 @@ from orchestrator.graphql.resolvers import (
     resolve_subscriptions,
     resolve_workflows,
 )
+from orchestrator.graphql.schemas import GRAPHQL_MODELS
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
-from orchestrator.graphql.schemas.product import ProductModelGraphql, ProductType
+from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.schemas.settings import StatusType
-from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
+from orchestrator.graphql.schemas.subscription import SubscriptionInterface, federation_key_directives
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
@@ -58,11 +60,6 @@ from orchestrator.settings import app_settings
 api_router = APIRouter()
 
 logger = structlog.get_logger(__name__)
-
-StrawberryPydanticModel = TypeVar("StrawberryPydanticModel", bound=StrawberryTypeFromPydantic)
-StrawberryModelType = dict[str, StrawberryPydanticModel]
-
-GRAPHQL_MODELS: StrawberryModelType = {"ProductModelGraphql": ProductModelGraphql}
 
 
 @strawberry.federation.type(description="Orchestrator queries")
@@ -150,12 +147,33 @@ async def get_context(custom_context=Depends(custom_context_dependency)) -> Orch
     return custom_context
 
 
-def create_graphql_router(query: Any = Query, mutation: Any = Mutation) -> OrchestratorGraphqlRouter:
+GRAPHQL_MODELS_INITIAL = dict(GRAPHQL_MODELS)
+
+
+def create_graphql_router(
+    query: Any = Query,
+    mutation: Any = Mutation,
+    register_models: bool = True,
+    subscription_interface: Any = SubscriptionInterface,
+) -> OrchestratorGraphqlRouter:
+    @strawberry.experimental.pydantic.type(
+        model=SubscriptionModel, all_fields=True, directives=federation_key_directives
+    )
+    class Subscription(SubscriptionInterface):
+        pass
+
+    models = GRAPHQL_MODELS_INITIAL
+    models["subscription"] = Subscription
+
+    if register_models:
+        models = register_domain_models(subscription_interface, models)
+    GRAPHQL_MODELS.update(models)
+
     schema = OrchestratorSchema(
         query=query,
         mutation=mutation,
         enable_federation_2=app_settings.FEDEREATION_ENABLED,
-        types=(Subscription,) + tuple(GRAPHQL_MODELS.values()),
+        types=tuple(models.values()),
         extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=query)],
         scalar_overrides=SCALAR_OVERRIDES,
     )

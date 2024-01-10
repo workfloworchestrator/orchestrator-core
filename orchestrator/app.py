@@ -40,7 +40,8 @@ from orchestrator.db.database import DBSessionMiddleware
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import problem_detail_handler
-from orchestrator.graphql import Mutation, Query, create_graphql_router, register_domain_models
+from orchestrator.graphql import Mutation, Query, create_graphql_router
+from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.services.processes import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
@@ -60,6 +61,8 @@ sentry_integrations: List[Integration] = [
 
 
 class OrchestratorCore(FastAPI):
+    graphql_router: Optional[Any] = None
+
     def __init__(
         self,
         title: str = "The Orchestrator",
@@ -175,10 +178,19 @@ class OrchestratorCore(FastAPI):
         """
         SUBSCRIPTION_MODEL_REGISTRY.update(product_to_subscription_model_mapping)
 
-    def register_graphql(self: "OrchestratorCore", query: Any = Query, mutation: Any = Mutation) -> None:
-        register_domain_models()
-        new_router = create_graphql_router(query, mutation)
-        self.include_router(new_router, prefix="/api/graphql")
+    def register_graphql(
+        self: "OrchestratorCore",
+        query: Any = Query,
+        mutation: Any = Mutation,
+        register_models: bool = True,
+        subscription_interface: Any = SubscriptionInterface,
+    ) -> None:
+        new_router = create_graphql_router(query, mutation, register_models, subscription_interface)
+        if not self.graphql_router:
+            self.graphql_router = new_router
+            self.include_router(new_router, prefix="/api/graphql")
+        else:
+            self.graphql_router.schema = new_router.schema
 
 
 main_typer_app = typer.Typer()

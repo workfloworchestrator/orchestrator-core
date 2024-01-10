@@ -13,7 +13,7 @@
 
 import inspect
 from enum import Enum, EnumMeta
-from typing import Any, Type
+from typing import Any, Type, Union
 
 import strawberry
 import structlog
@@ -23,8 +23,7 @@ from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
-from orchestrator.graphql.schema import GRAPHQL_MODELS, StrawberryModelType
-from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.graphql.schemas import GRAPHQL_MODELS, StrawberryModelType
 from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
@@ -44,6 +43,15 @@ def is_enum(field: Any) -> bool:
     return inspect.isclass(field) and issubclass(field, Enum)
 
 
+def create_strawberry_enums(model: Type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
+    enums = {
+        key: field
+        for key, field in model._non_product_block_fields_.items()
+        if is_enum(field) and is_not_strawberry_enum(key, strawberry_enums)
+    }
+    return strawberry_enums | {key: create_strawberry_enum(field) for key, field in enums.items()}
+
+
 def graphql_name(name: str) -> str:
     return to_camel(name.replace(" ", "_"))
 
@@ -53,18 +61,9 @@ def graphql_subscription_name(name: str) -> str:
     return f"{subscription_graphql_name}Subscription"
 
 
-def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel]) -> Type[SubscriptionInterface]:
-    base_type = type(strawberry_name, (SubscriptionInterface,), {})
-    directives = [Key(fields="subscriptionId", resolvable=UNSET)]
-
-    pydantic_wrapper = strawberry.experimental.pydantic.type(
-        model, all_fields=True, directives=directives, description=f"{strawberry_name} Type"
-    )
-    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
-
-
 def create_block_strawberry_type(
-    strawberry_name: str, model: Type[DomainModel]
+    strawberry_name: str,
+    model: Type[DomainModel],
 ) -> Type[StrawberryTypeFromPydantic[DomainModel]]:
     from strawberry.federation.schema_directives import Key
     from strawberry.unset import UNSET
@@ -81,22 +80,22 @@ def create_block_strawberry_type(
     return strawberry_wrapper(new_type)
 
 
-def create_strawberry_enums(model: Type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
-    enums = {
-        key: field
-        for key, field in model._non_product_block_fields_.items()
-        if is_enum(field) and is_not_strawberry_enum(key, strawberry_enums)
-    }
-    return strawberry_enums | {key: create_strawberry_enum(field) for key, field in enums.items()}
-
-
 def add_class_to_strawberry(
     model_name: str,
     model: Type[DomainModel],
     strawberry_models: StrawberryModelType,
     strawberry_enums: EnumDict,
-    with_interface: bool = False,
+    interface: Any = None,
 ) -> None:
+    def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel]) -> Type[interface]:
+        base_type = type(strawberry_name, (interface,), {})
+        directives = [Key(fields="subscriptionId", resolvable=UNSET)]
+
+        pydantic_wrapper = strawberry.experimental.pydantic.type(
+            model, all_fields=True, directives=directives, description=f"{strawberry_name} Type"
+        )
+        return type(strawberry_name, (pydantic_wrapper(base_type),), {})
+
     if model_name in strawberry_models:
         logger.debug("Skip already registered strawberry model", model=repr(model), strawberry_name=model_name)
         return
@@ -111,14 +110,14 @@ def add_class_to_strawberry(
             add_class_to_strawberry(graphql_field_name, field, strawberry_models, strawberry_enums)
 
     strawberry_type_convert_function = (
-        create_subscription_strawberry_type if with_interface else create_block_strawberry_type
+        create_subscription_strawberry_type if interface else create_block_strawberry_type
     )
     strawberry_models[model_name] = strawberry_type_convert_function(model_name, model)
     logger.debug("Registered strawberry model", model=repr(model), strawberry_name=model_name)
 
 
-def register_domain_models() -> None:
-    strawberry_models = GRAPHQL_MODELS
+def register_domain_models(interface: Any, existing_models: Union[dict[str, Any], None] = None) -> dict[str, Any]:
+    strawberry_models = existing_models if existing_models else GRAPHQL_MODELS
     strawberry_enums: EnumDict = {}
     products = {
         product_type.__base_type__.__name__: product_type.__base_type__
@@ -127,9 +126,10 @@ def register_domain_models() -> None:
     }
     for key, product_type in products.items():
         add_class_to_strawberry(
+            interface=interface,
             model_name=graphql_subscription_name(key),
             model=product_type,
             strawberry_models=strawberry_models,
             strawberry_enums=strawberry_enums,
-            with_interface=True,
         )
+    return strawberry_models
