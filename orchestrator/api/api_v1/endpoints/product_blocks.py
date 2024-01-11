@@ -32,7 +32,7 @@ router = APIRouter()
 @router.get("/", response_model=List[ProductBlockSchema])
 def fetch() -> List[ProductBlockTable]:
     stmt = select(ProductBlockTable).options(joinedload(ProductBlockTable.resource_types))
-    return list(db.session.scalars(stmt))
+    return list(db.session.scalars(stmt).unique())
 
 
 @router.get("/{product_block_id}", response_model=ProductBlockSchema)

@@ -376,7 +376,8 @@ def create_domain_models_migration_sql(
         list of downgrade SQL statements in string format.
     """
     stmt = select(ProductTable.name, ProductTable.product_id)
-    existing_products: Iterable[tuple[str, UUID]] = db.session.scalars(stmt)
+    existing_products: Iterable[tuple[str, UUID]] = db.session.execute(stmt).all()
+
     db_product_names: List[str] = [product_name for product_name, _ in existing_products]
 
     products = SUBSCRIPTION_MODEL_REGISTRY

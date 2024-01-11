@@ -137,7 +137,7 @@ def check_that_active_products_have_a_modify_note() -> State:
 def check_db_fixed_input_config() -> State:
     fixed_input_configuration = fi_configuration()
     product_tags = products.get_tags()
-    stmt = select(FixedInputTable.options(joinedload(FixedInputTable.product)))
+    stmt = select(FixedInputTable).options(joinedload(FixedInputTable.product))
     fixed_inputs = db.session.scalars(stmt)
 
     data: Dict = {"fixed_inputs": [], "by_tag": {}}
