@@ -185,7 +185,7 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: d
             subscription_ids = db.session.scalars(subscription_ids_stmt)
 
             for subscription_id in subscription_ids:
-                yield {"subscription_id": subscription_id[0], "product_block_id": product_block_id}
+                yield {"subscription_id": subscription_id, "product_block_id": product_block_id}
 
         subscription_relation_dicts = list(
             chain.from_iterable(map_subscription_instance_relations(block_name) for block_name in product_names)

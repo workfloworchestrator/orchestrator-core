@@ -495,7 +495,7 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
         select(SubscriptionInstanceValueTable).where(
             SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
         )
-    )
+    ).all()
     assert len(int_field_instance_values) == 3
 
     for stmt in upgrade_sql:
@@ -509,7 +509,7 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
         select(SubscriptionInstanceValueTable).where(
             SubscriptionInstanceValueTable.resource_type_id == int_field_resource[0].resource_type_id
         )
-    )
+    ).all()
     assert len(int_field_instance_values) == 0
 
     for stmt in downgrade_sql:

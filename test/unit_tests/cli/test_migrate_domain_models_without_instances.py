@@ -71,8 +71,8 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
     db.session.commit()
 
     product_ids = fetch_product_ids("TestProductOne")
-    assert product_ids[0][0]
-    diff = ProductTypeOneForTest.diff_product_in_database(product_ids[0][0])
+    assert len(product_ids)
+    diff = ProductTypeOneForTest.diff_product_in_database(product_ids[0])
     assert diff == {}
 
     for stmt in downgrade_sql:

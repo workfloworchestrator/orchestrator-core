@@ -48,9 +48,8 @@ def map_create_product_blocks(product_blocks: dict[str, Type[ProductBlockModel]]
 
     Returns: Dict of product blocks by product block name to create.
     """
-    stmt = select(ProductBlockTable.name)
-    _existing_product_blocks = db.session.scalars(stmt)
-    existing_product_blocks = {block_name[0] for block_name in _existing_product_blocks}
+    _existing_product_blocks = db.session.scalars(select(ProductBlockTable.name))
+    existing_product_blocks = set(_existing_product_blocks)
     return {
         block_name: block for block_name, block in product_blocks.items() if block_name not in existing_product_blocks
     }
@@ -64,9 +63,8 @@ def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
 
     Returns: List of product block names to delete.
     """
-    stmt = select(ProductBlockTable.name)
-    existing_product_blocks = db.session.scalars(stmt)
-    return {name[0] for name in existing_product_blocks if name[0] not in product_blocks}
+    existing_product_blocks = db.session.scalars(select(ProductBlockTable.name))
+    return {name for name in existing_product_blocks if name not in product_blocks}
 
 
 def map_product_block_additional_relations(changes: DomainModelChanges) -> DomainModelChanges:
@@ -194,13 +192,13 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
                 SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id
             ).where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
 
-            subscription_instances = list(db.session.scalars(stmt))
+            subscription_instances = list(db.session.execute(stmt))
             if not subscription_instances:
                 subscription_instances = []
 
             instance_list = [
-                {"subscription_id": instance.subscription_id, "product_block_id": depends_block_id_sql}
-                for instance in subscription_instances
+                {"subscription_id": subscription_id, "product_block_id": depends_block_id_sql}
+                for instance_id, subscription_id, in subscription_instances
             ]
             instance_relation_list = [
                 {

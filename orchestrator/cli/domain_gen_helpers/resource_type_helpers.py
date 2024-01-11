@@ -230,8 +230,8 @@ def map_delete_resource_types(
     """
     resource_type_names = resource_types.keys()
     stmt = select(ResourceTypeTable.resource_type).where(ResourceTypeTable.resource_type.in_(resource_type_names))
-    existing_resource_types = db.session.scalars(stmt)
-    existing_names = [r_type[0] for r_type in existing_resource_types if r_type[0] in resource_type_names]
+    existing_resource_types = db.session.scalars(stmt).all()
+    existing_names = [r_type for r_type in existing_resource_types if r_type in resource_type_names]
     rt_with_existing_instances = {
         *find_resource_within_blocks(existing_names, product_blocks),
         *updated_resource_types,

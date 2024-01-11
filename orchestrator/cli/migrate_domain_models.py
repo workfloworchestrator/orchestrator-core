@@ -6,7 +6,7 @@ $ PYTHONPATH=. python bin/list_workflows
 
 """
 import sys
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Type, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Type, Union
 from uuid import UUID
 
 import structlog
@@ -123,7 +123,7 @@ def map_product_blocks(product_classes: List[Type[SubscriptionModel]]) -> Dict[s
 
 
 def map_differences_unique(
-    registered_products: Dict[str, Type[SubscriptionModel]], existing_products: Iterable[tuple[str, UUID]]
+    registered_products: Dict[str, Type[SubscriptionModel]], existing_products: Sequence[tuple[str, UUID]]
 ) -> dict[str, dict[str, dict[str, set[str]]]]:
     """Create a unique map for products and product block differences from the database.
 
@@ -375,8 +375,8 @@ def create_domain_models_migration_sql(
         list of upgrade SQL statements in string format.
         list of downgrade SQL statements in string format.
     """
-    stmt = select(ProductTable.name, ProductTable.product_id)
-    existing_products: Iterable[tuple[str, UUID]] = db.session.execute(stmt).all()
+    stmt = select(ProductTable).with_only_columns(ProductTable.name, ProductTable.product_id)
+    existing_products = db.session.execute(stmt).all()
 
     db_product_names: List[str] = [product_name for product_name, _ in existing_products]
 
