@@ -162,7 +162,7 @@ def create_graphql_router(
     class Subscription(SubscriptionInterface):
         pass
 
-    models = GRAPHQL_MODELS_INITIAL
+    models = dict(GRAPHQL_MODELS_INITIAL)
     models["subscription"] = Subscription
 
     if register_models:

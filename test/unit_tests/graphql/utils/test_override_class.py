@@ -58,18 +58,20 @@ def get_customers_query(
     sort_by: Union[list[dict[str, str]], None] = None,
     override_fields: bool = False,
 ) -> bytes:
-    query = f"""
-query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {{
-  customers(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {{
-    page {{
+    query = """
+query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
+  customers(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
+    page {
       customerId
       fullname
       shortcode
-      { "newField" if override_fields else ""}
-    }}
-  }}
-}}
-    """
+        %s
+    }
+  }
+}
+    """ % (
+        "newField" if override_fields else "",
+    )
     return json.dumps(
         {
             "operationName": "CustomerQuery",
@@ -91,20 +93,22 @@ def get_subscriptions_customer_query(
     sort_by: Union[list[dict[str, str]], None] = None,
     override_fields: bool = False,
 ) -> bytes:
-    query = f"""
-query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {{
-  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {{
-    page {{
-      customer {{
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
+  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
+    page {
+      customer {
         customerId
         fullname
         shortcode
-        { "newField" if override_fields else ""}
-      }}
-    }}
-  }}
-}}
-    """
+        %s
+      }
+    }
+  }
+}
+    """ % (
+        "newField" if override_fields else "",
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -126,22 +130,24 @@ def get_subscriptions_detail_customer_query(
     sort_by: Union[list[dict[str, str]], None] = None,
     override_fields: bool = False,
 ) -> bytes:
-    query = f"""
-query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {{
-  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {{
-    page {{
-      ... on ProductSubOneSubscription {{
-        customer {{
+    query = """
+query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
+  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
+    page {
+      ... on ProductSubOneSubscription {
+        customer {
           customerId
           fullname
           shortcode
-          { "newField" if override_fields else ""}
-        }}
-      }}
-    }}
-  }}
-}}
-    """
+          %s
+        }
+      }
+    }
+  }
+}
+    """ % (
+        "newField" if override_fields else "",
+    )
     return json.dumps(
         {
             "operationName": "SubscriptionQuery",
@@ -189,9 +195,15 @@ def test_customers_overriden(override_class_app_graphql, test_client):
     }
 
 
-def test_subscription_customer(fastapi_app_graphql, test_client):
+def test_subscription_customer(fastapi_app_graphql, test_client, sub_one_subscription_1):
     # when
-    response = test_client.post(GRAPHQL_ENDPOINT, content=get_subscriptions_customer_query(), headers=GRAPHQL_HEADERS)
+    response = test_client.post(
+        GRAPHQL_ENDPOINT,
+        content=get_subscriptions_customer_query(
+            filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}]
+        ),
+        headers=GRAPHQL_HEADERS,
+    )
 
     # then
     assert HTTPStatus.OK == response.status_code
@@ -206,10 +218,15 @@ def test_subscription_customer(fastapi_app_graphql, test_client):
     }
 
 
-def test_subscription_customer_overriden(override_class_app_graphql, test_client):
+def test_subscription_customer_overriden(override_class_app_graphql, test_client, sub_one_subscription_1):
     # when
     response = test_client.post(
-        GRAPHQL_ENDPOINT, content=get_subscriptions_customer_query(override_fields=True), headers=GRAPHQL_HEADERS
+        GRAPHQL_ENDPOINT,
+        content=get_subscriptions_customer_query(
+            filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}],
+            override_fields=True,
+        ),
+        headers=GRAPHQL_HEADERS,
     )
 
     # then
@@ -227,10 +244,14 @@ def test_subscription_customer_overriden(override_class_app_graphql, test_client
     }
 
 
-def test_subscription_detail_customer(fastapi_app_graphql, test_client):
+def test_subscription_detail_customer(fastapi_app_graphql, test_client, sub_one_subscription_1):
     # when
     response = test_client.post(
-        GRAPHQL_ENDPOINT, content=get_subscriptions_detail_customer_query(), headers=GRAPHQL_HEADERS
+        GRAPHQL_ENDPOINT,
+        content=get_subscriptions_detail_customer_query(
+            filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}]
+        ),
+        headers=GRAPHQL_HEADERS,
     )
 
     # then
@@ -246,10 +267,15 @@ def test_subscription_detail_customer(fastapi_app_graphql, test_client):
     }
 
 
-def test_subscription_detail_customer_overriden(override_class_app_graphql, test_client):
+def test_subscription_detail_customer_overriden(override_class_app_graphql, test_client, sub_one_subscription_1):
     # when
     response = test_client.post(
-        GRAPHQL_ENDPOINT, content=get_subscriptions_detail_customer_query(override_fields=True), headers=GRAPHQL_HEADERS
+        GRAPHQL_ENDPOINT,
+        content=get_subscriptions_detail_customer_query(
+            filter_by=[{"field": "subscriptionId", "value": str(sub_one_subscription_1.subscription_id)}],
+            override_fields=True,
+        ),
+        headers=GRAPHQL_HEADERS,
     )
 
     # then

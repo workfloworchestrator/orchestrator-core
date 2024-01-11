@@ -80,6 +80,16 @@ def create_block_strawberry_type(
     return strawberry_wrapper(new_type)
 
 
+def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel], interface: Any) -> Any:
+    base_type = type(strawberry_name, (interface,), {})
+    directives = [Key(fields="subscriptionId", resolvable=UNSET)]
+
+    pydantic_wrapper = strawberry.experimental.pydantic.type(
+        model, all_fields=True, directives=directives, description=f"{strawberry_name} Type"
+    )
+    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
+
+
 def add_class_to_strawberry(
     model_name: str,
     model: Type[DomainModel],
@@ -87,15 +97,6 @@ def add_class_to_strawberry(
     strawberry_enums: EnumDict,
     interface: Any = None,
 ) -> None:
-    def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel]) -> Type[interface]:
-        base_type = type(strawberry_name, (interface,), {})
-        directives = [Key(fields="subscriptionId", resolvable=UNSET)]
-
-        pydantic_wrapper = strawberry.experimental.pydantic.type(
-            model, all_fields=True, directives=directives, description=f"{strawberry_name} Type"
-        )
-        return type(strawberry_name, (pydantic_wrapper(base_type),), {})
-
     if model_name in strawberry_models:
         logger.debug("Skip already registered strawberry model", model=repr(model), strawberry_name=model_name)
         return
@@ -109,10 +110,10 @@ def add_class_to_strawberry(
         if graphql_field_name not in strawberry_models and graphql_field_name != model_name:
             add_class_to_strawberry(graphql_field_name, field, strawberry_models, strawberry_enums)
 
-    strawberry_type_convert_function = (
-        create_subscription_strawberry_type if interface else create_block_strawberry_type
-    )
-    strawberry_models[model_name] = strawberry_type_convert_function(model_name, model)
+    if interface:
+        strawberry_models[model_name] = create_subscription_strawberry_type(model_name, model, interface)
+    else:
+        strawberry_models[model_name] = create_block_strawberry_type(model_name, model)
     logger.debug("Registered strawberry model", model=repr(model), strawberry_name=model_name)
 
 
