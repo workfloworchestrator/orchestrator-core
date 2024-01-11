@@ -266,9 +266,7 @@ def status_counts() -> ProcessStatusCounts:
 
     stmt = (
         select(ProcessTable)
-        .with_only_columns(
-            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)
-        )
+        .with_only_columns(ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status))
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
     )
     rows = db.session.scalars(stmt)
