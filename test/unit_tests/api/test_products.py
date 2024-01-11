@@ -131,14 +131,6 @@ def seed():
     db.session.commit()
 
 
-def test_product_types(seed):
-    result = db.session.scalars(select(ResourceTypeTable.resource_type))
-    for x in result:
-        print(x)
-
-    assert list(result) == []
-
-
 def test_fetch_all_products(seed, test_client):
     response = test_client.get("/api/products")
 
