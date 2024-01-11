@@ -65,7 +65,7 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
     return strawberry_type.from_pydantic(subscription_details)
 
 
-def format_default_subscriptions(subscription: SubscriptionTable) -> SubscriptionInterface:
+def format_base_subscription(subscription: SubscriptionTable) -> SubscriptionInterface:
     from orchestrator.graphql import GRAPHQL_MODELS
 
     strawberry_type = GRAPHQL_MODELS["subscription"]
@@ -108,7 +108,7 @@ async def resolve_subscriptions(
         if _is_subscription_detailed(info):
             graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
         else:
-            graphql_subscriptions = [format_default_subscriptions(p) for p in subscriptions]
+            graphql_subscriptions = [format_base_subscription(p) for p in subscriptions]
     return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields, subscription_filter_fields
     )

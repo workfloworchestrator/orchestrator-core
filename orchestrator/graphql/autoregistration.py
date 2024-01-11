@@ -23,7 +23,7 @@ from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
-from orchestrator.graphql.schemas import GRAPHQL_MODELS, StrawberryModelType
+from orchestrator.graphql.schemas import StrawberryModelType
 from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
@@ -116,8 +116,10 @@ def add_class_to_strawberry(
     logger.debug("Registered strawberry model", model=repr(model), strawberry_name=model_name)
 
 
-def register_domain_models(interface: Any, existing_models: Union[dict[str, Any], None] = None) -> dict[str, Any]:
-    strawberry_models = existing_models if existing_models else GRAPHQL_MODELS
+def register_domain_models(
+    interface: Any, existing_models: Union[StrawberryModelType, None] = None
+) -> StrawberryModelType:
+    strawberry_models = existing_models if existing_models else {}
     strawberry_enums: EnumDict = {}
     products = {
         product_type.__base_type__.__name__: product_type.__base_type__

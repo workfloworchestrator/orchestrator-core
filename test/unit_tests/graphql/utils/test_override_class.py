@@ -196,11 +196,13 @@ def test_subscription_customer(fastapi_app_graphql, test_client):
     # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    customer_data = result["data"]["subscriptions"]["page"][0]["customer"]
+    customer_data = result["data"]["subscriptions"]["page"][0]
     assert customer_data == {
-        "customerId": "59289a57-70fb-4ff5-9c93-10fe67b12434",
-        "fullname": "Default::Orchestrator-Core Customer",
-        "shortcode": "default-cust",
+        "customer": {
+            "customerId": "59289a57-70fb-4ff5-9c93-10fe67b12434",
+            "fullname": "Default::Orchestrator-Core Customer",
+            "shortcode": "default-cust",
+        }
     }
 
 
@@ -213,12 +215,15 @@ def test_subscription_customer_overriden(override_class_app_graphql, test_client
     # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    customer_data = result["data"]["subscriptions"]["page"][0]["customer"]
+    customer_data = result["data"]["subscriptions"]["page"][0]
+
     assert customer_data == {
-        "customerId": "overriden",
-        "fullname": "Default::Orchestrator-Core Customer",
-        "shortcode": "default-cust",
-        "newField": "59289a57-70fb-4ff5-9c93-10fe67b12434",
+        "customer": {
+            "customerId": "overriden",
+            "fullname": "Default::Orchestrator-Core Customer",
+            "shortcode": "default-cust",
+            "newField": "59289a57-70fb-4ff5-9c93-10fe67b12434",
+        }
     }
 
 
@@ -231,11 +236,13 @@ def test_subscription_detail_customer(fastapi_app_graphql, test_client):
     # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    customer_data = result["data"]["subscriptions"]["page"][0]["customer"]
+    customer_data = result["data"]["subscriptions"]["page"][0]
     assert customer_data == {
-        "customerId": "59289a57-70fb-4ff5-9c93-10fe67b12434",
-        "fullname": "Default::Orchestrator-Core Customer",
-        "shortcode": "default-cust",
+        "customer": {
+            "customerId": "59289a57-70fb-4ff5-9c93-10fe67b12434",
+            "fullname": "Default::Orchestrator-Core Customer",
+            "shortcode": "default-cust",
+        }
     }
 
 
@@ -248,11 +255,13 @@ def test_subscription_detail_customer_overriden(override_class_app_graphql, test
     # then
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    customer_data = result["data"]["subscriptions"]["page"][0]["customer"]
+    customer_data = result["data"]["subscriptions"]["page"][0]
 
     assert customer_data == {
-        "customerId": "overriden",
-        "fullname": "Default::Orchestrator-Core Customer",
-        "shortcode": "default-cust",
-        "newField": "59289a57-70fb-4ff5-9c93-10fe67b12434",
+        "customer": {
+            "customerId": "overriden",
+            "fullname": "Default::Orchestrator-Core Customer",
+            "shortcode": "default-cust",
+            "newField": "59289a57-70fb-4ff5-9c93-10fe67b12434",
+        }
     }

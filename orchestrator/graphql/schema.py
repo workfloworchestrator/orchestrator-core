@@ -166,8 +166,8 @@ def create_graphql_router(
     models["subscription"] = Subscription
 
     if register_models:
-        models = register_domain_models(subscription_interface, models)
-    GRAPHQL_MODELS.update(models)
+        models = register_domain_models(subscription_interface, existing_models=models)
+        GRAPHQL_MODELS.update(models)
 
     schema = OrchestratorSchema(
         query=query,
