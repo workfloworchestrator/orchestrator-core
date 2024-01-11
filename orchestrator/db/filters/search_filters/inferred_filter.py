@@ -33,7 +33,7 @@ def _coalesce_if_nullable(field: ColumnElement) -> ColumnElement:
         is_nullable = field.wrapped_column_expression.nullable
     else:
         is_nullable = getattr(field, "nullable", False)
-    return coalesce(field, "") if is_nullable else field  # type:ignore
+    return coalesce(field, "") if is_nullable else field
 
 
 def _filter_string(field: ColumnElement) -> Callable[[Node], BinaryExpression]:

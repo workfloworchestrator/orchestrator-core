@@ -634,7 +634,7 @@ class SubscriptionSearchView(BaseModel):
         UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True, primary_key=True
     )
 
-    tsv = deferred(mapped_column(TSVectorType))  # type: ignore
+    tsv = deferred(mapped_column(TSVectorType))
 
     subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
 
