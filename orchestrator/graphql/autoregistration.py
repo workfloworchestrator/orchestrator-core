@@ -45,11 +45,11 @@ def is_enum(field: Any) -> bool:
 
 def create_strawberry_enums(model: Type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
     enums = {
-        key: field
+        key: create_strawberry_enum(field)
         for key, field in model._non_product_block_fields_.items()
         if is_enum(field) and is_not_strawberry_enum(key, strawberry_enums)
     }
-    return strawberry_enums | {key: create_strawberry_enum(field) for key, field in enums.items()}
+    return strawberry_enums | enums
 
 
 def graphql_name(name: str) -> str:
