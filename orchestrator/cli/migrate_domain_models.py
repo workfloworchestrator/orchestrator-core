@@ -375,8 +375,8 @@ def create_domain_models_migration_sql(
         list of upgrade SQL statements in string format.
         list of downgrade SQL statements in string format.
     """
-    stmt = select(ProductTable).with_only_columns(ProductTable.name, ProductTable.product_id)
-    existing_products = db.session.execute(stmt).all()
+    existing_products_q = db.session.execute(select(ProductTable.name, ProductTable.product_id))
+    existing_products = [(row[0], row[1]) for row in existing_products_q]
 
     db_product_names: List[str] = [product_name for product_name, _ in existing_products]
 
