@@ -97,6 +97,11 @@ class Lexer:
         yield Token.END,
 
 
+def camel_to_snake(s: str) -> str:
+    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+
+
 Node = tuple[str, Any]
 
 
@@ -274,6 +279,9 @@ class TSQueryVisitor:
         key_node, value_node = node[1]
 
         # Re-use visit_term
+        if key_node[0] == "Word":
+            # Camel case key term
+            key_node = ["Word", camel_to_snake(key_node[1])]
         TSQueryVisitor.visit_term(key_node, acc)
         acc.append(" <-> ")
 
