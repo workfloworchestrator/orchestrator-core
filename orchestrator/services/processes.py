@@ -16,7 +16,7 @@ import threading
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 import structlog
@@ -602,7 +602,7 @@ def continue_awaiting_process(
 
 
 async def _async_resume_processes(
-    processes: List[ProcessTable],
+    processes: Sequence[ProcessTable],
     user_name: str,
     broadcast_func: Optional[Callable] = None,
 ) -> bool:
