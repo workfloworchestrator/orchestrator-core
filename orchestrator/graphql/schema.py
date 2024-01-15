@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import Any, Callable, Union
+from typing import Any, Callable, Type, Union
 
 import strawberry
 import structlog
@@ -154,7 +154,7 @@ def create_graphql_router(
     query: Any = Query,
     mutation: Any = Mutation,
     register_models: bool = True,
-    subscription_interface: Any = SubscriptionInterface,
+    subscription_interface: Union[Type, None] = SubscriptionInterface,
 ) -> OrchestratorGraphqlRouter:
     @strawberry.experimental.pydantic.type(
         model=SubscriptionModel, all_fields=True, directives=federation_key_directives

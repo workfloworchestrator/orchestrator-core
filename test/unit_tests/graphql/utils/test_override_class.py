@@ -20,18 +20,16 @@ def override_class_app_graphql(
     def customer_id_override(self) -> str:
         return "overriden"
 
-    customer_id_override_field = strawberry.field(
-        name="customerId", resolver=customer_id_override, description="Returns customer_id"
-    )
+    customer_id_override_field = strawberry.field(resolver=customer_id_override, description="Returns customer_id")
     customer_id_override_field.name = "customer_id"
 
     def new(self) -> UUID:
         return self.customer_id
 
-    new_field = strawberry.field(name="newField", resolver=new, description="Returns new_field")
+    new_field = strawberry.field(resolver=new, description="Returns new_field")
     new_field.name = "new_field"
 
-    override_class(CustomerType, {"customer_id": customer_id_override_field, "new_field": new_field})
+    override_class(CustomerType, [customer_id_override_field, new_field])
 
     fastapi_app_graphql.register_graphql()
     yield fastapi_app_graphql
@@ -44,7 +42,7 @@ def override_class_app_graphql(
 
     customer_id.name = "customer_id"
 
-    override_class(CustomerType, {"customer_id": customer_id})
+    override_class(CustomerType, [customer_id])
     CustomerType.__strawberry_definition__._fields = [
         field for field in CustomerType.__strawberry_definition__._fields if field.name != "new_field"
     ]

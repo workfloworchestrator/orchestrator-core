@@ -1,7 +1,9 @@
 from typing import Any
 
+from strawberry.field import StrawberryField
 
-def override_class(strawberry_class: Any, fields: dict) -> Any:
+
+def override_class(strawberry_class: Any, fields: list[StrawberryField]) -> Any:
     """Override fields or add fields to a existing strawberry class.
 
     Usefull for overriding orchestrator core strawberry classes.
@@ -16,8 +18,10 @@ def override_class(strawberry_class: Any, fields: dict) -> Any:
     if not fields:
         return strawberry_class
 
+    fields_map = {field.name: field for field in fields}
+
     def override_fn(field: Any) -> Any:
-        if custom_field := fields.get(field.name):
+        if custom_field := fields_map.get(field.name):
             field.base_resolver = custom_field.base_resolver
             return field
         return field
@@ -25,7 +29,7 @@ def override_class(strawberry_class: Any, fields: dict) -> Any:
     default_class_field_names = [field.name for field in strawberry_class.__strawberry_definition__._fields]
 
     new_field_list = [override_fn(field) for field in strawberry_class.__strawberry_definition__._fields]
-    new_field_list.extend([field for field in fields.values() if field.name not in default_class_field_names])
+    new_field_list.extend([field for field in fields if field.name not in default_class_field_names])
 
     strawberry_class.__strawberry_definition__._fields = new_field_list
     return strawberry_class
