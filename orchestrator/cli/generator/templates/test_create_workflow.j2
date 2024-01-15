@@ -14,7 +14,7 @@ def test_happy_flow(responses):
 
     # TODO insert additional mocks, if needed (ImsMocks)
 
-    product = ProductTable.query.filter(ProductTable.name == "{{ product.name }}").one()
+    product = db.session.scalars(select(ProductTable).where(ProductTable.name == "{{ product.name }}")).one()
 
     # when
 
@@ -41,7 +41,7 @@ def test_{{ validation.validation.id }}(responses):
 
     customer_id = "3f4fc287-0911-e511-80d0-005056956c1a"
 
-    product = ProductTable.query.filter(ProductTable.name == "{{ product.name }}"}}).one()
+    product = db.session.scalars(select(ProductTable).where(ProductTable.name == "{{ product.name }}")).one()
 
     # TODO set test conditions or fixture so that "{{ validation.validation.description }}" triggers
 

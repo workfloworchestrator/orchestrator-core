@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+- Migrate most sqlalchemy queries to v2 functions
+
+## [2.0.0]
+- Migrated to Pydantic v2
+
+## [1.3.6]
+- Implement search query resolvers for various models [\#288]
+
 ## [1.3.5]
 - Refactor SQLAlchemy queries to use v2 select statements in graphql resolvers [\#386]
 - Refactoring of callback steps

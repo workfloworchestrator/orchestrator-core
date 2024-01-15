@@ -131,6 +131,11 @@ def seed():
     db.session.commit()
 
 
+def test_gen_create_prod(seed):
+    product = db.session.scalars(select(ProductTable).where(ProductTable.name == "LightPath")).one()
+    assert product == {}
+
+
 def test_fetch_all_products(seed, test_client):
     response = test_client.get("/api/products")
 
