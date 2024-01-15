@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 
 
 def get_engine_settings() -> EngineSettingsTable:
-    """Returns the EngineSettingsTable object. Raises an exception query does not return exactly one row."""
+    """Returns the EngineSettingsTable object. Raises an exception if the query does not return exactly one row."""
     return db.session.execute(select(EngineSettingsTable)).scalar_one()
 
 
