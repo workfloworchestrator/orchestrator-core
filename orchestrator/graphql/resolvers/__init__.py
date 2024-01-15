@@ -1,4 +1,4 @@
-from orchestrator.graphql.resolvers.default_customer import resolve_default_customer
+from orchestrator.graphql.resolvers.customer import resolve_customer
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.resolvers.product import resolve_products
 from orchestrator.graphql.resolvers.product_block import resolve_product_blocks
@@ -14,7 +14,7 @@ __all__ = [
     "resolve_settings",
     "SettingsMutation",
     "resolve_subscriptions",
-    "resolve_default_customer",
+    "resolve_customer",
     "resolve_resource_types",
     "resolve_workflows",
 ]

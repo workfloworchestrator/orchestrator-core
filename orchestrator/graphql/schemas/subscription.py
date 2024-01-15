@@ -14,7 +14,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
-from orchestrator.graphql.schemas.default_customer import DefaultCustomerType
+from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -137,11 +137,11 @@ class SubscriptionInterface:
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
     @strawberry.field(description="Returns customer of a subscription")  # type: ignore
-    def customer(self) -> DefaultCustomerType:
-        return DefaultCustomerType(
+    def customer(self) -> CustomerType:
+        return CustomerType(
+            customer_id=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
             fullname=app_settings.DEFAULT_CUSTOMER_FULLNAME,
             shortcode=app_settings.DEFAULT_CUSTOMER_SHORTCODE,
-            identifier=app_settings.DEFAULT_CUSTOMER_IDENTIFIER,
         )
 
     @strawberry.field(name="_metadataSchema", description="Returns metadata schema of a subscription")  # type: ignore
