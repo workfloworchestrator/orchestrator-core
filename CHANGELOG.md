@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 - Migrate most sqlalchemy queries to v2 functions
+    - Moved `WorkflowTable.find_by_name` to `orchestrator.services.workflows.get_workflow_by_name`
 
 ## [2.0.0]
 - Migrated to Pydantic v2
