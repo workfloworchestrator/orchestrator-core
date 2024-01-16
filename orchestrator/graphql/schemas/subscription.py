@@ -21,6 +21,7 @@ from orchestrator.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
 )
+from orchestrator.services.fixed_inputs import get_fixed_inputs
 from orchestrator.services.subscriptions import (
     get_subscription_metadata,
 )
@@ -73,8 +74,7 @@ class SubscriptionInterface:
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> strawberry.scalars.JSON:
-        stmt = select(FixedInputTable).where(FixedInputTable.product_id == self.product.product_id)  # type: ignore
-        fixed_inputs = db.session.scalars(stmt).all()
+        fixed_inputs = get_fixed_inputs(filters=[FixedInputTable.product_id == self.product.product_id])  # type: ignore
         return [{"field": fi.name, "value": fi.value} for fi in fixed_inputs]
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore

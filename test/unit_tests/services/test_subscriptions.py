@@ -3,9 +3,10 @@ from copy import deepcopy
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 
-from orchestrator.db import ProductTable
+from orchestrator.db import ProductTable, db
 from orchestrator.domain import SubscriptionModel
 from orchestrator.services.subscriptions import (
     build_extended_domain_model,
@@ -22,9 +23,13 @@ INCORRECT_SUBSCRIPTION = str(uuid4())
 subscription_mapping = {"PB_2": [{"rt_3": "info.id", "rt_2": "info2.id"}]}
 
 
+def get_one_product(product_name):
+    return db.session.scalars(select(ProductTable).where(ProductTable.name == product_name)).one()
+
+
 def test_get_subscription_by_id(generic_product_3):
     values = {"info.id": "0", "info2.id": "X"}
-    product = ProductTable.query.filter(ProductTable.name == "Product 3").one()
+    product = get_one_product("Product 3")
     subscription = fixtures.create_subscription_for_mapping(
         product, subscription_mapping, values, subscription_id=CORRECT_SUBSCRIPTION
     )
@@ -34,7 +39,7 @@ def test_get_subscription_by_id(generic_product_3):
 
 def test_get_subscription_by_id_err(generic_product_3):
     values = {"info.id": "0", "info2.id": "X"}
-    product = ProductTable.query.filter(ProductTable.name == "Product 3").one()
+    product = get_one_product("Product 3")
     fixtures.create_subscription_for_mapping(
         product, subscription_mapping, values, subscription_id=CORRECT_SUBSCRIPTION
     )
@@ -45,7 +50,7 @@ def test_get_subscription_by_id_err(generic_product_3):
 
 def test_retrieve_subscription_by_subscription_instance_value_none(generic_product_3):
     values = {"info.id": "0", "info2.id": "X"}
-    product = ProductTable.query.filter(ProductTable.name == "Product 3").one()
+    product = get_one_product("Product 3")
     fixtures.create_subscription_for_mapping(product, subscription_mapping, values)
 
     assert retrieve_subscription_by_subscription_instance_value("rt_2", "Wrong") is None
@@ -53,7 +58,7 @@ def test_retrieve_subscription_by_subscription_instance_value_none(generic_produ
 
 def test_retrieve_subscription_by_subscription_instance_value(generic_product_3):
     values = {"info.id": "0", "info2.id": "X"}
-    product = ProductTable.query.filter(ProductTable.name == "Product 3").one()
+    product = get_one_product("Product 3")
     fixtures.create_subscription_for_mapping(
         product, subscription_mapping, values, subscription_id=CORRECT_SUBSCRIPTION
     )
@@ -65,7 +70,7 @@ def test_retrieve_subscription_by_subscription_instance_value(generic_product_3)
 
 def test_retrieve_subscription_by_subscription_instance_value_err(generic_product_3):
     values = {"info.id": "0", "info2.id": "X"}
-    product = ProductTable.query.filter(ProductTable.name == "Product 3").one()
+    product = get_one_product("Product 3")
     fixtures.create_subscription_for_mapping(product, subscription_mapping, values)
     fixtures.create_subscription_for_mapping(product, subscription_mapping, values)
 

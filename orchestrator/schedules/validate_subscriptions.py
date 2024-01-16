@@ -15,8 +15,9 @@
 from threading import BoundedSemaphore
 
 import structlog
+from sqlalchemy import select
 
-from orchestrator.db import ProductTable, SubscriptionTable
+from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.schedules.scheduling import scheduler
 from orchestrator.services.processes import get_execution_context
 from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
@@ -30,7 +31,9 @@ task_semaphore = BoundedSemaphore(value=2)
 
 @scheduler(name="Subscriptions Validator", time_unit="day", at="00:10")
 def validate_subscriptions() -> None:
-    subscriptions = SubscriptionTable.query.join(ProductTable).filter(SubscriptionTable.insync.is_(True)).all()
+    subscriptions = db.session.scalars(
+        select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(True))
+    )
     for subscription in subscriptions:
         validation_workflow = None
 

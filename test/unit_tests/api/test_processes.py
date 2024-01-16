@@ -6,10 +6,10 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
-    EngineSettingsTable,
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
@@ -17,6 +17,7 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.services.processes import shutdown_thread_pool
+from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
@@ -122,7 +123,7 @@ def test_long_running_pause(test_client, long_running_workflow):
     response = test_client.get(f"api/processes/{process_id}")
     assert HTTPStatus.OK == response.status_code
 
-    # Let it run untill the first lock step is started
+    # Let it run until the first lock step is started
     time.sleep(1)
 
     response = test_client.put("/api/settings/status", json={"global_lock": True})
@@ -170,7 +171,7 @@ def test_long_running_pause(test_client, long_running_workflow):
 
 
 def test_service_unavailable_engine_locked(test_client, test_workflow):
-    engine_settings = EngineSettingsTable.query.one()
+    engine_settings = get_engine_settings()
     engine_settings.global_lock = True
     db.session.flush()
 
@@ -312,8 +313,10 @@ def test_resume_validations(test_client, started_process):
 
 def test_resume_with_empty_form(test_client, started_process):
     # Set a default value for the only input so we can submit an empty form
-    step = ProcessStepTable.query.filter(
-        ProcessStepTable.name == "Modify", ProcessStepTable.process_id == started_process
+    step = db.session.scalars(
+        select(ProcessStepTable).filter(
+            ProcessStepTable.name == "Modify", ProcessStepTable.process_id == started_process
+        )
     ).one()
     step.state["generic_select"] = "A"
     db.session.add(step)
@@ -343,7 +346,7 @@ def test_resume_happy_flow(test_client, started_process):
 
 
 def test_resume_with_incorrect_workflow_status(test_client, started_process):
-    process = ProcessTable.query.get(started_process)
+    process = db.session.get(ProcessTable, started_process)
     # setup DB so it looks like this workflow is already resumed
     process.last_status = ProcessStatus.RUNNING
     process.failed_reason = ""
@@ -360,7 +363,8 @@ def test_resume_with_incorrect_workflow_status(test_client, started_process):
 
 
 def test_try_resume_completed_workflow(test_client, started_process):
-    process = ProcessTable.query.get(started_process)
+    process = db.session.get(ProcessTable, started_process)
+    assert process
     # setup DB so it looks like this workflow is already completed
     process.last_status = ProcessStatus.COMPLETED
     process.failed_reason = ""
@@ -371,7 +375,8 @@ def test_try_resume_completed_workflow(test_client, started_process):
 
 
 def test_try_resume_resumed_workflow(test_client, started_process):
-    process = ProcessTable.query.get(started_process)
+    process = db.session.get(ProcessTable, started_process)
+    assert process
     # setup DB so it looks like this workflow has already been resumed
     process.last_status = ProcessStatus.RESUMED
     process.failed_reason = ""
@@ -397,7 +402,7 @@ def test_processes_filterable(test_client, mocked_processes, generic_subscriptio
     response = test_client.get("/api/processes?filter=lastStatus,resumed")
     assert 2 == len(response.json())
 
-    product_name = SubscriptionTable.query.get(generic_subscription_1).product.name
+    product_name = db.session.get(SubscriptionTable, generic_subscription_1).product.name
     response = test_client.get(f"/api/processes?filter=product,{product_name}")
     assert 4 == len(response.json())
     response = test_client.get("/api/processes?sort=assignee,asc")

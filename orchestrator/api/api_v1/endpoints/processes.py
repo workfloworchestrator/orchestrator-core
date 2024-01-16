@@ -28,14 +28,16 @@ from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from sentry_sdk.tracing import trace
+from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.orm import contains_eager, defer, joinedload
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
+from orchestrator.api.helpers import add_response_range
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
@@ -61,6 +63,7 @@ from orchestrator.services.processes import (
     resume_process,
     start_process,
 )
+from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON, State
 from orchestrator.utils.enrich_process import enrich_process
@@ -79,7 +82,7 @@ def check_global_lock() -> None:
         None or raises an exception
 
     """
-    engine_settings = EngineSettingsTable.query.one()
+    engine_settings = get_engine_settings()
     if engine_settings.global_lock:
         logger.info("Unable to interact with processes at this time. Engine StatusEnum is locked")
         raise_status(
@@ -99,14 +102,16 @@ def resolve_user_name(
 
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete(process_id: UUID) -> None:
-    process = ProcessTable.query.filter_by(process_id=process_id).one_or_none()
+    stmt = select(ProcessTable).filter_by(process_id=process_id)
+    process = db.session.execute(stmt).scalar_one_or_none()
+
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
     websocket_data = {"process": {"id": process.process_id, "status": ProcessStatus.ABORTED}}
     send_process_data_to_websocket(process.process_id, websocket_data)
 
-    ProcessTable.query.filter_by(process_id=process_id).delete()
+    db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
 
 
@@ -188,8 +193,9 @@ async def resume_all_processess_endpoint(request: Request, user: str = Depends(r
     """
 
     # Retrieve processes eligible for resuming
-    processes_to_resume = (
-        ProcessTable.query.filter(
+    stmt = (
+        select(ProcessTable)
+        .filter(
             ProcessTable.last_status.in_(
                 [
                     ProcessStatus.FAILED,
@@ -200,8 +206,8 @@ async def resume_all_processess_endpoint(request: Request, user: str = Depends(r
             )
         )
         .filter(ProcessTable.is_task.is_(True))
-        .all()
     )
+    processes_to_resume = db.session.scalars(stmt).all()
 
     broadcast_func = api_broadcast_process_data(request)
     if not await _async_resume_processes(processes_to_resume, user, broadcast_func=broadcast_func):
@@ -228,24 +234,25 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
     "/process-subscriptions-by-subscription-id/{subscription_id}", response_model=List[ProcessSubscriptionSchema]
 )
 def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[ProcessSubscriptionSchema]:
-    query = (
-        ProcessSubscriptionTable.query.options(contains_eager(ProcessSubscriptionTable.process))
+    stmt = (
+        select(ProcessSubscriptionTable)
+        .options(contains_eager(ProcessSubscriptionTable.process))
         .join(ProcessTable)
         .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
         .order_by(ProcessTable.started_at.asc())
     )
-    return query.all()
+    return list(db.session.scalars(stmt))
 
 
 @deprecated("Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, will be removed in 1.4")
 @router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
-    return ProcessSubscriptionTable.query.filter_by(process_id=pid).all()
+    return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=pid)))
 
 
 @router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_process_id(process_id: UUID) -> List[ProcessSubscriptionTable]:
-    return ProcessSubscriptionTable.query.filter_by(process_id=process_id).all()
+    return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=process_id)))
 
 
 @router.get("/statuses", response_model=List[ProcessStatus])
@@ -256,13 +263,13 @@ def statuses() -> List[str]:
 @router.get("/status-counts", response_model=ProcessStatusCounts)
 def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
-    rows = (
-        ProcessTable.query.with_entities(
-            ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status)  # type: ignore
-        )
+
+    stmt = (
+        select(ProcessTable)
+        .with_only_columns(ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status))
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
-        .all()
     )
+    rows = db.session.scalars(stmt)
     return ProcessStatusCounts(
         process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
         task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},
@@ -317,7 +324,8 @@ def processes_filterable(  # noqa: C901
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
-    query = ProcessTable.query.options(
+    processes: Union[Select, CompoundSelect]
+    processes = select(ProcessTable).options(
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product),
@@ -329,28 +337,15 @@ def processes_filterable(  # noqa: C901
             raise_status(HTTPStatus.BAD_REQUEST, "Invalid number of filter arguments")
 
         pydantic_filters = [Filter(field=field, value=value) for field, value in chunked(_filter, 2)]
-        query = filter_processes(query, pydantic_filters, handle_process_error)
+        processes = filter_processes(processes, pydantic_filters, handle_process_error)
 
     if _sort is not None and len(_sort) >= 2:
         pydantic_sorting = [Sort(field=field, order=SortOrder[value.upper()]) for field, value in chunked(_sort, 2)]
-        query = sort_processes(query, pydantic_sorting, handle_process_error)
+        processes = sort_processes(processes, pydantic_sorting, handle_process_error)
 
-    if _range is not None and len(_range) == 2:
-        try:
-            range_start = int(_range[0])
-            range_end = int(_range[1])
-            if range_start >= range_end:
-                raise ValueError("range start must be lower than end")
-        except (ValueError, AssertionError):
-            msg = "Invalid range parameters"
-            logger.exception(msg)
-            raise_status(HTTPStatus.BAD_REQUEST, msg)
-        total = query.count()
-        query = query.slice(range_start, range_end)
+    processes = add_response_range(processes, _range, response, unit="processes")
 
-        response.headers["Content-Range"] = f"processes {range_start}-{range_end}/{total}"
-
-    results = query.all()
+    results = list(db.session.scalars(processes).unique())
 
     # Calculate a CRC32 checksum of all the process id's and last_modified_at dates in order as entity tag
     checksum = _calculate_processes_crc32_checksum(results)
@@ -358,7 +353,7 @@ def processes_filterable(  # noqa: C901
     entity_tag = hex(checksum)
     response.headers["ETag"] = f'W/"{entity_tag}"'
 
-    # When the If-None-Match header contains the same CRC we can be sure that the resource has not changed
+    # When the If-None-Match header contains the same CRC we can be sure that the resource has not changed,
     # so we can skip serialization at the backend and rerendering at the frontend.
     if if_none_match == entity_tag:
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))

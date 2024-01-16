@@ -24,8 +24,7 @@ from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum, WorkerStatus
 from orchestrator.security import oidc_user
-from orchestrator.services import settings
-from orchestrator.services.processes import SYSTEM_USER, ThreadPoolWorkerStatus
+from orchestrator.services import processes, settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
@@ -74,16 +73,16 @@ async def set_global_status(
 
     """
 
-    engine_settings = EngineSettingsTable.query.with_for_update().one()
+    engine_settings = settings.get_engine_settings_for_update()
 
-    result = settings.marshall_processes(engine_settings, body.global_lock)
+    result = processes.marshall_processes(engine_settings, body.global_lock)
     if not result:
         raise_status(
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Something went wrong while updating the database aborting, possible manual intervention required",
         )
     if app_settings.SLACK_ENGINE_SETTINGS_HOOK_ENABLED:
-        user_name = user.user_name if user else SYSTEM_USER
+        user_name = user.user_name if user else processes.SYSTEM_USER
         settings.post_update_to_slack(EngineSettingsSchema.model_validate(result), user_name)
 
     status_response = generate_engine_status_response(result)
@@ -112,7 +111,7 @@ def get_worker_status() -> WorkerStatus:
         from orchestrator.services.tasks import CeleryJobWorkerStatus
 
         return CeleryJobWorkerStatus()
-    return ThreadPoolWorkerStatus()
+    return processes.ThreadPoolWorkerStatus()
 
 
 @router.get("/status", response_model=EngineSettingsSchema)
@@ -123,7 +122,7 @@ def get_global_status() -> EngineSettingsSchema:
         The global status of the engine
 
     """
-    engine_settings = EngineSettingsTable.query.one()
+    engine_settings = settings.get_engine_settings()
     return generate_engine_status_response(engine_settings)
 
 
@@ -141,7 +140,7 @@ if app_settings.ENABLE_WEBSOCKETS:
             await websocket_manager.disconnect(websocket, reason=error)
             return
 
-        engine_settings = EngineSettingsTable.query.one()
+        engine_settings = settings.get_engine_settings()
 
         await websocket.send_text(json_dumps({"engine-status": generate_engine_status_response(engine_settings)}))
 

@@ -14,6 +14,8 @@
 
 from datetime import timedelta
 
+from sqlalchemy import select
+
 from orchestrator.db import ProcessTable, db
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -25,11 +27,11 @@ from orchestrator.workflow import ProcessStatus, StepList, done, init, step, wor
 @step("Clean up completed tasks older than TASK_LOG_RETENTION_DAYS")
 def remove_tasks() -> State:
     cutoff = nowtz() - timedelta(days=app_settings.TASK_LOG_RETENTION_DAYS)
-    tasks = (
-        ProcessTable.query.filter(ProcessTable.is_task.is_(True))
+    tasks = db.session.scalars(
+        select(ProcessTable)
+        .filter(ProcessTable.is_task.is_(True))
         .filter(ProcessTable.last_status == ProcessStatus.COMPLETED)
         .filter(ProcessTable.last_modified_at <= cutoff)
-        .all()
     )
     count = 0
     for task in tasks:

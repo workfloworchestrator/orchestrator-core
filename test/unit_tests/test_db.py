@@ -1,13 +1,10 @@
-from typing import List
 from unittest import mock
-from uuid import UUID
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import ResourceTypeTable, SubscriptionTable, WorkflowTable, db, transactional
-from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.targets import Target
 
 
@@ -150,7 +147,7 @@ def test_autouse_fixture_rolls_back_aaa():
     db.session.commit()
 
     with pytest.raises(NoResultFound):
-        ResourceTypeTable.query.filter(ResourceTypeTable.resource_type == "bbb").one()
+        db.session.scalars(select(ResourceTypeTable).where(ResourceTypeTable.resource_type == "bbb")).one()
 
 
 def test_autouse_fixture_rolls_back_bbb():
@@ -169,22 +166,7 @@ def test_autouse_fixture_rolls_back_bbb():
     db.session.commit()
 
     with pytest.raises(NoResultFound):
-        ResourceTypeTable.query.filter(ResourceTypeTable.resource_type == "aaa").one()
-
-
-@pytest.mark.skip("TODO: Implement search method on SubscriptionSearchView")
-def test_full_text_search(generic_subscription_1):
-    def get_subs_tsq(query: str) -> List[SubscriptionTable]:
-        return SubscriptionSearchView.query.search(query).all()
-
-    subs = get_subs_tsq("Generic Subscription One")
-    assert subs[0].subscription_id == UUID(generic_subscription_1)
-
-    subs = get_subs_tsq("description:Generic Subscription One")
-    assert subs[0].subscription_id == UUID(generic_subscription_1)
-
-    subs = get_subs_tsq("rt_2: 42")
-    assert subs[0].subscription_id == UUID(generic_subscription_1)
+        db.session.scalars(select(ResourceTypeTable).where(ResourceTypeTable.resource_type == "aaa")).one()
 
 
 def test_str_method():

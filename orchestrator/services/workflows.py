@@ -38,3 +38,7 @@ def get_workflows(
     workflows = db.session.scalars(_add_filter(stmt)).all()
 
     return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]
+
+
+def get_workflow_by_name(workflow_name: str) -> Optional[WorkflowTable]:
+    return db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == workflow_name))

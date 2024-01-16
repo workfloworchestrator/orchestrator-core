@@ -31,16 +31,21 @@ query is all that is needed to get a list of `active` `UserGroup`
 subscriptions:
 
 ```python
+from orchestrator.db import db
 from orchestrator.db.models import ProductTable, SubscriptionTable
+from sqlalchemy import select
 
 ...
-        SubscriptionTable.query.join(ProductTable)
-        .filter(
-            ProductTable.product_type == "UserGroup",
-            SubscriptionTable.status == "active",
-        )
-        .with_entities(SubscriptionTable.subscription_id, SubscriptionTable.description)
-        .all()
+
+stmt = (
+    select(SubscriptionTable)
+    .join(ProductTable)
+    .filter(ProductTable.product_type == "UserGroup", SubscriptionTable.status == "active")
+    .with_only_columns(SubscriptionTable.subscription_id, SubscriptionTable.description)
+)
+
+subscriptions = db.session.scalars(stmt)
+
 ...
 ```
 
@@ -55,17 +60,19 @@ keys.  The amount of entries that may be chosen is controlled by the
 Putting everything together, the user group selector looks like this:
 
 ```python
+from orchestrator.db import db
+from orchestrator.db.models import ProductTable, SubscriptionTable
+from sqlalchemy import select
+
 def user_group_selector() -> list:
     user_group_subscriptions = {}
-    for user_group_id, user_group_description in (
-        SubscriptionTable.query.join(ProductTable)
-        .filter(
-            ProductTable.product_type == "UserGroup",
-            SubscriptionTable.status == "active",
-        )
-        .with_entities(SubscriptionTable.subscription_id, SubscriptionTable.description)
-        .all()
-    ):
+    stmt = (
+        select(SubscriptionTable).join(ProductTable)
+        .filter(ProductTable.product_type == "Port", SubscriptionTable.status == "active")
+        .with_only_columns(SubscriptionTable.subscription_id, SubscriptionTable.description)
+    )
+    
+    for user_group_id, user_group_description in db.session.execute(stmt).all():
         user_group_subscriptions[str(user_group_id)] = user_group_description
 
     return choice_list(

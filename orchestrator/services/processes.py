@@ -16,12 +16,14 @@ import threading
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 import structlog
 from deepmerge import Merger
 from fastapi import Request
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
@@ -32,11 +34,12 @@ from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
-    WorkflowTable,
     db,
 )
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
+from orchestrator.services.settings import get_engine_settings_for_update
+from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
@@ -107,7 +110,7 @@ def shutdown_thread_pool() -> None:
 
 
 def _db_create_process(stat: ProcessStat) -> None:
-    wf_table = WorkflowTable.find_by_workflow_name(stat.workflow.name)
+    wf_table = get_workflow_by_name(stat.workflow.name)
     if not wf_table:
         raise AssertionError(f"No workflow found with name: {stat.workflow.name}")
 
@@ -123,7 +126,7 @@ def _db_create_process(stat: ProcessStat) -> None:
 
 
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
-    p = ProcessTable.query.get(process_id)
+    p = db.session.get(ProcessTable, process_id)
     if p is None:
         raise ValueError(f"Failed to write failure step to process: process with PID {process_id} not found")
 
@@ -310,7 +313,7 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
 
     """
 
-    p = ProcessTable.query.get(process_id)
+    p = db.session.get(ProcessTable, process_id)
     if p is None:
         logger.error(
             "Failed to write failure to database: Process with PID %s not found",
@@ -335,10 +338,14 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
 
 
 def _get_process(process_id: UUID) -> ProcessTable:
-    process = ProcessTable.query.options(
-        joinedload(ProcessTable.steps),
-        joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
-    ).get(process_id)
+    process = db.session.get(
+        ProcessTable,
+        process_id,
+        options=[
+            joinedload(ProcessTable.steps),
+            joinedload(ProcessTable.process_subscriptions).joinedload(ProcessSubscriptionTable.subscription),
+        ],
+    )
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND, f"Process with process_id {process_id} not found")
@@ -358,7 +365,7 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
             None
 
         """
-        engine_settings = EngineSettingsTable.query.with_for_update().one()
+        engine_settings = get_engine_settings_for_update()
         engine_settings.running_processes += 1 if method == "+" else -1
         if engine_settings.running_processes < 0:
             engine_settings.running_processes = 0
@@ -595,7 +602,7 @@ def continue_awaiting_process(
 
 
 async def _async_resume_processes(
-    processes: List[ProcessTable],
+    processes: Sequence[ProcessTable],
     user_name: str,
     broadcast_func: Optional[Callable] = None,
 ) -> bool:
@@ -700,6 +707,59 @@ def load_process(process: ProcessTable) -> ProcessStat:
         log=remaining,
         current_user=SYSTEM_USER,
     )
+
+
+def _get_running_processes() -> list[ProcessTable]:
+    stmt = select(ProcessTable).where(ProcessTable.last_status == "running")
+    return list(db.session.scalars(stmt))
+
+
+def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> Optional[EngineSettingsTable]:
+    """Manage processes depending on the engine status.
+
+    This function only has to act when in the transitioning fases, i.e Pausing and Starting
+
+    Args:
+        engine_settings: Engine status containing the lock and status fields
+        new_global_lock: The state to which needs to be transitioned
+
+    Returns:
+        Engine status or none
+
+    """
+    try:
+        # This is the first process/container that will pick up the "running" queue
+        if engine_settings.global_lock and not new_global_lock:
+            # Update the global lock to unlocked, to make sure no one else picks up the queue
+            engine_settings.global_lock = new_global_lock
+            db.session.commit()
+
+            # Resume all the running processes
+            for process in _get_running_processes():
+                resume_process(process, user=SYSTEM_USER)
+
+        elif not engine_settings.global_lock and new_global_lock:
+            # Lock the engine
+            logger.info("Locking the orchestrator engine, Processes will run until the next step")
+            engine_settings.global_lock = new_global_lock
+            db.session.commit()
+        else:
+            logger.info(
+                "Engine is already locked or unlocked, global lock is unchanged",
+                global_lock=engine_settings.global_lock,
+                new_status=new_global_lock,
+            )
+
+        return engine_settings
+
+    except SQLAlchemyError:
+        logger.exception("Encountered a database error, aborting and stopping. Health check will crash the app")
+        return None
+    except ValueError:
+        logger.exception("Encountered an anomaly, locking the engine; manual intervention necessary to fix")
+        engine_settings.global_lock = True
+        db.session.commit()
+        return None
 
 
 class ProcessDataBroadcastThread(threading.Thread):

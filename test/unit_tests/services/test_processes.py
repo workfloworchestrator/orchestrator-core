@@ -6,9 +6,10 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessTable, db
+from orchestrator.db import ProcessStepTable, ProcessTable, db
 from orchestrator.services.processes import (
     SYSTEM_USER,
     _async_resume_processes,
@@ -19,6 +20,7 @@ from orchestrator.services.processes import (
     safe_logstep,
     start_process,
 )
+from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.errors import ApiException, error_state_to_dict
@@ -46,6 +48,13 @@ def _workflow_test_fn():
     pass
 
 
+def _get_process_steps(process_id, *, order_by=None):
+    stmt = select(ProcessStepTable).filter_by(process_id=process_id)
+    if order_by is not None:
+        stmt = stmt.order_by(order_by)
+    return db.session.scalars(stmt).all()
+
+
 @pytest.fixture
 def simple_workflow():
     wf = make_workflow(_workflow_test_fn, "wf description", None, Target.SYSTEM, StepList())
@@ -59,7 +68,7 @@ def test_db_create_process(simple_workflow):
 
     _db_create_process(pstat)
 
-    process = ProcessTable.query.get(process_id)
+    process = db.session.get(ProcessTable, process_id)
     assert process
     assert process.workflow_name == "wf name"
     assert process.is_task
@@ -84,7 +93,7 @@ def test_process_log_db_step_success(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "success"
@@ -100,7 +109,7 @@ def test_process_log_db_step_success(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 2
     assert psteps[1].status == "success"
@@ -132,7 +141,7 @@ def test_process_log_db_step_skipped(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "skipped"
@@ -148,7 +157,7 @@ def test_process_log_db_step_skipped(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 2
     assert psteps[1].status == "skipped"
@@ -180,7 +189,7 @@ def test_process_log_db_step_suspend(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "suspend"
@@ -196,7 +205,7 @@ def test_process_log_db_step_suspend(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 2
     assert psteps[1].status == "suspend"
@@ -228,7 +237,7 @@ def test_process_log_db_step_waiting(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "waiting"
@@ -244,7 +253,7 @@ def test_process_log_db_step_waiting(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert result.iswaiting()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "waiting"
@@ -280,7 +289,7 @@ def test_process_log_db_step_failed(simple_workflow):
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
@@ -298,7 +307,7 @@ def test_process_log_db_step_failed(simple_workflow):
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
@@ -336,7 +345,7 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
@@ -354,7 +363,7 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
@@ -392,7 +401,7 @@ def test_process_log_db_step_api_failed(simple_workflow):
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
@@ -410,7 +419,7 @@ def test_process_log_db_step_api_failed(simple_workflow):
     result = _db_log_step(pstat, step, state.on_failed(error_state_to_dict))
     assert result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "failed"
@@ -452,7 +461,7 @@ def test_process_log_db_step_abort(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "abort"
@@ -468,7 +477,7 @@ def test_process_log_db_step_abort(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 2
     assert psteps[1].status == "abort"
@@ -500,7 +509,7 @@ def test_process_log_db_step_complete(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 1
     assert psteps[0].status == "complete"
@@ -516,7 +525,7 @@ def test_process_log_db_step_complete(simple_workflow):
     result = _db_log_step(pstat, step, state)
     assert not result.isfailed()
 
-    psteps = ProcessStepTable.query.filter_by(process_id=p.process_id).all()
+    psteps = _get_process_steps(p.process_id)
 
     assert len(psteps) == 2
     assert psteps[1].status == "complete"
@@ -564,9 +573,7 @@ def test_process_log_db_step_deduplication(simple_workflow):
     _db_log_step(pstat, step1, Success({}))
     _db_log_step(pstat, step1, Failed(error_state_data))
 
-    psteps = (
-        ProcessStepTable.query.filter_by(process_id=p.process_id).order_by(ProcessStepTable.executed_at.asc()).all()
-    )
+    psteps = _get_process_steps(p.process_id, order_by=ProcessStepTable.executed_at.asc())
 
     assert psteps[0].name == "step1"
     assert psteps[0].status == "failed"
@@ -752,12 +759,12 @@ def test_run_process_async_success():
     _run_process_async(process_id, run_func)
     sleep(0.01)
 
-    assert EngineSettingsTable.query.one().running_processes == 1
+    assert get_engine_settings().running_processes == 1
 
     event.set()
     sleep(1)
 
-    assert EngineSettingsTable.query.one().running_processes == 0
+    assert get_engine_settings().running_processes == 0
     app_settings.TESTING = True
 
 
@@ -775,12 +782,12 @@ def test_run_process_async_exception(mock_db_log_process_ex):
     _run_process_async(process_id, run_func)
     sleep(0.1)
 
-    assert EngineSettingsTable.query.one().running_processes == 1
+    assert get_engine_settings().running_processes == 1
 
     event.set()
     sleep(0.1)
 
-    assert EngineSettingsTable.query.one().running_processes == 0
+    assert get_engine_settings().running_processes == 0
 
     mock_db_log_process_ex.assert_called_once_with(process_id, mock.ANY)
     assert repr(mock_db_log_process_ex.call_args[0][1]) == "ValueError('Failed')"

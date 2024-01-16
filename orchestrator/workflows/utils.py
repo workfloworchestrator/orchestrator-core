@@ -17,8 +17,9 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import field_validator
+from sqlalchemy import select
 
-from orchestrator.db import ProductTable, SubscriptionTable
+from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
@@ -48,7 +49,7 @@ def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -
         @classmethod
         def product_validator(cls, product_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the product exists and that this workflow is valid to run for this product."""
-            product = ProductTable.query.get(product_id)
+            product = db.session.get(ProductTable, product_id)
             if product is None:
                 raise ValueError("Product not found")
 
@@ -64,7 +65,7 @@ def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -
 
 
 def wrap_create_initial_input_form(initial_input_form: Optional[InputStepFunc]) -> Optional[StateInputStepFunc]:
-    """Wrap initial input for for create workflows.
+    """Wrap initial input for create workflows.
 
     This is needed because the frontend expects all create workflows to start with a page that only contains the product.
     It also expects the second page to have some user visible inputs and the product *again*.
@@ -76,7 +77,9 @@ def wrap_create_initial_input_form(initial_input_form: Optional[InputStepFunc]) 
 
         product_user_input = yield _generate_new_subscription_form(workflow_target, workflow_name)
 
-        product = ProductTable.query.get(product_user_input.product)
+        product = db.session.scalars(
+            select(ProductTable).where(ProductTable.product_id == product_user_input.product)
+        ).one()
 
         begin_state = {"product": product.product_id, "product_name": product.name}
 
@@ -109,15 +112,15 @@ TRANSLATIONS = {
 
 def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm:
     class ModifySubscriptionPage(FormPage):
-        # We use UUID instead of SubscriptionId here because we dont want the allowed_status check and
-        # we do our own validation here..
+        # We use UUID instead of SubscriptionId here because we don't want the allowed_status check and
+        # we do our own validation here.
         subscription_id: UUID
 
         @field_validator("subscription_id")
         @classmethod
         def subscription_validator(cls, subscription_id: UUID) -> UUID:
             """Run validator for initial_input_forms to check if the subscription exists and that this workflow is valid to run for this subscription."""
-            subscription = SubscriptionTable.query.get(subscription_id)
+            subscription = db.session.get(SubscriptionTable, subscription_id)
             if subscription is None:
                 raise ValueError("Subscription not found")
 

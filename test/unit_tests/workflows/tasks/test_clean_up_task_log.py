@@ -2,6 +2,7 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.db import ProcessStepTable, ProcessTable, WorkflowTable, db
 from orchestrator.targets import Target
@@ -62,7 +63,7 @@ def test_remove_tasks(task):
     state = {"process_id": res["process_id"], "reporter": "john.doe", "tasks_removed": 1}
     assert_state(result, state)
 
-    processes = ProcessTable.query.all()
+    processes = db.session.scalars(select(ProcessTable)).all()
 
     assert len(processes) == 3
     assert sorted(p.workflow_name for p in processes) == sorted(

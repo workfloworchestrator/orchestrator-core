@@ -175,7 +175,7 @@ SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush":
 class Database:
     """Setup and contain our database connection.
 
-    This is used to be able to setup the database in an uniform way while allowing easy testing and session management.
+    This is used to be able to set up the database in a uniform way while allowing easy testing and session management.
 
     Session management is done using ``scoped_session`` with a special scopefunc, because we cannot use
     threading.local(). Contextvar does the right thing with respect to asyncio and behaves similar to threading.local().

@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.db import FixedInputTable, ProductTable, db
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
@@ -52,7 +53,7 @@ def test_product_one(test_product_block_one_db):
 
 @pytest.fixture
 def test_product_model(test_product_one):
-    product = ProductTable.query.filter(ProductTable.product_id == test_product_one).one()
+    product = db.session.scalars(select(ProductTable).where(ProductTable.product_id == test_product_one)).one()
 
     return ProductModel(
         product_id=test_product_one,

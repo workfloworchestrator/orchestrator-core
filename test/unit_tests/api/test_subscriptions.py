@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from redis import Redis
+from sqlalchemy import select
 
 from nwastdlib.url import URL
 from orchestrator.api.helpers import product_block_paths
@@ -27,6 +28,7 @@ from orchestrator.services.subscriptions import (
     RELATION_RESOURCE_TYPES,
     _generate_etag,
     build_extended_domain_model,
+    get_subscription,
     unsync,
 )
 from orchestrator.settings import app_settings
@@ -693,7 +695,7 @@ def test_in_use_by_subscriptions(seed, test_client):
 
 
 def test_subscriptions_for_in_used_by_ids(seed, test_client, caplog):
-    instance_id = str(SubscriptionInstanceTable.query.first().subscription_instance_id)
+    instance_id = str(db.session.scalar(select(SubscriptionInstanceTable)).subscription_instance_id)
     response = test_client.post("/api/subscriptions/subscriptions_for_in_used_by_ids", json=[instance_id])
     in_use_by_subs = response.json()
     assert in_use_by_subs[instance_id]
@@ -713,7 +715,7 @@ def test_subscriptions_for_in_used_by_ids_with_wrong_instance_ids(seed, test_cli
 
 def test_in_use_by_subscriptions_not_insync(seed, test_client):
     # ensure that the used subscription of the MSP is out of sync
-    service = SubscriptionTable.query.get(SERVICE_SUBSCRIPTION_ID)
+    service = get_subscription(SERVICE_SUBSCRIPTION_ID)
     service.insync = False
     db.session.commit()
 
@@ -754,7 +756,7 @@ def test_depends_on_subscriptions_bogus_status(seed, test_client):
 
 def test_depends_on_subscriptions_not_insync(seed, test_client):
     # ensure that the depends on subscription of the LP is out of sync
-    msp = SubscriptionTable.query.with_for_update().get(PORT_A_SUBSCRIPTION_ID)
+    msp = db.session.get(SubscriptionTable, PORT_A_SUBSCRIPTION_ID, with_for_update=True)
     msp.insync = False
     db.session.commit()
 
@@ -784,7 +786,7 @@ def test_in_use_by_subscriptions_direct_relations(seed_with_direct_relations, te
 
 
 def test_subscriptions_for_in_used_by_ids_direct_relations(seed_with_direct_relations, test_client, caplog):
-    instance_id = str(SubscriptionInstanceTable.query.first().subscription_instance_id)
+    instance_id = str(db.session.scalar(select(SubscriptionInstanceTable)).subscription_instance_id)
     response = test_client.post("/api/subscriptions/subscriptions_for_in_used_by_ids", json=[instance_id])
     depends_subs = response.json()
     assert depends_subs[instance_id]
@@ -794,7 +796,7 @@ def test_subscriptions_for_in_used_by_ids_direct_relations(seed_with_direct_rela
 
 def test_in_use_by_subscriptions_not_insync_direct_relations(seed_with_direct_relations, test_client):
     # ensure that the used subscription of the MSP is out of sync
-    service = SubscriptionTable.query.get(SERVICE_SUBSCRIPTION_ID)
+    service = get_subscription(SERVICE_SUBSCRIPTION_ID)
     service.insync = False
     db.session.commit()
 
@@ -829,7 +831,7 @@ def test_depends_on_subscriptions_direct_relations(seed_with_direct_relations, t
 
 def test_depends_on_subscriptions_not_insync_direct_relations(seed_with_direct_relations, test_client):
     # ensure that the depends on subscription of the LP is out of sync
-    msp = SubscriptionTable.query.with_for_update().get(PORT_A_SUBSCRIPTION_ID)
+    msp = get_subscription(PORT_A_SUBSCRIPTION_ID, for_update=True)
     msp.insync = False
     db.session.commit()
 
@@ -1029,7 +1031,7 @@ def test_set_in_sync(seed, test_client):
     response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
     assert response.status_code == HTTPStatus.OK
 
-    subscription = SubscriptionTable.query.get(subscription_id)
+    subscription = get_subscription(subscription_id)
     assert subscription.insync
 
 
@@ -1062,7 +1064,7 @@ def test_try_set_failed_task_in_sync(seed, test_client):
     response = test_client.put(f"/api/subscriptions/{subscription_id}/set_in_sync")
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
-    subscription = SubscriptionTable.query.get(subscription_id)
+    subscription = get_subscription(subscription_id)
     assert not subscription.insync
 
 

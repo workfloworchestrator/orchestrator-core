@@ -385,10 +385,6 @@ class ResourceTypeTable(BaseModel):
     resource_type = mapped_column(String(510), nullable=False, unique=True)
     description = mapped_column(Text())
 
-    @staticmethod
-    def find_by_resource_type(name: str) -> ResourceTypeTable:
-        return ResourceTypeTable.query.filter(ResourceTypeTable.resource_type == name).one()
-
 
 class WorkflowTable(BaseModel):
     __tablename__ = "workflows"
@@ -407,10 +403,6 @@ class WorkflowTable(BaseModel):
         back_populates="workflows",
     )
     processes = relationship("ProcessTable", lazy="select", cascade="all, delete-orphan", back_populates="workflow")
-
-    @staticmethod
-    def find_by_workflow_name(name: str) -> WorkflowTable:
-        return WorkflowTable.query.filter(WorkflowTable.name == name).scalar()
 
     @staticmethod
     def select() -> Select:
@@ -642,7 +634,7 @@ class SubscriptionSearchView(BaseModel):
         UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True, primary_key=True
     )
 
-    tsv = deferred(mapped_column(TSVectorType))  # type: ignore
+    tsv = deferred(mapped_column(TSVectorType))
 
     subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
 

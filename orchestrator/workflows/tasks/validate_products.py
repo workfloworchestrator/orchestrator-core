@@ -13,19 +13,20 @@
 
 from typing import Any, Dict, List
 
-from more_itertools import flatten
 from more_itertools.more import one
 from more_itertools.recipes import first_true
 from pydantic import ValidationError
-from sqlalchemy import not_
+from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
 import orchestrator.workflows
 from orchestrator.api.api_v1.endpoints.fixed_input import fi_configuration
-from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services import products
+from orchestrator.services.products import get_products
 from orchestrator.services.translations import generate_translations
+from orchestrator.services.workflows import get_workflow_by_name, get_workflows
 from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.errors import ProcessFailureError
@@ -36,7 +37,7 @@ from orchestrator.workflow import StepList, done, init, step, workflow
 
 @step("Check all workflows in database")
 def check_all_workflows_are_in_db() -> State:
-    all_workflows_in_db = {k.name for k in WorkflowTable.query.all()}
+    all_workflows_in_db = {k.name for k in get_workflows()}
     all_workflows = {k for k in orchestrator.workflows.ALL_WORKFLOWS.keys()}  # noqa: C416
     not_in_db = all_workflows - all_workflows_in_db
     not_in_lwi = all_workflows_in_db - all_workflows
@@ -57,7 +58,7 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
     workflow_assertions = []
     for key, lazy_wf in orchestrator.workflows.ALL_WORKFLOWS.items():
         wf = lazy_wf.instantiate()
-        db_workflow = WorkflowTable.query.filter(WorkflowTable.name == key).first()
+        db_workflow = get_workflow_by_name(key)
         if db_workflow:
             # Test workflows might not exist in the database
             if (
@@ -91,9 +92,8 @@ def check_workflows_for_matching_targets_and_descriptions() -> State:
 
 @step("Check that all products have at least one workflow")
 def check_that_products_have_at_least_one_workflow() -> State:
-    prods_without_wf = list(
-        flatten(ProductTable.query.filter(not_(ProductTable.workflows.any())).with_entities(ProductTable.name))
-    )
+    stmt = select(ProductTable).filter(not_(ProductTable.workflows.any())).with_only_columns(ProductTable.name)
+    prods_without_wf = db.session.scalars(stmt).all()
     if prods_without_wf:
         raise ProcessFailureError("Found products that do not have a workflow associated with them", prods_without_wf)
 
@@ -102,7 +102,7 @@ def check_that_products_have_at_least_one_workflow() -> State:
 
 @step("Check that all products have a create, modify, terminate and validate workflow")
 def check_that_products_have_create_modify_and_terminate_workflows() -> State:
-    product_data = ProductTable.query.filter(ProductTable.status == "active")
+    product_data = get_products(filters=[ProductTable.status == "active"])
 
     workflows_not_complete: List = []
     for product in product_data:
@@ -123,9 +123,9 @@ def check_that_products_have_create_modify_and_terminate_workflows() -> State:
 
 @step("Check that all active products have a modify note")
 def check_that_active_products_have_a_modify_note() -> State:
-    modify_workflow = WorkflowTable.query.filter(WorkflowTable.name == "modify_note").first()
+    modify_workflow = db.session.scalars(WorkflowTable.select().filter(WorkflowTable.name == "modify_note")).first()
 
-    product_data = ProductTable.query.filter(ProductTable.status == "active").all()
+    product_data = db.session.scalars(select(ProductTable).filter(ProductTable.status == "active"))
     result = [product.name for product in product_data if modify_workflow not in product.workflows]
     if result:
         raise ProcessFailureError("Found products that do not have a modify_note workflow", result)
@@ -137,7 +137,8 @@ def check_that_active_products_have_a_modify_note() -> State:
 def check_db_fixed_input_config() -> State:
     fixed_input_configuration = fi_configuration()
     product_tags = products.get_tags()
-    fixed_inputs = FixedInputTable.query.options(joinedload(FixedInputTable.product)).all()
+    stmt = select(FixedInputTable).options(joinedload(FixedInputTable.product))
+    fixed_inputs = db.session.scalars(stmt)
 
     data: Dict = {"fixed_inputs": [], "by_tag": {}}
     errors: List = []
@@ -173,7 +174,7 @@ def check_db_fixed_input_config() -> State:
 
 @step("Check subscription models")
 def check_subscription_models() -> State:
-    subscriptions = SubscriptionTable.query.all()
+    subscriptions = db.session.scalars(select(SubscriptionTable))
     failures: Dict[str, Any] = {}
     for subscription in subscriptions:
         try:
