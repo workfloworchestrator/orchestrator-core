@@ -1,9 +1,9 @@
-from typing import Any
+from typing import Type
 
 from strawberry.field import StrawberryField
 
 
-def override_class(strawberry_class: Any, fields: list[StrawberryField]) -> Any:
+def override_class(strawberry_class: Type, fields: list[StrawberryField]) -> Type:
     """Override fields or add fields to a existing strawberry class.
 
     Usefull for overriding orchestrator core strawberry classes.
@@ -20,7 +20,7 @@ def override_class(strawberry_class: Any, fields: list[StrawberryField]) -> Any:
 
     fields_map = {field.name: field for field in fields}
 
-    def override_fn(field: Any) -> Any:
+    def override_fn(field: StrawberryField) -> StrawberryField:
         if custom_field := fields_map.get(field.name):
             field.base_resolver = custom_field.base_resolver
             return field
