@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db.database import BaseModel
+from orchestrator.utils.helpers import camel_to_snake
 
 logger = structlog.getLogger(__name__)
 
@@ -274,6 +275,9 @@ class TSQueryVisitor:
         key_node, value_node = node[1]
 
         # Re-use visit_term
+        if key_node[0] == "Word":
+            # Camel case key term
+            key_node = ["Word", camel_to_snake(key_node[1])]
         TSQueryVisitor.visit_term(key_node, acc)
         acc.append(" <-> ")
 

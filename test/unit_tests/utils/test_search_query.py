@@ -96,3 +96,9 @@ def test_query_with_underscores():
         tsquery
         == "word <-> with <-> underscores & prefix <-> word:* & key <-> value <-> term <-> 1 & key <-> value2 <-> (val <-> 1 | val <-> 2 | val <-> 3:*)"
     )
+
+
+def test_query_kv_camelcasing():
+    q = "productTag:myTag"
+    q2 = "product_tag:myTag"
+    assert _parse_tree_and_tsquery(q)[1] == _parse_tree_and_tsquery(q2)[1]
