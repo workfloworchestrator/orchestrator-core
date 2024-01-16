@@ -11,7 +11,6 @@ from strawberry.unset import UNSET
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.customer import CustomerType
@@ -152,8 +151,3 @@ class SubscriptionInterface:
     @strawberry.field(description="Returns metadata of a subscription")  # type: ignore
     def metadata(self) -> dict:
         return get_subscription_metadata(str(self.subscription_id)) or {}
-
-
-@strawberry.experimental.pydantic.type(model=SubscriptionModel, all_fields=True, directives=federation_key_directives)
-class Subscription(SubscriptionInterface):
-    pass
