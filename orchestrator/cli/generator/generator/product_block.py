@@ -25,10 +25,10 @@ from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_product_block_file_name,
     path_to_module,
-    snake_to_camel,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.utils.helpers import snake_to_camel
 
 logger = structlog.getLogger(__name__)
 

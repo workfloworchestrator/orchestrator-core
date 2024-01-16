@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import MappedColumn
 
 from orchestrator.db.database import BaseModel
+from orchestrator.utils.helpers import camel_to_snake
 
 logger = structlog.getLogger(__name__)
 
@@ -95,11 +96,6 @@ class Lexer:
                 yield Token.WORD, word
 
         yield Token.END,
-
-
-def camel_to_snake(s: str) -> str:
-    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 Node = tuple[str, Any]

@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 from collections.abc import Generator
 from pathlib import Path
 
@@ -18,17 +17,9 @@ import structlog
 from more_itertools import first, one
 
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
+from orchestrator.utils.helpers import camel_to_snake
 
 logger = structlog.getLogger(__name__)
-
-
-def snake_to_camel(s: str) -> str:
-    return "".join(x.title() for x in s.split("_"))
-
-
-def camel_to_snake(s: str) -> str:
-    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 def get_workflow(config: dict, workflow_name: str) -> dict:
