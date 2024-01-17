@@ -1277,11 +1277,6 @@ def test_single_subscription_metadata_and_schema(
     }
 
 
-def expect_fail_test_if_too_many_duplicate_types_in_interface(result):
-    if "errors" in result and "are you using a strawberry.field" in result["errors"][0]["message"]:
-        pytest.xfail("Test fails when executed with all tests")
-
-
 def test_subscriptions_product_generic_one(
     fastapi_app_graphql,
     test_client,
@@ -1298,7 +1293,6 @@ def test_subscriptions_product_generic_one(
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
 
     subscriptions_data = result["data"]["subscriptions"]
     subscriptions = subscriptions_data["page"]
@@ -1332,7 +1326,6 @@ def test_single_subscription_product_list_union_type(
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
 
     subscriptions_data = result["data"]["subscriptions"]
     subscriptions = subscriptions_data["page"]
@@ -1374,7 +1367,6 @@ def test_single_subscription_product_list_union_type_provisioning_subscription(
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
 
     subscriptions_data = result["data"]["subscriptions"]
     subscriptions = subscriptions_data["page"]
@@ -1416,7 +1408,6 @@ def test_single_subscription_product_list_union_type_terminated_subscription(
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
-    expect_fail_test_if_too_many_duplicate_types_in_interface(result)
 
     subscriptions_data = result["data"]["subscriptions"]
     subscriptions = subscriptions_data["page"]

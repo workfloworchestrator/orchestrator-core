@@ -21,7 +21,7 @@ from uuid import UUID
 
 import more_itertools
 import structlog
-from sqlalchemy import Text, cast, not_
+from sqlalchemy import Text, cast, not_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
 from sqlalchemy.sql.expression import or_
@@ -58,13 +58,13 @@ def get_subscription(subscription_id: Union[UUID, UUIDstr], for_update: bool = F
 
 @overload
 def get_subscription(
-    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: type[T] = SubscriptionTable
 ) -> T:
     ...
 
 
 def get_subscription(
-    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: T = SubscriptionTable
+    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: type[T] = SubscriptionTable
 ) -> T:
     """Get the subscription.
 
@@ -78,12 +78,9 @@ def get_subscription(
     Raises: ValueError: if the requested Subscription does not exist in de database.
 
     """
-    query = model.query
-    if for_update:
-        query = query.with_for_update()
 
     try:
-        subscription = query.get(subscription_id)
+        subscription = db.session.get(model, subscription_id, with_for_update=for_update)
     except SQLAlchemyError as e:
         raise ValueError("Invalid subscription id") from e
 
@@ -251,17 +248,18 @@ def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str,
     return subscription
 
 
-def retrieve_node_subscriptions_by_name(node_name: str) -> List[SubscriptionTable]:
-    return (
-        SubscriptionTable.query.join(ProductTable)
+def retrieve_node_subscriptions_by_name(node_name: str) -> list[SubscriptionTable]:
+    stmt = (
+        select(SubscriptionTable)
+        .join(ProductTable)
         .join(SubscriptionInstanceTable)
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == node_name)
         .filter(ResourceTypeTable.resource_type == "nso_device_id")
         .filter(SubscriptionTable.status.in_(["active", "provisioning"]))
-        .all()
     )
+    return list(db.session.scalars(stmt))
 
 
 def retrieve_subscription_by_subscription_instance_value(
@@ -277,15 +275,16 @@ def retrieve_subscription_by_subscription_instance_value(
     Returns: Subscription or None
 
     """
-    return (
-        SubscriptionTable.query.join(SubscriptionInstanceTable)
+    stmt = (
+        select(SubscriptionTable)
+        .join(SubscriptionInstanceTable)
         .join(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .filter(SubscriptionInstanceValueTable.value == value)
         .filter(ResourceTypeTable.resource_type == resource_type)
         .filter(SubscriptionTable.status.in_(sub_status))
-        .one_or_none()
     )
+    return db.session.scalars(stmt).one_or_none()
 
 
 def find_values_for_resource_types(
@@ -329,17 +328,15 @@ def find_values_for_resource_types(
     """
     # the `order_by` on `subscription_instance_id` is there to guarantee the matched ordering across resource_types
     # (see also docstring)
-    query_result = (
-        SubscriptionInstanceValueTable.query.join(ResourceTypeTable)
+    stmt = (
+        select(SubscriptionInstanceValueTable)
+        .join(ResourceTypeTable)
         .join(SubscriptionInstanceTable)
-        .filter(
-            SubscriptionInstanceTable.subscription_id == subscription_id,
-            ResourceTypeTable.resource_type.in_(resource_types),
-        )
+        .filter(ResourceTypeTable.resource_type.in_(resource_types))
         .order_by(SubscriptionInstanceTable.subscription_instance_id)
-        .with_entities(ResourceTypeTable.resource_type, SubscriptionInstanceValueTable.value)
+        .with_only_columns(ResourceTypeTable.resource_type, SubscriptionInstanceValueTable.value)
     )
-    resource_type_values = tuple(query_result)
+    resource_type_values = db.session.execute(stmt).all()
 
     rt2v: Dict[str, List[str]] = defaultdict(list)
     for resource_type, value in resource_type_values:
@@ -443,11 +440,11 @@ def _in_sync_filter(query: Query) -> List[UUID]:
 RELATION_RESOURCE_TYPES: List[str] = []
 
 
-def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
+def status_relations(subscription: Optional[SubscriptionTable]) -> Dict[str, List[UUID]]:
     """Return info about locked subscription dependencies.
 
     This call will be used by the client to determine if it's safe to
-    start a modify or terminate workflow. There are 4 cases:
+    start a MODIFY or TERMINATE workflow. There are 4 cases:
 
     1) The subscription is a IP, LightPath or ELAN: the depends_on subscriptions are checked for not 'insync' instances.
     2) The subscription is a ServicePort: in_use_by subscriptions are checked for not 'insync' instances and for in_use_by
@@ -457,6 +454,8 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     4) IP_prefix cannot be terminated when in use
 
     """
+    if not subscription:
+        return {"locked_relations": [], "unterminated_parents": [], "unterminated_in_use_by_subscriptions": []}
     in_use_by_query = query_in_use_by_subscriptions(subscription.subscription_id)
 
     unterminated_in_use_by_subscriptions = _terminated_filter(in_use_by_query)
@@ -480,10 +479,15 @@ def status_relations(subscription: SubscriptionTable) -> Dict[str, List[UUID]]:
     return result
 
 
-def get_relations(subscription_id: UUIDstr) -> Dict[str, List[UUID]]:
-    subscription_table = SubscriptionTable.query.options(
-        joinedload(SubscriptionTable.product), joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows)
-    ).get(subscription_id)
+def get_relations(subscription_id: UUIDstr) -> dict[str, list[UUID]]:
+    subscription_table = db.session.get(
+        SubscriptionTable,
+        subscription_id,
+        options=[
+            joinedload(SubscriptionTable.product),
+            joinedload(SubscriptionTable.product).joinedload(ProductTable.workflows),
+        ],
+    )
     return status_relations(subscription_table)
 
 
@@ -586,9 +590,10 @@ def convert_to_in_use_by_relation(obj: Any) -> dict[str, str]:
 
 def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     """Create a subscription dict from the SubscriptionModel with additional keys."""
-    customer_descriptions = SubscriptionCustomerDescriptionTable.query.filter(
+    stmt = select(SubscriptionCustomerDescriptionTable).filter(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
-    ).all()
+    )
+    customer_descriptions = list(db.session.scalars(stmt))
 
     subscription = subscription_model.model_dump()
     paths = product_block_paths(subscription)

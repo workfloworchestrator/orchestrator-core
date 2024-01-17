@@ -39,7 +39,9 @@ def resume_found_workflows(waiting_process_ids: List[UUIDstr]) -> State:
     resumed_process_ids = []
     for process_id in waiting_process_ids:
         try:
-            process = ProcessTable.query.get(process_id)
+            process = db.session.get(ProcessTable, process_id)
+            if not process:
+                continue
             # Workaround the commit disable function
             db.session.info["disabled"] = False
             processes.resume_process(process)

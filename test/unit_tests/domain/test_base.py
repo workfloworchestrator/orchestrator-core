@@ -9,6 +9,7 @@ import pytz
 from dirty_equals import IsUUID
 from pydantic import Field, ValidationError, computed_field, conlist
 from pydantic.main import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import (
@@ -32,6 +33,14 @@ from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested 
 from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (
     ProductBlockOneNestedForTestInactive,
 )
+
+
+def get_one_relation(depends_on_id):
+    return db.session.scalars(
+        select(SubscriptionInstanceRelationTable).where(
+            SubscriptionInstanceRelationTable.depends_on_id == depends_on_id
+        )
+    ).one()
 
 
 def test_product_block_metadata(test_product_block_one, test_product_one, test_product_block_one_db):
@@ -730,9 +739,12 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
     db.session.commit()
 
     assert (
-        SubscriptionInstanceValueTable.query.join(SubscriptionInstanceValueTable.subscription_instance)
-        .filter(SubscriptionInstanceTable.subscription_id == model.subscription_id)
-        .count()
+        db.session.scalar(
+            select(func.count())
+            .select_from(SubscriptionInstanceValueTable)
+            .join(SubscriptionInstanceValueTable.subscription_instance)
+            .filter(SubscriptionInstanceTable.subscription_id == model.subscription_id)
+        )
         == 1
     )
 
@@ -899,7 +911,7 @@ def test_label_is_saved(test_product_one, test_product_type_one):
     test_model.block.label = "My label"
     test_model.save()
     db.session.commit()
-    instance_in_db = SubscriptionInstanceTable.query.get(test_model.block.subscription_instance_id)
+    instance_in_db = db.session.get(SubscriptionInstanceTable, test_model.block.subscription_instance_id)
     assert instance_in_db.label == "My label"
 
 
@@ -913,18 +925,22 @@ def test_domain_model_attrs_saving_loading(test_product_one, test_product_type_o
     test_model.save()
     db.session.commit()
 
-    relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.depends_on_id == test_model.block.sub_block.subscription_instance_id
-    ).one()
+    def get_one_relation(depends_on_id):
+        return db.session.scalars(
+            select(SubscriptionInstanceRelationTable).where(
+                SubscriptionInstanceRelationTable.depends_on_id == depends_on_id
+            )
+        ).one()
+
+    relation = get_one_relation(test_model.block.sub_block.subscription_instance_id)
     assert relation.domain_model_attr == "sub_block"
-    relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.depends_on_id == test_model.block.sub_block_2.subscription_instance_id
-    ).one()
+
+    relation = get_one_relation(test_model.block.sub_block_2.subscription_instance_id)
     assert relation.domain_model_attr == "sub_block_2"
-    relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.depends_on_id == test_model.block.sub_block_list[0].subscription_instance_id
-    ).one()
+
+    relation = get_one_relation(test_model.block.sub_block_list[0].subscription_instance_id)
     assert relation.domain_model_attr == "sub_block_list"
+
     test_model_2 = ProductTypeOneForTestInactive.from_subscription(test_model.subscription_id)
     assert test_model == test_model_2
 
@@ -938,9 +954,7 @@ def test_removal_of_domain_attrs(test_product_one, test_product_type_one, test_p
 
     test_model.save()
     db.session.commit()
-    relation = SubscriptionInstanceRelationTable.query.filter(
-        SubscriptionInstanceRelationTable.depends_on_id == test_model.block.sub_block.subscription_instance_id
-    ).one()
+    relation = get_one_relation(test_model.block.sub_block.subscription_instance_id)
     relation.domain_model_attr = None
     db.session.commit()
     with pytest.raises(ValueError, match=r"Expected exactly one item in iterable, but got"):
@@ -951,9 +965,7 @@ def test_simple_model_with_no_attrs(generic_subscription_1, generic_product_type
     GenericProductOneInactive, GenericProductOne = generic_product_type_1
     model = GenericProductOne.from_subscription(subscription_id=generic_subscription_1)
     with pytest.raises(NoResultFound):
-        SubscriptionInstanceRelationTable.query.filter(
-            SubscriptionInstanceRelationTable.depends_on_id == model.pb_1.subscription_instance_id
-        ).one()
+        get_one_relation(model.pb_1.subscription_instance_id)
 
 
 def test_abstract_super_block(test_product_one, test_product_type_one, test_product_block_one_db):

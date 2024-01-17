@@ -18,10 +18,11 @@ from uuid import UUID
 from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 from pytz import timezone
+from sqlalchemy import select
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.models import delete, save, update
-from orchestrator.db import SubscriptionCustomerDescriptionTable
+from orchestrator.db import SubscriptionCustomerDescriptionTable, db
 from orchestrator.schemas import SubscriptionDescriptionBaseSchema, SubscriptionDescriptionSchema
 from orchestrator.utils.redis import delete_from_redis
 
@@ -44,14 +45,15 @@ def update_subscription_customer_descriptions(data: SubscriptionDescriptionSchem
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def delete_subscription_customer_descriptions(_id: UUID) -> None:
-    description = SubscriptionCustomerDescriptionTable.query.get(_id)
-    delete(SubscriptionCustomerDescriptionTable, _id)
-    delete_from_redis(description.subscription_id)
+    description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
+    if description:
+        delete(SubscriptionCustomerDescriptionTable, _id)
+        delete_from_redis(description.subscription_id)
 
 
 @router.get("/{_id}", response_model=SubscriptionDescriptionSchema)
 def get_subscription_customer_descriptions(_id: UUID) -> str:
-    description = SubscriptionCustomerDescriptionTable.query.get(_id)
+    description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
     if description is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return description
@@ -59,9 +61,10 @@ def get_subscription_customer_descriptions(_id: UUID) -> str:
 
 @router.get("/customer/{customer_id}/subscription/{subscription_id}", response_model=SubscriptionDescriptionSchema)
 def get_subscription_customer_description_by_customer_subscription(customer_id: str, subscription_id: UUID) -> str:
-    description = SubscriptionCustomerDescriptionTable.query.filter_by(
+    stmt = select(SubscriptionCustomerDescriptionTable).filter_by(
         customer_id=customer_id, subscription_id=subscription_id
-    ).one_or_none()
+    )
+    description = db.session.scalars(stmt).one_or_none()
     if description is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return description

@@ -45,7 +45,8 @@ from structlog.stdlib import BoundLogger
 
 from nwastdlib import const, identity
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import EngineSettingsTable, db, transactional
+from orchestrator.db import db, transactional
+from orchestrator.services.settings import get_engine_settings
 from orchestrator.targets import Target
 from orchestrator.types import ErrorDict, State, StepFunc, strEnum
 from orchestrator.utils.docs import make_workflow_doc
@@ -1389,7 +1390,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
 
         # Execute step
         try:
-            engine_status = EngineSettingsTable.query.one()
+            engine_status = get_engine_settings()
             if engine_status.global_lock:
                 # Exiting from thread workflow engine is Paused or Pausing
                 consolelogger.info(

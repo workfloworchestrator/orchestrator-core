@@ -17,7 +17,6 @@ from orchestrator.graphql.autoregistration import (
     register_domain_models,
 )
 from orchestrator.graphql.schema import (
-    GRAPHQL_MODELS,
     Mutation,
     OrchestratorGraphqlRouter,
     OrchestratorSchema,
@@ -25,8 +24,8 @@ from orchestrator.graphql.schema import (
     create_graphql_router,
     custom_context_dependency,
     get_context,
-    graphql_router,
 )
+from orchestrator.graphql.schemas import GRAPHQL_MODELS
 from orchestrator.graphql.types import SCALAR_OVERRIDES
 
 __all__ = [
@@ -38,7 +37,6 @@ __all__ = [
     "OrchestratorSchema",
     "custom_context_dependency",
     "get_context",
-    "graphql_router",
     "create_graphql_router",
     "EnumDict",
     "add_class_to_strawberry",

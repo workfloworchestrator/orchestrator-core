@@ -2,6 +2,7 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import delete
 
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
 
@@ -15,7 +16,7 @@ SERVICE_SPEED = "service_speed"
 
 @pytest.fixture
 def seed():
-    FixedInputTable.query.delete()
+    db.session.execute(delete(FixedInputTable))
     fixed_inputs = [
         FixedInputTable(name=PORT_SPEED, value=PORT_SPEED_VALUE),
         FixedInputTable(name=SERVICE_SPEED, value=SERVICE_SPEED_VALUE),

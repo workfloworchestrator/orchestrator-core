@@ -15,10 +15,11 @@ from http import HTTPStatus
 
 import structlog
 from fastapi.routing import APIRouter
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProductTable
+from orchestrator.db import ProductTable, db
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +29,8 @@ router = APIRouter()
 @router.get("/", response_model=str)
 def get_health() -> str:
     try:
-        ProductTable.query.limit(1).with_entities(ProductTable.name)
+        stmt = select(ProductTable.name).limit(1)
+        db.session.execute(stmt)
     except OperationalError as e:
         logger.warning("Health endpoint returned: notok!")
         logger.debug("Health endpoint error details", error=str(e))

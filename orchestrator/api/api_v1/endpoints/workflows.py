@@ -16,8 +16,9 @@
 from typing import List, Optional
 
 from fastapi.routing import APIRouter
+from sqlalchemy import select
 
-from orchestrator.db import ProductTable, WorkflowTable
+from orchestrator.db import ProductTable, WorkflowTable, db
 from orchestrator.schemas import WorkflowSchema, WorkflowWithProductTagsSchema
 from orchestrator.services.workflows import get_workflows
 
@@ -35,12 +36,13 @@ def get_all_with_product_tags() -> List[WorkflowWithProductTagsSchema]:
     all_workflows = get_workflows()
 
     def add_product_tags(wf: WorkflowSchema) -> WorkflowWithProductTagsSchema:
-        tags = (
-            ProductTable.query.with_entities(ProductTable.tag.distinct())
+        products_stmt = (
+            select(ProductTable)
+            .with_only_columns(ProductTable.tag.distinct())
             .join(WorkflowTable, ProductTable.workflows)
             .filter(WorkflowTable.workflow_id == wf.workflow_id)
-            .all()
         )
+        tags = db.session.scalars(products_stmt)
         return WorkflowWithProductTagsSchema(
             name=wf.name,
             target=wf.target,

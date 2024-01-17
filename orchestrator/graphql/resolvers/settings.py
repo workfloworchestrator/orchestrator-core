@@ -3,11 +3,9 @@ from typing import Union
 import strawberry
 import structlog
 from redis.asyncio import Redis as AIORedis
-from sqlalchemy import select
 
 from oauth2_lib.strawberry import authenticated_mutation_field
 from orchestrator.api.api_v1.endpoints.settings import generate_engine_status_response
-from orchestrator.db import EngineSettingsTable, db
 from orchestrator.graphql.schemas.errors import Error
 from orchestrator.graphql.schemas.settings import (
     CACHE_FLUSH_OPTIONS,
@@ -21,8 +19,8 @@ from orchestrator.graphql.schemas.settings import (
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.graphql.utils import get_selected_fields
 from orchestrator.schemas.engine_settings import EngineSettingsSchema, WorkerStatus
-from orchestrator.services.processes import SYSTEM_USER, ThreadPoolWorkerStatus
-from orchestrator.services.settings import marshall_processes, post_update_to_slack
+from orchestrator.services.processes import SYSTEM_USER, ThreadPoolWorkerStatus, marshall_processes
+from orchestrator.services.settings import get_engine_settings, get_engine_settings_for_update, post_update_to_slack
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.redis import delete_keys_matching_pattern
 
@@ -33,7 +31,7 @@ logger = structlog.get_logger(__name__)
 def resolve_settings(info: OrchestratorInfo) -> StatusType:
     selected_fields = get_selected_fields(info)
 
-    db_engine_settings = db.session.execute(select(EngineSettingsTable)).scalar_one()
+    db_engine_settings = get_engine_settings()
     pydantic_orm_resp = generate_engine_status_response(db_engine_settings)
     engine_settings = EngineSettingsType.from_pydantic(pydantic_orm_resp)
 
@@ -71,8 +69,7 @@ async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSucc
 
 
 async def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
-    stmt = select(EngineSettingsTable).with_for_update()
-    engine_settings = db.session.execute(stmt).scalar_one()
+    engine_settings = get_engine_settings_for_update()
 
     result = marshall_processes(engine_settings, global_lock)
     if not result:

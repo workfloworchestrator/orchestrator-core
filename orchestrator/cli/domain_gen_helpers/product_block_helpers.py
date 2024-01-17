@@ -2,6 +2,7 @@ from itertools import chain
 from typing import Any, Dict, Generator, List, Set, Type, Union
 
 from more_itertools import flatten
+from sqlalchemy import select
 from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
@@ -9,6 +10,7 @@ from orchestrator.cli.domain_gen_helpers.helpers import get_product_block_names,
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt, str_fmt
+from orchestrator.db import db
 from orchestrator.db.models import (
     ProductBlockRelationTable,
     ProductBlockTable,
@@ -23,26 +25,22 @@ def get_product_block_id(block_name: str) -> ScalarSelect:
 
 
 def get_product_block_ids(block_names: Union[List[str], Set[str]]) -> ScalarSelect:
-    return (
-        ProductBlockTable.query.where(ProductBlockTable.name.in_(block_names))
-        .with_entities(ProductBlockTable.product_block_id)
-        .scalar_subquery()
-    )
+    return select(ProductBlockTable.product_block_id).where(ProductBlockTable.name.in_(block_names)).scalar_subquery()
 
 
 def get_subscription_instance(subscription_id: str, product_block_id: ScalarSelect) -> ScalarSelect:
     return (
-        SubscriptionInstanceTable.query.where(
+        select(SubscriptionInstanceTable.subscription_instance_id)
+        .where(
             SubscriptionInstanceTable.product_block_id.in_(product_block_id),
             SubscriptionInstanceTable.subscription_id == subscription_id,
         )
-        .with_entities(SubscriptionInstanceTable.subscription_instance_id)
         .limit(1)
         .as_scalar()
     )
 
 
-def map_create_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]) -> Dict[str, Type[ProductBlockModel]]:
+def map_create_product_blocks(product_blocks: dict[str, Type[ProductBlockModel]]) -> dict[str, Type[ProductBlockModel]]:
     """Map product blocks to create.
 
     Args:
@@ -50,8 +48,8 @@ def map_create_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
 
     Returns: Dict of product blocks by product block name to create.
     """
-    _existing_product_blocks = ProductBlockTable.query.with_entities(ProductBlockTable.name).all()
-    existing_product_blocks = {block_name[0] for block_name in _existing_product_blocks}
+    _existing_product_blocks = db.session.scalars(select(ProductBlockTable.name))
+    existing_product_blocks = set(_existing_product_blocks)
     return {
         block_name: block for block_name, block in product_blocks.items() if block_name not in existing_product_blocks
     }
@@ -65,8 +63,8 @@ def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]
 
     Returns: List of product block names to delete.
     """
-    existing_product_blocks = ProductBlockTable.query.with_entities(ProductBlockTable.name).all()
-    return {name[0] for name in existing_product_blocks if name[0] not in product_blocks}
+    existing_product_blocks = db.session.scalars(select(ProductBlockTable.name))
+    return {name for name in existing_product_blocks if name not in product_blocks}
 
 
 def map_product_block_additional_relations(changes: DomainModelChanges) -> DomainModelChanges:
@@ -188,21 +186,19 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
     ) -> Generator[str, None, None]:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def map_subscription_instances(block_name: str) -> Dict[str, List[Dict[str, Union[str, ScalarSelect]]]]:
+        def map_subscription_instances(block_name: str) -> dict[str, list[dict[str, Union[str, ScalarSelect]]]]:
             in_use_by_id_sql = get_product_block_id(block_name)
-            subscription_instances: List[SubscriptionInstanceTable] = (
-                SubscriptionInstanceTable.query.where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
-                .with_entities(
-                    SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id
-                )
-                .all()
-            )
+            stmt = select(
+                SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id
+            ).where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
+
+            subscription_instances = list(db.session.execute(stmt))
             if not subscription_instances:
                 subscription_instances = []
 
             instance_list = [
-                {"subscription_id": instance.subscription_id, "product_block_id": depends_block_id_sql}
-                for instance in subscription_instances
+                {"subscription_id": subscription_id, "product_block_id": depends_block_id_sql}
+                for instance_id, subscription_id, in subscription_instances
             ]
             instance_relation_list = [
                 {

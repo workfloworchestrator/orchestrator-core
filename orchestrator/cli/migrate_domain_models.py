@@ -6,10 +6,11 @@ $ PYTHONPATH=. python bin/list_workflows
 
 """
 import sys
-from typing import Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Type, Union
 from uuid import UUID
 
 import structlog
+from sqlalchemy import select
 
 from orchestrator.cli.domain_gen_helpers.fixed_input_helpers import (
     generate_create_fixed_inputs_sql,
@@ -61,6 +62,7 @@ from orchestrator.cli.domain_gen_helpers.resource_type_helpers import (
 from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges, ModelUpdates
 from orchestrator.cli.helpers.input_helpers import get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt
+from orchestrator.db import db
 from orchestrator.db.models import ProductTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel, get_depends_on_product_block_type_list
@@ -121,8 +123,8 @@ def map_product_blocks(product_classes: List[Type[SubscriptionModel]]) -> Dict[s
 
 
 def map_differences_unique(
-    registered_products: Dict[str, Type[SubscriptionModel]], existing_products: List[Tuple[str, UUID]]
-) -> Dict[str, Dict[str, Dict[str, Set[str]]]]:
+    registered_products: Dict[str, Type[SubscriptionModel]], existing_products: Sequence[tuple[str, UUID]]
+) -> dict[str, dict[str, dict[str, set[str]]]]:
     """Create a unique map for products and product block differences from the database.
 
     Args:
@@ -131,7 +133,7 @@ def map_differences_unique(
 
     Returns a dict with product and product block differences from the database without duplicates.
     """
-    model_diffs: Dict[str, Dict[str, Dict[str, Set[str]]]] = {"products": {}, "blocks": {}}
+    model_diffs: dict[str, dict[str, dict[str, set[str]]]] = {"products": {}, "blocks": {}}
 
     for product_name, product_id in existing_products:
         if should_skip(product_name) or product_name not in registered_products:
@@ -373,9 +375,9 @@ def create_domain_models_migration_sql(
         list of upgrade SQL statements in string format.
         list of downgrade SQL statements in string format.
     """
-    existing_products: List[Tuple[str, UUID]] = list(
-        ProductTable.query.with_entities(ProductTable.name, ProductTable.product_id)
-    )
+    existing_products_q = db.session.execute(select(ProductTable.name, ProductTable.product_id))
+    existing_products = [(row[0], row[1]) for row in existing_products_q]
+
     db_product_names: List[str] = [product_name for product_name, _ in existing_products]
 
     products = SUBSCRIPTION_MODEL_REGISTRY

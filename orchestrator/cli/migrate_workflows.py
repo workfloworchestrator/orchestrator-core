@@ -1,14 +1,15 @@
 import itertools
 import operator
-from typing import Dict, List, Tuple, TypeVar
+from typing import Dict, Iterable, List, Tuple, TypeVar
 
 import structlog
+from sqlalchemy import select
 from tabulate import tabulate
 
 import orchestrator.workflows
 from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
-from orchestrator.db import ProductTable, WorkflowTable
+from orchestrator.db import ProductTable, WorkflowTable, db
 from orchestrator.targets import Target
 from orchestrator.workflows import LazyWorkflowInstance, get_workflow
 
@@ -47,9 +48,7 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
         noqa_print("No registered workflows found to add to the database")
         return state
 
-    registered_product_types = [
-        row[0] for row in ProductTable.query.with_entities(ProductTable.product_type).distinct()
-    ]
+    registered_product_types = list(db.session.scalars(select(ProductTable.product_type).distinct()))
     if not registered_product_types:
         noqa_print("No registered product types found")
         return state
@@ -85,7 +84,7 @@ def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> di
     return {**state, "workflows_to_add": [*state["workflows_to_add"], wf_to_add]}
 
 
-def _delete_workflow(workflows: List[WorkflowTable], state: dict) -> dict:
+def _delete_workflow(workflows: Iterable[WorkflowTable], state: dict) -> dict:
     print_fmt("\nDelete existing workflow\n", flags=[COLOR.UNDERLINE])
     already_used_workflows = {wf["name"] for wf in state["workflows_to_add"] + state["workflows_to_delete"]}
     items = [
@@ -181,7 +180,7 @@ def create_workflows_migration_wizard() -> Tuple[List[dict], List[dict]]:
         - list of workflow items to add in the migration
         - list of workflow items to delete in the migration
     """
-    database_workflows = WorkflowTable.query
+    database_workflows = list(db.session.scalars(select(WorkflowTable)))
     registered_workflows = orchestrator.workflows.ALL_WORKFLOWS
     system_workflow_names = {wf.name for wf in database_workflows if wf.target == Target.SYSTEM}
     registered_non_system_workflows = {k: v for k, v in registered_workflows.items() if k not in system_workflow_names}

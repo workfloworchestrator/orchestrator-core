@@ -30,7 +30,7 @@ from orchestrator.db.sorting.subscription import sort_subscriptions, subscriptio
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
-from orchestrator.graphql.schemas.subscription import Subscription, SubscriptionInterface
+from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import (
     create_resolver_error_handler,
@@ -49,12 +49,12 @@ base_sub_props = tuple(
     + ["__typename"]
 )
 
-_is_subscription_detailed = is_query_detailed(base_sub_props)
+_is_subscription_detailed = is_query_detailed(base_sub_props, ("SubscriptionInterface",))
 
 
 def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInterface:
+    from orchestrator.graphql import GRAPHQL_MODELS
     from orchestrator.graphql.autoregistration import graphql_subscription_name
-    from orchestrator.graphql.schema import GRAPHQL_MODELS
 
     subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
     base_model = subscription_details.__base_type__ if subscription_details.__base_type__ else subscription_details
@@ -63,6 +63,13 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
     )
     strawberry_type = GRAPHQL_MODELS[graphql_subscription_name(base_model.__name__)]  # type: ignore
     return strawberry_type.from_pydantic(subscription_details)
+
+
+def format_base_subscription(subscription: SubscriptionTable) -> SubscriptionInterface:
+    from orchestrator.graphql import GRAPHQL_MODELS
+
+    strawberry_type = GRAPHQL_MODELS["subscription"]
+    return strawberry_type.from_pydantic(subscription)
 
 
 async def resolve_subscriptions(
@@ -101,7 +108,7 @@ async def resolve_subscriptions(
         if _is_subscription_detailed(info):
             graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
         else:
-            graphql_subscriptions = [Subscription.from_pydantic(p) for p in subscriptions]
+            graphql_subscriptions = [format_base_subscription(p) for p in subscriptions]
     return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields, subscription_filter_fields
     )
