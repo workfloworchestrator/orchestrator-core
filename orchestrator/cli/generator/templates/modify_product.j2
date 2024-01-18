@@ -1,8 +1,8 @@
 {# Modify workflow -#}
 
-from collections.abc import Generator
+{% from 'macros.j2' import required with context -%}
+
 from pydantic_forms.core import ReadOnlyField
-from typing import Optional
 
 import structlog
 
@@ -14,11 +14,15 @@ from orchestrator.workflows.utils import modify_workflow
 from orchestrator.workflows.steps import set_status
 
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
-{% if validation_imports %}
+{% if validation_imports -%}
 from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
-{% endif %}
+{%- endif %}
+{% if product.config.summary_forms -%}
+from workflows.shared import modify_summary_form
+{%- endif %}
 
 {% include 'additional_modify_imports.j2' %}
+
 
 logger = structlog.get_logger(__name__)
 
@@ -36,11 +40,11 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         divider_1: Divider
 
         {% for field in product_block.fields if not field.modifiable is defined -%}
-        {{ field.name }}: {{ field.type }} = ReadOnlyField({{ product_block.name }}.{{ field.name }})
+        {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = ReadOnlyField({{ product_block.name }}.{{ field.name }})
         {% endfor -%}
 
         {% for field in product_block.fields if field.modifiable is defined -%}
-        {{ field.name }}: {% if field.required in ["active"] -%}Optional[{{ field.type }}]{% else -%}{{ field.type }}{% endif %} = {{ product_block.name }}.{{ field.name }}
+        {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = {{ product_block.name }}.{{ field.name }}
         {% endfor -%}
 
 {% for validation in validations %}
@@ -49,48 +53,26 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
     user_input = yield Modify{{ product.type }}Form
     user_input_dict = user_input.dict()
-
-    yield from create_summary_form(user_input_dict, subscription)
+    {% if product.config.summary_forms %}
+    summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
+    yield from modify_summary_form(user_input_dict, subscription.{{ product_block.name }}, summary_fields)
+    {%- endif %}
 
     return user_input_dict | {"subscription": subscription}
-
-
-def create_summary_form(user_input: dict, subscription: {{ product.type }}) -> Generator:
-    product_summary_fields = [{% for field in product_block.fields %} "{{ field.name }}",{% endfor -%}]
-
-    before = [str(getattr(subscription.{{ product_block.variable }}, nm)) for nm in product_summary_fields]
-    after = [str(user_input[nm]) for nm in product_summary_fields]
-
-    class ProductSummary(MigrationSummary):
-        data = {
-            "labels": product_summary_fields,
-            "headers": ["Before", "After"],
-            "columns": [before, after],
-        }
-
-    class SummaryForm(FormPage):
-        class Config:
-            title = f"{subscription.product.name} Summary"
-
-        product_summary: ProductSummary
-        divider_1: Divider
-
-    # TODO fill in additional details if needed
-
-    yield SummaryForm
 
 
 @step("Update subscription")
 def update_subscription(
     subscription: {{ product.type }}Provisioning,
     {% for field in product_block.fields if field.modifiable is defined -%}
-    {{ field.name }}: {% if field.required in ["active"] %}Optional[{{ field.type }}]{% else %}{{ field.type }}{% endif %},
+    {% if field.type not in existing_product_blocks -%}
+    {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }},
+    {%- endif %}
     {% endfor -%}) -> State:
     # TODO: get all modified fields
     {% for field in product_block.fields if field.modifiable is defined -%}
     subscription.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
-    {% endfor -%}
-
+    {% endfor %}
     return {"subscription": subscription}
 
 

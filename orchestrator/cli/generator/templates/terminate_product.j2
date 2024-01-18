@@ -4,6 +4,7 @@
 from uuid import UUID
 from pydantic import root_validator
 {% endif %}
+import structlog
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import DisplaySubscription
 from orchestrator.types import InputForm, State, UUIDstr
@@ -13,27 +14,8 @@ from orchestrator.workflows.utils import terminate_workflow
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 {% include 'additional_terminate_imports.j2' ignore missing %}
 
-@step("Load initial state")
-def load_initial_state(subscription: {{ product.type }}) -> State:
-    {% if product.nso_service_id_path %}
-    nso_service_id = str(subscription.{{ product.nso_service_id_path }}.nso_service_id)
-    {% endif -%}
-    {% if product.ims_circuit_id_path %}
-    ims_service_id = subscription.{{ product.ims_circuit_id_path }}.ims_circuit_id
-    {% endif -%}
+logger = structlog.get_logger(__name__)
 
-    # TODO: optionally add additional values.
-    # Copy values to the root of the state for easy access
-
-    return {
-        "subscription": subscription,
-        {%- if product.nso_service_id_path %}
-        NSO_SERVICE_ID: nso_service_id,
-        {%- endif %}
-        {%- if product.ims_circuit_id_path %}
-        "ims_service_id": ims_service_id,
-        {%- endif %}
-    }
 
 {% if validations -%}
 {% for validation in validations %}
@@ -59,6 +41,13 @@ def terminate_initial_input_form_generator(subscription_id: UUIDstr, organisatio
     return TerminateForm
 
 
+@step("Delete subscription from OSS/BSS")
+def delete_subscription_from_oss_bss(subscription: {{ product.type }}) -> State:
+    # TODO: add actual call to OSS/BSS to delete subscription
+
+    return {}
+
+
 {% include 'additional_terminate_steps.j2' %}
 
 
@@ -66,6 +55,6 @@ def terminate_initial_input_form_generator(subscription_id: UUIDstr, organisatio
 def terminate_{{ product.variable }}() -> StepList:
     return (
         begin
-        >> load_initial_state
+        >> delete_subscription_from_oss_bss
         # TODO: fill in additional steps if needed
     )

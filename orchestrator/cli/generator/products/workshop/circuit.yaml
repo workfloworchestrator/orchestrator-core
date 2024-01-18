@@ -4,7 +4,6 @@
 
 config:
   create_summary_forms: false
-  send_email: false
 name: Circuit
 type: Circuit
 tag: CIRCUIT

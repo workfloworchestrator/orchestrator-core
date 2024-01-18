@@ -21,7 +21,6 @@ class ProductGeneratorSettings(BaseSettings):
 
     PRODUCT_TYPES_PATH: Path = Path("products/product_types")
     PRODUCT_BLOCKS_PATH: Path = Path("products/product_blocks")
-    EMAIL_TEMPLATE_PATH: Path = Path("products/services/mail_templates/product_types")
     WORKFLOWS_PATH: Path = Path("workflows")
     TEST_PRODUCT_TYPE_PATH: Path = Path("test/unit_tests/domain/product_types")
     TEST_WORKFLOWS_PATH: Path = Path("test/unit_tests/workflows")
@@ -30,7 +29,6 @@ class ProductGeneratorSettings(BaseSettings):
     PRODUCT_REGISTRY_PATH: Path = Path("products/__init__.py")
     SUBSCRIPTION_DESCRIPTION_PATH: Path = Path("products/services/subscription.py")
     TRANSLATION_PATH: Path = Path("translations/en-GB.json")
-    MAIL_SINGLE_DISPATCH_PATH: Path = Path("products/services/mail.py")
 
 
 product_generator_settings = ProductGeneratorSettings()

@@ -67,11 +67,12 @@ def path_to_module(path: Path) -> str:
     return str(path).replace("/", ".")
 
 
-product_types_module = path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH)
+def get_product_types_module() -> str:
+    return path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH)
 
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:
-    return f'from {product_types_module}.{product["variable"]} import {product["type"]}{lifecycle}\n'
+    return f'from {get_product_types_module()}.{product["variable"]} import {product["type"]}{lifecycle}\n'
 
 
 def create_dunder_init_files(path: Path) -> None:

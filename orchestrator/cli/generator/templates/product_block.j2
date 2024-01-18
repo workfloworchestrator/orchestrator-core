@@ -1,9 +1,6 @@
 {# Product block definition -#}
 
-{% from 'macros.j2' import lifecycle_type, optional, list_field with context -%}
-{% if python_version == "3.9" -%}
-from typing import Optional
-{% endif -%}
+{% from 'macros.j2' import lifecycle_type, required, default, list_field with context -%}
 
 {% for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
@@ -34,7 +31,7 @@ class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_nam
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Inactive")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "Inactive") -%}
-    {{ field.name }}: {{ optional(field, type) }}
+    {{ field.name }}: {{ required(field, type, ["inactive"]) }} = {{ default(field) }}
     {% endif -%}
     {% endfor %}
 
@@ -44,7 +41,7 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Provisioning")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "Provisioning") -%}
-    {{ field.name }}: {% if field.required not in ["inactive", "provisioning"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
+    {{ field.name }}: {{ required(field, type, ["inactive", "provisioning"]) }}
     {% endif -%}
     {% endfor %}
     @computed_field
@@ -60,6 +57,6 @@ class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, l
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "") -%}
-    {{ field.name }}: {% if field.required not in ["inactive", "provisioning", "active"] -%} {{ optional(field, type) }} {% else -%} {{ type }} {% endif %}
+    {{ field.name }}: {{ required(field, type, ["inactive", "provisioning", "active"]) }}
     {% endif -%}
     {% endfor %}
