@@ -5,8 +5,7 @@ requires = ["flit_core >=3.2,<4"]
 
 [project]
 name = "orchestrator-core"
-dynamic = ['version']
-description = "Open source orchestration software for NREN's"
+dynamic = ['version', 'description']
 author = "SURF"
 author-email = "automation-beheer@surf.nl"
 home-page = "https://github.com/workfloworchestrator/orchestrator-core"
