@@ -73,7 +73,7 @@ class AppSettings(BaseSettings):
     DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]
     SKIP_MODEL_FOR_MIGRATION_DB_DIFF: list[str] = []
     SERVE_GRAPHQL_UI: bool = True
-    FEDEREATION_ENABLED: bool = False
+    FEDERATION_ENABLED: bool = False
     DEFAULT_CUSTOMER_FULLNAME: str = "Default::Orchestrator-Core Customer"
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
