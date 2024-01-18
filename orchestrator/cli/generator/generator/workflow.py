@@ -21,8 +21,8 @@ from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import (
     get_product_file_name,
-    get_workflow,
     get_product_types_module,
+    get_workflow,
     root_product_block,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings

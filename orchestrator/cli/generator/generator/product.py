@@ -21,8 +21,8 @@ from orchestrator.cli.generator.generator.fixed_input import (
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_product_file_name,
-    path_to_module,
     get_product_types_module,
+    path_to_module,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
