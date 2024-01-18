@@ -41,7 +41,7 @@ dependencies = [
     "broadcaster[redis]==0.2.0",
     "click==8.*",
     "deprecated",
-    "deepmerge==0.1.0",
+    "deepmerge==1.1.1",
     "fastapi~=0.103.2",
     "fastapi-etag==0.4.0",
     "more-itertools~=9.0.0",
