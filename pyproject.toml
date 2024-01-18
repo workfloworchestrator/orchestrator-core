@@ -74,7 +74,8 @@ description-file = "README.md"
 requires-python = ">=3.9,<3.12"
 
 [project.urls]
-documentation = "https://workfloworchestrator.org/orchestrator-core/"
+Documentation = "https://workfloworchestrator.org/orchestrator-core/"
+Source = "https://github.com/workfloworchestrator/orchestrator-core"
 
 [project.optional-dependencies]
 celery = [
