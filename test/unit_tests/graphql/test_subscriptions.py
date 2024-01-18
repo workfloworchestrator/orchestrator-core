@@ -627,30 +627,16 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
     assert "errors" in result
     assert result["errors"] == [
         {
-            "message": "Invalid sort arguments",
+            "message": (
+                "Invalid sort arguments (invalid_sorting=['start_date'] "
+                "valid_sort_keys=['customerId', 'description', 'endDate', "
+                "'insync', 'note', 'productCreatedAt', 'productDescription', "
+                "'productEndDate', 'productId', 'productName', 'productStatus', "
+                "'productTag', 'productType', 'startDate', 'status', "
+                "'subscriptionId', 'tag'])"
+            ),
             "path": [None, "subscriptions", "Query"],
-            "extensions": {
-                "invalid_sorting": [{"field": "start_date", "order": "DESC"}],
-                "valid_sort_keys": [
-                    "productId",
-                    "productName",
-                    "productDescription",
-                    "productType",
-                    "productTag",
-                    "productStatus",
-                    "productCreatedAt",
-                    "productEndDate",
-                    "subscriptionId",
-                    "description",
-                    "status",
-                    "customerId",
-                    "insync",
-                    "startDate",
-                    "endDate",
-                    "note",
-                    "tag",
-                ],
-            },
+            "extensions": {"error_type": "internal_error"},
         }
     ]
 
@@ -802,36 +788,17 @@ def test_subscriptions_filtering_with_invalid_filter(
 
     assert errors == [
         {
-            "message": "Invalid filter arguments",
+            "message": (
+                "Invalid filter arguments (invalid_filters=['test'] "
+                "valid_filter_keys=['description', 'endDate', 'endDateGt', "
+                "'endDateGte', 'endDateLt', 'endDateLte', 'endDateNe', 'insync', "
+                "'note', 'product', 'startDate', 'startDateGt', 'startDateGte', "
+                "'startDateLt', 'startDateLte', 'startDateNe', 'status', "
+                "'statuses', 'subscriptionId', 'subscriptionIds', 'tag', 'tags', "
+                "'tsv'])"
+            ),
             "path": [None, "subscriptions", "Query"],
-            "extensions": {
-                "invalid_filters": [{"field": "test", "value": "invalid"}],
-                "valid_filter_keys": [
-                    "description",
-                    "endDate",
-                    "endDateGt",
-                    "endDateGte",
-                    "endDateLt",
-                    "endDateLte",
-                    "endDateNe",
-                    "insync",
-                    "note",
-                    "product",
-                    "startDate",
-                    "startDateGt",
-                    "startDateGte",
-                    "startDateLt",
-                    "startDateLte",
-                    "startDateNe",
-                    "status",
-                    "statuses",
-                    "subscriptionId",
-                    "subscriptionIds",
-                    "tag",
-                    "tags",
-                    "tsv",
-                ],
-            },
+            "extensions": {"error_type": "internal_error"},
         }
     ]
     assert pageinfo == {
