@@ -89,7 +89,7 @@ test = [
     "dirty-equals",
     "ruff",
     "jsonref",
-    "mypy==1.6.1",
+    "mypy==1.8.0",
     "pytest",
     "pytest-cov",
     "pytest-httpx",
