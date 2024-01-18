@@ -89,7 +89,7 @@ test = [
     "dirty-equals",
     "ruff",
     "jsonref",
-    "mypy==1.6.1",
+    "mypy",
     "pytest",
     "pytest-cov",
     "pytest-httpx",
@@ -132,13 +132,6 @@ dev = [
 
 [tool.flit.module]
 name = "orchestrator"
-
-[tool.isort]
-profile = "black"
-line_length = 120
-skip = ["src", "venv"]
-known_third_party = ["pynso", "pydantic"]
-known_first_party = ["migrations", "test"]
 
 [tool.black]
 line-length = 120
