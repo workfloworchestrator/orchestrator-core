@@ -100,7 +100,7 @@ def resolve_user_name(
     return SYSTEM_USER
 
 
-@router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete("/{process_id}", status_code=HTTPStatus.NO_CONTENT)
 def delete(process_id: UUID) -> None:
     stmt = select(ProcessTable).filter_by(process_id=process_id)
     process = db.session.execute(stmt).scalar_one_or_none()
@@ -117,7 +117,6 @@ def delete(process_id: UUID) -> None:
 
 @router.post(
     "/{workflow_key}",
-    response_model=ProcessIdSchema,
     status_code=HTTPStatus.CREATED,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
@@ -126,16 +125,15 @@ def new_process(
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
     user: str = Depends(resolve_user_name),
-) -> dict[str, UUID]:
+) -> ProcessIdSchema:
     broadcast_func = api_broadcast_process_data(request)
     process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
 
-    return {"id": process_id}
+    return ProcessIdSchema(id=process_id)
 
 
 @router.put(
     "/{process_id}/resume",
-    response_model=None,
     status_code=HTTPStatus.NO_CONTENT,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
@@ -159,7 +157,6 @@ def resume_process_endpoint(
 
 @router.post(
     "/{process_id}/callback/{token}",
-    response_model=None,
     status_code=HTTPStatus.OK,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
@@ -182,10 +179,10 @@ def continue_awaiting_process_endpoint(
         raise_status(HTTPStatus.NOT_FOUND, str(e))
 
 
-@router.put(
-    "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
-)
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> dict[str, int]:
+@router.put("/resume-all", dependencies=[Depends(check_global_lock, use_cache=False)])
+async def resume_all_processess_endpoint(
+    request: Request, user: str = Depends(resolve_user_name)
+) -> ProcessResumeAllSchema:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -215,10 +212,10 @@ async def resume_all_processess_endpoint(request: Request, user: str = Depends(r
 
     logger.info("Resuming all processes", count=len(processes_to_resume))
 
-    return {"count": len(processes_to_resume)}
+    return ProcessResumeAllSchema(count=len(processes_to_resume))
 
 
-@router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/{process_id}/abort", status_code=HTTPStatus.NO_CONTENT)
 def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(resolve_user_name)) -> None:
     process = _get_process(process_id)
 
@@ -230,9 +227,7 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-@router.get(
-    "/process-subscriptions-by-subscription-id/{subscription_id}", response_model=list[ProcessSubscriptionSchema]
-)
+@router.get("/process-subscriptions-by-subscription-id/{subscription_id}")
 def process_subscriptions_by_subscription_id(subscription_id: UUID) -> list[ProcessSubscriptionSchema]:
     stmt = (
         select(ProcessSubscriptionTable)
@@ -250,17 +245,17 @@ def process_subscriptions_by_process_pid(pid: UUID) -> list[ProcessSubscriptionT
     return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=pid)))
 
 
-@router.get("/process-subscriptions-by-process_id/{process_id}", response_model=list[ProcessSubscriptionBaseSchema])
-def process_subscriptions_by_process_process_id(process_id: UUID) -> list[ProcessSubscriptionTable]:
+@router.get("/process-subscriptions-by-process_id/{process_id}")
+def process_subscriptions_by_process_process_id(process_id: UUID) -> list[ProcessSubscriptionBaseSchema]:
     return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=process_id)))
 
 
-@router.get("/statuses", response_model=list[ProcessStatus])
-def statuses() -> list[str]:
-    return [status.value for status in ProcessStatus]
+@router.get("/statuses")
+def statuses() -> list[ProcessStatus]:
+    return ProcessStatus.values()
 
 
-@router.get("/status-counts", response_model=ProcessStatusCounts)
+@router.get("/status-counts")
 def status_counts() -> ProcessStatusCounts:
     """Retrieve status counts for processes and tasks."""
 
@@ -276,9 +271,9 @@ def status_counts() -> ProcessStatusCounts:
     )
 
 
-@router.get("/assignees", response_model=list[Assignee])
-def assignees() -> list[str]:
-    return [assignee.value for assignee in Assignee]
+@router.get("/assignees")
+def assignees() -> list[Assignee]:
+    return Assignee.values()
 
 
 @deprecated("product (UUID) changed to product_id from version 1.2.3, will be removed in 1.4")

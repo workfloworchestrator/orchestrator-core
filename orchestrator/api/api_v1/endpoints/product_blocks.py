@@ -28,14 +28,14 @@ from orchestrator.schemas import ProductBlockEnrichedSchema as ProductBlockSchem
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ProductBlockSchema])
-def fetch() -> list[ProductBlockTable]:
+@router.get("/")
+def fetch() -> list[ProductBlockSchema]:
     stmt = select(ProductBlockTable).options(joinedload(ProductBlockTable.resource_types))
     return list(db.session.scalars(stmt).unique())
 
 
-@router.get("/{product_block_id}", response_model=ProductBlockSchema)
-def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
+@router.get("/{product_block_id}")
+def product_block_by_id(product_block_id: UUID) -> ProductBlockSchema:
     product_block_stmt = (
         select(ProductBlockTable)
         .options(joinedload(ProductBlockTable.resource_types))
@@ -47,17 +47,17 @@ def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
     return product_block
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.post("/", status_code=HTTPStatus.NO_CONTENT)
 def save_product_block(data: ProductBlockBaseSchema = Body(...)) -> None:
     return save(ProductBlockTable, data)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/", status_code=HTTPStatus.NO_CONTENT)
 def update_product_block(data: ProductBlockBaseSchema = Body(...)) -> None:
     return update(ProductBlockTable, data)
 
 
-@router.delete("/{product_block_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete("/{product_block_id}", status_code=HTTPStatus.NO_CONTENT)
 def delete_product_block(product_block_id: UUID) -> None:
     products_stmt = select(ProductTable).filter(
         ProductTable.product_blocks.any(ProductBlockTable.product_block_id == product_block_id)

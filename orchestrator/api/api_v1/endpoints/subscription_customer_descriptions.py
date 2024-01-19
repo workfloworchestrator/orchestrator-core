@@ -29,13 +29,13 @@ from orchestrator.utils.redis import delete_from_redis
 router = APIRouter()
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.post("/", status_code=HTTPStatus.NO_CONTENT)
 def save_subscription_customer_description(data: SubscriptionDescriptionBaseSchema = Body(...)) -> None:
     save(SubscriptionCustomerDescriptionTable, data)
     delete_from_redis(data.subscription_id)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/", status_code=HTTPStatus.NO_CONTENT)
 def update_subscription_customer_descriptions(data: SubscriptionDescriptionSchema = Body(...)) -> None:
     if data.created_at is None:
         data.created_at = datetime.now(tz=timezone("UTC"))
@@ -43,7 +43,7 @@ def update_subscription_customer_descriptions(data: SubscriptionDescriptionSchem
     delete_from_redis(data.subscription_id)
 
 
-@router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete("/{_id}", status_code=HTTPStatus.NO_CONTENT)
 def delete_subscription_customer_descriptions(_id: UUID) -> None:
     description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
     if description:
@@ -51,16 +51,18 @@ def delete_subscription_customer_descriptions(_id: UUID) -> None:
         delete_from_redis(description.subscription_id)
 
 
-@router.get("/{_id}", response_model=SubscriptionDescriptionSchema)
-def get_subscription_customer_descriptions(_id: UUID) -> str:
+@router.get("/{_id}")
+def get_subscription_customer_descriptions(_id: UUID) -> SubscriptionDescriptionSchema:
     description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
     if description is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return description
 
 
-@router.get("/customer/{customer_id}/subscription/{subscription_id}", response_model=SubscriptionDescriptionSchema)
-def get_subscription_customer_description_by_customer_subscription(customer_id: str, subscription_id: UUID) -> str:
+@router.get("/customer/{customer_id}/subscription/{subscription_id}")
+def get_subscription_customer_description_by_customer_subscription(
+    customer_id: str, subscription_id: UUID
+) -> SubscriptionDescriptionSchema:
     stmt = select(SubscriptionCustomerDescriptionTable).filter_by(
         customer_id=customer_id, subscription_id=subscription_id
     )
