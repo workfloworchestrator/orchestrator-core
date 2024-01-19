@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/", response_model=str)
+@router.get("/")
 def get_health() -> str:
     try:
         stmt = select(ProductTable.name).limit(1)

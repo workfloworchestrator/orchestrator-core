@@ -15,7 +15,7 @@ import structlog
 from fastapi import Path
 from fastapi.routing import APIRouter
 
-from orchestrator.services.translations import generate_translations
+from orchestrator.services.translations import Translations, generate_translations
 
 logger = structlog.get_logger(__name__)
 
@@ -23,6 +23,6 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/{language}", response_model=dict)
-def get_translations(language: str = Path(..., pattern="^[a-z]+-[A-Z]+$")) -> dict:
+@router.get("/{language}")
+def get_translations(language: str = Path(..., pattern="^[a-z]+-[A-Z]+$")) -> Translations:
     return generate_translations(language)

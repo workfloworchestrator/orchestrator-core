@@ -27,13 +27,13 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/error", response_model=dict)
+@router.post("/error")
 def log_error(data: dict[Any, Any] = Body(...)) -> dict:
     logger.error("Client reported an error", data=data, frontend_error=True)
     return {}
 
 
-@router.post("/log/{user_name}", response_model=dict)
+@router.post("/log/{user_name}")
 def log_user_info(user_name: str, message: dict = Body(...)) -> dict:
     """Log frontend messages that are related to user actions.
 

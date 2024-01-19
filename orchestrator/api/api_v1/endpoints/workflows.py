@@ -24,13 +24,13 @@ from orchestrator.services.workflows import get_workflows
 router = APIRouter()
 
 
-@router.get("/", response_model=list[WorkflowSchema])
+@router.get("/")
 def get_all(target: str | None = None, include_steps: bool = False) -> list[WorkflowSchema]:
     filters = {"target": target} if target else None
     return list(get_workflows(filters=filters, include_steps=include_steps))
 
 
-@router.get("/with_product_tags", response_model=list[WorkflowWithProductTagsSchema])
+@router.get("/with_product_tags")
 def get_all_with_product_tags() -> list[WorkflowWithProductTagsSchema]:
     all_workflows = get_workflows()
 

@@ -27,13 +27,13 @@ from orchestrator.services.resource_types import get_resource_types
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ResourceTypeSchema])
-def fetch() -> list[ResourceTypeTable]:
-    return get_resource_types()
+@router.get("/")
+def fetch() -> list[ResourceTypeSchema]:
+    return [ResourceTypeSchema.model_validate(i) for i in get_resource_types()]
 
 
-@router.get("/{resource_type_id}", response_model=ResourceTypeSchema)
-def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
+@router.get("/{resource_type_id}")
+def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeSchema:
     resource_type_stmt = select(ResourceTypeTable).filter_by(resource_type_id=resource_type_id)
     resource_type = db.session.scalars(resource_type_stmt).first()
     if not resource_type:
@@ -41,17 +41,17 @@ def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
     return resource_type
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.post("/", status_code=HTTPStatus.NO_CONTENT)
 def save_resource_type(data: ResourceTypeBaseSchema = Body(...)) -> None:
     return save(ResourceTypeTable, data)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/", status_code=HTTPStatus.NO_CONTENT)
 def update_resource_type(data: ResourceTypeSchema = Body(...)) -> None:
     return update(ResourceTypeTable, data)
 
 
-@router.delete("/{resource_type_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete("/{resource_type_id}", status_code=HTTPStatus.NO_CONTENT)
 def delete_resource_type(resource_type_id: UUID) -> None:
     product_blocks_stmt = select(ProductBlockTable).filter(
         ProductBlockTable.resource_types.any(ResourceTypeTable.resource_type_id == str(resource_type_id))

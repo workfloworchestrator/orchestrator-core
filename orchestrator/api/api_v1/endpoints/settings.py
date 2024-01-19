@@ -57,7 +57,7 @@ async def reset_search_index() -> None:
     return settings.reset_search_index()
 
 
-@router.put("/status", response_model=EngineSettingsSchema)
+@router.put("/status")
 async def set_global_status(
     body: EngineSettingsBaseSchema, user: OIDCUserModel | None = Depends(oidc_user)
 ) -> EngineSettingsSchema:
@@ -95,7 +95,7 @@ async def set_global_status(
     return status_response
 
 
-@router.get("/worker-status", response_model=WorkerStatus)
+@router.get("/worker-status")
 def get_worker_status() -> WorkerStatus:
     """Return data on job workers and queues.
 
@@ -113,7 +113,7 @@ def get_worker_status() -> WorkerStatus:
     return processes.ThreadPoolWorkerStatus()
 
 
-@router.get("/status", response_model=EngineSettingsSchema)
+@router.get("/status")
 def get_global_status() -> EngineSettingsSchema:
     """Retrieve the global status object.
 

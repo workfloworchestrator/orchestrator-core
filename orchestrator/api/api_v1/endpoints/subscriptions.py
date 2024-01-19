@@ -13,7 +13,7 @@
 
 """Module that implements subscription related API endpoints."""
 from http import HTTPStatus
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -106,24 +106,25 @@ def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
     return statuses
 
 
-@router.get("/all", response_model=list[SubscriptionSchema])
-def subscriptions_all() -> list[SubscriptionTable]:
+@router.get("/all")
+def subscriptions_all() -> list[SubscriptionSchema]:
     """Return subscriptions with only a join on products."""
     stmt = select(SubscriptionTable)
     return list(db.session.scalars(stmt))
 
 
-@router.get("/domain-model/{subscription_id}", response_model=Optional[SubscriptionDomainModelSchema])
+@router.get("/domain-model/{subscription_id}")
 def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
-) -> dict[str, Any] | None:
-    def _build_response(model: dict, etag: str) -> dict[str, Any] | None:
+) -> SubscriptionDomainModelSchema | None:
+    def _build_response(model: dict, etag: str) -> SubscriptionDomainModelSchema | None:
         if etag == request.headers.get("If-None-Match"):
             response.status_code = HTTPStatus.NOT_MODIFIED
             return None
         response.headers["ETag"] = etag
         filtered = format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
-        return format_special_types(filtered)
+        # Create the response model without validation
+        return SubscriptionDomainModelSchema.model_construct(**format_special_types(filtered))
 
     if cache_response := from_redis(subscription_id):
         return _build_response(*cache_response)
@@ -140,7 +141,7 @@ def subscription_details_by_id_with_domain_model(
             raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-@router.delete("/{subscription_id}", response_model=None)
+@router.delete("/{subscription_id}")
 def delete_subscription(subscription_id: UUID) -> None:
     stmt = select(ProcessSubscriptionTable).filter_by(subscription_id=subscription_id)
     all_process_subscriptions = list(db.session.scalars(stmt))
@@ -156,10 +157,10 @@ def delete_subscription(subscription_id: UUID) -> None:
     return
 
 
-@router.get("/in_use_by/{subscription_id}", response_model=list[SubscriptionSchema])
+@router.get("/in_use_by/{subscription_id}")
 def in_use_by_subscriptions(
     subscription_id: UUID, filter_statuses: list[str] = Depends(_filter_statuses)
-) -> list[SubscriptionTable]:
+) -> list[SubscriptionSchema]:
     """Retrieve subscriptions that are in use by this subscription.
 
     Args:
@@ -173,7 +174,7 @@ def in_use_by_subscriptions(
     return query_in_use_by_subscriptions(subscription_id, filter_statuses).all()
 
 
-@router.post("/subscriptions_for_in_used_by_ids", response_model=dict[UUID, SubscriptionSchema])
+@router.post("/subscriptions_for_in_used_by_ids")
 def subscriptions_by_in_used_by_ids(data: list[UUID] = Body(...)) -> dict[UUID, SubscriptionSchema]:
     rows = db.session.execute(
         select(SubscriptionInstanceTable)
@@ -189,11 +190,11 @@ def subscriptions_by_in_used_by_ids(data: list[UUID] = Body(...)) -> dict[UUID, 
     return result
 
 
-@router.get("/depends_on/{subscription_id}", response_model=list[SubscriptionSchema])
+@router.get("/depends_on/{subscription_id}")
 def depends_on_subscriptions(
     subscription_id: UUID,
     filter_statuses: list[str] = Depends(_filter_statuses),
-) -> list[SubscriptionTable]:
+) -> list[SubscriptionSchema]:
     """Retrieve dependant subscriptions.
 
     Args:
@@ -207,10 +208,10 @@ def depends_on_subscriptions(
     return query_depends_on_subscriptions(subscription_id, filter_statuses).all()
 
 
-@router.get("/", response_model=list[SubscriptionWithMetadata])
+@router.get("/")
 def subscriptions_filterable(
     response: Response, range: str | None = None, sort: str | None = None, filter: str | None = None
-) -> list[dict]:
+) -> list[SubscriptionWithMetadata]:
     """Get subscriptions filtered.
 
     Args:
@@ -238,13 +239,13 @@ def subscriptions_filterable(
     stmt = add_response_range(stmt, range_, response, unit="subscriptions")
 
     sequence = db.session.execute(stmt).all()
-    return [{**s.__dict__, "metadata": md} for s, md in sequence]
+    return [SubscriptionWithMetadata.model_construct(metadata_=meta, **sub) for sub, meta in sequence]
 
 
-@router.get("/search", response_model=list[SubscriptionWithMetadata])
+@router.get("/search")
 def subscriptions_search(
     response: Response, query: str, range: str | None = None, sort: str | None = None
-) -> list[dict]:
+) -> list[SubscriptionWithMetadata]:
     """Get subscriptions filtered based on a search query string.
 
     Args:
@@ -269,8 +270,9 @@ def subscriptions_search(
     )
     stmt = add_subscription_search_query_filter(stmt, query)
     stmt = add_response_range(stmt, range_, response, unit="subscriptions")
+
     sequence = db.session.execute(stmt).all()
-    return [{**s.__dict__, "metadata": md} for s, md in sequence]
+    return [SubscriptionWithMetadata.model_construct(metadata_=meta, **sub) for sub, meta in sequence]
 
 
 @router.get(
@@ -291,7 +293,7 @@ def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[s
     return subscription_workflows(subscription)
 
 
-@router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=list[UUID])
+@router.get("/instance/other_subscriptions/{subscription_instance_id}")
 def subscription_instance_in_use_by(
     subscription_instance_id: UUID, filter_statuses: list[str] = Depends(_filter_statuses)
 ) -> list[UUID]:
@@ -308,7 +310,7 @@ def subscription_instance_in_use_by(
     return [sub_id for sub_id in unique_ids if sub_id != subscription_instance.subscription_id]
 
 
-@router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
+@router.put("/{subscription_id}/set_in_sync", status_code=HTTPStatus.OK)
 def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(oidc_user)) -> None:
     def failed_processes() -> list[str]:
         if app_settings.DISABLE_INSYNC_CHECK:

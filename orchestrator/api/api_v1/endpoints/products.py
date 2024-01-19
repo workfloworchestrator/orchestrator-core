@@ -29,7 +29,7 @@ from orchestrator.services.products import get_tags, get_types
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ProductSchema])
+@router.get("/")
 def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
     stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
@@ -44,8 +44,8 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
     return list(db.session.scalars(stmt))
 
 
-@router.get("/{product_id}", response_model=ProductSchema)
-def product_by_id(product_id: UUID) -> ProductTable:
+@router.get("/{product_id}")
+def product_by_id(product_id: UUID) -> ProductSchema:
     stmt = (
         select(ProductTable)
         .options(
@@ -61,17 +61,17 @@ def product_by_id(product_id: UUID) -> ProductTable:
     return product
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.post("/", status_code=HTTPStatus.NO_CONTENT)
 def save_product(data: ProductCRUDSchema = Body(...)) -> None:
     return save(ProductTable, data)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put("/", status_code=HTTPStatus.NO_CONTENT)
 def update_product(data: ProductCRUDSchema = Body(...)) -> None:
     return update(ProductTable, data)
 
 
-@router.delete("/{product_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete("/{product_id}", status_code=HTTPStatus.NO_CONTENT)
 def delete_product(product_id: UUID) -> None:
     subscriptions_stmt = select(SubscriptionTable).filter(SubscriptionTable.product_id == product_id)
     subscriptions = db.session.scalars(subscriptions_stmt).all()
@@ -81,16 +81,16 @@ def delete_product(product_id: UUID) -> None:
     return delete(ProductTable, product_id)
 
 
-@router.get("/tags/all", response_model=list[str])
+@router.get("/tags/all")
 def tags() -> list[str]:
     return get_tags()
 
 
-@router.get("/types/all", response_model=list[str])
+@router.get("/types/all")
 def types() -> list[str]:
     return get_types()
 
 
-@router.get("/statuses/all", response_model=list[ProductLifecycle])
+@router.get("/statuses/all")
 def statuses() -> list[ProductLifecycle]:
     return ProductLifecycle.values()
