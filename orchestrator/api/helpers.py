@@ -118,7 +118,7 @@ def query_with_filters(  # noqa: C901
                         # For port subscriptions
                         sub_values = value.split("-")
                         stmt = stmt.filter(SubscriptionTable.status.in_([s.lower() for s in sub_values]))
-                    elif field == "organisation":
+                    elif field == "organisation" or field == "customer" or field == "customer_id":
                         stmt = stmt.filter(SubscriptionTable.customer_id == value)
                     elif field == "tsv":
                         # Quote key:value tokens. This will use the FOLLOWED BY operator (https://www.postgresql.org/docs/13/textsearch-controls.html)

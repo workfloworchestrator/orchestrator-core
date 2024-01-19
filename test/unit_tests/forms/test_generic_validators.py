@@ -10,7 +10,7 @@ from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_MISSING, URL_PARSING, URL_VALUE
 
 
-@mock.patch("orchestrator.forms.validators.get_product_by_id")
+@mock.patch("orchestrator.forms.validators.product_id.get_product_by_id")
 def test_product_id(mock_get_product_by_id):
     product_x_id = uuid4()
     product_y_id = uuid4()

@@ -219,7 +219,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     What this decorator does is better explained with an example than lots of text. So normally we do this::
 
         def load_initial_state_for_modify(state: State) -> State:
-            organisation_id = state["organisation"]
+            organisation = state["organisation"]
             subscription_id = state["subscription_id"]
             ....
             # build new_state

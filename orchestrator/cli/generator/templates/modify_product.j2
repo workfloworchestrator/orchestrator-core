@@ -7,7 +7,7 @@ from pydantic_forms.core import ReadOnlyField
 import structlog
 
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import OrganisationId, Divider, MigrationSummary
+from orchestrator.forms.validators import CustomerId, Divider, MigrationSummary
 from orchestrator.types import FormGenerator, State, UUIDstr, SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import modify_workflow
@@ -34,7 +34,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     # TODO fill in additional fields if needed
 
     class Modify{{ product.type }}Form(FormPage):
-        organisation: OrganisationId = subscription.customer_id  # type: ignore
+        organisation: CustomerId = subscription.customer_id  # type: ignore
 {% include "additional_modify_input_fields.j2" ignore missing %}
 
         divider_1: Divider

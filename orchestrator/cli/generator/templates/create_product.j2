@@ -7,7 +7,7 @@ from collections.abc import Generator
 import structlog
 
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Divider, Label, OrganisationId, MigrationSummary
+from orchestrator.forms.validators import Divider, Label, CustomerId, MigrationSummary
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
@@ -35,7 +35,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         class Config:
             title = product_name
 
-        organisation: OrganisationId
+        organisation: CustomerId
 {% include "additional_create_input_fields.j2" ignore missing %}
 
         label_{{ product.variable }}_settings: Label

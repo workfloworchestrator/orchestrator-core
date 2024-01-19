@@ -408,13 +408,14 @@ def test_processes_filtering_with_invalid_filter(
             "message": (
                 "Invalid filter arguments (invalid_filters=['test'] "
                 "valid_filter_keys=['assignee', 'createdBy', 'created_by', "
-                "'creator', 'failedReason', 'failed_reason', 'isTask', 'is_task', "
-                "'istask', 'lastModifiedAt', 'lastStatus', 'lastStep', "
-                "'last_modified_at', 'last_status', 'last_step', 'organisation', "
-                "'processId', 'process_id', 'product', 'productTag', 'startedAt', "
-                "'started_at', 'status', 'subscriptionId', 'subscription_id', "
-                "'subscriptions', 'tag', 'target', 'traceback', 'workflowId', "
-                "'workflowName', 'workflow_id', 'workflow_name'])"
+                "'creator', 'customer', 'failedReason', 'failed_reason', "
+                "'isTask', 'is_task', 'istask', 'lastModifiedAt', 'lastStatus', "
+                "'lastStep', 'last_modified_at', 'last_status', 'last_step', "
+                "'organisation', 'processId', 'process_id', 'product', "
+                "'productTag', 'startedAt', 'started_at', 'status', "
+                "'subscriptionId', 'subscription_id', 'subscriptions', 'tag', "
+                "'target', 'traceback', 'workflowId', 'workflowName', "
+                "'workflow_id', 'workflow_name'])"
             ),
             "path": [None, "processes", "Query"],
             "extensions": {"error_type": "internal_error"},

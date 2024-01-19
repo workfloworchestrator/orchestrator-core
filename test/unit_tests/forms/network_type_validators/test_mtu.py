@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.forms.network_type_validators import MTU
+from orchestrator.forms.validators import MTU
 from pydantic_forms.core import FormPage
 
 
