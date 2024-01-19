@@ -2,11 +2,11 @@
 
 Top level options:
 
---install-completion [bash|zsh|fish|powershell|pwsh]  
+--install-completion [bash|zsh|fish|powershell|pwsh]
 
 Install completion for the specified shell. [default: None]
 
---show-completion [bash|zsh|fish|powershell|pwsh]  
+--show-completion [bash|zsh|fish|powershell|pwsh]
 
 Show completion for the specified shell, to copy it or customize the
 installation. [default: None]
@@ -35,7 +35,7 @@ chronological order.
 
 Options
 
---verbose - Verbose output  
+--verbose - Verbose output
 --current - Indicate current revision
 
 ### init
@@ -46,11 +46,11 @@ directories.
 
 ### merge
 
-The `main.py db merge` command merges database revisions.                     
+The `main.py db merge` command merges database revisions.
 
 Arguments
 
-revisions - Add the revision you would like to merge to this command 
+revisions - Add the revision you would like to merge to this command
 [default: None]
 
 Options
@@ -61,7 +61,7 @@ Options
 
 The `main.py db migrate-domain-models` command creates a revision based on the
 difference between domain models in the source code and those that are defined
-in the database.  
+in the database.
 
 Arguments
 
@@ -69,11 +69,11 @@ message - Migration name [default: None] [required]
 
 Options
 
---test | --no-test - Optional boolean if you don't want to generate a 
-migration file [default: no-test]  
---inputs -  stringified dict to prefill inputs [default: {}]  
---updates - stringified dict to map updates instead of 
-using inputs [default: {}]  
+--test | --no-test - Optional boolean if you don't want to generate a
+migration file [default: no-test]
+--inputs -  stringified dict to prefill inputs [default: {}]
+--updates - stringified dict to map updates instead of
+using inputs [default: {}]
 
 The `python main.py db migrate-domain-model` CLI command is used to
 automatically generate the data migrations that you'll need when you add or
@@ -425,7 +425,7 @@ If you are running with `--test`, the SQL file will not be generated.
 
 The `main.py db migrate-workflows` command creates a migration file based on
 the difference between de worfklows code and the workflows that are registered
-in the database.     
+in the database.
 
 Arguments
 
@@ -433,7 +433,7 @@ message - Migration name [default: None] [required]
 
 Options
 
---test | --no-test - Optional boolean if you don't want to generate a 
+--test | --no-test - Optional boolean if you don't want to generate a
 migration file [default: no-test]
 
 ### revision
@@ -442,12 +442,12 @@ The `main.py db revision` command creates a new Alembic revision file.
 
 Arguments
 
---message - The revision message [default: None]  
---version-path - Specify specific path from config for version file 
-[default: None]  
---autogenerate | --no-autogenerate - Detect schema changes and add 
-migrations [default: no-autogenerate]  
---head - Determine the head you need to add your migration to. [default: None]  
+--message - The revision message [default: None]
+--version-path - Specify specific path from config for version file
+[default: None]
+--autogenerate | --no-autogenerate - Detect schema changes and add
+migrations [default: no-autogenerate]
+--head - Determine the head you need to add your migration to. [default: None]
 
 ### upgrade
 
@@ -557,7 +557,7 @@ A fixed input has a `name` and a `type` field. If the type is a primitive type
 (for example: str, bool, int, UUID), then this is sufficient. In the case of
 `node_vendor` we use an enum type, so we add additional fields to describe the
 enumeration type and its possible values.
- 
+
 **`product_blocks` section**
 
 In this section we define the product blocks that are part of this product.
@@ -621,8 +621,8 @@ configuration file.
 
 Options
 
---config-file - The configuration file [default: None]  
---python-version - Python version for generated code [default: 3.9]  
+--config-file - The configuration file [default: None]
+--python-version - Python version for generated code [default: 3.11]
 
 ### product
 
@@ -631,10 +631,10 @@ from a configuration file.
 
 Options
 
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.9]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### product-blocks
@@ -644,10 +644,10 @@ domain models from a configuration file.
 
 Options
 
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.9]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### unit-tests
@@ -657,10 +657,10 @@ configuration file.
 
 Options
 
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.9]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
 --tdd - Force test driven development with failing asserts [default: True]
 
 ### workflows
@@ -673,13 +673,13 @@ steps to the create, modify and terminate workflows.
 
 Options
 
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.9]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: 
-None]  
---custom-templates - Custom templates folder [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
+None]
+--custom-templates - Custom templates folder [default: None]
 
 ## scheduler
 

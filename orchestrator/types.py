@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections.abc
-import sys
+import types
 import typing
 from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
@@ -96,16 +96,9 @@ __all__ = [
 if TYPE_CHECKING:
     from orchestrator.domain.base import ProductBlockModel
 
-if sys.version_info < (3, 10):
 
-    def is_union(tp: Optional[Type[Any]]) -> bool:
-        return tp is Union  # type: ignore[comparison-overlap]
-
-else:
-    import types
-
-    def is_union(tp: Optional[Type[Any]]) -> bool:
-        return tp is Union or tp is types.UnionType  # type: ignore[comparison-overlap]
+def is_union(tp: Optional[Type[Any]]) -> bool:
+    return tp is Union or tp is types.UnionType  # type: ignore[comparison-overlap]
 
 
 # ErrorState is either a string containing an error message, a catched Exception or a tuple containing a message and

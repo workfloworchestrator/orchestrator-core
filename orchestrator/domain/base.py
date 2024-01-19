@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import sys
 import warnings
 from collections import defaultdict
 from datetime import datetime
+from inspect import get_annotations
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from typing import (
@@ -169,19 +169,6 @@ class DomainModel(BaseModel):
         """Make and store a list of resource_type fields and product block fields."""
         cls._non_product_block_fields_ = {}
         cls._product_block_fields_ = {}
-
-        if sys.version_info >= (3, 10):
-            from inspect import get_annotations
-        else:
-            # python 3.9 compatibility
-            def get_annotations(obj: Any) -> dict:
-                if hasattr(obj, "__annotations__"):
-                    return obj.__annotations__
-
-                if isinstance(obj, type) and "__annotations__" in obj.__dict__:
-                    return obj.__dict__["__annotations__"]
-
-                raise Exception(f"Cannot resolve type annotations for object {obj!r}")
 
         annotations = get_annotations(cls)
 

@@ -1,6 +1,6 @@
 # MacOS version 12 (Monterey) installation instructions
 
-How to manually install the orchestrator-core and orchestrator-core-gui on 
+How to manually install the orchestrator-core and orchestrator-core-gui on
 MacOS version
 12 (Monterey) is described in the following steps.
 
@@ -9,15 +9,15 @@ MacOS version
 This installation instruction assumes the use of [Homebrew](https://brew.sh/).
 The following software dependencies need to be installed:
 
-* Python 3.9
+* Python 3.11
 * PostgreSQL (version >=11)
-* virtualenvwrapper (or use any other tool to create virtual Python 
+* virtualenvwrapper (or use any other tool to create virtual Python
   environments)
 * Node.js (version 14)
 * yarn
 
 ``` shell
-brew install python@3.9 postgresql@13 virtualenvwrapper node@14 yarn
+brew install python@3.11 postgresql@13 virtualenvwrapper node@14 yarn
 ```
 
 ### Step 2 - Database setup
@@ -40,14 +40,14 @@ psql orchestrator-core
 
 ### Step 3 - Install orchestrator
 
-The minimal version of Python is 3.9. Before the orchestrator core and all its
+The minimal version of Python is 3.11. Before the orchestrator core and all its
 dependencies are installed, a Python virtual environment is created:
 
 ```shell
 mkdir example-orchestrator
 cd example-orchestrator
 source virtualenvwrapper.sh
-mkvirtualenv --python python3.9 example-orchestrator
+mkvirtualenv --python python3.11 example-orchestrator
 ```
 
 Make sure that the just created Python virtual environment is active before
@@ -102,7 +102,7 @@ PYTHONPATH=. python main.py db upgrade heads
 
 ### Step 5 - Install orchestrator client
 
-Install the orchestrator client in the parent directory of the 
+Install the orchestrator client in the parent directory of the
 example-orchestrator:
 
 ```shell

@@ -98,7 +98,7 @@ ConfigFile = typer.Option(..., "--config-file", "-cf", help="The configuration f
 DryRun = typer.Option(True, help="Dry run")
 TestDrivenDevelopment = typer.Option(True, "--tdd", help="Force test driven development with failing asserts")
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
-PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
+PythonVersion = typer.Option("3.11", "--python-version", "-p", help="Python version for generated code")
 FolderPrefix = typer.Option("", "--folder-prefix", "-fp", help="Folder prefix, e.g. <folder-prefix>/workflows")
 CustomTemplates = typer.Option("", "--custom-templates", "-ct", help="Custom templates folder")
 
