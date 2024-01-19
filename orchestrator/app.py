@@ -25,6 +25,7 @@ from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.strawberry import StrawberryIntegration
 from sentry_sdk.integrations.threading import ThreadingIntegration
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -144,6 +145,9 @@ class OrchestratorCore(FastAPI):
             from sentry_sdk.integrations.celery import CeleryIntegration
 
             sentry_integrations.append(CeleryIntegration())
+
+        if self.graphql_router:
+            sentry_integrations.append(StrawberryIntegration(async_execution=True))
 
         sentry_sdk.init(
             dsn=sentry_dsn,
