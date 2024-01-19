@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, cast
+from typing import cast
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
@@ -74,11 +74,11 @@ def format_base_subscription(subscription: SubscriptionTable) -> SubscriptionInt
 
 async def resolve_subscriptions(
     info: OrchestratorInfo,
-    filter_by: Optional[list[GraphqlFilter]] = None,
-    sort_by: Optional[list[GraphqlSort]] = None,
+    filter_by: list[GraphqlFilter] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
     first: int = 10,
     after: int = 0,
-    query: Optional[str] = None,
+    query: str | None = None,
 ) -> Connection[SubscriptionInterface]:
     _error_handler = create_resolver_error_handler(info)
 

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List, Optional
 from unittest import mock
 from uuid import uuid4
 
@@ -850,7 +849,7 @@ def test_update_lists(test_product_one, test_product_block_one):
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     class TestListProductType(SubscriptionModel, is_base=True):
-        saps: List[ProductBlockOneForTestInactive]
+        saps: list[ProductBlockOneForTestInactive]
 
     # Creates
     ip = TestListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
@@ -873,7 +872,7 @@ def test_update_optional(test_product_one, test_product_block_one):
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
     class TestListProductType(SubscriptionModel, is_base=True):
-        sap: Optional[ProductBlockOneForTestInactive] = None
+        sap: ProductBlockOneForTestInactive | None = None
 
     # Creates
     ip = TestListProductType.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
@@ -971,42 +970,42 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
     ProductTypeOneForTestInactive, ProductTypeOneForTestProvisioning, ProductTypeOneForTest = test_product_type_one
 
     class AbstractProductBlockOneForTestInactive(ProductBlockModel):
-        str_field: Optional[str] = None
-        list_field: List[int] = Field(default_factory=list)
+        str_field: str | None = None
+        list_field: list[int] = Field(default_factory=list)
 
     class AbstractProductBlockOneForTestProvisioning(
         AbstractProductBlockOneForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
     ):
-        str_field: Optional[str] = None
-        list_field: List[int]
+        str_field: str | None = None
+        list_field: list[int]
 
     class AbstractProductBlockOneForTest(
         AbstractProductBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductBlockOneForTestInactive(
         AbstractProductBlockOneForTestInactive, product_block_name="ProductBlockOneForTest"
     ):
-        str_field: Optional[str] = None
-        list_field: List[int] = Field(default_factory=list)
-        int_field: Optional[int] = None
+        str_field: str | None = None
+        list_field: list[int] = Field(default_factory=list)
+        int_field: int | None = None
 
     class ProductBlockOneForTestProvisioning(
         ProductBlockOneForTestInactive,
         AbstractProductBlockOneForTestProvisioning,
         lifecycle=[SubscriptionLifecycle.PROVISIONING],
     ):
-        str_field: Optional[str] = None
-        list_field: List[int]
+        str_field: str | None = None
+        list_field: list[int]
         int_field: int
 
     class ProductBlockOneForTest(
         ProductBlockOneForTestProvisioning, AbstractProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
         int_field: int
 
     class AbstractProductTypeOneForTestInactive(SubscriptionModel):
@@ -1156,42 +1155,42 @@ def test_diff_in_db_missing_in_db(test_product_type_one):
 
 def test_from_other_lifecycle_abstract(test_product_one):
     class AbstractProductBlockOneForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneForTest"):
-        str_field: Optional[str] = None
-        list_field: List[int] = Field(default_factory=list)
+        str_field: str | None = None
+        list_field: list[int] = Field(default_factory=list)
 
     class AbstractProductBlockOneForTestProvisioning(
         AbstractProductBlockOneForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
     ):
-        str_field: Optional[str] = None
-        list_field: List[int]
+        str_field: str | None = None
+        list_field: list[int]
 
     class AbstractProductBlockOneForTest(
         AbstractProductBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductBlockOneForTestInactive(
         AbstractProductBlockOneForTestInactive, product_block_name="ProductBlockOneForTest"
     ):
-        str_field: Optional[str] = None
-        list_field: List[int] = Field(default_factory=list)
-        int_field: Optional[int] = None
+        str_field: str | None = None
+        list_field: list[int] = Field(default_factory=list)
+        int_field: int | None = None
 
     class ProductBlockOneForTestProvisioning(
         ProductBlockOneForTestInactive,
         AbstractProductBlockOneForTestProvisioning,
         lifecycle=[SubscriptionLifecycle.PROVISIONING],
     ):
-        str_field: Optional[str] = None
-        list_field: List[int]
+        str_field: str | None = None
+        list_field: list[int]
         int_field: int
 
     class ProductBlockOneForTest(
         ProductBlockOneForTestProvisioning, AbstractProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
         int_field: int
 
     block = ProductBlockOneForTestInactive.new(subscription_id=uuid4())

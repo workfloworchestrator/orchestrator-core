@@ -10,8 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Callable
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from orchestrator import app_settings
@@ -26,7 +27,7 @@ SYSTEM_USER = "SYSTEM"
 
 
 def _celery_start_process(
-    workflow_key: str, user_inputs: Optional[List[State]], user: str = SYSTEM_USER, **kwargs: Any
+    workflow_key: str, user_inputs: list[State] | None, user: str = SYSTEM_USER, **kwargs: Any
 ) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
@@ -54,8 +55,8 @@ def _celery_start_process(
 def _celery_resume_process(
     process: ProcessTable,
     *,
-    user_inputs: Optional[List[State]],
-    user: Optional[str],
+    user_inputs: list[State] | None,
+    user: str | None,
     **kwargs: Any,
 ) -> UUID:
     """Client side call of Celery."""
@@ -94,11 +95,11 @@ def _celery_set_process_status_resumed(process: ProcessTable) -> None:
     db.session.commit()
 
 
-def _celery_validate(validation_workflow: str, json: Optional[List[State]]) -> None:
+def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:
     _celery_start_process(validation_workflow, user_inputs=json)
 
 
-CELERY_EXECUTION_CONTEXT: Dict[str, Callable] = {
+CELERY_EXECUTION_CONTEXT: dict[str, Callable] = {
     "start": _celery_start_process,
     "resume": _celery_resume_process,
     "validate": _celery_validate,

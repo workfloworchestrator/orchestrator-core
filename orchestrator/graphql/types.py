@@ -11,11 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 
 # Map some Orchestrator types to scalars
-from typing import Any, Callable, List, NewType, Tuple, Union
+from typing import Any, NewType
 
 import strawberry
 from graphql import GraphQLError
@@ -36,7 +36,7 @@ def serialize_to_string(value: Any) -> str:
     return str(value)
 
 
-def serialize_vlan(vlan: VlanRanges) -> List[Tuple[int, int]]:
+def serialize_vlan(vlan: VlanRanges) -> list[tuple[int, int]]:
     return vlan.to_list_of_tuples()
 
 
@@ -44,7 +44,7 @@ class OrchestratorContext(OauthContext):
     def __init__(
         self,
         get_current_user: Callable[[Request], Awaitable[OIDCUserModel]],
-        get_opa_decision: Callable[[str, OIDCUserModel], Awaitable[Union[bool, None]]],
+        get_opa_decision: Callable[[str, OIDCUserModel], Awaitable[bool | None]],
     ):
         self.errors: list[GraphQLError] = []
         super().__init__(get_current_user, get_opa_decision)
@@ -107,7 +107,7 @@ IntType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
-SCALAR_OVERRIDES: dict[object, Union[Any, ScalarWrapper, ScalarDefinition]] = {
+SCALAR_OVERRIDES: dict[object, Any | ScalarWrapper | ScalarDefinition] = {
     dict: JSON,
     VlanRanges: VlanRangesType,
     IPv4Address: IPv4AddressType,

@@ -14,9 +14,10 @@
 """Module that provides service functions on subscriptions."""
 import pickle  # noqa: S403
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import datetime
 from hashlib import md5
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar, Union, overload
+from typing import Any, TypeVar, overload
 from uuid import UUID
 
 import more_itertools
@@ -52,19 +53,19 @@ T = TypeVar("T", bound=SubscriptionTable)
 
 
 @overload
-def get_subscription(subscription_id: Union[UUID, UUIDstr], for_update: bool = False) -> SubscriptionTable:
+def get_subscription(subscription_id: UUID | UUIDstr, for_update: bool = False) -> SubscriptionTable:
     ...
 
 
 @overload
 def get_subscription(
-    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: type[T] = SubscriptionTable
+    subscription_id: UUID | UUIDstr, for_update: bool = False, model: type[T] = SubscriptionTable
 ) -> T:
     ...
 
 
 def get_subscription(
-    subscription_id: Union[UUID, UUIDstr], for_update: bool = False, model: type[T] = SubscriptionTable
+    subscription_id: UUID | UUIDstr, for_update: bool = False, model: type[T] = SubscriptionTable
 ) -> T:
     """Get the subscription.
 
@@ -89,7 +90,7 @@ def get_subscription(
     raise ValueError(f"Subscription with {subscription_id} does not exist in the database")
 
 
-def get_subscription_metadata(subscription_id: UUIDstr) -> Optional[dict]:
+def get_subscription_metadata(subscription_id: UUIDstr) -> dict | None:
     subscription_metadata = SubscriptionMetadataTable.find_by_subscription_id(subscription_id)
     if subscription_metadata:
         return subscription_metadata.metadata_
@@ -229,7 +230,7 @@ def create_subscription(
     return subscription.subscription_id
 
 
-def update_subscription(subscription_id: str, **attrs: Union[Dict, UUIDstr, str, datetime]) -> SubscriptionTable:
+def update_subscription(subscription_id: str, **attrs: dict | UUIDstr | str | datetime) -> SubscriptionTable:
     """Update the subscription.
 
     Args:
@@ -263,8 +264,8 @@ def retrieve_node_subscriptions_by_name(node_name: str) -> list[SubscriptionTabl
 
 
 def retrieve_subscription_by_subscription_instance_value(
-    resource_type: str, value: str, sub_status: Tuple = ("provisioning", "active")
-) -> Optional[SubscriptionTable]:
+    resource_type: str, value: str, sub_status: tuple = ("provisioning", "active")
+) -> SubscriptionTable | None:
     """Retrieve a Subscriptions by resource_type and value.
 
     Args:
@@ -288,8 +289,8 @@ def retrieve_subscription_by_subscription_instance_value(
 
 
 def find_values_for_resource_types(
-    subscription_id: Union[UUID, UUIDstr], resource_types: Sequence[str], strict: bool = True
-) -> Dict[str, List[str]]:
+    subscription_id: UUID | UUIDstr, resource_types: Sequence[str], strict: bool = True
+) -> dict[str, list[str]]:
     """Find values for resource types by subscription ID.
 
     This function issues a single SQL query to find one or more resource types for a given subscription. As
@@ -338,7 +339,7 @@ def find_values_for_resource_types(
     )
     resource_type_values = db.session.execute(stmt).all()
 
-    rt2v: Dict[str, List[str]] = defaultdict(list)
+    rt2v: dict[str, list[str]] = defaultdict(list)
     for resource_type, value in resource_type_values:
         rt2v[resource_type].append(value)
     if strict:
@@ -348,7 +349,7 @@ def find_values_for_resource_types(
     return rt2v
 
 
-def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: Optional[List[str]] = None) -> Query:
+def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
     """Return a query with all subscriptions -in_use_by- that use this subscription with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
@@ -385,7 +386,7 @@ def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: Option
     )
 
 
-def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: Optional[List[str]] = None) -> Query:
+def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
     """Return a query with all subscriptions -depends_on- that this subscription is dependent on with resource_type or direct relation.
 
     The query can be used to add extra filters when/where needed.
@@ -421,7 +422,7 @@ def query_depends_on_subscriptions(subscription_id: UUID, filter_statuses: Optio
     )
 
 
-def _terminated_filter(query: Query) -> List[UUID]:
+def _terminated_filter(query: Query) -> list[UUID]:
     return list(
         more_itertools.flatten(
             query.filter(SubscriptionTable.status != "terminated").with_entities(SubscriptionTable.subscription_id)
@@ -429,7 +430,7 @@ def _terminated_filter(query: Query) -> List[UUID]:
     )
 
 
-def _in_sync_filter(query: Query) -> List[UUID]:
+def _in_sync_filter(query: Query) -> list[UUID]:
     return list(
         more_itertools.flatten(
             query.filter(not_(SubscriptionTable.insync)).with_entities(SubscriptionTable.subscription_id)
@@ -437,10 +438,10 @@ def _in_sync_filter(query: Query) -> List[UUID]:
     )
 
 
-RELATION_RESOURCE_TYPES: List[str] = []
+RELATION_RESOURCE_TYPES: list[str] = []
 
 
-def status_relations(subscription: Optional[SubscriptionTable]) -> Dict[str, List[UUID]]:
+def status_relations(subscription: SubscriptionTable | None) -> dict[str, list[UUID]]:
     """Return info about locked subscription dependencies.
 
     This call will be used by the client to determine if it's safe to
@@ -491,22 +492,22 @@ def get_relations(subscription_id: UUIDstr) -> dict[str, list[UUID]]:
     return status_relations(subscription_table)
 
 
-TARGET_DEFAULT_USABLE_MAP: Dict[Target, List[str]] = {
+TARGET_DEFAULT_USABLE_MAP: dict[Target, list[str]] = {
     Target.CREATE: [],
     Target.MODIFY: ["active"],
     Target.TERMINATE: ["active", "provisioning"],
     Target.SYSTEM: ["active"],
 }
 
-WF_USABLE_MAP: Dict[str, List[str]] = {}
+WF_USABLE_MAP: dict[str, list[str]] = {}
 
-WF_BLOCKED_BY_PARENTS: Dict[str, bool] = {}
-WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS: Dict[str, bool] = {}
+WF_BLOCKED_BY_PARENTS: dict[str, bool] = {}
+WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS: dict[str, bool] = {}
 
-WF_USABLE_WHILE_OUT_OF_SYNC: List[str] = ["modify_note"]
+WF_USABLE_WHILE_OUT_OF_SYNC: list[str] = ["modify_note"]
 
 
-def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
+def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
     """Return a dict containing all the workflows a user can start for this subscription.
 
     Args:
@@ -524,7 +525,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
         ... }
 
     """
-    default_json: Dict[str, Any] = {}
+    default_json: dict[str, Any] = {}
 
     if not subscription.insync:
         default_json["reason"] = "subscription.not_in_sync"
@@ -535,7 +536,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> Dict[str, Any]:
             default_json["reason"] = "subscription.relations_not_in_sync"
             default_json["locked_relations"] = data["locked_relations"]
 
-    workflows: Dict[str, Any] = {
+    workflows: dict[str, Any] = {
         "create": [],
         "modify": [],
         "terminate": [],

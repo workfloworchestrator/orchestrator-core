@@ -1,5 +1,3 @@
-from typing import Optional, Union
-
 import structlog
 from sqlalchemy import func, select
 
@@ -22,11 +20,11 @@ logger = structlog.get_logger(__name__)
 
 async def resolve_products(
     info: OrchestratorInfo,
-    filter_by: Union[list[GraphqlFilter], None] = None,
-    sort_by: Union[list[GraphqlSort], None] = None,
+    filter_by: list[GraphqlFilter] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
     first: int = 10,
     after: int = 0,
-    query: Optional[str] = None,
+    query: str | None = None,
 ) -> Connection[ProductType]:
     _error_handler = create_resolver_error_handler(info)
 

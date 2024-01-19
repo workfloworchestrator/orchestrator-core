@@ -12,14 +12,13 @@
 # limitations under the License.
 
 from subprocess import check_output  # noqa: S404
-from typing import Optional
 
 import structlog
 
 logger = structlog.getLogger(__name__)
 
 
-def __getattr__(name: str) -> Optional[str]:
+def __getattr__(name: str) -> str | None:
     """Return the GIT_COMMIT_HASH.
 
     Usage::

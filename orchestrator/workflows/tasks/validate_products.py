@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any
 
 from more_itertools.more import one
 from more_itertools.recipes import first_true
@@ -104,7 +104,7 @@ def check_that_products_have_at_least_one_workflow() -> State:
 def check_that_products_have_create_modify_and_terminate_workflows() -> State:
     product_data = get_products(filters=[ProductTable.status == "active"])
 
-    workflows_not_complete: List = []
+    workflows_not_complete: list = []
     for product in product_data:
         workflows = {
             c.target
@@ -140,13 +140,13 @@ def check_db_fixed_input_config() -> State:
     stmt = select(FixedInputTable).options(joinedload(FixedInputTable.product))
     fixed_inputs = db.session.scalars(stmt)
 
-    data: Dict = {"fixed_inputs": [], "by_tag": {}}
-    errors: List = []
+    data: dict = {"fixed_inputs": [], "by_tag": {}}
+    errors: list = []
 
     for tag in product_tags:
         data["by_tag"][tag] = []
     for fi in fixed_inputs:
-        fi_data: Dict = first_true(
+        fi_data: dict = first_true(
             fixed_input_configuration["fixed_inputs"], {}, lambda i: i["name"] == fi.name  # noqa: B023
         )
         if not fi_data:
@@ -175,7 +175,7 @@ def check_db_fixed_input_config() -> State:
 @step("Check subscription models")
 def check_subscription_models() -> State:
     subscriptions = db.session.scalars(select(SubscriptionTable))
-    failures: Dict[str, Any] = {}
+    failures: dict[str, Any] = {}
     for subscription in subscriptions:
         try:
             SubscriptionModel.from_subscription(subscription.subscription_id)

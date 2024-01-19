@@ -1,4 +1,4 @@
-from typing import Annotated, Optional, Union
+from typing import Annotated, Union
 
 import strawberry
 from strawberry.scalars import JSON
@@ -22,9 +22,9 @@ class EngineSettingsType:
 
 @strawberry.type
 class StatusType:
-    engine_settings: Optional[EngineSettingsType]
-    worker_status: Optional[WorkerStatusType]
-    cache_names: Optional[JSON]
+    engine_settings: EngineSettingsType | None
+    worker_status: WorkerStatusType | None
+    cache_names: JSON | None
 
 
 # Responses

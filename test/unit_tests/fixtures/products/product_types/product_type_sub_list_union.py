@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import uuid4
 
 import pytest
@@ -18,7 +17,7 @@ def test_product_type_sub_list_union(test_product_block_with_list_union):
     ) = test_product_block_with_list_union
 
     class ProductSubListUnionInactive(SubscriptionModel, is_base=True):
-        test_block: Optional[ProductBlockWithListUnionForTestInactive]
+        test_block: ProductBlockWithListUnionForTestInactive | None
 
     class ProductSubListUnionProvisioning(ProductSubListUnionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         test_block: ProductBlockWithListUnionForTestProvisioning

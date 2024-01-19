@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 from more_itertools import first
 
@@ -48,11 +47,11 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
 step_finish_statuses = [StepStatus.SUCCESS, StepStatus.SKIPPED, StepStatus.COMPLETE]
 
 
-def find_previous_step(steps: list[ProcessStepTable], index: int) -> Optional[ProcessStepTable]:
+def find_previous_step(steps: list[ProcessStepTable], index: int) -> ProcessStepTable | None:
     return first([step for step in reversed(steps[:index]) if step.status in step_finish_statuses], None)
 
 
-def enrich_step_details(step: ProcessStepTable, previous_step: Optional[ProcessStepTable]) -> dict:
+def enrich_step_details(step: ProcessStepTable, previous_step: ProcessStepTable | None) -> dict:
     state_delta = get_dict_updates(previous_step.state, step.state) if previous_step else step.state
 
     return {
@@ -86,7 +85,7 @@ def enrich_process_details(process: ProcessTable, p_stat: ProcessStat) -> dict:
     }
 
 
-def enrich_process(process: ProcessTable, p_stat: Optional[ProcessStat] = None) -> dict:
+def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> dict:
     # process.subscriptions is a non JSON serializable AssociationProxy
     # So we need to build a list of Subscriptions here.
     subscriptions = [format_subscription(sub) for sub in process.subscriptions]

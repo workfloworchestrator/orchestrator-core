@@ -13,11 +13,10 @@
 
 
 import inspect
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
+from typing import Any, cast, get_args
 from uuid import UUID
-
-from typing_extensions import get_args
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import State, StepFunc, is_list_type, is_optional_type
@@ -32,7 +31,7 @@ from pydantic_forms.types import (
 )
 
 
-def extract(keys: Tuple[str, ...], state: State) -> Tuple[Any, ...]:
+def extract(keys: tuple[str, ...], state: State) -> tuple[Any, ...]:
     """Extract multiple values from dictionary.
 
     Args:
@@ -46,7 +45,7 @@ def extract(keys: Tuple[str, ...], state: State) -> Tuple[Any, ...]:
     return tuple(state[k] for k in keys)
 
 
-def _get_sub_id(val: Any) -> Optional[UUID]:
+def _get_sub_id(val: Any) -> UUID | None:
     """Get the subscription_id for a domain model from a state like dict.
 
     The convention we use is that for a parameter specification of `light_path: Sn8LightPath` for a step function,
@@ -132,7 +131,7 @@ def _save_models(state: State) -> None:
             _save_models(value)
 
 
-def _build_arguments(func: Union[StepFunc, InputStepFunc], state: State) -> List:  # noqa: C901
+def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # noqa: C901
     """Build actual arguments based on step function signature and state.
 
     What the step function requests in its function signature it what this function retrieves from the state or DB.
@@ -153,7 +152,7 @@ def _build_arguments(func: Union[StepFunc, InputStepFunc], state: State) -> List
 
     """
     sig = inspect.signature(func)
-    arguments: List[Any] = []
+    arguments: list[Any] = []
     if sig.parameters:
         for name, param in sig.parameters.items():
             # Ignore dynamic arguments. Mostly need to deal with `const`
@@ -323,7 +322,7 @@ def form_inject_args(func: InputStepFunc) -> StateInputStepFunc:
         simple_func = cast(SimpleInputFormGenerator, func)
 
         @wraps(simple_func)
-        def wrapper(state: State) -> Optional[InputForm]:
+        def wrapper(state: State) -> InputForm | None:
             args = _build_arguments(simple_func, state)
             return simple_func(*args)
 

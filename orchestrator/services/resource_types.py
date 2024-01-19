@@ -10,14 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 from sqlalchemy import select
 
 from orchestrator.db import ResourceTypeTable, db
 
 
-def get_resource_types(*, filters: Optional[list] = None) -> list[ResourceTypeTable]:
+def get_resource_types(*, filters: list | None = None) -> list[ResourceTypeTable]:
     stmt = select(ResourceTypeTable)
     for clause in filters or []:
         stmt = stmt.where(clause)

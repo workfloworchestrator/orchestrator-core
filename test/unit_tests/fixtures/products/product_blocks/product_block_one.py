@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import pytest
 from pydantic import Field, computed_field
 
@@ -15,11 +13,11 @@ def test_product_block_one(test_product_sub_block_one):
 
     class ProductBlockOneForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneForTest"):
         sub_block: SubBlockOneForTestInactive
-        sub_block_2: Optional[SubBlockOneForTestInactive] = None
-        sub_block_list: List[SubBlockOneForTestInactive] = []
-        int_field: Optional[int] = None
-        str_field: Optional[str] = None
-        list_field: List[int] = Field(default_factory=list)
+        sub_block_2: SubBlockOneForTestInactive | None = None
+        sub_block_list: list[SubBlockOneForTestInactive] = []
+        int_field: int | None = None
+        str_field: str | None = None
+        list_field: list[int] = Field(default_factory=list)
 
         @computed_field  # type: ignore[misc]
         @property
@@ -31,18 +29,18 @@ def test_product_block_one(test_product_sub_block_one):
     ):
         sub_block: SubBlockOneForTestProvisioning
         sub_block_2: SubBlockOneForTestProvisioning
-        sub_block_list: List[SubBlockOneForTestProvisioning]
+        sub_block_list: list[SubBlockOneForTestProvisioning]
         int_field: int
-        str_field: Optional[str] = None
-        list_field: List[int]
+        str_field: str | None = None
+        list_field: list[int]
 
     class ProductBlockOneForTest(ProductBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
 
     return ProductBlockOneForTestInactive, ProductBlockOneForTestProvisioning, ProductBlockOneForTest
 

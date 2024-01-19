@@ -6,7 +6,7 @@ $ PYTHONPATH=. python bin/list_workflows
 
 """
 import sys
-from typing import Dict, List, Optional, Sequence, Set, Tuple, Type, Union
+from collections.abc import Sequence
 from uuid import UUID
 
 import structlog
@@ -76,9 +76,9 @@ def should_skip(product_name: str) -> bool:
 
 
 def map_product_blocks_in_class(
-    model_class: Union[Type[SubscriptionModel], Type[ProductBlockModel]],
-    product_blocks: Dict[str, Type[ProductBlockModel]],
-) -> Dict[str, Type[ProductBlockModel]]:
+    model_class: type[SubscriptionModel] | type[ProductBlockModel],
+    product_blocks: dict[str, type[ProductBlockModel]],
+) -> dict[str, type[ProductBlockModel]]:
     """Create mapping of all existing product block models related to a model.
 
     Args:
@@ -107,7 +107,7 @@ def map_product_blocks_in_class(
     return {**product_blocks, **blocks_map}
 
 
-def map_product_blocks(product_classes: List[Type[SubscriptionModel]]) -> Dict[str, Type[ProductBlockModel]]:
+def map_product_blocks(product_classes: list[type[SubscriptionModel]]) -> dict[str, type[ProductBlockModel]]:
     """Create mapping of all existing product block models related to products.
 
     Args:
@@ -116,14 +116,14 @@ def map_product_blocks(product_classes: List[Type[SubscriptionModel]]) -> Dict[s
     Returns a Dict with product block models by product block name.
     """
 
-    product_blocks: Dict[str, Type[ProductBlockModel]] = {}
+    product_blocks: dict[str, type[ProductBlockModel]] = {}
     for product_class in product_classes:
         product_blocks = {**product_blocks, **map_product_blocks_in_class(product_class, product_blocks)}
     return product_blocks
 
 
 def map_differences_unique(
-    registered_products: Dict[str, Type[SubscriptionModel]], existing_products: Sequence[tuple[str, UUID]]
+    registered_products: dict[str, type[SubscriptionModel]], existing_products: Sequence[tuple[str, UUID]]
 ) -> dict[str, dict[str, dict[str, set[str]]]]:
     """Create a unique map for products and product block differences from the database.
 
@@ -145,7 +145,7 @@ def map_differences_unique(
 
             if missing_in_depends_on_blocks := diff[product_name].get("missing_in_depends_on_blocks"):
                 # since missing_in_depends_on_blocks is always a dict the type is ignored.
-                new_model_diffs: Dict[str, Dict[str, Set[str]]] = {
+                new_model_diffs: dict[str, dict[str, set[str]]] = {
                     name: diff  # type: ignore
                     for name, diff in missing_in_depends_on_blocks.items()  # type: ignore
                     if name not in model_diffs["blocks"]
@@ -155,8 +155,8 @@ def map_differences_unique(
 
 
 def remove_updated_properties(
-    updates: ModelUpdates, model_diffs: Dict[str, Dict[str, Dict[str, Set[str]]]]
-) -> Dict[str, Dict[str, Dict[str, Set[str]]]]:
+    updates: ModelUpdates, model_diffs: dict[str, dict[str, dict[str, set[str]]]]
+) -> dict[str, dict[str, dict[str, set[str]]]]:
     for product_name, updated_fixed_inputs in updates.fixed_inputs.items():
         product_diffs = model_diffs["products"][product_name]
         product_diffs["missing_fixed_inputs_in_model"] = product_diffs.get(
@@ -185,12 +185,12 @@ def remove_updated_properties(
 
 
 def map_changes(
-    model_diffs: Dict[str, Dict[str, Dict[str, Set[str]]]],
-    products: Dict[str, Type[SubscriptionModel]],
-    product_blocks: Dict[str, Type[ProductBlockModel]],
-    db_product_names: List[str],
-    inputs: Dict[str, Dict[str, str]],
-    updates: Optional[ModelUpdates],
+    model_diffs: dict[str, dict[str, dict[str, set[str]]]],
+    products: dict[str, type[SubscriptionModel]],
+    product_blocks: dict[str, type[ProductBlockModel]],
+    db_product_names: list[str],
+    inputs: dict[str, dict[str, str]],
+    updates: ModelUpdates | None,
 ) -> DomainModelChanges:
     """Map changes that need to be made to fix differences between models and database.
 
@@ -257,7 +257,7 @@ def map_changes(
     return changes
 
 
-def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str, str]]) -> List[str]:
+def generate_upgrade_sql(changes: DomainModelChanges, inputs: dict[str, dict[str, str]]) -> list[str]:
     """Generate upgrade SQL with mapped changes.
 
     Args:
@@ -291,7 +291,7 @@ def generate_upgrade_sql(changes: DomainModelChanges, inputs: Dict[str, Dict[str
     )
 
 
-def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
+def generate_downgrade_sql(changes: DomainModelChanges) -> list[str]:
     """Generate downgrade SQL with mapped changes.
 
     Does not revert deleted subscription instances and subscription instance values!
@@ -358,10 +358,10 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> List[str]:
 
 
 def create_domain_models_migration_sql(
-    inputs: Dict[str, Dict[str, str]],
-    updates: Optional[ModelUpdates],
+    inputs: dict[str, dict[str, str]],
+    updates: ModelUpdates | None,
     is_test: bool = False,
-) -> Tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     """Create tuple with list for upgrade and downgrade SQL statements based on SubscriptionModel.diff_product_in_database.
 
     You will be prompted with inputs for new models and resource type updates.
@@ -378,7 +378,7 @@ def create_domain_models_migration_sql(
     existing_products_q = db.session.execute(select(ProductTable.name, ProductTable.product_id))
     existing_products = [(row[0], row[1]) for row in existing_products_q]
 
-    db_product_names: List[str] = [product_name for product_name, _ in existing_products]
+    db_product_names: list[str] = [product_name for product_name, _ in existing_products]
 
     products = SUBSCRIPTION_MODEL_REGISTRY
     product_blocks = map_product_blocks(list(SUBSCRIPTION_MODEL_REGISTRY.values()))

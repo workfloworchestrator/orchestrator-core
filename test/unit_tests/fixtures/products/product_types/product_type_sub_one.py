@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import uuid4
 
 import pytest
@@ -14,7 +13,7 @@ def test_product_type_sub_one(test_product_sub_block_one):
     SubBlockOneForTestInactive, SubBlockOneForTestProvisioning, SubBlockOneForTest = test_product_sub_block_one
 
     class ProductSubOneInactive(SubscriptionModel, is_base=True):
-        test_block: Optional[SubBlockOneForTestInactive]
+        test_block: SubBlockOneForTestInactive | None
 
     class ProductSubOneProvisioning(ProductSubOneInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         test_block: SubBlockOneForTestProvisioning

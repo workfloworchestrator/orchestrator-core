@@ -13,22 +13,19 @@
 import collections.abc
 import types
 import typing
+from collections.abc import Callable, Iterable
 from enum import Enum  # noqa: F401 (doctest)
 from http import HTTPStatus
 from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
     Literal,
     Optional,
-    Tuple,
-    Type,
     TypeVar,
     Union,
+    get_args,
+    get_origin,
 )
 from uuid import UUID
 
@@ -36,7 +33,6 @@ import strawberry
 from annotated_types import Len, MaxLen, MinLen
 from more_itertools import first, last
 from pydantic.fields import FieldInfo
-from typing_extensions import get_args, get_origin
 
 # TODO #428: eventually enforce code migration for downstream users to import
 # these types from pydantic_forms themselves
@@ -97,22 +93,22 @@ if TYPE_CHECKING:
     from orchestrator.domain.base import ProductBlockModel
 
 
-def is_union(tp: Optional[Type[Any]]) -> bool:
+def is_union(tp: type[Any] | None) -> bool:
     return tp is Union or tp is types.UnionType  # type: ignore[comparison-overlap]
 
 
 # ErrorState is either a string containing an error message, a catched Exception or a tuple containing a message and
 # a HTTP status code
-ErrorState = Union[str, Exception, Tuple[str, Union[int, HTTPStatus]]]
+ErrorState = Union[str, Exception, tuple[str, Union[int, HTTPStatus]]]
 # An ErrorDict should have the following keys:
 # error: str  # A message describing the error
 # class: str[Optional]  # The exception class name (type)
 # status_code: Optional[int]  # HTTP Status code (optional)
 # traceback: Optional[str]  # A python traceback as a string formatted by nwastdlib.ex.show_ex
-ErrorDict = Dict[str, Union[str, int, List[Dict[str, Any]], InputForm, None]]
+ErrorDict = dict[str, Union[str, int, list[dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
-BroadcastFunc = Callable[[UUID, Dict], None]
+BroadcastFunc = Callable[[UUID, dict], None]
 
 SI = TypeVar("SI")
 
@@ -166,7 +162,7 @@ def is_of_type(t: Any, test_type: Any) -> bool:
 
     >>> is_of_type(list, list)
     True
-    >>> is_of_type(List[int], List[int])
+    >>> is_of_type(list[int], list[int])
     True
     >>> is_of_type(strEnum, str)
     True
@@ -205,50 +201,50 @@ def is_of_type(t: Any, test_type: Any) -> bool:
 
 
 # TODO #1330: Fix comparison of is_of_type(Union[str, int], Union[int, str]), it returns False but it should be True
-def is_list_type(t: Any, test_type: Optional[type] = None) -> bool:
+def is_list_type(t: Any, test_type: type | None = None) -> bool:
     """Check if `t` is list type.
 
     And optionally check if the list items are of `test_type`
 
-    >>> is_list_type(List[int])
+    >>> is_list_type(list[int])
     True
-    >>> is_list_type(List[Any], int)
+    >>> is_list_type(list[Any], int)
     True
     >>> is_list_type(list, int)
     False
-    >>> is_list_type(Optional[List[int]])
+    >>> is_list_type(Optional[list[int]])
     True
-    >>> is_list_type(Optional[List[int]], int)
+    >>> is_list_type(Optional[list[int]], int)
     True
-    >>> is_list_type(Annotated[Optional[List[int]], "foo"], int)
+    >>> is_list_type(Annotated[Optional[list[int]], "foo"], int)
     True
-    >>> is_list_type(Optional[List[int]], str)
+    >>> is_list_type(Optional[list[int]], str)
     False
-    >>> is_list_type(Annotated[Optional[List[int]], "foo"], str)
+    >>> is_list_type(Annotated[Optional[list[int]], "foo"], str)
     False
     >>> is_list_type(Optional[int])
     False
-    >>> is_list_type(List[Tuple[int, int]])
+    >>> is_list_type(list[tuple[int, int]])
     True
-    >>> is_list_type(List[Tuple[int, int]], int)
+    >>> is_list_type(list[tuple[int, int]], int)
     False
-    >>> is_list_type(List[Tuple[int, int]], Tuple[int, int])
+    >>> is_list_type(list[tuple[int, int]], tuple[int, int])
     True
-    >>> is_list_type(List[strEnum], Enum)
+    >>> is_list_type(list[strEnum], Enum)
     True
     >>> is_list_type(int)
     False
     >>> is_list_type(Literal[1,2,3])
     False
-    >>> is_list_type(List[Union[str, int]])
+    >>> is_list_type(list[Union[str, int]])
     True
-    >>> is_list_type(List[Union[str, int]], Union[str, int])
+    >>> is_list_type(list[Union[str, int]], Union[str, int])
     False
-    >>> is_list_type(List[Union[str, int]], str)
+    >>> is_list_type(list[Union[str, int]], str)
     True
-    >>> is_list_type(List[Union[str, int]], int)
+    >>> is_list_type(list[Union[str, int]], int)
     False
-    >>> is_list_type(List[Union[str, int]], Union[int, int])
+    >>> is_list_type(list[Union[str, int]], Union[int, int])
     False
     >>> from pydantic import conlist
     >>> is_list_type(conlist(int))
@@ -313,7 +309,7 @@ def filter_nonetype(types_: Iterable[Any]) -> Iterable[Any]:
     return filter(not_nonetype, types_)
 
 
-def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
+def is_optional_type(t: Any, test_type: type | None = None) -> bool:
     """Check if `t` is optional type (Union[None, ...]).
 
     And optionally check if T is of `test_type`
@@ -351,7 +347,7 @@ def is_optional_type(t: Any, test_type: Optional[type] = None) -> bool:
     return False
 
 
-def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
+def is_union_type(t: Any, test_type: type | None = None) -> bool:
     """Check if `t` is union type (Union[Type, AnotherType]).
 
     Optionally check if T is of `test_type` We cannot check for literal Nones.
@@ -390,7 +386,7 @@ def is_union_type(t: Any, test_type: Optional[type] = None) -> bool:
 
 
 def get_possible_product_block_types(
-    list_field_type: Union[type["ProductBlockModel"], Union[type["ProductBlockModel"]]]
+    list_field_type: type["ProductBlockModel"] | type["ProductBlockModel"],
 ) -> dict[str, type["ProductBlockModel"]]:
     _origin, list_item_field_type_args = get_origin_and_args(list_field_type)
     if not is_union_type(list_field_type):
@@ -407,8 +403,6 @@ def has_list_in_mro(type_: Any) -> bool:
     """Check if the type is (derived from) list.
 
     >>> has_list_in_mro(list)
-    True
-    >>> has_list_in_mro(List)
     True
     >>> has_list_in_mro(type("ListSubclass", (list,), {}))
     True
@@ -445,7 +439,7 @@ def get_iterable_max_length(iterable_type: Any, reduce_func: Callable = last) ->
     """Return the max_length for the given annotated iterable type.
 
     Args:
-        iterable_type: the iterable type (i.e. list, List, Sequence)
+        iterable_type: the iterable type (i.e. list, Sequence)
         reduce_func: callable to reduce multiple max_length values to one value.
             Defaults to `more_itertools.last`
     """
@@ -474,12 +468,10 @@ def list_factory(type_: Any, *init_args: Any, **init_kwargs: Any) -> list:
 
     >>> from annotated_types import Len
     >>> from pydantic import conlist, Field
-    >>> from typing import get_args, List, Annotated, Sequence
+    >>> from typing import get_args, Annotated, Sequence
     >>> list_factory(list)
     []
     >>> list_factory(list[int])
-    []
-    >>> list_factory(List[int])
     []
     >>> list_factory(conlist(int))
     []

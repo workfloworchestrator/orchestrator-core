@@ -1,5 +1,4 @@
 import json
-from typing import List, Union
 
 from sqlalchemy import select, text
 
@@ -225,10 +224,10 @@ def test_migrate_domain_models_new_product_block_on_product_block(
     class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         str_field: str
         int_field: int
-        list_field: List[int]
+        list_field: list[int]
         new_block: TestBlock
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -285,10 +284,10 @@ def test_migrate_domain_models_new_resource_type(
     class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
         new_int_field: int
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -339,10 +338,10 @@ def test_migrate_domain_models_rename_resource_type(
     class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         str_field: str
         int_field: int
-        new_list_field: List[int]
+        new_list_field: list[int]
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -397,15 +396,15 @@ def test_migrate_domain_models_rename_and_relate_resource_type(
     class SubBlockOneForTestNewResource(SubBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         int_field: int
         str_field: str
-        new_list_field: List[int]  # add/relate renamed resource type to block
+        new_list_field: list[int]  # add/relate renamed resource type to block
 
     class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTestNewResource
         sub_block_2: SubBlockOneForTestNewResource
-        sub_block_list: List[SubBlockOneForTestNewResource]
+        sub_block_list: list[SubBlockOneForTestNewResource]
         str_field: str
         int_field: int
-        new_list_field: List[int]  # renamed from 'list_field'
+        new_list_field: list[int]  # renamed from 'list_field'
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -474,10 +473,10 @@ def test_migrate_domain_models_rename_and_relate_and_remove_resource_type(
     class ProductBlockWithListUnionForTestNew(
         ProductBlockWithListUnionForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
-        list_union_blocks: List[Union[SubBlockTwoForTestChanged, SubBlockOneForTestChanged]]
+        list_union_blocks: list[SubBlockTwoForTestChanged | SubBlockOneForTestChanged]
         changed_int_field: int
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductSubListUnionTest(ProductSubListUnionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_block: ProductBlockWithListUnionForTestNew
@@ -534,10 +533,10 @@ def test_migrate_domain_models_update_block_resource_type(
     class ProductBlockOneForTestUpdated(ProductBlockOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         str_field: str
         new_int_field: int
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -685,7 +684,7 @@ def test_migrate_domain_models_remove_resource_type(
     class ProductBlockOneForTest(ProductBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
 

@@ -75,10 +75,11 @@ decoding functions differently then `default` and `object_hook` is that they are
 
 """
 import re
+from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Sequence, Set, Tuple, Union
+from typing import Any, Union
 from uuid import UUID
 
 import orjson as json
@@ -89,12 +90,12 @@ from pydantic import BaseModel
 from orchestrator.utils.datetime import isoformat
 from orchestrator.utils.helpers import is_ipaddress_type
 
-PY_JSON_TYPES = Union[Dict[str, Any], List, str, int, float, bool, None, object]  # pragma: no mutate
+PY_JSON_TYPES = Union[dict[str, Any], list, str, int, float, bool, None, object]  # pragma: no mutate
 
 logger = structlog.get_logger(__name__)
 
 
-def json_loads(s: Union[str, bytes, bytearray]) -> PY_JSON_TYPES:
+def json_loads(s: str | bytes | bytearray) -> PY_JSON_TYPES:
     o = json.loads(s)
     if isinstance(o, list):
         return [from_serializable(dikt) if isinstance(dikt, dict) else dikt for dikt in o]
@@ -144,7 +145,7 @@ def to_serializable(o: Any) -> Any:
         return o.to_dict()
     if isinstance(o, BaseModel):
         return o.model_dump()
-    if isinstance(o, Set):
+    if isinstance(o, set):
         return list(o)
     raise TypeError(f"Could not serialize object of type {o.__class__.__name__} to JSON")
 
@@ -153,7 +154,7 @@ ISO_FORMAT_STR_LEN = len("2019-05-18T15:17:00+00:00")  # assume 'seconds' precis
 UUID_PATTERN = re.compile(r"^[\da-f]{8}-([\da-f]{4}-){3}[\da-f]{12}$", re.IGNORECASE)
 
 
-def from_serializable(dct: Dict[str, Any]) -> Dict[str, Any]:
+def from_serializable(dct: dict[str, Any]) -> dict[str, Any]:
     """Convert a serializable object into a more specific, custom, Python data type.
 
     Args:
@@ -174,7 +175,7 @@ def from_serializable(dct: Dict[str, Any]) -> Dict[str, Any]:
     return dct
 
 
-def non_none_dict(dikt: Sequence[Tuple[str, Any]]) -> Dict[Any, Any]:
+def non_none_dict(dikt: Sequence[tuple[str, Any]]) -> dict[Any, Any]:
     """Return no `None` values in a Dict.
 
     This function may be used in the `asdict()` method as dictionary factory.

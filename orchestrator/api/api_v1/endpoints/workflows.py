@@ -13,7 +13,6 @@
 
 """Module that implements workflows related API endpoints."""
 
-from typing import List, Optional
 
 from fastapi.routing import APIRouter
 from sqlalchemy import select
@@ -25,14 +24,14 @@ from orchestrator.services.workflows import get_workflows
 router = APIRouter()
 
 
-@router.get("/", response_model=List[WorkflowSchema])
-def get_all(target: Optional[str] = None, include_steps: bool = False) -> List[WorkflowSchema]:
+@router.get("/", response_model=list[WorkflowSchema])
+def get_all(target: str | None = None, include_steps: bool = False) -> list[WorkflowSchema]:
     filters = {"target": target} if target else None
     return list(get_workflows(filters=filters, include_steps=include_steps))
 
 
-@router.get("/with_product_tags", response_model=List[WorkflowWithProductTagsSchema])
-def get_all_with_product_tags() -> List[WorkflowWithProductTagsSchema]:
+@router.get("/with_product_tags", response_model=list[WorkflowWithProductTagsSchema])
+def get_all_with_product_tags() -> list[WorkflowWithProductTagsSchema]:
     all_workflows = get_workflows()
 
     def add_product_tags(wf: WorkflowSchema) -> WorkflowWithProductTagsSchema:

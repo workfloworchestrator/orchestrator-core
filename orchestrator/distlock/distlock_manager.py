@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Union
+from typing import Union
 
 from pydantic import RedisDsn
 
@@ -33,9 +33,9 @@ class DistLockManager:
     implementation must release it.
     """
 
-    _backend: Union[MemoryDistLockManager, RedisDistLockManager]
+    _backend: MemoryDistLockManager | RedisDistLockManager
 
-    def __init__(self, enabled: bool, backend: Optional[str] = None, redis_dsn: Optional[RedisDsn] = None):
+    def __init__(self, enabled: bool, backend: str | None = None, redis_dsn: RedisDsn | None = None):
         self.enabled = enabled
         self.connected = False
         if backend == "redis" and redis_dsn:
@@ -53,7 +53,7 @@ class DistLockManager:
             await self._backend.disconnect_redis()
             self.connected = False
 
-    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[DistLock]:
+    async def get_lock(self, resource: str, expiration_seconds: int) -> DistLock | None:
         return await self._backend.get_lock(resource, expiration_seconds)
 
     async def release_lock(self, resource: DistLock) -> None:

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import ConfigDict
@@ -24,8 +24,8 @@ from orchestrator.targets import Target
 class WorkflowBaseSchema(OrchestratorBaseModel):
     name: str
     target: Target
-    description: Optional[str] = None
-    created_at: Optional[datetime] = None
+    description: str | None = None
+    created_at: datetime | None = None
 
 
 class StepSchema(OrchestratorBaseModel):
@@ -35,31 +35,31 @@ class StepSchema(OrchestratorBaseModel):
 class WorkflowSchema(WorkflowBaseSchema):
     workflow_id: UUID
     created_at: datetime
-    steps: Optional[List[StepSchema]] = None
+    steps: list[StepSchema] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowWithProductTagsSchema(WorkflowBaseSchema):
-    product_tags: List[str]
+    product_tags: list[str]
 
 
 class WorkflowListItemSchema(OrchestratorBaseModel):
     name: str
-    description: Optional[str] = None
-    reason: Optional[str] = None
-    usable_when: Optional[List[Any]] = None
-    status: Optional[str] = None
-    action: Optional[str] = None
-    locked_relations: Optional[List[UUID]] = None
-    unterminated_parents: Optional[List[UUID]] = None
-    unterminated_in_use_by_subscriptions: Optional[List[UUID]] = None
+    description: str | None = None
+    reason: str | None = None
+    usable_when: list[Any] | None = None
+    status: str | None = None
+    action: str | None = None
+    locked_relations: list[UUID] | None = None
+    unterminated_parents: list[UUID] | None = None
+    unterminated_in_use_by_subscriptions: list[UUID] | None = None
 
 
 class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
-    reason: Optional[str] = None
-    locked_relations: Optional[List[UUID]] = None
-    create: List[WorkflowListItemSchema]
-    modify: List[WorkflowListItemSchema]
-    terminate: List[WorkflowListItemSchema]
-    system: List[WorkflowListItemSchema]
+    reason: str | None = None
+    locked_relations: list[UUID] | None = None
+    create: list[WorkflowListItemSchema]
+    modify: list[WorkflowListItemSchema]
+    terminate: list[WorkflowListItemSchema]
+    system: list[WorkflowListItemSchema]

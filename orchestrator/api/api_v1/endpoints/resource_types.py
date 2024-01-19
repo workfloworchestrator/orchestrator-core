@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import List
 from uuid import UUID
 
 from fastapi.param_functions import Body
@@ -28,8 +27,8 @@ from orchestrator.services.resource_types import get_resource_types
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ResourceTypeSchema])
-def fetch() -> List[ResourceTypeTable]:
+@router.get("/", response_model=list[ResourceTypeSchema])
+def fetch() -> list[ResourceTypeTable]:
     return get_resource_types()
 
 

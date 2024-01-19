@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from math import floor, log
-from typing import Union
 
 
 def format_bandwidth(mbits: int, short: bool = False) -> str:
@@ -60,7 +59,7 @@ def format_bandwidth(mbits: int, short: bool = False) -> str:
     return f"{number}{separator}{units[unit_fmt][magnitude]}"
 
 
-def speed_humanize(bandwidth: Union[int, str], short: bool = False) -> str:
+def speed_humanize(bandwidth: int | str, short: bool = False) -> str:
     if isinstance(bandwidth, str) and "," in bandwidth:
         return ",".join(map(speed_humanize, bandwidth.split(",")))
     try:

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from os import getenv
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from uuid import UUID
 
 from redis import Redis
@@ -34,7 +34,7 @@ def caching_models_enabled() -> bool:
     return getenv("AIOCACHE_DISABLE", "0") == "0" and app_settings.CACHE_DOMAIN_MODELS
 
 
-def to_redis(subscription: Dict[str, Any]) -> None:
+def to_redis(subscription: dict[str, Any]) -> None:
     if caching_models_enabled():
         logger.info("Setting cache for subscription", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
@@ -44,7 +44,7 @@ def to_redis(subscription: Dict[str, Any]) -> None:
         logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
 
 
-def from_redis(subscription_id: UUID) -> Optional[Tuple[Any, str]]:
+def from_redis(subscription_id: UUID) -> tuple[Any, str] | None:
     log = logger.bind(subscription_id=subscription_id)
     if caching_models_enabled():
         log.debug("Try to retrieve subscription from cache")

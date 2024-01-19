@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Iterator, Protocol
+from collections.abc import Callable, Iterator
+from typing import Any, Protocol
 
 from more_itertools import partition
 from pydantic import BaseModel

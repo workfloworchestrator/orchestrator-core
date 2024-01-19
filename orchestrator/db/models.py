@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 import sqlalchemy
 import structlog
@@ -73,13 +72,13 @@ class UtcTimestamp(TypeDecorator):
     cache_ok = False
     python_type = datetime
 
-    def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
+    def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         if value is not None:
             if value.tzinfo is None:
                 raise UtcTimestampError(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
         return value
 
-    def process_result_value(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         return value.astimezone(timezone.utc) if value else value
 
 
@@ -253,21 +252,21 @@ class ProductTable(BaseModel):
             )
         raise AssertionError("Session should not be None")
 
-    def _subscription_workflow_key(self, target: Target) -> Optional[str]:
+    def _subscription_workflow_key(self, target: Target) -> str | None:
         wfs = list(filter(lambda w: w.target == target, self.workflows))
         return wfs[0].name if len(wfs) > 0 else None
 
-    def create_subscription_workflow_key(self) -> Optional[str]:
+    def create_subscription_workflow_key(self) -> str | None:
         return self._subscription_workflow_key(Target.CREATE)
 
-    def terminate_subscription_workflow_key(self) -> Optional[str]:
+    def terminate_subscription_workflow_key(self) -> str | None:
         return self._subscription_workflow_key(Target.TERMINATE)
 
-    def modify_subscription_workflow_key(self, name: str) -> Optional[str]:
+    def modify_subscription_workflow_key(self, name: str) -> str | None:
         wfs = list(filter(lambda w: w.target == Target.MODIFY and w.name == name, self.workflows))
         return wfs[0].name if len(wfs) > 0 else None
 
-    def workflow_by_key(self, name: str) -> Optional[WorkflowTable]:
+    def workflow_by_key(self, name: str) -> WorkflowTable | None:
         return first_true(self.workflows, None, lambda wf: wf.name == name)  # type: ignore
 
 
@@ -304,7 +303,7 @@ class ProductBlockTable(BaseModel):
         passive_deletes=True,
     )
 
-    in_use_by_block_relations: Mapped[List[ProductBlockRelationTable]] = relationship(
+    in_use_by_block_relations: Mapped[list[ProductBlockRelationTable]] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -313,7 +312,7 @@ class ProductBlockTable(BaseModel):
         foreign_keys="[ProductBlockRelationTable.depends_on_id]",
     )
 
-    depends_on_block_relations: Mapped[List[ProductBlockRelationTable]] = relationship(
+    depends_on_block_relations: Mapped[list[ProductBlockRelationTable]] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -465,7 +464,7 @@ class SubscriptionInstanceTable(BaseModel):
     )
     label = mapped_column(String(255))
 
-    in_use_by_block_relations: Mapped[List[SubscriptionInstanceRelationTable]] = relationship(
+    in_use_by_block_relations: Mapped[list[SubscriptionInstanceRelationTable]] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -474,7 +473,7 @@ class SubscriptionInstanceTable(BaseModel):
         foreign_keys="[SubscriptionInstanceRelationTable.depends_on_id]",
     )
 
-    depends_on_block_relations: Mapped[List[SubscriptionInstanceRelationTable]] = relationship(
+    depends_on_block_relations: Mapped[list[SubscriptionInstanceRelationTable]] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
@@ -497,7 +496,7 @@ class SubscriptionInstanceTable(BaseModel):
         creator=lambda depends_on: SubscriptionInstanceRelationTable(depends_on=depends_on),
     )
 
-    def value_for_resource_type(self, name: Optional[str]) -> Optional[SubscriptionInstanceValueTable]:
+    def value_for_resource_type(self, name: str | None) -> SubscriptionInstanceValueTable | None:
         return first_true(self.values, None, lambda x: x.resource_type.resource_type == name)  # type: ignore
 
 
@@ -593,13 +592,13 @@ class SubscriptionTable(BaseModel):
     def find_by_product_tag(tag: str) -> SearchQuery:
         return SubscriptionTable.query.join(ProductTable).filter(ProductTable.tag == tag)
 
-    def find_instance_by_block_name(self, name: str) -> List[SubscriptionInstanceTable]:
+    def find_instance_by_block_name(self, name: str) -> list[SubscriptionInstanceTable]:
         return [instance for instance in self.instances if instance.product_block.name == name]
 
-    def find_values_for_resource_type(self, name: Optional[str]) -> List[SubscriptionInstanceValueTable]:
+    def find_values_for_resource_type(self, name: str | None) -> list[SubscriptionInstanceValueTable]:
         return list(filter(None, (instance.value_for_resource_type(name) for instance in self.instances)))
 
-    def product_blocks_with_values(self) -> List[Dict[str, List[Dict[str, str]]]]:
+    def product_blocks_with_values(self) -> list[dict[str, list[dict[str, str]]]]:
         return [
             {instance.product_block.name: [{v.resource_type.resource_type: v.value} for v in instance.values]}
             for instance in sorted(self.instances, key=lambda si: si.subscription_instance_id)
@@ -624,7 +623,7 @@ class SubscriptionMetadataTable(BaseModel):
     metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)  # type: ignore
 
     @staticmethod
-    def find_by_subscription_id(subscription_id: str) -> Optional[SubscriptionMetadataTable]:
+    def find_by_subscription_id(subscription_id: str) -> SubscriptionMetadataTable | None:
         return SubscriptionMetadataTable.query.get(subscription_id)
 
 

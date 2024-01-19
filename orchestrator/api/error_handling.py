@@ -13,7 +13,7 @@
 
 
 from http import HTTPStatus
-from typing import Any, Dict, NoReturn, Optional, Union
+from typing import Any, NoReturn
 
 from fastapi.exceptions import HTTPException
 from starlette.datastructures import MutableHeaders
@@ -23,10 +23,10 @@ class ProblemDetailException(HTTPException):
     def __init__(
         self,
         status: int,
-        title: Optional[str] = None,
+        title: str | None = None,
         detail: Any = None,
-        headers: Optional[dict] = None,
-        error_type: Optional[str] = None,
+        headers: dict | None = None,
+        error_type: str | None = None,
     ) -> None:
         if headers is None:
             headers = {}
@@ -36,7 +36,7 @@ class ProblemDetailException(HTTPException):
         self.type = error_type
 
 
-def raise_status(status: int, detail: Any = None, headers: Optional[Union[MutableHeaders, Dict]] = None) -> NoReturn:
+def raise_status(status: int, detail: Any = None, headers: MutableHeaders | dict | None = None) -> NoReturn:
     status = HTTPStatus(status)
     if isinstance(headers, MutableHeaders):
         headers = dict(**headers)

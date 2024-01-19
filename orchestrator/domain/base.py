@@ -13,23 +13,19 @@
 import itertools
 import warnings
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from inspect import get_annotations
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from typing import (
     Any,
-    Callable,
     ClassVar,
-    Dict,
-    List,
     Optional,
-    Set,
-    Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
+    get_args,
     get_type_hints,
 )
 from uuid import UUID, uuid4
@@ -41,7 +37,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from typing_extensions import get_args
 
 from orchestrator.db import (
     ProductBlockTable,
@@ -97,25 +92,23 @@ class DomainModel(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, validate_default=True)
 
-    __base_type__: ClassVar[Optional[Type["DomainModel"]]] = None  # pragma: no mutate
+    __base_type__: ClassVar[type["DomainModel"] | None] = None  # pragma: no mutate
     _product_block_fields_: ClassVar[
-        Dict[
+        dict[
             str,
-            Union[Union[Type["ProductBlockModel"]], Type["ProductBlockModel"]],
+            type["ProductBlockModel"] | type["ProductBlockModel"],
         ]
     ]
-    _non_product_block_fields_: ClassVar[Dict[str, Type]]
+    _non_product_block_fields_: ClassVar[dict[str, type]]
 
-    def __init_subclass__(
-        cls, *args: Any, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
-    ) -> None:
+    def __init_subclass__(cls, *args: Any, lifecycle: list[SubscriptionLifecycle] | None = None, **kwargs: Any) -> None:
         pass
 
     @classmethod
     def __pydantic_init_subclass__(
         cls,
         *args: Any,
-        lifecycle: Optional[List[SubscriptionLifecycle]] = None,
+        lifecycle: list[SubscriptionLifecycle] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__pydantic_init_subclass__()
@@ -141,18 +134,18 @@ class DomainModel(BaseModel):
     @classmethod
     def _get_depends_on_product_block_types(
         cls,
-    ) -> Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]:
+    ) -> dict[str, type["ProductBlockModel"] | tuple[type["ProductBlockModel"]]]:
         """Return all the product block model types.
 
         This strips any List[], Optional[] or Annotated[] types.
         """
         result = {}
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
-            field_type: Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]
+            field_type: type["ProductBlockModel"] | tuple[type["ProductBlockModel"]]
             if is_union_type(product_block_field_type) and not is_optional_type(product_block_field_type):
                 # exclude non-Optional Unions as they contain more than one useful element.
                 _origin, args = get_origin_and_args(product_block_field_type)
-                field_type = cast(Tuple[Type[ProductBlockModel]], args)
+                field_type = cast(tuple[type[ProductBlockModel]], args)
             elif is_list_type(product_block_field_type) or (
                 is_optional_type(product_block_field_type) and len(get_args(product_block_field_type)) <= 2
             ):
@@ -165,7 +158,7 @@ class DomainModel(BaseModel):
         return result
 
     @classmethod
-    def _find_special_fields(cls: Type) -> None:
+    def _find_special_fields(cls) -> None:
         """Make and store a list of resource_type fields and product block fields."""
         cls._non_product_block_fields_ = {}
         cls._product_block_fields_ = {}
@@ -206,8 +199,8 @@ class DomainModel(BaseModel):
 
     @classmethod
     def _init_instances(  # noqa: C901
-        cls, subscription_id: UUID, skip_keys: Optional[Set[str]] = None
-    ) -> Dict[str, Union[List["ProductBlockModel"], "ProductBlockModel", None]]:
+        cls, subscription_id: UUID, skip_keys: set[str] | None = None
+    ) -> dict[str, Union[list["ProductBlockModel"], "ProductBlockModel", None]]:
         """Initialize default subscription instances.
 
         When a new domain model is created that is not loaded from an existing subscription.
@@ -232,7 +225,7 @@ class DomainModel(BaseModel):
     @classmethod
     def _init_instance(
         cls, product_block_field_name: str, subscription_id: UUID
-    ) -> Union["ProductBlockModel", List["ProductBlockModel"], None]:
+    ) -> Union["ProductBlockModel", list["ProductBlockModel"], None]:
         """Initialize a default subscription instance."""
         product_block_field_type = cls._product_block_fields_[product_block_field_name]
 
@@ -255,10 +248,10 @@ class DomainModel(BaseModel):
     @classmethod
     def _load_instances(  # noqa: C901
         cls,
-        db_instances: List[SubscriptionInstanceTable],
+        db_instances: list[SubscriptionInstanceTable],
         status: SubscriptionLifecycle,
         match_domain_attr: bool = True,
-    ) -> Dict[str, Union[Optional["ProductBlockModel"], List["ProductBlockModel"]]]:
+    ) -> dict[str, Optional["ProductBlockModel"] | list["ProductBlockModel"]]:
         """Load subscription instances for this domain model.
 
         When a new domain model is loaded from an existing subscription we also load all
@@ -274,7 +267,7 @@ class DomainModel(BaseModel):
 
         """
 
-        instances: Dict[str, Union[Optional[ProductBlockModel], List[ProductBlockModel]]] = {}
+        instances: dict[str, ProductBlockModel | None | list[ProductBlockModel]] = {}
 
         def keyfunc(i: SubscriptionInstanceTable) -> str:
             return i.product_block.name
@@ -355,7 +348,7 @@ class DomainModel(BaseModel):
         return instances
 
     @classmethod
-    def _data_from_lifecycle(cls, other: "DomainModel", status: SubscriptionLifecycle, subscription_id: UUID) -> Dict:
+    def _data_from_lifecycle(cls, other: "DomainModel", status: SubscriptionLifecycle, subscription_id: UUID) -> dict:
         data = other.model_dump()
 
         for field_name, field_type in cls._product_block_fields_.items():
@@ -395,7 +388,7 @@ class DomainModel(BaseModel):
 
     def _save_instances(
         self, subscription_id: UUID, status: SubscriptionLifecycle
-    ) -> Tuple[List[SubscriptionInstanceTable], Dict[str, List[SubscriptionInstanceTable]]]:
+    ) -> tuple[list[SubscriptionInstanceTable], dict[str, list[SubscriptionInstanceTable]]]:
         """Save subscription instances for this domain model.
 
         When a domain model is saved to the database we need to save all depends_on subscription instances for it.
@@ -408,8 +401,8 @@ class DomainModel(BaseModel):
             A list with instances which are saved and a dict with direct depends_on relations.
 
         """
-        saved_instances: List[SubscriptionInstanceTable] = []
-        depends_on_instances: Dict[str, List[SubscriptionInstanceTable]] = {}
+        saved_instances: list[SubscriptionInstanceTable] = []
+        depends_on_instances: dict[str, list[SubscriptionInstanceTable]] = {}
         for product_block_field, product_block_field_type in self._product_block_fields_.items():
             product_block_models = getattr(self, product_block_field)
             if is_list_type(product_block_field_type):
@@ -433,7 +426,7 @@ class DomainModel(BaseModel):
         return saved_instances, depends_on_instances
 
     @typing_extensions.deprecated("dict() is deprecated and will be removed in the future, use model_dump() instead")
-    def dict(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         warnings.warn(
             "dict() is deprecated and will be removed in the future, use model_dump() instead",
             DeprecationWarning,
@@ -443,8 +436,8 @@ class DomainModel(BaseModel):
 
 
 def get_depends_on_product_block_type_list(
-    product_block_types: Dict[str, Union[Type["ProductBlockModel"], Tuple[Type["ProductBlockModel"]]]]
-) -> List[Type["ProductBlockModel"]]:
+    product_block_types: dict[str, type["ProductBlockModel"] | tuple[type["ProductBlockModel"]]]
+) -> list[type["ProductBlockModel"]]:
     product_blocks_types_in_model = []
     for product_block_type in product_block_types.values():
         if is_union_type(product_block_type):
@@ -496,8 +489,8 @@ class ProductBlockModel(DomainModel):
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
     """
 
-    registry: ClassVar[Dict[str, Type["ProductBlockModel"]]] = {}  # pragma: no mutate
-    __names__: ClassVar[Set[str]] = set()
+    registry: ClassVar[dict[str, type["ProductBlockModel"]]] = {}  # pragma: no mutate
+    __names__: ClassVar[set[str]] = set()
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
     tag: ClassVar[str]
@@ -507,10 +500,10 @@ class ProductBlockModel(DomainModel):
     # Is actually optional since abstract classes don't have it.
     # TODO #427 name is used as both a ClassVar and a pydantic Field, for which Pydantic 2.x raises
     #  warnings (which may become errors)
-    name: Optional[str]
+    name: str | None
     subscription_instance_id: UUID
     owner_subscription_id: UUID
-    label: Optional[str] = None
+    label: str | None = None
 
     @classmethod
     def _fix_pb_data(cls) -> None:
@@ -531,8 +524,8 @@ class ProductBlockModel(DomainModel):
     def __pydantic_init_subclass__(  # type: ignore[override]
         cls,
         *,
-        product_block_name: Optional[str] = None,
-        lifecycle: Optional[List[SubscriptionLifecycle]] = None,
+        product_block_name: str | None = None,
+        lifecycle: list[SubscriptionLifecycle] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
@@ -560,7 +553,7 @@ class ProductBlockModel(DomainModel):
         cls.__doc__ = make_product_block_docstring(cls, lifecycle)
 
     @classmethod
-    def diff_product_block_in_database(cls) -> Dict[str, Set[str]]:
+    def diff_product_block_in_database(cls) -> dict[str, set[str]]:
         """Return any differences between the attrs defined on the domain model and those on product blocks in the database.
 
         This is only needed to check if the domain model and database models match which would be done during testing...
@@ -601,13 +594,13 @@ class ProductBlockModel(DomainModel):
             missing_resource_types_in_model=missing_resource_types_in_model,
         )
 
-        missing_data: Dict[str, Any] = {}
+        missing_data: dict[str, Any] = {}
         for product_block_model in product_blocks_types_in_model:
             if product_block_model.name == cls.name or product_block_model.name in missing_data:
                 continue
             missing_data.update(product_block_model.diff_product_block_in_database())
 
-        diff: Dict[str, Set[str]] = {
+        diff: dict[str, set[str]] = {
             k: v
             for k, v in {
                 "missing_product_blocks_in_db": missing_product_blocks_in_db,
@@ -624,7 +617,7 @@ class ProductBlockModel(DomainModel):
         return missing_data
 
     @classmethod
-    def new(cls: Type[B], subscription_id: UUID, **kwargs: Any) -> B:
+    def new(cls: type[B], subscription_id: UUID, **kwargs: Any) -> B:
         """Create a new empty product block.
 
         We need to use this instead of the normal constructor because that assumes you pass in
@@ -662,7 +655,7 @@ class ProductBlockModel(DomainModel):
         return model
 
     @classmethod
-    def _load_instances_values(cls, instance_values: List[SubscriptionInstanceValueTable]) -> Dict[str, str]:
+    def _load_instances_values(cls, instance_values: list[SubscriptionInstanceValueTable]) -> dict[str, str]:
         """Load non product block fields (instance values).
 
         Args:
@@ -697,7 +690,7 @@ class ProductBlockModel(DomainModel):
 
     @classmethod
     def _from_other_lifecycle(
-        cls: Type[B],
+        cls: type[B],
         other: "ProductBlockModel",
         status: SubscriptionLifecycle,
         subscription_id: UUID,
@@ -719,10 +712,10 @@ class ProductBlockModel(DomainModel):
 
     @classmethod
     def from_db(
-        cls: Type[B],
-        subscription_instance_id: Optional[UUID] = None,
-        subscription_instance: Optional[SubscriptionInstanceTable] = None,
-        status: Optional[SubscriptionLifecycle] = None,
+        cls: type[B],
+        subscription_instance_id: UUID | None = None,
+        subscription_instance: SubscriptionInstanceTable | None = None,
+        status: SubscriptionLifecycle | None = None,
     ) -> B:
         """Create a product block based on a subscription instance from the database.
 
@@ -779,8 +772,8 @@ class ProductBlockModel(DomainModel):
             raise
 
     def _save_instance_values(
-        self, product_block: ProductBlockTable, current_values: List[SubscriptionInstanceValueTable]
-    ) -> List[SubscriptionInstanceValueTable]:
+        self, product_block: ProductBlockTable, current_values: list[SubscriptionInstanceValueTable]
+    ) -> list[SubscriptionInstanceValueTable]:
         """Save non product block fields (instance values).
 
         Returns:
@@ -788,7 +781,7 @@ class ProductBlockModel(DomainModel):
 
         """
         resource_types = {rt.resource_type: rt for rt in product_block.resource_types}
-        current_values_dict: Dict[str, List[SubscriptionInstanceValueTable]] = defaultdict(list)
+        current_values_dict: dict[str, list[SubscriptionInstanceValueTable]] = defaultdict(list)
         for siv in current_values:
             current_values_dict[siv.resource_type.resource_type].append(siv)
 
@@ -826,7 +819,7 @@ class ProductBlockModel(DomainModel):
     def _set_instance_domain_model_attrs(
         self,
         subscription_instance: SubscriptionInstanceTable,
-        subscription_instance_mapping: Dict[str, List[SubscriptionInstanceTable]],
+        subscription_instance_mapping: dict[str, list[SubscriptionInstanceTable]],
     ) -> None:
         """Save the domain model attribute to the database.
 
@@ -857,7 +850,7 @@ class ProductBlockModel(DomainModel):
 
     def save(
         self, *, subscription_id: UUID, status: SubscriptionLifecycle
-    ) -> Tuple[List[SubscriptionInstanceTable], SubscriptionInstanceTable]:
+    ) -> tuple[list[SubscriptionInstanceTable], SubscriptionInstanceTable]:
         """Save the current model instance to the database.
 
         This means saving the whole tree of subscription instances and separately saving all instance values for this instance.
@@ -874,7 +867,7 @@ class ProductBlockModel(DomainModel):
             raise ValueError(f"Cannot create instance of abstract class. Use one of {self.__names__}")
 
         # Make sure we have a valid subscription instance database model
-        subscription_instance: Optional[SubscriptionInstanceTable] = db.session.get(
+        subscription_instance: SubscriptionInstanceTable | None = db.session.get(
             SubscriptionInstanceTable, self.subscription_instance_id
         )
         if subscription_instance:
@@ -925,11 +918,11 @@ class ProductBlockModel(DomainModel):
         return self._db_model
 
     @property
-    def in_use_by(self) -> List[SubscriptionInstanceTable]:
+    def in_use_by(self) -> list[SubscriptionInstanceTable]:
         return self._db_model.in_use_by
 
     @property
-    def depends_on(self) -> List[SubscriptionInstanceTable]:
+    def depends_on(self) -> list[SubscriptionInstanceTable]:
         return self._db_model.depends_on
 
 
@@ -944,8 +937,8 @@ class ProductModel(BaseModel):
     product_type: str
     tag: str
     status: ProductLifecycle
-    created_at: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    created_at: datetime | None = None
+    end_date: datetime | None = None
 
 
 class SubscriptionModel(DomainModel):
@@ -980,11 +973,11 @@ class SubscriptionModel(DomainModel):
     description: str = "Initial subscription"  # pragma: no mutate
     status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL  # pragma: no mutate
     insync: bool = False  # pragma: no mutate
-    start_date: Optional[datetime] = None  # pragma: no mutate
-    end_date: Optional[datetime] = None  # pragma: no mutate
-    note: Optional[str] = None  # pragma: no mutate
+    start_date: datetime | None = None  # pragma: no mutate
+    end_date: datetime | None = None  # pragma: no mutate
+    note: str | None = None  # pragma: no mutate
 
-    def __new__(cls, *args: Any, status: Optional[SubscriptionLifecycle] = None, **kwargs: Any) -> "SubscriptionModel":
+    def __new__(cls, *args: Any, status: SubscriptionLifecycle | None = None, **kwargs: Any) -> "SubscriptionModel":
         # status can be none if created during change_lifecycle
         if status and not issubclass(cls, lookup_specialized_type(cls, status)):
             raise ValueError(f"{cls} is not valid for status {status}")
@@ -993,7 +986,7 @@ class SubscriptionModel(DomainModel):
 
     @classmethod
     def __pydantic_init_subclass__(  # type: ignore[override]
-        cls, is_base: bool = False, lifecycle: Optional[List[SubscriptionLifecycle]] = None, **kwargs: Any
+        cls, is_base: bool = False, lifecycle: list[SubscriptionLifecycle] | None = None, **kwargs: Any
     ) -> None:
         super().__pydantic_init_subclass__(lifecycle=lifecycle, **kwargs)
 
@@ -1006,7 +999,7 @@ class SubscriptionModel(DomainModel):
         cls.__doc__ = make_subscription_model_docstring(cls, lifecycle)
 
     @classmethod
-    def diff_product_in_database(cls, product_id: UUID) -> Dict[str, Dict[str, Union[Set[str], Dict[str, Set[str]]]]]:
+    def diff_product_in_database(cls, product_id: UUID) -> dict[str, dict[str, set[str] | dict[str, set[str]]]]:
         """Return any differences between the attrs defined on the domain model and those on product blocks in the database.
 
         This is only needed to check if the domain model and database models match which would be done during testing...
@@ -1041,11 +1034,11 @@ class SubscriptionModel(DomainModel):
             missing_fixed_inputs_in_model=missing_fixed_inputs_in_model,
         )
 
-        missing_data_depends_on_blocks: Dict[str, Set[str]] = {}
+        missing_data_depends_on_blocks: dict[str, set[str]] = {}
         for product_block_in_model in product_blocks_types_in_model:
             missing_data_depends_on_blocks.update(product_block_in_model.diff_product_block_in_database())
 
-        diff: Dict[str, Union[Set[str], Dict[str, Set[str]]]] = {
+        diff: dict[str, set[str] | dict[str, set[str]]] = {
             k: v
             for k, v in {
                 "missing_product_blocks_in_db": missing_product_blocks_in_db,
@@ -1057,7 +1050,7 @@ class SubscriptionModel(DomainModel):
             if v
         }
 
-        missing_data: Dict[str, Dict[str, Union[Set[str], Dict[str, Set[str]]]]] = {}
+        missing_data: dict[str, dict[str, set[str] | dict[str, set[str]]]] = {}
         if diff and product_db:
             missing_data[product_db.name] = diff
 
@@ -1065,15 +1058,15 @@ class SubscriptionModel(DomainModel):
 
     @classmethod
     def from_product_id(
-        cls: Type[S],
-        product_id: Union[UUID, UUIDstr],
+        cls: type[S],
+        product_id: UUID | UUIDstr,
         customer_id: str,
         status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL,
-        description: Optional[str] = None,
+        description: str | None = None,
         insync: bool = False,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        note: Optional[str] = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        note: str | None = None,
     ) -> S:
         """Use product_id (and customer_id) to return required fields of a new empty subscription."""
         # Caller wants a new instance and provided a product_id and customer_id
@@ -1130,7 +1123,7 @@ class SubscriptionModel(DomainModel):
 
     @classmethod
     def from_other_lifecycle(
-        cls: Type[S],
+        cls: type[S],
         other: "SubscriptionModel",
         status: SubscriptionLifecycle,
         skip_validation: bool = False,
@@ -1164,7 +1157,7 @@ class SubscriptionModel(DomainModel):
 
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
-    def _get_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> Any:
+    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
         return db.session.get(
             SubscriptionTable,
             subscription_id,
@@ -1180,7 +1173,7 @@ class SubscriptionModel(DomainModel):
         )
 
     @classmethod
-    def _to_product_model(cls: Type[S], product: ProductTable) -> ProductModel:
+    def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
         return ProductModel(
             product_id=product.product_id,
             name=product.name,
@@ -1194,10 +1187,10 @@ class SubscriptionModel(DomainModel):
 
     @classmethod
     def from_other_product(
-        cls: Type[S],
+        cls: type[S],
         old_instantiation: S,
-        new_product_id: Union[UUID, str],
-        new_root: Optional[Tuple[str, ProductBlockModel]] = None,
+        new_product_id: UUID | str,
+        new_root: tuple[str, ProductBlockModel] | None = None,
     ) -> S:
         db_product = get_product_by_id(new_product_id)
         if not db_product:
@@ -1248,7 +1241,7 @@ class SubscriptionModel(DomainModel):
             raise
 
     @classmethod
-    def from_subscription(cls: Type[S], subscription_id: Union[UUID, UUIDstr]) -> S:
+    def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
         subscription = cls._get_subscription(subscription_id)
         if subscription is None:

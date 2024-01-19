@@ -17,7 +17,7 @@ from collections.abc import Generator
 from importlib import import_module
 from os import listdir, path
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 
@@ -86,7 +86,7 @@ def get_fields(product_block: dict) -> list[dict]:
 
 
 def get_lists_to_generate(fields: list[dict]) -> list[dict]:
-    def should_generate(type: str, list_type: Optional[str] = None, **kwargs: Any) -> bool:
+    def should_generate(type: str, list_type: str | None = None, **kwargs: Any) -> bool:
         return type == "list" and list_type not in ["str", "int", "bool", "UUID"]
 
     return [field for field in fields if should_generate(**field)]

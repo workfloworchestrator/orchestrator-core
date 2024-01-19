@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from http import HTTPStatus
-from typing import Optional, Union
 
 import structlog
 from fastapi import Query, WebSocket
@@ -39,7 +38,7 @@ CACHE_FLUSH_OPTIONS: dict[str, str] = {
 
 
 @router.delete("/cache/{name}")
-async def clear_cache(name: str) -> Union[int, None]:
+async def clear_cache(name: str) -> int | None:
     cache: AIORedis = AIORedis.from_url(str(app_settings.CACHE_URI))
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
@@ -60,7 +59,7 @@ async def reset_search_index() -> None:
 
 @router.put("/status", response_model=EngineSettingsSchema)
 async def set_global_status(
-    body: EngineSettingsBaseSchema, user: Optional[OIDCUserModel] = Depends(oidc_user)
+    body: EngineSettingsBaseSchema, user: OIDCUserModel | None = Depends(oidc_user)
 ) -> EngineSettingsSchema:
     """Update the global status of the engine to a new state.
 

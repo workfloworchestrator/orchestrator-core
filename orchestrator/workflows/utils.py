@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable
 from inspect import isgeneratorfunction
-from typing import Callable, Optional, cast
+from typing import cast
 from uuid import UUID
 
 from more_itertools import first_true
@@ -64,7 +65,7 @@ def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -
     return NewProductPage
 
 
-def wrap_create_initial_input_form(initial_input_form: Optional[InputStepFunc]) -> Optional[StateInputStepFunc]:
+def wrap_create_initial_input_form(initial_input_form: InputStepFunc | None) -> StateInputStepFunc | None:
     """Wrap initial input for create workflows.
 
     This is needed because the frontend expects all create workflows to start with a page that only contains the product.
@@ -142,7 +143,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
     return ModifySubscriptionPage
 
 
-def wrap_modify_initial_input_form(initial_input_form: Optional[InputStepFunc]) -> Optional[StateInputStepFunc]:
+def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> StateInputStepFunc | None:
     """Wrap initial input for modify and terminate workflows.
 
     This is needed because the frontend expects all modify workflows to start with a page that only contains the
@@ -189,9 +190,9 @@ push_domain_models = conditional(lambda _: caching_models_enabled())
 
 def create_workflow(
     description: str,
-    initial_input_form: Optional[InputStepFunc] = None,
+    initial_input_form: InputStepFunc | None = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
-    additional_steps: Optional[StepList] = None,
+    additional_steps: StepList | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
@@ -224,8 +225,8 @@ def create_workflow(
 
 def modify_workflow(
     description: str,
-    initial_input_form: Optional[InputStepFunc] = None,
-    additional_steps: Optional[StepList] = None,
+    initial_input_form: InputStepFunc | None = None,
+    additional_steps: StepList | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -261,8 +262,8 @@ def modify_workflow(
 
 def terminate_workflow(
     description: str,
-    initial_input_form: Optional[InputStepFunc] = None,
-    additional_steps: Optional[StepList] = None,
+    initial_input_form: InputStepFunc | None = None,
+    additional_steps: StepList | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 

@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from structlog import get_logger
 
@@ -20,12 +20,12 @@ from orchestrator.settings import AppSettings
 logger = get_logger(__name__)
 
 
-async def empty_fn(*args: tuple, **kwargs: Dict[str, Any]) -> None:
+async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
     return
 
 
 class WrappedDistLockManager:
-    def __init__(self, wrappee: Optional[DistLockManager] = None) -> None:
+    def __init__(self, wrappee: DistLockManager | None = None) -> None:
         self.wrapped_distlock_manager = wrappee
 
     def update(self, wrappee: DistLockManager) -> None:

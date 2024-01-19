@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
@@ -56,11 +55,11 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
 
 async def resolve_processes(
     info: OrchestratorInfo,
-    filter_by: Optional[list[GraphqlFilter]] = None,
-    sort_by: Optional[list[GraphqlSort]] = None,
+    filter_by: list[GraphqlFilter] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
     first: int = 10,
     after: int = 0,
-    query: Optional[str] = None,
+    query: str | None = None,
 ) -> Connection[ProcessType]:
     _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []

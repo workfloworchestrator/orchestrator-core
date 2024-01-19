@@ -2,7 +2,7 @@ import datetime
 import os
 import typing
 from contextlib import closing
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import pytest
 import requests
@@ -263,8 +263,8 @@ def test_client(fastapi_app):
             self,
             method: str,
             url: str,
-            data: Optional[Any] = None,
-            headers: Optional[typing.MutableMapping[str, str]] = None,
+            data: Any | None = None,
+            headers: typing.MutableMapping[str, str] | None = None,
             json: typing.Any = None,
             **kwargs: Any,
         ) -> requests.Response:
@@ -474,7 +474,7 @@ def generic_product_3(generic_product_block_2):
 @pytest.fixture
 def generic_product_block_type_1(generic_product_block_1):
     class GenericProductBlockOneInactive(ProductBlockModel, product_block_name="PB_1"):
-        rt_1: Optional[str] = None
+        rt_1: str | None = None
 
     class GenericProductBlockOne(GenericProductBlockOneInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         rt_1: str
@@ -485,8 +485,8 @@ def generic_product_block_type_1(generic_product_block_1):
 @pytest.fixture
 def generic_product_block_type_2(generic_product_block_2):
     class GenericProductBlockTwoInactive(ProductBlockModel, product_block_name="PB_2"):
-        rt_2: Optional[int] = None
-        rt_3: Optional[str] = None
+        rt_2: int | None = None
+        rt_3: str | None = None
 
     class GenericProductBlockTwo(GenericProductBlockTwoInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         rt_2: int
@@ -498,7 +498,7 @@ def generic_product_block_type_2(generic_product_block_2):
 @pytest.fixture
 def generic_product_block_type_3(generic_product_block_3):
     class GenericProductBlockThreeInactive(ProductBlockModel, product_block_name="PB_3"):
-        rt_2: Optional[int] = None
+        rt_2: int | None = None
 
     class GenericProductBlockThree(GenericProductBlockThreeInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         rt_2: int
@@ -578,7 +578,7 @@ def product_type_1_subscriptions_factory(product_type_1_subscription_factory):
                 description=f"Subscription {i}",
                 start_date=(
                     datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
-                ).replace(tzinfo=datetime.timezone.utc),
+                ).replace(tzinfo=datetime.UTC),
             )
             for i in range(0, amount)
         ]

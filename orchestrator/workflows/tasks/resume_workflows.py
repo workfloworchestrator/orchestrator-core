@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 
 import structlog
 from sqlalchemy import select
@@ -35,7 +34,7 @@ def find_waiting_workflows() -> State:
 
 
 @step("Resume found workflows")
-def resume_found_workflows(waiting_process_ids: List[UUIDstr]) -> State:
+def resume_found_workflows(waiting_process_ids: list[UUIDstr]) -> State:
     resumed_process_ids = []
     for process_id in waiting_process_ids:
         try:

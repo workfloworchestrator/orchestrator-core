@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import List
 from uuid import UUID
 
 from fastapi.param_functions import Body
@@ -29,8 +28,8 @@ from orchestrator.schemas import ProductBlockEnrichedSchema as ProductBlockSchem
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ProductBlockSchema])
-def fetch() -> List[ProductBlockTable]:
+@router.get("/", response_model=list[ProductBlockSchema])
+def fetch() -> list[ProductBlockTable]:
     stmt = select(ProductBlockTable).options(joinedload(ProductBlockTable.resource_types))
     return list(db.session.scalars(stmt).unique())
 

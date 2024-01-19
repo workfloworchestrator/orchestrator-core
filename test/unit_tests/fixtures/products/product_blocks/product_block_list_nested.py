@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import pytest
 
 from orchestrator.db import ProductBlockTable, db
@@ -8,21 +6,21 @@ from orchestrator.types import SubscriptionLifecycle
 
 
 class ProductBlockListNestedForTestInactive(ProductBlockModel, product_block_name="ProductBlockListNestedForTest"):
-    sub_block_list: List["ProductBlockListNestedForTestInactive"]
-    int_field: Optional[int] = None
+    sub_block_list: list["ProductBlockListNestedForTestInactive"]
+    int_field: int | None = None
 
 
 class ProductBlockListNestedForTestProvisioning(
     ProductBlockListNestedForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    sub_block_list: List["ProductBlockListNestedForTestProvisioning"]  # type: ignore
+    sub_block_list: list["ProductBlockListNestedForTestProvisioning"]  # type: ignore
     int_field: int
 
 
 class ProductBlockListNestedForTest(
     ProductBlockListNestedForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
-    sub_block_list: List["ProductBlockListNestedForTest"]  # type: ignore
+    sub_block_list: list["ProductBlockListNestedForTest"]  # type: ignore
     int_field: int
 
 

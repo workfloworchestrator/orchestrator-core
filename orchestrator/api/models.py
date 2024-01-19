@@ -12,10 +12,11 @@
 # limitations under the License.
 
 
+from collections.abc import Iterable
 from copy import deepcopy
 from datetime import datetime
 from http import HTTPStatus
-from typing import Any, Dict, Iterable, Tuple, Type
+from typing import Any
 from uuid import UUID
 
 from dateutil.parser import isoparse
@@ -36,13 +37,14 @@ from orchestrator.db import (
     WorkflowTable,
     db,
 )
+from orchestrator.db.database import BaseModel as DbBaseModel
 
 
-def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
+def validate(cls: type[DbBaseModel], json_dict: dict, is_new_instance: bool = True) -> dict:
     def is_required(v: Column) -> bool:
         return not v.nullable and (not v.server_default or v.primary_key)
 
-    table = cls.__table__
+    table = cls.__table__  # type: ignore[attr-defined]
     required_columns = {k: v for k, v, *_ in table.columns._collection if is_required(v)}
 
     required_attributes: Iterable[str] = required_columns.keys()
@@ -56,13 +58,13 @@ def validate(cls: Type, json_dict: Dict, is_new_instance: bool = True) -> Dict:
     return json_dict
 
 
-def _merge(cls: Type, d: Dict) -> None:
+def _merge(cls: type[DbBaseModel], d: dict) -> None:
     o = cls(**d)
     db.session.merge(o)
     db.session.commit()
 
 
-def save(cls: Type, json_data: BaseModel) -> None:
+def save(cls: type[DbBaseModel], json_data: BaseModel) -> None:
     try:
         json_dict = transform_json(json_data.model_dump())
         _merge(cls, json_dict)
@@ -70,7 +72,7 @@ def save(cls: Type, json_data: BaseModel) -> None:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-def create_or_update(cls: Type, obj: BaseModel) -> None:
+def create_or_update(cls: type, obj: BaseModel) -> None:
     try:
         json_dict = transform_json(obj.model_dump())
         _merge(cls, json_dict)
@@ -78,9 +80,10 @@ def create_or_update(cls: Type, obj: BaseModel) -> None:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-def update(cls: Type, base_model: BaseModel) -> None:
+def update(cls: type[DbBaseModel], base_model: BaseModel) -> None:
     json_dict = transform_json(base_model.model_dump())
-    pk = list({k: v for k, v, *_ in cls.__table__.columns._collection if v.primary_key}.keys())[0]
+    table = cls.__table__  # type: ignore[attr-defined]
+    pk = list({k: v for k, v, *_ in table.columns._collection if v.primary_key}.keys())[0]
     instance = cls.query.filter(cls.__dict__[pk] == json_dict[pk])
     if not instance:
         raise_status(HTTPStatus.NOT_FOUND)
@@ -91,8 +94,9 @@ def update(cls: Type, base_model: BaseModel) -> None:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-def delete(cls: Type, primary_key: UUID) -> None:
-    pk = list({k: v for k, v, *_ in cls.__table__.columns._collection if v.primary_key}.keys())[0]
+def delete(cls: type[DbBaseModel], primary_key: UUID) -> None:
+    table = cls.__table__  # type: ignore[attr-defined]
+    pk = list({k: v for k, v, *_ in table.columns._collection if v.primary_key}.keys())[0]
     row_count = cls.query.filter(cls.__dict__[pk] == primary_key).delete()
     db.session.commit()
     if row_count > 0:
@@ -116,7 +120,7 @@ forbidden_fields = ["created_at"]
 date_fields = ["end_date"]
 
 
-def cleanse_json(json_dict: Dict) -> None:
+def cleanse_json(json_dict: dict) -> None:
     copy_json_dict = deepcopy(json_dict)
     for k in copy_json_dict.keys():
         if copy_json_dict[k] is None:
@@ -124,12 +128,12 @@ def cleanse_json(json_dict: Dict) -> None:
     for forbidden in forbidden_fields:
         if forbidden in json_dict:
             del json_dict[forbidden]
-        rel: Dict
+        rel: dict
         for rel in flatten(list(filter(lambda i: isinstance(i, list), json_dict.values()))):
             cleanse_json(rel)
 
 
-def parse_date_fields(json_dict: Dict) -> None:
+def parse_date_fields(json_dict: dict) -> None:
     for date_field in date_fields:
         if date_field in json_dict:
             val = json_dict[date_field]
@@ -139,19 +143,19 @@ def parse_date_fields(json_dict: Dict) -> None:
                 timestamp = isoparse(val)
                 assert timestamp.tzinfo is not None, "All timestamps should contain timezone information."  # noqa: S101
                 json_dict[date_field] = timestamp
-        rel: Dict
+        rel: dict
         for rel in flatten(list(filter(lambda i: isinstance(i, list), json_dict.values()))):
             parse_date_fields(rel)
 
 
-def transform_json(json_dict: Dict) -> Dict:
+def transform_json(json_dict: dict) -> dict:
     def _contains_list(coll: Iterable[Any]) -> bool:
         return len(list(filter(lambda item: isinstance(item, list), coll))) > 0
 
-    def _do_transform(items: Iterable[Tuple[str, Any]]) -> Dict:
+    def _do_transform(items: Iterable[tuple[str, Any]]) -> dict:
         return dict(map(_parse, items))
 
-    def _parse(item: Tuple[str, Any]) -> Tuple[str, Any]:
+    def _parse(item: tuple[str, Any]) -> tuple[str, Any]:
         if isinstance(item[1], list):
             cls = deserialization_mapping[item[0]]
             return item[0], list(map(lambda i: cls(**_do_transform(i.items())), item[1]))

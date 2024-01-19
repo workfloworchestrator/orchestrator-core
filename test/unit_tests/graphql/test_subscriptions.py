@@ -13,7 +13,6 @@
 import datetime
 import json
 from http import HTTPStatus
-from typing import Optional
 
 import pytest
 
@@ -63,9 +62,9 @@ query SubscriptionQuery(
 def get_subscriptions_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[dict]] = None,
-    sort_by: Optional[list] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[dict] | None = None,
+    sort_by: list | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     gql_query = build_subscriptions_query(
         """{
@@ -124,9 +123,9 @@ def get_subscriptions_query(
 def get_subscriptions_query_with_relations(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[dict[str, str]]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[dict[str, str]] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = build_subscriptions_query(
         """{
@@ -218,9 +217,9 @@ def get_subscriptions_query_with_relations(
 def get_subscriptions_product_block_json_schema_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[dict[str, str]]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[dict[str, str]] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = build_subscriptions_query(
         """{
@@ -255,9 +254,9 @@ def get_subscriptions_product_block_json_schema_query(
 def get_subscriptions_product_generic_one(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[str]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = build_subscriptions_query(
         """{
@@ -307,9 +306,9 @@ def get_subscriptions_product_generic_one(
 def get_subscriptions_product_sub_list_union(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[dict[str, str]]] = None,
-    sort_by: Optional[list[str]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[dict[str, str]] | None = None,
+    sort_by: list[str] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = build_subscriptions_query(
         """{
@@ -370,9 +369,9 @@ def get_subscriptions_product_sub_list_union(
 def get_subscriptions_with_metadata_and_schema_query(
     first: int = 1,
     after: int = 0,
-    filter_by: Optional[list[dict[str, str]]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[dict[str, str]] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     gql_query = build_subscriptions_query(
         """{

@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
 
 from pydantic import ConfigDict
@@ -25,25 +24,25 @@ from orchestrator.schemas.workflow import WorkflowSchema
 
 
 class ProductBaseSchema(OrchestratorBaseModel):
-    product_id: Optional[UUID] = None
+    product_id: UUID | None = None
     name: str
     description: str
     product_type: str
     status: ProductLifecycle
     tag: str
-    created_at: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    created_at: datetime | None = None
+    end_date: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class ProductSchema(ProductBaseSchema):
     product_id: UUID
     created_at: datetime
-    product_blocks: List[ProductBlockSchema]
-    fixed_inputs: List[FixedInputSchema]
-    workflows: List[WorkflowSchema]
+    product_blocks: list[ProductBlockSchema]
+    fixed_inputs: list[FixedInputSchema]
+    workflows: list[WorkflowSchema]
 
 
 class ProductCRUDSchema(ProductBaseSchema):
-    product_blocks: Optional[List[ProductBlockBaseSchema]] = None
-    fixed_inputs: Optional[List[FixedInputBaseSchema]] = None
+    product_blocks: list[ProductBlockBaseSchema] | None = None
+    fixed_inputs: list[FixedInputBaseSchema] | None = None

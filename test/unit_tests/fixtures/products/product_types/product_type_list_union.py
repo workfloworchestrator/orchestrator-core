@@ -1,5 +1,3 @@
-from typing import Union
-
 import pytest
 from pydantic import conlist
 
@@ -20,15 +18,15 @@ def test_product_type_list_union(test_product_sub_block_one, test_product_sub_bl
 
     class ProductListUnionInactive(SubscriptionModel, is_base=True):
         test_fixed_input: bool
-        list_union_blocks: list_of_ports(Union[SubBlockTwoForTestInactive, SubBlockOneForTestInactive])
+        list_union_blocks: list_of_ports(SubBlockTwoForTestInactive | SubBlockOneForTestInactive)
 
     class ProductListUnionProvisioning(ProductListUnionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         test_fixed_input: bool
-        list_union_blocks: list_of_ports(Union[SubBlockTwoForTestProvisioning, SubBlockOneForTestProvisioning])
+        list_union_blocks: list_of_ports(SubBlockTwoForTestProvisioning | SubBlockOneForTestProvisioning)
 
     class ProductListUnion(ProductListUnionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
-        list_union_blocks: list_of_ports(Union[SubBlockTwoForTest, SubBlockOneForTest])
+        list_union_blocks: list_of_ports(SubBlockTwoForTest | SubBlockOneForTest)
 
     SUBSCRIPTION_MODEL_REGISTRY["ProductListUnion"] = ProductListUnion
     yield ProductListUnionInactive, ProductListUnionProvisioning, ProductListUnion

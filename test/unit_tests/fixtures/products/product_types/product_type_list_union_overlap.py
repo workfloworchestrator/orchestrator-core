@@ -1,4 +1,3 @@
-from typing import Optional, Union
 from uuid import uuid4
 
 import pytest
@@ -19,16 +18,16 @@ def test_product_type_list_union_overlap(test_product_block_one, test_product_su
         return conlist(t, min_length=1)
 
     class ProductListUnionInactive(SubscriptionModel, is_base=True):
-        test_block: Optional[ProductBlockOneForTestInactive]
-        list_union_blocks: list_of_ports(Union[ProductBlockOneForTestInactive, SubBlockOneForTestInactive])
+        test_block: ProductBlockOneForTestInactive | None
+        list_union_blocks: list_of_ports(ProductBlockOneForTestInactive | SubBlockOneForTestInactive)
 
     class ProductListUnionProvisioning(ProductListUnionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         test_block: ProductBlockOneForTestProvisioning
-        list_union_blocks: list_of_ports(Union[ProductBlockOneForTestProvisioning, SubBlockOneForTestProvisioning])
+        list_union_blocks: list_of_ports(ProductBlockOneForTestProvisioning | SubBlockOneForTestProvisioning)
 
     class ProductListUnion(ProductListUnionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_block: ProductBlockOneForTest
-        list_union_blocks: list_of_ports(Union[ProductBlockOneForTest, SubBlockOneForTest])
+        list_union_blocks: list_of_ports(ProductBlockOneForTest | SubBlockOneForTest)
 
     SUBSCRIPTION_MODEL_REGISTRY["ProductListUnion"] = ProductListUnion
     yield ProductListUnionInactive, ProductListUnionProvisioning, ProductListUnion

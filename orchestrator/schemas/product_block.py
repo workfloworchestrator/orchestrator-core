@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
 
 from pydantic import ConfigDict
@@ -23,23 +22,23 @@ from orchestrator.schemas.resource_type import ResourceTypeBaseSchema, ResourceT
 
 
 class ProductBlockBaseSchema(OrchestratorBaseModel):
-    product_block_id: Optional[UUID] = None
+    product_block_id: UUID | None = None
     name: str
     description: str
-    tag: Optional[str] = None
-    status: Optional[ProductLifecycle] = None
-    resource_types: Optional[List[ResourceTypeBaseSchema]] = None
+    tag: str | None = None
+    status: ProductLifecycle | None = None
+    resource_types: list[ResourceTypeBaseSchema] | None = None
 
 
 class ProductBlockEnrichedSchema(OrchestratorBaseModel):
     product_block_id: UUID
     name: str
     description: str
-    tag: Optional[str] = None
+    tag: str | None = None
     status: ProductLifecycle
-    created_at: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    resource_types: Optional[List[ResourceTypeSchema]] = None
+    created_at: datetime | None = None
+    end_date: datetime | None = None
+    resource_types: list[ResourceTypeSchema] | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -47,6 +46,6 @@ class ProductBlockSchema(ProductBlockBaseSchema):
     product_block_id: UUID
     status: ProductLifecycle
     created_at: datetime
-    end_date: Optional[datetime] = None
-    resource_types: Optional[List[ResourceTypeSchema]] = None  # type: ignore
+    end_date: datetime | None = None
+    resource_types: list[ResourceTypeSchema] | None = None  # type: ignore
     model_config = ConfigDict(from_attributes=True)

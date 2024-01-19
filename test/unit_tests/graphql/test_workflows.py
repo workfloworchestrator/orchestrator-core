@@ -1,6 +1,5 @@
 import json
 from http import HTTPStatus
-from typing import Optional
 
 import pytest
 
@@ -15,9 +14,9 @@ def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
 def get_workflows_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[dict[str, str]]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[dict[str, str]] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = """
 query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {

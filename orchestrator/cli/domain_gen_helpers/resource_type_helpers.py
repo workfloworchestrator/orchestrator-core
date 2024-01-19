@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
 import structlog
@@ -32,7 +31,7 @@ def get_resource_type(resource_type: str) -> ScalarSelect:
     return get_resource_types([resource_type])
 
 
-def get_resource_types(resource_types: Union[List[str], Set[str]]) -> ScalarSelect:
+def get_resource_types(resource_types: list[str] | set[str]) -> ScalarSelect:
     return (
         select(ResourceTypeTable.resource_type_id)
         .where(ResourceTypeTable.resource_type.in_(resource_types))
@@ -59,8 +58,8 @@ def map_create_resource_types(resource_type_names: set[str], updated_resource_ty
 
 
 def find_resource_within_blocks(
-    resource_type_names: List[str], product_blocks: Dict[str, Type[ProductBlockModel]]
-) -> Set[str]:
+    resource_type_names: list[str], product_blocks: dict[str, type[ProductBlockModel]]
+) -> set[str]:
     """Find resource types within product blocks.
 
     Args:
@@ -74,9 +73,9 @@ def find_resource_within_blocks(
 
 
 def rename_resource_type_inputs(
-    resource_type_choices: Dict[str, Set[str]],
-    renamed_resource_types: Dict[str, str],
-) -> Tuple[Optional[str], Optional[str]]:
+    resource_type_choices: dict[str, set[str]],
+    renamed_resource_types: dict[str, str],
+) -> tuple[str | None, str | None]:
     old_resource_types = set(resource_type_choices.keys())
     noqa_print("Which resource type would you want to rename?")
     old_rt = _prompt_user_menu(
@@ -97,7 +96,7 @@ def rename_resource_type_inputs(
 
 def map_rename_resource_types(
     block_diffs: dict[str, dict[str, set[str]]],
-    product_blocks: dict[str, Type[ProductBlockModel]],
+    product_blocks: dict[str, type[ProductBlockModel]],
 ) -> dict[str, str]:
     """Map resource types to rename.
 
@@ -154,8 +153,8 @@ def map_rename_resource_types(
 
 
 def update_block_resource_type_input(
-    old_props: List[str], new_props: List[str], block_name: str
-) -> Tuple[Optional[str], Optional[str]]:
+    old_props: list[str], new_props: list[str], block_name: str
+) -> tuple[str | None, str | None]:
     noqa_print(f"Which resource type would you want to update in {block_name} Block?")
     old_rt = _prompt_user_menu(
         [*[(p, p) for p in old_props], ("continue", None)],
@@ -173,9 +172,9 @@ def update_block_resource_type_input(
 
 
 def map_update_product_block_resource_types(
-    block_diffs: Dict[str, Dict[str, Set[str]]],
-    renamed_resource_types: Dict[str, str],
-) -> Dict[str, Dict[str, str]]:
+    block_diffs: dict[str, dict[str, set[str]]],
+    renamed_resource_types: dict[str, str],
+) -> dict[str, dict[str, str]]:
     """Map resource types to update per product block.
 
     Args:
@@ -215,10 +214,10 @@ def map_update_product_block_resource_types(
 
 
 def map_delete_resource_types(
-    resource_types: Dict[str, Set[str]],
-    updated_resource_types: List[str],
-    product_blocks: Dict[str, Type[ProductBlockModel]],
-) -> Set[str]:
+    resource_types: dict[str, set[str]],
+    updated_resource_types: list[str],
+    product_blocks: dict[str, type[ProductBlockModel]],
+) -> set[str]:
     """Map resource types to delete.
 
     Args:
@@ -259,11 +258,11 @@ def get_block_instance_count(product_block_id: UUID) -> int:
 
 def _has_product_existing_instances(product_name: str) -> bool:
     stmt = select(ProductTable).where(ProductTable.name == product_name)
-    product: Optional[ProductTable] = db.session.scalars(stmt).first()
+    product: ProductTable | None = db.session.scalars(stmt).first()
     return bool(product and get_product_instance_count(product.product_id))
 
 
-def _find_new_relations(block_name: str, relations: Dict[str, Set[str]]) -> Set[str]:
+def _find_new_relations(block_name: str, relations: dict[str, set[str]]) -> set[str]:
     return set(flatten((list(v) for k, v in relations.items() if block_name in k)))
 
 
@@ -282,7 +281,7 @@ def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str,
 
     def _has_existing_instances(block_name: str) -> bool:
         stmt = select(ProductBlockTable).where(ProductBlockTable.name == block_name)
-        block: Optional[ProductBlockTable] = db.session.scalars(stmt).first()
+        block: ProductBlockTable | None = db.session.scalars(stmt).first()
         if block and get_block_instance_count(block.product_block_id):
             return True
 
@@ -300,8 +299,8 @@ def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str,
 
 
 def generate_create_resource_types_sql(
-    resource_types: Set[str], inputs: Dict[str, Dict[str, str]], revert: bool = False
-) -> List[str]:
+    resource_types: set[str], inputs: dict[str, dict[str, str]], revert: bool = False
+) -> list[str]:
     """Generate SQL to create resource types.
 
     Args:
@@ -333,7 +332,7 @@ def generate_create_resource_types_sql(
     return [create_resource_type(resource_type) for resource_type in resource_types]
 
 
-def generate_rename_resource_types_sql(resource_types: Dict[str, str]) -> List[str]:
+def generate_rename_resource_types_sql(resource_types: dict[str, str]) -> list[str]:
     """Generate SQL to update resource types.
 
     Args:
@@ -354,7 +353,7 @@ def generate_rename_resource_types_sql(resource_types: Dict[str, str]) -> List[s
     return [update_resource_type(*item) for item in resource_types.items()]
 
 
-def generate_delete_resource_types_sql(resource_types: Set[str]) -> List[str]:
+def generate_delete_resource_types_sql(resource_types: set[str]) -> list[str]:
     """Generate SQL to delete resource types.
 
     Args:
@@ -374,7 +373,7 @@ def generate_delete_resource_types_sql(resource_types: Set[str]) -> List[str]:
     ]
 
 
-def generate_create_resource_type_relations_sql(resource_types: Dict[str, Set[str]]) -> List[str]:
+def generate_create_resource_type_relations_sql(resource_types: dict[str, set[str]]) -> list[str]:
     """Generate SQL to create resource type relations.
 
     Args:
@@ -385,10 +384,10 @@ def generate_create_resource_type_relations_sql(resource_types: Dict[str, Set[st
     Returns: List of SQL strings to create relation between product blocks and resource type.
     """
 
-    def create_resource_type_relation(resource_type: str, block_names: Set[str]) -> str:
+    def create_resource_type_relation(resource_type: str, block_names: set[str]) -> str:
         resource_type_id_sql = get_resource_type(resource_type)
 
-        def create_block_relation_dict(block_name: str) -> Dict[str, Union[str, ScalarSelect]]:
+        def create_block_relation_dict(block_name: str) -> dict[str, str | ScalarSelect]:
             block_id_sql = get_product_block_id(block_name)
             return {"resource_type_id": resource_type_id_sql, "product_block_id": block_id_sql}
 
@@ -399,8 +398,8 @@ def generate_create_resource_type_relations_sql(resource_types: Dict[str, Set[st
 
 
 def generate_create_resource_type_instance_values_sql(
-    resource_types: Dict[str, Set[str]], inputs: Dict[str, Dict[str, str]]
-) -> List[str]:
+    resource_types: dict[str, set[str]], inputs: dict[str, dict[str, str]]
+) -> list[str]:
     """Generate SQL to create resource type instance values for existing instances.
 
     Args:
@@ -456,7 +455,7 @@ def generate_create_resource_type_instance_values_sql(
     ]
 
 
-def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str, Set[str]]) -> List[str]:
+def generate_delete_resource_type_relations_sql(delete_resource_types: dict[str, set[str]]) -> list[str]:
     """Generate SQL to delete resource type relations and its instance values.
 
     Args:
@@ -467,7 +466,7 @@ def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str,
     Returns: List of SQL strings to delete relations between product blocks and resource type.
     """
 
-    def delete_resource_type_relation(resource_type: str, block_names: Set[str]) -> List[str]:
+    def delete_resource_type_relation(resource_type: str, block_names: set[str]) -> list[str]:
         block_ids_sql = get_product_block_ids(block_names)
         resource_type_id_sql = get_resource_type(resource_type)
         subscription_instance_id_sql = (
@@ -493,7 +492,7 @@ def generate_delete_resource_type_relations_sql(delete_resource_types: Dict[str,
     return list(flatten([delete_resource_type_relation(*item) for item in delete_resource_types.items()]))
 
 
-def generate_update_resource_type_block_relations_sql(block_rt_updates: Dict[str, Dict[str, str]]) -> List[str]:
+def generate_update_resource_type_block_relations_sql(block_rt_updates: dict[str, dict[str, str]]) -> list[str]:
     """Generate SQL to update resource type block relations.
 
     Args:
@@ -506,7 +505,7 @@ def generate_update_resource_type_block_relations_sql(block_rt_updates: Dict[str
     Returns: List of SQL strings to update resource types.
     """
 
-    def update_block_resource_types(block_name: str, rt_updates: Dict[str, str]) -> List[str]:
+    def update_block_resource_types(block_name: str, rt_updates: dict[str, str]) -> list[str]:
         block_id_sql = get_product_block_id(block_name)
 
         def update_block_relation(old_rt_name: str, new_rt_name: str) -> str:
@@ -526,7 +525,7 @@ def generate_update_resource_type_block_relations_sql(block_rt_updates: Dict[str
     return list(flatten([update_block_resource_types(*item) for item in block_rt_updates.items()]))
 
 
-def generate_update_resource_type_instance_values_sql(block_rt_updates: Dict[str, Dict[str, str]]) -> List[str]:
+def generate_update_resource_type_instance_values_sql(block_rt_updates: dict[str, dict[str, str]]) -> list[str]:
     """Generate SQL to update resource type instance values.
 
     Args:

@@ -1,6 +1,7 @@
 import itertools
 import operator
-from typing import Dict, Iterable, List, Tuple, TypeVar
+from collections.abc import Iterable
+from typing import TypeVar
 
 import structlog
 from sqlalchemy import select
@@ -29,7 +30,7 @@ logger = structlog.get_logger(__name__)
 T = TypeVar("T")
 
 
-def _print_workflows_table(workflows: List[WorkflowTable]) -> None:
+def _print_workflows_table(workflows: list[WorkflowTable]) -> None:
     items = [(wf.name, wf.target, wf.description, wf.products[0].product_type) for wf in workflows if wf.products]
     print_fmt(
         tabulate(
@@ -41,7 +42,7 @@ def _print_workflows_table(workflows: List[WorkflowTable]) -> None:
     )
 
 
-def _add_workflow(workflows: Dict[str, LazyWorkflowInstance], state: dict) -> dict:
+def _add_workflow(workflows: dict[str, LazyWorkflowInstance], state: dict) -> dict:
     print_fmt("\nAdd new workflow\n", flags=[COLOR.UNDERLINE])
 
     if not workflows:
@@ -139,7 +140,7 @@ def _show_state(state: dict) -> dict:
     return state
 
 
-def delete_dangling_workflows(workflows: List[WorkflowTable], state: dict) -> dict:
+def delete_dangling_workflows(workflows: list[WorkflowTable], state: dict) -> dict:
     if not workflows:
         noqa_print("No dangling workflows found.")
         return state
@@ -173,7 +174,7 @@ def delete_dangling_workflows(workflows: List[WorkflowTable], state: dict) -> di
     return {**state, "workflows_to_delete": [*state["workflows_to_delete"], *items]}
 
 
-def create_workflows_migration_wizard() -> Tuple[List[dict], List[dict]]:
+def create_workflows_migration_wizard() -> tuple[list[dict], list[dict]]:
     """Create tuple with lists for workflows to add and delete.
 
     Returns tuple:

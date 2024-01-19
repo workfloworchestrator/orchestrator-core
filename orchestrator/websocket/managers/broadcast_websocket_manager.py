@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
 
 from broadcaster import Broadcast
 from fastapi import WebSocket, status
@@ -48,7 +47,7 @@ class BroadcastWebsocketManager:
         self.remove_ws_from_connected_list(websocket)
 
     async def disconnect(
-        self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: Union[Dict, str, None] = None
+        self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
     ) -> None:
         if reason:
             await websocket.send_text(json_dumps(reason))
@@ -74,7 +73,7 @@ class BroadcastWebsocketManager:
                     await self.disconnect(websocket)
                     break
 
-    async def broadcast_data(self, channels: List[str], data: Dict) -> None:
+    async def broadcast_data(self, channels: list[str], data: dict) -> None:
         await self.pub_broadcast.connect()
         for channel in channels:
             await self.pub_broadcast.publish(channel, message=json_dumps(data))

@@ -11,13 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 from orchestrator.schemas.base import OrchestratorBaseModel
 
 
 class ProblemDetailSchema(OrchestratorBaseModel):
-    detail: Optional[str] = None
-    status: Optional[int] = None
-    title: Optional[str] = None
-    type: Optional[str] = None
+    detail: str | None = None
+    status: int | None = None
+    title: str | None = None
+    type: str | None = None

@@ -13,7 +13,7 @@
 
 """Module that implements subscription related API endpoints."""
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 from uuid import UUID
 
 import structlog
@@ -68,7 +68,7 @@ def _delete_subscription_tree(subscription: SubscriptionTable) -> None:
     db.session.commit()
 
 
-def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptionTable]) -> None:
+def _delete_process_subscriptions(process_subscriptions: list[ProcessSubscriptionTable]) -> None:
     for process_subscription in process_subscriptions:
         process_id = str(process_subscription.process_id)
         subscription_id = str(process_subscription.subscription_id)
@@ -82,7 +82,7 @@ def _delete_process_subscriptions(process_subscriptions: List[ProcessSubscriptio
             _delete_subscription_tree(subscription)
 
 
-def _filter_statuses(filter_statuses: Optional[str] = None) -> List[str]:
+def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
     """Check valid filter statuses.
 
     Args:
@@ -106,8 +106,8 @@ def _filter_statuses(filter_statuses: Optional[str] = None) -> List[str]:
     return statuses
 
 
-@router.get("/all", response_model=List[SubscriptionSchema])
-def subscriptions_all() -> List[SubscriptionTable]:
+@router.get("/all", response_model=list[SubscriptionSchema])
+def subscriptions_all() -> list[SubscriptionTable]:
     """Return subscriptions with only a join on products."""
     stmt = select(SubscriptionTable)
     return list(db.session.scalars(stmt))
@@ -116,8 +116,8 @@ def subscriptions_all() -> List[SubscriptionTable]:
 @router.get("/domain-model/{subscription_id}", response_model=Optional[SubscriptionDomainModelSchema])
 def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
-) -> Optional[Dict[str, Any]]:
-    def _build_response(model: dict, etag: str) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
+    def _build_response(model: dict, etag: str) -> dict[str, Any] | None:
         if etag == request.headers.get("If-None-Match"):
             response.status_code = HTTPStatus.NOT_MODIFIED
             return None
@@ -156,10 +156,10 @@ def delete_subscription(subscription_id: UUID) -> None:
     return
 
 
-@router.get("/in_use_by/{subscription_id}", response_model=List[SubscriptionSchema])
+@router.get("/in_use_by/{subscription_id}", response_model=list[SubscriptionSchema])
 def in_use_by_subscriptions(
-    subscription_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
-) -> List[SubscriptionTable]:
+    subscription_id: UUID, filter_statuses: list[str] = Depends(_filter_statuses)
+) -> list[SubscriptionTable]:
     """Retrieve subscriptions that are in use by this subscription.
 
     Args:
@@ -173,8 +173,8 @@ def in_use_by_subscriptions(
     return query_in_use_by_subscriptions(subscription_id, filter_statuses).all()
 
 
-@router.post("/subscriptions_for_in_used_by_ids", response_model=Dict[UUID, SubscriptionSchema])
-def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, SubscriptionSchema]:
+@router.post("/subscriptions_for_in_used_by_ids", response_model=dict[UUID, SubscriptionSchema])
+def subscriptions_by_in_used_by_ids(data: list[UUID] = Body(...)) -> dict[UUID, SubscriptionSchema]:
     rows = db.session.execute(
         select(SubscriptionInstanceTable)
         .join(SubscriptionTable)
@@ -189,11 +189,11 @@ def subscriptions_by_in_used_by_ids(data: List[UUID] = Body(...)) -> Dict[UUID, 
     return result
 
 
-@router.get("/depends_on/{subscription_id}", response_model=List[SubscriptionSchema])
+@router.get("/depends_on/{subscription_id}", response_model=list[SubscriptionSchema])
 def depends_on_subscriptions(
     subscription_id: UUID,
-    filter_statuses: List[str] = Depends(_filter_statuses),
-) -> List[SubscriptionTable]:
+    filter_statuses: list[str] = Depends(_filter_statuses),
+) -> list[SubscriptionTable]:
     """Retrieve dependant subscriptions.
 
     Args:
@@ -209,7 +209,7 @@ def depends_on_subscriptions(
 
 @router.get("/", response_model=list[SubscriptionWithMetadata])
 def subscriptions_filterable(
-    response: Response, range: Optional[str] = None, sort: Optional[str] = None, filter: Optional[str] = None
+    response: Response, range: str | None = None, sort: str | None = None, filter: str | None = None
 ) -> list[dict]:
     """Get subscriptions filtered.
 
@@ -243,7 +243,7 @@ def subscriptions_filterable(
 
 @router.get("/search", response_model=list[SubscriptionWithMetadata])
 def subscriptions_search(
-    response: Response, query: str, range: Optional[str] = None, sort: Optional[str] = None
+    response: Response, query: str, range: str | None = None, sort: str | None = None
 ) -> list[dict]:
     """Get subscriptions filtered based on a search query string.
 
@@ -276,7 +276,7 @@ def subscriptions_search(
 @router.get(
     "/workflows/{subscription_id}", response_model=SubscriptionWorkflowListsSchema, response_model_exclude_none=True
 )
-def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[str, Union[List[Any], str]]]]:
+def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[str, list[Any] | str]]]:
     subscription = db.session.get(
         SubscriptionTable,
         subscription_id,
@@ -291,10 +291,10 @@ def subscription_workflows_by_id(subscription_id: UUID) -> Dict[str, List[Dict[s
     return subscription_workflows(subscription)
 
 
-@router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=List[UUID])
+@router.get("/instance/other_subscriptions/{subscription_instance_id}", response_model=list[UUID])
 def subscription_instance_in_use_by(
-    subscription_instance_id: UUID, filter_statuses: List[str] = Depends(_filter_statuses)
-) -> List[UUID]:
+    subscription_instance_id: UUID, filter_statuses: list[str] = Depends(_filter_statuses)
+) -> list[UUID]:
     subscription_instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
 
     if not subscription_instance:
@@ -309,8 +309,8 @@ def subscription_instance_in_use_by(
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
-def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCUserModel] = Depends(oidc_user)) -> None:
-    def failed_processes() -> List[str]:
+def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(oidc_user)) -> None:
+    def failed_processes() -> list[str]:
         if app_settings.DISABLE_INSYNC_CHECK:
             return []
         stmt = (
@@ -347,5 +347,5 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: Optional[OIDCU
 
 
 @router.get("/{subscription_id}/metadata", status_code=HTTPStatus.OK)
-def subscription_metadata(subscription_id: UUID) -> Optional[dict]:
+def subscription_metadata(subscription_id: UUID) -> dict | None:
     return get_subscription_metadata(str(subscription_id))

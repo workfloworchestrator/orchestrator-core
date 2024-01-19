@@ -1,5 +1,6 @@
+from collections.abc import Generator
 from itertools import count
-from typing import Any, Generator, Optional
+from typing import Any
 from uuid import UUID
 
 import strawberry
@@ -13,7 +14,7 @@ from orchestrator.services.subscriptions import build_extended_domain_model
 @strawberry.type
 class ProductBlockInstance:
     id: int
-    parent: Optional[int]
+    parent: int | None
     subscription_instance_id: UUID
     owner_subscription_id: UUID
     in_use_by_relations: list[JSON]
@@ -32,7 +33,7 @@ def is_product_block(candidate: Any) -> bool:
     return False
 
 
-def get_all_product_blocks(subscription: dict[str, Any], _tags: Optional[list[str]]) -> list[dict[str, Any]]:
+def get_all_product_blocks(subscription: dict[str, Any], _tags: list[str] | None) -> list[dict[str, Any]]:
     gen_id = count()
 
     def locate_product_block(candidate: dict[str, Any]) -> Generator:
@@ -56,7 +57,7 @@ pb_instance_property_keys = ("id", "parent", "owner_subscription_id", "subscript
 
 
 async def get_subscription_product_blocks(
-    subscription_id: UUID, tags: Optional[list[str]] = None, product_block_instance_values: Optional[list[str]] = None
+    subscription_id: UUID, tags: list[str] | None = None, product_block_instance_values: list[str] | None = None
 ) -> list[ProductBlockInstance]:
     subscription_model = SubscriptionModel.from_subscription(subscription_id)
     subscription = build_extended_domain_model(subscription_model)

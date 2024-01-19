@@ -10,9 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Callable
 from datetime import datetime
 from functools import partial
-from typing import Callable, Optional
 
 import pytz
 from dateutil.parser import parse
@@ -68,7 +68,7 @@ def generic_range_filter(range_type_fn: Callable, field: ColumnClause) -> Callab
 
 
 def generic_range_filters(
-    column: ColumnClause, column_alias: Optional[str] = None
+    column: ColumnClause, column_alias: str | None = None
 ) -> dict[str, Callable[[QueryType, str], QueryType]]:
     column_name = to_camel(column_alias or column.name)
 

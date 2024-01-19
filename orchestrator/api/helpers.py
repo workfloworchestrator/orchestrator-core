@@ -12,11 +12,12 @@
 # limitations under the License.
 
 import functools
+from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
 from shlex import shlex
-from typing import Any, Generator, List, Optional, Union
+from typing import Any
 from uuid import UUID
 
 from deprecated import deprecated
@@ -54,7 +55,7 @@ def _process_text_query(q: str) -> str:
         return q
 
 
-def _add_sort_to_query(query: Select, sort: Optional[List[str]]) -> Select:
+def _add_sort_to_query(query: Select, sort: list[str] | None) -> Select:
     if sort is None or len(sort) < 2:
         return query
 
@@ -76,8 +77,8 @@ def _add_sort_to_query(query: Select, sort: Optional[List[str]]) -> Select:
 
 def query_with_filters(  # noqa: C901
     stmt: Select,
-    sort: Optional[List[str]] = None,
-    filters: Optional[List[str]] = None,
+    sort: list[str] | None = None,
+    filters: list[str] | None = None,
 ) -> Select:
     if filters is not None:
         for filter_ in chunked(filters, 2):
@@ -138,7 +139,7 @@ def query_with_filters(  # noqa: C901
 
 
 def add_response_range(
-    stmt: Selectable, range_: Optional[list[int]], response: Response, unit: str = "items"
+    stmt: Selectable, range_: list[int] | None, response: Response, unit: str = "items"
 ) -> Selectable:
     if range_ is not None and len(range_) == 2:
         total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
@@ -206,16 +207,16 @@ class _Subscription:
 @dataclass
 class _ProcessListItem:
     assignee: str
-    created_by: Optional[str]
-    failed_reason: Optional[str]
+    created_by: str | None
+    failed_reason: str | None
     last_modified_at: datetime
     pid: UUID
     started_at: datetime
     last_status: str
-    last_step: Optional[str]
-    subscriptions: List[_Subscription]
+    last_step: str | None
+    subscriptions: list[_Subscription]
     workflow: str
-    workflow_target: Optional[str]
+    workflow_target: str | None
     is_task: bool
 
 
@@ -225,7 +226,7 @@ class _ProcessListItem:
 def enrich_process(p: ProcessTable) -> _ProcessListItem:
     # p.subscriptions is a non JSON serializable AssociationProxy
     # So we need to build a list of Subscriptions here.
-    subscriptions: List[_Subscription] = []
+    subscriptions: list[_Subscription] = []
     for sub in p.subscriptions:
         prod = sub.product
 
@@ -264,10 +265,10 @@ def enrich_process(p: ProcessTable) -> _ProcessListItem:
     )
 
 
-def update_in(dct: Union[dict, list], path: str, value: Any, sep: str = ".") -> None:
+def update_in(dct: dict | list, path: str, value: Any, sep: str = ".") -> None:
     """Update a value in a dict or list based on a path."""
     for x in path.split(sep):
-        prev: Union[dict, list]
+        prev: dict | list
         if x.isdigit() and isinstance(dct, list):
             prev = dct
             dct = dct[int(x)]
@@ -277,9 +278,9 @@ def update_in(dct: Union[dict, list], path: str, value: Any, sep: str = ".") -> 
     prev[x] = value  # type: ignore
 
 
-def get_in(dct: Union[dict, list], path: str, sep: str = ".") -> Any:
+def get_in(dct: dict | list, path: str, sep: str = ".") -> Any:
     """Get a value in a dict or list using the path and get the resulting key's value."""
-    prev: Union[dict, list]
+    prev: dict | list
     for x in path.split(sep):
         if x.isdigit() and isinstance(dct, list):
             prev, dct = dct, dct[int(x)]
@@ -303,7 +304,7 @@ def getattr_in(obj: Any, attr: str) -> Any:
     return functools.reduce(_getattr, [obj] + attr.split("."))
 
 
-def product_block_paths(subscription: Union[SubscriptionModel, dict]) -> List[str]:
+def product_block_paths(subscription: SubscriptionModel | dict) -> list[str]:
     _subscription = subscription.model_dump() if isinstance(subscription, SubscriptionModel) else subscription
 
     def get_dict_items(d: dict) -> Generator:

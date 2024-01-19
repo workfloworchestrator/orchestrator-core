@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable, Iterator
 from enum import Enum
-from typing import Callable, Iterator, TypeVar, Union
+from typing import TypeVar, Union
 
 import strawberry
 from more_itertools import partition

@@ -1,4 +1,5 @@
-from typing import Iterable, List, Optional, Set, Tuple, TypeVar, Union
+from collections.abc import Iterable
+from typing import TypeVar
 
 import structlog
 
@@ -18,13 +19,11 @@ def get_user_input(text: str, default: str = "", optional: bool = False) -> str:
             return default
 
 
-def _enumerate_menu_keys(items: Union[List, Set]) -> List[str]:
+def _enumerate_menu_keys(items: list | set) -> list[str]:
     return [str(i + 1) for i in range(len(items))]
 
 
-def _prompt_user_menu(
-    options: Iterable[Tuple[str, T]], keys: Optional[List[str]] = None, repeat: bool = True
-) -> Optional[T]:
+def _prompt_user_menu(options: Iterable[tuple[str, T]], keys: list[str] | None = None, repeat: bool = True) -> T | None:
     options_list = list(options)
     keys = keys or _enumerate_menu_keys(options_list)
     done = False

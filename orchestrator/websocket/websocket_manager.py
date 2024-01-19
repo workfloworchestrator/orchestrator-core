@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 from fastapi import WebSocket, status
@@ -28,7 +27,7 @@ logger = get_logger(__name__)
 
 
 class WebSocketManager:
-    _backend: Union[MemoryWebsocketManager, BroadcastWebsocketManager]
+    _backend: MemoryWebsocketManager | BroadcastWebsocketManager
 
     def __init__(self, websockets_enabled: bool, broadcast_url: str):
         self.enabled = websockets_enabled
@@ -39,7 +38,7 @@ class WebSocketManager:
         else:
             self._backend = MemoryWebsocketManager()
 
-    async def authorize(self, websocket: WebSocket, token: str) -> Optional[Dict]:
+    async def authorize(self, websocket: WebSocket, token: str) -> dict | None:
         try:
             async with AsyncClient(verify=HTTPX_SSL_CONTEXT) as client:
                 user = await oidc_user(websocket, token=token)  # type: ignore
@@ -63,12 +62,12 @@ class WebSocketManager:
         await self._backend.connect(websocket, channel)
 
     async def disconnect(
-        self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: Union[Dict, str, None] = None
+        self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
     ) -> None:
         await self._backend.disconnect(websocket, code, reason)
 
     async def disconnect_all(self) -> None:
         await self._backend.disconnect_all()
 
-    async def broadcast_data(self, channels: List[str], data: Dict) -> None:
+    async def broadcast_data(self, channels: list[str], data: dict) -> None:
         await self._backend.broadcast_data(channels, data)

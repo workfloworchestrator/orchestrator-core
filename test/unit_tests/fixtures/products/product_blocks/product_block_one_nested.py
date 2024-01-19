@@ -9,7 +9,7 @@ from orchestrator.types import SubscriptionLifecycle
 
 class ProductBlockOneNestedForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneNestedForTest"):
     sub_block: Optional["ProductBlockOneNestedForTestInactive"] = None
-    int_field: Optional[int] = None
+    int_field: int | None = None
 
 
 class ProductBlockOneNestedForTestProvisioning(

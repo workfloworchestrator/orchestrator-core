@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import ConfigDict
@@ -21,8 +20,8 @@ from orchestrator.schemas.base import OrchestratorBaseModel
 
 class ResourceTypeBaseSchema(OrchestratorBaseModel):
     resource_type: str
-    description: Optional[str] = None
-    resource_type_id: Optional[UUID] = None
+    description: str | None = None
+    resource_type_id: UUID | None = None
 
 
 class ResourceTypeSchema(ResourceTypeBaseSchema):

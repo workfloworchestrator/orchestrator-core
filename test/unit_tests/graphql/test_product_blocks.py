@@ -1,6 +1,5 @@
 import json
 from http import HTTPStatus
-from typing import Optional
 
 import pytest
 from fastapi import Response
@@ -11,9 +10,9 @@ from test.unit_tests.helpers import assert_no_diff
 def get_product_blocks_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[str]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = """
 query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {

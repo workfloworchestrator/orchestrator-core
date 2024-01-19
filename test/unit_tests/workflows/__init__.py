@@ -1,9 +1,10 @@
 import difflib
 import pprint
+from collections.abc import Callable
 from copy import deepcopy
 from functools import reduce
 from itertools import chain, repeat
-from typing import Callable, Dict, List, Optional, Tuple, Union, cast
+from typing import cast
 from uuid import uuid4
 
 import structlog
@@ -22,7 +23,7 @@ from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
 logger = structlog.get_logger(__name__)
 
 
-def store_workflow(wf: Workflow, name: Optional[str] = None) -> WorkflowTable:
+def store_workflow(wf: Workflow, name: str | None = None) -> WorkflowTable:
     wf_table = WorkflowTable(name=name or wf.name, target=wf.target, description=wf.description)
     db.session.add(wf_table)
     db.session.commit()
@@ -86,7 +87,7 @@ def assert_state(result, expected):
     assert expected == actual, f"Invalid state. Expected superset of: {expected}, but was: {actual}"
 
 
-def assert_state_equal(result: ProcessTable, expected: Dict, excluded_keys: Optional[List[str]] = None) -> None:
+def assert_state_equal(result: ProcessTable, expected: dict, excluded_keys: list[str] | None = None) -> None:
     """Test state with certain keys excluded from both actual and expected state."""
     if excluded_keys is None:
         excluded_keys = ["process_id", "workflow_target", "workflow_name"]
@@ -172,7 +173,7 @@ class WorkflowInstanceForTests(LazyWorkflowInstance):
         return f"WorkflowInstanceForTests('{self.workflow}','{self.name}')"
 
 
-def _store_step(step_log: List[Tuple[Step, WFProcess]]) -> Callable[[ProcessStat, Step, WFProcess], WFProcess]:
+def _store_step(step_log: list[tuple[Step, WFProcess]]) -> Callable[[ProcessStat, Step, WFProcess], WFProcess]:
     def __store_step(pstat: ProcessStat, step: Step, process: WFProcess) -> WFProcess:
         try:
             process = process.map(lambda s: json_loads(json_dumps(s)))
@@ -192,23 +193,23 @@ def _store_step(step_log: List[Tuple[Step, WFProcess]]) -> Callable[[ProcessStat
     return __store_step
 
 
-def _sanitize_input(input_data: Union[State, List[State]]) -> List[State]:
+def _sanitize_input(input_data: State | list[State]) -> list[State]:
     # To be backwards compatible convert single dict to list
-    if not isinstance(input_data, List):
+    if not isinstance(input_data, list):
         input_data = [input_data]
 
     # We need a copy here and we want to mimic the actual code that returns a serialized version of the state
-    return cast(List[State], json_loads(json_dumps(input_data)))
+    return cast(list[State], json_loads(json_dumps(input_data)))
 
 
-def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tuple[WFProcess, ProcessStat, List]:
+def run_workflow(workflow_key: str, input_data: State | list[State]) -> tuple[WFProcess, ProcessStat, list]:
     # ATTENTION!! This code needs to be as similar as possible to `server.services.processes.start_process`
     # The main differences are: we use a different step log function, and we don't run in
     # a separate thread
     user_data = _sanitize_input(input_data)
     user = "john.doe"
 
-    step_log: List[Tuple[Step, WFProcess]] = []
+    step_log: list[tuple[Step, WFProcess]] = []
 
     process_id = uuid4()
     workflow = get_workflow(workflow_key)
@@ -238,8 +239,8 @@ def run_workflow(workflow_key: str, input_data: Union[State, List[State]]) -> Tu
 
 
 def resume_workflow(
-    process: ProcessStat, step_log: List[Tuple[Step, WFProcess]], input_data: State
-) -> Tuple[WFProcess, List]:
+    process: ProcessStat, step_log: list[tuple[Step, WFProcess]], input_data: State
+) -> tuple[WFProcess, list]:
     # ATTENTION!! This code needs to be as similar as possible to `server.services.processes.resume_process`
     # The main differences are: we use a different step log function, and we don't run in a separate thread
     user_data = _sanitize_input(input_data)
@@ -290,7 +291,7 @@ def assert_product_blocks_equal(expected, actual):
     expected.sort(key=key_value_sort)
     actual.sort(key=key_value_sort)
 
-    def accumulate_list_of_tuples(acc: List, dikt: Dict) -> List[Tuple]:
+    def accumulate_list_of_tuples(acc: list, dikt: dict) -> list[tuple]:
         acc.extend(dikt.items())
         return acc
 
@@ -313,8 +314,8 @@ def assert_product_blocks_equal(expected, actual):
 
 
 def run_form_generator(
-    form_generator: FormGenerator, extra_inputs: Optional[List[State]] = None
-) -> Tuple[List[dict], State]:
+    form_generator: FormGenerator, extra_inputs: list[State] | None = None
+) -> tuple[list[dict], State]:
     """Run a form generator to get the resulting forms and result.
 
     Warning! This does not run the actual pydantic validation on purpose. However you should
@@ -356,7 +357,7 @@ def run_form_generator(
         {'field': 'baz', 'bar': 42}
 
     """
-    forms: List[dict] = []
+    forms: list[dict] = []
     result: State = {"s": 3}
     if extra_inputs is None:
         extra_inputs = []

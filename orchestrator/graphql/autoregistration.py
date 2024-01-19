@@ -13,7 +13,7 @@
 
 import inspect
 from enum import Enum, EnumMeta
-from typing import Any, Type, Union
+from typing import Any
 
 import strawberry
 import structlog
@@ -43,7 +43,7 @@ def is_enum(field: Any) -> bool:
     return inspect.isclass(field) and issubclass(field, Enum)
 
 
-def create_strawberry_enums(model: Type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
+def create_strawberry_enums(model: type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
     enums = {
         key: create_strawberry_enum(field)
         for key, field in model._non_product_block_fields_.items()
@@ -63,8 +63,8 @@ def graphql_subscription_name(name: str) -> str:
 
 def create_block_strawberry_type(
     strawberry_name: str,
-    model: Type[DomainModel],
-) -> Type[StrawberryTypeFromPydantic[DomainModel]]:
+    model: type[DomainModel],
+) -> type[StrawberryTypeFromPydantic[DomainModel]]:
     from strawberry.federation.schema_directives import Key
     from strawberry.unset import UNSET
 
@@ -80,7 +80,7 @@ def create_block_strawberry_type(
     return strawberry_wrapper(new_type)
 
 
-def create_subscription_strawberry_type(strawberry_name: str, model: Type[DomainModel], interface: Type) -> Type:
+def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
     base_type = type(strawberry_name, (interface,), {})
     directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
@@ -92,10 +92,10 @@ def create_subscription_strawberry_type(strawberry_name: str, model: Type[Domain
 
 def add_class_to_strawberry(
     model_name: str,
-    model: Type[DomainModel],
+    model: type[DomainModel],
     strawberry_models: StrawberryModelType,
     strawberry_enums: EnumDict,
-    interface: Union[Type, None] = None,
+    interface: type | None = None,
 ) -> None:
     if model_name in strawberry_models:
         logger.debug("Skip already registered strawberry model", model=repr(model), strawberry_name=model_name)
@@ -118,7 +118,7 @@ def add_class_to_strawberry(
 
 
 def register_domain_models(
-    interface: Union[Type, None], existing_models: Union[StrawberryModelType, None] = None
+    interface: type | None, existing_models: StrawberryModelType | None = None
 ) -> StrawberryModelType:
     strawberry_models = existing_models if existing_models else {}
     strawberry_enums: EnumDict = {}

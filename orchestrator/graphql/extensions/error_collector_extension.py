@@ -12,7 +12,6 @@
 # limitations under the License.
 from collections.abc import Generator
 from contextvars import ContextVar
-from typing import Optional
 
 import structlog
 from graphql import GraphQLError
@@ -20,7 +19,7 @@ from strawberry.extensions import SchemaExtension
 
 logger = structlog.get_logger(__name__)
 
-error_bucket: ContextVar[Optional[list[GraphQLError]]] = ContextVar("error_bucket", default=None)
+error_bucket: ContextVar[list[GraphQLError] | None] = ContextVar("error_bucket", default=None)
 
 
 class ErrorCollectorExtension(SchemaExtension):

@@ -22,10 +22,10 @@ class Cryptic:
     MAGIC = "$9$"
     MAGIC_SEARCH = r"\$9\$"
     FAMILY = ["QzF3n6/9CAtpu0O", "B1IREhcSyrleKvMW8LXx", "7N-dVbwsY2g4oaJZGUDj", "iHkq.mPf5T"]
-    EXTRA: Dict[str, int] = {}
+    EXTRA: dict[str, int] = {}
     VALID = ""
     NUM_ALPHA = ""
-    ALPHA_NUM: Dict[str, int] = {}
+    ALPHA_NUM: dict[str, int] = {}
     ENCODING = [[1, 4, 32], [1, 16, 32], [1, 8, 32], [1, 64], [1, 32], [1, 4, 16, 128], [1, 32, 64]]
 
     # ------------------------------------------------------------------------------
@@ -52,10 +52,10 @@ class Cryptic:
         return ret
 
     # ------------------------------------------------------------------------------
-    def _gap_encode(self, pc: str, prev: str, enc: List[int]) -> str:
+    def _gap_encode(self, pc: str, prev: str, enc: list[int]) -> str:
         literal_pc = ord(pc)
         crypt = ""
-        gaps: List[int] = []
+        gaps: list[int] = []
 
         for mod in reversed(enc):
             gaps.insert(0, int(literal_pc / mod))
@@ -70,7 +70,7 @@ class Cryptic:
         return crypt
 
     # ------------------------------------------------------------------------------
-    def encrypt(self, plain: str, salt: Optional[str] = None) -> str:
+    def encrypt(self, plain: str, salt: str | None = None) -> str:
         if salt is None:
             salt = self._randc(1)
         rand = self._randc(self.EXTRA[salt])
@@ -88,7 +88,7 @@ class Cryptic:
         return crypt
 
     # ------------------------------------------------------------------------------
-    def _nibble(self, cref: str, length: int) -> Tuple[str, str]:
+    def _nibble(self, cref: str, length: int) -> tuple[str, str]:
         nib = cref[0:length]
         cref = cref[length:]
 
@@ -99,7 +99,7 @@ class Cryptic:
         return ((self.ALPHA_NUM[c2] - self.ALPHA_NUM[c1]) % len(self.NUM_ALPHA)) - 1
 
     # ------------------------------------------------------------------------------
-    def _gap_decode(self, gaps: List[int], dec: List[int]) -> str:
+    def _gap_decode(self, gaps: list[int], dec: list[int]) -> str:
         num = 0
         assert len(gaps) == len(dec)
         for i in range(len(gaps)):
@@ -108,7 +108,7 @@ class Cryptic:
         return chr(num % 256)
 
     # ------------------------------------------------------------------------------
-    def decrypt(self, crypt: Optional[str]) -> Optional[str]:
+    def decrypt(self, crypt: str | None) -> str | None:
         if crypt is None or len(crypt) == 0:
             print("Invalid Crypt")
             return None

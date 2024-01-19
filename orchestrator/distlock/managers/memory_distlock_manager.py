@@ -13,7 +13,7 @@
 import asyncio
 from threading import Lock, Thread
 from time import sleep, time
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 from structlog import get_logger
 
@@ -30,7 +30,7 @@ class MemoryDistLockManager(Thread):
     """
 
     manager_lock: Lock = Lock()
-    locks: Dict[str, Tuple[Lock, float]] = {}
+    locks: dict[str, tuple[Lock, float]] = {}
 
     def __init__(self) -> None:
         super().__init__()
@@ -44,7 +44,9 @@ class MemoryDistLockManager(Thread):
     async def disconnect_redis(self) -> None:
         pass
 
-    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[Lock]:
+    async def get_lock(
+        self, resource: str, expiration_seconds: int
+    ) -> Optional[Lock]:  # https://github.com/python/cpython/issues/114315
         with self.manager_lock:
             resource_lock, expire_at = self.locks.get(resource, (Lock(), time() + expiration_seconds))
             if not resource_lock.acquire(blocking=False):

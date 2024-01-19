@@ -1,6 +1,5 @@
 import json
 from http import HTTPStatus
-from typing import Union
 
 import pytest
 
@@ -11,8 +10,8 @@ from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 def get_customers_query(
     first: int = 1,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
 ) -> bytes:
     query = """
 query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
