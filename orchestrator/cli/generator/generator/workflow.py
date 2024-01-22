@@ -78,6 +78,7 @@ def generate_workflows(context: dict) -> None:
 
     create_product_workflow_paths(config)
 
+    # TODO: Remove from core and extend config from client specific code
     config = add_optional_nso_config(config)
     config = add_optional_ims_config(config)
 

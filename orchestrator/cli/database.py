@@ -57,7 +57,7 @@ def alembic_cfg() -> Config:
     help="Initialize an empty migrations environment. This command will throw an exception when it detects conflicting files and directories."
 )
 def init() -> None:
-    """Initialize the migrations directory.
+    """Initialize the `migrations` directory.
 
     This command will initialize a migration directory for the orchestrator core application and setup a correct
     migration environment.
@@ -198,9 +198,9 @@ def history(
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
     message: str = typer.Argument(..., help="Migration name"),
-    test: bool | None = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
-    inputs: str | None = typer.Option("{}", help="stringified dict to prefill inputs"),
-    updates: str | None = typer.Option("{}", help="stringified dict to map updates instead of using inputs"),
+    test: bool = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+    inputs: str = typer.Option("{}", help="Stringified dict to prefill inputs"),
+    updates: str = typer.Option("{}", help="Stringified dict to map updates instead of using inputs"),
 ) -> tuple[list[str], list[str]] | None:
     """Create migration file based on SubscriptionModel.diff_product_in_database. BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
@@ -267,7 +267,7 @@ def migrate_domain_models(
 @app.command(help="Create migration file based on diff workflows in db")
 def migrate_workflows(
     message: str = typer.Argument(..., help="Migration name"),
-    test: bool | None = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+    test: bool = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
 ) -> tuple[list[dict], list[dict]] | None:
     """Create a migration file based on the difference between workflows in the database and registered WorkflowInstances. BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
