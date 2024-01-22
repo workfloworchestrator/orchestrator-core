@@ -36,20 +36,20 @@ def has_default(field: dict) -> bool:
     return "default" in field
 
 
-def convert_enum(field: dict) -> dict:
-    if is_enum(field):
-        enum_type = field["name"].title()
-        if has_default(field):
-            if is_int_enum(field):
-                field["default"] = enum_type + "._" + field["default"]
-            elif is_str_enum(field):
-                field["default"] = enum_type + "." + field["default"]
-        return field | {"type": enum_type}
-    return field
+def convert_enum(field: dict, separator: str = ".") -> dict:
+    return (
+        field
+        | {"type": (enum_type := field["name"].title().replace("_", ""))}
+        | ({"default": enum_type + separator + field["default"]} if has_default(field) else {})
+    )
 
 
 def convert_str_enum(field: dict) -> dict:
-    return field | {"type": (enum_type := field["name"].title())} | {"default": enum_type + "." + field["default"]}
+    return convert_enum(field, ".")
+
+
+def convert_int_enum(field: dict) -> dict:
+    return convert_enum(field, "._")
 
 
 def get_str_enums(fields: list[dict]) -> list[dict]:
@@ -57,24 +57,8 @@ def get_str_enums(fields: list[dict]) -> list[dict]:
 
 
 def get_int_enums(fields: list[dict]) -> list[dict]:
-    return [convert_enum(field) for field in fields if is_int_enum(field)]
+    return [convert_int_enum(field) for field in fields if is_int_enum(field)]
 
 
-def replace_enum_type(fields: list[dict]) -> list[dict]:
-    return [convert_enum(field) for field in fields]
-
-
-# def replace_int_default(field: dict) -> dict:
-#     return field | {"default": field["type"] + "._" + field["default"]}
-#
-#
-# def replace_str_default(field: dict) -> dict:
-#     return field | {"default": field["type"] + '."' + field["default"] + '"'}
-#
-#
-# def replace_default(field: dict) -> dict:
-#     return replace_int_default(field) if is_int_enum(field) else replace_str_default(field)
-
-
-# def replace_enum_default(fields: list[dict]) -> list[dict]:
-#     return [replace_default(field) if is_enum(field) and "default" in field else field for field in fields]
+def to_dict(fields):
+    return {field["name"]: field for field in fields}

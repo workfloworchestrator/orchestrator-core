@@ -22,24 +22,9 @@ from pydantic import computed_field
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
+{% include "enums.j2" %}
 {% include "list_definitions.j2" %}
 {% include "constrained_int_definitions.j2" %}
-
-{% for fi in int_enums -%}
-class {{ fi.type }}(IntEnum):
-    {% for v in fi["values"] -%}
-        _{{ v }} = {{ v }}
-    {% endfor %}
-{% endfor -%}
-
-from enum import StrEnum
-
-{% for fi in str_enums -%}
-class {{ fi.type }}(StrEnum):
-    {% for v in fi["values"] -%}
-        {{ v }} = "{{ v }}"
-    {% endfor %}
-{% endfor -%}
 
 class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_name="{{ product_block.block_name }}"):
     {% for field in fields -%}

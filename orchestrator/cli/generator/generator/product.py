@@ -12,12 +12,7 @@
 # limitations under the License.
 from pathlib import Path
 
-from orchestrator.cli.generator.generator.enums import (
-    get_int_enums,
-    get_non_standard_fields,
-    get_str_enums,
-    # replace_enum_type,
-)
+from orchestrator.cli.generator.generator.enums import get_int_enums, get_non_standard_fields, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_product_file_name,
@@ -55,11 +50,10 @@ def generate_product(context: dict) -> None:
         product_blocks_module=path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH),
         product_types_module=get_product_types_module(),
         non_standard_fixed_inputs=non_standard_fixed_inputs,
-        # fixed_inputs=replace_enum_type(fixed_inputs),
-        fixed_inputs=fixed_inputs,
         product_blocks=product_blocks,
         int_enums=int_enums,
         str_enums=str_enums,
+        fixed_inputs=(to_dict(fixed_inputs) | to_dict(int_enums) | to_dict(str_enums)).values(),
     )
 
     path = get_product_path(config)
