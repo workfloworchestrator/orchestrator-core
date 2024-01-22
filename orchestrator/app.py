@@ -18,7 +18,6 @@ from typing import Any
 import sentry_sdk
 import structlog
 import typer
-from deprecated import deprecated
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from sentry_sdk.integrations import Integration
