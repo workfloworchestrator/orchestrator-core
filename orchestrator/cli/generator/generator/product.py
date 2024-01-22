@@ -12,11 +12,11 @@
 # limitations under the License.
 from pathlib import Path
 
-from orchestrator.cli.generator.generator.fixed_input import (
-    get_int_enum_fixed_inputs,
-    get_non_standard_fixed_inputs,
-    get_str_enum_fixed_inputs,
-    replace_enum_fixed_inputs,
+from orchestrator.cli.generator.generator.enums import (
+    get_int_enums,
+    get_non_standard_fields,
+    get_str_enums,
+    # replace_enum_type,
 )
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
@@ -45,9 +45,9 @@ def generate_product(context: dict) -> None:
     fixed_inputs = config.get("fixed_inputs", [])
     product_blocks = config.get("product_blocks", [])
 
-    non_standard_fixed_inputs = get_non_standard_fixed_inputs(fixed_inputs)
-    int_enums = get_int_enum_fixed_inputs(fixed_inputs)
-    str_enums = get_str_enum_fixed_inputs(fixed_inputs)
+    non_standard_fixed_inputs = get_non_standard_fields(fixed_inputs)
+    int_enums = get_int_enums(fixed_inputs)
+    str_enums = get_str_enums(fixed_inputs)
 
     template = environment.get_template("product.j2")
     content = template.render(
@@ -55,7 +55,8 @@ def generate_product(context: dict) -> None:
         product_blocks_module=path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH),
         product_types_module=get_product_types_module(),
         non_standard_fixed_inputs=non_standard_fixed_inputs,
-        fixed_inputs=replace_enum_fixed_inputs(fixed_inputs),
+        # fixed_inputs=replace_enum_type(fixed_inputs),
+        fixed_inputs=fixed_inputs,
         product_blocks=product_blocks,
         int_enums=int_enums,
         str_enums=str_enums,
