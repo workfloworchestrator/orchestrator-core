@@ -8,6 +8,7 @@ from strawberry.scalars import JSON
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.subscriptions import build_extended_domain_model
+from orchestrator.utils.redis import from_redis
 
 
 @strawberry.type
@@ -55,11 +56,19 @@ def get_all_product_blocks(subscription: dict[str, Any], _tags: Optional[list[st
 pb_instance_property_keys = ("id", "parent", "owner_subscription_id", "subscription_instance_id", "in_use_by_relations")
 
 
+async def get_subscription_dict(subscription_id: UUID) -> dict:
+    if cached_model := from_redis(subscription_id):
+        subscription, _ = cached_model
+    else:
+        subscription_model = SubscriptionModel.from_subscription(subscription_id)
+        subscription = build_extended_domain_model(subscription_model)
+    return subscription
+
+
 async def get_subscription_product_blocks(
     subscription_id: UUID, tags: Optional[list[str]] = None, product_block_instance_values: Optional[list[str]] = None
 ) -> list[ProductBlockInstance]:
-    subscription_model = SubscriptionModel.from_subscription(subscription_id)
-    subscription = build_extended_domain_model(subscription_model)
+    subscription = await get_subscription_dict(subscription_id)
 
     def to_product_block(product_block: dict[str, Any]) -> ProductBlockInstance:
         def is_resource_type(candidate: Any) -> bool:
