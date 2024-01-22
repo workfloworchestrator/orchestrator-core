@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from alembic.util import rev_id  # type: ignore[attr-defined]
+from alembic.util import rev_id
 from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import get_product_types_module
