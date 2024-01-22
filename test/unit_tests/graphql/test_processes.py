@@ -63,6 +63,7 @@ query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterB
       createdBy
       startedAt
       lastModifiedAt
+      form
       product {
         productId
         name
@@ -498,6 +499,44 @@ def test_single_process(
         "totalItems": 1,
     }
     assert processes[0]["processId"] == process_pid
+
+
+def test_single_process_with_form(
+    test_client,
+    mocked_processes,
+    generic_subscription_2,
+    generic_subscription_1,
+):
+    process_pid = str(mocked_processes[1])
+    # when
+
+    data = get_processes_query(filter_by=[{"field": "process_id", "value": process_pid}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    processes_data = result["data"]["processes"]
+    processes = processes_data["page"]
+    pageinfo = processes_data["pageInfo"]
+    assert len(processes) == 1
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": 1,
+    }
+    assert processes[0]["processId"] == process_pid
+    assert processes[0]["form"] == {
+        "title": "unknown",
+        "type": "object",
+        "properties": {"generic_select": {"$ref": "#/$defs/TestChoice"}},
+        "additionalProperties": False,
+        "required": ["generic_select"],
+        "$defs": {"TestChoice": {"enum": ["A", "B", "C"], "title": "TestChoice", "type": "string"}},
+    }
 
 
 @pytest.mark.parametrize(
