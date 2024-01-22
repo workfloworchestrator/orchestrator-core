@@ -1,0 +1,26 @@
+config:
+  create_summary_forms: false
+  send_email: false
+name: My Product 9000+
+type: MyProduct
+tag: MP
+description: "This is the description of My Product"
+fixed_inputs:
+  - name: fixed_input_key
+    type: FixedInputKey
+product_blocks:
+  - name: My Product Block 9200+
+    type: MyIntermediateProduct
+    fields:
+      - name: num_val
+        type: int
+      - name: str_val
+        type: str
+      - name: list_val
+        type: list
+        list_type: str
+workflows:
+  - name: modify
+    flows:
+      - id: my_product_num_val
+        description: "Modify the MyProduct numerical value"

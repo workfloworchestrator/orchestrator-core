@@ -66,6 +66,7 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
     def writer(path: Path, content: str, append: bool = False) -> None:
         if dryrun:
             logger.info("preview file", path=str(path), append=append, force=force, dryrun=dryrun)
+            typer.echo(f"# {path}")
             typer.echo(content)
         else:
             write_file(path, content, append=append, force=force)
