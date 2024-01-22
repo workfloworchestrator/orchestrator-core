@@ -54,7 +54,7 @@ dependencies = [
     "python-rapidjson>=1.9,<1.15",
     "pytz==2023.3.post1",
     "redis>=4.6, <4.7.0",
-    "schedule==1.1.0",
+    "schedule==1.2.1",
     "sentry-sdk[fastapi]==1.39.2",
     "SQLAlchemy==2.0.25",
     "SQLAlchemy-Utils==0.41.1",
