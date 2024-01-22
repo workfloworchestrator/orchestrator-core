@@ -199,6 +199,16 @@ def test_complete_workflow(test_client, test_workflow):
     steps = process["steps"]
     assert "success" == steps[0]["status"]
 
+    response = test_client.get(f"/api/processes/{process_id}")
+    assert response.json()["form"] == {
+        "title": "unknown",
+        "type": "object",
+        "properties": {"generic_select": {"$ref": "#/$defs/TestChoice"}},
+        "additionalProperties": False,
+        "required": ["generic_select"],
+        "$defs": {"TestChoice": {"enum": ["A", "B", "C"], "title": "TestChoice", "type": "string"}},
+    }
+
     # Check type validation
     user_input = {"generic_select": 123}
     response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])

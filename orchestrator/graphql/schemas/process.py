@@ -13,7 +13,7 @@ from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
-from orchestrator.schemas.process import ProcessForm, ProcessSchema, ProcessStepSchema
+from orchestrator.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.settings import app_settings
 from orchestrator.workflow import ProcessStatus
 
@@ -22,16 +22,6 @@ if TYPE_CHECKING:
 
 
 federation_key_directives = [Key(fields="id", resolvable=UNSET)]
-
-
-@strawberry.experimental.pydantic.type(model=ProcessForm)
-class ProcessFormType:
-    title: strawberry.auto
-    type: strawberry.auto
-    additionalProperties: strawberry.auto
-    required: strawberry.auto
-    properties: JSON
-    definitions: JSON | None
 
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)
@@ -71,7 +61,7 @@ class ProcessType:
     last_modified_at: strawberry.auto
     is_task: strawberry.auto
     steps: strawberry.auto
-    form: strawberry.auto
+    form: JSON | None
     current_state: JSON | None
 
     @authenticated_field(

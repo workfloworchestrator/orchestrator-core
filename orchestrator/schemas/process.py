@@ -86,7 +86,7 @@ class ProcessSchema(ProcessBaseSchema):
     subscriptions: list[SubscriptionSchema]
     current_state: dict[str, Any] | None = None
     steps: list[ProcessStepSchema] | None = None
-    form: ProcessForm | None = None
+    form: dict[str, Any] | None = None
 
 
 class ProcessDeprecationsSchema(ProcessSchema):
