@@ -121,8 +121,8 @@ class OrchestratorCore(FastAPI):
             expose_headers=base_settings.CORS_EXPOSE_HEADERS,
         )
 
-        self.add_exception_handler(FormException, form_error_handler)
-        self.add_exception_handler(ProblemDetailException, problem_detail_handler)
+        self.add_exception_handler(FormException, form_error_handler)  # type: ignore[arg-type]
+        self.add_exception_handler(ProblemDetailException, problem_detail_handler)  # type: ignore[arg-type]
         add_exception_handler(self)
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
