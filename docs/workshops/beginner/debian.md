@@ -1,7 +1,7 @@
 # Debian 11 (bullseye) installation instructions
 
-How to manually install the orchestrator-core and orchestrator-core-gui on 
-Debian 11 
+How to manually install the orchestrator-core and orchestrator-core-gui on
+Debian 11
 (Bullseye) is described in the following steps.
 
 ### Step 1 - Install dependencies
@@ -33,7 +33,7 @@ sudo -u postgres createuser -sP nwa
 sudo -u postgres createdb orchestrator-core -O nwa
 ```
 
-For debug purposes, interact directly with the database by starting the 
+For debug purposes, interact directly with the database by starting the
 PostgresSQL interactive terminal:
 
 ``` shell
@@ -42,14 +42,14 @@ sudo -u postgres psql orchestrator-core
 
 ### Step 3 - Install orchestrator
 
-The minimal version of Python is 3.9. Before the orchestrator core and all its
+The minimal version of Python is 3.11. Before the orchestrator core and all its
 dependencies are installed, a Python virtual environment is created:
 
 ```shell
 mkdir example-orchestrator
 cd example-orchestrator
 source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-mkvirtualenv --python python3.9 example-orchestrator
+mkvirtualenv --python python3.11 example-orchestrator
 ```
 
 Make sure that the just created Python virtual environment is active before
@@ -104,7 +104,7 @@ PYTHONPATH=. python main.py db upgrade heads
 
 ### Step 5 - Install orchestrator client
 
-Install the orchestrator client in the parent directory of the 
+Install the orchestrator client in the parent directory of the
 example-orchestrator:
 
 ```shell
@@ -112,7 +112,7 @@ cd ..
 git clone https://github.com/workfloworchestrator/orchestrator-core-gui.git
 ```
 
-Install the Yarn package manager and use it to install the orchestrator 
+Install the Yarn package manager and use it to install the orchestrator
 client dependencies:
 
 ```shell

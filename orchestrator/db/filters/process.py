@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable
 from http import HTTPStatus
-from typing import Callable
 from uuid import UUID
 
 import structlog

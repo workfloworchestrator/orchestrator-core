@@ -18,19 +18,15 @@ import contextvars
 import functools
 import inspect
 import secrets
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from itertools import dropwhile
 from typing import (
     Any,
-    Callable,
-    Dict,
     Generic,
-    List,
     NoReturn,
-    Optional,
     Protocol,
     TypeVar,
-    Union,
     cast,
     overload,
     runtime_checkable,
@@ -79,8 +75,8 @@ class Step(Protocol):
     __name__: str
     __qualname__: str
     name: str
-    form: Optional[InputFormGenerator]
-    assignee: Optional[Assignee]
+    form: InputFormGenerator | None
+    assignee: Assignee | None
 
     def __call__(self, state: State) -> Process:
         ...
@@ -92,7 +88,7 @@ class Workflow(Protocol):
     __qualname__: str
     name: str
     description: str
-    initial_input_form: Optional[InputFormGenerator] = None
+    initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
 
@@ -101,7 +97,7 @@ class Workflow(Protocol):
 
 
 def make_step_function(
-    f: Callable, name: str, form: Optional[InputFormGenerator] = None, assignee: Optional[Assignee] = Assignee.SYSTEM
+    f: Callable, name: str, form: InputFormGenerator | None = None, assignee: Assignee | None = Assignee.SYSTEM
 ) -> Step:
     step_func = cast(Step, f)
 
@@ -111,7 +107,7 @@ def make_step_function(
     return step_func
 
 
-class StepList(List[Step]):
+class StepList(list[Step]):
     """Wraps around a primitive list of `Step` to provide a "list" with associative `append` (or its alias: `>>`).
 
     >>> one = step("one")(dict)
@@ -143,14 +139,14 @@ class StepList(List[Step]):
     def __getitem__(self, i: slice) -> StepList:
         ...
 
-    def __getitem__(self, i: Union[int, slice]) -> Union[Step, StepList]:
-        retval: Union[Step, List[Step]] = super().__getitem__(i)
+    def __getitem__(self, i: int | slice) -> Step | StepList:
+        retval: Step | list[Step] = super().__getitem__(i)
         if isinstance(retval, list):
             # ensure we return a StepList and not a regular list.
             retval = type(self)(retval)
         return retval
 
-    def __rshift__(self, other: Union[StepList, Step]) -> StepList:
+    def __rshift__(self, other: StepList | Step) -> StepList:
         if isinstance(other, Step):
             return StepList([*self, other])
 
@@ -187,7 +183,7 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
 def make_workflow(
     f: Callable,
     description: str,
-    initial_input_form: Optional[InputStepFunc],
+    initial_input_form: InputStepFunc | None,
     target: Target,
     steps: StepList,
 ) -> Workflow:
@@ -360,7 +356,7 @@ def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
     return stepfunc
 
 
-def _awaitstep(name: str, result_key: Optional[str] = None) -> Step:
+def _awaitstep(name: str, result_key: str | None = None) -> Step:
     def await_(state: State) -> Process:
         if result_key:
             state = {**state, "__callback_result_key": result_key}
@@ -373,7 +369,7 @@ def callback_step(
     name: str,
     action_step: Step,
     validate_step: Step,
-    result_key: Optional[str] = None,
+    result_key: str | None = None,
     callback_route_key: str = DEFAULT_CALLBACK_ROUTE_KEY,
 ) -> Step:
     """Creates an asynchronous callback step.
@@ -407,7 +403,7 @@ def _purestep(name: str) -> Callable[[StepToProcessFunc], StepList]:
 def conditional(p: Callable[[State], bool]) -> Callable[..., StepList]:
     """Use a predicate to control whether a step is run."""
 
-    def _conditional(steps_or_func: Union[StepList, Step]) -> StepList:
+    def _conditional(steps_or_func: StepList | Step) -> StepList:
         if isinstance(steps_or_func, Step):
             steps = StepList([steps_or_func])
         else:
@@ -444,10 +440,10 @@ def steplens(get: Callable[[State], State], set: Callable[[State], Callable[[Sta
     return wrap
 
 
-def focussteps(key: str) -> Callable[[Union[Step, StepList]], StepList]:
+def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
     """Return a function that maps `steplens` over `steps`, getting and setting a single key."""
 
-    def zoom(steps_or_func: Union[Step, StepList]) -> StepList:
+    def zoom(steps_or_func: Step | StepList) -> StepList:
         if isinstance(steps_or_func, Step):
             steps = StepList([steps_or_func])
         else:
@@ -465,7 +461,7 @@ def focussteps(key: str) -> Callable[[Union[Step, StepList]], StepList]:
 
 
 def workflow(
-    description: str, initial_input_form: Optional[InputStepFunc] = None, target: Target = Target.SYSTEM
+    description: str, initial_input_form: InputStepFunc | None = None, target: Target = Target.SYSTEM
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -1018,7 +1014,7 @@ class Process(Generic[S]):
         return StepStatus[ss]
 
     @staticmethod
-    def from_status(status: StepStatus, state: S) -> Optional[Process]:
+    def from_status(status: StepStatus, state: S) -> Process | None:
         """Make Process based on status and state.
 
         >>> Process.from_status('success', {})
@@ -1351,7 +1347,7 @@ _STATUSES = {
 _NUM_STATUSES = len(_STATUSES)
 
 
-def cond_bind(log: BoundLogger, state: Dict[str, Any], key: str, as_key: Optional[str] = None) -> BoundLogger:
+def cond_bind(log: BoundLogger, state: dict[str, Any], key: str, as_key: str | None = None) -> BoundLogger:
     """Conditionally (on presence of key) build Structlog context."""
     if as_key is None:
         as_key = key

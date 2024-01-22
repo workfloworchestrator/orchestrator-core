@@ -12,10 +12,9 @@
 # limitations under the License.
 
 
-from typing import Any, Optional
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
-from typing_extensions import Annotated
 
 
 class BFD(BaseModel):
@@ -23,8 +22,8 @@ class BFD(BaseModel):
 
     # order matters, this should be first
     enabled: bool
-    minimum_interval: Optional[Annotated[int, Field(ge=1, le=255000)]] = 900
-    multiplier: Optional[Annotated[int, Field(ge=1, le=255)]] = 3
+    minimum_interval: Annotated[int, Field(ge=1, le=255000)] | None = 900
+    multiplier: Annotated[int, Field(ge=1, le=255)] | None = 3
 
     @model_validator(mode="after")
     def check_optional_fields(self) -> "BFD":

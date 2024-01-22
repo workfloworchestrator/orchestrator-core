@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, Protocol, cast
+from collections.abc import Callable
+from typing import Protocol, cast
 
 from schedule import CancelJob
 
@@ -20,16 +21,16 @@ class SchedulingFunction(Protocol):
     __name__: str
     name: str
     time_unit: str
-    period: Optional[int]
-    at: Optional[str]
+    period: int | None
+    at: str | None
 
-    def __call__(self) -> Optional[CancelJob]:
+    def __call__(self) -> CancelJob | None:
         ...
 
 
 def scheduler(
-    name: str, time_unit: str, period: int = 1, at: Optional[str] = None
-) -> Callable[[Callable[[], Optional[CancelJob]]], SchedulingFunction]:
+    name: str, time_unit: str, period: int = 1, at: str | None = None
+) -> Callable[[Callable[[], CancelJob | None]], SchedulingFunction]:
     """Create schedule.
 
     Either specify the period or the at. Examples:
@@ -37,7 +38,7 @@ def scheduler(
     time_unit = "day", at="01:00" -> will run every day at 1 o'clock
     """
 
-    def _scheduler(f: Callable[[], Optional[CancelJob]]) -> SchedulingFunction:
+    def _scheduler(f: Callable[[], CancelJob | None]) -> SchedulingFunction:
         schedule = cast(SchedulingFunction, f)
         schedule.name = name
         schedule.time_unit = time_unit

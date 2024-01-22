@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi.param_functions import Body
@@ -30,8 +29,8 @@ from orchestrator.services.products import get_tags, get_types
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ProductSchema])
-def fetch(tag: Optional[str] = None, product_type: Optional[str] = None) -> List[ProductSchema]:
+@router.get("/", response_model=list[ProductSchema])
+def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
     stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
         selectinload(ProductTable.fixed_inputs),
@@ -82,16 +81,16 @@ def delete_product(product_id: UUID) -> None:
     return delete(ProductTable, product_id)
 
 
-@router.get("/tags/all", response_model=List[str])
-def tags() -> List[str]:
+@router.get("/tags/all", response_model=list[str])
+def tags() -> list[str]:
     return get_tags()
 
 
-@router.get("/types/all", response_model=List[str])
-def types() -> List[str]:
+@router.get("/types/all", response_model=list[str])
+def types() -> list[str]:
     return get_types()
 
 
-@router.get("/statuses/all", response_model=List[ProductLifecycle])
-def statuses() -> List[ProductLifecycle]:
+@router.get("/statuses/all", response_model=list[ProductLifecycle])
+def statuses() -> list[ProductLifecycle]:
     return ProductLifecycle.values()

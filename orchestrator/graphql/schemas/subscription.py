@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Optional, Type, Union
+from typing import Annotated
 from uuid import UUID
 
 import strawberry
@@ -30,7 +30,7 @@ from orchestrator.types import SubscriptionLifecycle
 
 federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
-MetadataDict: dict[str, Optional[Type[BaseModel]]] = {"metadata": None}
+MetadataDict: dict[str, type[BaseModel] | None] = {"metadata": None}
 static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "properties": {}, "definitions": {}}
 
 
@@ -40,11 +40,11 @@ class SubscriptionInterface:
     customer_id: str
     product: ProductModelGraphql
     description: str
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
+    start_date: datetime | None
+    end_date: datetime | None
     status: SubscriptionLifecycle
     insync: bool
-    note: Optional[str]
+    note: str | None
 
     @strawberry.field(name="_schema", description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
     async def schema(self) -> dict:
@@ -62,13 +62,13 @@ class SubscriptionInterface:
 
     @strawberry.field(description="Return all products block instances of a subscription")  # type: ignore
     async def product_block_instances(
-        self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
+        self, tags: list[str] | None = None, resource_types: list[str] | None = None
     ) -> list[ProductBlockInstance]:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return all products blocks that are part of a subscription", deprecation_reason="changed to product_block_instances")  # type: ignore
     async def product_blocks(
-        self, tags: Optional[list[str]] = None, resource_types: Optional[list[str]] = None
+        self, tags: list[str] | None = None, resource_types: list[str] | None = None
     ) -> list[ProductBlockInstance]:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
@@ -81,8 +81,8 @@ class SubscriptionInterface:
     async def processes(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
     ) -> Connection[ProcessType]:
@@ -95,8 +95,8 @@ class SubscriptionInterface:
     async def in_use_by_subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
@@ -117,8 +117,8 @@ class SubscriptionInterface:
     async def depends_on_subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:

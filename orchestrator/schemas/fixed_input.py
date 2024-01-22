@@ -12,21 +12,20 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Dict, List, Optional
 from uuid import UUID
 
 from pydantic import ConfigDict
 
 from orchestrator.schemas.base import OrchestratorBaseModel
 
-TagConfig = Dict[str, List[Dict[str, bool]]]
+TagConfig = dict[str, list[dict[str, bool]]]
 
 
 class FixedInputBaseSchema(OrchestratorBaseModel):
-    fixed_input_id: Optional[UUID] = None
+    fixed_input_id: UUID | None = None
     name: str
     value: str
-    product_id: Optional[UUID] = None
+    product_id: UUID | None = None
 
 
 class FixedInputSchema(FixedInputBaseSchema):
@@ -39,9 +38,9 @@ class FixedInputSchema(FixedInputBaseSchema):
 class FixedInputConfigurationItemSchema(OrchestratorBaseModel):
     name: str
     description: str
-    values: List[str]
+    values: list[str]
 
 
 class FixedInputConfigurationSchema(OrchestratorBaseModel):
-    fixed_inputs: List[FixedInputConfigurationItemSchema]
+    fixed_inputs: list[FixedInputConfigurationItemSchema]
     by_tag: TagConfig

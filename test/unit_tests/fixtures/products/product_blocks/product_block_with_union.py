@@ -1,5 +1,3 @@
-from typing import List, Optional, Union
-
 import pytest
 from pydantic import Field
 
@@ -14,26 +12,26 @@ def test_product_block_with_union(test_product_sub_block_one, test_product_sub_b
     SubBlockTwoForTestInactive, SubBlockTwoForTestProvisioning, SubBlockTwoForTest = test_product_sub_block_two
 
     class ProductBlockWithUnionForTestInactive(ProductBlockModel, product_block_name="ProductBlockWithUnionForTest"):
-        union_block: Optional[Union[SubBlockOneForTestInactive, SubBlockTwoForTestInactive]] = None
-        int_field: Optional[int] = None
-        str_field: Optional[str] = None
-        list_field: List[int] = Field(default_factory=list)
+        union_block: SubBlockOneForTestInactive | SubBlockTwoForTestInactive | None = None
+        int_field: int | None = None
+        str_field: str | None = None
+        list_field: list[int] = Field(default_factory=list)
 
     class ProductBlockWithUnionForTestProvisioning(
         ProductBlockWithUnionForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
     ):
-        union_block: Union[SubBlockOneForTestProvisioning, SubBlockTwoForTestProvisioning]
+        union_block: SubBlockOneForTestProvisioning | SubBlockTwoForTestProvisioning
         int_field: int
-        str_field: Optional[str] = None
-        list_field: List[int]
+        str_field: str | None = None
+        list_field: list[int]
 
     class ProductBlockWithUnionForTest(
         ProductBlockWithUnionForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
-        union_block: Union[SubBlockOneForTest, SubBlockTwoForTest]
+        union_block: SubBlockOneForTest | SubBlockTwoForTest
         int_field: int
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
 
     return ProductBlockWithUnionForTestInactive, ProductBlockWithUnionForTestProvisioning, ProductBlockWithUnionForTest
 

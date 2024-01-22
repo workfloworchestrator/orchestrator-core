@@ -14,9 +14,10 @@
 
 import copy
 import os
+from collections.abc import Iterable
 from http import HTTPStatus
 from time import sleep
-from typing import Any, Iterable, TypedDict, Union
+from typing import Any, TypedDict, Union
 from uuid import UUID
 
 import jsonref
@@ -96,7 +97,7 @@ def get_input_field_types(input_field: JSONSchema) -> Iterable[str]:
         ['foo', 'bar']
     """
 
-    def yield_type(v: Union[dict, JSONSchema]) -> Iterable[str]:
+    def yield_type(v: dict | JSONSchema) -> Iterable[str]:
         if "type" in v:
             yield v["type"]
 
@@ -354,9 +355,7 @@ class Populator:
         product_id = self._product.get("product_id")
         return self._start_workflow(self.create_workflow, product=product_id, **kwargs)
 
-    def start_modify_workflow(
-        self, workflow_name: str, subscription_id: Union[UUIDstr, UUID], **kwargs: Any
-    ) -> UUIDstr:
+    def start_modify_workflow(self, workflow_name: str, subscription_id: UUIDstr | UUID, **kwargs: Any) -> UUIDstr:
         """Start a modify workflow for the provided name and subscription_id.
 
         Args:
@@ -372,13 +371,13 @@ class Populator:
         self.log.info("Started modify workflow")
         return self._start_workflow(workflow_name, subscription_id=subscription_id, **kwargs)
 
-    def start_verify_workflow(self, workflow_name: str, subscription_id: Union[UUIDstr, UUID]) -> UUIDstr:
+    def start_verify_workflow(self, workflow_name: str, subscription_id: UUIDstr | UUID) -> UUIDstr:
         subscription_id = str(subscription_id)
         self.log = self.log.bind(subscription_id=subscription_id)
         self.log.info("Started verify workflow")
         return self._start_workflow(workflow_name, subscription_id=subscription_id)
 
-    def start_terminate_workflow(self, subscription_id: Union[UUIDstr, UUID], **kwargs: Any) -> UUIDstr:
+    def start_terminate_workflow(self, subscription_id: UUIDstr | UUID, **kwargs: Any) -> UUIDstr:
         """Start a terminate workflow for the provided subscription_id.
 
         Args:
@@ -427,11 +426,11 @@ class Populator:
         self.log.error("Cowardly quitting due to unknown status", status=self.last_state["status"])
         raise Exception(f"Unknown status: {status}")
 
-    def get_current_form(self) -> Union[JSONSchema, None]:
+    def get_current_form(self) -> JSONSchema | None:
         self.log.info("Current form.", form=self.last_state.get("form"))
         return copy.deepcopy(self.last_state.get("form"))
 
-    def provide_user_input(self, method: str, url: URL, form: Union[JSONSchema, None] = None) -> requests.Response:
+    def provide_user_input(self, method: str, url: URL, form: JSONSchema | None = None) -> requests.Response:
         """Provide input for steps that normally require a user."""
         self.log.info("Providing user input.")
 

@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import uuid
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
 from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, String, cast
 from sqlalchemy.sql.functions import coalesce

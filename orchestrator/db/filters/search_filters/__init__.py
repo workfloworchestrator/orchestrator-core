@@ -1,5 +1,3 @@
-from typing import Type
-
 from sqlalchemy import inspect
 
 from orchestrator.db.database import BaseModel
@@ -11,7 +9,7 @@ from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import WhereCondGenerator
 
 
-def default_inferred_column_clauses(table: Type[BaseModel]) -> dict[str, WhereCondGenerator]:
+def default_inferred_column_clauses(table: type[BaseModel]) -> dict[str, WhereCondGenerator]:
     return {
         k: inferred_filter(column)
         for key, column in getattr(inspect(table), "columns", {}).items()

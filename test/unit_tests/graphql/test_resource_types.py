@@ -1,6 +1,5 @@
 import json
 from http import HTTPStatus
-from typing import Optional
 
 import pytest
 from fastapi import Response
@@ -9,9 +8,9 @@ from fastapi import Response
 def get_resource_types_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[str]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = """
 query ResourceTypesQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!], $query: String) {

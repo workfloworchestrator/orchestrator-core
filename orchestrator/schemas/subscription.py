@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
@@ -34,7 +34,7 @@ class PortMode(strEnum):
 
 
 class SubscriptionRelationSchema(OrchestratorBaseModel):
-    domain_model_attr: Optional[str] = None
+    domain_model_attr: str | None = None
     parent_id: UUID
     child_id: UUID
     in_use_by_id: UUID
@@ -53,42 +53,42 @@ class SubscriptionInstanceValueBaseSchema(OrchestratorBaseModel):
 
 
 class SubscriptionInstanceBase(OrchestratorBaseModel):
-    label: Optional[str] = None
+    label: str | None = None
     subscription_id: UUID
     product_block_id: UUID
     subscription_instance_id: UUID
-    values: List[SubscriptionInstanceValueBaseSchema]
-    parent_relations: List[SubscriptionRelationSchema]
-    children_relations: List[SubscriptionRelationSchema]
-    in_use_by_block_relations: List[SubscriptionRelationSchema]
-    depends_on_block_relations: List[SubscriptionRelationSchema]
+    values: list[SubscriptionInstanceValueBaseSchema]
+    parent_relations: list[SubscriptionRelationSchema]
+    children_relations: list[SubscriptionRelationSchema]
+    in_use_by_block_relations: list[SubscriptionRelationSchema]
+    depends_on_block_relations: list[SubscriptionRelationSchema]
     product_block: ProductBlockSchema
     model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionBaseSchema(OrchestratorBaseModel):
-    subscription_id: Optional[UUID] = None
-    start_date: Optional[datetime] = None
+    subscription_id: UUID | None = None
+    start_date: datetime | None = None
     description: str
     status: SubscriptionLifecycle
-    product_id: Optional[UUID] = None
+    product_id: UUID | None = None
     customer_id: str
     insync: bool
-    note: Optional[str] = None
+    note: str | None = None
 
 
 class SubscriptionSchema(SubscriptionBaseSchema):
-    name: Optional[str] = None
+    name: str | None = None
     subscription_id: UUID
-    end_date: Optional[datetime] = None
-    product: Optional[ProductBaseSchema] = None
-    customer_descriptions: Optional[List[SubscriptionDescriptionSchema]] = None
-    tag: Optional[str] = None
+    end_date: datetime | None = None
+    product: ProductBaseSchema | None = None
+    customer_descriptions: list[SubscriptionDescriptionSchema] | None = None
+    tag: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionWithMetadata(SubscriptionSchema):
-    metadata_: Optional[Any] = Field(..., alias="metadata")
+    metadata_: Any | None = Field(..., alias="metadata")
 
 
 class SubscriptionIdSchema(OrchestratorBaseModel):
@@ -96,6 +96,6 @@ class SubscriptionIdSchema(OrchestratorBaseModel):
 
 
 class SubscriptionDomainModelSchema(SubscriptionSchema):
-    customer_descriptions: List[Optional[SubscriptionDescriptionSchema]] = []  # type: ignore
+    customer_descriptions: list[SubscriptionDescriptionSchema | None] = []  # type: ignore
     product: ProductBaseSchema
     model_config = ConfigDict(extra="allow")

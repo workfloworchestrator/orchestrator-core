@@ -1,6 +1,6 @@
 import random
 import string
-from typing import Any, Dict
+from typing import Any
 
 from orchestrator.db import (
     ProductTable,
@@ -19,7 +19,7 @@ def randomstr(length=3):
 
 
 def create_subscription_for_mapping(
-    product: ProductTable, mapping: SubscriptionMapping, values: Dict[str, Any], **kwargs: Any
+    product: ProductTable, mapping: SubscriptionMapping, values: dict[str, Any], **kwargs: Any
 ) -> SubscriptionTable:
     """Create a subscription in the test coredb for the given subscription_mapping and values.
 

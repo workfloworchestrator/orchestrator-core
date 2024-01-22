@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pytest
 
 from orchestrator.db import ProductBlockTable, db
@@ -10,12 +8,12 @@ from orchestrator.types import SubscriptionLifecycle
 @pytest.fixture
 def test_product_sub_block_one():
     class SubBlockOneForTestInactive(ProductBlockModel, product_block_name="SubBlockOneForTest"):
-        int_field: Optional[int] = None
-        str_field: Optional[str] = None
+        int_field: int | None = None
+        str_field: str | None = None
 
     class SubBlockOneForTestProvisioning(SubBlockOneForTestInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         int_field: int
-        str_field: Optional[str] = None
+        str_field: str | None = None
 
     class SubBlockOneForTest(SubBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         int_field: int

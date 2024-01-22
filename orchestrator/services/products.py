@@ -12,7 +12,6 @@
 # limitations under the License.
 
 
-from typing import Optional, Union
 from uuid import UUID
 
 from sqlalchemy import select
@@ -22,14 +21,14 @@ from orchestrator.db import ProductTable, db
 from orchestrator.types import UUIDstr
 
 
-def get_products(*, filters: Optional[list] = None) -> list[ProductTable]:
+def get_products(*, filters: list | None = None) -> list[ProductTable]:
     stmt = select(ProductTable)
     for clause in filters or []:
         stmt = stmt.where(clause)
     return list(db.session.scalars(stmt))
 
 
-def get_product_by_id(product_id: Union[UUID, UUIDstr], join_fixed_inputs: bool = True) -> Optional[ProductTable]:
+def get_product_by_id(product_id: UUID | UUIDstr, join_fixed_inputs: bool = True) -> ProductTable | None:
     """Get product by id.
 
     Args:

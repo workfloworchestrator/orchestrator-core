@@ -12,11 +12,11 @@
 # limitations under the License.
 import json
 from pathlib import Path
-from typing import Dict, Union
+from typing import Union
 
 from orchestrator.settings import app_settings
 
-Translations = Dict[str, Union[dict, str]]
+Translations = dict[str, Union[dict, str]]
 
 
 def _load_translations_file(language: str, translations_dir: Path) -> Translations:

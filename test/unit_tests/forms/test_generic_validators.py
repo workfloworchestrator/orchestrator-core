@@ -6,7 +6,6 @@ import pytest
 from pydantic import ValidationError
 
 from orchestrator.forms.validators import ProductId, product_id
-from orchestrator.services import products
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_MISSING, URL_PARSING, URL_VALUE
 
@@ -25,7 +24,9 @@ def test_product_id(mock_get_product_by_id):
     data = Form(product_id=product_y_id, product_x=product_x_id)
     assert data.product_x == product_x_id
     assert data.product_id == product_y_id
-    assert mock_get_product_by_id.has_calls([mock.call(product_x_id), mock.call(product_y_id)])
+    mock_get_product_by_id.assert_has_calls(
+        [mock.call(product_x_id, join_fixed_inputs=False), mock.call(product_y_id, join_fixed_inputs=False)]
+    )
 
 
 def test_product_id_schema():
@@ -61,7 +62,7 @@ def stringify_exceptions(error_list):
     return list_copy
 
 
-@mock.patch.object(products, "get_product_by_id")
+@mock.patch("orchestrator.forms.validators.get_product_by_id")
 def test_product_id_nok(mock_get_product_by_id):
     product_x_id = uuid4()
     product_y_id = uuid4()
@@ -77,10 +78,10 @@ def test_product_id_nok(mock_get_product_by_id):
 
     expected = [
         {
-            "ctx": {"error": ValueError("Product not found")},
+            "ctx": {"error": f"value is not a valid enumeration member; permitted: '{product_x_id}'"},
             "input": product_y_id,
             "loc": ("product_x",),
-            "msg": "Value error, Product not found",
+            "msg": f"Value error, value is not a valid enumeration member; permitted: '{product_x_id}'",
             "type": "value_error",
         }
         | URL_VALUE,
@@ -96,7 +97,9 @@ def test_product_id_nok(mock_get_product_by_id):
 
     actual = error_info.value.errors()
     assert stringify_exceptions(expected) == stringify_exceptions(actual)
-    assert mock_get_product_by_id.has_calls([mock.call(product_x_id), mock.call(product_y_id)])
+    mock_get_product_by_id.assert_has_calls(
+        [mock.call(product_y_id, join_fixed_inputs=False), mock.call(product_y_id, join_fixed_inputs=False)]
+    )
 
     with pytest.raises(ValidationError) as error_info:
         Form(product_id="INCOMPLETE")

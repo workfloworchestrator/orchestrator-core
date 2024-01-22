@@ -1,4 +1,4 @@
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from sqlalchemy import Select, select
 
@@ -27,7 +27,7 @@ def _to_workflow_schema(workflow: WorkflowTable, include_steps: bool = False) ->
 
 
 def get_workflows(
-    filters: Optional[dict] = None, include_steps: bool = False, include_deleted: bool = False
+    filters: dict | None = None, include_steps: bool = False, include_deleted: bool = False
 ) -> Iterable[WorkflowSchema]:
     def _add_filter(stmt: Select) -> Select:
         for k, v in (filters or {}).items():
@@ -40,5 +40,5 @@ def get_workflows(
     return [_to_workflow_schema(wf, include_steps=include_steps) for wf in workflows]
 
 
-def get_workflow_by_name(workflow_name: str) -> Optional[WorkflowTable]:
+def get_workflow_by_name(workflow_name: str) -> WorkflowTable | None:
     return db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == workflow_name))

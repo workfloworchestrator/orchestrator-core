@@ -13,7 +13,6 @@
 
 
 from importlib import import_module
-from typing import Dict, Optional
 
 from orchestrator.utils.docs import make_workflow_index_doc
 from orchestrator.workflow import Workflow
@@ -21,7 +20,7 @@ from orchestrator.workflow import Workflow
 DEFAULT_PKG = "orchestrator.workflows"
 
 
-ALL_WORKFLOWS: Dict[str, "LazyWorkflowInstance"] = {}
+ALL_WORKFLOWS: dict[str, "LazyWorkflowInstance"] = {}
 
 
 class LazyWorkflowInstance:
@@ -95,7 +94,7 @@ class LazyWorkflowInstance:
         return f"LazyWorkflowInstance('{self.package}','{self.function}')"
 
 
-def get_workflow(name: str) -> Optional[Workflow]:
+def get_workflow(name: str) -> Workflow | None:
     wi = ALL_WORKFLOWS.get(name)
 
     if not wi:

@@ -1,6 +1,5 @@
 # type: ignore
 
-from typing import List, Optional
 from uuid import uuid4
 
 import pytest
@@ -56,7 +55,7 @@ def test_state() -> None:
         step_func_fail(STATE)
 
     @inject_args
-    def step_func_opt_arg(opt: Optional[str] = None) -> None:
+    def step_func_opt_arg(opt: str | None = None) -> None:
         assert opt is None
 
     step_func_opt_arg(STATE)
@@ -141,7 +140,7 @@ def test_inject_args_list(generic_product_1, generic_product_type_1) -> None:
     generic_sub.save()
 
     @inject_args
-    def step_existing(generic_sub: List[GenericProduct]) -> State:
+    def step_existing(generic_sub: list[GenericProduct]) -> State:
         assert len(generic_sub) == 1
         assert generic_sub[0].subscription_id
         assert generic_sub[0].pb_1.rt_1 == "test"
@@ -183,7 +182,7 @@ def test_inject_args_optional(generic_product_1, generic_product_type_1) -> None
     generic_sub.save()
 
     @inject_args
-    def step_existing(generic_sub: Optional[GenericProduct]) -> State:
+    def step_existing(generic_sub: GenericProduct | None) -> State:
         assert generic_sub is not None, "Generic Sub IS NONE"
         assert generic_sub.subscription_id
         assert generic_sub.pb_1.rt_1 == "test"

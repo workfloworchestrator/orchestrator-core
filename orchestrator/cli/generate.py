@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from pathlib import Path
-from typing import Dict, Optional
 
 import structlog
 import typer
@@ -31,7 +30,7 @@ logger = structlog.getLogger(__name__)
 app: typer.Typer = typer.Typer()
 
 
-def read_config(config_file: Path) -> Dict:
+def read_config(config_file: Path) -> dict:
     try:
         with open(config_file) as stream:
             try:
@@ -63,9 +62,7 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
         logger.info("wrote file", path=str(path), append=append, force=force)
 
 
-def create_context(
-    config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: Optional[bool] = False
-) -> Dict:
+def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
     def writer(path: Path, content: str, append: bool = False) -> None:
         if dryrun:
             logger.info("preview file", path=str(path), append=append, force=force, dryrun=dryrun)
@@ -98,7 +95,7 @@ ConfigFile = typer.Option(..., "--config-file", "-cf", help="The configuration f
 DryRun = typer.Option(True, help="Dry run")
 TestDrivenDevelopment = typer.Option(True, "--tdd", help="Force test driven development with failing asserts")
 Force = typer.Option(False, "--force", "-f", help="Force overwrite of existing files")
-PythonVersion = typer.Option("3.9", "--python-version", "-p", help="Python version for generated code")
+PythonVersion = typer.Option("3.11", "--python-version", "-p", help="Python version for generated code")
 FolderPrefix = typer.Option("", "--folder-prefix", "-fp", help="Folder prefix, e.g. <folder-prefix>/workflows")
 CustomTemplates = typer.Option("", "--custom-templates", "-ct", help="Custom templates folder")
 

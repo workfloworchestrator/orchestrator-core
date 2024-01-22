@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Annotated, Union
+from typing import TYPE_CHECKING, Annotated
 
 import strawberry
 from strawberry.federation.schema_directives import Key
@@ -38,8 +38,8 @@ class ProductType:
     async def subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:

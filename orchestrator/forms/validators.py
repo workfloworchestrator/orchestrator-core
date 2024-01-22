@@ -10,8 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Sequence
 from functools import partial
-from typing import Annotated, Any, List, Optional, Sequence, Type
+from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
@@ -97,7 +98,7 @@ def _validate_in_products(product_ids: set[UUID], id_: UUID) -> UUID:
 ProductId = Annotated[UUID, AfterValidator(_validate_is_product), Field(json_schema_extra={"format": "productId"})]
 
 
-def product_id(product_ids: Optional[List[UUID]] = None) -> Type[ProductId]:
+def product_id(product_ids: list[UUID] | None = None) -> type[ProductId]:
     schema = {"uniforms": {"productIds": product_ids}} if product_ids else {}
     return Annotated[  # type: ignore[return-value]
         ProductId,

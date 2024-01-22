@@ -13,7 +13,8 @@
 
 
 import itertools
-from typing import Callable, Iterable, List, Optional, Sequence, Set, TypeVar, Union
+from collections.abc import Callable, Iterable, Sequence
+from typing import TypeVar
 
 import more_itertools
 import structlog
@@ -76,7 +77,7 @@ def orig(func: Callable) -> Callable:
     return f
 
 
-def join_cs(*args: Union[Iterable[str], str]) -> str:
+def join_cs(*args: Iterable[str] | str) -> str:
     """Return comma separated string from one or more comma separated strings or iterables of strings.
 
     It deals with empty strings and properly inserting comma's.
@@ -91,7 +92,7 @@ def join_cs(*args: Union[Iterable[str], str]) -> str:
 
     """
 
-    def to_iterable(value: Union[Iterable[str], str]) -> Iterable[str]:
+    def to_iterable(value: Iterable[str] | str) -> Iterable[str]:
         if isinstance(value, str):
             return filter(None, value.split(","))
         return value
@@ -99,7 +100,7 @@ def join_cs(*args: Union[Iterable[str], str]) -> str:
     return ",".join(itertools.chain(*map(to_iterable, args)))
 
 
-def expand_ranges(ranges: Sequence[Sequence[int]], inclusive: bool = False) -> List[int]:
+def expand_ranges(ranges: Sequence[Sequence[int]], inclusive: bool = False) -> list[int]:
     """Expand sequence of range definitions into sorted and deduplicated list of individual values.
 
     A range definition is either a:
@@ -132,7 +133,7 @@ def expand_ranges(ranges: Sequence[Sequence[int]], inclusive: bool = False) -> L
         ValueError: if range definition is not a one or two element sequence.
 
     """
-    values: Set[int] = set()
+    values: set[int] = set()
     for r in ranges:
         if len(r) == 2:
             values.update(range(r[0], r[1] + (1 if inclusive else 0)))
@@ -146,7 +147,7 @@ def expand_ranges(ranges: Sequence[Sequence[int]], inclusive: bool = False) -> L
 T = TypeVar("T")
 
 
-def as_t(value: Optional[T]) -> T:
+def as_t(value: T | None) -> T:
     """Cast `value` to non-Optional.
 
     One often needs to assign a value that was typed as being `Optional` to a variable that is typed non-Optional. MyPy

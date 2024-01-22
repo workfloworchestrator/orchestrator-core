@@ -29,9 +29,8 @@ classifiers = [
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.9",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
 ]
@@ -52,7 +51,7 @@ dependencies = [
     "pydantic[email]~=2.5.1",
     "pydantic-settings~=2.1.0",
     "python-dateutil==2.8.2",
-    "python-rapidjson==1.9",
+    "python-rapidjson>=1.9,<1.15",
     "pytz==2023.3.post1",
     "redis>=4.6, <4.7.0",
     "schedule==1.1.0",
@@ -63,14 +62,14 @@ dependencies = [
     "typer==0.7.0",
     "uvicorn[standard]~=0.20.0",
     "nwa-stdlib~=1.5.4",
-    "oauth2-lib~=1.4.2",
+    "oauth2-lib~=1.5.0",
     "tabulate==0.9.0",
-    "strawberry-graphql==0.209.8",
+    "strawberry-graphql==0.210.0",
     "pydantic-forms==1.0.0",
 ]
 
 description-file = "README.md"
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.11,<3.13"
 
 [project.urls]
 Documentation = "https://workfloworchestrator.org/orchestrator-core/"

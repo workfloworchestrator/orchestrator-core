@@ -12,7 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, List, Optional, Type
+from collections.abc import Callable
+from typing import Any
 
 import sentry_sdk
 import structlog
@@ -25,6 +26,7 @@ from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.strawberry import StrawberryIntegration
 from sentry_sdk.integrations.threading import ThreadingIntegration
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -51,7 +53,7 @@ from pydantic_forms.exceptions import FormException
 
 logger = structlog.get_logger(__name__)
 
-sentry_integrations: List[Integration] = [
+sentry_integrations: list[Integration] = [
     SqlalchemyIntegration(),
     RedisIntegration(),
     FastApiIntegration(),
@@ -61,7 +63,7 @@ sentry_integrations: List[Integration] = [
 
 
 class OrchestratorCore(FastAPI):
-    graphql_router: Optional[Any] = None
+    graphql_router: Any | None = None
 
     def __init__(
         self,
@@ -71,7 +73,7 @@ class OrchestratorCore(FastAPI):
         docs_url: str = "/api/docs",
         redoc_url: str = "/api/redoc",
         version: str = __version__,
-        default_response_class: Type[Response] = JSONResponse,
+        default_response_class: type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
@@ -137,13 +139,16 @@ class OrchestratorCore(FastAPI):
         trace_sample_rate: float,
         server_name: str,
         environment: str,
-        release: Optional[str] = GIT_COMMIT_HASH,
+        release: str | None = GIT_COMMIT_HASH,
     ) -> None:
         logger.info("Adding Sentry middleware to app", app=self.title)
         if self.base_settings.EXECUTOR == ExecutorType.WORKER:
             from sentry_sdk.integrations.celery import CeleryIntegration
 
             sentry_integrations.append(CeleryIntegration())
+
+        if self.graphql_router:
+            sentry_integrations.append(StrawberryIntegration(async_execution=True))
 
         sentry_sdk.init(
             dsn=sentry_dsn,
@@ -157,7 +162,7 @@ class OrchestratorCore(FastAPI):
         )
 
     @staticmethod
-    def register_subscription_models(product_to_subscription_model_mapping: Dict[str, Type[SubscriptionModel]]) -> None:
+    def register_subscription_models(product_to_subscription_model_mapping: dict[str, type[SubscriptionModel]]) -> None:
         """Register your subscription models.
 
         This method is needed to register your subscription models inside the orchestrator core.

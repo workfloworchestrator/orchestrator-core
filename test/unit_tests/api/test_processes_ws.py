@@ -1,7 +1,8 @@
 import time
+from collections.abc import Generator
 from http import HTTPStatus
 from threading import Condition
-from typing import Any, Dict, Generator
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -52,7 +53,7 @@ def test_workflow_2(generic_subscription_1: UUIDstr, generic_product_type_1) -> 
         return {"subscription_id": str(uuid4()), "model": GenericProductOne.from_subscription(generic_subscription_1)}
 
     @step("Test that it is a string now")
-    def check_object(subscription_id: Any, model: Dict) -> None:
+    def check_object(subscription_id: Any, model: dict) -> None:
         # This is actually a test. It would be nicer to have this in a proper test but that takes to much setup that
         # already happens here. So we hijack this fixture and run this test for all tests that use this fixture
         # (which should not be an issue)

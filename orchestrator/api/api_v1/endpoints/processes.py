@@ -16,7 +16,7 @@
 import struct
 import zlib
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -91,7 +91,7 @@ def check_global_lock() -> None:
 
 
 def resolve_user_name(
-    reporter: Optional[Reporter] = None, resolved_user: Optional[OIDCUserModel] = Depends(oidc_user)
+    reporter: Reporter | None = None, resolved_user: OIDCUserModel | None = Depends(oidc_user)
 ) -> str:
     if reporter:
         return reporter
@@ -124,9 +124,9 @@ def delete(process_id: UUID) -> None:
 def new_process(
     workflow_key: str,
     request: Request,
-    json_data: Optional[List[Dict[str, Any]]] = Body(...),
+    json_data: list[dict[str, Any]] | None = Body(...),
     user: str = Depends(resolve_user_name),
-) -> Dict[str, UUID]:
+) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
     process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
 
@@ -185,7 +185,7 @@ def continue_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> Dict[str, int]:
+async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -231,9 +231,9 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
 
 
 @router.get(
-    "/process-subscriptions-by-subscription-id/{subscription_id}", response_model=List[ProcessSubscriptionSchema]
+    "/process-subscriptions-by-subscription-id/{subscription_id}", response_model=list[ProcessSubscriptionSchema]
 )
-def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[ProcessSubscriptionSchema]:
+def process_subscriptions_by_subscription_id(subscription_id: UUID) -> list[ProcessSubscriptionSchema]:
     stmt = (
         select(ProcessSubscriptionTable)
         .options(contains_eager(ProcessSubscriptionTable.process))
@@ -245,18 +245,18 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> List[Proc
 
 
 @deprecated("Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, will be removed in 1.4")
-@router.get("/process-subscriptions-by-pid/{pid}", response_model=List[ProcessSubscriptionBaseSchema])
-def process_subscriptions_by_process_pid(pid: UUID) -> List[ProcessSubscriptionTable]:
+@router.get("/process-subscriptions-by-pid/{pid}", response_model=list[ProcessSubscriptionBaseSchema])
+def process_subscriptions_by_process_pid(pid: UUID) -> list[ProcessSubscriptionTable]:
     return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=pid)))
 
 
-@router.get("/process-subscriptions-by-process_id/{process_id}", response_model=List[ProcessSubscriptionBaseSchema])
-def process_subscriptions_by_process_process_id(process_id: UUID) -> List[ProcessSubscriptionTable]:
+@router.get("/process-subscriptions-by-process_id/{process_id}", response_model=list[ProcessSubscriptionBaseSchema])
+def process_subscriptions_by_process_process_id(process_id: UUID) -> list[ProcessSubscriptionTable]:
     return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=process_id)))
 
 
-@router.get("/statuses", response_model=List[ProcessStatus])
-def statuses() -> List[str]:
+@router.get("/statuses", response_model=list[ProcessStatus])
+def statuses() -> list[str]:
     return [status.value for status in ProcessStatus]
 
 
@@ -276,8 +276,8 @@ def status_counts() -> ProcessStatusCounts:
     )
 
 
-@router.get("/assignees", response_model=List[Assignee])
-def assignees() -> List[str]:
+@router.get("/assignees", response_model=list[Assignee])
+def assignees() -> list[str]:
     return [assignee.value for assignee in Assignee]
 
 
@@ -287,7 +287,7 @@ def convert_to_old_process(process: dict) -> dict:
 
 
 @router.get("/{process_id}", response_model=ProcessDeprecationsSchema)
-def show(process_id: UUID) -> Dict[str, Any]:
+def show(process_id: UUID) -> dict[str, Any]:
     process = _get_process(process_id)
     p = load_process(process)
 
@@ -310,21 +310,21 @@ def _calculate_processes_crc32_checksum(results: list[ProcessTable]) -> int:
     return checksum
 
 
-@router.get("/", response_model=List[ProcessDeprecationsSchema])
+@router.get("/", response_model=list[ProcessDeprecationsSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
-    range: Optional[str] = None,
-    sort: Optional[str] = None,
-    filter: Optional[str] = None,
-    if_none_match: Optional[str] = Header(None),
-) -> List[Dict[str, Any]]:
-    _range: Union[List[int], None] = list(map(int, range.split(","))) if range else None
-    _sort: Union[List[str], None] = sort.split(",") if sort else None
-    _filter: Union[List[str], None] = filter.split(",") if filter else None
+    range: str | None = None,
+    sort: str | None = None,
+    filter: str | None = None,
+    if_none_match: str | None = Header(None),
+) -> list[dict[str, Any]]:
+    _range: list[int] | None = list(map(int, range.split(","))) if range else None
+    _sort: list[str] | None = sort.split(",") if sort else None
+    _filter: list[str] | None = filter.split(",") if filter else None
 
     # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
     # tracebacks are not presented in the list of processes and can be really large.
-    processes: Union[Select, CompoundSelect]
+    processes: Select | CompoundSelect
     processes = select(ProcessTable).options(
         joinedload(ProcessTable.process_subscriptions)
         .joinedload(ProcessSubscriptionTable.subscription)

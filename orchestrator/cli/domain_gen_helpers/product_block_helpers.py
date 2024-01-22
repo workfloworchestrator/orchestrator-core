@@ -1,5 +1,6 @@
+from collections.abc import Generator
 from itertools import chain
-from typing import Any, Dict, Generator, List, Set, Type, Union
+from typing import Any
 
 from more_itertools import flatten
 from sqlalchemy import select
@@ -24,7 +25,7 @@ def get_product_block_id(block_name: str) -> ScalarSelect:
     return get_product_block_ids([block_name])
 
 
-def get_product_block_ids(block_names: Union[List[str], Set[str]]) -> ScalarSelect:
+def get_product_block_ids(block_names: list[str] | set[str]) -> ScalarSelect:
     return select(ProductBlockTable.product_block_id).where(ProductBlockTable.name.in_(block_names)).scalar_subquery()
 
 
@@ -40,7 +41,7 @@ def get_subscription_instance(subscription_id: str, product_block_id: ScalarSele
     )
 
 
-def map_create_product_blocks(product_blocks: dict[str, Type[ProductBlockModel]]) -> dict[str, Type[ProductBlockModel]]:
+def map_create_product_blocks(product_blocks: dict[str, type[ProductBlockModel]]) -> dict[str, type[ProductBlockModel]]:
     """Map product blocks to create.
 
     Args:
@@ -55,7 +56,7 @@ def map_create_product_blocks(product_blocks: dict[str, Type[ProductBlockModel]]
     }
 
 
-def map_delete_product_blocks(product_blocks: Dict[str, Type[ProductBlockModel]]) -> Set[str]:
+def map_delete_product_blocks(product_blocks: dict[str, type[ProductBlockModel]]) -> set[str]:
     """Map product blocks to delete.
 
     Args:
@@ -90,8 +91,8 @@ def map_product_block_additional_relations(changes: DomainModelChanges) -> Domai
 
 
 def generate_create_product_blocks_sql(
-    create_product_blocks: Dict[str, Any], inputs: Dict[str, Dict[str, str]]
-) -> List[str]:
+    create_product_blocks: dict[str, Any], inputs: dict[str, dict[str, str]]
+) -> list[str]:
     """Generate SQL to create product blocks.
 
     Args:
@@ -125,7 +126,7 @@ def generate_create_product_blocks_sql(
     return [create_product_block(name) for name in create_product_blocks]
 
 
-def generate_delete_product_blocks_sql(delete_product_blocks: Set[str]) -> List[str]:
+def generate_delete_product_blocks_sql(delete_product_blocks: set[str]) -> list[str]:
     """Generate SQL to delete product blocks.
 
     Args:
@@ -146,7 +147,7 @@ def generate_delete_product_blocks_sql(delete_product_blocks: Set[str]) -> List[
     ]
 
 
-def generate_create_product_block_relations_sql(create_block_relations: Dict[str, Set[str]]) -> List[str]:
+def generate_create_product_block_relations_sql(create_block_relations: dict[str, set[str]]) -> list[str]:
     """Generate SQL to create product block to product block relations.
 
     Args:
@@ -157,10 +158,10 @@ def generate_create_product_block_relations_sql(create_block_relations: Dict[str
     Returns: List of SQL to create relation between product blocks.
     """
 
-    def create_block_relation(depends_block_name: str, block_names: Set[str]) -> str:
+    def create_block_relation(depends_block_name: str, block_names: set[str]) -> str:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def create_block_relation_dict(block_name: str) -> Dict[str, ScalarSelect]:
+        def create_block_relation_dict(block_name: str) -> dict[str, ScalarSelect]:
             block_id_sql = get_product_block_id(block_name)
             return {"in_use_by_id": block_id_sql, "depends_on_id": depends_block_id_sql}
 
@@ -170,7 +171,7 @@ def generate_create_product_block_relations_sql(create_block_relations: Dict[str
     return [create_block_relation(*item) for item in create_block_relations.items()]
 
 
-def generate_create_product_block_instance_relations_sql(product_block_relations: Dict[str, Set[str]]) -> List[str]:
+def generate_create_product_block_instance_relations_sql(product_block_relations: dict[str, set[str]]) -> list[str]:
     """Generate SQL to create resource type instance values for existing instances.
 
     Args:
@@ -182,11 +183,11 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
     """
 
     def create_subscription_instance_relations(
-        depends_block_name: str, block_names: Set[str]
+        depends_block_name: str, block_names: set[str]
     ) -> Generator[str, None, None]:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def map_subscription_instances(block_name: str) -> dict[str, list[dict[str, Union[str, ScalarSelect]]]]:
+        def map_subscription_instances(block_name: str) -> dict[str, list[dict[str, str | ScalarSelect]]]:
             in_use_by_id_sql = get_product_block_id(block_name)
             stmt = select(
                 SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id
@@ -227,7 +228,7 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
     )
 
 
-def generate_delete_product_block_relations_sql(delete_block_relations: Dict[str, Set[str]]) -> List[str]:
+def generate_delete_product_block_relations_sql(delete_block_relations: dict[str, set[str]]) -> list[str]:
     """Generate SQL to delete product block to product blocks relations.
 
     Args:
@@ -238,7 +239,7 @@ def generate_delete_product_block_relations_sql(delete_block_relations: Dict[str
     Returns: List of SQL to delete relations between product blocks.
     """
 
-    def delete_block_relation(delete_block_name: str, block_names: Set[str]) -> str:
+    def delete_block_relation(delete_block_name: str, block_names: set[str]) -> str:
         in_use_by_ids_sql = get_product_block_ids(block_names)
         delete_block_id_sql = get_product_block_id(delete_block_name)
 

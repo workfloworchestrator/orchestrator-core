@@ -13,10 +13,11 @@
 import itertools
 import re
 import subprocess  # noqa: S404
+from collections.abc import Callable, Generator
 from datetime import datetime
 from os import environ
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
+from typing import Any
 
 import structlog
 from alembic.util import rev_id  # type: ignore[attr-defined]
@@ -28,7 +29,7 @@ from orchestrator.cli.generator.generator.settings import product_generator_sett
 logger = structlog.getLogger(__name__)
 
 
-def create_migration_file(message: str, head: str) -> Optional[Path]:
+def create_migration_file(message: str, head: str) -> Path | None:
     if not environ.get("DATABASE_URI"):
         environ.update({"DATABASE_URI": "postgresql://nwa:nwa@localhost/orchestrator-core"})
     if not environ.get("PYTHONPATH"):
@@ -46,7 +47,7 @@ def create_migration_file(message: str, head: str) -> Optional[Path]:
         return None
 
 
-def get_revisions(result: str) -> Dict[str, str]:
+def get_revisions(result: str) -> dict[str, str]:
     def is_revision(line: str) -> Any:
         match = re.search("^([^ ]+) \\(([^ ]+)\\)", line)
         return reversed(match.groups()) if match else None
@@ -87,8 +88,8 @@ def extract_revision_info(content: list[str]) -> dict:
 
 def update_subscription_model_registry(
     environment: Environment,
-    config: Dict,
-    product_variants: List[Tuple[Any, Any]],
+    config: dict,
+    product_variants: list[tuple[Any, Any]],
     writer: Callable,
 ) -> None:
     template = environment.get_template("subscription_model_registry.j2")
@@ -99,11 +100,11 @@ def update_subscription_model_registry(
     )
 
     path = settings.FOLDER_PREFIX / settings.PRODUCT_REGISTRY_PATH
-    with open(path, "r") as fp:
+    with open(path) as fp:
         if "SUBSCRIPTION_MODEL_REGISTRY" not in fp.read():
             fp.close()
             writer(path, "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n\n", append=True)
-    with open(path, "r") as fp:
+    with open(path) as fp:
         if f"from {get_product_types_module()}.{product_variable} import {product_type}" not in fp.read():
             fp.close()
             writer(path, content, append=True)
@@ -111,7 +112,7 @@ def update_subscription_model_registry(
             logger.warning("not re-updating subscription model registry", product=product_type)
 
 
-def get_revision_info(migration_file: Path) -> Dict:
+def get_revision_info(migration_file: Path) -> dict:
     try:
         with open(migration_file) as stream:
             original_content = stream.readlines()

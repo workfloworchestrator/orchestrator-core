@@ -11,9 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Callable, ClassVar, Dict, Generator, Iterator, List, Optional, Set, cast
+from typing import Any, ClassVar, cast
 from uuid import uuid4
 
 import structlog
@@ -62,10 +63,10 @@ class _Base:
 
     __abstract__ = True
 
-    _json_include: List = []
-    _json_exclude: List = []
+    _json_include: list = []
+    _json_exclude: list = []
 
-    def __json__(self, excluded_keys: Set = set()) -> Dict:  # noqa: B006
+    def __json__(self, excluded_keys: set = set()) -> dict:  # noqa: B006
         ins: Any = sa_inspect(self)
 
         columns = set(ins.mapper.column_attrs.keys())
@@ -193,7 +194,7 @@ class Database:
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
         BaseModel.set_query(cast(SearchQuery, self.scoped_session.query_property()))
 
-    def _scopefunc(self) -> Optional[str]:
+    def _scopefunc(self) -> str | None:
         return self.request_context.get()
 
     @property

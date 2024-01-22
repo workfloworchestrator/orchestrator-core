@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 from pydantic import RedisDsn
 from redis import Redis
@@ -34,7 +33,7 @@ class RedisDistLockManager:
     namespace = "orchestrator:distlock"
 
     def __init__(self, redis_address: RedisDsn):
-        self.redis_conn: Optional[AIORedis] = None
+        self.redis_conn: AIORedis | None = None
         self.redis_address = redis_address
 
     async def connect_redis(self) -> None:
@@ -44,7 +43,7 @@ class RedisDistLockManager:
         if self.redis_conn:
             await self.redis_conn.close()
 
-    async def get_lock(self, resource: str, expiration_seconds: int) -> Optional[Lock]:
+    async def get_lock(self, resource: str, expiration_seconds: int) -> Lock | None:
         if not self.redis_conn:
             return None
 
@@ -77,7 +76,7 @@ class RedisDistLockManager:
 
     # https://github.com/aio-libs/aioredis-py/issues/1273
     def release_sync(self, lock: Lock) -> None:
-        redis_conn: Optional[Redis] = None
+        redis_conn: Redis | None = None
         try:
             redis_conn = Redis.from_url(str(app_settings.CACHE_URI))
             sync_lock: SyncLock = SyncLock(

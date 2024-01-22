@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
 
 from fastapi import WebSocket, WebSocketDisconnect, status
 from starlette.websockets import WebSocketState
@@ -24,7 +23,7 @@ logger = get_logger(__name__)
 
 class MemoryWebsocketManager:
     def __init__(self) -> None:
-        self.connections_by_pid: Dict[str, List[WebSocket]] = {}
+        self.connections_by_pid: dict[str, list[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         if channel not in self.connections_by_pid:
@@ -43,7 +42,7 @@ class MemoryWebsocketManager:
         await self.remove_ws(websocket, channel)
 
     async def disconnect(
-        self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: Union[Dict, str, None] = None
+        self, websocket: WebSocket, code: int = status.WS_1000_NORMAL_CLOSURE, reason: dict | str | None = None
     ) -> None:
         if reason:
             await websocket.send_text(json_dumps(reason))
@@ -54,7 +53,7 @@ class MemoryWebsocketManager:
             for websocket in self.connections_by_pid[channel]:
                 await self.remove_ws(websocket, channel)
 
-    async def broadcast_data(self, channels: List[str], data: Dict) -> None:
+    async def broadcast_data(self, channels: list[str], data: dict) -> None:
         try:
             for channel in channels:
                 if channel in self.connections_by_pid:

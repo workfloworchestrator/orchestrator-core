@@ -1,9 +1,9 @@
-from typing import Iterable, Tuple, Union
+from collections.abc import Iterable
 
 from orchestrator.types import filter_nonetype, get_origin_and_args, is_union_type
 
 
-def _to_product_block_field_type_iterable(product_block_field_type: Union[type, Tuple[type]]) -> Iterable[type]:
+def _to_product_block_field_type_iterable(product_block_field_type: type | tuple[type]) -> Iterable[type]:
     """Return an iterable of types in the given product block field.
 
     Notes:

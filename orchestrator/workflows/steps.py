@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Any, Optional, Set, Union
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -38,7 +38,7 @@ def resync(subscription: SubscriptionModel) -> State:
 
 
 @step("Lock subscription")
-def unsync(subscription_id: UUIDstr, __old_subscriptions__: Optional[dict] = None) -> State:
+def unsync(subscription_id: UUIDstr, __old_subscriptions__: dict | None = None) -> State:
     """Transition a subscription to out of sync.
 
     This step will also create a backup of the current subscription details in the state with the key
@@ -137,7 +137,7 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
 @step("Remove domain model from cache")
 def remove_domain_model_from_cache(
-    workflow_name: str, subscription: Optional[SubscriptionModel] = None, subscription_id: Optional[UUID] = None
+    workflow_name: str, subscription: SubscriptionModel | None = None, subscription_id: UUID | None = None
 ) -> State:
     """Remove the domain model from the cache if it exists.
 
@@ -163,7 +163,7 @@ def remove_domain_model_from_cache(
 
 
 @step("Cache Subscription and related subscriptions")
-def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionModel] = None) -> State:  # noqa: C901
+def cache_domain_models(workflow_name: str, subscription: SubscriptionModel | None = None) -> State:  # noqa: C901
     """Attempt to cache all Subscriptions once they have been touched once.
 
     Args:
@@ -174,7 +174,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
         Returns State.
 
     """
-    cached_subscription_ids: Set[UUID] = set()
+    cached_subscription_ids: set[UUID] = set()
     if not subscription:
         logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
         return {"cached_subscription_ids": cached_subscription_ids}
@@ -182,7 +182,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
     def _cache_other_subscriptions(product_block: ProductBlockModel) -> None:
         for field in product_block.model_fields:
             # subscription_instance is a ProductBlockModel or an arbitrary type
-            subscription_instance: Union[ProductBlockModel, Any] = getattr(product_block, field)
+            subscription_instance: ProductBlockModel | Any = getattr(product_block, field)
             # If subscription_instance is a list, we need to step into it and loop.
             if isinstance(subscription_instance, list):
                 for item in subscription_instance:
@@ -197,7 +197,7 @@ def cache_domain_models(workflow_name: str, subscription: Optional[SubscriptionM
 
     for field in subscription.model_fields:
         # There always is a single Root Product Block, it cannot be a list, so no need to check.
-        instance: Union[ProductBlockModel, Any] = getattr(subscription, field)
+        instance: ProductBlockModel | Any = getattr(subscription, field)
         if isinstance(instance, ProductBlockModel):
             _cache_other_subscriptions(instance)
 

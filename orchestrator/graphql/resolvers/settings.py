@@ -1,5 +1,3 @@
-from typing import Union
-
 import strawberry
 import structlog
 from redis.asyncio import Redis as AIORedis
@@ -58,7 +56,7 @@ def resolve_settings(info: OrchestratorInfo) -> StatusType:
 
 
 # Mutations
-async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSuccess, Error]:
+async def clear_cache(info: OrchestratorInfo, name: str) -> CacheClearSuccess | Error:
     cache: AIORedis = AIORedis.from_url(str(app_settings.CACHE_URI))
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
@@ -68,7 +66,7 @@ async def clear_cache(info: OrchestratorInfo, name: str) -> Union[CacheClearSucc
     return CacheClearSuccess(deleted=deleted)
 
 
-async def set_status(info: OrchestratorInfo, global_lock: bool) -> Union[Error, EngineSettingsType]:
+async def set_status(info: OrchestratorInfo, global_lock: bool) -> Error | EngineSettingsType:
     engine_settings = get_engine_settings_for_update()
 
     result = marshall_processes(engine_settings, global_lock)

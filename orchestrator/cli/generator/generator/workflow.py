@@ -14,7 +14,7 @@
 from collections.abc import Callable
 from functools import partial, wraps
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from jinja2 import Environment
@@ -63,7 +63,7 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
     if not path.exists():
         writer(path, "from orchestrator.workflows import LazyWorkflowInstance\n\n")
     if path.exists():  # if dryrun then path was not created above
-        with open(path, "r") as fp:
+        with open(path) as fp:
             if f"workflows.{variable}.create_{variable}" in fp.read():
                 logger.warning("not re-adding lazy workflows", product=variable)
             else:
@@ -130,7 +130,7 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     writer(path, content)
 
 
-def generate_workflow(f: Optional[Callable] = None, workflow: Optional[str] = None) -> Callable:
+def generate_workflow(f: Callable | None = None, workflow: str | None = None) -> Callable:
     if f is None:
         return partial(generate_workflow, workflow=workflow)
 

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import ConfigDict, Field, model_serializer
@@ -32,10 +32,10 @@ class ProcessIdSchema(OrchestratorBaseModel):
 class ProcessForm(OrchestratorBaseModel):
     title: str
     type: str
-    properties: Dict[str, Any]
+    properties: dict[str, Any]
     additionalProperties: bool  # noqa: N815
-    required: List[str] = []
-    definitions: Optional[Dict[str, Any]] = Field(None, validation_alias="$defs")
+    required: list[str] = []
+    definitions: dict[str, Any] | None = Field(None, validation_alias="$defs")
 
     @model_serializer(mode="wrap", when_used="json")
     def serialize_defs(self, handler: SerializerFunctionWrapHandler, _info: ValidationInfo) -> dict[str, Any]:
@@ -55,57 +55,57 @@ class ProcessBaseSchema(OrchestratorBaseModel):
     workflow_id: UUID
     workflow_name: str
     is_task: bool
-    created_by: Optional[str] = None
-    failed_reason: Optional[str] = None
+    created_by: str | None = None
+    failed_reason: str | None = None
     started_at: datetime
     last_status: ProcessStatus
-    last_step: Optional[str] = None
+    last_step: str | None = None
     assignee: Assignee
     last_modified_at: datetime
-    traceback: Optional[str] = None
+    traceback: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class ProcessStepSchema(OrchestratorBaseModel):
-    step_id: Optional[UUID] = None
+    step_id: UUID | None = None
     name: str
     status: str
-    created_by: Optional[str] = None
-    executed: Optional[datetime] = None
-    commit_hash: Optional[str] = None
-    state: Optional[Dict[str, Any]] = None
-    state_delta: Optional[Dict[str, Any]] = None
+    created_by: str | None = None
+    executed: datetime | None = None
+    commit_hash: str | None = None
+    state: dict[str, Any] | None = None
+    state_delta: dict[str, Any] | None = None
 
-    stepid: Optional[UUID] = None  # TODO: will be removed in 1.4
+    stepid: UUID | None = None  # TODO: will be removed in 1.4
 
 
 class ProcessSchema(ProcessBaseSchema):
-    product_id: Optional[UUID] = None
-    customer_id: Optional[str] = None
-    workflow_target: Optional[Target] = None
-    subscriptions: List[SubscriptionSchema]
-    current_state: Optional[Dict[str, Any]] = None
-    steps: Optional[List[ProcessStepSchema]] = None
-    form: Optional[ProcessForm] = None
+    product_id: UUID | None = None
+    customer_id: str | None = None
+    workflow_target: Target | None = None
+    subscriptions: list[SubscriptionSchema]
+    current_state: dict[str, Any] | None = None
+    steps: list[ProcessStepSchema] | None = None
+    form: ProcessForm | None = None
 
 
 class ProcessDeprecationsSchema(ProcessSchema):
-    id: Optional[UUID] = None  # TODO: will be removed in 1.4
-    pid: Optional[UUID] = None  # TODO: will be removed in 1.4
-    workflow: Optional[str] = None  # TODO: will be removed in 1.4
-    status: Optional[ProcessStatus] = None  # TODO: will be removed in 1.4
-    step: Optional[str] = None  # TODO: will be removed in 1.4
-    started: Optional[datetime] = None  # TODO: will be removed in 1.4
-    last_modified: Optional[datetime] = None  # TODO: will be removed in 1.4
-    product: Optional[UUID] = None  # TODO: will be removed in 1.4
-    customer: Optional[str] = None  # TODO: will be removed in 1.4
+    id: UUID | None = None  # TODO: will be removed in 1.4
+    pid: UUID | None = None  # TODO: will be removed in 1.4
+    workflow: str | None = None  # TODO: will be removed in 1.4
+    status: ProcessStatus | None = None  # TODO: will be removed in 1.4
+    step: str | None = None  # TODO: will be removed in 1.4
+    started: datetime | None = None  # TODO: will be removed in 1.4
+    last_modified: datetime | None = None  # TODO: will be removed in 1.4
+    product: UUID | None = None  # TODO: will be removed in 1.4
+    customer: str | None = None  # TODO: will be removed in 1.4
 
 
 class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     id: UUID
     process_id: UUID
     subscription_id: UUID
-    workflow_target: Optional[Target] = None
+    workflow_target: Target | None = None
     created_at: datetime
 
     pid: UUID  # TODO: will be removed in 1.4
@@ -121,8 +121,8 @@ class ProcessResumeAllSchema(OrchestratorBaseModel):
 
 
 class ProcessStatusCounts(OrchestratorBaseModel):
-    process_counts: Dict[ProcessStatus, int]
-    task_counts: Dict[ProcessStatus, int]
+    process_counts: dict[ProcessStatus, int]
+    task_counts: dict[ProcessStatus, int]
 
 
 Reporter = Annotated[str, Field(max_length=100)]

@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
+from collections.abc import Callable
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import Any, Callable, TypeVar, Union
+from typing import Any, TypeVar
 
 import structlog
 
@@ -22,7 +23,7 @@ T = TypeVar("T")
 logger = structlog.get_logger(__name__)
 
 
-def create_filter_string(input: Union[list[str], None]) -> str:
+def create_filter_string(input: list[str] | None) -> str:
     return ",".join(input) if input else ""
 
 

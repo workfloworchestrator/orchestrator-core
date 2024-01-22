@@ -25,7 +25,7 @@ WARNING2: Since we use the sphinx napoleon extension and the docstrings we gener
 """
 
 import inspect
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, get_origin
+from typing import TYPE_CHECKING, Any, get_origin
 from uuid import UUID
 
 from more_itertools import first
@@ -78,7 +78,7 @@ def make_field_doc(field_name: str, field_type: Any) -> str:
 
 
 def make_product_block_docstring(
-    block: Type["ProductBlockModel"], lifecycle: Optional[List[SubscriptionLifecycle]] = None
+    block: type["ProductBlockModel"], lifecycle: list[SubscriptionLifecycle] | None = None
 ) -> str:
     lifecycle_str = f"\n\nValid for statuses: {', '.join(lifecycle) if lifecycle else 'all others'}"
 
@@ -105,7 +105,7 @@ def make_product_block_docstring(
 
 
 def make_subscription_model_docstring(
-    model: Type["SubscriptionModel"], lifecycle: Optional[List[SubscriptionLifecycle]] = None
+    model: type["SubscriptionModel"], lifecycle: list[SubscriptionLifecycle] | None = None
 ) -> str:
     lifecycle_str = f"\n\nValid for statuses: {', '.join(lifecycle) if lifecycle else 'all others'}"
 
@@ -145,12 +145,12 @@ def make_workflow_doc(wf: "Workflow") -> str:
     return f"{(wf.__doc__ or '')}\n\nSteps:\n\n{steps_string}\n"
 
 
-def make_workflow_index_doc(all_workflows: Dict[str, "LazyWorkflowInstance"]) -> str:
+def make_workflow_index_doc(all_workflows: dict[str, "LazyWorkflowInstance"]) -> str:
     workflow_list_str = "\n".join(map(lambda wf: f"* :obj:`~{wf[1].package}.{wf[0]}`", all_workflows.items()))
     return f"\nWorkflows\n---------\n\n{workflow_list_str}\n"
 
 
-def make_product_type_index_doc(subscription_model_registry: Dict[str, Type["SubscriptionModel"]]) -> str:
+def make_product_type_index_doc(subscription_model_registry: dict[str, type["SubscriptionModel"]]) -> str:
     product_types_str = "\n".join(
         map(
             lambda product: f"* :class:`~{product.__module__}.{product.__qualname__}`",

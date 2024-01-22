@@ -1,5 +1,3 @@
-from typing import Dict, List, Set, Union
-
 from more_itertools import flatten
 from sqlalchemy import select
 from sqlalchemy.sql.expression import Delete, Insert, Update
@@ -13,7 +11,7 @@ from orchestrator.db import db
 from orchestrator.db.models import FixedInputTable
 
 
-def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Dict[str, Dict[str, str]]:
+def map_update_fixed_inputs(product_diffs: dict[str, dict[str, set[str]]]) -> dict[str, dict[str, str]]:
     """Map fixed inputs to update.
 
     Args:
@@ -31,7 +29,7 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
     """
     print_fmt("\nUpdate fixed inputs", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
-    def rename_map(product_name: str, product_diff: Dict[str, Set[str]]) -> Dict[str, str]:
+    def rename_map(product_name: str, product_diff: dict[str, set[str]]) -> dict[str, str]:
         db_props = list(product_diff.get("missing_fixed_inputs_in_model", []))
         model_props = list(product_diff.get("missing_fixed_inputs_in_db", []))
 
@@ -62,8 +60,8 @@ def map_update_fixed_inputs(product_diffs: Dict[str, Dict[str, Set[str]]]) -> Di
 
 
 def generate_create_fixed_inputs_sql(
-    fixed_inputs: Dict[str, Set[str]], inputs: Dict[str, Dict[str, str]], revert: bool = False
-) -> List[str]:
+    fixed_inputs: dict[str, set[str]], inputs: dict[str, dict[str, str]], revert: bool = False
+) -> list[str]:
     """Generate SQL to create fixed inputs.
 
     Args:
@@ -82,7 +80,7 @@ def generate_create_fixed_inputs_sql(
     print_fmt("\nCreate fixed inputs", flags=[COLOR.BOLD, COLOR.UNDERLINE])
 
     def create_fixed_input(fixed_input: str, product_names: set[str]) -> str:
-        def create_product_insert_dict(product_name: str) -> dict[str, Union[str, ScalarSelect]]:
+        def create_product_insert_dict(product_name: str) -> dict[str, str | ScalarSelect]:
             product_id_sql = get_product_id(product_name)
 
             if revert:
@@ -110,7 +108,7 @@ def generate_create_fixed_inputs_sql(
     return [create_fixed_input(*item) for item in fixed_inputs.items()]
 
 
-def generate_delete_fixed_inputs_sql(fixed_inputs: Dict[str, Set[str]]) -> List[str]:
+def generate_delete_fixed_inputs_sql(fixed_inputs: dict[str, set[str]]) -> list[str]:
     """Generate SQL to delete fixed inputs.
 
     Args:
@@ -121,7 +119,7 @@ def generate_delete_fixed_inputs_sql(fixed_inputs: Dict[str, Set[str]]) -> List[
     Returns: List of SQL strings to delete fixed inputs.
     """
 
-    def delete_fixed_input(fixed_input: str, product_names: Set[str]) -> str:
+    def delete_fixed_input(fixed_input: str, product_names: set[str]) -> str:
         product_ids_sql = get_product_ids(product_names)
         return str(
             sql_compile(
@@ -135,7 +133,7 @@ def generate_delete_fixed_inputs_sql(fixed_inputs: Dict[str, Set[str]]) -> List[
     return [delete_fixed_input(*item) for item in fixed_inputs.items()]
 
 
-def generate_update_fixed_inputs_sql(product_fixed_inputs: Dict[str, Dict[str, str]]) -> List[str]:
+def generate_update_fixed_inputs_sql(product_fixed_inputs: dict[str, dict[str, str]]) -> list[str]:
     """Generate SQL to update fixed inputs.
 
     Args:
@@ -146,7 +144,7 @@ def generate_update_fixed_inputs_sql(product_fixed_inputs: Dict[str, Dict[str, s
     Returns: List of SQL strings to update fixed inputs.
     """
 
-    def update_fixed_inputs(product_name: str, fixed_inputs: Dict[str, str]) -> List[str]:
+    def update_fixed_inputs(product_name: str, fixed_inputs: dict[str, str]) -> list[str]:
         product_id_sql = get_product_id(product_name)
 
         def update_fixed_input(old_name: str, new_name: str) -> str:

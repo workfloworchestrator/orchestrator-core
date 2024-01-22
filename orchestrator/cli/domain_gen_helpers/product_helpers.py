@@ -1,5 +1,5 @@
+from collections.abc import Generator
 from itertools import chain
-from typing import Dict, Generator, List, Set, Type, Union
 
 from sqlalchemy import select
 from sqlalchemy.sql.expression import Delete, Insert
@@ -26,7 +26,7 @@ def get_product_id(product_name: str) -> ScalarSelect:
     return get_product_ids([product_name])
 
 
-def get_product_ids(product_names: Union[list[str], set[str]]) -> ScalarSelect:
+def get_product_ids(product_names: list[str] | set[str]) -> ScalarSelect:
     return select(ProductTable.product_id).where(ProductTable.name.in_(product_names)).scalar_subquery()
 
 
@@ -53,8 +53,8 @@ def map_product_additional_relations(changes: DomainModelChanges) -> DomainModel
 
 
 def generate_create_products_sql(
-    create_products: Dict[str, Type[SubscriptionModel]], inputs: Dict[str, Dict[str, str]]
-) -> List[str]:
+    create_products: dict[str, type[SubscriptionModel]], inputs: dict[str, dict[str, str]]
+) -> list[str]:
     """Generate SQL to create products.
 
     Args:
@@ -127,7 +127,7 @@ def generate_delete_products_sql(delete_products: set[str]) -> list[str]:
             sql_compile(Delete(SubscriptionTable).where(SubscriptionTable.product_id.in_(product_ids))),
         ]
 
-    def delete_products_sql(product_names: Set[str]) -> str:
+    def delete_products_sql(product_names: set[str]) -> str:
         return sql_compile(Delete(ProductTable).where(ProductTable.name.in_(product_names)))
 
     sql_deletes = delete_product_relations_sql(delete_products)
@@ -135,7 +135,7 @@ def generate_delete_products_sql(delete_products: set[str]) -> list[str]:
     return sql_deletes
 
 
-def generate_create_product_relations_sql(create_block_relations: Dict[str, Set[str]]) -> List[str]:
+def generate_create_product_relations_sql(create_block_relations: dict[str, set[str]]) -> list[str]:
     """Generate SQL to create product relations to product blocks.
 
     Args:
@@ -146,10 +146,10 @@ def generate_create_product_relations_sql(create_block_relations: Dict[str, Set[
     Returns: List of SQL strings to create subscription instances.
     """
 
-    def create_block_relation(block_name: str, product_names: Set[str]) -> str:
+    def create_block_relation(block_name: str, product_names: set[str]) -> str:
         block_id_sql = get_product_block_id(block_name)
 
-        def create_block_relation_dict(product_name: str) -> Dict[str, ScalarSelect]:
+        def create_block_relation_dict(product_name: str) -> dict[str, ScalarSelect]:
             product_id_sql = get_product_id(product_name)
             return {"product_block_id": block_id_sql, "product_id": product_id_sql}
 
@@ -177,7 +177,7 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: d
 
         def map_subscription_instance_relations(
             product_name: str,
-        ) -> Generator[Dict[str, Union[str, ScalarSelect]], None, None]:
+        ) -> Generator[dict[str, str | ScalarSelect], None, None]:
             product_id_sql = get_product_id(product_name)
             subscription_ids_stmt = select(SubscriptionTable.subscription_id).where(
                 SubscriptionTable.product_id.in_(product_id_sql)
@@ -200,7 +200,7 @@ def generate_create_product_instance_relations_sql(product_to_block_relations: d
     )
 
 
-def generate_delete_product_relations_sql(delete_block_relations: Dict[str, Set[str]]) -> List[str]:
+def generate_delete_product_relations_sql(delete_block_relations: dict[str, set[str]]) -> list[str]:
     """Generate SQL to delete product to product blocks relations.
 
     Args:
@@ -211,7 +211,7 @@ def generate_delete_product_relations_sql(delete_block_relations: Dict[str, Set[
     Returns: List of SQL strings to delete relations between product and product block.
     """
 
-    def delete_block_relation(delete_block_name: str, product_names: Set[str]) -> str:
+    def delete_block_relation(delete_block_name: str, product_names: set[str]) -> str:
         product_ids_sql = get_product_ids(product_names)
         block_id_sql = get_product_block_id(delete_block_name)
         return sql_compile(

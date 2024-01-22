@@ -13,7 +13,7 @@
 
 from functools import singledispatch
 from http import HTTPStatus
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 import structlog
 from deprecated import deprecated
@@ -31,14 +31,12 @@ class ApiException(Exception):  # noqa: N818
     This should conform to what is used in the api clients.
     """
 
-    status: Optional[HTTPStatus]
-    reason: Optional[str]
-    body: Optional[str]
-    headers: Dict[str, str]
+    status: HTTPStatus | None
+    reason: str | None
+    body: str | None
+    headers: dict[str, str]
 
-    def __init__(
-        self, status: Optional[HTTPStatus] = None, reason: Optional[str] = None, http_resp: Optional[object] = None
-    ):
+    def __init__(self, status: HTTPStatus | None = None, reason: str | None = None, http_resp: object | None = None):
         super().__init__(status, reason, http_resp)
         if http_resp:
             self.status = http_resp.status  # type:ignore

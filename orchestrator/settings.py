@@ -14,7 +14,6 @@
 import secrets
 import string
 from pathlib import Path
-from typing import List, Optional
 
 from pydantic import PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
@@ -32,9 +31,9 @@ class AppSettings(BaseSettings):
     TESTING: bool = True
     SESSION_SECRET: str = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # noqa: S311
     CORS_ORIGINS: str = "*"
-    CORS_ALLOW_METHODS: List[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
-    CORS_ALLOW_HEADERS: List[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
-    CORS_EXPOSE_HEADERS: List[str] = [
+    CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
+    CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
+    CORS_EXPOSE_HEADERS: list[str] = [
         "Cache-Control",
         "Content-Language",
         "Content-Length",
@@ -56,7 +55,7 @@ class AppSettings(BaseSettings):
     MAIL_STARTTLS: bool = False
     CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_DOMAIN_MODELS: bool = False
-    CACHE_HMAC_SECRET: Optional[str] = None  # HMAC signing key, used when pickling results in the cache
+    CACHE_HMAC_SECRET: str | None = None  # HMAC signing key, used when pickling results in the cache
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
@@ -67,12 +66,12 @@ class AppSettings(BaseSettings):
     SLACK_ENGINE_SETTINGS_HOOK_URL: str = ""
     TRACING_ENABLED: bool = False
     TRACE_HOST: str = "http://localhost:4317"
-    TRANSLATIONS_DIR: Optional[Path] = None
+    TRANSLATIONS_DIR: Path | None = None
     WEBSOCKET_BROADCASTER_URL: str = "memory://"
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
-    DEFAULT_PRODUCT_WORKFLOWS: List[str] = ["modify_note"]
-    SKIP_MODEL_FOR_MIGRATION_DB_DIFF: List[str] = []
+    DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]
+    SKIP_MODEL_FOR_MIGRATION_DB_DIFF: list[str] = []
     SERVE_GRAPHQL_UI: bool = True
     FEDEREATION_ENABLED: bool = False
     DEFAULT_CUSTOMER_FULLNAME: str = "Default::Orchestrator-Core Customer"

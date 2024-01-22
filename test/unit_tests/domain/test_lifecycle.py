@@ -1,5 +1,3 @@
-from typing import Optional, Union
-
 import pytest
 
 from orchestrator.domain.base import ProductBlockModel
@@ -9,7 +7,7 @@ from orchestrator.types import SubscriptionLifecycle
 @pytest.fixture
 def setup():
     class SubBlockInactive(ProductBlockModel, product_block_name="SubBlock"):
-        int_field: Optional[int] = None
+        int_field: int | None = None
 
     class SubBlockProvisioning(SubBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         int_field: int
@@ -48,4 +46,4 @@ def test_invalid_lifecycle_status_union(setup):
 
         class MainBlockProvisioning(MainBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
             sub_block1: SubBlockProvisioning
-            sub_block2: Union[SubBlockProvisioning, SubBlockInactive]  # first lifecycle is valid, second is not
+            sub_block2: SubBlockProvisioning | SubBlockInactive  # first lifecycle is valid, second is not

@@ -10,8 +10,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Callable
 from http import HTTPStatus
-from typing import Any, Callable, Type, Union
+from typing import Any
 
 import strawberry
 import structlog
@@ -119,7 +120,7 @@ class OrchestratorSchema(strawberry.federation.Schema):
     def process_errors(
         self,
         errors: list[GraphQLError],
-        execution_context: Union[ExecutionContext, None] = None,
+        execution_context: ExecutionContext | None = None,
     ) -> None:
         """Override error processing to reduce verbosity of the logging.
 
@@ -154,7 +155,7 @@ def create_graphql_router(
     query: Any = Query,
     mutation: Any = Mutation,
     register_models: bool = True,
-    subscription_interface: Union[Type, None] = SubscriptionInterface,
+    subscription_interface: type | None = SubscriptionInterface,
 ) -> OrchestratorGraphqlRouter:
     @strawberry.experimental.pydantic.type(
         model=SubscriptionModel, all_fields=True, directives=federation_key_directives

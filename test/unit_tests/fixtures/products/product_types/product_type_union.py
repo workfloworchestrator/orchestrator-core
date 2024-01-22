@@ -1,5 +1,3 @@
-from typing import Optional, Union
-
 import pytest
 
 from orchestrator.db import ProductTable, db
@@ -14,16 +12,16 @@ def test_union_type_product(test_product_block_one, test_product_sub_block_one):
     SubBlockOneForTestInactive, SubBlockOneForTestProvisioning, SubBlockOneForTest = test_product_sub_block_one
 
     class UnionProductInactive(SubscriptionModel, is_base=True):
-        test_block: Optional[ProductBlockOneForTestInactive]
-        union_block: Optional[Union[ProductBlockOneForTestInactive, SubBlockOneForTestInactive]]
+        test_block: ProductBlockOneForTestInactive | None
+        union_block: ProductBlockOneForTestInactive | SubBlockOneForTestInactive | None
 
     class UnionProductProvisioning(UnionProductInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
         test_block: ProductBlockOneForTestProvisioning
-        union_block: Union[ProductBlockOneForTestProvisioning, SubBlockOneForTestProvisioning]
+        union_block: ProductBlockOneForTestProvisioning | SubBlockOneForTestProvisioning
 
     class UnionProduct(UnionProductProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_block: ProductBlockOneForTest
-        union_block: Union[ProductBlockOneForTest, SubBlockOneForTest]
+        union_block: ProductBlockOneForTest | SubBlockOneForTest
 
     SUBSCRIPTION_MODEL_REGISTRY["UnionProduct"] = UnionProduct
     yield UnionProductInactive, UnionProductProvisioning, UnionProduct

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Optional, Union
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 import strawberry
@@ -31,7 +31,7 @@ class ProcessFormType:
     additionalProperties: strawberry.auto
     required: strawberry.auto
     properties: JSON
-    definitions: Union[JSON, None]
+    definitions: JSON | None
 
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)
@@ -42,14 +42,14 @@ class ProcessStepType:
     created_by: strawberry.auto
     executed: strawberry.auto
     commit_hash: strawberry.auto
-    state: Union[JSON, None]
-    state_delta: Union[JSON, None]
+    state: JSON | None
+    state_delta: JSON | None
 
     @authenticated_field(
         description="Returns step id",
         deprecation_reason="Changed to 'stepId' from version 1.2.3, will be removed in 1.4",
     )  # type: ignore
-    def stepid(self) -> Optional[UUID]:
+    def stepid(self) -> UUID | None:
         return self.step_id
 
 
@@ -72,7 +72,7 @@ class ProcessType:
     is_task: strawberry.auto
     steps: strawberry.auto
     form: strawberry.auto
-    current_state: Union[JSON, None]
+    current_state: JSON | None
 
     @authenticated_field(
         description="Returns process id",
@@ -117,7 +117,7 @@ class ProcessType:
         return self.last_modified_at
 
     @authenticated_field(description="Returns the associated product")  # type: ignore
-    def product(self) -> Optional[ProductType]:
+    def product(self) -> ProductType | None:
         if self.product_id and (product := db.session.get(ProductTable, self.product_id)):
             return ProductType.from_pydantic(product)
         return None
@@ -134,8 +134,8 @@ class ProcessType:
     async def subscriptions(
         self,
         info: OrchestratorInfo,
-        filter_by: Union[list[GraphqlFilter], None] = None,
-        sort_by: Union[list[GraphqlSort], None] = None,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:

@@ -1,5 +1,3 @@
-from typing import Union
-
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -9,8 +7,8 @@ from orchestrator.settings import app_settings
 
 async def resolve_customer(
     info: OrchestratorInfo,
-    filter_by: Union[list[GraphqlFilter], None] = None,
-    sort_by: Union[list[GraphqlSort], None] = None,
+    filter_by: list[GraphqlFilter] | None = None,
+    sort_by: list[GraphqlSort] | None = None,
     first: int = 1,
     after: int = 0,
 ) -> Connection[CustomerType]:

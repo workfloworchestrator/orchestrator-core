@@ -13,10 +13,11 @@
 import asyncio
 import queue
 import threading
+from collections.abc import Callable, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
@@ -79,7 +80,7 @@ SYSTEM_USER = "SYSTEM"
 _workflow_executor = None
 
 
-def get_execution_context() -> Dict[str, Callable]:
+def get_execution_context() -> dict[str, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
         from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
 
@@ -245,7 +246,7 @@ def _db_log_step(
     stat: ProcessStat,
     step: Step,
     process_state: WFProcess,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> WFProcess:
     """Write the current step to the db.
 
@@ -283,7 +284,7 @@ def safe_logstep(
     stat: ProcessStat,
     step: Step,
     process_state: WFProcess,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> WFProcess:
     """Log step and handle failures in logging.
 
@@ -408,7 +409,7 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
 
 def create_process(
     workflow_key: str,
-    user_inputs: Optional[List[State]] = None,
+    user_inputs: list[State] | None = None,
     user: str = SYSTEM_USER,
 ) -> ProcessStat:
     # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
@@ -450,9 +451,9 @@ def create_process(
 
 def thread_start_process(
     workflow_key: str,
-    user_inputs: Optional[List[State]] = None,
+    user_inputs: list[State] | None = None,
     user: str = SYSTEM_USER,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
 
@@ -462,9 +463,9 @@ def thread_start_process(
 
 def start_process(
     workflow_key: str,
-    user_inputs: Optional[List[State]] = None,
+    user_inputs: list[State] | None = None,
     user: str = SYSTEM_USER,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     """Start a process for workflow.
 
@@ -485,9 +486,9 @@ def start_process(
 def thread_resume_process(
     process: ProcessTable,
     *,
-    user_inputs: Optional[List[State]] = None,
-    user: Optional[str] = None,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    user_inputs: list[State] | None = None,
+    user: str | None = None,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
 
@@ -518,11 +519,11 @@ def thread_resume_process(
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
 
 
-def thread_validate_workflow(validation_workflow: str, json: Optional[List[State]]) -> UUID:
+def thread_validate_workflow(validation_workflow: str, json: list[State] | None) -> UUID:
     return thread_start_process(validation_workflow, user_inputs=json)
 
 
-THREADPOOL_EXECUTION_CONTEXT: Dict[str, Callable] = {
+THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
     "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs),
     "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs),
     "validate": thread_validate_workflow,
@@ -532,9 +533,9 @@ THREADPOOL_EXECUTION_CONTEXT: Dict[str, Callable] = {
 def resume_process(
     process: ProcessTable,
     *,
-    user_inputs: Optional[List[State]] = None,
-    user: Optional[str] = None,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    user_inputs: list[State] | None = None,
+    user: str | None = None,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     """Resume a failed or suspended process.
 
@@ -604,7 +605,7 @@ def continue_awaiting_process(
 async def _async_resume_processes(
     processes: Sequence[ProcessTable],
     user_name: str,
-    broadcast_func: Optional[Callable] = None,
+    broadcast_func: Callable | None = None,
 ) -> bool:
     """Asynchronously resume multiple failed processes.
 
@@ -650,14 +651,14 @@ async def _async_resume_processes(
     return True
 
 
-def abort_process(process: ProcessTable, user: str, broadcast_func: Optional[Callable] = None) -> WFProcess:
+def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | None = None) -> WFProcess:
     pstat = load_process(process)
 
     pstat.update(current_user=user)
     return abort_wf(pstat, partial(safe_logstep, broadcast_func=broadcast_func))
 
 
-def _recoverwf(wf: Workflow, log: List[WFProcess]) -> Tuple[WFProcess, StepList]:
+def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:
     # Remove all extra steps (Failed, Suspended and (A)waiting steps in db). Only keep cleared steps.
 
     persistent = list(
@@ -679,7 +680,7 @@ def _recoverwf(wf: Workflow, log: List[WFProcess]) -> Tuple[WFProcess, StepList]
     return state, rest
 
 
-def _restore_log(steps: List[ProcessStepTable]) -> List[WFProcess]:
+def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
     result = []
     for step in steps:
         process = WFProcess.from_status(step.status, step.state)
@@ -714,7 +715,7 @@ def _get_running_processes() -> list[ProcessTable]:
     return list(db.session.scalars(stmt))
 
 
-def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> Optional[EngineSettingsTable]:
+def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
     """Manage processes depending on the engine status.
 
     This function only has to act when in the transitioning fases, i.e Pausing and Starting
@@ -799,7 +800,7 @@ class ProcessDataBroadcastThread(threading.Thread):
         self.is_alive()
 
 
-def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
+def api_broadcast_process_data(request: Request) -> BroadcastFunc | None:
     """Given a FastAPI request, creates a threadsafe callable for broadcasting process data.
 
     The callable should be created in API endpoints and provided to start_process,
@@ -807,7 +808,7 @@ def api_broadcast_process_data(request: Request) -> Optional[BroadcastFunc]:
     """
     broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
 
-    def _queue_put(process_id: UUID, data: Dict) -> None:
+    def _queue_put(process_id: UUID, data: dict) -> None:
         broadcast_queue.put((str(process_id), data))
 
     return _queue_put

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from asyncio import new_event_loop
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -35,12 +35,12 @@ class WS_CHANNELS:
     ENGINE_SETTINGS = "engine-settings"
 
 
-async def empty_fn(*args: tuple, **kwargs: Dict[str, Any]) -> None:
+async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
     return
 
 
 class WrappedWebSocketManager:
-    def __init__(self, wrappee: Optional[WebSocketManager] = None) -> None:
+    def __init__(self, wrappee: WebSocketManager | None = None) -> None:
         self.wrapped_websocket_manager = wrappee
 
     def update(self, wrappee: WebSocketManager) -> None:
@@ -80,18 +80,18 @@ def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
     return websocket_manager
 
 
-def create_process_websocket_data(process: ProcessTable, pStat: ProcessStat) -> Dict:
+def create_process_websocket_data(process: ProcessTable, pStat: ProcessStat) -> dict:
     return {"process": enrich_process(process, pStat)}
 
 
-def is_process_active(p: Dict) -> bool:
+def is_process_active(p: dict) -> bool:
     return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
 def send_process_data_to_websocket(
     process_id: UUID,
-    data: Dict,
-    broadcast_func: Optional[BroadcastFunc] = None,
+    data: dict,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
     if not websocket_manager.enabled:

@@ -1,5 +1,4 @@
 import functools
-from typing import Optional
 
 import pytest
 
@@ -86,7 +85,7 @@ def test_expand_ranges():
 def test_as_t():
     # Don't know how to check type annotations at runtime yet. Hence test only basic functionality of `as_t` and not
     # the casting of Optional[T] to just T
-    x: Optional[int] = 7
+    x: int | None = 7
     y: int = as_t(x)
     assert y == 7
     with pytest.raises(ValueError):

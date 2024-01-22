@@ -14,7 +14,6 @@
 import json
 import os
 from shutil import copyfile
-from typing import List, Optional, Tuple, Union
 
 import jinja2
 import typer
@@ -199,10 +198,10 @@ def history(
 @app.command(help="Create revision based on diff_product_in_database.")
 def migrate_domain_models(
     message: str = typer.Argument(..., help="Migration name"),
-    test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
-    inputs: Optional[str] = typer.Option("{}", help="stringified dict to prefill inputs"),
-    updates: Optional[str] = typer.Option("{}", help="stringified dict to map updates instead of using inputs"),
-) -> Union[Tuple[List[str], List[str]], None]:
+    test: bool | None = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+    inputs: str | None = typer.Option("{}", help="stringified dict to prefill inputs"),
+    updates: str | None = typer.Option("{}", help="stringified dict to map updates instead of using inputs"),
+) -> tuple[list[str], list[str]] | None:
     """Create migration file based on SubscriptionModel.diff_product_in_database. BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
     You will be prompted with inputs for new models and resource type updates.
@@ -268,8 +267,8 @@ def migrate_domain_models(
 @app.command(help="Create migration file based on diff workflows in db")
 def migrate_workflows(
     message: str = typer.Argument(..., help="Migration name"),
-    test: Optional[bool] = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
-) -> Union[Tuple[List[dict], List[dict]], None]:
+    test: bool | None = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+) -> tuple[list[dict], list[dict]] | None:
     """Create a migration file based on the difference between workflows in the database and registered WorkflowInstances. BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
     You will be prompted with inputs for new models and resource type updates.

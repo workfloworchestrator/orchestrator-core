@@ -12,7 +12,6 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import ConfigDict
@@ -28,5 +27,5 @@ class SubscriptionDescriptionBaseSchema(OrchestratorBaseModel):
 
 class SubscriptionDescriptionSchema(SubscriptionDescriptionBaseSchema):
     id: UUID
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)

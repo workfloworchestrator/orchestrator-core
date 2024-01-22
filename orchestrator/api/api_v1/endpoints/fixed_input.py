@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 
 import structlog
 from fastapi.routing import APIRouter
@@ -29,7 +29,7 @@ logger = structlog.get_logger(__name__)
 
 
 @router.get("/configuration", response_model=FixedInputConfigurationSchema)
-def fi_configuration() -> Dict[str, Any]:  # noqa: C901
+def fi_configuration() -> dict[str, Any]:  # noqa: C901
     product_tags = products.get_tags()
 
     data: dict = {"fixed_inputs": [], "by_tag": {}}

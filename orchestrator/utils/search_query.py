@@ -1,7 +1,8 @@
 import re
+from collections.abc import Callable, Iterable, Iterator
 from enum import Enum
 from itertools import chain
-from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union, cast
+from typing import Any, Union, cast
 
 import structlog
 from sqlalchemy import (
@@ -60,10 +61,10 @@ class Lexer:
         self.source = source
         self.pos = 0
 
-    def peek(self) -> Optional[str]:
+    def peek(self) -> str | None:
         return self.source[self.pos] if self.pos < len(self.source) else None
 
-    def next_char(self) -> Optional[str]:
+    def next_char(self) -> str | None:
         while self.pos < len(self.source):
             ch = self.source[self.pos]
             self.pos += 1
@@ -150,7 +151,7 @@ class Parser:
             raise ParseError(msg)
         return nt
 
-    def parse_value_group(self) -> Optional[Node]:
+    def parse_value_group(self) -> Node | None:
         self.expect(Token.LPAREN)
         value = self.parse_value()
         if not value:
@@ -169,7 +170,7 @@ class Parser:
         self.expect(Token.RPAREN)
         return "ValueGroup", values
 
-    def parse_value(self) -> Optional[Node]:
+    def parse_value(self) -> Node | None:
         next_token = self.peek()
         if next_token[0] == Token.QUOTE:
             return self.parse_phrase()
@@ -204,7 +205,7 @@ class Parser:
         self.expect(Token.RPAREN)
         return "Group", query[1] if query else []
 
-    def parse_positive_term(self) -> Optional[Node]:
+    def parse_positive_term(self) -> Node | None:
         # Should return None if not a valid term
         token = self.peek()
         if token[0] == Token.LPAREN:
@@ -226,7 +227,7 @@ class Parser:
             return "KVTerm", (value, kv_value)
         return value
 
-    def parse_term(self) -> Optional[Node]:
+    def parse_term(self) -> Node | None:
         token = self.peek()
         if token[0] == Token.OP_NEG:
             self.next_token()
@@ -234,7 +235,7 @@ class Parser:
             return ("Negation", term) if term else None
         return self.parse_positive_term()
 
-    def parse_and_expression(self) -> Optional[Node]:
+    def parse_and_expression(self) -> Node | None:
         terms = []
         while term := self.parse_term():
             terms.append(term)
@@ -366,7 +367,7 @@ WhereCondGenerator = Callable[[Node], Union[BinaryExpression, BooleanClauseList]
 
 class SQLAlchemyVisitor:
     def __init__(
-        self, stmt: Select, mappings: dict[str, WhereCondGenerator], base_table: Type[BaseModel], join_key: MappedColumn
+        self, stmt: Select, mappings: dict[str, WhereCondGenerator], base_table: type[BaseModel], join_key: MappedColumn
     ):
         self.base_stmt = stmt
         self.mappings = mappings
@@ -422,13 +423,13 @@ class SQLAlchemyVisitor:
             stmt = self.visit_term(stmt, term)
         return stmt
 
-    def visit_query(self, stmt: Select, node: Node) -> Union[Select, CompoundSelect]:
+    def visit_query(self, stmt: Select, node: Node) -> Select | CompoundSelect:
         stmt = self.visit_and_expression(stmt, node[1][0])
         if len(node[1]) > 1:
             return stmt.union(*(self.visit_and_expression(self.base_stmt, expression) for expression in node[1][1:]))
         return stmt
 
-    def visit(self, parse_tree: Node) -> Union[Select, CompoundSelect]:
+    def visit(self, parse_tree: Node) -> Select | CompoundSelect:
         node_type = parse_tree[0]
         if node_type == "Query":
             return self.visit_query(self.base_stmt, parse_tree)
@@ -443,7 +444,7 @@ def create_sqlalchemy_select(
     stmt: Select,
     search_query: str,
     mappings: dict[str, WhereCondGenerator],
-    base_table: Type[BaseModel],
+    base_table: type[BaseModel],
     join_key: MappedColumn,
-) -> Union[Select, CompoundSelect]:
+) -> Select | CompoundSelect:
     return SQLAlchemyVisitor(stmt, mappings, base_table, join_key).visit(Parser(Lexer(search_query).lex()).parse())

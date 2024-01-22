@@ -1,6 +1,5 @@
 import json
 from http import HTTPStatus
-from typing import Union
 from uuid import UUID
 
 import pytest
@@ -52,22 +51,22 @@ def override_class_app_graphql(
 def get_customers_query(
     first: int = 1,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
     override_fields: bool = False,
 ) -> bytes:
     query = """
-query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
-  customers(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
-    page {
+query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {{
+  customers(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {{
+    page {{
       customerId
       fullname
       shortcode
-        %s
-    }
-  }
-}
-    """ % (
+        {}
+    }}
+  }}
+}}
+    """.format(
         "newField" if override_fields else "",
     )
     return json.dumps(
@@ -87,24 +86,24 @@ query CustomerQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $so
 def get_subscriptions_customer_query(
     first: int = 1,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
     override_fields: bool = False,
 ) -> bytes:
     query = """
-query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
-  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
-    page {
-      customer {
+query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {{
+  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {{
+    page {{
+      customer {{
         customerId
         fullname
         shortcode
-        %s
-      }
-    }
-  }
-}
-    """ % (
+        {}
+      }}
+    }}
+  }}
+}}
+    """.format(
         "newField" if override_fields else "",
     )
     return json.dumps(
@@ -124,26 +123,26 @@ query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!],
 def get_subscriptions_detail_customer_query(
     first: int = 1,
     after: int = 0,
-    filter_by: Union[list[str], None] = None,
-    sort_by: Union[list[dict[str, str]], None] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
     override_fields: bool = False,
 ) -> bytes:
     query = """
-query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {
-  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
-    page {
-      ... on ProductSubOneSubscription {
-        customer {
+query SubscriptionQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sortBy: [GraphqlSort!]) {{
+  subscriptions(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {{
+    page {{
+      ... on ProductSubOneSubscription {{
+        customer {{
           customerId
           fullname
           shortcode
-          %s
-        }
-      }
-    }
-  }
-}
-    """ % (
+          {}
+        }}
+      }}
+    }}
+  }}
+}}
+    """.format(
         "newField" if override_fields else "",
     )
     return json.dumps(

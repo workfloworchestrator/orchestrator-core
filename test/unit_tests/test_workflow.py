@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import reduce
-from typing import List, NoReturn, Tuple, Type
+from typing import NoReturn
 from unittest import mock
 from uuid import UUID, uuid4
 
@@ -74,7 +74,7 @@ def step3(steps):
 
 
 @inputstep("Input Name", assignee=Assignee.SYSTEM)
-def user_action() -> Type[FormPage]:
+def user_action() -> type[FormPage]:
     class Form(FormPage):
         name: str
 
@@ -382,7 +382,7 @@ def test_input_in_substate() -> None:
         lambda: begin >> input_action >> purestep("process inputs")(Success)
     )
 
-    log: List[Tuple[str, Process]] = []
+    log: list[tuple[str, Process]] = []
     process_id = uuid4()
     p = ProcessStat(
         process_id=process_id,

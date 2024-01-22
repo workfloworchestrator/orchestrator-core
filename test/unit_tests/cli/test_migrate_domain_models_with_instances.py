@@ -1,5 +1,4 @@
 import json
-from typing import List, Union
 
 from sqlalchemy import select, text
 
@@ -75,10 +74,10 @@ def test_migrate_domain_models_new_product_block_on_product_block(
     ):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         str_field: str
         int_field: int
-        list_field: List[int]
+        list_field: list[int]
         new_block: TestBlock
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -131,10 +130,10 @@ def test_migrate_domain_models_new_resource_type(
     ):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
         new_int_field: int
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -236,10 +235,10 @@ def test_migrate_domain_models_update_resource_type(
     ):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         str_field: str
         int_field: int
-        new_list_field: List[int]
+        new_list_field: list[int]
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -287,17 +286,17 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
     ):
         int_field: int
         str_field: str
-        new_list_field: List[int]
+        new_list_field: list[int]
 
     class ProductBlockOneForTestUpdated(
         ProductBlockModel, product_block_name="ProductBlockOneForTest", lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
         sub_block: SubBlockOneForTestNewResource
         sub_block_2: SubBlockOneForTestNewResource
-        sub_block_list: List[SubBlockOneForTestNewResource]
+        sub_block_list: list[SubBlockOneForTestNewResource]
         str_field: str
         int_field: int
-        new_list_field: List[int]
+        new_list_field: list[int]
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -362,10 +361,10 @@ def test_migrate_domain_models_create_and_rename_and_delete_resource_type(
         product_block_name="ProductBlockWithListUnionForTest",
         lifecycle=[SubscriptionLifecycle.ACTIVE],
     ):
-        list_union_blocks: List[Union[SubBlockTwoForTestChanged, SubBlockOneForTestChanged]]
+        list_union_blocks: list[SubBlockTwoForTestChanged | SubBlockOneForTestChanged]
         changed_int_field: int
         str_field: str
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductSubListUnionTest(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_block: ProductBlockWithListUnionForTestNew
@@ -488,7 +487,7 @@ def test_migrate_domain_models_remove_product_block(test_product_type_one, produ
     assert subscription.block
     assert subscription.block.int_field
 
-    int_field_resource: List[ResourceTypeTable] = get_resource_types(
+    int_field_resource: list[ResourceTypeTable] = get_resource_types(
         filters=[ResourceTypeTable.resource_type == "int_field"]
     )
     int_field_instance_values = db.session.scalars(
@@ -528,7 +527,7 @@ def test_migrate_domain_models_remove_resource_type(
     ):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
 
@@ -569,10 +568,10 @@ def test_migrate_domain_models_update_block_resource_type(
     ):
         sub_block: SubBlockOneForTest
         sub_block_2: SubBlockOneForTest
-        sub_block_list: List[SubBlockOneForTest]
+        sub_block_list: list[SubBlockOneForTest]
         update_str_field: str
         int_field: int
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -631,10 +630,10 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(test_produc
     ):
         sub_block: SubBlockOneForTesUpdated
         sub_block_2: SubBlockOneForTesUpdated
-        sub_block_list: List[SubBlockOneForTesUpdated]
+        sub_block_list: list[SubBlockOneForTesUpdated]
         update_str_field: str
         int_field: int
-        list_field: List[int]
+        list_field: list[int]
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
