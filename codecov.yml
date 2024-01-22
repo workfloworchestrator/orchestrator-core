@@ -4,3 +4,5 @@ ignore:
   - "example"
   - "devtools"
   - "migrations"
+  - "orchestrator/cli/generator/templates"
+  - "orchestrator/cli/generator/custom_templates"
