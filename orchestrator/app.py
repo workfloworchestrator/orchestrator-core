@@ -129,10 +129,6 @@ class OrchestratorCore(FastAPI):
         def _index() -> str:
             return "Orchestrator orchestrator"
 
-    @deprecated("Not using Opentelemetry from version 1.2.0, will be removed in 1.4")
-    def instrument_app(self) -> None:
-        pass
-
     def add_sentry(
         self,
         sentry_dsn: str,
