@@ -60,5 +60,5 @@ def get_int_enums(fields: list[dict]) -> list[dict]:
     return [convert_int_enum(field) for field in fields if is_int_enum(field)]
 
 
-def to_dict(fields):
-    return {field["name"]: field for field in fields}
+def to_dict(list_of_dicts: list[dict]) -> dict[str, dict]:
+    return {dict["name"]: dict for dict in list_of_dicts}
