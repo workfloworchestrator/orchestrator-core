@@ -21,6 +21,7 @@ from typing import Any
 
 import structlog
 
+from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_product_block_file_name,
@@ -146,6 +147,9 @@ def generate_product_blocks(context: dict) -> None:
 
         fields = get_fields(product_block)
 
+        int_enums = get_int_enums(fields)
+        str_enums = get_str_enums(fields)
+
         lists_to_generate = get_lists_to_generate(fields)
 
         product_blocks_to_import = list(
@@ -166,6 +170,9 @@ def generate_product_blocks(context: dict) -> None:
             constrained_ints_to_generate=constrained_ints_to_generate,
             types_to_import=types_to_import,
             python_version=python_version,
+            int_enums=int_enums,
+            str_enums=str_enums,
+            fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
         )
 
         writer(path, content)
