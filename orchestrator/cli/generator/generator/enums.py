@@ -45,11 +45,11 @@ def convert_enum(field: dict, separator: str = ".") -> dict:
 
 
 def convert_str_enum(field: dict) -> dict:
-    return convert_enum(field, ".")
+    return convert_enum(field, separator=".")
 
 
 def convert_int_enum(field: dict) -> dict:
-    return convert_enum(field, "._")
+    return convert_enum(field, separator="._")
 
 
 def get_str_enums(fields: list[dict]) -> list[dict]:
