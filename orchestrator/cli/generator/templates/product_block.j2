@@ -12,7 +12,7 @@ from typing import TypeVar
 from typing import Annotated
 from annotated_types import Ge, Le
 {% endif -%}
-{% if "UUID" in product_block.fields | map(attribute="type") %}
+{% if "UUID" in fields | map(attribute="type") %}
 from uuid import UUID
 {% endif %}
 {% for module, type in product_blocks_to_import %}
@@ -22,11 +22,12 @@ from pydantic import computed_field
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
+{% include "enums.j2" %}
 {% include "list_definitions.j2" %}
 {% include "constrained_int_definitions.j2" %}
 
 class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_name="{{ product_block.block_name }}"):
-    {% for field in product_block.fields -%}
+    {% for field in fields -%}
     {% if field.type == "list" -%}
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Inactive")) }}
     {% else -%}
@@ -36,7 +37,7 @@ class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_nam
     {% endfor %}
 
 class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    {% for field in product_block.fields -%}
+    {% for field in fields -%}
     {% if field.type == "list" -%}
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Provisioning")) }}
     {% else -%}
@@ -52,7 +53,7 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
 
 
 class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    {% for field in product_block.fields -%}
+    {% for field in fields -%}
     {% if field.type == "list" -%}
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "")) }}
     {% else -%}
