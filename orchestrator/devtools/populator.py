@@ -142,7 +142,7 @@ class Populator:
 
         # When a input_type is not found the populator will try to call a function self."resolve_"input_type()
         self.default_input_values = {
-            "organisation": customer_id,
+            "customer": customer_id,
             "guid": "6769d05f-3b11-e511-80d0-005056956c1a",
             "contact_persons": [{"email": contact_email, "name": contact_name, "phone": contact_phone}],
             "accept": "ACCEPTED",

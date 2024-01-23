@@ -219,7 +219,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     What this decorator does is better explained with an example than lots of text. So normally we do this::
 
         def load_initial_state_for_modify(state: State) -> State:
-            organisation = state["organisation"]
+            customer = state["customer"]
             subscription_id = state["subscription_id"]
             ....
             # build new_state
@@ -229,7 +229,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     With this decorator we can do::
 
         @inject_args
-        def load_initial_state_for_modify(organisation: UUID, subscription_id: UUID) -> State:
+        def load_initial_state_for_modify(customer: UUID, subscription_id: UUID) -> State:
             ....
             # build new_state
             ...
@@ -272,7 +272,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     to domain models requested as part of the step parameter list.
 
     If the key `light_path` was not found in the state, the parameter is interpreted as a request to create a
-    domain model of the given type. For that to work correctly the keys `product` and `organisation` need to be
+    domain model of the given type. For that to work correctly the keys `product` and `customer` need to be
     present in the state. This will not work for more than one domain model. E.g. you can't request two domain
     models to be created as we will not know to which of the two domain models `product` is applicable to.
 

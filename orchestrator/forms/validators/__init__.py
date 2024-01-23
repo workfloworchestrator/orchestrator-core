@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from nwastdlib.vlans import VlanRanges
+from orchestrator.forms.validators.customer_contact_list import customer_contact_list, organisation_contact_list
 from orchestrator.forms.validators.customer_id import CustomerId
 from orchestrator.forms.validators.display_subscription import DisplaySubscription
 from orchestrator.forms.validators.network_type_validators import BFD, MTU
@@ -66,4 +67,6 @@ __all__ = [
     "BFD",
     "MTU",
     "VlanRanges",
+    "customer_contact_list",
+    "organisation_contact_list",
 ]
