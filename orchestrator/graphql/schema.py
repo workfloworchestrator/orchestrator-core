@@ -18,21 +18,18 @@ import strawberry
 import structlog
 from fastapi import Depends
 from fastapi.routing import APIRouter
-from graphql import GraphQLError, GraphQLFormattedError
-from graphql.error.graphql_error import format_error
+from graphql import GraphQLError
 from httpx import HTTPStatusError
-from starlette.requests import Request
 from strawberry.fastapi import GraphQLRouter
-from strawberry.http import GraphQLHTTPResponse
 from strawberry.tools import merge_types
-from strawberry.types import ExecutionContext, ExecutionResult
+from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import register_domain_models
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
-from orchestrator.graphql.extensions.error_collector_extension import ErrorCollectorExtension
+from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
@@ -94,26 +91,7 @@ class Query:
 
 Mutation = merge_types("Mutation", (SettingsMutation,))
 
-
-class OrchestratorGraphqlRouter(GraphQLRouter):
-    def __init__(self, schema: strawberry.federation.Schema, **kwargs: Any) -> None:
-        super().__init__(schema, **kwargs)
-
-    @staticmethod
-    def _format_graphql_error(error: GraphQLError) -> GraphQLFormattedError:
-        if isinstance(error.original_error, HTTPStatusError):
-            error.extensions["http_status_code"] = {  # type: ignore
-                f"{error.original_error.request.url}": error.original_error.response.status_code
-            }
-        return format_error(error)
-
-    async def process_result(self, request: Request, result: ExecutionResult) -> GraphQLHTTPResponse:
-        data: GraphQLHTTPResponse = {"data": result.data}
-
-        if result.errors:
-            data["errors"] = [self._format_graphql_error(error) for error in result.errors]
-
-        return data
+OrchestratorGraphqlRouter = GraphQLRouter
 
 
 class OrchestratorSchema(strawberry.federation.Schema):
@@ -173,9 +151,9 @@ def create_graphql_router(
     schema = OrchestratorSchema(
         query=query,
         mutation=mutation,
-        enable_federation_2=app_settings.FEDEREATION_ENABLED,
+        enable_federation_2=app_settings.FEDERATION_ENABLED,
         types=tuple(models.values()),
-        extensions=[ErrorCollectorExtension, make_deprecation_checker_extension(query=query)],
+        extensions=[ErrorHandlerExtension, make_deprecation_checker_extension(query=query)],
         scalar_overrides=SCALAR_OVERRIDES,
     )
 

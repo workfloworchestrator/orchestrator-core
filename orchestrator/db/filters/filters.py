@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 
 from more_itertools import partition
@@ -37,8 +37,8 @@ ValidFilterFunctionsByColumnType = dict[str, Callable[[QueryType, str], QueryTyp
 
 def generic_filters_validate(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[list[Filter]], tuple[Iterator[Filter], Iterator[Filter]]]:
-    def _validate_filters(filter_by: list[Filter]) -> tuple[Iterator[Filter], Iterator[Filter]]:
+) -> Callable[[list[Filter]], tuple[Iterable[Filter], Iterable[Filter]]]:
+    def _validate_filters(filter_by: list[Filter]) -> tuple[Iterable[Filter], Iterable[Filter]]:
         def _is_valid_filter(item: Filter) -> bool:
             return item.field in valid_filter_functions_by_column and item.value is not None
 
@@ -49,27 +49,18 @@ def generic_filters_validate(
 
 def generic_apply_filters(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[QueryType, Iterator[Filter], CallableErrorHandler], QueryType]:
+) -> Callable[[QueryType, Iterable[Filter], CallableErrorHandler], QueryType]:
     def _apply_filters(
-        query: QueryType, filter_by: Iterator[Filter], handle_filter_error: CallableErrorHandler
+        query: QueryType, filter_by: Iterable[Filter], handle_filter_error: CallableErrorHandler
     ) -> QueryType:
         for item in filter_by:
-            field = item.field
-            filter_fn = valid_filter_functions_by_column[field]
+            filter_fn = valid_filter_functions_by_column[item.field]
             try:
                 query = filter_fn(query, item.value)
             except ProblemDetailException as exception:
-                handle_filter_error(
-                    exception.detail,
-                    field=field,
-                    value=item.value,
-                )
+                handle_filter_error(exception.detail, field=item.field, value=item.value)
             except ValueError as exception:
-                handle_filter_error(
-                    str(exception),
-                    field=field,
-                    value=item.value,
-                )
+                handle_filter_error(str(exception), field=item.field, value=item.value)
         return query
 
     return _apply_filters
@@ -78,7 +69,7 @@ def generic_apply_filters(
 def generic_filter(
     valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
 ) -> Callable[[QueryType, list[Filter], CallableErrorHandler], QueryType]:
-    valid_filter_functions_by_column_KEYS = list(valid_filter_functions_by_column.keys())
+    valid_filter_keys = sorted(valid_filter_functions_by_column.keys())
     _validate_filters = generic_filters_validate(valid_filter_functions_by_column)
     _apply_filters = generic_apply_filters(valid_filter_functions_by_column)
 
@@ -88,11 +79,9 @@ def generic_filter(
         handle_filter_error: CallableErrorHandler,
     ) -> QueryType:
         invalid_filter_items, valid_filter_items = _validate_filters(filter_by)
-        if invalid_list := [item.model_dump() for item in invalid_filter_items]:
+        if invalid_list := [item.field for item in invalid_filter_items]:
             handle_filter_error(
-                "Invalid filter arguments",
-                invalid_filters=invalid_list,
-                valid_filter_keys=sorted(valid_filter_functions_by_column_KEYS),
+                "Invalid filter arguments", invalid_filters=invalid_list, valid_filter_keys=valid_filter_keys
             )
 
         return _apply_filters(query, valid_filter_items, handle_filter_error)
