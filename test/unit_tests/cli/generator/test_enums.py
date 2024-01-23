@@ -1,4 +1,4 @@
-from orchestrator.cli.generator.generator.enums import convert_str_enum, convert_int_enum
+from orchestrator.cli.generator.generator.enums import convert_int_enum, convert_str_enum
 
 
 def test_convert_str_enum():
