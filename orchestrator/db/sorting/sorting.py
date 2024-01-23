@@ -101,8 +101,10 @@ def generic_sort(
 
 def generic_column_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
-        if order == SortOrder.DESC:
-            return query.order_by(expression.desc(func.lower(field)))
-        return query.order_by(expression.asc(func.lower(field)))
+        sa_sort = expression.desc if order == SortOrder.DESC else expression.asc
+        if field.type.python_type is str:
+            # Ensure case insensitive sorting
+            return query.order_by(sa_sort(func.lower(field)))
+        return query.order_by(sa_sort(field))
 
     return sort_function
