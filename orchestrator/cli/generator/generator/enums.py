@@ -40,7 +40,7 @@ def convert_enum(field: dict, separator: str = ".") -> dict:
     return (
         field
         | {"type": (enum_type := field["name"].title().replace("_", ""))}
-        | ({"default": enum_type + separator + field["default"]} if has_default(field) else {})
+        | ({"default": enum_type + separator + str(field["default"])} if has_default(field) else {})
     )
 
 
