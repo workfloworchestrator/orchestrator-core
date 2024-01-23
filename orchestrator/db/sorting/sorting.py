@@ -17,7 +17,7 @@ from typing import Callable, Iterator, TypeVar, Union
 import strawberry
 from more_itertools import partition
 from pydantic import BaseModel
-from sqlalchemy import Column, CompoundSelect, Select
+from sqlalchemy import Column, CompoundSelect, Select, func
 from sqlalchemy.sql import expression
 
 from orchestrator.api.error_handling import ProblemDetailException
@@ -114,7 +114,7 @@ def generic_sort(
 def generic_column_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         if order == SortOrder.DESC:
-            return query.order_by(expression.desc(field))
-        return query.order_by(expression.asc(field))
+            return query.order_by(expression.desc(func.lower(field)))
+        return query.order_by(expression.asc(func.lower(field)))
 
     return sort_function
