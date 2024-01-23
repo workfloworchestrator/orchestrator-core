@@ -11,15 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from graphql import GraphQLError
 
 from orchestrator.db.filters import CallableErrorHandler
-from orchestrator.graphql.extensions.error_collector_extension import register_error
+from orchestrator.graphql.extensions.error_handler_extension import register_error
 from orchestrator.graphql.types import OrchestratorInfo
 
 
-def create_resolver_error_handler(info: OrchestratorInfo) -> CallableErrorHandler:
-    def _handle_error(message: str, **kwargs) -> None:  # type: ignore
-        register_error(GraphQLError(message=message, path=info.path, extensions=(kwargs or {})))
+def _format_context(context: dict) -> str:
+    if not context:
+        return ""
+    return "({})".format(" ".join(f"{k}={v}" for k, v in context.items()))
 
-    return _handle_error
+
+def create_resolver_error_handler(info: OrchestratorInfo) -> CallableErrorHandler:
+    def handle_error(message: str, **context) -> None:  # type: ignore
+        return register_error(" ".join([message, _format_context(context)]), info)
+
+    return handle_error
