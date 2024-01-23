@@ -333,7 +333,10 @@ def find_values_for_resource_types(
         select(SubscriptionInstanceValueTable)
         .join(ResourceTypeTable)
         .join(SubscriptionInstanceTable)
-        .filter(ResourceTypeTable.resource_type.in_(resource_types))
+        .filter(
+            SubscriptionInstanceTable.subscription_id == subscription_id,
+            ResourceTypeTable.resource_type.in_(resource_types),
+        )
         .order_by(SubscriptionInstanceTable.subscription_instance_id)
         .with_only_columns(ResourceTypeTable.resource_type, SubscriptionInstanceValueTable.value)
     )
