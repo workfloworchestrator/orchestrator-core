@@ -361,7 +361,7 @@ class TSQueryVisitor:
         return "".join(acc)
 
 
-WhereCondGenerator = Callable[[Node], Union[BinaryExpression | ColumnElement[bool]]]
+WhereCondGenerator = Callable[[Node], Union[BinaryExpression, ColumnElement[bool]]]
 
 
 class SQLAlchemyVisitor:
