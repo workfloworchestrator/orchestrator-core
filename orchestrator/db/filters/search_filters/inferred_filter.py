@@ -12,12 +12,12 @@
 # limitations under the License.
 import uuid
 from datetime import datetime
-from typing import Callable
 
+import sqlalchemy
 from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, String, cast
 from sqlalchemy.sql.functions import coalesce
 
-from orchestrator.utils.search_query import Node
+from orchestrator.utils.search_query import Node, WhereCondGenerator
 
 
 def _phrase_to_ilike_str(phrase_node: Node) -> str:
@@ -36,7 +36,7 @@ def _coalesce_if_nullable(field: ColumnElement) -> ColumnElement:
     return coalesce(field, "") if is_nullable else field
 
 
-def _filter_string(field: ColumnElement) -> Callable[[Node], BinaryExpression]:
+def _filter_string(field: ColumnElement) -> WhereCondGenerator:
     field = _coalesce_if_nullable(field)
 
     def _clause_gen(node: Node) -> BinaryExpression:
@@ -50,25 +50,32 @@ def _filter_string(field: ColumnElement) -> Callable[[Node], BinaryExpression]:
     return _clause_gen
 
 
-def _filter_as_string(field: ColumnClause) -> Callable[[Node], BinaryExpression]:
+def _filter_as_string(field: ColumnClause) -> WhereCondGenerator:
     return _filter_string(cast(field, String))
 
 
-def _value_as_bool(v: str) -> bool:
-    return v.lower() in ("yes", "y", "true", "1")
+def _value_as_bool(v: str) -> bool | None:
+    if v.lower() in ("yes", "y", "true", "1"):
+        return True
+    if v.lower() in ("no", "n", "false", "0"):
+        return False
+    return None
 
 
-def _filter_bool(field: ColumnClause) -> Callable[[Node], BinaryExpression]:
-    def _clause_gen(node: Node) -> BinaryExpression:
+def _filter_bool(field: ColumnClause) -> WhereCondGenerator:
+    def _clause_gen(node: Node) -> BinaryExpression | ColumnElement[bool]:
         if node[0] in ["Phrase", "ValueGroup"]:
-            vals = [_value_as_bool(w[1]) for w in node[1]]  # Only works for (Prefix)Words atm
+            vals = [
+                boolean_val for w in node[1] if (boolean_val := _value_as_bool(w[1]))
+            ]  # Only works for (Prefix)Words atm
             return field.in_(vals)
-        return field.is_(_value_as_bool(node[1]))
+        boolean_val = _value_as_bool(node[1])
+        return field.is_(boolean_val) if boolean_val else sqlalchemy.false()
 
     return _clause_gen
 
 
-def inferred_filter(field: ColumnClause) -> Callable[[Node], BinaryExpression]:
+def inferred_filter(field: ColumnClause) -> WhereCondGenerator:
     python_type = field.type.python_type
     if python_type == str:
         return _filter_string(field)

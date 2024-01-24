@@ -6,7 +6,7 @@ from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union, cas
 import structlog
 from sqlalchemy import (
     BinaryExpression,
-    BooleanClauseList,
+    ColumnElement,
     CompoundSelect,
     Select,
     not_,
@@ -361,7 +361,7 @@ class TSQueryVisitor:
         return "".join(acc)
 
 
-WhereCondGenerator = Callable[[Node], Union[BinaryExpression, BooleanClauseList]]
+WhereCondGenerator = Callable[[Node], Union[BinaryExpression | ColumnElement[bool]]]
 
 
 class SQLAlchemyVisitor:
@@ -376,7 +376,7 @@ class SQLAlchemyVisitor:
     def visit_kv_term(self, stmt: Select, node: Node, is_negated: bool) -> Select:
         key_node, value_node = node[1]
         if key_node[0] == "Word":
-            cond_expr_fn = self.mappings.get(key_node[1])
+            cond_expr_fn = self.mappings.get(camel_to_snake(key_node[1]))
             if not cond_expr_fn:
                 # Non-existing columns will emit `where false`, returning no results
                 return stmt.where()
