@@ -12,6 +12,7 @@
 # limitations under the License.
 import uuid
 from datetime import datetime
+from typing import Optional, Union
 
 import sqlalchemy
 from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, String, cast
@@ -54,7 +55,7 @@ def _filter_as_string(field: ColumnClause) -> WhereCondGenerator:
     return _filter_string(cast(field, String))
 
 
-def _value_as_bool(v: str) -> bool | None:
+def _value_as_bool(v: str) -> Optional[bool]:
     if v.lower() in ("yes", "y", "true", "1"):
         return True
     if v.lower() in ("no", "n", "false", "0"):
@@ -63,7 +64,7 @@ def _value_as_bool(v: str) -> bool | None:
 
 
 def _filter_bool(field: ColumnClause) -> WhereCondGenerator:
-    def _clause_gen(node: Node) -> BinaryExpression | ColumnElement[bool]:
+    def _clause_gen(node: Node) -> Union[BinaryExpression, ColumnElement[bool]]:
         if node[0] in ["Phrase", "ValueGroup"]:
             vals = [
                 boolean_val for w in node[1] if (boolean_val := _value_as_bool(w[1]))
