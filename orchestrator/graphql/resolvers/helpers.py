@@ -11,7 +11,7 @@ def rows_from_statement(
 ) -> Sequence:
     """Helper function to handle some tricky cases with sqlalchemy types."""
     # Tell SQLAlchemy that the rows must be objects of type `base_table`for CompoundSelect
-    rewritten_stmt = select(base_table).from_statement(stmt) if isinstance(stmt, CompoundSelect) else stmt
-    result = db.session.scalars(rewritten_stmt)
+    from_stmt = select(base_table).from_statement(stmt)
+    result = db.session.scalars(from_stmt)
     uresult = result.unique() if unique else result
     return uresult.all()

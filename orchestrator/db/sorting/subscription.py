@@ -24,7 +24,8 @@ SUBSCRIPTION_PRODUCT_SORT = {
 }
 
 subscription_table_sort = {
-    to_camel(key): generic_column_sort(value) for [key, value] in inspect(SubscriptionTable).columns.items()
+    to_camel(key): generic_column_sort(value, SubscriptionTable)
+    for [key, value] in inspect(SubscriptionTable).columns.items()
 }
 
 SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN = (
