@@ -43,7 +43,7 @@ process_fields = [
 def get_processes_query(
     first: int = 10,
     after: int = 0,
-    filter_by: list[str] | None = None,
+    filter_by: list[dict[str, str]] | None = None,
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
 ) -> bytes:
@@ -356,7 +356,6 @@ def test_processes_has_filtering(
 
     data = get_processes_query(**query_args)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
-
     # then
 
     assert HTTPStatus.OK == response.status_code
@@ -431,6 +430,39 @@ def test_processes_filtering_with_invalid_filter(
 
     for process in processes:
         assert process["lastStatus"] == "COMPLETED"
+
+
+@pytest.mark.parametrize(
+    "query_args,num_results",
+    [
+        ({"query_string": "is_task:no"}, 0),
+        ({"query_string": "nonsense"}, 0),
+        ({"query_string": None}, 10),
+        ({"query_string": "one"}, 8),
+        ({"query_string": "two"}, 7),
+    ],
+)
+def test_processes_various_filterings(
+    test_client,
+    mocked_processes,
+    mocked_processes_resumeall,
+    generic_subscription_2,
+    generic_subscription_1,
+    query_args,
+    num_results,
+):
+    # when
+
+    data = get_processes_query(**query_args)
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    processes_data = result["data"]["processes"]
+    processes = processes_data["page"]
+    assert len(processes) == num_results
 
 
 @pytest.mark.parametrize(
