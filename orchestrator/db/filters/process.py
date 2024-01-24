@@ -16,6 +16,7 @@ from http import HTTPStatus
 from uuid import UUID
 
 import structlog
+from sqlalchemy import BinaryExpression, or_, select
 from sqlalchemy.inspection import inspect
 
 from orchestrator.api.error_handling import raise_status
@@ -26,8 +27,9 @@ from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_values_in_column_filter,
 )
-from orchestrator.db.filters.search_filters import default_inferred_column_clauses
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
 from orchestrator.utils.helpers import to_camel
+from orchestrator.utils.search_query import Node
 
 logger = structlog.get_logger(__name__)
 
@@ -131,7 +133,29 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
     }
 )
 
-PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable)
+
+def product_clause(node: Node) -> BinaryExpression:
+    str_val = node_to_str_val(node)
+    process_subscriptions = (
+        select(ProcessSubscriptionTable.process_id)
+        .join(SubscriptionTable)
+        .join(ProductTable)
+        .where(
+            or_(
+                ProductTable.name.ilike(f"%{str_val}%"),
+                ProductTable.tag.ilike(f"%{str_val}%"),
+                ProductTable.description.ilike(f"%{str_val}%"),
+            )
+        )
+        .subquery()
+    )
+    return ProcessTable.process_id.in_(process_subscriptions)
+
+
+PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable) | {
+    "product": product_clause,
+}
+
 
 process_filter_fields = list(PROCESS_FILTER_FUNCTIONS_BY_COLUMN.keys())
 filter_processes = generic_filter(PROCESS_FILTER_FUNCTIONS_BY_COLUMN)
