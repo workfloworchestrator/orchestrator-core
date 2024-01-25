@@ -269,7 +269,7 @@ def status_counts() -> ProcessStatusCounts:
         .with_only_columns(ProcessTable.is_task, ProcessTable.last_status, count(ProcessTable.last_status))
         .group_by(ProcessTable.is_task, ProcessTable.last_status)
     )
-    rows = db.session.scalars(stmt)
+    rows = db.session.execute(stmt).all()
     return ProcessStatusCounts(
         process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
         task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},
