@@ -43,9 +43,9 @@ process_fields = [
 def get_processes_query(
     first: int = 10,
     after: int = 0,
-    filter_by: Optional[list[str]] = None,
-    sort_by: Optional[list[dict[str, str]]] = None,
-    query_string: Optional[str] = None,
+    filter_by: list[str] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
 ) -> bytes:
     query = """
 query ProcessQuery($first: Int!, $after: Int!, $sortBy: [GraphqlSort!], $filterBy: [GraphqlFilter!], $query: String) {
