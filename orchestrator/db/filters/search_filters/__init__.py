@@ -5,13 +5,8 @@ from orchestrator.db.filters.search_filters.inferred_filter import inferred_filt
 
 __all__ = ["inferred_filter", "default_inferred_column_clauses", "node_to_str_val"]
 
-from orchestrator.utils.helpers import to_camel
 from orchestrator.utils.search_query import WhereCondGenerator
 
 
 def default_inferred_column_clauses(table: type[BaseModel]) -> dict[str, WhereCondGenerator]:
-    return {
-        k: inferred_filter(column)
-        for key, column in getattr(inspect(table), "columns", {}).items()
-        for k in [key, to_camel(key)]
-    }
+    return {key: inferred_filter(column) for key, column in getattr(inspect(table), "columns", {}).items()}
