@@ -2,7 +2,7 @@ from typing import Optional, Union
 
 import structlog
 from sqlalchemy import func, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
@@ -35,7 +35,7 @@ async def resolve_workflows(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_workflows() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    select_stmt = WorkflowTable.select().options(joinedload(WorkflowTable.products))
+    select_stmt = WorkflowTable.select().options(selectinload(WorkflowTable.products))
     select_stmt = filter_workflows(select_stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:
