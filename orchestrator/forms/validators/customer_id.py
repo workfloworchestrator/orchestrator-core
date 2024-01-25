@@ -14,4 +14,4 @@ from typing import Annotated
 
 from pydantic import Field
 
-CustomerId = Annotated[str, Field(json_schema_extra={"format": "CustomerId"})]
+CustomerId = Annotated[str, Field(json_schema_extra={"format": "customerId"})]

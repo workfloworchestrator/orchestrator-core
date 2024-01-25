@@ -13,7 +13,6 @@
 from typing import Annotated, Generator, Optional, TypeVar
 from uuid import UUID
 
-from deprecated import deprecated
 from pydantic import BeforeValidator, Field, conlist
 
 from pydantic_forms.validators.components.contact_person import ContactPerson
@@ -31,28 +30,10 @@ def customer_contact_list(
     def json_schema_extra() -> Generator:
         if customer:
             yield "customerId", customer
+            yield "organisationId", customer
         if customer_key:
             yield "customerKey", customer_key
-
-    return Annotated[  # type: ignore
-        conlist(ContactPerson, min_length=min_items, max_length=max_items),
-        BeforeValidator(remove_empty_items),
-        Field(json_schema_extra=dict(json_schema_extra())),
-    ]
-
-
-@deprecated("Changed to 'customer_contact_list' with customerId and customerKey")
-def organisation_contact_list(
-    organisation: Optional[UUID] = None,
-    organisation_key: Optional[str] = "organisation",
-    min_items: Optional[int] = None,
-    max_items: Optional[int] = None,
-) -> type[list[T]]:
-    def json_schema_extra() -> Generator:
-        if organisation:
-            yield "organisationId", organisation
-        if organisation_key:
-            yield "organisationKey", organisation_key
+            yield "organisationKey", customer_key
 
     return Annotated[  # type: ignore
         conlist(ContactPerson, min_length=min_items, max_length=max_items),
