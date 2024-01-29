@@ -20,6 +20,8 @@ import structlog
 from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import (
+    get_fields,
+    get_name_spaced_types_to_import,
     get_product_file_name,
     get_product_types_module,
     get_workflow,
@@ -150,6 +152,8 @@ def generate_workflow(f: Callable | None = None, workflow: str | None = None) ->
 @generate_workflow(workflow="create")
 def generate_create_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     product_block = root_product_block(config)
+    types_to_import = get_name_spaced_types_to_import(product_block["fields"])
+    fields = get_fields(product_block)
     validations, validation_imports = get_validations(config)
 
     template = environment.get_template("create_product.j2")
@@ -159,6 +163,8 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
         validations=validations,
         validation_imports=validation_imports,
         product_types_module=get_product_types_module(),
+        types_to_import=types_to_import,
+        fields=fields,
     )
 
     path = get_product_workflow_path(config, "create")
@@ -169,6 +175,8 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
 @generate_workflow(workflow="modify")
 def generate_modify_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     product_block = root_product_block(config)
+    types_to_import = get_name_spaced_types_to_import(product_block["fields"])
+    fields = get_fields(product_block)
     validations, validation_imports = get_validations_for_modify(config)
 
     template = environment.get_template("modify_product.j2")
@@ -178,6 +186,8 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
         validations=validations,
         validation_imports=validation_imports,
         product_types_module=get_product_types_module(),
+        types_to_import=types_to_import,
+        fields=fields,
     )
 
     path = get_product_workflow_path(config, "modify")

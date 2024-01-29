@@ -14,6 +14,9 @@ from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 
+{%- for namespace, type in types_to_import %}
+from {{ namespace }} import {{ type }}
+{%- endfor %}
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
 {%-if validation_imports %}
 from workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
@@ -41,7 +44,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         label_{{ product.variable }}_settings: Label
         divider_1: Divider
 
-        {% for field in product_block.fields -%}
+        {% for field in fields -%}
         {% if field.type not in existing_product_blocks -%}
         {{ field.name }}: {{ required(field, field.type, ["inactive"]) }}{% if field.default is defined %} = {{field.default}}{% endif %}
         {%- endif %}
@@ -55,7 +58,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield Create{{ product.type }}Form
     user_input_dict = user_input.dict()
     {% if product.config.summary_forms %}
-    summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
+    summary_fields = [{% for field in fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
     {%- endif %}
 
@@ -66,7 +69,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 def construct_{{ product.variable }}_model(
     product: UUIDstr,
     customer_id: UUIDstr,
-    {% for field in product_block.fields -%}
+    {% for field in fields -%}
     {% if field.type not in existing_product_blocks -%}
     {{ field.name }}: {{ required(field, field.type, ["inactive"]) }},
     {%- endif %}
@@ -78,7 +81,7 @@ def construct_{{ product.variable }}_model(
         status=SubscriptionLifecycle.INITIAL,
     )
 
-    {%- for field in product_block.fields %}
+    {%- for field in fields %}
     {{ product.variable }}.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
     {%- endfor %}
 

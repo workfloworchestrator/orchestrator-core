@@ -17,7 +17,7 @@ import structlog
 from more_itertools import first, one
 
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
-from orchestrator.utils.helpers import camel_to_snake
+from orchestrator.utils.helpers import camel_to_snake, snake_to_camel
 
 logger = structlog.getLogger(__name__)
 
@@ -82,3 +82,37 @@ def create_dunder_init_files(path: Path) -> None:
             if not (dunder_init_file := folder / Path("__init__.py")).exists():
                 logger.info("creating missing dunder init", path=str(dunder_init_file))
                 open(dunder_init_file, "x").close()
+
+
+def is_constrained_int(field: dict) -> bool:
+    return "min_value" in field or "max_value" in field
+
+
+def is_name_spaced_field_type(field: dict) -> bool:
+    return "." in field["type"]
+
+
+def name_space_get_type(name_spaced_type: str) -> str:
+    return name_spaced_type.split(".")[-1]
+
+
+def get_fields(product_block: dict) -> list[dict]:
+    def to_type(field: dict) -> dict:
+        if is_constrained_int(field):
+            return field | {"type": snake_to_camel(field["name"])}
+
+        if is_name_spaced_field_type(field):
+            return field | {"type": name_space_get_type(field["type"])}
+
+        return field
+
+    return [to_type(field) for field in product_block["fields"]]
+
+
+def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
+    # NOTE: we could make this smarter by grouping imports from the namespace, but isort will handle this for us
+    def name_space_split(field: dict) -> tuple[str, str]:
+        *namespace, type = field["type"].split(".")
+        return ".".join(namespace), type
+
+    return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]

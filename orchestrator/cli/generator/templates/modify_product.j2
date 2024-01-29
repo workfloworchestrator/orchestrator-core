@@ -13,6 +13,9 @@ from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import modify_workflow
 from orchestrator.workflows.steps import set_status
 
+{%- for namespace, type in types_to_import %}
+from {{ namespace }} import {{ type }}
+{%- endfor %}
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
 {% if validation_imports -%}
 from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
@@ -39,11 +42,11 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
         divider_1: Divider
 
-        {% for field in product_block.fields if not field.modifiable is defined -%}
+        {% for field in fields if not field.modifiable is defined -%}
         {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = ReadOnlyField({{ product_block.name }}.{{ field.name }})
         {% endfor -%}
 
-        {% for field in product_block.fields if field.modifiable is defined -%}
+        {% for field in fields if field.modifiable is defined -%}
         {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = {{ product_block.name }}.{{ field.name }}
         {% endfor -%}
 
@@ -54,7 +57,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     user_input = yield Modify{{ product.type }}Form
     user_input_dict = user_input.dict()
     {% if product.config.summary_forms %}
-    summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
+    summary_fields = [{% for field in fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
     yield from modify_summary_form(user_input_dict, subscription.{{ product_block.name }}, summary_fields)
     {%- endif %}
 
@@ -64,13 +67,13 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 @step("Update subscription")
 def update_subscription(
     subscription: {{ product.type }}Provisioning,
-    {% for field in product_block.fields if field.modifiable is defined -%}
+    {% for field in fields if field.modifiable is defined -%}
     {% if field.type not in existing_product_blocks -%}
     {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }},
     {%- endif %}
     {% endfor -%}) -> State:
     # TODO: get all modified fields
-    {% for field in product_block.fields if field.modifiable is defined -%}
+    {% for field in fields if field.modifiable is defined -%}
     subscription.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
     {% endfor %}
     return {"subscription": subscription}
