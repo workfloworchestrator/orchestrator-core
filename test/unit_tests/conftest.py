@@ -24,6 +24,7 @@ from orchestrator.db import (
     ProductTable,
     ResourceTypeTable,
     SubscriptionCustomerDescriptionTable,
+    SubscriptionMetadataTable,
     WorkflowTable,
     db,
 )
@@ -564,6 +565,11 @@ def product_type_1_subscription_factory(generic_product_1, generic_product_type_
         gen_subscription.description = description
         gen_subscription.start_date = start_date
         gen_subscription.save()
+
+        gen_subscription_metadata = SubscriptionMetadataTable()
+        gen_subscription_metadata.subscription_id = gen_subscription.subscription_id
+        gen_subscription_metadata.metadata_ = {"description": "Some metadata description"}
+        db.session.add(gen_subscription_metadata)
         db.session.commit()
         return str(gen_subscription.subscription_id)
 

@@ -1089,3 +1089,15 @@ def test_subscriptions_search(query, num_matches, seed, test_client, refresh_sub
     response = test_client.get(f"/api/subscriptions/search?query={query}")
     result = response.json()
     assert len(result) == num_matches
+
+
+def test_get_subscription_metadata(test_client, generic_subscription_1):
+    response = test_client.get(f"/api/subscriptions/{generic_subscription_1}/metadata")
+    result = response.json()
+    assert result == {"description": "Some metadata description"}
+
+
+def test_get_subscription_metadata_empty(test_client, generic_subscription_2):
+    response = test_client.get(f"/api/subscriptions/{generic_subscription_2}/metadata")
+    result = response.json()
+    assert result is None

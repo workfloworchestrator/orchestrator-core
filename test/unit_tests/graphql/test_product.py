@@ -169,8 +169,8 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
         ({"query_string": "tag:gen1"}, 1, 1),
         ({"query_string": "tag:gen2"}, 1, 1),
         ({"query_string": "tag:sub"}, 2, 2),
-        ({"query_string": "tag:unionsub"}, 1, 1),
-        ({"query_string": "tag:gen3"}, 1, 1),
+        ({"query_string": 'tag:"unionsub"'}, 1, 1),
+        ({"query_string": "tag:(gen1|gen3)"}, 2, 2),
     ],
 )
 def test_product_query(
