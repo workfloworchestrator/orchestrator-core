@@ -2,7 +2,7 @@
 
 {% from 'macros.j2' import required with context -%}
 
-from pydantic_forms.core import ReadOnlyField
+from pydantic_forms.validators import ReadOnlyField
 
 import structlog
 
@@ -46,7 +46,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         divider_1: Divider
 
         {% for field in fields if not field.modifiable is defined -%}
-        {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = ReadOnlyField({{ product_block.name }}.{{ field.name }})
+        {{ field.name }}: ReadOnlyField({{ product_block.name }}.{{ field.name }})
         {% endfor -%}
 
         {% for field in fields if field.modifiable is defined -%}
