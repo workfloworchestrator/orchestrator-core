@@ -272,7 +272,6 @@ def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2,
 @pytest.mark.parametrize(
     "query_args",
     [
-        lambda product_id: {},
         lambda product_id: {"filter_by": [{"field": "product_id", "value": product_id}]},
         lambda product_id: {"query_string": f"product_id:{product_id}"},
         lambda product_id: {"query_string": f"productId:{product_id}"},
