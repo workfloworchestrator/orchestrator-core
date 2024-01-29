@@ -55,10 +55,10 @@ The domain model is then returned as part of the `subscription` object along wit
 ```python
 @step("Construct Node Enrollment model")
 def construct_node_enrollment_model(
-    product: UUIDstr, customer: UUIDstr, esdb_node_id: int, select_node: str, url: str, uuid: str, role_id: str
+    product: UUIDstr, customer_id: UUIDstr, esdb_node_id: int, select_node: str, url: str, uuid: str, role_id: str
 ) -> State:
     subscription = NodeEnrollmentInactive.from_product_id(
-        product_id=product, customer_id=customer, status=SubscriptionLifecycle.INITIAL
+        product_id=product, customer_id=customer_id, status=SubscriptionLifecycle.INITIAL
     )
 
     subscription.ne.esdb_node_id = esdb_node_id

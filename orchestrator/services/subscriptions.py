@@ -210,11 +210,13 @@ def terminate_subscription(subscription_id: UUIDstr) -> SubscriptionTable:
     return update_subscription(subscription_id, status="terminated", end_date=nowtz())
 
 
-def create_subscription(customer: str, product: ProductTable, subscription_name: str, subscription_id: UUIDstr) -> UUID:
+def create_subscription(
+    customer_id: str, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
+) -> UUID:
     subscription = SubscriptionTable(
         subscription_id=subscription_id,
         product_id=product.product_id,
-        customer_id=customer,
+        customer_id=customer_id,
         description=subscription_name,
         start_date=None,
         end_date=None,

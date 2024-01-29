@@ -83,7 +83,7 @@ user_input
 └───────────────────────────┘
 </pre>
 
-And for the modify and terminate workflows the `product` ID, `customer`
+And for the modify and terminate workflows the `product` ID, `customer_id`
 ID and
 `subscription_id` are added to the `State`
 
@@ -93,7 +93,7 @@ ID and
 └─────────────┬─────────────┘
 │
 product
-customer
+customer_id
 subscription_id
 │
 ┌─────────────▼─────────────┐
@@ -101,7 +101,7 @@ subscription_id
 └─────────────┬─────────────┘
 │
 product
-customer
+customer_id
 subscription_id
 user_input
 │

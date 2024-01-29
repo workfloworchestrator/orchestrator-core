@@ -22,15 +22,15 @@ T = TypeVar("T")  # pragma: no mutate
 
 
 def customer_contact_list(
-    customer: Optional[UUID] = None,
+    customer_id: Optional[UUID] = None,
     customer_key: Optional[str] = "customer",
     min_items: Optional[int] = None,
     max_items: Optional[int] = None,
 ) -> type[list[T]]:
     def json_schema_extra() -> Generator:
-        if customer:
-            yield "customerId", customer
-            yield "organisationId", customer
+        if customer_id:
+            yield "customerId", customer_id
+            yield "organisationId", customer_id
         if customer_key:
             yield "customerKey", customer_key
             yield "organisationKey", customer_key

@@ -59,7 +59,7 @@ def show_process(process: ProcessTable, pStat: ProcessStat) -> dict:
         "workflow": process.workflow_name,
         "workflow_name": process.workflow_name,
         "product": product_id,
-        "customer": customer_id,
+        "customer_id": customer_id,
         "assignee": process.assignee,
         "status": process.last_status,
         "last_status": process.last_status,  # list and single get differentiate with this value and the above.

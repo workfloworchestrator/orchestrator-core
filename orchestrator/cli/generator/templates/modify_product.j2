@@ -34,7 +34,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     # TODO fill in additional fields if needed
 
     class Modify{{ product.type }}Form(FormPage):
-        customer: CustomerId = subscription.customer_id  # type: ignore
+        customer_id: CustomerId = subscription.customer_id  # type: ignore
 {% include "additional_modify_input_fields.j2" ignore missing %}
 
         divider_1: Divider

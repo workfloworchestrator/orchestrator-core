@@ -35,7 +35,7 @@ def initial_input_form_generator(product_name: str, product: UUIDstr) -> FormGen
     class CreateTestProductForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        customer: CustomerId
+        customer_id: CustomerId
 
         an_int: int
         a_str: str
@@ -52,7 +52,7 @@ def initial_input_form_generator(product_name: str, product: UUIDstr) -> FormGen
 @step("Construct Subscription model")
 def construct_subscription_model(
     product: UUIDstr,
-    customer: UUIDstr,
+    customer_id: UUIDstr,
     an_int: int,
     a_str: str,
     a_bool: bool,
@@ -62,7 +62,7 @@ def construct_subscription_model(
 ) -> State:
     test_product = TestProductInactive.from_product_id(
         product_id=product,
-        customer_id=customer,
+        customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
     )
     test_product.testproduct.an_int = an_int

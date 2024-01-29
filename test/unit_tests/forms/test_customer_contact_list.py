@@ -27,15 +27,15 @@ def test_customer_contact_list():
 
 
 def test_customer_contact_list_schema():
-    customer = uuid4()
-    customer_str = str(customer)
+    customer_id = uuid4()
+    customer_id_str = str(customer_id)
 
-    CustomerContactList = customer_contact_list(customer, "key", min_items=1)
+    CustomerContactList = customer_contact_list(customer_id, "key", min_items=1)
 
     class Form(FormPage):
         customer_contacts: customer_contact_list()
         customer_contacts_customer: CustomerContactList
-        customer_contacts_customer2: customer_contact_list(customer, "foo")  # noqa: F821
+        customer_contacts_customer2: customer_contact_list(customer_id, "foo")  # noqa: F821
 
     expected = {
         "$defs": {
@@ -60,20 +60,20 @@ def test_customer_contact_list_schema():
                 "type": "array",
             },
             "customer_contacts_customer": {
-                "customerId": customer_str,
+                "customerId": customer_id_str,
                 "customerKey": "key",
                 "items": {"$ref": "#/$defs/ContactPerson"},
                 "minItems": 1,
-                "organisationId": customer_str,
+                "organisationId": customer_id_str,
                 "organisationKey": "key",
                 "title": "Customer Contacts Customer",
                 "type": "array",
             },
             "customer_contacts_customer2": {
-                "customerId": customer_str,
+                "customerId": customer_id_str,
                 "customerKey": "foo",
                 "items": {"$ref": "#/$defs/ContactPerson"},
-                "organisationId": customer_str,
+                "organisationId": customer_id_str,
                 "organisationKey": "foo",
                 "title": "Customer Contacts Customer2",
                 "type": "array",
@@ -89,10 +89,10 @@ def test_customer_contact_list_schema():
 
 @pytest.fixture(name="Form")
 def form_with_customer_contact_list():
-    customer = uuid4()
+    customer_id = uuid4()
 
     ReqContactList = customer_contact_list(min_items=1)
-    CustomerContactList = customer_contact_list(customer=customer, customer_key="key")
+    CustomerContactList = customer_contact_list(customer_id=customer_id, customer_key="key")
 
     class Form(FormPage):
         customer_contacts: ReqContactList
