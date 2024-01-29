@@ -1,6 +1,9 @@
 import pytest
+from sqlalchemy import Column, Integer, String, select
 
-from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor
+from orchestrator.db.database import BaseModel
+from orchestrator.db.helpers import to_sql_string
+from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
 
 
 def _parse_tree_and_tsquery(q: str) -> tuple[tuple, str]:
@@ -45,14 +48,13 @@ def test_parse_query_with_phrase():
         ("a )", "Right paren before left paren"),
         ('tag:""', "Empty Value in KVTerm"),
         ("tag:()", "Empty ValueGroup in KVTerm"),
+        ("tag:(a | *b(", "Unexpected token in ValueGroup"),
         ('this "is unbalanced', "Missing closing quote"),
         ("a (unclosed group", "Missing closing parenthesis"),
     ],
 )
 def test_parse_errors(query, msg):
-    with pytest.raises(
-        ParseError,
-    ):
+    with pytest.raises(ParseError):
         _parse_tree_and_tsquery(query)
 
 
@@ -102,3 +104,28 @@ def test_query_kv_camelcasing():
     q = "productTag:myTag"
     q2 = "product_tag:myTag"
     assert _parse_tree_and_tsquery(q)[1] == _parse_tree_and_tsquery(q2)[1]
+
+
+@pytest.mark.parametrize(
+    "search_query,substrings",
+    [
+        ("name:Bob", ["WHERE my_table.name LIKE 'bob'"]),
+        ("empty:column", ["WHERE false"]),
+        ("bob| joe", ["WHERE my_table.name LIKE 'bob'", "UNION SELECT", "WHERE my_table.name LIKE 'joe'"]),
+        ("(bob) | -(joe)", ["WHERE my_table.name LIKE 'bob'", "UNION SELECT", "WHERE my_table.name LIKE 'joe'"]),
+        ("-(joe)", ["WITH", "LEFT OUTER JOIN", ".id IS NULL"]),
+    ],
+)
+def test_sqlalchemy_visitor(search_query, substrings):
+    class MyTable(BaseModel):
+        __tablename__ = "my_table"
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+
+    mappings = {"name": lambda node: MyTable.name.like(node[1].lower())}
+    stmt = select(MyTable)
+    stmt = create_sqlalchemy_select(stmt, search_query, mappings, MyTable, MyTable.id)
+    for substring in substrings:
+        assert substring in to_sql_string(stmt)
+
+    MyTable.metadata.clear()
