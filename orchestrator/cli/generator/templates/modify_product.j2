@@ -23,8 +23,8 @@ from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imp
 {% if product.config.summary_forms -%}
 from workflows.shared import modify_summary_form
 {%- endif %}
-{% if constrained_ints_to_import -%}
-from {{ product_blocks_module }}.{{ product_block.variable }} import {{ constrained_ints_to_import | map(attribute='type') | join(", ") }}
+{% if product_block_types -%}
+from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}
 {%- endif %}
 
 {% include 'additional_modify_imports.j2' %}

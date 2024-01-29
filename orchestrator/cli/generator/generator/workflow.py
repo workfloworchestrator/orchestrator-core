@@ -19,6 +19,7 @@ from typing import Any
 import structlog
 from jinja2 import Environment
 
+from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
     get_fields,
     get_name_spaced_types_to_import,
@@ -157,7 +158,9 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
     validations, validation_imports = get_validations(config)
-    constrained_ints_to_import = [field for field in fields if is_constrained_int(field)]
+    constrained_ints = [field for field in fields if is_constrained_int(field)]
+    int_enums = get_int_enums(fields)
+    str_enums = get_str_enums(fields)
 
     template = environment.get_template("create_product.j2")
     content = template.render(
@@ -168,8 +171,8 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         types_to_import=types_to_import,
-        fields=fields,
-        constrained_ints_to_import=constrained_ints_to_import,
+        fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
+        product_block_types=constrained_ints + int_enums + str_enums,
     )
 
     path = get_product_workflow_path(config, "create")
@@ -183,7 +186,9 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
     validations, validation_imports = get_validations_for_modify(config)
-    constrained_ints_to_import = [field for field in fields if is_constrained_int(field)]
+    constrained_ints = [field for field in fields if is_constrained_int(field)]
+    int_enums = get_int_enums(fields)
+    str_enums = get_str_enums(fields)
 
     template = environment.get_template("modify_product.j2")
     content = template.render(
@@ -194,8 +199,8 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         types_to_import=types_to_import,
-        fields=fields,
-        constrained_ints_to_import=constrained_ints_to_import,
+        fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
+        product_block_types=constrained_ints + int_enums + str_enums,
     )
 
     path = get_product_workflow_path(config, "modify")
