@@ -8,7 +8,7 @@ def test_customer_id_schema():
 
     expected = {
         "additionalProperties": False,
-        "properties": {"customer_id": {"format": "CustomerId", "title": "Customer Id", "type": "string"}},
+        "properties": {"customer_id": {"format": "customerId", "title": "Customer Id", "type": "string"}},
         "required": ["customer_id"],
         "title": "unknown",
         "type": "object",

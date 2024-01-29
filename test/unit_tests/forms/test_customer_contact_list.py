@@ -11,14 +11,14 @@ def test_customer_contact_list():
     ContactPersonList = customer_contact_list()
 
     class Form(FormPage):
-        contact_persons: ContactPersonList
+        customer_contacts: ContactPersonList
 
     validated_data = Form(
-        contact_persons=[{"name": "test1", "email": "a@b.nl", "phone": ""}, {"name": "test2", "email": "a@b.nl"}]
+        customer_contacts=[{"name": "test1", "email": "a@b.nl", "phone": ""}, {"name": "test2", "email": "a@b.nl"}]
     ).model_dump()
 
     expected = {
-        "contact_persons": [
+        "customer_contacts": [
             {"email": "a@b.nl", "name": "test1", "phone": ""},
             {"email": "a@b.nl", "name": "test2", "phone": ""},
         ]
@@ -28,13 +28,14 @@ def test_customer_contact_list():
 
 def test_customer_contact_list_schema():
     customer = uuid4()
+    customer_str = str(customer)
 
     CustomerContactList = customer_contact_list(customer, "key", min_items=1)
 
     class Form(FormPage):
-        contact_persons: customer_contact_list()
-        contact_persons_customer: CustomerContactList
-        contact_persons_customer2: customer_contact_list(customer, "foo")  # noqa: F821
+        customer_contacts: customer_contact_list()
+        customer_contacts_customer: CustomerContactList
+        customer_contacts_customer2: customer_contact_list(customer, "foo")  # noqa: F821
 
     expected = {
         "$defs": {
@@ -51,37 +52,34 @@ def test_customer_contact_list_schema():
         },
         "additionalProperties": False,
         "properties": {
-            "contact_persons": {
+            "customer_contacts": {
                 "customerKey": "customer",
-                "description": "organisationId and organisationKey attributes will be removed, switch to customer and customer_key",
                 "items": {"$ref": "#/$defs/ContactPerson"},
                 "organisationKey": "customer",
                 "title": "Customer Contacts",
                 "type": "array",
             },
-            "contact_persons_customer": {
-                "customerId": "9ee269f6-aa7e-4810-a144-282feb3e5569",
+            "customer_contacts_customer": {
+                "customerId": customer_str,
                 "customerKey": "key",
-                "description": "organisationId and organisationKey attributes will be removed, switch to customer and customer_key",
                 "items": {"$ref": "#/$defs/ContactPerson"},
                 "minItems": 1,
-                "organisationId": "9ee269f6-aa7e-4810-a144-282feb3e5569",
+                "organisationId": customer_str,
                 "organisationKey": "key",
                 "title": "Customer Contacts Customer",
                 "type": "array",
             },
-            "contact_persons_customer2": {
-                "customerId": "9ee269f6-aa7e-4810-a144-282feb3e5569",
+            "customer_contacts_customer2": {
+                "customerId": customer_str,
                 "customerKey": "foo",
-                "description": "organisationId and organisationKey attributes will be removed, switch to customer and customer_key",
                 "items": {"$ref": "#/$defs/ContactPerson"},
-                "organisationId": "9ee269f6-aa7e-4810-a144-282feb3e5569",
+                "organisationId": customer_str,
                 "organisationKey": "foo",
                 "title": "Customer Contacts Customer2",
                 "type": "array",
             },
         },
-        "required": ["contact_persons", "contact_persons_customer", "contact_persons_customer2"],
+        "required": ["customer_contacts", "customer_contacts_customer", "customer_contacts_customer2"],
         "title": "unknown",
         "type": "object",
     }
@@ -97,27 +95,27 @@ def form_with_customer_contact_list():
     CustomerContactList = customer_contact_list(customer=customer, customer_key="key")
 
     class Form(FormPage):
-        contact_persons: ReqContactList
-        contact_persons_customer: CustomerContactList = []
+        customer_contacts: ReqContactList
+        customer_contacts_customer: CustomerContactList = []
 
     return Form
 
 
 def test_customer_contact_list_nok_invalid_email(Form):
     with pytest.raises(ValidationError) as error_info:
-        Form(contact_persons=[{"name": "test1", "email": "a@b"}, {"email": "a@b.nl"}])
+        Form(customer_contacts=[{"name": "test1", "email": "a@b"}, {"email": "a@b.nl"}])
 
     errors = error_info.value.errors(include_url=False, include_context=False)
     expected = [
         {
             "input": "a@b",
-            "loc": ("contact_persons", 0, "email"),
+            "loc": ("customer_contacts", 0, "email"),
             "msg": "value is not a valid email address: The part after the @-sign is not valid. It should have a period.",
             "type": "value_error",
         },
         {
             "input": {"email": "a@b.nl"},
-            "loc": ("contact_persons", 1, "name"),
+            "loc": ("customer_contacts", 1, "name"),
             "msg": "Field required",
             "type": "missing",
         },
@@ -127,13 +125,13 @@ def test_customer_contact_list_nok_invalid_email(Form):
 
 def test_customer_contact_list_nok_empty(Form):
     with pytest.raises(ValidationError) as error_info:
-        Form(contact_persons=[])
+        Form(customer_contacts=[])
 
     errors = error_info.value.errors(include_url=False)
     expected = [
         {
             "input": [],
-            "loc": ("contact_persons",),
+            "loc": ("customer_contacts",),
             "msg": "List should have at least 1 item after validation, not 0",
             "type": "too_short",
             "ctx": {"actual_length": 0, "field_type": "List", "min_length": 1},

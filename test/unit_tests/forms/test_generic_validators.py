@@ -62,7 +62,7 @@ def stringify_exceptions(error_list):
     return list_copy
 
 
-@mock.patch("orchestrator.forms.validators.get_product_by_id")
+@mock.patch("orchestrator.forms.validators.product_id.get_product_by_id")
 def test_product_id_nok(mock_get_product_by_id):
     product_x_id = uuid4()
     product_y_id = uuid4()
