@@ -11,12 +11,12 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import computed_field
 
-{% for namespace, type in types_to_import %}
+{%- for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
 {%- endfor %}
 {% for module, type in product_blocks_to_import -%}
 from {{ module }} import {{ type }}BlockInactive, {{ type }}BlockProvisioning, {{ type }}Block
-{% endfor -%}
+{% endfor %}
 
 {% include "enums.j2" %}
 {% include "list_definitions.j2" %}

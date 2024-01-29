@@ -1,19 +1,15 @@
 {# Product definition -#}
 
-{% if int_enums -%}
-from enum import IntEnum
-{% endif -%}
+from enum import IntEnum, StrEnum
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-{%- if str_enums %}, strEnum{% endif %}
 
 {% for pb in product_blocks -%}
-from {{ product_blocks_module }}.{{ pb.variable }} import (
-    {{ pb.type }}Block,
-    {{ pb.type }}BlockInactive,
-    {{ pb.type }}BlockProvisioning,
-)
+from {{ product_blocks_module }}.{{ pb.variable }} import
+    {{- " "}}{{ pb.type }}Block
+    {{- ", "}}{{- pb.type }}BlockInactive
+    {{- ", "}}{{- pb.type }}BlockProvisioning
 {% endfor %}
 
 {% include "enums.j2" %}
