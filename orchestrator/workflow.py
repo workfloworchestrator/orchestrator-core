@@ -78,8 +78,7 @@ class Step(Protocol):
     form: InputFormGenerator | None
     assignee: Assignee | None
 
-    def __call__(self, state: State) -> Process:
-        ...
+    def __call__(self, state: State) -> Process: ...
 
 
 @runtime_checkable
@@ -92,8 +91,7 @@ class Workflow(Protocol):
     target: Target
     steps: StepList
 
-    def __call__(self) -> NoReturn:
-        ...
+    def __call__(self) -> NoReturn: ...
 
 
 def make_step_function(
@@ -132,12 +130,10 @@ class StepList(list[Step]):
         return StepList(map(f, self))
 
     @overload  # type: ignore
-    def __getitem__(self, i: int) -> Step:
-        ...
+    def __getitem__(self, i: int) -> Step: ...
 
     @overload
-    def __getitem__(self, i: slice) -> StepList:
-        ...
+    def __getitem__(self, i: slice) -> StepList: ...
 
     def __getitem__(self, i: int | slice) -> Step | StepList:
         retval: Step | list[Step] = super().__getitem__(i)

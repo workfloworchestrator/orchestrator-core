@@ -53,15 +53,13 @@ T = TypeVar("T", bound=SubscriptionTable)
 
 
 @overload
-def get_subscription(subscription_id: UUID | UUIDstr, for_update: bool = False) -> SubscriptionTable:
-    ...
+def get_subscription(subscription_id: UUID | UUIDstr, for_update: bool = False) -> SubscriptionTable: ...
 
 
 @overload
 def get_subscription(
     subscription_id: UUID | UUIDstr, for_update: bool = False, model: type[T] = SubscriptionTable
-) -> T:
-    ...
+) -> T: ...
 
 
 def get_subscription(

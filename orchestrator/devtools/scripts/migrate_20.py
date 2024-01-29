@@ -2,6 +2,7 @@
 
 Refer to the 2.0 migration guide documentation for background.
 """
+
 import re
 import sys
 from pathlib import Path
