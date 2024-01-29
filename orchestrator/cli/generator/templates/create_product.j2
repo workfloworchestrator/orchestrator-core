@@ -24,6 +24,9 @@ from workflows.{{ product.variable }}.shared.forms import {{ validation_imports 
 {% if product.config.summary_forms -%}
 from workflows.shared import create_summary_form
 {%- endif %}
+{% if constrained_ints_to_import -%}
+from {{ product_blocks_module }}.{{ product_block.variable }} import {{ constrained_ints_to_import | map(attribute='type') | join(", ") }}
+{%- endif %}
 
 {% include 'additional_create_imports.j2' %}
 

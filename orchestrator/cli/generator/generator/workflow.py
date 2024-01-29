@@ -22,9 +22,11 @@ from jinja2 import Environment
 from orchestrator.cli.generator.generator.helpers import (
     get_fields,
     get_name_spaced_types_to_import,
+    get_product_blocks_module,
     get_product_file_name,
     get_product_types_module,
     get_workflow,
+    is_constrained_int,
     root_product_block,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
@@ -155,6 +157,7 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
     validations, validation_imports = get_validations(config)
+    constrained_ints_to_import = [field for field in fields if is_constrained_int(field)]
 
     template = environment.get_template("create_product.j2")
     content = template.render(
@@ -162,9 +165,11 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
         product_block=product_block,
         validations=validations,
         validation_imports=validation_imports,
+        product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         types_to_import=types_to_import,
         fields=fields,
+        constrained_ints_to_import=constrained_ints_to_import,
     )
 
     path = get_product_workflow_path(config, "create")
@@ -178,6 +183,7 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
     validations, validation_imports = get_validations_for_modify(config)
+    constrained_ints_to_import = [field for field in fields if is_constrained_int(field)]
 
     template = environment.get_template("modify_product.j2")
     content = template.render(
@@ -185,9 +191,11 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
         product_block=product_block,
         validations=validations,
         validation_imports=validation_imports,
+        product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         types_to_import=types_to_import,
         fields=fields,
+        constrained_ints_to_import=constrained_ints_to_import,
     )
 
     path = get_product_workflow_path(config, "modify")

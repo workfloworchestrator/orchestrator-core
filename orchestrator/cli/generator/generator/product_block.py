@@ -24,7 +24,11 @@ import structlog
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
+    get_fields,
+    get_name_spaced_types_to_import,
     get_product_block_file_name,
+    get_product_blocks_folder,
+    is_constrained_int,
     path_to_module,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
@@ -71,10 +75,6 @@ def get_product_blocks_to_import(label: str, fields: list, existing_product_bloc
     return [
         (module, field[label]) for field in fields if (module := existing_product_blocks.get(f"{field[label]}Block"))
     ]
-
-
-def get_product_blocks_folder() -> Path:
-    return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
 
 
 def get_product_block_path(product_block: dict) -> Path:

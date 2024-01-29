@@ -67,8 +67,25 @@ def path_to_module(path: Path) -> str:
     return str(path).replace("/", ".")
 
 
+def get_product_blocks_folder() -> Path:
+    return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
+
+
+def get_product_types_folder() -> Path:
+    return settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH
+
+
+def get_product_blocks_module() -> str:
+    return path_to_module(get_product_blocks_folder())
+
+
 def get_product_types_module() -> str:
-    return path_to_module(settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH)
+    return path_to_module(get_product_types_folder())
+
+
+def get_product_path(config: dict) -> Path:
+    file_name = get_product_file_name(config)
+    return get_product_types_folder() / Path(file_name).with_suffix(".py")
 
 
 def get_product_import(product: dict, lifecycle: str = "") -> str:
