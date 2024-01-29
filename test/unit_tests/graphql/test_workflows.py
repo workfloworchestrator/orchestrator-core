@@ -11,6 +11,11 @@ def _add_soft_deleted_workflows(add_soft_deleted_workflows):  # noqa: F811
     add_soft_deleted_workflows(10)
 
 
+@pytest.fixture
+def seed_workflows():
+    pass
+
+
 def get_workflows_query(
     first: int = 10,
     after: int = 0,
@@ -29,6 +34,11 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
       steps {
         name
         assignee
+      }
+      products {
+        name
+        description
+        tag
       }
     }
     pageInfo {
@@ -158,6 +168,30 @@ def test_workflows_filter_by_product(test_client, query_args):
         "startCursor": 0,
         "totalItems": 1,
     }
+    assert workflows[0]["name"] == "modify_note"
+
+
+@pytest.mark.parametrize(
+    "query_args",
+    [{"query_string": "tag:gen1"}, {"query_string": "tag:gen2"}, {"query_string": "product:Product"}],
+)
+def test_workflows_filter_by_tag(test_client, query_args):
+    data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    workflows_data = result["data"]["workflows"]
+    workflows = workflows_data["page"]
+    pageinfo = workflows_data["pageInfo"]
+    assert "errors" not in result
+    assert pageinfo == {
+        "endCursor": 0,
+        "hasNextPage": False,
+        "hasPreviousPage": False,
+        "startCursor": 0,
+        "totalItems": 1,
+    }
+    assert len(workflows) == 1
     assert workflows[0]["name"] == "modify_note"
 
 

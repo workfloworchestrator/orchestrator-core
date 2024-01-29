@@ -10,6 +10,7 @@ from orchestrator.db.filters.generic_filters import (
     generic_values_in_column_filter,
 )
 from orchestrator.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
+from orchestrator.db.filters.search_filters.inferred_filter import filter_exact
 from orchestrator.utils.search_query import Node
 
 logger = structlog.get_logger(__name__)
@@ -38,6 +39,7 @@ PRODUCT_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
 PRODUCT_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProductTable) | {
     "productBlock": product_block_clause,
     "product_block": product_block_clause,
+    "tag": filter_exact(ProductTable.tag),
 }
 
 product_filter_fields = list(PRODUCT_FILTER_FUNCTIONS_BY_COLUMN.keys())

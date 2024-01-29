@@ -62,7 +62,38 @@ query ProductBlocksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!]
     ).encode("utf-8")
 
 
-def test_product_blocks_query(test_client):
+@pytest.mark.parametrize(
+    "query_args,num_results",
+    [
+        ({"query_string": None}, 6),
+        ({"query_string": "pb1"}, 1),
+        ({"query_string": "test"}, 3),
+        ({"query_string": "tag:PB_*"}, 3),
+        ({"query_string": "tag:pb3"}, 1),
+    ],
+)
+def test_product_blocks_query(test_client, query_args, num_results):
+    data = get_product_blocks_query(**query_args)
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    product_blocks_data = result["data"]["productBlocks"]
+    product_blocks = product_blocks_data["page"]
+    pageinfo = product_blocks_data["pageInfo"]
+
+    assert len(product_blocks) == num_results
+
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": num_results - 1,
+        "totalItems": num_results,
+    }
+
+
+def test_product_blocks_payload(test_client):
     data = get_product_blocks_query(first=2)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 

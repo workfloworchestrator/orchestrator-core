@@ -162,8 +162,21 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
     ).encode("utf-8")
 
 
-def test_product_query(test_client, generic_product_1, generic_product_2, generic_product_3):
-    data = get_product_query(first=2)
+@pytest.mark.parametrize(
+    "query_args,num_results,total",
+    [
+        ({"first": 2}, 2, 6),
+        ({"query_string": "tag:gen1"}, 1, 1),
+        ({"query_string": "tag:gen2"}, 1, 1),
+        ({"query_string": "tag:sub"}, 2, 2),
+        ({"query_string": "tag:unionsub"}, 1, 1),
+        ({"query_string": "tag:gen3"}, 1, 1),
+    ],
+)
+def test_product_query(
+    test_client, generic_product_1, generic_product_2, generic_product_3, query_args, num_results, total
+):
+    data = get_product_query(**query_args)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
@@ -172,14 +185,14 @@ def test_product_query(test_client, generic_product_1, generic_product_2, generi
     products = products_data["page"]
     pageinfo = products_data["pageInfo"]
 
-    assert len(products) == 2
+    assert len(products) == num_results
 
     assert pageinfo == {
         "hasPreviousPage": False,
-        "hasNextPage": True,
+        "hasNextPage": num_results < total,
         "startCursor": 0,
-        "endCursor": 1,
-        "totalItems": 6,
+        "endCursor": num_results - 1,
+        "totalItems": total,
     }
 
 
@@ -259,6 +272,7 @@ def test_products_sort_by_tag(test_client, generic_product_1, generic_product_2,
 @pytest.mark.parametrize(
     "query_args",
     [
+        lambda product_id: {},
         lambda product_id: {"filter_by": [{"field": "product_id", "value": product_id}]},
         lambda product_id: {"query_string": f"product_id:{product_id}"},
         lambda product_id: {"query_string": f"productId:{product_id}"},
