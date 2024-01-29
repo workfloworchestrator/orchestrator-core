@@ -2,25 +2,21 @@
 
 {% from 'macros.j2' import lifecycle_type, required, default, list_field with context -%}
 
+from enum import StrEnum, IntEnum
+from typing import Annotated
+from uuid import UUID
+
+from annotated_types import Ge, Le, Len
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SI, SubscriptionLifecycle
+from pydantic import computed_field
+
 {% for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
 {%- endfor %}
-{% if lists_to_generate %}
-from typing import TypeVar
-{% endif -%}
-{% if constrained_ints_to_generate %}
-from typing import Annotated
-from annotated_types import Ge, Le
-{% endif -%}
-{% if "UUID" in fields | map(attribute="type") %}
-from uuid import UUID
-{% endif %}
-{% for module, type in product_blocks_to_import %}
+{% for module, type in product_blocks_to_import -%}
 from {{ module }} import {{ type }}BlockInactive, {{ type }}BlockProvisioning, {{ type }}Block
-{% endfor %}
-from pydantic import computed_field
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+{% endfor -%}
 
 {% include "enums.j2" %}
 {% include "list_definitions.j2" %}

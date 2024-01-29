@@ -1,7 +1,4 @@
 {% if lists_to_generate %}
-from orchestrator.types import SI
-from annotated_types import Len
-
 {% for list_type in lists_to_generate %}
 ListOf{{ list_type.name | capitalize }} = Annotated[list[SI], Len(min_length={{ list_type.min_items }}{% if list_type.max_items -%}, max_length={{ list_type.max_items }}{% endif %})]
 {% endfor %}
