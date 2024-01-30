@@ -30,10 +30,10 @@ def customer_contact_list(
     def json_schema_extra() -> Generator:
         if customer_id:
             yield "customerId", customer_id
-            yield "organisationId", customer_id
+            yield "organisationId", customer_id  # TODO: deprecated, remove in the future
         if customer_key:
             yield "customerKey", customer_key
-            yield "organisationKey", customer_key
+            yield "organisationKey", customer_key  # TODO: deprecated, remove in the future
 
     return Annotated[  # type: ignore
         conlist(ContactPerson, min_length=min_items, max_length=max_items),
