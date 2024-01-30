@@ -15,7 +15,7 @@ def validate_something(foo: str | None, values: State) -> str | None:
 
 {% for validation in validations %}
 def {{ validation.validation.id }}_validator() -> classmethod:
-    return validator("{{ validation.resource_type.name }}", allow_reuse=True)(validate_something)
+    return validator("{{ validation.field.name }}", allow_reuse=True)(validate_something)
 
 {% endfor -%}
 #}

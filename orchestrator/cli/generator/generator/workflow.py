@@ -121,6 +121,7 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
     product_block = root_product_block(config)
     validations, _ = get_validations(config)
 
+    # TODO: rethink the way validators are defined and split into AfterValidator()'s and @model_validator's
     template = environment.get_template("shared_forms.j2")
     content = template.render(product=config, product_block=product_block, validations=validations)
     path = shared_product_workflow_folder(config) / Path("forms.py")
