@@ -28,7 +28,7 @@ from orchestrator.cli.generator.generator.helpers import (
     get_product_types_module,
     get_workflow,
     is_constrained_int,
-    root_product_block,
+    root_product_block, get_workflows_folder, get_workflows_module,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
@@ -64,7 +64,7 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
     # product_blocks = config.get("product_blocks", [])
     content = template.render(product=config)
 
-    path = settings.FOLDER_PREFIX / settings.WORKFLOWS_PATH / Path("__init__.py")
+    path = get_workflows_folder() / Path("__init__.py")
     if not path.exists():
         writer(path, "from orchestrator.workflows import LazyWorkflowInstance\n\n")
     if path.exists():  # if dryrun then path was not created above
@@ -98,13 +98,9 @@ def generate_workflows(context: dict) -> None:
     insert_lazy_workflow_instances(environment, config, writer)
 
 
-def workflows_folder() -> Path:
-    return settings.FOLDER_PREFIX / settings.WORKFLOWS_PATH
-
-
 def product_workflow_folder(config: dict) -> Path:
     folder = get_product_file_name(config)
-    return workflows_folder() / Path(folder)
+    return get_workflows_folder() / Path(folder)
 
 
 def shared_product_workflow_folder(config: dict) -> Path:
@@ -132,7 +128,7 @@ def generate_shared_workflow_files(environment: Environment, config: dict, write
 
     template = environment.get_template("shared_workflows.j2")
     content = template.render()
-    path = workflows_folder() / Path("shared.py")
+    path = get_workflows_folder() / Path("shared.py")
     writer(path, content)
 
 
@@ -170,6 +166,7 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
         validation_imports=validation_imports,
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
+        workflows_module=get_workflows_module(),
         types_to_import=types_to_import,
         fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
         product_block_types=constrained_ints + int_enums + str_enums,
@@ -198,6 +195,7 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
         validation_imports=validation_imports,
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
+        workflows_module=get_workflows_module(),
         types_to_import=types_to_import,
         fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
         product_block_types=constrained_ints + int_enums + str_enums,

@@ -19,10 +19,10 @@ from {{ namespace }} import {{ type }}
 {%- endfor %}
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}Inactive, {{ product.type }}Provisioning
 {%-if validation_imports %}
-from workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
+from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {%-endif %}
 {% if product.config.summary_forms -%}
-from workflows.shared import create_summary_form
+from {{workflows_module}}.shared import create_summary_form
 {%- endif %}
 {% if product_block_types -%}
 from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}

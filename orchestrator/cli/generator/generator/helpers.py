@@ -67,12 +67,20 @@ def path_to_module(path: Path) -> str:
     return str(path).replace("/", ".")
 
 
+def get_workflows_folder() -> Path:
+    return settings.FOLDER_PREFIX / settings.WORKFLOWS_PATH
+
+
 def get_product_blocks_folder() -> Path:
     return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
 
 
 def get_product_types_folder() -> Path:
     return settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH
+
+
+def get_workflows_module() -> str:
+    return path_to_module(get_workflows_folder())
 
 
 def get_product_blocks_module() -> str:
