@@ -24,8 +24,7 @@ class SchedulingFunction(Protocol):
     period: int | None
     at: str | None
 
-    def __call__(self) -> CancelJob | None:
-        ...
+    def __call__(self) -> CancelJob | None: ...
 
 
 def scheduler(

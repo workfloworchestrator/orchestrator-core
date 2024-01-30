@@ -48,6 +48,17 @@ def test_get_subscription_by_id_err(generic_product_3):
         get_subscription(INCORRECT_SUBSCRIPTION)
 
 
+def test_get_subscription_by_id_invalid_id(generic_product_3):
+    values = {"info.id": "0", "info2.id": "X"}
+    product = get_one_product("Product 3")
+    fixtures.create_subscription_for_mapping(
+        product, subscription_mapping, values, subscription_id=CORRECT_SUBSCRIPTION
+    )
+
+    with pytest.raises(ValueError):
+        get_subscription("abc")
+
+
 def test_retrieve_subscription_by_subscription_instance_value_none(generic_product_3):
     values = {"info.id": "0", "info2.id": "X"}
     product = get_one_product("Product 3")

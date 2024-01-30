@@ -16,7 +16,7 @@ from http import HTTPStatus
 from uuid import UUID
 
 import structlog
-from sqlalchemy import BinaryExpression, or_, select
+from sqlalchemy import BinaryExpression, select
 from sqlalchemy.inspection import inspect
 
 from orchestrator.api.error_handling import raise_status
@@ -27,9 +27,10 @@ from orchestrator.db.filters.generic_filters import (
     generic_is_like_filter,
     generic_values_in_column_filter,
 )
-from orchestrator.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses, inferred_filter
+from orchestrator.db.filters.search_filters.inferred_filter import filter_exact
 from orchestrator.utils.helpers import to_camel
-from orchestrator.utils.search_query import Node
+from orchestrator.utils.search_query import Node, WhereCondGenerator
 
 logger = structlog.get_logger(__name__)
 
@@ -118,6 +119,7 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
         "lastStatus": generic_values_in_column_filter(ProcessTable.last_status),
         "product": product_filter,
         "productTag": tag_filter,
+        "tag": tag_filter,
         "subscriptions": subscriptions_filter,
         "subscriptionId": subscription_id_filter,
         "subscription_id": subscription_id_filter,
@@ -128,32 +130,31 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
         "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
         "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
         "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
-        "tag": tag_filter,  # TODO: will be removed in 1.4
         "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: will be removed in 1.4
     }
 )
 
 
-def product_clause(node: Node) -> BinaryExpression:
-    str_val = node_to_str_val(node)
-    process_subscriptions = (
-        select(ProcessSubscriptionTable.process_id)
-        .join(SubscriptionTable)
-        .join(ProductTable)
-        .where(
-            or_(
-                ProductTable.name.ilike(f"%{str_val}%"),
-                ProductTable.tag.ilike(f"%{str_val}%"),
-                ProductTable.description.ilike(f"%{str_val}%"),
-            )
+def make_product_clause(filter_generator: WhereCondGenerator) -> WhereCondGenerator:
+    """The passed filter_generator takes a Node and returns a where clause acting on a ProductTable column."""
+
+    def product_clause(node: Node) -> BinaryExpression:
+        process_subscriptions = (
+            select(ProcessSubscriptionTable.process_id)
+            .join(SubscriptionTable)
+            .join(ProductTable)
+            .where(filter_generator(node))
+            .subquery()
         )
-        .subquery()
-    )
-    return ProcessTable.process_id.in_(process_subscriptions)
+        return ProcessTable.process_id.in_(process_subscriptions)
+
+    return product_clause
 
 
 PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable) | {
-    "product": product_clause,
+    "product": make_product_clause(inferred_filter(ProductTable.name)),
+    "product_description": make_product_clause(inferred_filter(ProductTable.description)),
+    "tag": make_product_clause(filter_exact(ProductTable.tag)),
 }
 
 

@@ -22,8 +22,7 @@ from orchestrator.api.error_handling import ProblemDetailException
 
 
 class CallableErrorHandler(Protocol):
-    def __call__(self, message: str, **kwargs: Any) -> None:
-        ...
+    def __call__(self, message: str, **kwargs: Any) -> None: ...
 
 
 class Filter(BaseModel):

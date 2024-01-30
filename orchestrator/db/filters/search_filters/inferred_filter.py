@@ -16,6 +16,7 @@ from datetime import datetime
 import sqlalchemy
 from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, String, cast
 from sqlalchemy.sql.functions import coalesce
+from sqlalchemy.sql.operators import eq
 
 from orchestrator.utils.search_query import Node, WhereCondGenerator
 
@@ -43,7 +44,7 @@ def _filter_string(field: ColumnElement) -> WhereCondGenerator:
         if node[0] == "Phrase":
             return field.ilike(_phrase_to_ilike_str(node))
         if node[0] == "ValueGroup":
-            vals = [w[1] for w in node[1] if w in ["Word", "PrefixWord"]]  # Only works for (Prefix)Words atm
+            vals = [w[1] for w in node[1] if w[0] in ["Word", "PrefixWord"]]  # Only works for (Prefix)Words atm
             return field.in_(vals)
         return field.ilike(f"%{node[1]}%")
 
@@ -70,7 +71,7 @@ def _filter_bool(field: ColumnClause) -> WhereCondGenerator:
             ]  # Only works for (Prefix)Words atm
             return field.in_(vals)
         boolean_val = _value_as_bool(node[1])
-        return field.is_(boolean_val) if boolean_val else sqlalchemy.false()
+        return eq(field, boolean_val) if boolean_val is not None else sqlalchemy.false()
 
     return _clause_gen
 
@@ -93,3 +94,14 @@ def node_to_str_val(node: Node) -> str:
     if node[0] in ["Phrase", "ValueGroup"]:
         return " ".join(w[1] for w in node[1])
     return node[1]
+
+
+def filter_exact(field: ColumnClause) -> WhereCondGenerator:
+    def _clause_gen(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
+        if node[0] == "Word":
+            return field.ilike(f"{node[1]}")
+        if node[0] == "PrefixWord":
+            return field.ilike(f"{node[1]}%")
+        return _filter_string(field)(node)
+
+    return _clause_gen

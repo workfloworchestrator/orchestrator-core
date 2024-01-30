@@ -1,4 +1,5 @@
 """(regression)tests in relation to domain model caching."""
+
 from http import HTTPStatus
 from os import getenv
 

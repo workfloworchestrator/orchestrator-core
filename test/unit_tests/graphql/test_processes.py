@@ -435,11 +435,17 @@ def test_processes_filtering_with_invalid_filter(
 @pytest.mark.parametrize(
     "query_args,num_results",
     [
-        ({"query_string": "is_task:no"}, 0),
+        ({"query_string": "is_task:no", "first": 20}, 6),
+        ({"query_string": 'is_task:"yes"', "first": 20}, 13),
+        ({"query_string": "is_task:(y|n)", "first": 20}, 19),
         ({"query_string": "nonsense"}, 0),
-        ({"query_string": None}, 10),
+        ({"query_string": None, "first": 100}, 19),
         ({"query_string": "one"}, 8),
         ({"query_string": "two"}, 7),
+        ({"query_string": "product:(1 | 3)"}, 8),
+        ({"query_string": "tag:gen1"}, 8),
+        ({"query_string": "tag:gEN2"}, 7),
+        ({"query_string": "-tag:gen*"}, 4),
     ],
 )
 def test_processes_various_filterings(

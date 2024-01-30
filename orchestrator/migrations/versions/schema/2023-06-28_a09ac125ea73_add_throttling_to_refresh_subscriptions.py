@@ -5,6 +5,7 @@ Revises: b1970225392d
 Create Date: 2023-06-28 15:33:36.248121
 
 """
+
 from pathlib import Path
 
 from alembic import op

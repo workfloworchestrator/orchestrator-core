@@ -5,15 +5,8 @@ from itertools import chain
 from typing import Any, Union, cast
 
 import structlog
-from sqlalchemy import (
-    BinaryExpression,
-    ColumnElement,
-    CompoundSelect,
-    Select,
-    not_,
-    or_,
-)
-from sqlalchemy.orm import MappedColumn
+from sqlalchemy import BinaryExpression, ColumnElement, CompoundSelect, Select, false, not_, or_
+from sqlalchemy.orm import InstrumentedAttribute, MappedColumn
 
 from orchestrator.db.database import BaseModel
 from orchestrator.utils.helpers import camel_to_snake
@@ -367,7 +360,11 @@ WhereCondGenerator = Callable[[Node], Union[BinaryExpression, ColumnElement[bool
 
 class SQLAlchemyVisitor:
     def __init__(
-        self, stmt: Select, mappings: dict[str, WhereCondGenerator], base_table: type[BaseModel], join_key: MappedColumn
+        self,
+        stmt: Select,
+        mappings: dict[str, WhereCondGenerator],
+        base_table: type[BaseModel],
+        join_key: MappedColumn | InstrumentedAttribute,
     ):
         self.base_stmt = stmt
         self.mappings = mappings
@@ -380,7 +377,7 @@ class SQLAlchemyVisitor:
             cond_expr_fn = self.mappings.get(camel_to_snake(key_node[1]))
             if not cond_expr_fn:
                 # Non-existing columns will emit `where false`, returning no results
-                return stmt.where()
+                return stmt.where(false())
             if value_node[0] in ["Word", "PrefixWord", "Phrase"]:
                 cond_expr = cond_expr_fn(value_node)
                 return stmt.where(cond_expr if not is_negated else not_(cond_expr))
@@ -403,7 +400,9 @@ class SQLAlchemyVisitor:
     def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
         subquery = self.visit_query(self.base_stmt, node).cte()
         if is_negated:
-            return stmt.outerjoin_from(self.base_table, subquery, subquery.c[self.join_key.name] is None)  # type:ignore
+            return stmt.outerjoin_from(
+                self.base_table, subquery, self.join_key == subquery.c[self.join_key.name]
+            ).where(subquery.c[self.join_key.name].is_(None))
         return stmt.join_from(self.base_table, subquery, self.join_key == subquery.c[self.join_key.name])
 
     def visit_term(self, stmt: Select, node: Node, is_negated: bool = False) -> Select:
@@ -445,6 +444,6 @@ def create_sqlalchemy_select(
     search_query: str,
     mappings: dict[str, WhereCondGenerator],
     base_table: type[BaseModel],
-    join_key: MappedColumn,
+    join_key: MappedColumn | InstrumentedAttribute,
 ) -> Select | CompoundSelect:
     return SQLAlchemyVisitor(stmt, mappings, base_table, join_key).visit(Parser(Lexer(search_query).lex()).parse())
