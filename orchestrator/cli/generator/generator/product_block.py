@@ -42,16 +42,13 @@ def get_existing_product_blocks() -> dict[str, Any]:
         def is_product_block(attribute: Any) -> bool:
             return issubclass(attribute, ProductBlockModel)
 
-        product_blocks_path = settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
-        product_blocks_module = path_to_module(product_blocks_path)
-
-        if not path.exists(product_blocks_path):
-            logger.warning("Product block path does not exist", product_blocks_path=product_blocks_path)
+        if not path.exists(get_product_blocks_folder()):
+            logger.warning("Product block path does not exist", product_blocks_path=get_product_blocks_folder())
             return
 
-        for pb_file in listdir(product_blocks_path):
+        for pb_file in listdir(get_product_blocks_folder()):
             name = pb_file.removesuffix(".py")
-            module_name = f"{product_blocks_module}.{name}"
+            module_name = f"{get_product_blocks_folder()}.{name}"
 
             module = import_module(module_name)
 
