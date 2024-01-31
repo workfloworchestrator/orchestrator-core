@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from pathlib import Path
 
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_non_standard_fields, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (

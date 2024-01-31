@@ -119,7 +119,7 @@ def get_constrained_ints(fields: list[dict]) -> list[dict]:
 
 
 def merge_fields(fields: list[dict], int_enums: list[dict], str_enums: list[dict]) -> list[dict]:
-    return [field for field in (to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values()]
+    return list((to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values())
 
 
 def is_name_spaced_field_type(field: dict) -> bool:

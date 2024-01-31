@@ -19,7 +19,7 @@ from typing import Any
 import structlog
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
+from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     get_constrained_ints,
     get_fields,
@@ -30,11 +30,9 @@ from orchestrator.cli.generator.generator.helpers import (
     get_workflow,
     get_workflows_folder,
     get_workflows_module,
-    is_constrained_int,
     merge_fields,
     root_product_block,
 )
-from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
 from orchestrator.cli.generator.generator.validations import get_validations, get_validations_for_modify
 

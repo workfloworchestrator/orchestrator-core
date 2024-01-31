@@ -13,8 +13,6 @@
 
 from more_itertools import flatten
 
-from orchestrator.cli.generator.generator.helpers import root_product_block
-
 
 def get_all_validations(fields: list[dict]) -> list:
     def to_validations(field: dict) -> list[dict]:

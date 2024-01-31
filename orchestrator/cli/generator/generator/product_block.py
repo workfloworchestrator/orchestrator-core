@@ -21,7 +21,7 @@ from typing import Any
 
 import structlog
 
-from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
+from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_constrained_ints,
@@ -29,11 +29,8 @@ from orchestrator.cli.generator.generator.helpers import (
     get_name_spaced_types_to_import,
     get_product_block_file_name,
     get_product_blocks_folder,
-    is_constrained_int,
     merge_fields,
-    path_to_module,
 )
-from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.domain.base import ProductBlockModel
 
 logger = structlog.getLogger(__name__)
