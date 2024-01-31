@@ -21,18 +21,18 @@ from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
+    get_constrained_ints,
     get_fields,
     get_name_spaced_types_to_import,
     get_product_blocks_module,
     get_product_file_name,
     get_product_types_module,
     get_workflow,
-    is_constrained_int,
-    root_product_block,
     get_workflows_folder,
     get_workflows_module,
-    get_constrained_ints,
+    is_constrained_int,
     merge_fields,
+    root_product_block,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
@@ -66,7 +66,9 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
     template = environment.get_template("lazy_workflow_instance.j2")
     variable = config.get("variable", "")
     # product_blocks = config.get("product_blocks", [])
-    content = template.render(product=config)
+    content = template.render(
+        product=config,
+    )
 
     path = get_workflows_folder() / Path("__init__.py")
     if not path.exists():
@@ -234,7 +236,11 @@ def generate_validate_workflow(environment: Environment, config: dict, writer: C
     workflow_validations = workflow.get("validations", [])
 
     template = environment.get_template("validate_product.j2")
-    content = template.render(product=config, workflow_validations=workflow_validations, product_types_module=get_product_types_module())
+    content = template.render(
+        product=config,
+        workflow_validations=workflow_validations,
+        product_types_module=get_product_types_module(),
+    )
 
     path = get_product_workflow_path(config, "validate")
 
