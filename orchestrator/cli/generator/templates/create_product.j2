@@ -43,8 +43,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     # TODO add additional fields to form if needed
 
     class Create{{ product.type }}Form(FormPage):
-        class Config:
-            title = product_name
+        model_config = ConfigDict(title=product_name)
 
         customer_id: CustomerId
 {% include "additional_create_input_fields.j2" ignore missing %}
