@@ -17,7 +17,13 @@ from pathlib import Path
 import structlog
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import get_product_file_name, get_product_types_module, get_workflow
+from orchestrator.cli.generator.generator.helpers import (
+    get_fields,
+    get_product_file_name,
+    get_product_types_module,
+    get_workflow,
+    root_product_block,
+)
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.validations import get_validations
 
@@ -42,7 +48,7 @@ def get_test_workflow_path(config: dict, workflow_type: str) -> Path:
     folder = file_name
 
     workflow_folder = settings.TEST_WORKFLOWS_PATH / Path(folder)
-    Path(workflow_folder).mkdir(exist_ok=True)
+    Path(workflow_folder).mkdir(parents=True, exist_ok=True)
 
     return workflow_folder / Path(f"test_{workflow_type}_{file_name}").with_suffix(".py")
 
@@ -55,7 +61,9 @@ def generate_workflow_tests(environment: Environment, config: dict, writer: Call
 
 
 def generate_test_create_workflow(environment: Environment, config: dict, writer: Callable) -> None:
-    validations, _ = get_validations(config)
+    product_block = root_product_block(config)
+    fields = get_fields(product_block)
+    validations, _ = get_validations(fields)
 
     template = environment.get_template("test_create_workflow.j2")
     content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
@@ -65,7 +73,9 @@ def generate_test_create_workflow(environment: Environment, config: dict, writer
 
 
 def generate_test_modify_workflow(environment: Environment, config: dict, writer: Callable) -> None:
-    validations, _ = get_validations(config)
+    product_block = root_product_block(config)
+    fields = get_fields(product_block)
+    validations, _ = get_validations(fields)
 
     template = environment.get_template("test_modify_workflow.j2")
     content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
