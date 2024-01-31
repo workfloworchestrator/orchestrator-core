@@ -30,6 +30,8 @@ from orchestrator.cli.generator.generator.helpers import (
     get_product_blocks_folder,
     is_constrained_int,
     path_to_module,
+    get_constrained_ints,
+    merge_fields,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.domain.base import ProductBlockModel
@@ -121,7 +123,8 @@ def generate_product_blocks(context: dict) -> None:
             )
         )
         product_block_types = [type for module, type in product_blocks_to_import]
-        constrained_ints_to_generate = [field for field in fields if is_constrained_int(field)]
+        constrained_ints_to_generate = get_constrained_ints(fields)
+        fields = merge_fields(fields, int_enums, str_enums)
 
         path = get_product_block_path(product_block)
         content = template.render(
@@ -134,7 +137,7 @@ def generate_product_blocks(context: dict) -> None:
             python_version=python_version,
             int_enums=int_enums,
             str_enums=str_enums,
-            fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
+            fields=fields,
         )
 
         writer(path, content)

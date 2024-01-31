@@ -3,8 +3,10 @@
 {% from 'macros.j2' import required with context -%}
 
 from collections.abc import Generator
+from typing import Annotated
 
 import structlog
+from pydantic import AfterValidator, ConfigDict, model_validator
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Divider, Label, CustomerId, MigrationSummary
@@ -33,6 +35,9 @@ from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_
 
 logger = structlog.get_logger(__name__)
 
+{% for validation in validations -%}
+validated_{{ validation.field.name }} = Annotated[{{ validation.field.type }}, AfterValidator({{ validation.validation.id }}_validator)]
+{% endfor %}
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
     # TODO add additional fields to form if needed
@@ -49,14 +54,22 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         {% for field in fields -%}
         {% if field.type not in existing_product_blocks -%}
-        {{ field.name }}: {{ required(field, field.type, ["inactive"]) }}{% if field.default is defined %} = {{field.default}}{% endif %}
+        {% if field.type in validations | map(attribute='field.type') -%}
+            {% set type = 'validated_' +  field.name -%}
+        {% else -%}
+            {% set type = field.type -%}
+        {% endif -%}
+        {{ field.name }}: {{ required(field, type, ["inactive"]) }}{% if field.default is defined %} = {{field.default}}{% endif %}
         {%- endif %}
         {% endfor -%}
+        {% for validation in workflow_validations %}
 
-{% for validation in validations %}
-        """{{ validation.validation.description }}"""
-        _validate_{{ validation.validation.id }}: classmethod = {{ validation.validation.id }}_validator()
-{% endfor %}
+        @model_validator(mode="after")
+        def {{ validation.id }}(self) -> "Create{{ product.type }}Form":
+            if False:  # TODO implement validation
+                raise ValueError("{{ validation.description }}")
+            return self
+        {%- endfor %}
 
     user_input = yield Create{{ product.type }}Form
     user_input_dict = user_input.dict()

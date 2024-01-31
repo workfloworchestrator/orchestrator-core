@@ -16,6 +16,7 @@ from pathlib import Path
 import structlog
 from more_itertools import first, one
 
+from orchestrator.cli.generator.generator.enums import to_dict
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.utils.helpers import camel_to_snake, snake_to_camel
 
@@ -111,6 +112,14 @@ def create_dunder_init_files(path: Path) -> None:
 
 def is_constrained_int(field: dict) -> bool:
     return "min_value" in field or "max_value" in field
+
+
+def get_constrained_ints(fields: list[dict]) -> list[dict]:
+    return [field for field in fields if is_constrained_int(field)]
+
+
+def merge_fields(fields: list[dict], int_enums: list[dict], str_enums: list[dict]) -> list[dict]:
+    return [field for field in (to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values()]
 
 
 def is_name_spaced_field_type(field: dict) -> bool:

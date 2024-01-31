@@ -28,7 +28,11 @@ from orchestrator.cli.generator.generator.helpers import (
     get_product_types_module,
     get_workflow,
     is_constrained_int,
-    root_product_block, get_workflows_folder, get_workflows_module,
+    root_product_block,
+    get_workflows_folder,
+    get_workflows_module,
+    get_constrained_ints,
+    merge_fields,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
@@ -119,11 +123,22 @@ def get_product_workflow_path(config: dict, workflow_type: str) -> Path:
 
 def generate_shared_workflow_files(environment: Environment, config: dict, writer: Callable) -> None:
     product_block = root_product_block(config)
-    validations, _ = get_validations(config)
+    fields = get_fields(product_block)
+    constrained_ints = get_constrained_ints(fields)
+    int_enums = get_int_enums(fields)
+    str_enums = get_str_enums(fields)
+    fields = merge_fields(fields, int_enums, str_enums)
+    validations, _ = get_validations(fields)
 
     # TODO: rethink the way validators are defined and split into AfterValidator()'s and @model_validator's
     template = environment.get_template("shared_forms.j2")
-    content = template.render(product=config, product_block=product_block, validations=validations)
+    content = template.render(
+        product=config,
+        product_block=product_block,
+        validations=validations,
+        product_blocks_module=get_product_blocks_module(),
+        product_block_types=constrained_ints + int_enums + str_enums,
+    )
     path = shared_product_workflow_folder(config) / Path("forms.py")
     writer(path, content)
 
@@ -154,22 +169,25 @@ def generate_create_workflow(environment: Environment, config: dict, writer: Cal
     product_block = root_product_block(config)
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
-    validations, validation_imports = get_validations(config)
-    constrained_ints = [field for field in fields if is_constrained_int(field)]
+    workflow = get_workflow(config, "create")
+    constrained_ints = get_constrained_ints(fields)
     int_enums = get_int_enums(fields)
     str_enums = get_str_enums(fields)
+    fields = merge_fields(fields, int_enums, str_enums)
+    validations, validation_imports = get_validations(fields)
 
     template = environment.get_template("create_product.j2")
     content = template.render(
         product=config,
         product_block=product_block,
+        workflow_validations=workflow.get("validations", []),
         validations=validations,
         validation_imports=validation_imports,
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         workflows_module=get_workflows_module(),
         types_to_import=types_to_import,
-        fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
+        fields=fields,
         product_block_types=constrained_ints + int_enums + str_enums,
     )
 
@@ -183,22 +201,25 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
     product_block = root_product_block(config)
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
-    validations, validation_imports = get_validations_for_modify(config)
-    constrained_ints = [field for field in fields if is_constrained_int(field)]
+    workflow = get_workflow(config, "modify")
+    constrained_ints = get_constrained_ints(fields)
     int_enums = get_int_enums(fields)
     str_enums = get_str_enums(fields)
+    fields = merge_fields(fields, int_enums, str_enums)
+    validations, validation_imports = get_validations_for_modify(fields)
 
     template = environment.get_template("modify_product.j2")
     content = template.render(
         product=config,
         product_block=product_block,
+        workflow_validations=workflow.get("validations", []),
         validations=validations,
         validation_imports=validation_imports,
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         workflows_module=get_workflows_module(),
         types_to_import=types_to_import,
-        fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
+        fields=fields,
         product_block_types=constrained_ints + int_enums + str_enums,
     )
 
@@ -210,10 +231,10 @@ def generate_modify_workflow(environment: Environment, config: dict, writer: Cal
 @generate_workflow(workflow="validate")
 def generate_validate_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     workflow = get_workflow(config, "validate")
-    validations = workflow.get("validations", [])
+    workflow_validations = workflow.get("validations", [])
 
     template = environment.get_template("validate_product.j2")
-    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
+    content = template.render(product=config, workflow_validations=workflow_validations, product_types_module=get_product_types_module())
 
     path = get_product_workflow_path(config, "validate")
 
@@ -223,10 +244,13 @@ def generate_validate_workflow(environment: Environment, config: dict, writer: C
 @generate_workflow(workflow="terminate")
 def generate_terminate_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     workflow = get_workflow(config, "terminate")
-    validations = workflow.get("validations", [])
 
     template = environment.get_template("terminate_product.j2")
-    content = template.render(product=config, validations=validations, product_types_module=get_product_types_module())
+    content = template.render(
+        product=config,
+        workflow_validations=workflow.get("validations", []),
+        product_types_module=get_product_types_module(),
+    )
 
     path = get_product_workflow_path(config, "terminate")
 

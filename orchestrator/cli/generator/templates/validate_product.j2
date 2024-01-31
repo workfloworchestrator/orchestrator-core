@@ -11,8 +11,6 @@ from orchestrator.workflows.utils import validate_workflow
 
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}
 
-{# from surf.workflows.shared.crm import load_customer_info #}
-
 logger = structlog.get_logger(__name__)
 
 
@@ -22,12 +20,12 @@ def load_initial_state_{{ product.variable }}(subscription: {{ product.type }}) 
         "subscription": subscription,
     }
 
-{% for validation in validations %}
+{% for validation in workflow_validations %}
 @step("{{ validation.description }}")
 def check_{{ validation.id }}(subscription: {{ product.type }}) -> State:
     # TODO: add validation for "{{ validation.description }}"
     if True:
-        raise ValueError({{ validation.description }})
+        raise ValueError("{{ validation.description }}")
 
     return {}
 
@@ -63,8 +61,7 @@ def validate_{{ product.variable }}() -> StepList:
     return (
         begin
         >> load_initial_state_{{ product.variable }}
-{#        >> load_customer_info #}
-{%- for validation in validations %}
+{%- for validation in workflow_validations %}
         >> check_{{ validation.id }}
 {%- endfor %}
         {%- if product.ims_circuit_id_path %}
