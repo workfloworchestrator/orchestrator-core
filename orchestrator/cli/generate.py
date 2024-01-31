@@ -72,7 +72,7 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
             write_file(path, content, append=append, force=force)
 
     search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
-    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True)
+    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True, keep_trailing_newline=True)
 
     config = read_config(config_file)
     config["variable"] = get_variable(config)
