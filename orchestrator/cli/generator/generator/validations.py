@@ -31,18 +31,14 @@ def get_validation_imports(validations: list) -> list:
     return [format_validator(validation) for validation in validations]
 
 
-def get_validations(fields: list[dict]) -> tuple[list, list]:
-    validations = get_all_validations(fields)
-    validation_imports = get_validation_imports(validations)
+def get_validations(fields: list[dict], workflow: str = "") -> tuple[list, list]:
+    def get_validations_for_modify(fields: list[dict]) -> list[dict]:
+        def modifiable(validation: dict) -> bool:
+            return validation["field"].get("modifiable", False)
 
-    return validations, validation_imports
+        return [validation for validation in get_all_validations(fields) if modifiable(validation)]
 
-
-def get_validations_for_modify(fields: list[dict]) -> tuple[list, list]:
-    def modifiable(validation: dict) -> bool:
-        return validation["field"].get("modifiable", False)
-
-    validations = [validation for validation in get_all_validations(fields) if modifiable(validation)]
+    validations = get_validations_for_modify(fields) if workflow == "modify" else get_all_validations(fields)
     validation_imports = get_validation_imports(validations)
 
     return validations, validation_imports

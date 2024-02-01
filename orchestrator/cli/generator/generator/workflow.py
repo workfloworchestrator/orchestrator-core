@@ -34,7 +34,7 @@ from orchestrator.cli.generator.generator.helpers import (
     root_product_block,
 )
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
-from orchestrator.cli.generator.generator.validations import get_validations, get_validations_for_modify
+from orchestrator.cli.generator.generator.validations import get_validations
 
 logger = structlog.getLogger(__name__)
 
@@ -121,24 +121,38 @@ def get_product_workflow_path(config: dict, workflow_type: str) -> Path:
     return product_workflow_folder(config) / Path(f"{workflow_type}_{file_name}").with_suffix(".py")
 
 
-def generate_shared_workflow_files(environment: Environment, config: dict, writer: Callable) -> None:
+def render_template(environment: Environment, config: dict, template: str, workflow: str = "") -> str:
     product_block = root_product_block(config)
+    types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_fields(product_block)
     constrained_ints = get_constrained_ints(fields)
     int_enums = get_int_enums(fields)
     str_enums = get_str_enums(fields)
     fields = merge_fields(fields, int_enums, str_enums)
-    validations, _ = get_validations(fields)
+    product_block_types = constrained_ints + int_enums + str_enums
+    validations, validation_imports = get_validations(fields, workflow)
 
-    # TODO: rethink the way validators are defined and split into AfterValidator()'s and @model_validator's
-    template = environment.get_template("shared_forms.j2")
-    content = template.render(
+    if workflow:
+        workflow_config = get_workflow(config, workflow)
+        workflow_validations = workflow_config.get("validations", [])
+
+    return environment.get_template(template).render(
         product=config,
         product_block=product_block,
+        fields=fields,
         validations=validations,
+        validation_imports=validation_imports,
+        types_to_import=types_to_import,
+        product_block_types=product_block_types,
         product_blocks_module=get_product_blocks_module(),
-        product_block_types=constrained_ints + int_enums + str_enums,
+        product_types_module=get_product_types_module(),
+        workflows_module=get_workflows_module(),
+        workflow_validations=workflow_validations if workflow else [],
     )
+
+
+def generate_shared_workflow_files(environment: Environment, config: dict, writer: Callable) -> None:
+    content = render_template(environment, config, "shared_forms.j2")
     path = shared_product_workflow_folder(config) / Path("forms.py")
     writer(path, content)
 
@@ -166,96 +180,27 @@ def generate_workflow(f: Callable | None = None, workflow: str | None = None) ->
 
 @generate_workflow(workflow="create")
 def generate_create_workflow(environment: Environment, config: dict, writer: Callable) -> None:
-    product_block = root_product_block(config)
-    types_to_import = get_name_spaced_types_to_import(product_block["fields"])
-    fields = get_fields(product_block)
-    workflow = get_workflow(config, "create")
-    constrained_ints = get_constrained_ints(fields)
-    int_enums = get_int_enums(fields)
-    str_enums = get_str_enums(fields)
-    fields = merge_fields(fields, int_enums, str_enums)
-    validations, validation_imports = get_validations(fields)
-
-    template = environment.get_template("create_product.j2")
-    content = template.render(
-        product=config,
-        product_block=product_block,
-        workflow_validations=workflow.get("validations", []),
-        validations=validations,
-        validation_imports=validation_imports,
-        product_blocks_module=get_product_blocks_module(),
-        product_types_module=get_product_types_module(),
-        workflows_module=get_workflows_module(),
-        types_to_import=types_to_import,
-        fields=fields,
-        product_block_types=constrained_ints + int_enums + str_enums,
-    )
-
+    content = render_template(environment, config, "create_product.j2", "create")
     path = get_product_workflow_path(config, "create")
-
     writer(path, content)
 
 
 @generate_workflow(workflow="modify")
 def generate_modify_workflow(environment: Environment, config: dict, writer: Callable) -> None:
-    product_block = root_product_block(config)
-    types_to_import = get_name_spaced_types_to_import(product_block["fields"])
-    fields = get_fields(product_block)
-    workflow = get_workflow(config, "modify")
-    constrained_ints = get_constrained_ints(fields)
-    int_enums = get_int_enums(fields)
-    str_enums = get_str_enums(fields)
-    fields = merge_fields(fields, int_enums, str_enums)
-    validations, validation_imports = get_validations_for_modify(fields)
-
-    template = environment.get_template("modify_product.j2")
-    content = template.render(
-        product=config,
-        product_block=product_block,
-        workflow_validations=workflow.get("validations", []),
-        validations=validations,
-        validation_imports=validation_imports,
-        product_blocks_module=get_product_blocks_module(),
-        product_types_module=get_product_types_module(),
-        workflows_module=get_workflows_module(),
-        types_to_import=types_to_import,
-        fields=fields,
-        product_block_types=constrained_ints + int_enums + str_enums,
-    )
-
+    content = render_template(environment, config, "modify_product.j2", "modify")
     path = get_product_workflow_path(config, "modify")
-
     writer(path, content)
 
 
 @generate_workflow(workflow="validate")
 def generate_validate_workflow(environment: Environment, config: dict, writer: Callable) -> None:
-    workflow = get_workflow(config, "validate")
-    workflow_validations = workflow.get("validations", [])
-
-    template = environment.get_template("validate_product.j2")
-    content = template.render(
-        product=config,
-        workflow_validations=workflow_validations,
-        product_types_module=get_product_types_module(),
-    )
-
+    content = render_template(environment, config, "validate_product.j2", "validate")
     path = get_product_workflow_path(config, "validate")
-
     writer(path, content)
 
 
 @generate_workflow(workflow="terminate")
 def generate_terminate_workflow(environment: Environment, config: dict, writer: Callable) -> None:
-    workflow = get_workflow(config, "terminate")
-
-    template = environment.get_template("terminate_product.j2")
-    content = template.render(
-        product=config,
-        workflow_validations=workflow.get("validations", []),
-        product_types_module=get_product_types_module(),
-    )
-
+    content = render_template(environment, config, "terminate_product.j2", "terminate")
     path = get_product_workflow_path(config, "terminate")
-
     writer(path, content)
