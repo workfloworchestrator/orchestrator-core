@@ -13,7 +13,7 @@ def test_happy_flow(responses, {{ product.variable }}_subscription):
 
     customer_id = "3f4fc287-0911-e511-80d0-005056956c1a"
     crm = CrmMocks(responses)
-    crm.get_organisation_by_uuid(customer_id)
+    crm.get_customer_by_uuid(customer_id)
 
     # TODO insert additional mocks, if needed (ImsMocks)
 

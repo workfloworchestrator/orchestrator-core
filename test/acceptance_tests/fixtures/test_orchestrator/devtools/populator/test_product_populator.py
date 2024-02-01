@@ -36,7 +36,7 @@ class TestProductPopulator(Populator):
 
         self.product_name = "Test Product"
         self.endpoint_description = "Test Product Endpoint"
-        self.log = logger.bind(organisation="Test")
+        self.log = logger.bind(customer="Test")
 
         self.an_int = an_int
         self.a_str = a_str

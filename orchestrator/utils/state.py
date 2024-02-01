@@ -94,7 +94,7 @@ def _save_models(state: State) -> None:
 
             {
                 'product': 'b3c0038f-1dc5-4dd4-b2a4-0a7c6c34401a',
-                'customer': 'ae859151-fa7d-4953-a9d0-f709a0b31641',
+                'customer_id': 'ae859151-fa7d-4953-a9d0-f709a0b31641',
                 'light_path': Sn8LightPath(...)
             }
 
@@ -102,7 +102,7 @@ def _save_models(state: State) -> None:
 
         {
             'product': 'b3c0038f-1dc5-4dd4-b2a4-0a7c6c34401a',
-            'customer': 'ae859151-fa7d-4953-a9d0-f709a0b31641',
+            'customer_id': 'ae859151-fa7d-4953-a9d0-f709a0b31641',
             'new_subscription': {
                 'light_path': Sn8LightPath(...)
             }
@@ -112,7 +112,7 @@ def _save_models(state: State) -> None:
 
         {
             'product': 'b3c0038f-1dc5-4dd4-b2a4-0a7c6c34401a',
-            'customer': 'ae859151-fa7d-4953-a9d0-f709a0b31641',
+            'customer_id': 'ae859151-fa7d-4953-a9d0-f709a0b31641',
             'light_paths': [Sn8LightPath(...), Sn8LightPath(...)]
         }
 
@@ -219,7 +219,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     What this decorator does is better explained with an example than lots of text. So normally we do this::
 
         def load_initial_state_for_modify(state: State) -> State:
-            organisation_id = state["organisation"]
+            customer_id = state["customer_id"]
             subscription_id = state["subscription_id"]
             ....
             # build new_state
@@ -229,7 +229,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     With this decorator we can do::
 
         @inject_args
-        def load_initial_state_for_modify(organisation: UUID, subscription_id: UUID) -> State:
+        def load_initial_state_for_modify(customer_id: UUID, subscription_id: UUID) -> State:
             ....
             # build new_state
             ...
@@ -272,7 +272,7 @@ def inject_args(func: StepFunc) -> Callable[[State], State]:
     to domain models requested as part of the step parameter list.
 
     If the key `light_path` was not found in the state, the parameter is interpreted as a request to create a
-    domain model of the given type. For that to work correctly the keys `product` and `organisation` need to be
+    domain model of the given type. For that to work correctly the keys `product` and `customer_id` need to be
     present in the state. This will not work for more than one domain model. E.g. you can't request two domain
     models to be created as we will not know to which of the two domain models `product` is applicable to.
 

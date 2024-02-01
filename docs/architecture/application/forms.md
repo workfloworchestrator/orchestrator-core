@@ -9,7 +9,7 @@ from orchestrator.forms import FormPage, ReadOnlyField
 And the validators module exposes validators that also function as "input type widgets":
 
 ```python
-from orchestrator.forms.validators import OrganisationId, choice_list, Choice
+from orchestrator.forms.validators import CustomerId, choice_list, Choice
 ```
 
 It's worth poking around in that module to see the various input types the core library exposes.
@@ -34,7 +34,7 @@ class CreateNodeEnrollmentForm(FormPage):
     class Config:
         title = product_name
 
-    organisation: OrganisationId = ReadOnlyField(OrganisationId(ESNET_ORG_UUID))
+    customer_id: CustomerId = ReadOnlyField(CustomerId(ESNET_ORG_UUID))
     select_node_choice: EquipmentList
 
 
@@ -87,7 +87,7 @@ class CreateLightPathForm(FormPage):
     class Config:
         title = product_name
 
-    organisation: OrganisationId
+    customer_id: CustomerId
     contact_persons: ContactPersonList = []  # type: ignore
     ticket_id: JiraTicketId = ""  # type: ignore
     service_ports: ListOfTwo[ServicePort]  # type: ignore
@@ -106,9 +106,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
         class Config:
             title = product_name
 
-        organisation: OrganisationId = ReadOnlyField(
-            OrganisationId(SURFNET_NETWORK_UUID)
-        )
+        customer_id: CustomerId = ReadOnlyField(CustomerId(SURFNET_NETWORK_UUID))
         location_code: LocationCode
         ticket_id: JiraTicketId = ""  # type:ignore
 

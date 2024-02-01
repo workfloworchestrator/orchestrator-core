@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2023 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -10,12 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Annotated
 
-import structlog
+from pydantic import Field
 
-from orchestrator.forms.validators.network_type_validators import BFD, MTU
-
-# TODO: Deprecated, file will be deleted in the future
-logger = structlog.get_logger(__name__)
-logger.warn("DEPRECATED import: BFD and MTU validators are moved to 'orchestrator.forms.validators'")
-__all__ = ["BFD", "MTU"]
+CustomerId = Annotated[str, Field(json_schema_extra={"format": "customerId"})]

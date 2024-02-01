@@ -85,18 +85,18 @@ def target_filter(query: QueryType, value: str) -> QueryType:
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
 
 
-def organisation_filter(query: QueryType, value: str) -> QueryType:
+def customer_filter(query: QueryType, value: str) -> QueryType:
     try:
-        value_as_uuid = UUID(value)
+        customer_uuid = UUID(value)
     except (ValueError, AttributeError):
-        msg = f"Not a valid organisation, must be a UUID: '{value}'"
+        msg = f"Not a valid customer id, must be a UUID: '{value}'"
         logger.debug(msg)
         raise_status(HTTPStatus.BAD_REQUEST, msg)
 
     process_subscriptions = (
         db.session.query(ProcessSubscriptionTable)
         .join(SubscriptionTable)
-        .filter(SubscriptionTable.customer_id == value_as_uuid)
+        .filter(SubscriptionTable.customer_id == customer_uuid)
         .subquery()
     )
     return query.filter(ProcessTable.process_id == process_subscriptions.c.pid)
@@ -124,9 +124,9 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
         "subscriptionId": subscription_id_filter,
         "subscription_id": subscription_id_filter,
         "target": target_filter,
-        "organisation": organisation_filter,
         "workflow_name": workflow_name_filter,
         "workflowName": workflow_name_filter,
+        "customer": customer_filter,
         "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
         "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
         "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4

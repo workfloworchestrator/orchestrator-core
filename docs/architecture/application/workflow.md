@@ -55,10 +55,10 @@ The domain model is then returned as part of the `subscription` object along wit
 ```python
 @step("Construct Node Enrollment model")
 def construct_node_enrollment_model(
-    product: UUIDstr, organisation: UUIDstr, esdb_node_id: int, select_node: str, url: str, uuid: str, role_id: str
+    product: UUIDstr, customer_id: UUIDstr, esdb_node_id: int, select_node: str, url: str, uuid: str, role_id: str
 ) -> State:
     subscription = NodeEnrollmentInactive.from_product_id(
-        product_id=product, customer_id=organisation, status=SubscriptionLifecycle.INITIAL
+        product_id=product, customer_id=customer_id, status=SubscriptionLifecycle.INITIAL
     )
 
     subscription.ne.esdb_node_id = esdb_node_id
@@ -282,7 +282,7 @@ def load_subscription_info(state: State) -> FormGenerator:
 
 ## Default Workflows
 
-A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products. To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration. 
+A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products. To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration.
 
 Alternatively, be sure to execute `ensure_default_workflows()` within the migration if using `helpers.create()` is not desirable.
 

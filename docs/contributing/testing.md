@@ -78,7 +78,7 @@ To start it off, just define the initial input content in a data structure and f
 initial_state = [
     {"product": str(product.product_id)},
     {
-        "organisation": ESNET_ORG_UUID,
+        "customer_id": ESNET_ORG_UUID,
         "esnet5_circuit_id": "2",
         "esnet6_circuit_id": "2",
         "snow_ticket_assignee": "mgoode",
@@ -145,7 +145,6 @@ class OAuthMocks:
         self.responses = responses
 
     def post_token(self):
-
         response = r"""{
   "access_token":"MTQ0NjJkZmQ5OTM2NDE1ZTZjNGZmZjI3",
   "token_type":"bearer",
@@ -245,7 +244,7 @@ The initial state for the form input is defined in a pretty straightforward way 
 initial_state = [
     {"product": str(product.product_id)},
     {
-        "organisation": ESNET_ORG_UUID,
+        "customer_id": ESNET_ORG_UUID,
         "esnet5_circuit_id": "2",
         "esnet6_circuit_id": "2",
         "snow_ticket_assignee": "mgoode",

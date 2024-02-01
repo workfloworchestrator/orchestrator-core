@@ -36,7 +36,7 @@ All forms use `FormPage` as base and can be extended with the form input fields
 needed. In this case a string input field will be shown, the text entered will
 be assigned to `user_input`. All inputs from all input fields are then returned
 as a `Dict` and will be merged into the `State`. The `product_name` argument
-comes from the initial `State`. 
+comes from the initial `State`.
 
 The optional `Config` class can be used to pass configuration information to
 Uniforms. In this case Uniforms is asked to show a input form page with the
@@ -83,7 +83,7 @@ user_input
 └───────────────────────────┘
 </pre>
 
-And for the modify and terminate workflows the `product` ID, `organisation` 
+And for the modify and terminate workflows the `product` ID, `customer_id`
 ID and
 `subscription_id` are added to the `State`
 
@@ -93,7 +93,7 @@ ID and
 └─────────────┬─────────────┘
 │
 product
-organisation
+customer_id
 subscription_id
 │
 ┌─────────────▼─────────────┐
@@ -101,7 +101,7 @@ subscription_id
 └─────────────┬─────────────┘
 │
 product
-organisation
+customer_id
 subscription_id
 user_input
 │

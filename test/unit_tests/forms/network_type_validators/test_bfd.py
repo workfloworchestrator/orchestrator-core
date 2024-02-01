@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.forms.network_type_validators import BFD
+from orchestrator.forms.validators import BFD
 from pydantic_forms.core import FormPage
 
 

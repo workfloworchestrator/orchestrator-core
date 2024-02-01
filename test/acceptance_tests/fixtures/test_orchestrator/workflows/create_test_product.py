@@ -18,6 +18,7 @@ from uuid import UUID
 from pydantic import ConfigDict
 from structlog import get_logger
 
+from orchestrator.forms.validators import CustomerId
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, done, step, workflow
@@ -25,7 +26,6 @@ from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import wrap_create_initial_input_form
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator
-from pydantic_forms.validators import OrganisationId
 from test_orchestrator.products.test_product import TestProductInactive
 
 logger = get_logger(__name__)
@@ -35,7 +35,7 @@ def initial_input_form_generator(product_name: str, product: UUIDstr) -> FormGen
     class CreateTestProductForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        organisation: OrganisationId
+        customer_id: CustomerId
 
         an_int: int
         a_str: str
@@ -52,7 +52,7 @@ def initial_input_form_generator(product_name: str, product: UUIDstr) -> FormGen
 @step("Construct Subscription model")
 def construct_subscription_model(
     product: UUIDstr,
-    organisation: UUIDstr,
+    customer_id: UUIDstr,
     an_int: int,
     a_str: str,
     a_bool: bool,
@@ -62,7 +62,7 @@ def construct_subscription_model(
 ) -> State:
     test_product = TestProductInactive.from_product_id(
         product_id=product,
-        customer_id=organisation,
+        customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
     )
     test_product.testproduct.an_int = an_int

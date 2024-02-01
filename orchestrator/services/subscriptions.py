@@ -211,12 +211,12 @@ def terminate_subscription(subscription_id: UUIDstr) -> SubscriptionTable:
 
 
 def create_subscription(
-    organisation: str, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
+    customer_id: str, product: ProductTable, subscription_name: str, subscription_id: UUIDstr
 ) -> UUID:
     subscription = SubscriptionTable(
         subscription_id=subscription_id,
         product_id=product.product_id,
-        customer_id=organisation,
+        customer_id=customer_id,
         description=subscription_name,
         start_date=None,
         end_date=None,

@@ -135,14 +135,14 @@ class Populator:
         self.process_id = None
         self._product_name = product_name
 
-        organisation = os.getenv("POPULATOR_ORGANISATION") or CWI
+        customer_id = os.getenv("POPULATOR_CUSTOMER_ID") or CWI
         contact_name = os.getenv("POPULATOR_CONTACT_NAME") or os.getenv("USER") or "unknown"
         contact_email = os.getenv("POPULATOR_CONTACT_EMAIL") or "a@b.nl"
         contact_phone = os.getenv("POPULATOR_CONTACT_PHONE") or ""
 
         # When a input_type is not found the populator will try to call a function self."resolve_"input_type()
         self.default_input_values = {
-            "organisation": organisation,
+            "customer_id": customer_id,
             "guid": "6769d05f-3b11-e511-80d0-005056956c1a",
             "contact_persons": [{"email": contact_email, "name": contact_name, "phone": contact_phone}],
             "accept": "ACCEPTED",
