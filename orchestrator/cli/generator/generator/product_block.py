@@ -29,7 +29,7 @@ from orchestrator.cli.generator.generator.helpers import (
     get_name_spaced_types_to_import,
     get_product_block_file_name,
     get_product_blocks_folder,
-    merge_fields,
+    merge_fields, get_product_blocks_module,
 )
 from orchestrator.domain.base import ProductBlockModel
 
@@ -47,7 +47,7 @@ def get_existing_product_blocks() -> dict[str, Any]:
 
         for pb_file in listdir(get_product_blocks_folder()):
             name = pb_file.removesuffix(".py")
-            module_name = f"{get_product_blocks_folder()}.{name}"
+            module_name = f"{get_product_blocks_module()}.{name}"
 
             module = import_module(module_name)
 
