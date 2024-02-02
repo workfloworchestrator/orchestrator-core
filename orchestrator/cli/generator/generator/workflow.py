@@ -22,7 +22,7 @@ from jinja2 import Environment
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     get_constrained_ints,
-    get_fields,
+    get_all_fields,
     get_name_spaced_types_to_import,
     get_product_blocks_module,
     get_product_file_name,
@@ -31,8 +31,9 @@ from orchestrator.cli.generator.generator.helpers import (
     get_workflows_folder,
     get_workflows_module,
     merge_fields,
-    root_product_block,
+    root_product_block, get_input_fields,
 )
+from orchestrator.cli.generator.generator.product_block import get_existing_product_blocks
 from orchestrator.cli.generator.generator.translations import add_workflow_translations
 from orchestrator.cli.generator.generator.validations import get_validations
 
@@ -124,13 +125,14 @@ def get_product_workflow_path(config: dict, workflow_type: str) -> Path:
 def render_template(environment: Environment, config: dict, template: str, workflow: str = "") -> str:
     product_block = root_product_block(config)
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
-    fields = get_fields(product_block)
+    fields = get_input_fields(product_block)
     constrained_ints = get_constrained_ints(fields)
     int_enums = get_int_enums(fields)
     str_enums = get_str_enums(fields)
     fields = merge_fields(fields, int_enums, str_enums)
     product_block_types = constrained_ints + int_enums + str_enums
     validations, validation_imports = get_validations(fields, workflow)
+    existing_product_blocks = get_existing_product_blocks()
 
     if workflow:
         workflow_config = get_workflow(config, workflow)
@@ -144,6 +146,7 @@ def render_template(environment: Environment, config: dict, template: str, workf
         validation_imports=validation_imports,
         types_to_import=types_to_import,
         product_block_types=product_block_types,
+        existing_product_blocks=existing_product_blocks,
         product_blocks_module=get_product_blocks_module(),
         product_types_module=get_product_types_module(),
         workflows_module=get_workflows_module(),

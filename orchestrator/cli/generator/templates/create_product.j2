@@ -51,7 +51,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         label_{{ product.variable }}_settings: Label
         divider_1: Divider
 
-        {% for field in fields -%}
+        {% for field in fields if field.type not in existing_product_blocks -%}
         {% if field.type not in existing_product_blocks -%}
         {% if field.type in validations | map(attribute='field.type') -%}
             {% set type = 'validated_' +  field.name -%}

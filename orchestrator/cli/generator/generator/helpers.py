@@ -130,7 +130,7 @@ def name_space_get_type(name_spaced_type: str) -> str:
     return name_spaced_type.split(".")[-1]
 
 
-def get_fields(product_block: dict) -> list[dict]:
+def process_fields(fields: list[dict]) -> list[dict]:
     def to_type(field: dict) -> dict:
         if is_constrained_int(field):
             return field | {"type": snake_to_camel(field["name"])}
@@ -140,7 +140,18 @@ def get_fields(product_block: dict) -> list[dict]:
 
         return field
 
-    return [to_type(field) for field in product_block["fields"]]
+    return [to_type(field) for field in fields]
+
+
+def get_all_fields(product_block: dict) -> list[dict]:
+    return process_fields(product_block["fields"])
+
+
+def get_input_fields(product_block: dict) -> list[dict]:
+    def supported_input_type(field: dict) -> bool:
+        return field["type"] in ("int", "str", "bool", "enum")
+
+    return process_fields(list(field for field in product_block["fields"] if supported_input_type(field)))
 
 
 def get_name_spaced_types_to_import(fields: list) -> list[tuple]:

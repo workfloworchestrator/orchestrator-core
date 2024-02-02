@@ -18,7 +18,7 @@ import structlog
 from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import (
-    get_fields,
+    get_all_fields,
     get_product_file_name,
     get_product_types_module,
     get_workflow,
@@ -62,7 +62,7 @@ def generate_workflow_tests(environment: Environment, config: dict, writer: Call
 
 def generate_test_create_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     product_block = root_product_block(config)
-    fields = get_fields(product_block)
+    fields = get_all_fields(product_block)
     validations, _ = get_validations(fields)
 
     template = environment.get_template("test_create_workflow.j2")
@@ -74,7 +74,7 @@ def generate_test_create_workflow(environment: Environment, config: dict, writer
 
 def generate_test_modify_workflow(environment: Environment, config: dict, writer: Callable) -> None:
     product_block = root_product_block(config)
-    fields = get_fields(product_block)
+    fields = get_all_fields(product_block)
     validations, _ = get_validations(fields)
 
     template = environment.get_template("test_modify_workflow.j2")

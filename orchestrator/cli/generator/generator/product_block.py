@@ -25,7 +25,7 @@ from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_en
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
     get_constrained_ints,
-    get_fields,
+    get_all_fields,
     get_name_spaced_types_to_import,
     get_product_block_file_name,
     get_product_blocks_folder,
@@ -84,7 +84,7 @@ def enrich_product_block(product_block: dict) -> dict:
         name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
         return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
 
-    fields = get_fields(product_block)
+    fields = get_all_fields(product_block)
     block_name = product_block.get("block_name", to_block_name())
 
     return product_block | {
@@ -106,7 +106,7 @@ def generate_product_blocks(context: dict) -> None:
     def generate_product_block(product_block: dict) -> None:
         types_to_import = get_name_spaced_types_to_import(product_block["fields"])
 
-        fields = get_fields(product_block)
+        fields = get_all_fields(product_block)
 
         int_enums = get_int_enums(fields)
         str_enums = get_str_enums(fields)
