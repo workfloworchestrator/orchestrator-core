@@ -103,7 +103,7 @@ def update_subscription_model_registry(
     with open(path) as fp:
         if "SUBSCRIPTION_MODEL_REGISTRY" not in fp.read():
             fp.close()
-            writer(path, "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n\n", append=True)
+            writer(path, "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY  # noqa\n\n", append=True)
     with open(path) as fp:
         if f"from {get_product_types_module()}.{product_variable} import {product_type}" not in fp.read():
             fp.close()
