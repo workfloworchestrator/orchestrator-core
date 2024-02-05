@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import subprocess
 from pathlib import Path
 
 import structlog
@@ -62,8 +63,22 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
         logger.info("wrote file", path=str(path), append=append, force=force)
 
 
+def ruff(content: str) -> str:
+    ruff_check = ["ruff", "check", "--fix-only", "-"]
+    ruff_format = ["ruff", "format", "--line-length", "120", "-"]
+    try:
+        process = subprocess.run(ruff_check, capture_output=True, check=True, text=True, input=content)
+        process = subprocess.run(ruff_format, capture_output=True, check=True, text=True, input=process.stdout)
+    except subprocess.CalledProcessError as exc:
+        logger.warning("ruff error", cmd=exc.cmd, returncode=exc.returncode, stderr=exc.stderr)
+    else:
+        content = process.stdout
+    return content
+
+
 def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
     def writer(path: Path, content: str, append: bool = False) -> None:
+        content = ruff(content)
         if dryrun:
             logger.info("preview file", path=str(path), append=append, force=force, dryrun=dryrun)
             typer.echo(f"# {path}")
