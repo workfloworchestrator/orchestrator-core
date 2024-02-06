@@ -12,10 +12,11 @@
 # limitations under the License.
 
 from enum import Enum, EnumMeta
-from typing import Any
+from typing import Any, get_args
 
 import strawberry
 import structlog
+from more_itertools import one
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.federation.schema_directives import Key
 from strawberry.unset import UNSET
@@ -23,7 +24,7 @@ from strawberry.unset import UNSET
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
 from orchestrator.graphql.schemas import StrawberryModelType
-from orchestrator.types import is_of_type, is_optional_type
+from orchestrator.types import filter_nonetype, is_of_type, is_optional_type
 from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
@@ -39,15 +40,19 @@ def is_not_strawberry_enum(key: str, strawberry_enums: EnumDict) -> bool:
     return key not in strawberry_enums
 
 
-def is_enum(field: Any) -> bool:
-    return is_of_type(field, Enum) or is_optional_type(field, Enum)
+def _get_enum(field: Any) -> Enum | None:
+    if is_optional_type(field, Enum):
+        return one(filter_nonetype(get_args(field)))
+    if is_of_type(field, Enum):
+        return field
+    return None
 
 
 def create_strawberry_enums(model: type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
     enums = {
         key: create_strawberry_enum(field)
-        for key, field in model._non_product_block_fields_.items()
-        if is_enum(field) and is_not_strawberry_enum(key, strawberry_enums)
+        for key, raw_field in model._non_product_block_fields_.items()
+        if (field := _get_enum(raw_field)) and is_not_strawberry_enum(key, strawberry_enums)
     }
     return strawberry_enums | enums
 
