@@ -22,7 +22,7 @@ from jinja2 import Environment
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     get_constrained_ints,
-    get_all_fields,
+    get_input_fields,
     get_name_spaced_types_to_import,
     get_product_blocks_module,
     get_product_file_name,
@@ -31,7 +31,7 @@ from orchestrator.cli.generator.generator.helpers import (
     get_workflows_folder,
     get_workflows_module,
     merge_fields,
-    root_product_block, get_input_fields,
+    root_product_block,
 )
 from orchestrator.cli.generator.generator.product_block import get_existing_product_blocks
 from orchestrator.cli.generator.generator.translations import add_workflow_translations

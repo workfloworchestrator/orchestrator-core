@@ -24,12 +24,13 @@ import structlog
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
-    get_constrained_ints,
     get_all_fields,
+    get_constrained_ints,
     get_name_spaced_types_to_import,
     get_product_block_file_name,
     get_product_blocks_folder,
-    merge_fields, get_product_blocks_module,
+    get_product_blocks_module,
+    merge_fields,
 )
 from orchestrator.domain.base import ProductBlockModel
 

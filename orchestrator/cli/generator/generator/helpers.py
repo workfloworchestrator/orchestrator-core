@@ -151,7 +151,7 @@ def get_input_fields(product_block: dict) -> list[dict]:
     def supported_input_type(field: dict) -> bool:
         return field["type"] in ("int", "str", "bool", "enum")
 
-    return process_fields(list(field for field in product_block["fields"] if supported_input_type(field)))
+    return process_fields([field for field in product_block["fields"] if supported_input_type(field)])
 
 
 def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
