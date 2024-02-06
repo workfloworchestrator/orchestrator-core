@@ -9,6 +9,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.services.resource_types import get_resource_types
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 
 def test_migrate_domain_models_new_product(test_product_type_one, test_product_sub_block_one_db):
@@ -24,11 +25,12 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
         "int_field": {"ProductBlockOneForTest": "1"},
         "str_field": {"ProductBlockOneForTest": "test"},
         "list_field": {"description": "list field desc", "ProductBlockOneForTest": "list test"},
+        "enum_field": {"description": "an enum", "ProductBlockOneForTest": str(DummyEnum.FOO)},
     }
     upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=json.dumps(inputs))
 
-    assert len(upgrade_sql) == 9
-    assert len(downgrade_sql) == 18
+    assert len(upgrade_sql) == 11
+    assert len(downgrade_sql) == 20
 
     def fetch_product_ids(product_name):
         return db.session.scalars(select(ProductTable.product_id).where(ProductTable.name == product_name)).all()
@@ -52,7 +54,7 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
             "missing_in_depends_on_blocks": {
                 "ProductBlockOneForTest": {
                     "missing_product_blocks_in_db": {"SubBlockOneForTest"},
-                    "missing_resource_types_in_db": {"int_field", "list_field", "str_field"},
+                    "missing_resource_types_in_db": {"int_field", "list_field", "str_field", "enum_field"},
                 }
             },
             "missing_product_blocks_in_db": {"ProductBlockOneForTest"},
@@ -228,6 +230,7 @@ def test_migrate_domain_models_new_product_block_on_product_block(
         str_field: str
         int_field: int
         list_field: list[int]
+        enum_field: DummyEnum
         new_block: TestBlock
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -287,6 +290,7 @@ def test_migrate_domain_models_new_resource_type(
         sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
+        enum_field: DummyEnum
         list_field: list[int]
         new_int_field: int
 
@@ -341,6 +345,7 @@ def test_migrate_domain_models_rename_resource_type(
         sub_block_list: list[SubBlockOneForTest]
         str_field: str
         int_field: int
+        enum_field: DummyEnum
         new_list_field: list[int]
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -404,6 +409,7 @@ def test_migrate_domain_models_rename_and_relate_resource_type(
         sub_block_list: list[SubBlockOneForTestNewResource]
         str_field: str
         int_field: int
+        enum_field: DummyEnum
         new_list_field: list[int]  # renamed from 'list_field'
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -535,6 +541,7 @@ def test_migrate_domain_models_update_block_resource_type(
         sub_block_2: SubBlockOneForTest
         sub_block_list: list[SubBlockOneForTest]
         str_field: str
+        enum_field: DummyEnum
         new_int_field: int
         list_field: list[int]
 
@@ -687,6 +694,7 @@ def test_migrate_domain_models_remove_resource_type(
         sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
+        enum_field: DummyEnum
 
     class ProductTypeOneForTestNew(ProductTypeOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool

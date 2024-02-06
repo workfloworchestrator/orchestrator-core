@@ -1,3 +1,5 @@
+from enum import StrEnum, auto
+
 import pytest
 from pydantic import Field, computed_field
 
@@ -5,6 +7,11 @@ from orchestrator.db import ProductBlockTable, db
 from orchestrator.domain.base import ProductBlockModel, ProductModel
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
+
+
+class DummyEnum(StrEnum):
+    FOO = auto()
+    BAR = auto()
 
 
 @pytest.fixture
@@ -18,6 +25,7 @@ def test_product_block_one(test_product_sub_block_one):
         int_field: int | None = None
         str_field: str | None = None
         list_field: list[int] = Field(default_factory=list)
+        enum_field: DummyEnum | None = None
 
         @computed_field  # type: ignore[misc]
         @property
@@ -33,6 +41,7 @@ def test_product_block_one(test_product_sub_block_one):
         int_field: int
         str_field: str | None = None
         list_field: list[int]
+        enum_field: DummyEnum
 
     class ProductBlockOneForTest(ProductBlockOneForTestProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         sub_block: SubBlockOneForTest
@@ -41,17 +50,20 @@ def test_product_block_one(test_product_sub_block_one):
         int_field: int
         str_field: str
         list_field: list[int]
+        enum_field: DummyEnum
 
     return ProductBlockOneForTestInactive, ProductBlockOneForTestProvisioning, ProductBlockOneForTest
 
 
 @pytest.fixture
-def test_product_block_one_db(resource_type_list, resource_type_int, resource_type_str, test_product_sub_block_one_db):
+def test_product_block_one_db(
+    resource_type_list, resource_type_int, resource_type_str, resource_type_enum, test_product_sub_block_one_db
+):
     product_block = ProductBlockTable(
         name="ProductBlockOneForTest", description="Test Block", tag="TEST", status="active"
     )
 
-    product_block.resource_types = [resource_type_int, resource_type_str, resource_type_list]
+    product_block.resource_types = [resource_type_int, resource_type_str, resource_type_list, resource_type_enum]
     product_block.depends_on = [test_product_sub_block_one_db]
 
     db.session.add(product_block)
