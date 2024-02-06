@@ -1,7 +1,4 @@
-import strawberry
-
 {% for fi in int_enums -%}
-@strawberry.enum
 class {{ fi.type }}(IntEnum):
     {% for v in fi["values"] -%}
         _{{ v }} = {{ v }}
@@ -9,7 +6,6 @@ class {{ fi.type }}(IntEnum):
 {%- endfor %}
 
 {% for fi in str_enums -%}
-@strawberry.enum
 class {{ fi.type }}(StrEnum):
     {% for v in fi["values"] -%}
         {{ v }} = "{{ v }}"
