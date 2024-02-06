@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 from enum import Enum, EnumMeta
 from typing import Any
 
@@ -24,6 +23,7 @@ from strawberry.unset import UNSET
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
 from orchestrator.graphql.schemas import StrawberryModelType
+from orchestrator.types import is_of_type, is_optional_type
 from orchestrator.utils.helpers import to_camel
 
 logger = structlog.get_logger(__name__)
@@ -40,7 +40,7 @@ def is_not_strawberry_enum(key: str, strawberry_enums: EnumDict) -> bool:
 
 
 def is_enum(field: Any) -> bool:
-    return inspect.isclass(field) and issubclass(field, Enum)
+    return is_of_type(field, Enum) or is_optional_type(field, Enum)
 
 
 def create_strawberry_enums(model: type[DomainModel], strawberry_enums: EnumDict) -> EnumDict:
