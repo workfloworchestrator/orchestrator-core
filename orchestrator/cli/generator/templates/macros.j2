@@ -1,9 +1,15 @@
+{% macro type_and_default(field, type, required_in) -%}
+{{ required(field, type, required_in) }}{{ default(field, type, required_in) }}
+{%- endmacro %}
+
 {% macro required(field, type, required_in) -%}
 {{ type }}{% if field.required not in required_in %} | None{% endif %}
 {%- endmacro %}
 
-{% macro default(field) -%}
-{% if field.default is defined %}{{ field.default }}{% else %}None{% endif %}
+{% macro default(field, type, required_in) -%}
+{% if field.required not in required_in -%}
+ = {% if field.default is defined %}{{ field.default }}{% else %}None{% endif %}
+{%- endif %}
 {%- endmacro %}
 
 {% macro list_field(name, list_type) -%}

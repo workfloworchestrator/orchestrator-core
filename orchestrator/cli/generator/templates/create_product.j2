@@ -1,6 +1,6 @@
 {# Create workflow -#}
 
-{% from 'macros.j2' import required with context -%}
+{% from 'macros.j2' import type_and_default, required with context -%}
 
 from collections.abc import Generator
 from typing import Annotated
@@ -58,7 +58,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         {% else -%}
             {% set type = field.type -%}
         {% endif -%}
-        {{ field.name }}: {{ required(field, type, ["inactive"]) }}{% if field.default is defined %} = {{field.default}}{% endif %}
+        {{ field.name }}: {{ type_and_default(field, type, ["inactive"]) }}
         {%- endif %}
         {% endfor -%}
         {% for validation in workflow_validations %}
