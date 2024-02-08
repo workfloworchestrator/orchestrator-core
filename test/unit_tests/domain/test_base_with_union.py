@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from orchestrator.db import db
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 
 def test_product_model_with_union_type_directly_below(
@@ -27,6 +28,7 @@ def test_product_model_with_union_type_directly_below(
         int_field=3,
         str_field="",
         list_field=[1],
+        enum_field=DummyEnum.FOO,
         sub_block=SubBlockOneForTestInactive.new(
             subscription_id=union_subscription_inactive.subscription_id, int_field=3, str_field=""
         ),

@@ -114,6 +114,7 @@ from test.unit_tests.fixtures.products.product_types.product_type_union import (
     test_union_type_product,
 )
 from test.unit_tests.fixtures.products.resource_types import (  # noqa: F401
+    resource_type_enum,
     resource_type_int,
     resource_type_int_2,
     resource_type_list,

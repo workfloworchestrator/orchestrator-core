@@ -9,6 +9,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.services.resource_types import get_resource_types
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 
 def test_migrate_domain_models_new_product_block(
@@ -78,6 +79,7 @@ def test_migrate_domain_models_new_product_block_on_product_block(
         str_field: str
         int_field: int
         list_field: list[int]
+        enum_field: DummyEnum
         new_block: TestBlock
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -134,6 +136,7 @@ def test_migrate_domain_models_new_resource_type(
         int_field: int
         str_field: str
         list_field: list[int]
+        enum_field: DummyEnum
         new_int_field: int
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -238,6 +241,7 @@ def test_migrate_domain_models_update_resource_type(
         sub_block_list: list[SubBlockOneForTest]
         str_field: str
         int_field: int
+        enum_field: DummyEnum
         new_list_field: list[int]
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -296,6 +300,7 @@ def test_migrate_domain_models_create_and_rename_resource_type(test_product_type
         sub_block_list: list[SubBlockOneForTestNewResource]
         str_field: str
         int_field: int
+        enum_field: DummyEnum
         new_list_field: list[int]
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -530,6 +535,7 @@ def test_migrate_domain_models_remove_resource_type(
         sub_block_list: list[SubBlockOneForTest]
         int_field: int
         str_field: str
+        enum_field: DummyEnum
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -572,6 +578,7 @@ def test_migrate_domain_models_update_block_resource_type(
         update_str_field: str
         int_field: int
         list_field: list[int]
+        enum_field: DummyEnum
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool
@@ -634,6 +641,7 @@ def test_migrate_domain_models_rename_and_update_block_resource_type(test_produc
         update_str_field: str
         int_field: int
         list_field: list[int]
+        enum_field: DummyEnum
 
     class ProductTypeOneForTestNew(SubscriptionModel, is_base=True, lifecycle=[SubscriptionLifecycle.ACTIVE]):
         test_fixed_input: bool

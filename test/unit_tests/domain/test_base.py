@@ -28,6 +28,7 @@ from orchestrator.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
     ProductBlockListNestedForTestInactive,
 )
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (
     ProductBlockOneNestedForTestInactive,
 )
@@ -402,6 +403,7 @@ def test_lifecycle_specific(
             int_field=3,
             str_field="",
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -426,6 +428,7 @@ def test_lifecycle_specific(
             int_field=3,
             str_field="",
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -450,6 +453,7 @@ def test_lifecycle_specific(
                 subscription_id=subscription_id,
                 int_field=3,
                 list_field=[1],
+                enum_field=DummyEnum.FOO,
                 sub_block=SubBlockOneForTestProvisioning.new(subscription_id=subscription_id, int_field=3),
                 sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             ),
@@ -471,6 +475,7 @@ def test_lifecycle_specific(
             subscription_id=subscription_id,
             int_field=3,
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTestProvisioning.new(subscription_id=subscription_id, int_field=3),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -502,6 +507,7 @@ def test_product_blocks_per_lifecycle(
             int_field=3,
             str_field="",
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -537,6 +543,7 @@ def test_product_blocks_per_lifecycle(
             int_field=3,
             str_field="",
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -558,6 +565,7 @@ def test_product_blocks_per_lifecycle(
             int_field=3,
             str_field="",
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -579,6 +587,7 @@ def test_product_blocks_per_lifecycle(
             int_field=3,
             str_field="",
             list_field=[1],
+            enum_field=DummyEnum.FOO,
             sub_block=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
             sub_block_2=SubBlockOneForTest.new(subscription_id=subscription_id, int_field=3, str_field=""),
         ),
@@ -687,6 +696,7 @@ def test_change_lifecycle(test_product_one, test_product_type_one, test_product_
     product_type.block.sub_block_list = [SubBlockOneForTestInactive.new(subscription_id=product_type.subscription_id)]
     product_type.block.sub_block_list[0].int_field = 4
     product_type.block.list_field = [1]
+    product_type.block.enum_field = DummyEnum.FOO
 
     # Does not work if constraints are not met
     with pytest.raises(ValidationError, match=r"str_field\n\s+Input should be a valid string"):
@@ -749,6 +759,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
     assert model.model_dump() == {
         "block": {
             "int_field": None,
+            "enum_field": None,
             "label": None,
             "list_field": [],
             "title": "TEST ProductBlockOneForTestInactive int_field=None",
@@ -790,6 +801,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
 
     # Set first value
     model.block.int_field = 3
+    model.block.enum_field = DummyEnum.FOO
     model.block.sub_block.int_field = 3
     model.block.sub_block_2 = SubBlockOneForTestInactive.new(subscription_id=model.subscription_id)
     model.block.sub_block_2.int_field = 3
@@ -1144,7 +1156,7 @@ def test_diff_in_db_missing_in_db(test_product_type_one):
             "missing_in_depends_on_blocks": {
                 "ProductBlockOneForTest": {
                     "missing_product_blocks_in_db": {"SubBlockOneForTest"},
-                    "missing_resource_types_in_db": {"int_field", "list_field", "str_field"},
+                    "missing_resource_types_in_db": {"int_field", "list_field", "str_field", "enum_field"},
                 },
                 "SubBlockOneForTest": {"missing_resource_types_in_db": {"int_field", "str_field"}},
             },
@@ -1213,7 +1225,7 @@ def test_from_other_lifecycle_sub(test_product_one, test_product_block_one, test
     subscription_id = uuid4()
 
     block = ProductBlockOneForTestInactive.new(
-        subscription_id=subscription_id, int_field=1, str_field="bla", list_field=[1]
+        subscription_id=subscription_id, int_field=1, str_field="bla", list_field=[1], enum_field=DummyEnum.FOO
     )
     block.sub_block = SubBlockOneForTestInactive.new(subscription_id=subscription_id, int_field=1, str_field="bla")
     block.sub_block_2 = SubBlockOneForTestInactive.new(subscription_id=subscription_id, int_field=1, str_field="bla")

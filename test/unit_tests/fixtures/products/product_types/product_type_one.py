@@ -8,6 +8,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductModel, SubscriptionModel
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 
 @pytest.fixture
@@ -81,6 +82,7 @@ def product_one_subscription_1(test_product_one, test_product_type_one, test_pro
     model.block.str_field = "A"
     model.block.int_field = 1
     model.block.list_field = [10, 20, 30]
+    model.block.enum_field = DummyEnum.BAR
     model.block.sub_block.str_field = "B"
     model.block.sub_block.int_field = 2
     model.block.sub_block_2 = SubBlockOneForTest.new(

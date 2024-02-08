@@ -7,6 +7,7 @@ from orchestrator.db import ProductTable, db
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
 
 
 @pytest.fixture
@@ -72,6 +73,7 @@ def sub_list_union_overlap_subscription_1(
         int_field=3,
         str_field="",
         list_field=[1, 2],
+        enum_field=DummyEnum.FOO,
         sub_block=SubBlockOneForTestInactive.new(
             subscription_id=list_union_subscription_inactive.subscription_id, int_field=3, str_field="2"
         ),

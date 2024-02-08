@@ -21,3 +21,8 @@ def resource_type_int_2():
 @pytest.fixture
 def resource_type_str():
     return ResourceTypeTable(resource_type="str_field", description="")
+
+
+@pytest.fixture
+def resource_type_enum():
+    return ResourceTypeTable(resource_type="enum_field", description="")
