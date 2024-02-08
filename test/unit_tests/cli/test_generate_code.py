@@ -21,8 +21,9 @@ def create_main():
             "from orchestrator import OrchestratorCore\n"
             "from orchestrator.cli.main import app as core_cli\n"
             "from orchestrator.settings import AppSettings\n"
+            "\n"
             "app = OrchestratorCore(base_settings=AppSettings())\n"
-            "if __name__ == '__main__':\n"
+            "if __name__ == \"__main__\":\n"
             "    core_cli()\n"
         )
 
