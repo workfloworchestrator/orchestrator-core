@@ -30,7 +30,7 @@ def read_file(path: str) -> str:
 
 def test_generate_product():
     runner = CliRunner()
-    result = runner.invoke(app, ["product", "--config-file", read_file("product_config1.yaml"), "--dryrun"])
+    result = runner.invoke(app, ["product", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
     assert "class MyProductInactive" in result.stdout
     assert "class MyProductProvisioning" in result.stdout
     assert "class MyProduct" in result.stdout
@@ -43,7 +43,7 @@ def test_generate_product_blocks(existing_product_blocks_mock):
         "MyExistingProductBlock": "products.product_blocks.my_existing_product_block"
     }
     runner = CliRunner()
-    result = runner.invoke(app, ["product-blocks", "--config-file", read_file("product_config1.yaml"), "--dryrun"])
+    result = runner.invoke(app, ["product-blocks", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
     assert "class MyIntermediateProductBlockInactive" in result.stdout
     assert "class MyIntermediateProductBlockProvisioning" in result.stdout
     assert "class MyIntermediateProductBlock" in result.stdout
@@ -52,7 +52,7 @@ def test_generate_product_blocks(existing_product_blocks_mock):
 
 def test_generate_workflows():
     runner = CliRunner()
-    result = runner.invoke(app, ["workflows", "--config-file", read_file("product_config1.yaml"), "--dryrun"])
+    result = runner.invoke(app, ["workflows", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
     assert "@create_workflow(" in result.stdout
     assert "@modify_workflow(" in result.stdout
     assert "@terminate_workflow(" in result.stdout
@@ -63,6 +63,6 @@ def test_generate_workflows():
 @mock.patch.object(pathlib.Path, "mkdir")
 def test_generate_unit_tests(mkdir_mock):
     runner = CliRunner()
-    result = runner.invoke(app, ["unit-tests", "--config-file", read_file("product_config1.yaml"), "--dryrun"])
+    result = runner.invoke(app, ["unit-tests", "--config-file", read_file("product_config3.yaml"), "--dryrun"])
     assert "def test_" in result.stdout
     assert result.exit_code == 0
