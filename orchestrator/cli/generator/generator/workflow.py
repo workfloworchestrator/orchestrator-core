@@ -71,14 +71,17 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
 
     path = get_workflows_folder() / Path("__init__.py")
     if not path.exists():
-        writer(path, "from orchestrator.workflows import LazyWorkflowInstance  # noqa\n\n")
+        import_statement = "from orchestrator.workflows import LazyWorkflowInstance\n\n"
+        writer(path, "")  # will create file if not dryrun
+    else:
+        import_statement = ""
     if path.exists():  # if dryrun then path was not created above
         with open(path) as fp:
             if f"workflows.{variable}.create_{variable}" in fp.read():
                 logger.warning("not re-adding lazy workflows", product=variable)
             else:
                 fp.close()
-                writer(path, content, append=True)
+                writer(path, import_statement + content, append=True)
 
 
 def generate_workflows(context: dict) -> None:

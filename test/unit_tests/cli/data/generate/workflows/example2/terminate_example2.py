@@ -36,6 +36,7 @@ additional_steps = begin
 )
 def terminate_example2() -> StepList:
     return (
-        begin >> delete_subscription_from_oss_bss
+        begin
+        >> delete_subscription_from_oss_bss
         # TODO: fill in additional steps if needed
     )

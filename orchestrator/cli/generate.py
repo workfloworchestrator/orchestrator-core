@@ -65,10 +65,10 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
 
 def ruff(content: str) -> str:
     ruff_check = ["ruff", "check", "--fix-only", "-"]
-    ruff_format = ["ruff", "format", "--line-length", "120", "-"]
+    black_format = ["black", "--line-length", "120", "-"]
     try:
         process = subprocess.run(ruff_check, capture_output=True, check=True, text=True, input=content)  # noqa
-        process = subprocess.run(ruff_format, capture_output=True, check=True, text=True, input=process.stdout)  # noqa
+        process = subprocess.run(black_format, capture_output=True, check=True, text=True, input=process.stdout)  # noqa
     except subprocess.CalledProcessError as exc:
         logger.warning("ruff error", cmd=exc.cmd, returncode=exc.returncode, stderr=exc.stderr)
     else:
