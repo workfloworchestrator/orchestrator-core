@@ -146,6 +146,7 @@ exclude = '''
     | \.venv
     | venv
     | src
+    | test/unit_tests/cli/data/generate
   )/
 )
 '''
