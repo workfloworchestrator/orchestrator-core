@@ -102,7 +102,7 @@ def update_subscription_model_registry(
     path = settings.FOLDER_PREFIX / settings.PRODUCT_REGISTRY_PATH
     with open(path) as fp:
         import_statement = (
-            "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n\n"
+            "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n"
             if "SUBSCRIPTION_MODEL_REGISTRY" not in fp.read()
             else ""
         )

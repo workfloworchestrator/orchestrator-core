@@ -1,17 +1,14 @@
 import structlog
-
+from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
-from products.product_types.example2 import Example2, Example2Provisioning
-
 
 from products.product_blocks.example2 import ExampleIntEnum2
-
-from orchestrator.domain import SubscriptionModel
+from products.product_types.example2 import Example2, Example2Provisioning
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

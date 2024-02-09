@@ -1,11 +1,10 @@
 from typing import Generator, List
 
-from pydantic import ConfigDict
-
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import MigrationSummary
 from orchestrator.types import SummaryData
+from pydantic import ConfigDict
 
 
 def summary_form(product_name: str, summary_data: dict) -> Generator:

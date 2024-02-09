@@ -1,14 +1,12 @@
 import structlog
-from pydantic import model_validator
-
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import DisplaySubscription
 from orchestrator.types import InputForm, State, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import terminate_workflow
+from pydantic import model_validator
 
 from products.product_types.example1 import Example1
-
 
 logger = structlog.get_logger(__name__)
 
@@ -43,7 +41,6 @@ additional_steps = begin
 )
 def terminate_example1() -> StepList:
     return (
-        begin
-        >> delete_subscription_from_oss_bss
+        begin >> delete_subscription_from_oss_bss
         # TODO: fill in additional steps if needed
     )

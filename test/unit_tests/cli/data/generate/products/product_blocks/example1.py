@@ -1,12 +1,13 @@
 from enum import StrEnum
+from ipaddress import IPv4Address
 from typing import Annotated
 
 from annotated_types import Ge, Le, Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import computed_field
-from ipaddress import IPv4Address
-from products.product_blocks.example2 import Example2BlockInactive, Example2BlockProvisioning, Example2Block
+
+from products.product_blocks.example2 import Example2Block, Example2BlockInactive, Example2BlockProvisioning
 
 
 class ExampleStrEnum1(StrEnum):

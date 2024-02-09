@@ -1,21 +1,20 @@
 from typing import Annotated
 
 import structlog
-from pydantic import AfterValidator
-from pydantic_forms.validators import ReadOnlyField
-
+from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
+from pydantic import AfterValidator
+from pydantic_forms.validators import ReadOnlyField
+
+from products.product_blocks.example1 import ExampleStrEnum1
 from products.product_types.example1 import Example1, Example1Provisioning
 from workflows.example1.shared.forms import must_be_unused_to_change_mode_validator
 from workflows.shared import modify_summary_form
-from products.product_blocks.example1 import ExampleStrEnum1
-
-from orchestrator.domain import SubscriptionModel
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

@@ -1,28 +1,29 @@
 from typing import Annotated
 
 import structlog
-from pydantic import AfterValidator, ConfigDict
-
+from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Divider, Label, CustomerId
+from orchestrator.forms.validators import CustomerId, Divider, Label
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
+from pydantic import AfterValidator, ConfigDict
+
+from products.product_blocks.example1 import AnnotatedInt, ExampleStrEnum1
 from products.product_types.example1 import Example1Inactive, Example1Provisioning
 from workflows.example1.shared.forms import (
-    must_be_unused_to_change_mode_validator,
     annotated_int_must_be_unique_validator,
+    must_be_unused_to_change_mode_validator,
 )
 from workflows.shared import create_summary_form
-from products.product_blocks.example1 import AnnotatedInt, ExampleStrEnum1
-
-from orchestrator.domain import SubscriptionModel
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:
-    """The suggested pattern is to implement a subscription service that generates a subscription specific
+    """Generate subscription description.
+
+    The suggested pattern is to implement a subscription service that generates a subscription specific
     description, in case that is not present the description will just be set to the product name.
     """
     return f"{subscription.product.name} subscription"
@@ -103,8 +104,6 @@ additional_steps = begin
 @create_workflow("Create example1", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_example1() -> StepList:
     return (
-        begin
-        >> construct_example1_model
-        >> store_process_subscription(Target.CREATE)
+        begin >> construct_example1_model >> store_process_subscription(Target.CREATE)
         # TODO add provision step(s)
     )

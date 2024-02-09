@@ -67,7 +67,6 @@ dependencies = [
     "strawberry-graphql==0.210.0",
     "pydantic-forms==1.0.1",
     "ruff",
-    "black",
 ]
 
 description-file = "README.md"
@@ -84,6 +83,7 @@ celery = [
 
 test = [
     "apache-license-check",
+    "black",
     "blinker",
     "deepdiff",
     "dirty-equals",
@@ -166,6 +166,7 @@ exclude = [
     "venv",
     ".venv",
     "docs",
+    "test/unit_tests/cli/data/generate",
 ]
 ignore = [
     "C417",

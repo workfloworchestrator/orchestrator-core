@@ -1,22 +1,22 @@
 import structlog
-from pydantic import ConfigDict
-
+from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import Divider, Label, CustomerId
+from orchestrator.forms.validators import CustomerId, Divider, Label
 from orchestrator.targets import Target
 from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
-from products.product_types.example2 import Example2Inactive, Example2Provisioning
+from pydantic import ConfigDict
 
 from products.product_blocks.example2 import ExampleIntEnum2
-
-from orchestrator.domain import SubscriptionModel
+from products.product_types.example2 import Example2Inactive, Example2Provisioning
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:
-    """The suggested pattern is to implement a subscription service that generates a subscription specific
+    """Generate subscription description.
+
+    The suggested pattern is to implement a subscription service that generates a subscription specific
     description, in case that is not present the description will just be set to the product name.
     """
     return f"{subscription.product.name} subscription"
@@ -73,8 +73,6 @@ additional_steps = begin
 @create_workflow("Create example2", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_example2() -> StepList:
     return (
-        begin
-        >> construct_example2_model
-        >> store_process_subscription(Target.CREATE)
+        begin >> construct_example2_model >> store_process_subscription(Target.CREATE)
         # TODO add provision step(s)
     )
