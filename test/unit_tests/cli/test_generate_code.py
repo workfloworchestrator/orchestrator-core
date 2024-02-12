@@ -43,7 +43,7 @@ def actual_folder(tmp_path_factory, monkey_module) -> Path:
     runner = CliRunner()
     runner.invoke(db_app, ["init"])
     for config_file in (absolute_path("product_config2.yaml"), absolute_path("product_config1.yaml")):
-        for cmd in ("product-blocks", "product", "workflows"):  # skip unit-tests for now
+        for cmd in ("product-blocks", "product", "workflows", "unit-tests"):
             runner.invoke(generate_app, [cmd, "--config-file", config_file, "--no-dryrun", "--force"])
         runner.invoke(generate_app, ["migration", "--config-file", config_file])
     return tmp_path
@@ -71,7 +71,7 @@ def test_missing_or_extra_files(expected_folder, actual_folder):
 
 def test_differences_in_generated_code(actual_folder):
     expected_folder = Path(__file__).resolve().parent / "data" / "generate"
-    for expected in expected_folder.rglob("[!0-9]*.py"):  # skip migration versions for now
+    for expected in expected_folder.rglob("[!0-9]*.py"):  # skip migration versions for now (contain date and uniq id)
         relative = expected.relative_to(expected_folder)
         actual = actual_folder / relative
         diff = context_diff(
