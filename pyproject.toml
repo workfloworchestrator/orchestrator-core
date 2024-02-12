@@ -215,8 +215,3 @@ known-first-party = [
     "oauth2_lib",
     "pydantic_forms",
 ]
-
-[tool.mypy]
-exclude = [
-    "test/unit_tests/cli/data/generate",
-]
