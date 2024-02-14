@@ -708,7 +708,7 @@ The following types are supported when specifying resource types:
 The following optional workflow configuration is supported:
 
 - `name`: can be either `create`, `modify`, `terminate` or `validate`
-- `enables`: to enable or disable the generation of code for that type of workflow, is `true` when omitted
+- `enabled`: to enable or disable the generation of code for that type of workflow, is `true` when omitted
 - `validations`: list of validations used to generate skeleton code as `model_validator` in input forms,
   and validation steps in the validate workflow
 
