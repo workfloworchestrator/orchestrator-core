@@ -64,8 +64,8 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
 
 
 def ruff(content: str) -> str:
-    ruff_check = ["ruff", "check", "--line-length", "120", "--select", "ALL", "--fix-only", "-"]
-    ruff_format = ["ruff", "format", "--line-length", "120", "-"]
+    ruff_check = ["ruff", "check", "--isolated", "--line-length", "120", "--select", "ALL", "--fix-only", "-"]
+    ruff_format = ["ruff", "format", "--isolated", "--line-length", "120", "-"]
     try:
         process = subprocess.run(ruff_check, capture_output=True, check=True, text=True, input=content)  # noqa
         process = subprocess.run(ruff_format, capture_output=True, check=True, text=True, input=process.stdout)  # noqa

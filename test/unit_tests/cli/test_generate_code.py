@@ -66,11 +66,10 @@ def test_missing_or_extra_files(expected_folder, actual_folder):
         for sub_dcmp in dcmp.subdirs.values():
             assert_equal_dirs(sub_dcmp)
 
-    assert_equal_dirs(dircmp(expected_folder, actual_folder, ignore=["versions", "__pycache__"]))
+    assert_equal_dirs(dircmp(expected_folder, actual_folder, ignore=["versions", "__pycache__"]))  # skip migrations
 
 
-def test_differences_in_generated_code(actual_folder):
-    expected_folder = Path(__file__).resolve().parent / "data" / "generate"
+def test_differences_in_generated_code(expected_folder, actual_folder):
     for expected in expected_folder.rglob("[!0-9]*.py"):  # skip migration versions for now (contain date and uniq id)
         relative = expected.relative_to(expected_folder)
         actual = actual_folder / relative

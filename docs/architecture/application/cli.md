@@ -465,7 +465,8 @@ Generate products, workflows and other artifacts.
 Products can be described in a YAML configuration file which makes it easy to
 generate product and product block domain models, and skeleton workflows and
 unit tests. Note that this is a one time thing, the generate commands do not
-support updating existing products, product-blocks, workflows and migrations.
+support updating existing products, product-blocks, workflows and migrations,
+in this case have a look at the `db migrate-domain-models` and `db migrate-workflows` commands.
 But it does however help in defining new products with stakeholders, will
 generate code that conforms to current workfloworchestrator coding BCP, and
 will actually run (although limited in functionality of course).
@@ -477,8 +478,15 @@ are typically run:
 python main.py generate product-blocks
 python main.py generate products
 python main.py generate workflows
-python main.py generate migratrion
+python main.py generate migration
 ```
+
+The generate command should be called from the top level folder of your orchestrator
+implementation, this is the folder that contains the `products` sub folder, amongst others, except when
+the `--prefix` is used to point to that folder. In case there are product blocks defined that use other
+generated product blocks, the order in which `generate product-blocks` is run is important,
+the code for the blocks used in other blocks should be generated first.
+
 
 ### config file
 
