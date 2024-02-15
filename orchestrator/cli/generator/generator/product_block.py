@@ -21,15 +21,18 @@ from typing import Any
 
 import structlog
 
-from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums, to_dict
+from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
+    get_all_fields,
+    get_constrained_ints,
+    get_name_spaced_types_to_import,
     get_product_block_file_name,
-    path_to_module,
+    get_product_blocks_folder,
+    get_product_blocks_module,
+    merge_fields,
 )
-from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 from orchestrator.domain.base import ProductBlockModel
-from orchestrator.utils.helpers import snake_to_camel
 
 logger = structlog.getLogger(__name__)
 
@@ -39,16 +42,13 @@ def get_existing_product_blocks() -> dict[str, Any]:
         def is_product_block(attribute: Any) -> bool:
             return issubclass(attribute, ProductBlockModel)
 
-        product_blocks_path = settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
-        product_blocks_module = path_to_module(product_blocks_path)
-
-        if not path.exists(product_blocks_path):
-            logger.warning("Product block path does not exist", product_blocks_path=product_blocks_path)
+        if not path.exists(get_product_blocks_folder()):
+            logger.warning("Product block path does not exist", product_blocks_path=get_product_blocks_folder())
             return
 
-        for pb_file in listdir(product_blocks_path):
+        for pb_file in listdir(get_product_blocks_folder()):
             name = pb_file.removesuffix(".py")
-            module_name = f"{product_blocks_module}.{name}"
+            module_name = f"{get_product_blocks_module()}.{name}"
 
             module = import_module(module_name)
 
@@ -61,31 +61,6 @@ def get_existing_product_blocks() -> dict[str, Any]:
     return dict(yield_blocks())
 
 
-def is_constrained_int(field: dict) -> bool:
-    return "min_value" in field or "max_value" in field
-
-
-def is_name_spaced_field_type(field: dict) -> bool:
-    return "." in field["type"]
-
-
-def name_space_get_type(name_spaced_type: str) -> str:
-    return name_spaced_type.split(".")[-1]
-
-
-def get_fields(product_block: dict) -> list[dict]:
-    def to_type(field: dict) -> dict:
-        if is_constrained_int(field):
-            return field | {"type": snake_to_camel(field["name"])}
-
-        if is_name_spaced_field_type(field):
-            return field | {"type": name_space_get_type(field["type"])}
-
-        return field
-
-    return [to_type(field) for field in product_block["fields"]]
-
-
 def get_lists_to_generate(fields: list[dict]) -> list[dict]:
     def should_generate(type: str, list_type: str | None = None, **kwargs: Any) -> bool:
         return type == "list" and list_type not in ["str", "int", "bool", "UUID"]
@@ -93,23 +68,10 @@ def get_lists_to_generate(fields: list[dict]) -> list[dict]:
     return [field for field in fields if should_generate(**field)]
 
 
-def get_name_spaced_types_to_import(fields: list) -> list[tuple]:
-    # NOTE: we could make this smarter by grouping imports from the namespace, but isort will handle this for us
-    def name_space_split(field: dict) -> tuple[str, str]:
-        *namespace, type = field["type"].split(".")
-        return ".".join(namespace), type
-
-    return [name_space_split(field) for field in fields if is_name_spaced_field_type(field)]
-
-
 def get_product_blocks_to_import(label: str, fields: list, existing_product_blocks: dict) -> list[tuple]:
     return [
         (module, field[label]) for field in fields if (module := existing_product_blocks.get(f"{field[label]}Block"))
     ]
-
-
-def get_product_blocks_folder() -> Path:
-    return settings.FOLDER_PREFIX / settings.PRODUCT_BLOCKS_PATH
 
 
 def get_product_block_path(product_block: dict) -> Path:
@@ -123,7 +85,7 @@ def enrich_product_block(product_block: dict) -> dict:
         name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
         return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
 
-    fields = get_fields(product_block)
+    fields = get_all_fields(product_block)
     block_name = product_block.get("block_name", to_block_name())
 
     return product_block | {
@@ -145,7 +107,7 @@ def generate_product_blocks(context: dict) -> None:
     def generate_product_block(product_block: dict) -> None:
         types_to_import = get_name_spaced_types_to_import(product_block["fields"])
 
-        fields = get_fields(product_block)
+        fields = get_all_fields(product_block)
 
         int_enums = get_int_enums(fields)
         str_enums = get_str_enums(fields)
@@ -159,7 +121,8 @@ def generate_product_blocks(context: dict) -> None:
             )
         )
         product_block_types = [type for module, type in product_blocks_to_import]
-        constrained_ints_to_generate = [field for field in fields if is_constrained_int(field)]
+        constrained_ints_to_generate = get_constrained_ints(fields)
+        fields = merge_fields(fields, int_enums, str_enums)
 
         path = get_product_block_path(product_block)
         content = template.render(
@@ -172,7 +135,7 @@ def generate_product_blocks(context: dict) -> None:
             python_version=python_version,
             int_enums=int_enums,
             str_enums=str_enums,
-            fields=(to_dict(fields) | to_dict(int_enums) | to_dict(str_enums)).values(),
+            fields=fields,
         )
 
         writer(path, content)

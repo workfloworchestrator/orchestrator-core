@@ -1,26 +1,86 @@
 config:
-  create_summary_forms: false
-  send_email: false
-name: My Product 9000+
-type: MyProduct
-tag: MP
-description: "This is the description of My Product"
+  summary_forms: True
+name: example1
+type: Example1
+tag: EXAMPLE1
+description: "Product example 1"
 fixed_inputs:
-  - name: fixed_input_key
-    type: FixedInputKey
+  - name: fixed_input_1
+    type: enum
+    enum_type: int
+    values:
+      - 1
+      - 10
+      - 100
+      - 1000
+    description: "Fixed input with limited number of integer options"
+    default: 100
 product_blocks:
-  - name: My Product Block 9200+
-    type: MyIntermediateProduct
+  - name: example1
+    type: Example1
+    tag: EXAMPLE1
+    description: "Example 1 root product block"
     fields:
-      - name: num_val
-        type: int
-      - name: str_val
+      - name: example_str_enum_1
+        type: enum
+        enum_type: str
+        values:
+        - "option1"
+        - "option2"
+        - "option3"
+        description: "Example 1 str enum"
+        required: inactive
+        default: "option2"  # default is mandatory when required==inactive
+        modifiable: True
+        validations:
+          - id: must_be_unused_to_change_mode
+            description: "Mode can only be changed when there are no services attached to it"
+      - name: example2
+        type: Example2
+        description: "link to root product block of product Example2"
+        required: provisioning
+      - name: unmodifiable_str
         type: str
-      - name: list_val
+        description: "Unmodifiable resource type"
+        required: provisioning
+      - name: eight
         type: list
-        list_type: str
+        description: "Constrained list of root product blocks of product Example2 with length 8"
+        list_type: Example2
+        min_items: 1
+        max_items: 8
+        required: provisioning
+      - name: modifiable_boolean
+        type: bool
+        description: "Modifiable resource type"
+        required: provisioning
+        default: False  # optional default value, will be None otherwise
+        modifiable: True
+      - name: annotated_int
+        type: int
+        min_value: 1
+        max_value: 32_767
+        description: "Annotated integer witch min and max"
+        required: active
+        validations:
+          - id: annotated_int_must_be_unique
+            description: "annotated_int must be unique for example1"
+      - name: imported_type
+        type: ipaddress.IPv4Address
+        description: "use imported type"
+        required: active
+      - name: always_optional_str
+        type: str
+        description: "Not required in any lifecycle state"
+        modifiable: True
+
 workflows:
-  - name: modify
-    flows:
-      - id: my_product_num_val
-        description: "Modify the MyProduct numerical value"
+  - name: terminate
+    validations:
+      - id: can_only_terminate_when_modifiable_boolean_is_true
+        description: "Add an model_validator that requires some condition(s)"
+  - name: validate
+    enabled: true
+    validations:
+      - id: validate_example_in_some_oss
+        description: "Validate that the example1 subscription is correctly administered in some external system"

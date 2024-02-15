@@ -1,21 +1,12 @@
-from pydantic import validator
-
-from orchestrator.types import State
-
-
-def validate_something(foo: str | None, values: State) -> str | None:
-    if foo:
-        message = "TODO: implement this!"
-        raise ValueError(message)
-
-    return foo
-
-{#
-    TODO: fix validations
+{% if product_block_types -%}
+from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}
+{%- endif %}
 
 {% for validation in validations %}
-def {{ validation.validation.id }}_validator() -> classmethod:
-    return validator("{{ validation.resource_type.name }}", allow_reuse=True)(validate_something)
+def {{ validation.validation.id }}_validator({{ validation.field.name }}: {{ validation.field.type }}) -> {{ validation.field.type }}:
+    if False:  # TODO: implement validation for {{ validation.field.name }}
+        raise ValueError("{{ validation.validation.description }}")
 
-{% endfor -%}
-#}
+    return {{ validation.field.name }}
+
+{% endfor %}

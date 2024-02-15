@@ -1,16 +1,9 @@
-{% if int_enums | length > 0 -%}
-from enum import IntEnum
-{%- endif %}
-{% if str_enums | length > 0 -%}
-from enum import StrEnum
-{%- endif %}
-
 {% for fi in int_enums -%}
 class {{ fi.type }}(IntEnum):
     {% for v in fi["values"] -%}
         _{{ v }} = {{ v }}
     {% endfor %}
-{%- endfor -%}
+{%- endfor %}
 
 {% for fi in str_enums -%}
 class {{ fi.type }}(StrEnum):

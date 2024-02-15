@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import subprocess
 from pathlib import Path
 
 import structlog
@@ -62,8 +63,22 @@ def write_file(path: Path, content: str, append: bool, force: bool) -> None:
         logger.info("wrote file", path=str(path), append=append, force=force)
 
 
+def ruff(content: str) -> str:
+    ruff_check = ["ruff", "check", "--isolated", "--line-length", "120", "--select", "ALL", "--fix-only", "-"]
+    ruff_format = ["ruff", "format", "--isolated", "--line-length", "120", "-"]
+    try:
+        process = subprocess.run(ruff_check, capture_output=True, check=True, text=True, input=content)  # noqa
+        process = subprocess.run(ruff_format, capture_output=True, check=True, text=True, input=process.stdout)  # noqa
+    except subprocess.CalledProcessError as exc:
+        logger.warning("ruff error", cmd=exc.cmd, returncode=exc.returncode, stderr=exc.stderr)
+    else:
+        content = process.stdout
+    return content
+
+
 def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
     def writer(path: Path, content: str, append: bool = False) -> None:
+        content = ruff(content)
         if dryrun:
             logger.info("preview file", path=str(path), append=append, force=force, dryrun=dryrun)
             typer.echo(f"# {path}")
@@ -72,7 +87,7 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
             write_file(path, content, append=append, force=force)
 
     search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
-    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True)
+    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True, keep_trailing_newline=True)
 
     config = read_config(config_file)
     config["variable"] = get_variable(config)

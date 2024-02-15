@@ -10,25 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from pathlib import Path
 
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_non_standard_fields, get_str_enums, to_dict
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
-    get_product_file_name,
+    get_product_path,
+    get_product_types_folder,
     get_product_types_module,
     path_to_module,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
-
-
-def get_product_types_folder() -> Path:
-    return settings.FOLDER_PREFIX / settings.PRODUCT_TYPES_PATH
-
-
-def get_product_path(config: dict) -> Path:
-    file_name = get_product_file_name(config)
-    return get_product_types_folder() / Path(file_name).with_suffix(".py")
 
 
 def generate_product(context: dict) -> None:

@@ -13,18 +13,15 @@
 
 from more_itertools import flatten
 
-from orchestrator.cli.generator.generator.helpers import root_product_block
 
-
-def get_all_validations(config: dict) -> list:
+def get_all_validations(fields: list[dict]) -> list:
     def to_validations(field: dict) -> list[dict]:
         def to_validation(validation: dict) -> dict:
             return {"validation": validation, "field": field}
 
         return [to_validation(validation) for validation in field.get("validations", [])]
 
-    product_block = root_product_block(config)
-    return list(flatten(to_validations(field) for field in product_block["fields"]))
+    return list(flatten(to_validations(field) for field in fields))
 
 
 def get_validation_imports(validations: list) -> list:
@@ -34,18 +31,14 @@ def get_validation_imports(validations: list) -> list:
     return [format_validator(validation) for validation in validations]
 
 
-def get_validations(config: dict) -> tuple[list, list]:
-    validations = get_all_validations(config)
-    validation_imports = get_validation_imports(validations)
+def get_validations(fields: list[dict], workflow: str = "") -> tuple[list, list]:
+    def get_validations_for_modify(fields: list[dict]) -> list[dict]:
+        def modifiable(validation: dict) -> bool:
+            return validation["field"].get("modifiable", False)
 
-    return validations, validation_imports
+        return [validation for validation in get_all_validations(fields) if modifiable(validation)]
 
-
-def get_validations_for_modify(config: dict) -> tuple[list, list]:
-    def modifiable(validation: dict) -> bool:
-        return validation["field"].get("modifiable", True)
-
-    validations = [validation for validation in get_all_validations(config) if modifiable(validation)]
+    validations = get_validations_for_modify(fields) if workflow == "modify" else get_all_validations(fields)
     validation_imports = get_validation_imports(validations)
 
     return validations, validation_imports

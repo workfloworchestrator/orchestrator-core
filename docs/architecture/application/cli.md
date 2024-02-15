@@ -465,7 +465,8 @@ Generate products, workflows and other artifacts.
 Products can be described in a YAML configuration file which makes it easy to
 generate product and product block domain models, and skeleton workflows and
 unit tests. Note that this is a one time thing, the generate commands do not
-support updating existing products, product-blocks, workflows and migrations.
+support updating existing products, product-blocks, workflows and migrations,
+in this case have a look at the `db migrate-domain-models` and `db migrate-workflows` commands.
 But it does however help in defining new products with stakeholders, will
 generate code that conforms to current workfloworchestrator coding BCP, and
 will actually run (although limited in functionality of course).
@@ -477,8 +478,17 @@ are typically run:
 python main.py generate product-blocks
 python main.py generate products
 python main.py generate workflows
-python main.py generate migratrion
+python main.py generate migration
 ```
+
+The generate command should be called from the top level folder of your orchestrator
+implementation, this is the folder that contains the `products` sub folder, amongst others, except when
+the `--prefix` is used to point to that folder. In case there are product blocks defined that use other
+generated product blocks, the order in which `generate product-blocks` is run is important,
+the code for the blocks used in other blocks should be generated first.
+
+
+### config file
 
 An example of a simple product configuration:
 
@@ -519,11 +529,27 @@ product_blocks:
         description: "ID of the node in the inventory management system"
         type: int
         required: active
+      - name: under_maintenance
+        description: "node is under maintenance"
+        type: bool
+        required: initial
+        default: False
+
+workflows:
+  - name: terminate
+    validations:
+      - id: can_only_terminate_when_under_maintenance
+        description: "Can only terminate when the node is placed under maintenance"
+  - name: validate
+    enabled: false
+    validations:
+      - id: validate_ims_administration
+        description: "Validate that the node is correctly administered in IMS"
 ```
 
 Next we will describe the different sections in more detail:
 
-**`config` section**
+#### global `config` section
 
 This section sets some global configuration, applicable for most workflows.
 
@@ -533,17 +559,32 @@ config:
 ```
 
 - `create_summary_forms` indicates if a summary form will be generated in the
-  create and modify workflows, currently always `true`.
+  create and modify workflows, default is `false`.
 
-**`fixed_inputs` section**
+#### product type definition
+
+```yaml
+name: node
+type: Node
+tag: NODE
+description: "Network node"
+```
+
+Every product type is described using the following fields:
+- `name`: the name of type product type, used in descriptions, as variable name, and to generate
+          filenames
+- `type`: used to indicate the type of the product in Python code, types in
+          Python usually starts with an uppercase character
+- `tag`: used to register the product tag in the database, can for example be used to filter
+         products, will typically be all uppercase
+- `description`: descriptive text for the product type
+
+#### `fixed_inputs` section
 
 In this section we define a list of fixed inputs for a product.
 
 ```yaml
 fixed_inputs:
-  - name: node_rack_mountable
-    type: bool
-    description: "is node rack mountable"
   - name: node_vendor
     type: enum
     description: "vendor of node"
@@ -551,17 +592,26 @@ fixed_inputs:
     values:
       - "Cisco"
       - "Nokia"
+  - name: node_ports
+    type: enum
+    description: "number of ports in chassis"
+    values:
+      - 10
+      - 20
+      - 40
 ```
 
-A fixed input has a `name` and a `type` field. If the type is a primitive type
-(for example: str, bool, int, UUID), then this is sufficient. In the case of
-`node_vendor` we use an enum type, so we add additional fields to describe the
-enumeration type and its possible values.
+A fixed input has a `name`, `type` and `description` field. If the type is a primitive type
+(for example: str, bool, int), then this is sufficient. In case of
+`node_vendor` an `enum` type is used, and two additional fields to describe the
+enumeration `type` and its possible `values`. Both `str` and `int` enums are supported.
 
-**`product_blocks` section**
+When one or more enum types are specified, the necessary migration and product registry code
+will be generated for all possible combinations of the enums. In this example six products of type
+Node will
+be generated: "Cisco 10", "Cisco 20", "Cisco 40", "Nokia 10", "Nokia 20" and "Nokia 40".
 
-In this section we define the product blocks that are part of this product.
-They can be either new or refer to previously defined product blocks.
+#### `product_blocks` section
 
 ```yaml
 product_blocks:
@@ -570,49 +620,105 @@ product_blocks:
     tag: PORT
     description: "port product block"
     fields:
-      - name: port_name  # Pydantic does not allow the use of 'name'
-        description: "Unique name of the port"
-        type: str
-        required: provisioning
-        modifiable:
-      - name: port_description
-        description: "Description of the port"
-        type: str
-        modifiable:
-        default: "port subscription"
-      - name: ims_id
-        description: "ID of the port in the inventory management system"
-        type: module.to.import.from.IMS_ID
-        required: active
-      - name: node
-        type: Node
-        description: "link to the Node product block the port is residing on"
-        required: active
-      - name: link_members
-        type: list
-        description: "members"
-        list_type: Link
-        min_items: 2
-        max_items: 2
+      -
+      -
 ```
 
-In this example we define a product block with name `port`, type `Port`, and
-tag `PORT`.  The `fields` describe the resource types, they all have a `type`
-and `name`. The `type` can be a simple type, or a type prefixed with a module
-path that causes this type to be imported from that path, or an existing
-product block that causes the import of that product block in all its lifecycle
-states, or it can be a list with items of type `list_type` with a `min_items`
-and `max_items` number of items.
+In this section we define the product block(s) that are part of this product. The first
+product block will automatically be the root product block.
 
-The `required` attribute defines in which lifecycle state the field is
-required.  A value of `inactive` makes the resource type required in the input
-form.  The other possible values are `provisioning` and `active`. In earlier
-life cycle states the resource type will be optional. If `required` is not
-specified the resource type will always be optional. If the resource type is
-optional in one of its lifecycle states then the `default` attribute specifies
-an optional default value.  The `modifiable` flag is to indicate if this
-resource type can be modified in a modify workflow. And the `description` is
-used in the created migration.
+The use of `name`, `type`, `tag` and `description` in the product block definition is equivalent
+to the product definition above. The `fields` describe the product block resource types.
+
+#### product block fields
+
+```yaml
+  - name: port_mode
+    description: 'port mode'
+    required: provisioning
+    modifiable:
+    type: enum
+    enum_type: str
+    values:
+      - "untagged"
+      - "tagged"
+      - "link_member"
+    default: "tagged"
+    validations:
+      - id: must_be_unused_to_change_mode
+        description: "Mode can only be changed when there are no services attached to it"
+```
+
+Resource types are described by the following:
+
+- `name`: name of the resource type, usually in snake case
+- `decription`: resource type description
+- `required`: if the resource type is required starting from lifecycle state `inital`, `provisioning`
+              or `active`, when omitted the resource type will always be optional
+- `modifiable`: indicate if the resource type can be altered by a modify workflow, when omitted
+                no code will be generated to modify the resource type, currently only supported for simple types
+- `default`: specify the default for this resource type, this is mandatory when `required` is set to
+             `intitial`, will be `None` if not specified
+- `validations`: specify the validation `id` and `description`, generates a skeleton
+                 validation function used in a new annotated type
+- `type`: see explanation below
+
+#### resource type types
+
+The following types are supported when specifying resource types:
+
+- primitive types like `int`, `str`, and `bool`
+  ```yaml
+  - name: circuit_id
+    type: int
+  ```
+- types with a period in there name will generate code to import that type, e.q. `ipaddress.IPv4Address` 
+  ```yaml
+  - name: ipv4_loopback
+    type: ipaddress.IPv4Address
+  ```
+- existing product block types like `UserGroup`, possible types will be read from `products/product_blocks`
+  ```yaml
+  - name: group
+    type: UserGroup
+  ```
+- the type `list`, used together with `min_items` and `max_items` to specify the constraints, and
+  `list_type` to specify the type of the list items
+  ```yaml
+  - name: link_members
+    type: list
+    list_type: Link
+    min_items: 2
+    max_items: 2
+  ```
+- validation code for constrained a `int` is generated when `min_value` and `max_value` are specified
+  ```yaml
+    - name: ims_id
+      type: int
+      min_value: 1
+      max_value: 32_767
+  ```
+
+#### workflows
+
+```yaml
+  - name: create
+    validations:
+      - id: endpoints_cannot_be_on_same_node
+        description: "Service endpoints must land on different nodes"
+  - name: validate
+    enabled: false
+    validations:
+      - id: validate_ims_administration
+        description: "Validate that the node is correctly administered in IMS"
+```
+
+The following optional workflow configuration is supported:
+
+- `name`: can be either `create`, `modify`, `terminate` or `validate`
+- `enabled`: to enable or disable the generation of code for that type of workflow, is `true` when omitted
+- `validations`: list of validations used to generate skeleton code as `model_validator` in input forms,
+  and validation steps in the validate workflow
 
 ### migration
 
@@ -621,8 +727,9 @@ configuration file.
 
 Options
 
---config-file - The configuration file [default: None]
---python-version - Python version for generated code [default: 3.11]
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+--config-file - The configuration file [default: None]  
+--python-version - Python version for generated code [default: 3.11]  
 
 ### product
 
@@ -631,11 +738,12 @@ from a configuration file.
 
 Options
 
---config-file - The configuration file [default: None]
---dryrun | --no-dryrun - Dry run [default: dryrun]
---force - Force overwrite of existing files
---python-version - Python version for generated code [default: 3.11]
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.11]  
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
 
 ### product-blocks
 
@@ -644,11 +752,12 @@ domain models from a configuration file.
 
 Options
 
---config-file - The configuration file [default: None]
---dryrun | --no-dryrun - Dry run [default: dryrun]
---force - Force overwrite of existing files
---python-version - Python version for generated code [default: 3.11]
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.11]  
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
 
 ### unit-tests
 
@@ -657,11 +766,12 @@ configuration file.
 
 Options
 
---config-file - The configuration file [default: None]
---dryrun | --no-dryrun - Dry run [default: dryrun]
---force - Force overwrite of existing files
---python-version - Python version for generated code [default: 3.11]
---tdd - Force test driven development with failing asserts [default: True]
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.11]  
+--tdd - Force test driven development with failing asserts [default: True]  
 
 ### workflows
 
@@ -673,13 +783,14 @@ steps to the create, modify and terminate workflows.
 
 Options
 
---config-file - The configuration file [default: None]
---dryrun | --no-dryrun - Dry run [default: dryrun]
---force - Force overwrite of existing files
---python-version - Python version for generated code [default: 3.11]
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+--config-file - The configuration file [default: None]  
+--dryrun | --no-dryrun - Dry run [default: dryrun]  
+--force - Force overwrite of existing files  
+--python-version - Python version for generated code [default: 3.11]  
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
-None]
---custom-templates - Custom templates folder [default: None]
+None]  
+--custom-templates - Custom templates folder [default: None]  
 
 ## scheduler
 

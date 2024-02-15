@@ -66,6 +66,7 @@ dependencies = [
     "tabulate==0.9.0",
     "strawberry-graphql==0.210.0",
     "pydantic-forms==1.0.1",
+    "ruff",
 ]
 
 description-file = "README.md"
@@ -86,7 +87,6 @@ test = [
     "blinker",
     "deepdiff",
     "dirty-equals",
-    "ruff",
     "jsonref",
     "mypy",
     "pytest",
@@ -146,6 +146,7 @@ exclude = '''
     | \.venv
     | venv
     | src
+    | test/unit_tests/cli/data/generate
   )/
 )
 '''
@@ -166,6 +167,7 @@ exclude = [
     "venv",
     ".venv",
     "docs",
+    "test/unit_tests/cli/data/generate",
 ]
 ignore = [
     "C417",

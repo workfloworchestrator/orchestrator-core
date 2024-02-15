@@ -101,13 +101,15 @@ def update_subscription_model_registry(
 
     path = settings.FOLDER_PREFIX / settings.PRODUCT_REGISTRY_PATH
     with open(path) as fp:
-        if "SUBSCRIPTION_MODEL_REGISTRY" not in fp.read():
-            fp.close()
-            writer(path, "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n\n", append=True)
+        import_statement = (
+            "from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY\n"
+            if "SUBSCRIPTION_MODEL_REGISTRY" not in fp.read()
+            else ""
+        )
     with open(path) as fp:
         if f"from {get_product_types_module()}.{product_variable} import {product_type}" not in fp.read():
             fp.close()
-            writer(path, content, append=True)
+            writer(path, import_statement + content, append=True)
         else:
             logger.warning("not re-updating subscription model registry", product=product_type)
 

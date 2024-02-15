@@ -1,0 +1,28 @@
+config:
+  summary_forms: False
+name: example2
+type: Example2
+tag: EXAMPLE2
+description: "Product example 2"
+product_blocks:
+  - name: example2
+    type: Example2
+    tag: EXAMPLE2
+    description: "Example 2 root product block"
+    fields:
+      - name: example_int_enum_2
+        type: enum
+        enum_type: int
+        values:
+          - 1
+          - 2
+          - 3
+          - 4
+        description: "Example 2 int enum"
+        required: active
+        modifiable: True
+
+workflows:
+  - name: terminate
+  - name: validate
+    enabled: false

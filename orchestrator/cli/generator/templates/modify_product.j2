@@ -2,23 +2,31 @@
 
 {% from 'macros.j2' import required with context -%}
 
-from pydantic_forms.core import ReadOnlyField
+from typing import Annotated
 
 import structlog
+from pydantic import AfterValidator, ConfigDict, model_validator
+from pydantic_forms.validators import ReadOnlyField
 
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import CustomerId, Divider, MigrationSummary
-from orchestrator.types import FormGenerator, State, UUIDstr, SubscriptionLifecycle
+from orchestrator.forms.validators import CustomerId, Divider
+from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
 from orchestrator.workflow import StepList, begin, step
-from orchestrator.workflows.utils import modify_workflow
 from orchestrator.workflows.steps import set_status
+from orchestrator.workflows.utils import modify_workflow
 
+{%- for namespace, type in types_to_import %}
+from {{ namespace }} import {{ type }}
+{%- endfor %}
 from {{ product_types_module }}.{{ product.variable }} import {{ product.type }}, {{ product.type }}Provisioning
 {% if validation_imports -%}
-from surf.workflows.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
+from {{workflows_module}}.{{ product.variable }}.shared.forms import {{ validation_imports | join(", ") }}
 {%- endif %}
 {% if product.config.summary_forms -%}
-from workflows.shared import modify_summary_form
+from {{workflows_module}}.shared import modify_summary_form
+{%- endif %}
+{% if product_block_types -%}
+from {{ product_blocks_module }}.{{ product_block.variable }} import {{ product_block_types | map(attribute='type') | join(", ") }}
 {%- endif %}
 
 {% include 'additional_modify_imports.j2' %}
@@ -26,6 +34,9 @@ from workflows.shared import modify_summary_form
 
 logger = structlog.get_logger(__name__)
 
+{% for validation in validations -%}
+validated_{{ validation.field.name }} = Annotated[{{ validation.field.type }}, AfterValidator({{ validation.validation.id }}_validator)]
+{% endfor %}
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     subscription = {{ product.type }}.from_subscription(subscription_id)
@@ -39,22 +50,31 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
         divider_1: Divider
 
-        {% for field in product_block.fields if not field.modifiable is defined -%}
-        {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = ReadOnlyField({{ product_block.name }}.{{ field.name }})
+        {% for field in fields if not field.modifiable is defined -%}
+        {{ field.name }}: ReadOnlyField({{ product_block.name }}.{{ field.name }})
         {% endfor -%}
 
-        {% for field in product_block.fields if field.modifiable is defined -%}
-        {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }} = {{ product_block.name }}.{{ field.name }}
+        {% for field in fields if field.modifiable is defined -%}
+        {% if field.type in validations | map(attribute='field.type') -%}
+            {% set type = 'validated_' +  field.name -%}
+        {% else -%}
+            {% set type = field.type -%}
+        {% endif -%}
+        {{ field.name }}: {{ required(field, type, ["inactive", "provisioning"]) }} = {{ product_block.name }}.{{ field.name }}
         {% endfor -%}
+        {%- for validation in workflow_validations %}
 
-{% for validation in validations %}
-        _validate_{{ validation.validation.id }}: classmethod = {{ validation.validation.id }}_validator()
-{% endfor %}
+        @model_validator(mode="after")
+        def {{ validation.id }}(self) -> "Modify{{ product.type }}Form":
+            if False:  # TODO implement validation
+                raise ValueError("{{ validation.description }}")
+            return self
+        {%- endfor %}
 
     user_input = yield Modify{{ product.type }}Form
     user_input_dict = user_input.dict()
     {% if product.config.summary_forms %}
-    summary_fields = [{% for field in product_block.fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
+    summary_fields = [{% for field in fields %}{% if field.type not in existing_product_blocks %}"{{ field.name }}", {% endif %}{% endfor %}]
     yield from modify_summary_form(user_input_dict, subscription.{{ product_block.name }}, summary_fields)
     {%- endif %}
 
@@ -64,13 +84,13 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 @step("Update subscription")
 def update_subscription(
     subscription: {{ product.type }}Provisioning,
-    {% for field in product_block.fields if field.modifiable is defined -%}
+    {% for field in fields if field.modifiable is defined -%}
     {% if field.type not in existing_product_blocks -%}
     {{ field.name }}: {{ required(field, field.type, ["inactive", "provisioning"]) }},
     {%- endif %}
     {% endfor -%}) -> State:
     # TODO: get all modified fields
-    {% for field in product_block.fields if field.modifiable is defined -%}
+    {% for field in fields if field.modifiable is defined -%}
     subscription.{{ product_block.name }}.{{ field.name }} = {{ field.name }}
     {% endfor %}
     return {"subscription": subscription}

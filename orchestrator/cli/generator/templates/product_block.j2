@@ -1,26 +1,22 @@
 {# Product block definition -#}
 
-{% from 'macros.j2' import lifecycle_type, required, default, list_field with context -%}
+{% from 'macros.j2' import required, default, lifecycle_type, type_and_default, list_field with context -%}
 
-{% for namespace, type in types_to_import %}
+from enum import StrEnum, IntEnum
+from typing import Annotated
+from uuid import UUID
+
+from annotated_types import Ge, Le, Len
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SI, SubscriptionLifecycle
+from pydantic import computed_field
+
+{%- for namespace, type in types_to_import %}
 from {{ namespace }} import {{ type }}
 {%- endfor %}
-{% if lists_to_generate %}
-from typing import TypeVar
-{% endif -%}
-{% if constrained_ints_to_generate %}
-from typing import Annotated
-from annotated_types import Ge, Le
-{% endif -%}
-{% if "UUID" in fields | map(attribute="type") %}
-from uuid import UUID
-{% endif %}
-{% for module, type in product_blocks_to_import %}
+{% for module, type in product_blocks_to_import -%}
 from {{ module }} import {{ type }}BlockInactive, {{ type }}BlockProvisioning, {{ type }}Block
 {% endfor %}
-from pydantic import computed_field
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
 
 {% include "enums.j2" %}
 {% include "list_definitions.j2" %}
@@ -32,7 +28,7 @@ class {{ product_block.type }}BlockInactive(ProductBlockModel, product_block_nam
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Inactive")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "Inactive") -%}
-    {{ field.name }}: {{ required(field, type, ["inactive"]) }} = {{ default(field) }}
+    {{ field.name }}: {{ required(field, type, ["inactive"]) }} {{ default(field) }}
     {% endif -%}
     {% endfor %}
 
@@ -42,7 +38,7 @@ class {{ product_block.type }}BlockProvisioning({{ product_block.type }}BlockIna
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "Provisioning")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "Provisioning") -%}
-    {{ field.name }}: {{ required(field, type, ["inactive", "provisioning"]) }}
+    {{ field.name }}: {{ type_and_default(field, type, ["inactive", "provisioning"]) }}
     {% endif -%}
     {% endfor %}
     @computed_field
@@ -58,6 +54,6 @@ class {{ product_block.type }}Block({{ product_block.type }}BlockProvisioning, l
     {{ list_field(field.name, lifecycle_type(field.list_type, product_block_types, "")) }}
     {% else -%}
     {% set type = lifecycle_type(field.type, product_block_types, "") -%}
-    {{ field.name }}: {{ required(field, type, ["inactive", "provisioning", "active"]) }}
+    {{ field.name }}: {{ type_and_default(field, type, ["inactive", "provisioning", "active"]) }}
     {% endif -%}
     {% endfor %}

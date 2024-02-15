@@ -33,7 +33,7 @@ def test_happy_flow(responses, {{ product.variable }}_subscription):
     {{ product.variable }} = {{ product.type }}.from_subscription(state["subscription_id"])
     assert {{ product.variable }}.status == SubscriptionLifecycle.ACTIVE
 
-{% for validation in validations if validation.resource_type.modifiable in [defined, True] %}
+{% for validation in validations if validation.field.modifiable in [defined, True] %}
 @pytest.mark.workflow
 def test_{{ validation.validation.id }}(responses, {{ product.variable }}_subscription):
     # given
