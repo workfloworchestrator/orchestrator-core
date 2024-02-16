@@ -32,6 +32,11 @@ from orchestrator.graphql.extensions.deprecation_checker_extension import make_d
 from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.graphql.mutations.start_process import ProcessMutation
+from nwastdlib.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
+from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension
+from oauth2_lib.strawberry import authenticated_field
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.graphql.autoregistration import register_domain_models
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
@@ -150,6 +155,7 @@ def create_graphql_router(
     broadcast_thread: ProcessDataBroadcastThread | None = None,
     graphql_models: StrawberryModelType | None = None,
     scalar_overrides: ScalarOverrideType | None = None,
+    extensions: list | None = None,
 ) -> OrchestratorGraphqlRouter:
     scalar_overrides = scalar_overrides if scalar_overrides else dict(SCALAR_OVERRIDES)
     models = graphql_models if graphql_models else dict(DEFAULT_GRAPHQL_MODELS)
@@ -160,12 +166,15 @@ def create_graphql_router(
     if register_models:
         models = register_domain_models(subscription_interface, existing_models=models)
 
+    if not extensions:
+        extensions = [ErrorHandlerExtension, make_deprecation_checker_extension(query=query, mutation=mutation)]
+
     schema = OrchestratorSchema(
         query=query,
         mutation=mutation,
         enable_federation_2=app_settings.FEDERATION_ENABLED,
         types=tuple(models.values()),
-        extensions=[ErrorHandlerExtension, make_deprecation_checker_extension(query=query)],
+        extensions=extensions,
         scalar_overrides=scalar_overrides,
     )
 

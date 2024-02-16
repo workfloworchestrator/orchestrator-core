@@ -198,6 +198,7 @@ class OrchestratorCore(FastAPI):
         subscription_interface: Any = SubscriptionInterface,
         graphql_models: StrawberryModelType | None = None,
         scalar_overrides: ScalarOverrideType | None = None,
+        extensions: list | None = None,
     ) -> None:
         new_router = create_graphql_router(
             self.auth_manager,
@@ -208,6 +209,7 @@ class OrchestratorCore(FastAPI):
             self.broadcast_thread,
             graphql_models,
             scalar_overrides,
+            extensions=extensions,
         )
         if not self.graphql_router:
             self.graphql_router = new_router
