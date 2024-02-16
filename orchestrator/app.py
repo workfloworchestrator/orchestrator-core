@@ -184,8 +184,11 @@ class OrchestratorCore(FastAPI):
         mutation: Any = Mutation,
         register_models: bool = True,
         subscription_interface: Any = SubscriptionInterface,
+        extensions: list | None = None,
     ) -> None:
-        new_router = create_graphql_router(query, mutation, register_models, subscription_interface)
+        new_router = create_graphql_router(
+            query, mutation, register_models, subscription_interface, extensions=extensions
+        )
         if not self.graphql_router:
             self.graphql_router = new_router
             self.include_router(new_router, prefix="/api/graphql")
