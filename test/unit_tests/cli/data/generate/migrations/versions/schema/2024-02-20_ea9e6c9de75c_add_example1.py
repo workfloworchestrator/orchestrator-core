@@ -1,8 +1,8 @@
 """Add example1 product.
 
-Revision ID: 42d462825ccc
-Revises: 9c40a0e4b228
-Create Date: 2024-02-20 14:48:25.428607
+Revision ID: ea9e6c9de75c
+Revises: 85be1c80731c
+Create Date: 2024-02-20 21:01:56.190106
 
 """
 from uuid import uuid4
@@ -12,8 +12,8 @@ from orchestrator.migrations.helpers import create, create_workflow, delete, del
 from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
-revision = "42d462825ccc"
-down_revision = "9c40a0e4b228"
+revision = "ea9e6c9de75c"
+down_revision = "85be1c80731c"
 branch_labels = None
 depends_on = None
 

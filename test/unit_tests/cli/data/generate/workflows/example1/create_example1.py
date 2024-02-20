@@ -72,8 +72,8 @@ def construct_example1_model(
     product: UUIDstr,
     customer_id: UUIDstr,
     example_str_enum_1: ExampleStrEnum1,
-    unmodifiable_str: str | None,
-    modifiable_boolean: bool | None,
+    unmodifiable_str: str,
+    modifiable_boolean: bool,
     annotated_int: AnnotatedInt | None,
     always_optional_str: str | None,
 ) -> State:
