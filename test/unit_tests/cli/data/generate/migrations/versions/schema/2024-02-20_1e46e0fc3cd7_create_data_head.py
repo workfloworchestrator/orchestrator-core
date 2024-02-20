@@ -1,13 +1,13 @@
 """Create data head.
 
-Revision ID: 3ee5ebfbaecc
+Revision ID: 1e46e0fc3cd7
 Revises:
-Create Date: 2024-02-08T09:30:40.103688
+Create Date: 2024-02-20T14:48:13.935715
 
 """
 
 # revision identifiers, used by Alembic.
-revision = "3ee5ebfbaecc"
+revision = "1e46e0fc3cd7"
 down_revision = None
 branch_labels = ("data",)
 depends_on = "048219045729"

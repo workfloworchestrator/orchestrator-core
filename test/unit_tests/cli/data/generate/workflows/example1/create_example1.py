@@ -43,12 +43,12 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         customer_id: CustomerId
 
-        label_example1_settings: Label
+        example1_settings: Label
         divider_1: Divider
 
         example_str_enum_1: validated_example_str_enum_1
-        unmodifiable_str: str | None = None
-        modifiable_boolean: bool | None = False
+        unmodifiable_str: str
+        modifiable_boolean: bool
         annotated_int: validated_annotated_int | None = None
         always_optional_str: str | None = None
 

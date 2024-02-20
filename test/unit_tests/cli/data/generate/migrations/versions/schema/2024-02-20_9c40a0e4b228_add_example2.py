@@ -1,21 +1,19 @@
 """Add example2 product.
 
-Revision ID: a7063f3bd74d
-Revises: 3ee5ebfbaecc
-Create Date: 2024-02-08 09:30:41.357761
+Revision ID: 9c40a0e4b228
+Revises: 1e46e0fc3cd7
+Create Date: 2024-02-20 14:48:15.203310
 
 """
-
 from uuid import uuid4
 
 from alembic import op
-
 from orchestrator.migrations.helpers import create, create_workflow, delete, delete_workflow, ensure_default_workflows
 from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
-revision = "a7063f3bd74d"
-down_revision = "3ee5ebfbaecc"
+revision = "9c40a0e4b228"
+down_revision = "1e46e0fc3cd7"
 branch_labels = None
 depends_on = None
 
@@ -27,9 +25,7 @@ new_products = {
             "description": "Product example 2",
             "tag": "EXAMPLE2",
             "status": "active",
-            "product_blocks": [
-                "Example2",
-            ],
+            "product_blocks": ["Example2"],
             "fixed_inputs": {},
         },
     },
