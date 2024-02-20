@@ -48,7 +48,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         customer_id: CustomerId
 {% include "additional_create_input_fields.j2" ignore missing %}
 
-        label_{{ product.variable }}_settings: Label
+        {{ product.variable }}_settings: Label
         divider_1: Divider
 
         {% for field in fields if field.type not in existing_product_blocks -%}
@@ -58,7 +58,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         {% else -%}
             {% set type = field.type -%}
         {% endif -%}
-        {{ field.name }}: {{ type_and_default(field, type, ["inactive"]) }}
+        {{ field.name }}: {{ type_and_default(field, type, ["inactive", "provisioning"]) }}
         {%- endif %}
         {% endfor -%}
         {% for validation in workflow_validations %}

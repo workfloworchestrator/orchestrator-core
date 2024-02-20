@@ -78,7 +78,7 @@ def ruff(content: str) -> str:
 
 def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
     def writer(path: Path, content: str, append: bool = False) -> None:
-        content = ruff(content)
+        content = ruff(content) if path.suffix == ".py" else content
         if dryrun:
             logger.info("preview file", path=str(path), append=append, force=force, dryrun=dryrun)
             typer.echo(f"# {path}")

@@ -30,7 +30,8 @@ def read_translations() -> dict:
             except ValueError:
                 logger.error("Failed to parse translation file.")
     except FileNotFoundError:
-        logger.error("File not found", path=str(path))
+        logger.info("creating missing translations file", path=str(path))
+        return {"workflow": {}}
 
     return {}
 
@@ -48,4 +49,4 @@ def add_workflow_translations(config: dict, writer: Callable) -> None:
         translations["workflow"] = translations["workflow"] | workflows
 
         path = settings.FOLDER_PREFIX / settings.TRANSLATION_PATH
-        writer(path, json.dumps(translations))
+        writer(path, json.dumps(translations, sort_keys=True, indent=4) + "\n")

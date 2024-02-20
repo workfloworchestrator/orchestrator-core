@@ -494,7 +494,7 @@ An example of a simple product configuration:
 
 ```yaml
 config:
-  create_summary_forms: true
+  summary_forms: true
 name: node
 type: Node
 tag: NODE
@@ -555,10 +555,10 @@ This section sets some global configuration, applicable for most workflows.
 
 ```yaml
 config:
-  create_summary_forms: true
+  summary_forms: true
 ```
 
-- `create_summary_forms` indicates if a summary form will be generated in the
+- `summary_forms` indicates if a summary form will be generated in the
   create and modify workflows, default is `false`.
 
 #### product type definition
@@ -791,6 +791,10 @@ Options
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
 None]  
 --custom-templates - Custom templates folder [default: None]  
+
+!!! note
+    The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`
+    declarations when `--force` is used.
 
 ## scheduler
 
