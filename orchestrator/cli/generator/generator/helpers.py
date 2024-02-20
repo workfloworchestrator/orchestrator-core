@@ -14,7 +14,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import structlog
-from more_itertools import first, one
+from more_itertools import first
 
 from orchestrator.cli.generator.generator.enums import to_dict
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
