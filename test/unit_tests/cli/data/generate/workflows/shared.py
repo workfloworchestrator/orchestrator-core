@@ -1,15 +1,13 @@
-from typing import Generator, List
+from typing import Generator, List, TypeAlias, cast
 
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.forms import FormPage
-from orchestrator.forms.validators import MigrationSummary
-from orchestrator.types import SummaryData
+from orchestrator.forms.validators import MigrationSummary, migration_summary
 from pydantic import ConfigDict
 
 
 def summary_form(product_name: str, summary_data: dict) -> Generator:
-    class ProductSummary(MigrationSummary):
-        data = SummaryData(**summary_data)
+    ProductSummary: TypeAlias = cast(type[MigrationSummary], migration_summary(summary_data))
 
     class SummaryForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} summary")

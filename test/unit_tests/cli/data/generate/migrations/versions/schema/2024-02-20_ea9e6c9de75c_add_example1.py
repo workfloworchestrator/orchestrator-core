@@ -1,21 +1,19 @@
 """Add example1 product.
 
-Revision ID: 7d821812e8ba
-Revises: a7063f3bd74d
-Create Date: 2024-02-08 09:30:51.353956
+Revision ID: ea9e6c9de75c
+Revises: 85be1c80731c
+Create Date: 2024-02-20 21:01:56.190106
 
 """
-
 from uuid import uuid4
 
 from alembic import op
-
 from orchestrator.migrations.helpers import create, create_workflow, delete, delete_workflow, ensure_default_workflows
 from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
-revision = "7d821812e8ba"
-down_revision = "a7063f3bd74d"
+revision = "ea9e6c9de75c"
+down_revision = "85be1c80731c"
 branch_labels = None
 depends_on = None
 
@@ -27,9 +25,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": [
-                "Example1",
-            ],
+            "product_blocks": ["Example1"],
             "fixed_inputs": {
                 "fixed_input_1": "1",
             },
@@ -40,9 +36,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": [
-                "Example1",
-            ],
+            "product_blocks": ["Example1"],
             "fixed_inputs": {
                 "fixed_input_1": "10",
             },
@@ -53,9 +47,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": [
-                "Example1",
-            ],
+            "product_blocks": ["Example1"],
             "fixed_inputs": {
                 "fixed_input_1": "100",
             },
@@ -66,9 +58,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": [
-                "Example1",
-            ],
+            "product_blocks": ["Example1"],
             "fixed_inputs": {
                 "fixed_input_1": "1000",
             },

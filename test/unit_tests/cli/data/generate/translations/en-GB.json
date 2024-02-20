@@ -1,0 +1,12 @@
+{
+    "workflow": {
+        "create_example1": "Create example1",
+        "create_example2": "Create example2",
+        "modify_example1": "Modify example1",
+        "modify_example2": "Modify example2",
+        "terminate_example1": "Terminate example1",
+        "terminate_example2": "Terminate example2",
+        "validate_example1": "Validate example1",
+        "validate_example2": "Validate example2"
+    }
+}
