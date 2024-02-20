@@ -47,7 +47,7 @@ def get_product_block_file_name(product_block: dict) -> str:
 def root_product_block(config: dict) -> dict:
     product_blocks = config.get("product_blocks", [])
     # TODO: multiple product_blocks will need more logic, ok for now
-    return one(product_blocks)
+    return product_blocks[0]
 
 
 def insert_into_imports(content: list[str], new_import: str) -> list[str]:
