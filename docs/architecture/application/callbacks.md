@@ -21,7 +21,7 @@ provided to the UI.
 
 If the validation step fails, then the step fails and execution of the
 workflow is stopped. If the validation step succeeds, then execution
-fo the workflow is paused, and the operator is prompted for confirmation
+of the workflow is paused, and the operator is prompted for confirmation
 before it continues.
 
 ## Writing a callback
