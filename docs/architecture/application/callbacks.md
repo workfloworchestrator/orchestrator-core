@@ -48,13 +48,11 @@ def call_ansible_playbook(
     port_B = subscription.virtual_circuit.saps[1].port
     
     extra_vars = {
-        "vc_id": subscription.virtual_circuit.saps[0].vlan,
+        "vlan": subscription.virtual_circuit.saps[0].vlan,
         "SiteA": f'{port_A.node.node_name}',
         "interfaceA": port_A.port_name,
-        "p2p_endpointB": f'{port_A.node.node_name}',
         "SiteB": f'{port_B.node.node_name}',
         "interfaceB": port_B.port_name,
-        "p2p_endpointA": f'{port_B.node.node_name}',
     }
 
     callback_url = f"http://orchestrator{callback_route}"
@@ -124,8 +122,9 @@ Then we also need the step that presents the results to the operator and
 requests confirmation before proceeding:
 
 ```python
-from orchestrator.workflow import Step, inputstep
+from orchestrator.config.assignee import Assignee
 from orchestrator.forms import FormPage
+from orchestrator.workflow import Step, inputstep
 from pydantic_forms.validators import LongText
 
 @inputstep("Confirm provisioning proxy results", assignee=Assignee("SYSTEM"))
