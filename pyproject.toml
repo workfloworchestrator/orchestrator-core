@@ -64,7 +64,7 @@ dependencies = [
     "nwa-stdlib~=1.5.4",
     "oauth2-lib~=1.5.0",
     "tabulate==0.9.0",
-    "strawberry-graphql==0.210.0",
+    "strawberry-graphql==0.218.1",
     "pydantic-forms==1.0.2",
     "ruff",
 ]
