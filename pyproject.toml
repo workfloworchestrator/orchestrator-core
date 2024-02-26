@@ -41,7 +41,7 @@ dependencies = [
     "click==8.*",
     "deprecated",
     "deepmerge==1.1.1",
-    "fastapi~=0.109.0",
+    "fastapi~=0.110.0",
     "fastapi-etag==0.4.0",
     "more-itertools~=10.2.0",
     "itsdangerous",
