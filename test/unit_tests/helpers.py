@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 
 from deepdiff import DeepDiff
 
@@ -12,7 +13,7 @@ def assert_no_diff(expected, actual, exclude_paths=None):
 
 # By default Pydantic v2 includes documentation urls in the errors.
 # Update these urls when upgrading Pydantic.
-URL_MISSING = {"url": "https://errors.pydantic.dev/2.5/v/missing"}
-URL_STR_TYPE = {"url": "https://errors.pydantic.dev/2.5/v/string_type"}
-URL_PARSING = {"url": "https://errors.pydantic.dev/2.5/v/uuid_parsing"}
-URL_VALUE = {"url": "https://errors.pydantic.dev/2.5/v/value_error"}
+URL_MISSING = {"url": mock.ANY}
+URL_STR_TYPE = {"url": mock.ANY}
+URL_PARSING = {"url": mock.ANY}
+URL_VALUE = {"url": mock.ANY}
