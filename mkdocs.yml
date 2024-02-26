@@ -91,6 +91,7 @@ nav:
       - Scaling: architecture/application/scaling.md
       - Python version: architecture/application/python.md
       - GraphQL: architecture/application/graphql.md
+      - Callbacks: architecture/application/callbacks.md
   - Workshops:
     - Beginner:
       - Overview: workshops/beginner/overview.md
