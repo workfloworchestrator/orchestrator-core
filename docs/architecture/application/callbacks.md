@@ -96,7 +96,7 @@ The remote service, when performing the callback, should provide a JSON
 payload containing the fields that will be evaluated and output in the
 UI. In the above example, the service responds with this payload:
 
-```json
+```jsonc
 {
     "job_id": "example", // UUID
     "output": "example", // From ansible_playbook_run.stdout.readlines()
