@@ -311,7 +311,7 @@ However, this method becomes cumbersome when updating a single class, as it nece
 
 For instance, consider the scenario of overriding the `CustomerType`. you would need to update the related `SubscriptionInterface`, `ProcessType` and their respective resolvers. due to these modifications, all their related types and resolvers would also require updates, resulting in a tedious and error-prone process.
 
-To streamline and enhance the update process, a more efficient solution has been devised. This involves using a helper function called `override_class`, specifically designed to override fields within a class. This function takes the base class as well as a list of fields that will replace their counterparts within the class.
+To enhance the override process, we created a helper function `override_class` to override fields. It takes the base class as well as a list of fields that will replace their counterparts within the class or add new fields.
 
 It's worth noting that `SubscriptionInterface` poses a unique challenge due to its auto-generated types. The issue arises from the fact that the models inherited from `SubscriptionInterface` do not automatically update. This can be addressed by utilizing the `override_class` function and incorporating the returned class into the `register_graphql` function. This ensures that the updated class, with overridden fields, becomes the basis for generating the auto-generated models.
 
