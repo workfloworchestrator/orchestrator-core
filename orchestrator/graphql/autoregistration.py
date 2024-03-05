@@ -31,8 +31,9 @@ logger = structlog.get_logger(__name__)
 
 EnumDict = dict[str, EnumMeta]
 
-# mapping to specifically stop aliases for fields from being used when creating strawberry types
-# use like `USE_PYDANTIC_ALIAS_MODEL_MAPPING.updates({ ProductNameSubscription: False })`, default is True.
+# Mapping to specifically prevent aliases for fields from being used when creating strawberry types.
+# use like `USE_PYDANTIC_ALIAS_MODEL_MAPPING.updates({ "ProductNameSubscription": False })`, default is True.
+# more info can be read here: https://workfloworchestrator.org/orchestrator-core/architecture/application/graphql/#usage-of-use-pydantic-alias-model-mapping
 USE_PYDANTIC_ALIAS_MODEL_MAPPING: dict[str, bool] = {}
 
 
