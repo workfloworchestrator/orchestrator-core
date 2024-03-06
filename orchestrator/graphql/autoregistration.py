@@ -31,6 +31,11 @@ logger = structlog.get_logger(__name__)
 
 EnumDict = dict[str, EnumMeta]
 
+# Mapping to specifically prevent aliases for fields from being used when creating strawberry types.
+# use like `USE_PYDANTIC_ALIAS_MODEL_MAPPING.updates({ "ProductNameSubscription": False })`, default is True.
+# more info can be read here: https://workfloworchestrator.org/orchestrator-core/architecture/application/graphql/#usage-of-use-pydantic-alias-model-mapping
+USE_PYDANTIC_ALIAS_MODEL_MAPPING: dict[str, bool] = {}
+
 
 def create_strawberry_enum(enum: Any) -> EnumMeta:
     return strawberry.enum(enum)
@@ -90,7 +95,11 @@ def create_subscription_strawberry_type(strawberry_name: str, model: type[Domain
     directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
     pydantic_wrapper = strawberry.experimental.pydantic.type(
-        model, all_fields=True, directives=directives, description=f"{strawberry_name} Type"
+        model,
+        all_fields=True,
+        directives=directives,
+        description=f"{strawberry_name} Type",
+        use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
     return type(strawberry_name, (pydantic_wrapper(base_type),), {})
 
