@@ -27,4 +27,3 @@ product_blocks:
       - name: user_id
         type: int
         required: active
-

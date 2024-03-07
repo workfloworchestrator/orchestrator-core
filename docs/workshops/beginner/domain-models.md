@@ -15,8 +15,8 @@ An example of an immutable attribute is for example the speed of a network
 interface, which is a physical property of the interface, and cannot be changed
 without a field engineer swapping the interface with one with a different
 speed. Another example is an attribute that is linked to the price of a
-product, for example the greater the capacity of a product, the higher the 
-price. A customer is not allowed to increase the capacity himself, he has 
+product, for example the greater the capacity of a product, the higher the
+price. A customer is not allowed to increase the capacity himself, he has
 to pay extra first.
 
 The products and product blocks for this workshop will be modeled as follows:
@@ -66,7 +66,7 @@ from orchestrator.types import SubscriptionLifecycle
 ...
 
 # UserGroupBlock with all resource types mandatory
-... 
+...
 ```
 
 !!! example
@@ -89,7 +89,11 @@ product in its different lifecycle states:
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
-from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockInactive, UserGroupBlockProvisioning
+from products.product_blocks.user_group import (
+    UserGroupBlock,
+    UserGroupBlockInactive,
+    UserGroupBlockProvisioning,
+)
 
 # UserGroupInactive
 ...
@@ -119,7 +123,11 @@ from typing import Optional
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
-from products.product_blocks.user_group import UserGroupBlock, UserGroupBlockInactive, UserGroupBlockProvisioning
+from products.product_blocks.user_group import (
+    UserGroupBlock,
+    UserGroupBlockInactive,
+    UserGroupBlockProvisioning,
+)
 
 # UserBlockInactive with only product block reference group mandatory
 ...
@@ -151,11 +159,17 @@ type to be used for the fixed input `affiliation`.
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle, strEnum
 
-from products.product_blocks.user import UserBlock, UserBlockInactive, UserBlockProvisioning
+from products.product_blocks.user import (
+    UserBlock,
+    UserBlockInactive,
+    UserBlockProvisioning,
+)
+
 
 class Affiliation(strEnum):
     internal = "internal"
     external = "external"
+
 
 # UserInactive(SubscriptionModel
 ...

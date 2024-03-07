@@ -17,7 +17,7 @@ follows:
 └── workflows
 ```
 
-Some of the orchestrator-core functionality relies on the source folder being a 
+Some of the orchestrator-core functionality relies on the source folder being a
 valid Git repository.
 
 ### Migrations folder and local Alembic head
@@ -108,4 +108,4 @@ c112305b07d3 -> a76b9185b334 (schema), Add generic workflows to core.
 
 The `products`, `workflows` and `translations` folders are either created by
 hand, or when the `python main.py generate --help` commands are used in
-combination with product templates, will be created automatically. 
+combination with product templates, will be created automatically.

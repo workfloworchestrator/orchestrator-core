@@ -104,6 +104,8 @@ additional_steps = begin
 @create_workflow("Create example1", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_example1() -> StepList:
     return (
-        begin >> construct_example1_model >> store_process_subscription(Target.CREATE)
+        begin
+        >> construct_example1_model
+        >> store_process_subscription(Target.CREATE)
         # TODO add provision step(s)
     )

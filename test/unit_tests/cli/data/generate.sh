@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 # create new set of generated code
 #

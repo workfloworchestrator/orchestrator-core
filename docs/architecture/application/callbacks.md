@@ -36,6 +36,7 @@ an Ansible playbook:
 ```python
 from orchestrator import step
 
+
 @step("Execute an ansible playbook")
 def call_ansible_playbook(
     subscription: L2vpnProvisioning,
@@ -43,15 +44,15 @@ def call_ansible_playbook(
     *,
     dry_run: bool,
 ) -> None:
-    inventory = f'{port_A.node.node_name}\n{port_B.node.node_name}'
+    inventory = f"{port_A.node.node_name}\n{port_B.node.node_name}"
     port_A = subscription.virtual_circuit.saps[0].port
     port_B = subscription.virtual_circuit.saps[1].port
-    
+
     extra_vars = {
         "vlan": subscription.virtual_circuit.saps[0].vlan,
-        "SiteA": f'{port_A.node.node_name}',
+        "SiteA": f"{port_A.node.node_name}",
         "interfaceA": port_A.port_name,
-        "SiteB": f'{port_B.node.node_name}',
+        "SiteB": f"{port_B.node.node_name}",
         "interfaceB": port_B.port_name,
     }
 
@@ -75,6 +76,7 @@ provides the validation step.
 
 ```python
 from orchestrator.workflow import Step, callback_step
+
 
 def callback_interaction(provisioning_step: Step) -> StepList:
     return (
@@ -110,6 +112,7 @@ the pass/fail decision on the step:
 from orchestrator import step
 from orchestrator.utils.errors import ProcessFailureError
 
+
 @step("Evaluate callback result")
 def _evaluate_callback_results(callback_result: dict) -> State:
     if callback_result["return_code"] != 0:
@@ -127,6 +130,7 @@ from orchestrator.forms import FormPage
 from orchestrator.workflow import Step, inputstep
 from pydantic_forms.validators import LongText
 
+
 @inputstep("Confirm provisioning proxy results", assignee=Assignee("SYSTEM"))
 def _show_callback_results(state: State) -> FormGenerator:
     if "callback_result" not in state:
@@ -134,7 +138,9 @@ def _show_callback_results(state: State) -> FormGenerator:
 
     class ConfirmRunPage(FormPage):
         class Config:
-            title: str = f"Execution for {state['subscription']['product']['name']} completed."
+            title: str = (
+                f"Execution for {state['subscription']['product']['name']} completed."
+            )
 
         run_status: str = state["callback_result"]["status"]
         run_results: LongText = json.dumps(state["callback_result"], indent=4)
@@ -150,6 +156,7 @@ directly, provide the step as a parameter to the interaction function:
 ```python
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflows.utils import create_workflow
+
 
 @create_workflow("Example workflow", initial_input_form=initial_input_form_generator)
 def create_l2vpn() -> StepList:

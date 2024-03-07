@@ -20,7 +20,7 @@ The builtin steps `init` and `done` are always part of a workflow and mark the
 begin and end of the workflow. Three other builtin steps are being used here
 that are almost always part of a create workflow:
 
-*   **store_process_subscription** 
+*   **store_process_subscription**
 
     The orchestrator executes a workflow in a process, and keeps track of all
     workflows that have been run to create, modify or terminate a subscription,
@@ -130,5 +130,3 @@ from products.product_types.user_group import UserGroupInactive, UserGroupProvis
 
 **Spoiler**: for inspiration look at an example implementation of the [user
 group create workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user_group/create_user_group.py)
-
-

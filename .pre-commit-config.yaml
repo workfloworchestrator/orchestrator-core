@@ -5,11 +5,12 @@ repos:
     rev: 24.1.1
     hooks:
       - id: black
-  - repo: https://github.com/asottile/blacken-docs
-    rev: 1.16.0
-    hooks:
-      - id: blacken-docs
-        additional_dependencies: [ black==23.12.1 ]
+  # - repo: https://github.com/asottile/blacken-docs
+  #   rev: 1.16.0
+  #   hooks:
+  #     - id: blacken-docs
+  #       additional_dependencies: [ black==23.12.1 ]
+  # Disabling since this cannot parse bit shift operators how we've overloaded them and you can't ignore lines.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.1.14

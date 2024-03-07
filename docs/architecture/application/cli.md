@@ -672,7 +672,7 @@ The following types are supported when specifying resource types:
   - name: circuit_id
     type: int
   ```
-- types with a period in there name will generate code to import that type, e.q. `ipaddress.IPv4Address` 
+- types with a period in there name will generate code to import that type, e.q. `ipaddress.IPv4Address`
   ```yaml
   - name: ipv4_loopback
     type: ipaddress.IPv4Address
@@ -728,8 +728,8 @@ configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---python-version - Python version for generated code [default: 3.11]  
+--config-file - The configuration file [default: None]
+--python-version - Python version for generated code [default: 3.11]
 
 ### product
 
@@ -739,11 +739,11 @@ from a configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### product-blocks
 
@@ -753,11 +753,11 @@ domain models from a configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]
 
 ### unit-tests
 
@@ -767,11 +767,11 @@ configuration file.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
---tdd - Force test driven development with failing asserts [default: True]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
+--tdd - Force test driven development with failing asserts [default: True]
 
 ### workflows
 
@@ -784,13 +784,13 @@ steps to the create, modify and terminate workflows.
 Options
 
 <!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
---config-file - The configuration file [default: None]  
---dryrun | --no-dryrun - Dry run [default: dryrun]  
---force - Force overwrite of existing files  
---python-version - Python version for generated code [default: 3.11]  
+--config-file - The configuration file [default: None]
+--dryrun | --no-dryrun - Dry run [default: dryrun]
+--force - Force overwrite of existing files
+--python-version - Python version for generated code [default: 3.11]
 --folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
-None]  
---custom-templates - Custom templates folder [default: None]  
+None]
+--custom-templates - Custom templates folder [default: None]
 
 !!! note
     The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`

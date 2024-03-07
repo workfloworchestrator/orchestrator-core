@@ -70,7 +70,7 @@ Now point a web browser to `http://localhost:3000/` and have a look around. This
 To reset the active state of your environment back to scratch, simply use docker compose to delete volumes, like so:
 
 ```bash
-jlpicard@ncc-1701-d:~$ docker compose down -v 
+jlpicard@ncc-1701-d:~$ docker compose down -v
 ```
 
 You can then restart the containers as described above.
