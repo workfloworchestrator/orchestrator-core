@@ -63,6 +63,25 @@ nav:
     - Base Application: getting-started/base.md
     - Development setup: getting-started/development.md
     - Preparing source folder: getting-started/prepare-source-folder.md
+  - Reference Documentation:
+    - API: reference-docs/api.md
+    - App Configuration:
+      - App.py : reference-docs/app/app.md
+      - Runtimes: reference-docs/app/runtimes.md
+    - Auth(n|z): reference-docs/auth.md
+    - CLI Tools: reference-docs/cli.md
+    - Database: reference-docs/database.md
+    - Domain Models: reference-docs/domain-models.md
+    - Forms: reference-docs/forms.md
+    - GraphQL: reference-docs/graphql.md
+    - Pydantic Forms: reference-docs/pydantic-forms.md
+    - Serialization: reference-docs/serialization.md
+    - Subscriptions: reference-docs/subscriptions.md
+    - Tasks:  reference-docs/tasks.md
+    - Tests: reference-docs/tests.md
+    - Workflows:
+      - Workflow States:  reference-docs/workflows/workflow-states.md
+      - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
   - Architecture:
     - Architecture; TLDR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md
