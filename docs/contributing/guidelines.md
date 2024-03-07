@@ -4,8 +4,7 @@ or have questions about the project please contact the board: workfloworchestrat
 free to raise an issue in the project. We will strive to reply to your enquiry A.S.A.P.
 
 ## Documentation
-We use [**MKDOCS**](https://www.mkdocs.org) as a documentation tool. Please create a PR if you have any additions or
-contributions to make. All docs can be written in MD or html.
+We use [**MKDOCS**](https://www.mkdocs.org) as a documentation tool. Please create a PR if you have any additions or contributions to make. All docs can be written in MD or html. Full guidelines on how to set this up can be found [here](documentation.md).
 
 ## Orchestrator release
 The `orchestrator-core` has no release schedule but is actively used and maintained by the workflow orchestrator group.
