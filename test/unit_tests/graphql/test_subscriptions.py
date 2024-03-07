@@ -15,8 +15,10 @@ import json
 from http import HTTPStatus
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.db import SubscriptionMetadataTable, db
+from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
@@ -42,6 +44,7 @@ subscription_product_fields = [
     "createdAt",
     "endDate",
 ]
+CUSTOMER_ID = "a6274018-0580-41cd-9fe8-17b946706e9f"
 
 
 def build_subscriptions_query(body: str) -> str:
@@ -93,6 +96,11 @@ def get_subscriptions_query(
         tag
         createdAt
         endDate
+      }
+      customerDescriptions {
+        subscriptionId
+        customerId
+        description
       }
     }
     pageInfo {
@@ -275,6 +283,11 @@ def get_subscriptions_product_generic_one(
         pb2 {
           rt2
           rt3
+        }
+        customerDescriptions {
+            subscriptionId
+            customerId
+            description
         }
       }
     }
@@ -828,8 +841,19 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
 
     _, GenericProductOne = generic_product_type_1
     subscription_ids = product_type_1_subscriptions_factory(30)
+
     do_refresh_subscriptions_search_view()
+
     subscription_id = subscription_ids[10]
+    subscription = db.session.execute(
+        select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
+    ).scalar_one_or_none()
+    subscription.customer_descriptions = [
+        SubscriptionCustomerDescriptionTable(customer_id=CUSTOMER_ID, description="customer alias")
+    ]
+    db.session.add(subscription)
+    db.session.commit()
+
     data = get_subscriptions_query(**query_args(subscription_id))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -853,6 +877,13 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
+    assert subscriptions[0]["customerDescriptions"] == [
+        {
+            "subscriptionId": subscription_id,
+            "customerId": "a6274018-0580-41cd-9fe8-17b946706e9f",
+            "description": "customer alias",
+        }
+    ]
     assert subscriptions[0]["productBlockInstances"] == [
         {
             "id": 0,
@@ -1250,6 +1281,15 @@ def test_subscriptions_product_generic_one(
 
     subscriptions = product_type_1_subscriptions_factory(30)
     subscription_id = str(subscriptions[0])
+    subscription = db.session.execute(
+        select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
+    ).scalar_one_or_none()
+    subscription.customer_descriptions = [
+        SubscriptionCustomerDescriptionTable(customer_id=CUSTOMER_ID, description="customer alias")
+    ]
+    db.session.add(subscription)
+    db.session.commit()
+
     data = get_subscriptions_product_generic_one(filter_by=[{"field": "subscriptionId", "value": subscription_id}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -1273,6 +1313,13 @@ def test_subscriptions_product_generic_one(
     assert subscriptions[0]["subscriptionId"] == subscription_id
     assert subscriptions[0]["pb1"] == {"rt1": "Value1"}
     assert subscriptions[0]["pb2"] == {"rt2": 42, "rt3": "Value2"}
+    assert subscriptions[0]["customerDescriptions"] == [
+        {
+            "subscriptionId": subscription_id,
+            "customerId": "a6274018-0580-41cd-9fe8-17b946706e9f",
+            "description": "customer alias",
+        }
+    ]
 
 
 def test_single_subscription_product_list_union_type(
