@@ -67,8 +67,8 @@ def ruff(content: str) -> str:
     ruff_check = ["ruff", "check", "--isolated", "--line-length", "120", "--select", "ALL", "--fix-only", "-"]
     ruff_format = ["ruff", "format", "--isolated", "--line-length", "120", "-"]
     try:
-        process = subprocess.run(ruff_check, capture_output=True, check=True, text=True, input=content)  # noqa
-        process = subprocess.run(ruff_format, capture_output=True, check=True, text=True, input=process.stdout)  # noqa
+        process = subprocess.run(ruff_check, capture_output=True, check=True, text=True, input=content)
+        process = subprocess.run(ruff_format, capture_output=True, check=True, text=True, input=process.stdout)
     except subprocess.CalledProcessError as exc:
         logger.warning("ruff error", cmd=exc.cmd, returncode=exc.returncode, stderr=exc.stderr)
     else:
