@@ -35,8 +35,8 @@ repo_url: https://github.com/workfloworchestrator/orchestrator-core
 edit_uri: edit/main/docs/
 markdown_extensions:
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight
   - pymdownx.superfences
   - admonition
@@ -132,3 +132,4 @@ nav:
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
+    - Documentation: contributing/documentation.md
