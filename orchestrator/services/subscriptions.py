@@ -282,6 +282,7 @@ def retrieve_subscription_by_subscription_instance_value(
         .filter(SubscriptionInstanceValueTable.value == value)
         .filter(ResourceTypeTable.resource_type == resource_type)
         .filter(SubscriptionTable.status.in_(sub_status))
+        .distinct(SubscriptionTable.subscription_id)
     )
     return db.session.scalars(stmt).one_or_none()
 
