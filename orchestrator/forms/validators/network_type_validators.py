@@ -55,4 +55,10 @@ def validate_mtu(val: int) -> int:
     return val
 
 
-MTU = Annotated[int, Ge(MTU_LOW), Le(MTU_HIGH), AfterValidator(validate_mtu), Field(json_schema_extra={"multipleOf": MTU_MULTIPLIER})]
+MTU = Annotated[
+    int,
+    Ge(MTU_LOW),
+    Le(MTU_HIGH),
+    AfterValidator(validate_mtu),
+    Field(json_schema_extra={"multipleOf": MTU_MULTIPLIER}),
+]
