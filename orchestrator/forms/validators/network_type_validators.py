@@ -14,7 +14,8 @@
 
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from annotated_types import Ge, Le
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 
 class BFD(BaseModel):
@@ -43,4 +44,15 @@ class BFD(BaseModel):
         return {"enabled": self.enabled, "minimum_interval": self.minimum_interval, "multiplier": self.multiplier}
 
 
-MTU = Annotated[int, Field(ge=1500, le=9000, json_schema_extra={"multipleOf": 7500})]
+MTU_LOW = 1500
+MTU_HIGH = 9000
+MTU_MULTIPLIER = 7500
+
+
+def validate_mtu(val: int) -> int:
+    if val not in (MTU_LOW, MTU_HIGH):
+        raise ValueError(f"MTU must be either {MTU_LOW} or {MTU_HIGH}")
+    return val
+
+
+MTU = Annotated[int, Ge(MTU_LOW), Le(MTU_HIGH), AfterValidator(validate_mtu), Field(json_schema_extra={"multipleOf": MTU_MULTIPLIER})]
