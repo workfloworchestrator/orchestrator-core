@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from subprocess import check_output  # noqa: S404
+from subprocess import DEVNULL, check_output  # noqa: S404
 
 import structlog
 
@@ -34,9 +34,10 @@ def __getattr__(name: str) -> str | None:
     """
     if name == "GIT_COMMIT_HASH":
         try:
-            return check_output(["/usr/bin/env", "git", "rev-parse", "HEAD"]).decode().strip()  # noqa: S603
-        except Exception:
-            logger.info("Could not get git commit hash, not setting version")
+            command = ["/usr/bin/env", "git", "rev-parse", "HEAD"]
+            return check_output(command, stderr=DEVNULL).decode().strip()  # noqa: S603
+        except Exception as exc:
+            logger.info("Could not get git commit hash, not setting version", reason=str(exc))
             return None
     else:
         raise AttributeError(name)
