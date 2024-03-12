@@ -10,11 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from asyncio import new_event_loop
 from typing import Any, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
+import anyio
 from structlog import get_logger
 
 from orchestrator.db import ProcessTable
@@ -102,13 +102,9 @@ def send_process_data_to_websocket(
         broadcast_func(process_id, data)
     else:
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
-        loop = new_event_loop()
+
         channels = [WS_CHANNELS.ALL_PROCESSES]
-        loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
-        try:
-            loop.close()
-        except Exception:  # noqa: S110
-            pass
+        anyio.run(websocket_manager.broadcast_data, channels, data)
 
 
 async def empty_handler() -> None:
