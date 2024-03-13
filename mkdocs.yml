@@ -35,6 +35,7 @@ plugins:
   - search
   - render_swagger
   - include-markdown
+  - privacy
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
   generator: false
@@ -136,8 +137,7 @@ nav:
         - Introduction: workshops/advanced/workflow-introduction.md
         - Create Node: workshops/advanced/node-workflow.md
         - Create Circuit: workshops/advanced/circuit-workflow.md
-    - Migration guide:
-        - 2.0: migration-guide/2.0.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
+  - Migration guide: migration-guide/2.0.md
