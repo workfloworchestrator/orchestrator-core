@@ -3,6 +3,10 @@ site_description: An extensible workflow engine to manage customer facing resour
 site_url: https://workfloworchestrator.org/orchestrator-core
 theme:
   name: material
+  icon:
+    repo: fontawesome/brands/github-alt
+  favicon: img/favicon.ico
+  logo: img/WFO-Emblem-White.png
   palette:
   - scheme: default
     primary: teal
@@ -35,8 +39,8 @@ repo_url: https://github.com/workfloworchestrator/orchestrator-core
 edit_uri: edit/main/docs/
 markdown_extensions:
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight
   - pymdownx.superfences
   - admonition
@@ -53,6 +57,7 @@ markdown_extensions:
 extra_css:
   - 'css/termynal.css'
   - 'css/custom.css'
+  - 'css/style.css'
 extra_javascript:
   - 'js/termynal.js'
   - 'js/custom.js'

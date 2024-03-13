@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # Orchestrator-Core
 <p align="center"><em>Production ready Orchestration Framework to manage product lifecycle and workflows. Easy to use, Built on top of FastAPI</em></p>
 
