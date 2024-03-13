@@ -33,7 +33,9 @@ plugins:
   - search
   - render_swagger
   - include-markdown
-copyright: Copyright Workfloworchestrator; 2020-2024
+copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
+extra:
+  generator: false
 repo_name: workfloworchestrator/orchestrator-core
 repo_url: https://github.com/workfloworchestrator/orchestrator-core
 edit_uri: edit/main/docs/
