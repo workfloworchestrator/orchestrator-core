@@ -17,6 +17,7 @@ from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from redis.asyncio import Redis as AIORedis
+from sqlalchemy.exc import SQLAlchemyError
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
@@ -54,7 +55,10 @@ def get_cache_names() -> dict[str, str]:
 
 @router.post("/search-index/reset")
 async def reset_search_index() -> None:
-    return settings.reset_search_index()
+    try:
+        settings.reset_search_index()
+    except SQLAlchemyError:
+        raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
