@@ -65,6 +65,8 @@ def reset_search_index() -> None:
     try:
         db.session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY subscriptions_search;"))
     except SQLAlchemyError as e:
+        logger.error("Something went wrong while refreshing materialized view")
         logger.exception(e)
-
+    finally:
+        db.session.commit()
     return
