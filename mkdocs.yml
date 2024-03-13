@@ -24,6 +24,8 @@ theme:
   - search.suggest
   - search.highlight
   - navigation.sections
+  - navigation.tabs
+  - navigation.tabs.sticky
   - navigation.tracking
   - navigation.instant
   - navigation.indexes
