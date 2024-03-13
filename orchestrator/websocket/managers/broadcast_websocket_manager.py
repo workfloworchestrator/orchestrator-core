@@ -36,14 +36,15 @@ class BroadcastWebsocketManager:
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         self.connected.append(websocket)
-        self.log_amount_of_connections()
+        log = logger.bind(client=websocket.client, channel=channel)
+        log.debug("Websocket client connected, start loop", total_connections=len(self.connected))
         try:
             await run_until_first_complete(
                 (self.sender, {"websocket": websocket, "channel": channel}),
                 (self.receiver, {"websocket": websocket, "channel": channel}),
             )
-        except Exception:  # noqa: S110
-            pass
+        except Exception as exc:  # noqa: S110
+            log.debug("Websocket client loop stopped with an exception", message=str(exc))
         self.remove_ws_from_connected_list(websocket)
 
     async def disconnect(
@@ -60,6 +61,7 @@ class BroadcastWebsocketManager:
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         async for message in websocket.iter_text():
+            logger.debug("Received websocket message", client=websocket.client, channel=channel, message=repr(message))
             if message == "__ping__":
                 await websocket.send_text("__pong__")
 
@@ -82,7 +84,4 @@ class BroadcastWebsocketManager:
     def remove_ws_from_connected_list(self, websocket: WebSocket) -> None:
         if websocket in self.connected:
             self.connected.remove(websocket)
-        self.log_amount_of_connections()
-
-    def log_amount_of_connections(self) -> None:
-        logger.info("Websocket Connections: %s", len(self.connected))
+        logger.debug("Websocket client disconnected", total_connections=len(self.connected), client=websocket.client)

@@ -33,6 +33,7 @@ broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 class WS_CHANNELS:
     ALL_PROCESSES = "processes"
     ENGINE_SETTINGS = "engine-settings"
+    EVENTS = "events"
 
 
 async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
@@ -88,6 +89,19 @@ def is_process_active(p: dict) -> bool:
     return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
+async def _broadcast_event(name: str, value: Any) -> None:
+    event = {"name": name, "value": value}
+    await websocket_manager.broadcast_data([WS_CHANNELS.EVENTS], event)
+
+
+def sync_broadcast_invalidate_cache(*cache_key: str) -> None:
+    anyio.run(broadcast_invalidate_cache, *cache_key)
+
+
+async def broadcast_invalidate_cache(*cache_key: str) -> None:
+    await _broadcast_event("invalidateCache", list(cache_key))
+
+
 def send_process_data_to_websocket(
     process_id: UUID,
     data: dict,
@@ -103,8 +117,8 @@ def send_process_data_to_websocket(
     else:
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
 
-        channels = [WS_CHANNELS.ALL_PROCESSES]
-        anyio.run(websocket_manager.broadcast_data, channels, data)
+        anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
+        sync_broadcast_invalidate_cache("processes")
 
 
 async def empty_handler() -> None:

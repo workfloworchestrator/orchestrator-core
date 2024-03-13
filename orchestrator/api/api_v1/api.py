@@ -29,6 +29,7 @@ from orchestrator.api.api_v1.endpoints import (
     translations,
     user,
     workflows,
+    ws,
 )
 from orchestrator.security import opa_security_default
 
@@ -87,3 +88,4 @@ api_router.include_router(
     prefix="/translations",
     tags=["Core", "Translations"],
 )
+api_router.include_router(ws.router, prefix="/ws", tags=["Core", "Events"])
