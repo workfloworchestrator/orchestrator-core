@@ -106,6 +106,7 @@ def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> 
         "failed_reason": process.failed_reason,
         "created_by": process.created_by,
         "started_at": process.started_at,
+        "traceback": process.traceback,
         "last_modified_at": process.last_modified_at,
         "product": subscriptions[0]["product"] if subscriptions else None,
         "subscriptions": subscriptions,
