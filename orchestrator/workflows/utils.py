@@ -326,7 +326,6 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
             >> f()
             >> resync
             >> push_subscriptions(cache_domain_models)
-            >> refresh_subscription_search_index
             >> done
         )
 
