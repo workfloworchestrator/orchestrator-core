@@ -56,7 +56,7 @@ def get_cache_names() -> dict[str, str]:
 @router.post("/search-index/reset")
 async def reset_search_index() -> None:
     try:
-        settings.reset_search_index()
+        settings.reset_search_index(tx_commit=True)
     except SQLAlchemyError:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
 
