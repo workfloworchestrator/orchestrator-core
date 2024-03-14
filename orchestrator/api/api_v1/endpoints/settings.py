@@ -28,7 +28,7 @@ from orchestrator.services import processes, settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
-from orchestrator.websocket import WS_CHANNELS, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, broadcast_invalidate_cache, websocket_manager
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -95,7 +95,7 @@ async def set_global_status(
             [WS_CHANNELS.ENGINE_SETTINGS],
             {"engine-status": generate_engine_status_response(result)},
         )
-
+        await broadcast_invalidate_cache("engineStatus")
     return status_response
 
 

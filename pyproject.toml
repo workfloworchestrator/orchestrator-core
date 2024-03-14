@@ -90,6 +90,7 @@ test = [
     "jsonref",
     "mypy",
     "pytest",
+    "pytest-asyncio==0.21.0",
     "pytest-cov",
     "pytest-httpx",
     "pytest-xdist",
