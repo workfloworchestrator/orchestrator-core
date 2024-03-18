@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
+from orchestrator.services.settings import reset_search_index
 from orchestrator.services.subscriptions import build_extended_domain_model, get_subscription
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
@@ -211,3 +212,13 @@ def cache_domain_models(workflow_name: str, subscription: SubscriptionModel | No
     cached_subscription_ids.add(subscription.subscription_id)
 
     return {"cached_subscription_ids": cached_subscription_ids}
+
+
+@step("Refresh subscription search index")
+def refresh_subscription_search_index() -> State:
+    try:
+        reset_search_index()
+    except Exception:
+        # Don't fail workflow in case of unexpected error
+        logger.warning("Error updated the subscriptions search index")
+    return {}

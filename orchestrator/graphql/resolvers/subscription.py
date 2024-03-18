@@ -58,11 +58,12 @@ def get_subscription_details(subscription: SubscriptionTable) -> SubscriptionInt
 
     subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
     base_model = subscription_details.__base_type__ if subscription_details.__base_type__ else subscription_details
-    subscription_details = base_model.from_other_lifecycle(  # type: ignore
+    base_subscription_details = base_model.from_other_lifecycle(  # type: ignore
         subscription_details, SubscriptionLifecycle.INITIAL, skip_validation=True
     )
+    base_subscription_details.status = subscription_details.status
     strawberry_type = GRAPHQL_MODELS[graphql_subscription_name(base_model.__name__)]  # type: ignore
-    return strawberry_type.from_pydantic(subscription_details)
+    return strawberry_type.from_pydantic(base_subscription_details)
 
 
 def format_base_subscription(subscription: SubscriptionTable) -> SubscriptionInterface:

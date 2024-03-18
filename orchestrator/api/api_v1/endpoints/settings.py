@@ -17,6 +17,7 @@ from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from redis.asyncio import Redis as AIORedis
+from sqlalchemy.exc import SQLAlchemyError
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
@@ -27,7 +28,7 @@ from orchestrator.services import processes, settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
-from orchestrator.websocket import WS_CHANNELS, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, broadcast_invalidate_cache, websocket_manager
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -54,7 +55,10 @@ def get_cache_names() -> dict[str, str]:
 
 @router.post("/search-index/reset")
 async def reset_search_index() -> None:
-    return settings.reset_search_index()
+    try:
+        settings.reset_search_index(tx_commit=True)
+    except SQLAlchemyError:
+        raise_status(HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
 @router.put("/status", response_model=EngineSettingsSchema)
@@ -91,7 +95,7 @@ async def set_global_status(
             [WS_CHANNELS.ENGINE_SETTINGS],
             {"engine-status": generate_engine_status_response(result)},
         )
-
+        await broadcast_invalidate_cache("engineStatus")
     return status_response
 
 

@@ -1,8 +1,8 @@
 ignore:
   - "docs"
   - "test"
-  - "example"
-  - "devtools"
-  - "migrations"
+  - "examples"
+  - "orchestrator/devtools"
+  - "orchestrator/migrations"
   - "orchestrator/cli/generator/templates"
   - "orchestrator/cli/generator/custom_templates"

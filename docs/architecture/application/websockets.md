@@ -9,7 +9,7 @@ Orchestrator provides a websocket interface through which the frontend can recei
 
 ## Implementation
 
-To function properly in a scalable architecture, the websocket implentation consists of multiple layers,
+To function properly in a scalable architecture, the websocket implementation consists of multiple layers.
 
 The main component is the `WebSocketManager` (WSM) which has the following responsibilities:
 
@@ -25,7 +25,7 @@ There are 2 WSM implementations: a `MemoryWebsocketManager` for development/test
 * `BroadcastWebsocketManager.broadcast_data()` is called by backend processes, and publishes messages to a channel in Redis [1]
 * `BroadcastWebsocketManager.sender()` starts in a loop for each connected client, subscribes to a channel in Redis, and forwards messages into the websocket connection
 
-[1] Backend processes do not call this function directly, refer to the **ProcessDataBroadcastThread** section
+[1] When using `EXECUTOR="threadpool"` this function is not called directly, refer to the **ProcessDataBroadcastThread** section
 
 Roughly speaking a message travels through these components:
 ```
@@ -39,8 +39,10 @@ Process
 
 ### ProcessDataBroadcastThread
 
+**Note**: this section is only relevant when the orchestrator is configured with `EXECUTOR="threadpool"`.
+
 Backend processes are executed in a threadpool and therefore access the same WSM instance. This caused asyncio RuntimeErrors as the async Redis Pub/Sub implementation is not thread-safe.
 
 To solve this there is a dedicated `ProcessDataBroadcastThread` (attached to and managed by the `OrchestratorCore` app) to perform the actual `broadcast_data()` call.
 
-The API endpoints which start/resume/abort a process call `api_broadcast_process_data(request)` to acquire a function that can be used to submit process updates into a `threading.Queue` on which `ProcessDataBroadcastThread` listens.
+The API endpoints which start/resume/abort a process, call `api_broadcast_process_data(request)` to acquire a function that can be used to submit process updates into a `threading.Queue` on which `ProcessDataBroadcastThread` listens.

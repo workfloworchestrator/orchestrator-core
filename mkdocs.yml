@@ -3,6 +3,10 @@ site_description: An extensible workflow engine to manage customer facing resour
 site_url: https://workfloworchestrator.org/orchestrator-core
 theme:
   name: material
+  icon:
+    repo: fontawesome/brands/github-alt
+  favicon: img/favicon.ico
+  logo: img/WFO-Emblem-White.png
   palette:
   - scheme: default
     primary: teal
@@ -20,6 +24,8 @@ theme:
   - search.suggest
   - search.highlight
   - navigation.sections
+  - navigation.tabs
+  - navigation.tabs.sticky
   - navigation.tracking
   - navigation.instant
   - navigation.indexes
@@ -29,14 +35,18 @@ plugins:
   - search
   - render_swagger
   - include-markdown
-copyright: Copyright Workfloworchestrator; 2020-2024
+  - privacy
+  - social
+copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
+extra:
+  generator: false
 repo_name: workfloworchestrator/orchestrator-core
 repo_url: https://github.com/workfloworchestrator/orchestrator-core
 edit_uri: edit/main/docs/
 markdown_extensions:
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight
   - pymdownx.superfences
   - admonition
@@ -53,6 +63,7 @@ markdown_extensions:
 extra_css:
   - 'css/termynal.css'
   - 'css/custom.css'
+  - 'css/style.css'
 extra_javascript:
   - 'js/termynal.js'
   - 'js/custom.js'
@@ -127,8 +138,7 @@ nav:
         - Introduction: workshops/advanced/workflow-introduction.md
         - Create Node: workshops/advanced/node-workflow.md
         - Create Circuit: workshops/advanced/circuit-workflow.md
-    - Migration guide:
-        - 2.0: migration-guide/2.0.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
+  - Migration guide: migration-guide/2.0.md

@@ -806,6 +806,9 @@ def api_broadcast_process_data(request: Request) -> BroadcastFunc | None:
     The callable should be created in API endpoints and provided to start_process,
     resume_process, etc. through the `broadcast_func` param.
     """
+    if not request.app.broadcast_thread:
+        return None
+
     broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
 
     def _queue_put(process_id: UUID, data: dict) -> None:
