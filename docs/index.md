@@ -38,17 +38,17 @@ to have a complete audit log of changes.
 >   *‘the developers were able to orchestrate a favorable media campaign’*
 
 ## Project Goal
-This **orchestrator-core** provides a framework through which you can manage service orchestration for your end 
-users. The framework helps and guides **you**, the person who needs to get things done, through the steps from 
-automation, to orchestration. With an easy to use set of API's and example, you should be up and running and seeing 
-results, before you completely understand all ins and outs of the project. The Orchestrator enables you to define 
+This **orchestrator-core** provides a framework through which you can manage service orchestration for your end
+users. The framework helps and guides **you**, the person who needs to get things done, through the steps from
+automation, to orchestration. With an easy to use set of API's and example, you should be up and running and seeing
+results, before you completely understand all ins and outs of the project. The Orchestrator enables you to define
 products to which users can subscribe, and helps you intelligently manage the lifecycle of **Creation**, **Modification**,
 **Termination** and **Validation** of resources that you provide to your users.
 The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI, pydantic and asyncio python.
 
 ## What does a workflow look like? It must be pretty complex!!
 
-Programming a new workflow should be really easy, and at its core it is. By defining workflows as Python functions, 
+Programming a new workflow should be really easy, and at its core it is. By defining workflows as Python functions,
 all you need to do is understand how to write basic python code, the framework will help take care of the rest.
 
 ```python
@@ -67,9 +67,9 @@ def workflow():
 
 There are a number of options for getting started:
 
-- For those of you who would like to see it working, take a look at [this repo](https://github.com/workfloworchestrator/example-orchestrator) and follow the README to setup a 
+- For those of you who would like to see it working, take a look at [this repo](https://github.com/workfloworchestrator/example-orchestrator) and follow the README to setup a
   docker-compose so you can experiment on your localhost.
-- For those who are more adventurous, follow the guide on the [next page](/orchestrator-core/getting-started/base) to 
+- For those who are more adventurous, follow the guide on the [next page](/orchestrator-core/getting-started/base) to
   start codeing right away.
 
 [//]: # (- If you would like to see the workflow engine in action, click [here]&#40;https://demo.workfloworchestrator.org&#41; this )
