@@ -75,6 +75,7 @@ example:
 ```python
 from orchestrator import OrchestratorCore
 from orchestrator.settings import AppSettings
+
 app = OrchestratorCore(base_settings=AppSettings())
 # register SUBSCRIPTION_MODEL_REGISTRY
 app.register_graphql()

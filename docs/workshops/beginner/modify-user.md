@@ -4,7 +4,7 @@
 
 The modify `User` workflow is also very similar to the modify `UserGroup`
 workflow, except for the different set of resource types that can be changed.
-This workflow uses the following steps: 
+This workflow uses the following steps:
 
 ```python
 init
@@ -24,7 +24,7 @@ owning this product block instance.
 
 The `choice_list` input both returns a list as result and expects a list of
 values that it uses to display the currently selected item(s). The following
-will display a dropdown showing the currently selected user group: 
+will display a dropdown showing the currently selected user group:
 
 ```python
 user_group_id: user_group_selector() = [str(subscription.user.group.owner_subscription_id)]

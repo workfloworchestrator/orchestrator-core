@@ -4,7 +4,7 @@
 
 The create `User` workflow is very similar to the create `UserGroup` workflow,
 the major difference is the increased number of user inputs needed to
-initialize the subscription. This workflow uses the following steps: 
+initialize the subscription. This workflow uses the following steps:
 
 ```python
 init
@@ -22,7 +22,7 @@ form is special: the selection of the user group the user belongs to. It is not
 just an integer or a string, but the user must be able to select a user group
 out of a list of already provisioned user groups. For this the database will be
 queried to obtain a list of active user group subscriptions, and a special
-input field type is used to display a dropdown input field on the input form. 
+input field type is used to display a dropdown input field on the input form.
 
 In the orchestrator, all access to the database is implemented using
 SQLAlchemy, and queries can be formulated using the classes from
@@ -71,7 +71,7 @@ def user_group_selector() -> list:
         .filter(ProductTable.product_type == "Port", SubscriptionTable.status == "active")
         .with_only_columns(SubscriptionTable.subscription_id, SubscriptionTable.description)
     )
-    
+
     for user_group_id, user_group_description in db.session.execute(stmt).all():
         user_group_subscriptions[str(user_group_id)] = user_group_description
 
@@ -135,4 +135,3 @@ from products.product_types.user_group import UserGroup
 
 **Spoiler**: for inspiration look at an example implementation of the [user
 create workflow ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/user/create_user.py)
-
