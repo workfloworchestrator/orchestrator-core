@@ -672,7 +672,7 @@ The following types are supported when specifying resource types:
   - name: circuit_id
     type: int
   ```
-- types with a period in there name will generate code to import that type, e.q. `ipaddress.IPv4Address` 
+- types with a period in there name will generate code to import that type, e.q. `ipaddress.IPv4Address`
   ```yaml
   - name: ipv4_loopback
     type: ipaddress.IPv4Address
@@ -788,9 +788,9 @@ Options
 --dryrun | --no-dryrun - Dry run [default: dryrun]  
 --force - Force overwrite of existing files  
 --python-version - Python version for generated code [default: 3.11]  
---folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:
-None]  
---custom-templates - Custom templates folder [default: None]  
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:  
+None]
+--custom-templates - Custom templates folder [default: None]
 
 !!! note
     The `workflows/__init__.py` will only be extended with the needed `LazyWorkflowInstance`

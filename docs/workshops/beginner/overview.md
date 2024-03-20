@@ -16,21 +16,21 @@ are prerequisites to do this workshop.
   install the orchestrator and GUI. Instructions for both Debian and MacOS are
   included.
 * **Start applications**  
-  Shows a simple way of starting the orchestrator and GUI. 
+  Shows a simple way of starting the orchestrator and GUI.
 * **Create User and User Group products**  
-  Through a simple user and group management scenario a set of products is 
+  Through a simple user and group management scenario a set of products is
   created showing how domain models are defined.
     * **Domain models**  
-       Explains the benefits of the use of domain models and shows how the 
+       Explains the benefits of the use of domain models and shows how the
        hierarchy of products, product blocks, fixed inputs and resource
        types is used to create product subscriptions for customers.
      * **Database migration**  
-      Use the orchestrator to create an Alembic database migration based on the 
+      Use the orchestrator to create an Alembic database migration based on the
       domain models that describe the created products and product blocks.
 * **Create User and User Group workflows**  
-  For both the User And User Group products a set of create, modify and 
-  terminate workflows will be created. The use of input forms is explained 
-  as part of defining the create workflow. This will show how a simple 
+  For both the User And User Group products a set of create, modify and
+  terminate workflows will be created. The use of input forms is explained
+  as part of defining the create workflow. This will show how a simple
   product block hierarchy is created.
 
 ## Workshop folder layout

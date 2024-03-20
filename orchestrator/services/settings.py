@@ -61,10 +61,13 @@ def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None
         pass
 
 
-def reset_search_index() -> None:
+def reset_search_index(*, tx_commit: bool = False) -> None:
     try:
         db.session.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY subscriptions_search;"))
     except SQLAlchemyError as e:
-        logger.exception(e)
-
+        logger.error("Something went wrong while refreshing materialized view", msg=str(e))
+        raise e
+    finally:
+        if tx_commit:
+            db.session.commit()
     return

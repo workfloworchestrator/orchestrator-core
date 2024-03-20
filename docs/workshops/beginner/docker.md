@@ -1,7 +1,7 @@
 # Docker compose installation instructions
 
-How to run the orchestrator-core and orchestrator-core-gui with Docker 
-Compose is described in the steps below. The following Docker images are 
+How to run the orchestrator-core and orchestrator-core-gui with Docker
+Compose is described in the steps below. The following Docker images are
 used:
 
 * [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core/pkgs/container/orchestrator-core):
@@ -15,9 +15,9 @@ used:
 
 ### Step 1 - Prepare environment
 
-First create the folder to hold the example orchestrator that is being build 
-during this workshop. Then copy the `docker-compose.yml` and 
-`orchestrator-core-gui.env` to control and configure the environment, and 
+First create the folder to hold the example orchestrator that is being build
+during this workshop. Then copy the `docker-compose.yml` and
+`orchestrator-core-gui.env` to control and configure the environment, and
 copy a `main.py` that contains a rudimentary orchestrator application.
 
 ```shell
@@ -38,7 +38,7 @@ git add .
 git commit -m "Initial commit"
 ```
 
-Note that your local git repository must contain at least one commit because 
+Note that your local git repository must contain at least one commit because
 otherwise the database initializations step below will fail.
 
 ### Step 2 - Start environment
@@ -47,14 +47,14 @@ Docker compose will take care of all necessary initialization and startup of
 the database, orchestrator and GUI:
 
 1. the busybox container creates the folder `db_data`, if not yet present
-2. then a postgres container creates a database, if it does not exist 
+2. then a postgres container creates a database, if it does not exist
    already, after which the database server is started
-3. an orchestrator container is used to initialize the database, if 
-   not already initialized, and creates an `alembic.ini` file and a 
+3. an orchestrator container is used to initialize the database, if
+   not already initialized, and creates an `alembic.ini` file and a
    `migrations` folder for the database migrations
-4. a second run of the orchestrator container will upgrade the database to 
+4. a second run of the orchestrator container will upgrade the database to
    the latest heads, and will do so everytime the environment is started
-5. then a third run of the orchestrator container will use `main.py` to 
+5. then a third run of the orchestrator container will use `main.py` to
    run the orchestrator
 6. finally, the GUI is started in the orchestrator-core-gui container
 
@@ -69,7 +69,7 @@ Now point a browser to:
 ```shell
 http://localhost:3000/
 ```
-and have a look around. 
+and have a look around.
 
 !!! note
 

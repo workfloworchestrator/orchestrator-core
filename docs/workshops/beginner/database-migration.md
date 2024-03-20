@@ -5,7 +5,7 @@
 The orchestrator uses SQLAlchemy, the Python SQL toolkit and Object Relational
 Mapper, as interface to the database. Alembic, which is part of SQLAlchemy, is
 used for the creation, management, and invocation of database change management
-scripts.  
+scripts.
 
 Now that the product and product block domain models have been created, it is
 time to create an Alembic database migration to insert this information into
@@ -59,8 +59,8 @@ import products
 
 ## Exercise 2: create database migration
 
-To manually create a database migration a Python environment is needed, as 
-created with the manual installation steps, to run the orchestrator from the 
+To manually create a database migration a Python environment is needed, as
+created with the manual installation steps, to run the orchestrator from the
 command line. When using Docker compose an example migration is being used.
 
 ### Docker compose
@@ -89,7 +89,7 @@ fixed inputs to differentiate the products of the same product type.
 Create the migration with the following command, have a look at the overview
 below when in doubt of the correct answer to the questions, and make sure that
 the product type entered exactly matches the product types defined in the
-domain models, including upper/lowercase: 
+domain models, including upper/lowercase:
 
 ```shell
 PYTHONPATH=. python main.py db migrate-domain-models "Add User and UserGroup products"
@@ -100,12 +100,12 @@ When finished have a look at the migration created in the folder
 
 !!! note
 
-    While creating the migration, the order of the questions/answers may be 
+    While creating the migration, the order of the questions/answers may be
     different from the order in the overview below. Therefore do not blindly
     copy/paste the answers.
 
 !!! example
-    
+
     **<u>Create new products</u>**<br>
     Product: UserGroup **User Group**<br>
     Supply the product description: *user group administration*<br>
@@ -116,11 +116,11 @@ When finished have a look at the migration created in the folder
     Product: User **User external**<br>
     Supply the product description: *user administration - external*<br>
     Supply the product tag: *USER_EXT*<br>
-    
+
     **<u>Create fixed inputs</u>**<br>
     Supply fixed input value for product **User internal** and fixed input <span style="color:magenta">affiliation</span>: *internal*<br>
     Supply fixed input value for product **User external** and fixed input <span style="color:magenta">affiliation</span>: *external*<br>
-    
+
     **<u>Create product blocks</u>**<br>
     Product block: **UserGroupBlock**<br>
     Supply the product block description: *user group block*<br>
@@ -128,7 +128,7 @@ When finished have a look at the migration created in the folder
     Product block: **UserBlock**<br>
     Supply the product block description: *user block*<br>
     Supply the product block tag: *UB*<br>
-    
+
     **<u>Create resource types</u>**<br>
     Supply description for new resource type <span style="color:magenta">group_name</span>: *name of the user group*<br>
     Supply description for new resource type <span style="color:magenta">group_id</span>: *id of the user group*<br>
@@ -144,7 +144,7 @@ domain models, the database migration created above is executed.
 
 ### Docker compose
 
-The Docker compose environment contains a initialization container that will 
+The Docker compose environment contains a initialization container that will
 always upgrade the database to the latest heads. To trigger this you only have
 to restart the environment.
 
@@ -186,7 +186,7 @@ The metadata/products page should look as following:
 
 !!! example
 
-    if the database migration is incorrect, use this example 
+    if the database migration is incorrect, use this example
     [Add User and UserGroup products
     ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/examples/2022-11-11_45984f4b8010_add_user_and_usergroup_products.py)
     migration

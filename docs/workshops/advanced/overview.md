@@ -13,13 +13,13 @@ This workshop is intended for those who have run through the [beginner Workflow 
 
 * **Installation**  
   Detailed instructions are given on how to prepare your environment and install the orchestrator and GUI using docker compose.
-* **Start applications**
+* **Start applications**  
   Outline how to start the Workflow Orchestrator backend and GUI using docker compose.
-* **Create Node and Circuit Product**
+* **Create Node and Circuit Product**  
   Through a simple network node and network circuit scenario, a set of products is created showing how domain models are defined.
-  * **Domain models**
+  * **Domain models**  
     Explains the benefits of the use of domain models and shows how the hierarchy of products, product blocks, fixed inputs and resource types are used to create product subscriptions for customers.
-  * **Database migration**
+  * **Database migration**  
     Use the orchestrator CLI to create an Alembic database migration based on the domain models that describe the created products and product blocks.
 * **Create Node and Circuit Workflows**  
   For the Node and Circuit products, we will make CREATE workflows. The use of input forms is explained as part of defining the create workflow. The Node product will introduce connecting to an external system from within a workflow, and then the Circuit workflow will build upon the existing Node subscriptions to highlight the ability to link products in the Workflow Orchestrator as dependencies. The circuit workflow will also demonstrate using the forms library to create complex objects in external systems.

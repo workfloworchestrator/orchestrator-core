@@ -10,11 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from asyncio import new_event_loop
 from typing import Any, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
+import anyio
 from structlog import get_logger
 
 from orchestrator.db import ProcessTable
@@ -33,6 +33,7 @@ broadcaster_type = urlparse(app_settings.WEBSOCKET_BROADCASTER_URL).scheme
 class WS_CHANNELS:
     ALL_PROCESSES = "processes"
     ENGINE_SETTINGS = "engine-settings"
+    EVENTS = "events"
 
 
 async def empty_fn(*args: tuple, **kwargs: dict[str, Any]) -> None:
@@ -88,6 +89,19 @@ def is_process_active(p: dict) -> bool:
     return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
 
+async def _broadcast_event(name: str, value: Any) -> None:
+    event = {"name": name, "value": value}
+    await websocket_manager.broadcast_data([WS_CHANNELS.EVENTS], event)
+
+
+def sync_broadcast_invalidate_cache(*cache_key: str) -> None:
+    anyio.run(broadcast_invalidate_cache, *cache_key)
+
+
+async def broadcast_invalidate_cache(*cache_key: str) -> None:
+    await _broadcast_event("invalidateCache", list(cache_key))
+
+
 def send_process_data_to_websocket(
     process_id: UUID,
     data: dict,
@@ -102,13 +116,9 @@ def send_process_data_to_websocket(
         broadcast_func(process_id, data)
     else:
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
-        loop = new_event_loop()
-        channels = [WS_CHANNELS.ALL_PROCESSES]
-        loop.run_until_complete(websocket_manager.broadcast_data(channels, data))
-        try:
-            loop.close()
-        except Exception:  # noqa: S110
-            pass
+
+        anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
+        sync_broadcast_invalidate_cache("processes")
 
 
 async def empty_handler() -> None:

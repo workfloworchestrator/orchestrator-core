@@ -20,10 +20,10 @@ for a specific customer, `MODIFY` workflows to manipulate existing
 subscriptions, `TERMINATE` workflows to end the subscription on a product for a
 customer, and `SYSTEM` workflows that run scheduled and do not have an input
 form. The latter type of workflows is also referred to as tasks, and can for
-example be used to validate subscriptions against external operations 
+example be used to validate subscriptions against external operations
 support systems (OSS) and business support systems (BSS). The
 same workflow step can be used in multiple workflows, and a set of workflow
-steps can be combined in a step list and can be reused as well.  
+steps can be combined in a step list and can be reused as well.
 
 Ideally workflow steps are idempotent. In case a workflow step fails, this
 allows for save retry functionality without possible unwanted side effects or
@@ -31,7 +31,7 @@ new failures. This is especially important when a step is used to communicate
 with external OSS and BSS. But in practice it will not always be possible to
 make a step one hundred percent idempotent, thus requiring manual intervention
 before a step can be retried. Note that the workflow steps created in this
-beginner workshop are not written with idempotency in mind. 
+beginner workshop are not written with idempotency in mind.
 
 The `workflow` decorator takes a description, initial input form, and a target
 as input and turns a function into a workflow that returns a step list to be
@@ -75,4 +75,4 @@ to the state to be used by one of the following steps.
 
 Every workflow starts with the builtin step `init` and ends with the builtin
 step `done`, with an arbitrary list of other builtin steps or custom steps in
-between. 
+between.

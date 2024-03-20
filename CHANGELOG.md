@@ -30,7 +30,7 @@
 ## [1.1.0]
 
 ### Breaking change
- - Changed `settings.CACHE_HOST` and `settings.CACHE_PORT` to `settings.CACHE_URI` 
+ - Changed `settings.CACHE_HOST` and `settings.CACHE_PORT` to `settings.CACHE_URI`
  - Add support for subscription metadata [\#266](https://github.com/workfloworchestrator/orchestrator-core/issues/266)
 
 ## [1.0.2]

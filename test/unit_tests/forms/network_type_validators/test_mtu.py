@@ -1,45 +1,30 @@
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from orchestrator.forms.validators import MTU
-from pydantic_forms.core import FormPage
+from test.unit_tests.forms.test_generic_validators import stringify_exceptions
+
+mtu_adapter = TypeAdapter(MTU)
 
 
-@pytest.mark.parametrize("mtu", [1500, 1501, 9000])
+@pytest.mark.parametrize("mtu", (1500, 9000))
 def test_mtu(mtu):
-    class Form(FormPage):
-        mtu: MTU
-
-    assert Form(mtu=mtu).mtu == mtu
+    mtu_adapter.validate_python(mtu)
 
 
 def test_mtu_schema():
-    class Form(FormPage):
-        mtu: MTU
-
-    assert Form.model_json_schema() == {
-        "additionalProperties": False,
-        "properties": {
-            "mtu": {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "title": "Mtu", "type": "integer"}
-        },
-        "required": ["mtu"],
-        "title": "unknown",
-        "type": "object",
-    }
+    assert mtu_adapter.json_schema() == {"maximum": 9000, "minimum": 1500, "multipleOf": 7500, "type": "integer"}
 
 
 def test_mtu_nok_ge():
-    class Form(FormPage):
-        mtu: MTU
-
     with pytest.raises(ValidationError) as error_info:
-        assert Form(mtu=1499)
+        mtu_adapter.validate_python(1499)
 
     expected = [
         {
             "input": 1499,
             "ctx": {"ge": 1500},
-            "loc": ("mtu",),
+            "loc": (),
             "msg": "Input should be greater than or equal to 1500",
             "type": "greater_than_equal",
         }
@@ -48,19 +33,32 @@ def test_mtu_nok_ge():
 
 
 def test_mtu_nok_le():
-    class Form(FormPage):
-        mtu: MTU
-
     with pytest.raises(ValidationError) as error_info:
-        assert Form(mtu=9001)
+        mtu_adapter.validate_python(9001)
 
     expected = [
         {
             "input": 9001,
             "ctx": {"le": 9000},
-            "loc": ("mtu",),
+            "loc": (),
             "msg": "Input should be less than or equal to 9000",
             "type": "less_than_equal",
         },
     ]
     assert error_info.value.errors(include_url=False) == expected
+
+
+def test_mtu_nok_1500_or_9000():
+    with pytest.raises(ValidationError) as error_info:
+        mtu_adapter.validate_python(1600)
+
+    expected = [
+        {
+            "input": 1600,
+            "ctx": {"error": ValueError("MTU must be either 1500 or 9000")},
+            "loc": (),
+            "msg": "Value error, MTU must be either 1500 or 9000",
+            "type": "value_error",
+        },
+    ]
+    assert stringify_exceptions(error_info.value.errors(include_url=False)) == stringify_exceptions(expected)
