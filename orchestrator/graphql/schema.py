@@ -25,11 +25,11 @@ from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
 
+from nwastdlib.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
+from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import register_domain_models
-from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
-from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
@@ -134,6 +134,7 @@ def create_graphql_router(
     mutation: Any = Mutation,
     register_models: bool = True,
     subscription_interface: type | None = SubscriptionInterface,
+    extensions: list | None = None,
 ) -> OrchestratorGraphqlRouter:
     @strawberry.experimental.pydantic.type(
         model=SubscriptionModel, all_fields=True, directives=federation_key_directives
@@ -148,12 +149,15 @@ def create_graphql_router(
         models = register_domain_models(subscription_interface, existing_models=models)
         GRAPHQL_MODELS.update(models)
 
+    if not extensions:
+        extensions = [ErrorHandlerExtension, make_deprecation_checker_extension(query=query)]
+
     schema = OrchestratorSchema(
         query=query,
         mutation=mutation,
         enable_federation_2=app_settings.FEDERATION_ENABLED,
         types=tuple(models.values()),
-        extensions=[ErrorHandlerExtension, make_deprecation_checker_extension(query=query)],
+        extensions=extensions,
         scalar_overrides=SCALAR_OVERRIDES,
     )
 
