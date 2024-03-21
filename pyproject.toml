@@ -37,9 +37,8 @@ classifiers = [
 dependencies = [
     "alembic==1.13.1",
     "anyio>=3.7.0",
-    # "broadcaster[redis]==0.2.0",
-    # broadcaster is receiving updates but has not had a release in years - pinning on the master branch instead
-    "broadcaster[redis]@git+https://github.com/encode/broadcaster#egg=377b4043814ac88a21255af1cc12d5650c785082",
+    "asyncio-redis",  # Needed by broadcaster
+    # "broadcaster[redis]==0.2.0",  # See orchestrator/vendor/broadcaster/README.md
     "click==8.*",
     "deprecated",
     "deepmerge==1.1.1",
@@ -150,6 +149,7 @@ exclude = '''
     | venv
     | src
     | test/unit_tests/cli/data/generate
+    | orchestrator/vendor
   )/
 )
 '''
@@ -173,6 +173,7 @@ exclude = [
     ".venv",
     "docs",
     "test/unit_tests/cli/data/generate",
+    "orchestrator/vendor",
 ]
 ignore = [
     "C417",
@@ -207,6 +208,7 @@ ban-relative-imports = "all"
 "orchestrator/cli/*" = ["B008"]
 "orchestrator/devtools/scripts/*" = ["S101", "T201"]
 "test/*" = ["S101", "B033", "N816", "N802"]
+"orchestrator/__init__.py" = ["E402"]
 
 [tool.ruff.pydocstyle]
 convention = "google"

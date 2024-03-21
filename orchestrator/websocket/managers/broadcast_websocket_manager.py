@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from broadcaster import Broadcast
+from broadcaster import Broadcast  # added as sitedir in orchestrator/__init__.py
 from fastapi import WebSocket, status
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
@@ -67,7 +67,7 @@ class BroadcastWebsocketManager:
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
         async with self.sub_broadcast.subscribe(channel=channel) as subscriber:
-            async for event in subscriber:  # type: ignore[union-attr]
+            async for event in subscriber:
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)

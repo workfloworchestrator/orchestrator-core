@@ -1,7 +1,6 @@
 default_language_version:
   python: python3
-exclude:
-  ^test/unit_tests/cli/data/generate/.*\.py
+exclude: ^test/unit_tests/cli/data/generate/.*\.py|orchestrator/vendor.*
 repos:
   - repo: https://github.com/psf/black
     rev: 24.1.1
