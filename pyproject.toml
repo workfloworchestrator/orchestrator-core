@@ -37,6 +37,7 @@ classifiers = [
 dependencies = [
     "alembic==1.13.1",
     "anyio>=3.7.0",
+    "asyncio-redis",  # Needed by broadcaster
     # "broadcaster[redis]==0.2.0",  # See orchestrator/vendor/broadcaster/README.md
     "click==8.*",
     "deprecated",
