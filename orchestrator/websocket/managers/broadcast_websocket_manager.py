@@ -67,7 +67,7 @@ class BroadcastWebsocketManager:
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
         async with self.sub_broadcast.subscribe(channel=channel) as subscriber:
-            async for event in subscriber:
+            async for event in subscriber:  # type: ignore[union-attr]
                 await websocket.send_text(event.message)
 
                 json = json_loads(event.message)
