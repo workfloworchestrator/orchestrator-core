@@ -1,3 +1,20 @@
+# READ THIS FIRST
+
+This directory is a clone of https://github.com/encode/broadcaster from commit 377b404, taken at 2024-03-21. 
+
+The last release of broadster is 0.2.0 dating back to 2020.
+Since then the master branch contains a bugfix which we need for the `rediss://` backend.
+
+As pypi does not allow direct github dependencies, we vendor broadcaster's source code into this codebase until broadcaster receives a new release.
+
+https://github.com/encode/broadcaster/issues/103
+
+We do not claim ownership of this code, please refer to the included `LICENSE.md` file.
+
+Original README.md continues below.
+
+---
+
 # Broadcaster
 
 Broadcaster helps you develop realtime streaming functionality by providing
