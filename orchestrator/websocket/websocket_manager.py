@@ -33,7 +33,7 @@ class WebSocketManager:
         self.enabled = websockets_enabled
         self.broadcaster_type = urlparse(broadcast_url).scheme
         self.connected = False
-        if self.broadcaster_type == "redis":
+        if self.broadcaster_type in ("redis", "rediss"):
             self._backend = BroadcastWebsocketManager(broadcast_url)
         else:
             self._backend = MemoryWebsocketManager()
