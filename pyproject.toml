@@ -148,6 +148,7 @@ exclude = '''
     | venv
     | src
     | test/unit_tests/cli/data/generate
+    | orchestrator/vendor
   )/
 )
 '''
@@ -171,6 +172,7 @@ exclude = [
     ".venv",
     "docs",
     "test/unit_tests/cli/data/generate",
+    "orchestrator/vendor",
 ]
 ignore = [
     "C417",
@@ -205,6 +207,7 @@ ban-relative-imports = "all"
 "orchestrator/cli/*" = ["B008"]
 "orchestrator/devtools/scripts/*" = ["S101", "T201"]
 "test/*" = ["S101", "B033", "N816", "N802"]
+"orchestrator/__init__.py" = ["E402"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
