@@ -37,11 +37,7 @@ classifiers = [
 dependencies = [
     "alembic==1.13.1",
     "anyio>=3.7.0",
-    # "broadcaster[redis]==0.2.0",  # See orchestrator/vendor/broadcaster
-    # broadcaster is receiving updates but has not had a release in years - pinning on the master branch instead
-    # "broadcaster[redis]@git+https://github.com/encode/broadcaster#egg=377b4043814ac88a21255af1cc12d5650c785082",
-    # pypi doesn't allow direct dependencies, try vendoring
-    "broadcaster[redis]@file://orchestrator/vendor/broadcaster",
+    # "broadcaster[redis]==0.2.0",  # See orchestrator/vendor/broadcaster/README.md
     "click==8.*",
     "deprecated",
     "deepmerge==1.1.1",

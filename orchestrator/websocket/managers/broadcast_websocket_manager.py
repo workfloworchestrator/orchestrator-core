@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from broadcaster import Broadcast
+from broadcaster import Broadcast  # noqa  # added to system path in orchestrator/__init__.py
 from fastapi import WebSocket, status
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
