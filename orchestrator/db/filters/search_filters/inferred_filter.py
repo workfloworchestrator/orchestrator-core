@@ -56,9 +56,10 @@ def _filter_as_string(field: ColumnClause) -> WhereCondGenerator:
 
 
 def _value_as_bool(v: str) -> bool | None:
-    if v.lower() in ("yes", "y", "true", "1"):
+    lower = v.lower()
+    if lower == "true":
         return True
-    if v.lower() in ("no", "n", "false", "0"):
+    if lower == "false":
         return False
     return None
 
