@@ -44,8 +44,6 @@ Websockets can also be turned off with:
 export ENABLE_WEBSOCKETS=False
 ```
 
-More broadcaster info [here](https://pypi.org/project/broadcaster/)
-
 If you want to use pickle for CACHE serialization you will need to set the `CACHE_HMAC_SECRET`:
 ```shell
 export CACHE_HMAC_SECRET="SOMESECRET"

@@ -15,11 +15,6 @@
 
 __version__ = "2.1.2rc3"
 
-import pathlib
-import site
-
-site.addsitedir(str(pathlib.Path(__file__).resolve().parent / "vendor/broadcaster"))
-
 from orchestrator.app import OrchestratorCore
 from orchestrator.settings import app_settings, oauth2_settings
 from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
