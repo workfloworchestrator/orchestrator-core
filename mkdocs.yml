@@ -1,6 +1,7 @@
 site_name: The Orchestrator Core
 site_description: An extensible workflow engine to manage customer facing resources and resource facing resources.
 site_url: https://workfloworchestrator.org/orchestrator-core
+use_directory_urls: false
 theme:
   name: material
   icon:
@@ -75,17 +76,29 @@ nav:
     - Development setup: getting-started/development.md
     - Preparing source folder: getting-started/prepare-source-folder.md
   - Reference Documentation:
+    - TL;DR: reference-docs/tldr.md
     - API: reference-docs/api.md
-    - App Configuration:
-      - App.py : reference-docs/app/app.md
-      - Runtimes: reference-docs/app/runtimes.md
+    - App.py : reference-docs/app/app.md
     - Auth(n|z): reference-docs/auth.md
     - CLI Tools: reference-docs/cli.md
     - Database: reference-docs/database.md
-    - Domain Models: reference-docs/domain-models.md
+    - Domain Models:
+      - Overview: reference-docs/domain_models/overview.md
+      - Product Types: reference-docs/domain_models/product_types.md
+      - Product Blocks: reference-docs/domain_models/product_blocks.md
+      - Resource Types: reference-docs/domain_models/resource_types.md
+      - Fixed Inputs: reference-docs/domain_models/fixed_inputs.md
+      - Product model generator: reference-docs/domain_models/generator.md
+      - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
+      - Validation: reference-docs/domain_models/validation.md
+      - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
+      - Properties: reference-docs/domain_models/properties.md
+      - Type-casting and serialisation: reference-docs/domain_models/type_casting.md
+      - Union Types: reference-docs/domain_models/union_types.md
     - Forms: reference-docs/forms.md
     - GraphQL: reference-docs/graphql.md
     - Pydantic Forms: reference-docs/pydantic-forms.md
+    - Runtimes: reference-docs/app/runtimes.md
     - Serialization: reference-docs/serialization.md
     - Subscriptions: reference-docs/subscriptions.md
     - Tasks:  reference-docs/tasks.md
@@ -93,8 +106,9 @@ nav:
     - Workflows:
       - Workflow States:  reference-docs/workflows/workflow-states.md
       - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
+    - Websockets: reference-docs/websockets.md
   - Architecture:
-    - Architecture; TLDR: architecture/tldr.md
+    - Architecture; TL;DR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md
     - Product modelling:
       - Introduction: architecture/product_modelling/introduction.md
@@ -115,9 +129,6 @@ nav:
       - Validating input through forms: architecture/application/forms.md
       - Domain Models: architecture/application/domainmodels.md
     - Documentation:
-      - Command Line Interface: architecture/application/cli.md
-      - Web sockets: architecture/application/websockets.md
-      - Api Docs: architecture/application/api.md
       - Scaling: architecture/application/scaling.md
       - Python version: architecture/application/python.md
       - GraphQL: architecture/application/graphql.md
