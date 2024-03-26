@@ -1,7 +1,6 @@
 site_name: The Orchestrator Core
 site_description: An extensible workflow engine to manage customer facing resources and resource facing resources.
 site_url: https://workfloworchestrator.org/orchestrator-core
-use_directory_urls: false
 theme:
   name: material
   icon:
@@ -38,6 +37,23 @@ plugins:
   - include-markdown
   - privacy
   - social
+  - mkdocstrings:
+      default_handler: python
+      enable_inventory: true
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: null
+            annotations_path: full
+            separate_signature: true
+            line_length: 80
+            show_signature_annotations: true
+            unwrap_annotated: true
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
   generator: false

@@ -119,6 +119,7 @@ doc = [
     "mkdocs-material[imaging]",
     "mkdocs-render-swagger-plugin",
     "mkdocs-include-markdown-plugin",
+    "mkdocstrings[python]",
 ]
 dev = [
     "toml",

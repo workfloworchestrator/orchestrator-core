@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2020 SURF, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -453,20 +453,22 @@ def get_depends_on_product_block_type_list(
 
 
 class ProductBlockModel(DomainModel):
-    r"""Base class for all product block models.
+    r"""This is the base class for all product block models.
 
     This class should have been called SubscriptionInstanceModel.
 
     ProductTable Blocks are represented as dataclasses with pydantic runtime validation.
 
-    Different stages of a subscription lifecycle could require different product block definition. Mainly to support
-    mandatory fields when a subscription is active. To support this a lifecycle specific product block definition can
-    be created by subclassing the generic product block with keyword argument 'lifecycle' and overriding its fields.
+    Different stages of a subscription lifecycle could require different product block
+    definition.Mainly to support mandatory fields when a subscription is active. To support
+    this a lifecycle specific product block definition can be created by subclassing the
+    generic product block with keyword argument 'lifecycle' and overriding its fields.
 
-    All product blocks are related to a database ProductBlockTable object through the `product_block_name` that is given
-    as class keyword argument.
+    All product blocks are related to a database ProductBlockTable object through the `product_block_name`
+    that is given as class keyword argument.
 
     Define a product block:
+    ```
     >>> class BlockInactive(ProductBlockModel, product_block_name="Virtual Circuit"):
     ...    int_field: Optional[int] = None
     ...    str_field: Optional[str] = None
@@ -474,19 +476,27 @@ class ProductBlockModel(DomainModel):
     >>> class Block(BlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     ...    int_field: int
     ...    str_field: str
+    ```
 
     This example defines a product_block with two different contraints based on lifecycle. `Block` is valid only for `ACTIVE`
     And `BlockInactive` for all other states.
     `product_block_name` must be defined on the base class and need not to be defined on the others
 
-    Create a new empty product block
+    Create a new empty product block:
+
+    ```
     >>> example1 = BlockInactive()  # doctest:+SKIP
+    ```
 
     Create a new instance based on a dict in the state:
+    ```
     >>> example2 = BlockInactive(**state)  # doctest:+SKIP
+    ```
 
-    To retrieve a ProductBlockModel from the database.:
+    To retrieve a ProductBlockModel from the database:
+    ```
     >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
+    ```
     """
 
     registry: ClassVar[dict[str, type["ProductBlockModel"]]] = {}  # pragma: no mutate
@@ -721,10 +731,12 @@ class ProductBlockModel(DomainModel):
 
         This function is similar to `from_subscription()`
 
+        ```
         >>> subscription_instance_id = KNOWN_UUID_IN_DB  # doctest:+SKIP
         >>> si_from_db = db.SubscriptionInstanceTable.query.get(subscription_instance_id)  # doctest:+SKIP
         >>> example3 = ProductBlockModel.from_db(subscription_instance=si_from_db)  # doctest:+SKIP
         >>> example4 = ProductBlockModel.from_db(subscription_instance_id=subscription_instance_id)  # doctest:+SKIP
+        ```
         """
         # Fill values from actual subscription
         if subscription_instance_id:
@@ -942,28 +954,36 @@ class ProductModel(BaseModel):
 
 
 class SubscriptionModel(DomainModel):
-    r"""Base class for all product subscription models.
+    r"""This is the base class for all product subscription models.
 
-    Define a subscription model:
+    To use this class, see below:
+
+    Definining a subscription model:
+    ```
     >>> class SubscriptionInactive(SubscriptionModel, product_type="SP"):  # doctest:+SKIP
     ...    block: Optional[ProductBlockModelInactive] = None
 
     >>> class Subscription(BlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):  # doctest:+SKIP
     ...    block: ProductBlockModel
-
+    ```
 
     This example defines a subscription model with two different contraints based on lifecycle. `Subscription` is valid only for `ACTIVE`
     And `SubscriptionInactive` for all other states.
     `product_type` must be defined on the base class and need not to be defined on the others
 
     Create a new empty subscription
+    ```
     >>> example1 = SubscriptionInactive.from_product_id(product_id, customer_id)  # doctest:+SKIP
+    ```
 
     Create a new instance based on a dict in the state:
+    ```
     >>> example2 = SubscriptionInactive(**state)  # doctest:+SKIP
-
+    ```
     To retrieve a ProductBlockModel from the database:
+    ```
     >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP
+    ```
     """
 
     product: ProductModel
