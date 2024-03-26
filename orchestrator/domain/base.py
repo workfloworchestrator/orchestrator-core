@@ -468,15 +468,14 @@ class ProductBlockModel(DomainModel):
     that is given as class keyword argument.
 
     Define a product block:
-    ```
-    >>> class BlockInactive(ProductBlockModel, product_block_name="Virtual Circuit"):
-    ...    int_field: Optional[int] = None
-    ...    str_field: Optional[str] = None
 
-    >>> class Block(BlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    ...    int_field: int
-    ...    str_field: str
-    ```
+        >>> class BlockInactive(ProductBlockModel, product_block_name="Virtual Circuit"):
+        ...    int_field: Optional[int] = None
+        ...    str_field: Optional[str] = None
+
+        >>> class Block(BlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        ...    int_field: int
+        ...    str_field: str
 
     This example defines a product_block with two different contraints based on lifecycle. `Block` is valid only for `ACTIVE`
     And `BlockInactive` for all other states.
@@ -484,19 +483,15 @@ class ProductBlockModel(DomainModel):
 
     Create a new empty product block:
 
-    ```
-    >>> example1 = BlockInactive()  # doctest:+SKIP
-    ```
+        >>> example1 = BlockInactive()  # doctest: +SKIP
 
     Create a new instance based on a dict in the state:
-    ```
-    >>> example2 = BlockInactive(**state)  # doctest:+SKIP
-    ```
+
+        >>> example2 = BlockInactive(**state)  # doctest:+SKIP
 
     To retrieve a ProductBlockModel from the database:
-    ```
-    >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
-    ```
+
+        >>> BlockInactive.from_db(subscription_instance_id)  # doctest:+SKIP
     """
 
     registry: ClassVar[dict[str, type["ProductBlockModel"]]] = {}  # pragma: no mutate
@@ -731,12 +726,10 @@ class ProductBlockModel(DomainModel):
 
         This function is similar to `from_subscription()`
 
-        ```
-        >>> subscription_instance_id = KNOWN_UUID_IN_DB  # doctest:+SKIP
-        >>> si_from_db = db.SubscriptionInstanceTable.query.get(subscription_instance_id)  # doctest:+SKIP
-        >>> example3 = ProductBlockModel.from_db(subscription_instance=si_from_db)  # doctest:+SKIP
-        >>> example4 = ProductBlockModel.from_db(subscription_instance_id=subscription_instance_id)  # doctest:+SKIP
-        ```
+            >>> subscription_instance_id = KNOWN_UUID_IN_DB  # doctest:+SKIP
+            >>> si_from_db = db.SubscriptionInstanceTable.query.get(subscription_instance_id)  # doctest:+SKIP
+            >>> example3 = ProductBlockModel.from_db(subscription_instance=si_from_db)  # doctest:+SKIP
+            >>> example4 = ProductBlockModel.from_db(subscription_instance_id=subscription_instance_id)  # doctest:+SKIP
         """
         # Fill values from actual subscription
         if subscription_instance_id:
@@ -956,34 +949,31 @@ class ProductModel(BaseModel):
 class SubscriptionModel(DomainModel):
     r"""This is the base class for all product subscription models.
 
-    To use this class, see below:
+    To use this class, see the examples below:
 
     Definining a subscription model:
-    ```
-    >>> class SubscriptionInactive(SubscriptionModel, product_type="SP"):  # doctest:+SKIP
-    ...    block: Optional[ProductBlockModelInactive] = None
 
-    >>> class Subscription(BlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):  # doctest:+SKIP
-    ...    block: ProductBlockModel
-    ```
+        >>> class SubscriptionInactive(SubscriptionModel, product_type="SP"):  # doctest:+SKIP
+        ...    block: Optional[ProductBlockModelInactive] = None
+
+        >>> class Subscription(BlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):  # doctest:+SKIP
+        ...    block: ProductBlockModel
 
     This example defines a subscription model with two different contraints based on lifecycle. `Subscription` is valid only for `ACTIVE`
     And `SubscriptionInactive` for all other states.
     `product_type` must be defined on the base class and need not to be defined on the others
 
-    Create a new empty subscription
-    ```
-    >>> example1 = SubscriptionInactive.from_product_id(product_id, customer_id)  # doctest:+SKIP
-    ```
+    Create a new empty subscription:
+
+        >>> example1 = SubscriptionInactive.from_product_id(product_id, customer_id)  # doctest:+SKIP
 
     Create a new instance based on a dict in the state:
-    ```
-    >>> example2 = SubscriptionInactive(**state)  # doctest:+SKIP
-    ```
+
+        >>> example2 = SubscriptionInactive(**state)  # doctest:+SKIP
+
     To retrieve a ProductBlockModel from the database:
-    ```
-    >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP
-    ```
+
+        >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP
     """
 
     product: ProductModel

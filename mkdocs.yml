@@ -54,6 +54,8 @@ plugins:
             line_length: 80
             show_signature_annotations: true
             unwrap_annotated: true
+            docstring_options:
+              trim_doctest_flags: true
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
   generator: false
