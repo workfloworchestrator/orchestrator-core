@@ -10,12 +10,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any
 
 from fastapi import WebSocket, status
 from starlette.concurrency import run_until_first_complete
 from structlog import get_logger
 
-from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.utils.json import json_dumps
+from orchestrator.utils.redis import RedisBroadcast
 
 logger = get_logger(__name__)
 
@@ -23,16 +25,17 @@ logger = get_logger(__name__)
 class BroadcastWebsocketManager:
     def __init__(self, broadcast_url: str):
         self.connected: list[WebSocket] = []
-        self.sub_broadcast = Broadcast(broadcast_url)
-        self.pub_broadcast = Broadcast(broadcast_url)
+        self.broadcast_url = broadcast_url
+        self.broadcast = RedisBroadcast(broadcast_url)
 
     async def connect_redis(self) -> None:
-        await self.sub_broadcast.connect()
+        await self.broadcast.connect()
 
     async def disconnect_redis(self) -> None:
-        await self.sub_broadcast.disconnect()
+        await self.broadcast.disconnect()
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
+        """Connect a new websocket client."""
         self.connected.append(websocket)
         log = logger.bind(client=websocket.client, channel=channel)
         log.debug("Websocket client connected, start loop", total_connections=len(self.connected))
@@ -42,7 +45,7 @@ class BroadcastWebsocketManager:
                 (self.receiver, {"websocket": websocket, "channel": channel}),
             )
         except Exception as exc:  # noqa: S110
-            log.debug("Websocket client loop stopped with an exception", message=str(exc))
+            log.info("Websocket client loop stopped with an exception", message=str(exc))
         self.remove_ws_from_connected_list(websocket)
 
     async def disconnect(
@@ -55,29 +58,48 @@ class BroadcastWebsocketManager:
 
     async def disconnect_all(self) -> None:
         for websocket in self.connected:
-            await self.disconnect(websocket)
+            await self.disconnect(websocket, code=status.WS_1001_GOING_AWAY, reason="Shutting down")
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
+        """Read messages from websocket client."""
         async for message in websocket.iter_text():
             logger.debug("Received websocket message", client=websocket.client, channel=channel, message=repr(message))
             if message == "__ping__":
                 await websocket.send_text("__pong__")
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
-        async with self.sub_broadcast.subscribe(channel=channel) as subscriber:
-            async for event in subscriber:
-                await websocket.send_text(event.message)
+        """Read messages from redis channel and send to websocket client."""
+        log = logger.bind(client=websocket.client, channel=channel)
 
-                json = json_loads(event.message)
-                if isinstance(json, dict) and "close" in json and json["close"] and channel != "processes":
-                    await self.disconnect(websocket)
-                    break
+        def parse_message(raw_message: Any) -> str | None:
+            match raw_message:
+                case {"type": "message", "data": bytes() as data}:
+                    return data.decode()
+                case None:
+                    return None
+                case _:
+                    log.info("Drop unrecognized message", raw=raw_message)
+                    return None
+
+        async with self.broadcast.subscriber(channel) as subscriber:
+            log.debug("Websocket client subscribed to channel")
+            while True:
+                raw = await subscriber.get_message(timeout=1)
+                if (message := parse_message(raw)) is None:
+                    continue
+
+                log.debug("Send websocket message", message=message)
+                await websocket.send_text(message)
 
     async def broadcast_data(self, channels: list[str], data: dict) -> None:
-        await self.pub_broadcast.connect()
-        for channel in channels:
-            await self.pub_broadcast.publish(channel, message=json_dumps(data))
-        await self.pub_broadcast.disconnect()
+        """Send messages to redis channel.
+
+        This can be called by API and/or Worker instances.
+        """
+        message = json_dumps(data)
+        async with RedisBroadcast(self.broadcast_url).pipeline() as pipe:
+            for channel in channels:
+                pipe.publish(channel, message)
 
     def remove_ws_from_connected_list(self, websocket: WebSocket) -> None:
         if websocket in self.connected:
