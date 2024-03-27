@@ -1,0 +1,3967 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An extensible workflow engine to manage customer facing resources and resource facing resources.">
+      
+      
+      
+        <link rel="canonical" href="https://workfloworchestrator.org/orchestrator-core/architecture/application/cli/">
+      
+      
+        <link rel="prev" href="../domainmodels/">
+      
+      
+        <link rel="next" href="../websockets/">
+      
+      
+      <link rel="icon" href="../../../img/favicon.ico">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.15">
+    
+    
+      
+        <title>Command Line Interface - The Orchestrator Core</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.7e359304.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/termynal.css">
+    
+      <link rel="stylesheet" href="../../../css/custom.css">
+    
+      <link rel="stylesheet" href="../../../css/style.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="Command Line Interface - The Orchestrator Core" >
+      
+        <meta  property="og:description"  content="An extensible workflow engine to manage customer facing resources and resource facing resources." >
+      
+        <meta  property="og:image"  content="https://workfloworchestrator.org/orchestrator-core/assets/images/social/architecture/application/cli.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://workfloworchestrator.org/orchestrator-core/architecture/application/cli/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="Command Line Interface - The Orchestrator Core" >
+      
+        <meta  name="twitter:description"  content="An extensible workflow engine to manage customer facing resources and resource facing resources." >
+      
+        <meta  name="twitter:image"  content="https://workfloworchestrator.org/orchestrator-core/assets/images/social/architecture/application/cli.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#command-line-interface-commands" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="The Orchestrator Core" class="md-header__button md-logo" aria-label="The Orchestrator Core" data-md-component="logo">
+      
+  <img src="../../../img/WFO-Emblem-White.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            The Orchestrator Core
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Command Line Interface
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7M9 21v-1h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1m3-17a5 5 0 0 0-5 5c0 2.05 1.23 3.81 3 4.58V16h4v-2.42c1.77-.77 3-2.53 3-4.58a5 5 0 0 0-5-5Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7M9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9v1Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/workfloworchestrator/orchestrator-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M186.1 328.7c0 20.9-10.9 55.1-36.7 55.1s-36.7-34.2-36.7-55.1 10.9-55.1 36.7-55.1 36.7 34.2 36.7 55.1zM480 278.2c0 31.9-3.2 65.7-17.5 95-37.9 76.6-142.1 74.8-216.7 74.8-75.8 0-186.2 2.7-225.6-74.8-14.6-29-20.2-63.1-20.2-95 0-41.9 13.9-81.5 41.5-113.6-5.2-15.8-7.7-32.4-7.7-48.8 0-21.5 4.9-32.3 14.6-51.8 45.3 0 74.3 9 108.8 36 29-6.9 58.8-10 88.7-10 27 0 54.2 2.9 80.4 9.2 34-26.7 63-35.2 107.8-35.2 9.8 19.5 14.6 30.3 14.6 51.8 0 16.4-2.6 32.7-7.7 48.2 27.5 32.4 39 72.3 39 114.2zm-64.3 50.5c0-43.9-26.7-82.6-73.5-82.6-18.9 0-37 3.4-56 6-14.9 2.3-29.8 3.2-45.1 3.2-15.2 0-30.1-.9-45.1-3.2-18.7-2.6-37-6-56-6-46.8 0-73.5 38.7-73.5 82.6 0 87.8 80.4 101.3 150.4 101.3h48.2c70.3 0 150.6-13.4 150.6-101.3zm-82.6-55.1c-25.8 0-36.7 34.2-36.7 55.1s10.9 55.1 36.7 55.1 36.7-34.2 36.7-55.1-10.9-55.1-36.7-55.1z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    workfloworchestrator/orchestrator-core
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+    
+  
+  Orchestrator Core
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../getting-started/base/" class="md-tabs__link">
+          
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../tldr/" class="md-tabs__link">
+          
+  
+    
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../workshops/beginner/overview/" class="md-tabs__link">
+          
+  
+    
+  
+  Workshops
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../contributing/guidelines/" class="md-tabs__link">
+          
+  
+    
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../migration-guide/2.0/" class="md-tabs__link">
+        
+  
+    
+  
+  Migration guide
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="The Orchestrator Core" class="md-nav__button md-logo" aria-label="The Orchestrator Core" data-md-component="logo">
+      
+  <img src="../../../img/WFO-Emblem-White.png" alt="logo">
+
+    </a>
+    The Orchestrator Core
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/workfloworchestrator/orchestrator-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M186.1 328.7c0 20.9-10.9 55.1-36.7 55.1s-36.7-34.2-36.7-55.1 10.9-55.1 36.7-55.1 36.7 34.2 36.7 55.1zM480 278.2c0 31.9-3.2 65.7-17.5 95-37.9 76.6-142.1 74.8-216.7 74.8-75.8 0-186.2 2.7-225.6-74.8-14.6-29-20.2-63.1-20.2-95 0-41.9 13.9-81.5 41.5-113.6-5.2-15.8-7.7-32.4-7.7-48.8 0-21.5 4.9-32.3 14.6-51.8 45.3 0 74.3 9 108.8 36 29-6.9 58.8-10 88.7-10 27 0 54.2 2.9 80.4 9.2 34-26.7 63-35.2 107.8-35.2 9.8 19.5 14.6 30.3 14.6 51.8 0 16.4-2.6 32.7-7.7 48.2 27.5 32.4 39 72.3 39 114.2zm-64.3 50.5c0-43.9-26.7-82.6-73.5-82.6-18.9 0-37 3.4-56 6-14.9 2.3-29.8 3.2-45.1 3.2-15.2 0-30.1-.9-45.1-3.2-18.7-2.6-37-6-56-6-46.8 0-73.5 38.7-73.5 82.6 0 87.8 80.4 101.3 150.4 101.3h48.2c70.3 0 150.6-13.4 150.6-101.3zm-82.6-55.1c-25.8 0-36.7 34.2-36.7 55.1s10.9 55.1 36.7 55.1 36.7-34.2 36.7-55.1-10.9-55.1-36.7-55.1z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    workfloworchestrator/orchestrator-core
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Orchestrator Core
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/base/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Base Application
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/development/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Development setup
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/prepare-source-folder/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Preparing source folder
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Architecture
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Architecture
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tldr/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Architecture; TLDR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../orchestration/philosophy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Orchestration Philosophy
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Product modelling
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Product modelling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/introduction/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/standards/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Standards
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/modelling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Modelling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/context/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Context
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/terminology/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Terminology
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_6" id="__nav_3_3_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Example Product Models
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            Example Product Models
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/node/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Node
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/port/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Port
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/l2_point_to_point/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    L2 Point-to-Point
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/l2_vpn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    L2 VPN
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/ip_static/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    IP Static
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product_modelling/product_block_graph/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Product Block Graph
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Internals
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            Internals
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How do Workflows work?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    What are tasks?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../forms/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Validating input through forms
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domainmodels/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Domain Models
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Documentation
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            Documentation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#db" class="md-nav__link">
+    <span class="md-ellipsis">
+      db
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="db">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#downgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      downgrade
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heads" class="md-nav__link">
+    <span class="md-ellipsis">
+      heads
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#history" class="md-nav__link">
+    <span class="md-ellipsis">
+      history
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init" class="md-nav__link">
+    <span class="md-ellipsis">
+      init
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      merge
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrate-domain-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      migrate-domain-models
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrate-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      migrate-workflows
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#revision" class="md-nav__link">
+    <span class="md-ellipsis">
+      revision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      upgrade
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="generate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#config-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      config file
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="config file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#global-config-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      global config section
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product-type-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      product type definition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed_inputs-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      fixed_inputs section
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product_blocks-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      product_blocks section
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product-block-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      product block fields
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-type-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      resource type types
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      workflows
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      migration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product" class="md-nav__link">
+    <span class="md-ellipsis">
+      product
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      product-blocks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unit-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      unit-tests
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflows_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      workflows
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheduler" class="md-nav__link">
+    <span class="md-ellipsis">
+      scheduler
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="scheduler">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#force" class="md-nav__link">
+    <span class="md-ellipsis">
+      force
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run" class="md-nav__link">
+    <span class="md-ellipsis">
+      run
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#show-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      show-schedule
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Web sockets
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Api Docs
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scaling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Python version
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphql/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    GraphQL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../callbacks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Callbacks
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Workshops
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Workshops
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Beginner
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            Beginner
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_2" id="__nav_4_1_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Installation
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            Installation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_2_1" id="__nav_4_1_2_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Manual
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            Manual
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/debian/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Debian
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/macos/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MacOS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/docker/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Docker compose
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/start-applications/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Start applications
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_4" id="__nav_4_1_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Products
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            Products
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/scenario/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scenario
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/domain-models/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Domain models
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/database-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Database migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1_5" id="__nav_4_1_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Workflows
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            Workflows
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/workflow-introduction/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/register-workflows/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Register workflows
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/input-forms/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Input forms
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/create-user-group/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Create UserGroup
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/modify-user-group/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Modify UserGroup
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/terminate-user-group/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Terminate UserGroup
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/create-user/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Create User
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/modify-user/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Modify User
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/terminate-user/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Terminate User
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/beginner/explore/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Explore
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Advanced
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/docker-installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2_3" id="__nav_4_2_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Products
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Products
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/scenario/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scenario
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/domain-models/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Domain models
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/database-migration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Database migration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2_4" id="__nav_4_2_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Workflows
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            Workflows
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/workflow-introduction/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/node-workflow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Create Node
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workshops/advanced/circuit-workflow/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Create Circuit
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Contributing
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Contributing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../contributing/guidelines/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Guidelines
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../contributing/testing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Testing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../migration-guide/2.0/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Migration guide
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#db" class="md-nav__link">
+    <span class="md-ellipsis">
+      db
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="db">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#downgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      downgrade
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heads" class="md-nav__link">
+    <span class="md-ellipsis">
+      heads
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#history" class="md-nav__link">
+    <span class="md-ellipsis">
+      history
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init" class="md-nav__link">
+    <span class="md-ellipsis">
+      init
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      merge
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrate-domain-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      migrate-domain-models
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrate-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      migrate-workflows
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#revision" class="md-nav__link">
+    <span class="md-ellipsis">
+      revision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      upgrade
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="generate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#config-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      config file
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="config file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#global-config-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      global config section
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product-type-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      product type definition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed_inputs-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      fixed_inputs section
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product_blocks-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      product_blocks section
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product-block-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      product block fields
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-type-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      resource type types
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      workflows
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      migration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product" class="md-nav__link">
+    <span class="md-ellipsis">
+      product
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#product-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      product-blocks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unit-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      unit-tests
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflows_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      workflows
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheduler" class="md-nav__link">
+    <span class="md-ellipsis">
+      scheduler
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="scheduler">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#force" class="md-nav__link">
+    <span class="md-ellipsis">
+      force
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run" class="md-nav__link">
+    <span class="md-ellipsis">
+      run
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#show-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      show-schedule
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="command-line-interface-commands">Command line interface commands</h1>
+<p>Top level options:</p>
+<p>--install-completion [bash|zsh|fish|powershell|pwsh]</p>
+<p>Install completion for the specified shell. [default: None]</p>
+<p>--show-completion [bash|zsh|fish|powershell|pwsh]</p>
+<p>Show completion for the specified shell, to copy it or customize the
+installation. [default: None]</p>
+<h2 id="db">db</h2>
+<p>Interact with the application database.</p>
+<h3 id="downgrade">downgrade</h3>
+<p>The <code>main.py db downgrade</code> command will downgrade the database to the previous
+revision or to the optionally specified revision.</p>
+<p>Arguments</p>
+<p>revision - Rev id to upgrade to [default: -1]</p>
+<h3 id="heads">heads</h3>
+<p>The <code>main.py db heads</code> command shows the Alembic database heads.</p>
+<h3 id="history">history</h3>
+<p>The <code>main.py db history</code> command lists Alembic revision history in
+chronological order.</p>
+<p>Options</p>
+<p>--verbose - Verbose output
+--current - Indicate current revision</p>
+<h3 id="init">init</h3>
+<p>The <code>main.py db init</code> command initialises an empty migrations environment.
+This command will throw an exception when it detects conflicting files and
+directories.</p>
+<h3 id="merge">merge</h3>
+<p>The <code>main.py db merge</code> command merges database revisions.</p>
+<p>Arguments</p>
+<p>revisions - Add the revision you would like to merge to this command
+[default: None]</p>
+<p>Options</p>
+<p>--message TEXT - The revision message</p>
+<h3 id="migrate-domain-models">migrate-domain-models</h3>
+<p>The <code>main.py db migrate-domain-models</code> command creates a revision based on the
+difference between domain models in the source code and those that are defined
+in the database.</p>
+<p>Arguments</p>
+<p>message - Migration name [default: None] [required]</p>
+<p>Options</p>
+<p>--test | --no-test - Optional boolean if you don't want to generate a
+migration file [default: no-test]
+--inputs -  stringified dict to prefill inputs [default: {}]
+--updates - stringified dict to map updates instead of
+using inputs [default: {}]</p>
+<p>The <code>python main.py db migrate-domain-model</code> CLI command is used to
+automatically generate the data migrations that you'll need when you add or
+change a Domain Model.  It will inspect your DB and the existing domain models,
+analyse the differences and it will generate an Alembic data migration in the
+correct folder.</p>
+<p>Features:</p>
+<ul>
+<li>detect a new Domain Model attribute / resource type</li>
+<li>detect a renamed Domain Model attribute / resource type</li>
+<li>detect a removed Domain Model attribute / resource type</li>
+<li>detect a new Domain Model</li>
+<li>detect a removed Domain Model</li>
+<li>ability to ask for human input when needed</li>
+</ul>
+<p>Below in the documentation these features are discussed in more detail.</p>
+<div class="admonition warning">
+<p class="admonition-title">BACKUP DATABASE BEFORE USING THE MIGRATION!</p>
+</div>
+<p>Arguments</p>
+<ul>
+<li><code>message</code>: Message/description of the generated migration.</li>
+<li><code>--test</code>: Optional boolean if you don't want to generate a migration file.</li>
+<li><code>--inputs</code>: stringified dict to prefill inputs.
+    The inputs and updates argument is mostly used for testing, prefilling the given inputs, here examples:<ul>
+<li>new product: <code>inputs = { "new_product_name": { "description": "add description", "product_type": "add_type", "tag": "add_tag" }}</code></li>
+<li>new product fixed input: <code>inputs = { "new_product_name": { "new_fixed_input_name": "value" }}</code></li>
+<li>new product block: <code>inputs = { "new_product_block_name": { "description": "add description", "tag": "add_tag" } }</code></li>
+<li>new resource type: <code>inputs = { "new_resource_type_name": { "description": "add description", "value": "add default value", "new_product_block_name": "add default value for block" }}</code><ul>
+<li><code>new_product_block_name</code> prop inserts value specifically for that block.</li>
+<li><code>value</code> prop is inserted as default for all existing instances it is added to.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>--updates</code>: stringified dict to prefill inputs.<ul>
+<li>renaming a fixed input:<ul>
+<li><code>updates = { "fixed_inputs": { "product_name": { "old_fixed_input_name": "new_fixed_input_name" } } }</code></li>
+</ul>
+</li>
+<li>renaming a resource type to a new resource type:<ul>
+<li><code>inputs = { "new_resource_type_name": { "description": "add description" }}</code></li>
+<li><code>updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }</code></li>
+</ul>
+</li>
+<li>renaming a resource type to existing resource type: <code>updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }</code></li>
+</ul>
+</li>
+</ul>
+<p><strong>Example</strong></p>
+<p>You need products in the <code>SUBSCRIPTION_MODEL_REGISTRY</code>, for this example I will use these models (taken out of <a href="https://github.com/workfloworchestrator/example-orchestrator-beginner">example-orchestrator</a>):</p>
+<ul>
+<li>
+<p>UserGroup Block:
+    <div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">orchestrator.domain.base</span> <span class="kn">import</span> <span class="n">SubscriptionModel</span><span class="p">,</span> <span class="n">ProductBlockModel</span>
+<span class="kn">from</span> <span class="nn">orchestrator.types</span> <span class="kn">import</span> <span class="n">SubscriptionLifecycle</span>
+
+
+<span class="k">class</span> <span class="nc">UserGroupBlockInactive</span><span class="p">(</span>
+    <span class="n">ProductBlockModel</span><span class="p">,</span>
+    <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">INITIAL</span><span class="p">],</span>
+    <span class="n">product_block_name</span><span class="o">=</span><span class="s2">&quot;UserGroupBlock&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">group_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">UserGroupBlockProvisioning</span><span class="p">(</span>
+    <span class="n">UserGroupBlockInactive</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">PROVISIONING</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">group_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">UserGroupBlock</span><span class="p">(</span>
+    <span class="n">UserGroupBlockProvisioning</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">group_id</span><span class="p">:</span> <span class="nb">int</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>UserGroup Product:
+    <div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">orchestrator.domain.base</span> <span class="kn">import</span> <span class="n">SubscriptionModel</span>
+<span class="kn">from</span> <span class="nn">orchestrator.types</span> <span class="kn">import</span> <span class="n">SubscriptionLifecycle</span>
+
+<span class="kn">from</span> <span class="nn">products.product_blocks.user_group</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">UserGroupBlock</span><span class="p">,</span>
+    <span class="n">UserGroupBlockInactive</span><span class="p">,</span>
+    <span class="n">UserGroupBlockProvisioning</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">UserGroupInactive</span><span class="p">(</span>
+    <span class="n">SubscriptionModel</span><span class="p">,</span> <span class="n">is_base</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">INITIAL</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">UserGroupBlockInactive</span>
+
+
+<span class="k">class</span> <span class="nc">UserGroupProvisioning</span><span class="p">(</span>
+    <span class="n">UserGroupInactive</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">PROVISIONING</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">UserGroupBlockProvisioning</span>
+
+
+<span class="k">class</span> <span class="nc">UserGroup</span><span class="p">(</span><span class="n">UserGroupProvisioning</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">]):</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">UserGroupBlock</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>User Block:
+    <div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">orchestrator.domain.base</span> <span class="kn">import</span> <span class="n">ProductBlockModel</span>
+<span class="kn">from</span> <span class="nn">orchestrator.types</span> <span class="kn">import</span> <span class="n">SubscriptionLifecycle</span>
+
+<span class="kn">from</span> <span class="nn">products.product_blocks.user_group</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">UserGroupBlock</span><span class="p">,</span>
+    <span class="n">UserGroupBlockInactive</span><span class="p">,</span>
+    <span class="n">UserGroupBlockProvisioning</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">UserBlockInactive</span><span class="p">(</span>
+    <span class="n">ProductBlockModel</span><span class="p">,</span>
+    <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">INITIAL</span><span class="p">],</span>
+    <span class="n">product_block_name</span><span class="o">=</span><span class="s2">&quot;UserBlock&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">group</span><span class="p">:</span> <span class="n">UserGroupBlockInactive</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">UserBlockProvisioning</span><span class="p">(</span>
+    <span class="n">UserBlockInactive</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">PROVISIONING</span><span class="p">]</span>
+<span class="p">):</span>
+    <span class="n">group</span><span class="p">:</span> <span class="n">UserGroupBlockProvisioning</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">UserBlock</span><span class="p">(</span><span class="n">UserBlockProvisioning</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">]):</span>
+    <span class="n">group</span><span class="p">:</span> <span class="n">UserGroupBlock</span>
+    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">int</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>User Product:
+    <div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">orchestrator.domain.base</span> <span class="kn">import</span> <span class="n">SubscriptionModel</span>
+<span class="kn">from</span> <span class="nn">orchestrator.types</span> <span class="kn">import</span> <span class="n">SubscriptionLifecycle</span><span class="p">,</span> <span class="n">strEnum</span>
+
+<span class="kn">from</span> <span class="nn">products.product_blocks.user</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">UserBlock</span><span class="p">,</span>
+    <span class="n">UserBlockInactive</span><span class="p">,</span>
+    <span class="n">UserBlockProvisioning</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Affiliation</span><span class="p">(</span><span class="n">strEnum</span><span class="p">):</span>
+    <span class="n">internal</span> <span class="o">=</span> <span class="s2">&quot;internal&quot;</span>
+    <span class="n">external</span> <span class="o">=</span> <span class="s2">&quot;external&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">UserInactive</span><span class="p">(</span><span class="n">SubscriptionModel</span><span class="p">,</span> <span class="n">is_base</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">affiliation</span><span class="p">:</span> <span class="n">Affiliation</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">UserBlockInactive</span>
+
+
+<span class="k">class</span> <span class="nc">UserProvisioning</span><span class="p">(</span><span class="n">UserInactive</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">PROVISIONING</span><span class="p">]):</span>
+    <span class="n">affiliation</span><span class="p">:</span> <span class="n">Affiliation</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">UserBlockProvisioning</span>
+
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">UserProvisioning</span><span class="p">,</span> <span class="n">lifecycle</span><span class="o">=</span><span class="p">[</span><span class="n">SubscriptionLifecycle</span><span class="o">.</span><span class="n">ACTIVE</span><span class="p">]):</span>
+    <span class="n">affiliation</span><span class="p">:</span> <span class="n">Affiliation</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">UserBlock</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><code>SUBSCRIPTION_MODEL_REGISTRY</code>:
+    <div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">orchestrator.domain</span> <span class="kn">import</span> <span class="n">SUBSCRIPTION_MODEL_REGISTRY</span>
+
+<span class="kn">from</span> <span class="nn">products.product_types.user</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="kn">from</span> <span class="nn">products.product_types.user_group</span> <span class="kn">import</span> <span class="n">UserGroup</span>
+
+<span class="c1"># Register models to actual definitions for deserialization purposes</span>
+<span class="n">SUBSCRIPTION_MODEL_REGISTRY</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;User group&quot;</span><span class="p">:</span> <span class="n">UserGroup</span><span class="p">,</span>
+        <span class="s2">&quot;User internal&quot;</span><span class="p">:</span> <span class="n">User</span><span class="p">,</span>
+        <span class="s2">&quot;User external&quot;</span><span class="p">:</span> <span class="n">User</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div></p>
+</li>
+</ul>
+<p>Running the command:</p>
+<ul>
+<li>
+<p>only with a message
+    <div class="highlight"><pre><span></span><code>python<span class="w"> </span>main.py<span class="w"> </span>db<span class="w"> </span>migrate-domain-models<span class="w"> </span><span class="s2">&quot;message&quot;</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>Running it as test
+    <div class="highlight"><pre><span></span><code>python<span class="w"> </span>main.py<span class="w"> </span>db<span class="w"> </span>migrate-domain-models<span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="w"> </span>--test
+</code></pre></div></p>
+</li>
+<li>
+<p>Running the command with inputs prefilled
+    <div class="highlight"><pre><span></span><code>python<span class="w"> </span>main.py<span class="w"> </span>db<span class="w"> </span>migrate-domain-models<span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="w"> </span>--inputs<span class="w"> </span><span class="s2">&quot;{ &quot;&quot; }&quot;</span>
+</code></pre></div></p>
+</li>
+</ul>
+<p>The command will first go through all products and map the differences with the database. debug log example:
+<div class="highlight"><pre><span></span><code><span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>debug<span class="o">]</span><span class="w"> </span>ProductTable<span class="w"> </span>blocks<span class="w"> </span>diff<span class="w"> </span><span class="o">[</span>orchestrator.domain.base<span class="o">]</span><span class="w"> </span><span class="nv">fixed_inputs_in_db</span><span class="o">=</span>set<span class="o">()</span><span class="w"> </span><span class="nv">fixed_inputs_model</span><span class="o">=</span>set<span class="o">()</span><span class="w"> </span><span class="nv">missing_fixed_inputs_in_db</span><span class="o">=</span>set<span class="o">()</span><span class="w"> </span><span class="nv">missing_fixed_inputs_in_model</span><span class="o">=</span>set<span class="o">()</span><span class="w"> </span><span class="nv">missing_product_blocks_in_db</span><span class="o">=</span>set<span class="o">()</span><span class="w"> </span><span class="nv">missing_product_blocks_in_model</span><span class="o">=</span>set<span class="o">()</span><span class="w"> </span><span class="nv">product_block_db</span><span class="o">=</span>User<span class="w"> </span>group<span class="w"> </span><span class="nv">product_blocks_in_db</span><span class="o">={</span><span class="s1">&#39;UserGroupBlock&#39;</span><span class="o">}</span><span class="w"> </span><span class="nv">product_blocks_in_model</span><span class="o">={</span><span class="s1">&#39;UserGroupBlock&#39;</span><span class="o">}</span>
+</code></pre></div></p>
+<p>You will be prompted with inputs when updates are found.</p>
+<ul>
+<li>
+<p>rename of resource type input (renaming <code>age</code> to <code>user_age</code> in User Block). Only works when the resource type is renamed in all Blocks:</p>
+<blockquote>
+<p><u><strong>Update resource types</strong></u><br>
+Do you wish to rename resource type <span style="color:magenta">age</span> to <span style="color:magenta">user_age</span>? [y/N]:</p>
+</blockquote>
+</li>
+<li>
+<p>rename of fixed input (renaming <code>affiliation</code> to <code>affiliationing</code> in User Product):</p>
+<blockquote>
+<p><u><strong>Update fixed inputs</strong></u><br>
+Do you wish to rename fixed input <span style="color:magenta">affiliation</span> to <span style="color:magenta">affiliationing</span> for product <strong>User internal</strong>? [y/N]:</p>
+</blockquote>
+</li>
+<li>
+<p>update of resource type per block (renaming <code>age</code> to <code>user_age</code> in User Block and not chosing to rename resource type). The input will loop until skipped or when there are no options anymore:</p>
+<ul>
+<li>first you get to choose which old resource type to update, skip will create/delete all resource types.
+    &gt; <u><strong>Update block resource types</strong></u><br>
+    <div class="highlight"><pre><span></span><code>Which<span class="w"> </span>resource<span class="w"> </span><span class="nb">type</span><span class="w"> </span>would<span class="w"> </span>you<span class="w"> </span>want<span class="w"> </span>to<span class="w"> </span>update<span class="w"> </span><span class="k">in</span><span class="w"> </span>UserBlock<span class="w"> </span>Block?
+<span class="m">1</span><span class="o">)</span><span class="w"> </span>age
+q<span class="o">)</span><span class="w"> </span>skip
+?
+</code></pre></div></li>
+<li>then you get to choose which new resource type to update with, skip will give you the first question again.
+    <div class="highlight"><pre><span></span><code>Which<span class="w"> </span>resource<span class="w"> </span><span class="nb">type</span><span class="w"> </span>should<span class="w"> </span>update<span class="w"> </span>age?
+<span class="m">1</span><span class="o">)</span><span class="w"> </span>user_age
+q<span class="o">)</span><span class="w"> </span>skip
+?
+</code></pre></div></li>
+<li>with 1 and 1, the log level difference would look like:
+    <div class="highlight"><pre><span></span><code><span class="m">2023</span>-02-08<span class="w"> </span><span class="m">14</span>:11:25<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>update_block_resource_types<span class="w"> </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">update_block_resource_types</span><span class="o">={</span><span class="s1">&#39;UserBlock&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;age&#39;</span>:<span class="w"> </span><span class="s1">&#39;user_age&#39;</span><span class="o">}}</span>
+</code></pre></div></li>
+</ul>
+</li>
+</ul>
+<p>It will log the differences on info level:</p>
+<div class="highlight"><pre><span></span><code><span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_products<span class="w">                   </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_products</span><span class="o">={</span><span class="s1">&#39;User group&#39;</span>:<span class="w"> </span>&lt;class<span class="w"> </span><span class="s1">&#39;products.product_types.user_group.UserGroup&#39;</span>&gt;,<span class="w"> </span><span class="s1">&#39;User internal&#39;</span>:<span class="w"> </span>&lt;class<span class="w"> </span><span class="s1">&#39;products.product_types.user.User&#39;</span>&gt;,<span class="w"> </span><span class="s1">&#39;User external&#39;</span>:<span class="w"> </span>&lt;class<span class="w"> </span><span class="s1">&#39;products.product_types.user.User&#39;</span>&gt;<span class="o">}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_products<span class="w">                   </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_products</span><span class="o">=</span>set<span class="o">()</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_product_fixed_inputs<span class="w">       </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_product_fixed_inputs</span><span class="o">={</span><span class="s1">&#39;affiliation&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;User external&#39;</span>,<span class="w"> </span><span class="s1">&#39;User internal&#39;</span><span class="o">}}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>update_product_fixed_inputs<span class="w">       </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">update_product_fixed_inputs</span><span class="o">={}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_product_fixed_inputs<span class="w">       </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_product_fixed_inputs</span><span class="o">={}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_product_to_block_relations<span class="w"> </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_product_to_block_relations</span><span class="o">={</span><span class="s1">&#39;UserGroupBlock&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;User group&#39;</span><span class="o">}</span>,<span class="w"> </span><span class="s1">&#39;UserBlock&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;User external&#39;</span>,<span class="w"> </span><span class="s1">&#39;User internal&#39;</span><span class="o">}}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_product_to_block_relations<span class="w"> </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_product_to_block_relations</span><span class="o">={}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_resource_types<span class="w">             </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_resource_types</span><span class="o">={</span><span class="s1">&#39;username&#39;</span>,<span class="w"> </span><span class="s1">&#39;age&#39;</span>,<span class="w"> </span><span class="s1">&#39;group_name&#39;</span>,<span class="w"> </span><span class="s1">&#39;user_id&#39;</span>,<span class="w"> </span><span class="s1">&#39;group_id&#39;</span><span class="o">}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>rename_resource_types<span class="w">             </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">rename_resource_types</span><span class="o">={}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_resource_types<span class="w">             </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_resource_types</span><span class="o">=</span>set<span class="o">()</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_resource_type_relations<span class="w">    </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_resource_type_relations</span><span class="o">={</span><span class="s1">&#39;group_name&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;UserGroupBlock&#39;</span><span class="o">}</span>,<span class="w"> </span><span class="s1">&#39;group_id&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;UserGroupBlock&#39;</span><span class="o">}</span>,<span class="w"> </span><span class="s1">&#39;username&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;UserBlock&#39;</span><span class="o">}</span>,<span class="w"> </span><span class="s1">&#39;age&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;UserBlock&#39;</span><span class="o">}</span>,<span class="w"> </span><span class="s1">&#39;user_id&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;UserBlock&#39;</span><span class="o">}}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_resource_type_relations<span class="w">    </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_resource_type_relations</span><span class="o">={}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_product_blocks<span class="w">             </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_blocks</span><span class="o">={</span><span class="s1">&#39;UserGroupBlock&#39;</span>:<span class="w"> </span>&lt;class<span class="w"> </span><span class="s1">&#39;products.product_blocks.user_group.UserGroupBlock&#39;</span>&gt;,<span class="w"> </span><span class="s1">&#39;UserBlock&#39;</span>:<span class="w"> </span>&lt;class<span class="w"> </span><span class="s1">&#39;products.product_blocks.user.UserBlock&#39;</span>&gt;<span class="o">}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_product_blocks<span class="w">             </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_blocks</span><span class="o">=</span>set<span class="o">()</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>create_product_block_relations<span class="w">    </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">create_product_block_relations</span><span class="o">={</span><span class="s1">&#39;UserGroupBlock&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;UserBlock&#39;</span><span class="o">}}</span>
+<span class="m">2022</span>-10-27<span class="w"> </span><span class="m">11</span>:45:10<span class="w"> </span><span class="o">[</span>info<span class="o">]</span><span class="w"> </span>delete_product_block_relations<span class="w">    </span><span class="o">[</span>orchestrator.cli.migrate_domain_models<span class="o">]</span><span class="w"> </span><span class="nv">delete_product_block_relations</span><span class="o">={}</span>
+</code></pre></div>
+<p>You will be asked to confirm the actions in order to continue:</p>
+<blockquote>
+<p><span style="color:goldenrod"><strong>WARNING:</strong></span> Deleting products will also delete its subscriptions.<br>
+Confirm the above actions [y/N]:</p>
+</blockquote>
+<p>After confirming, it will start generating the SQL, logging the SQL on debug level and prompt the user for new resources:</p>
+<ul>
+<li>
+<p>new product example:</p>
+<blockquote>
+<p><u><strong>Create new products</strong></u><br>
+Product: UserGroup <strong>User group</strong><br>
+Supply the production description: User group product<br>
+Supply the product tag: GROUP<br>
+<div class="highlight"><pre><span></span><code><span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">27</span><span class="w"> </span><span class="mi">11</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="mi">10</span><span class="w"> </span><span class="p">[</span><span class="n">debug</span><span class="p">]</span><span class="w"> </span><span class="k">generated</span><span class="w"> </span><span class="k">SQL</span><span class="w"> </span><span class="p">[</span><span class="n">orchestrator</span><span class="p">.</span><span class="n">cli</span><span class="p">.</span><span class="n">domain_gen_helpers</span><span class="p">.</span><span class="n">helpers</span><span class="p">]</span><span class="w"> </span><span class="n">sql_string</span><span class="o">=</span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">description</span><span class="p">,</span><span class="w"> </span><span class="n">product_type</span><span class="p">,</span><span class="w"> </span><span class="n">tag</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;User group&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;User group product&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;UserGroup&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;GROUP&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;active&#39;</span><span class="p">)</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="n">product_id</span>
+</code></pre></div></p>
+</blockquote>
+</li>
+<li>
+<p>new fixed input (the type isn't checked, so typing an incorrect value will insert in db):</p>
+<blockquote>
+<p><u><strong>Create fixed inputs</strong></u><br>
+Supply fixed input value for product <strong>User internal</strong> and fixed input <span style="color:magenta">affiliation</span>: internal<br>
+Supply fixed input value for product <strong>User external</strong> and fixed input <span style="color:magenta">affiliation</span>: external<br>
+<div class="highlight"><pre><span></span><code><span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">27</span><span class="w"> </span><span class="mi">11</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="mi">10</span><span class="w"> </span><span class="p">[</span><span class="n">debug</span><span class="p">]</span><span class="w"> </span><span class="k">generated</span><span class="w"> </span><span class="k">SQL</span><span class="w"> </span><span class="p">[</span><span class="n">orchestrator</span><span class="p">.</span><span class="n">cli</span><span class="p">.</span><span class="n">domain_gen_helpers</span><span class="p">.</span><span class="n">helpers</span><span class="p">]</span><span class="w"> </span><span class="n">sql_string</span><span class="o">=</span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">fixed_inputs</span><span class="w"> </span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">product_id</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;affiliation&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;internal&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="n">product_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;User internal&#39;</span><span class="p">))),</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;affiliation&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;external&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="n">product_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;User external&#39;</span><span class="p">)))</span>
+</code></pre></div></p>
+</blockquote>
+</li>
+<li>
+<p>new product block:</p>
+<blockquote>
+<p><u><strong>Create product blocks</strong></u><br>
+Product block: <strong>UserGroupBlock</strong><br>
+Supply the product block description: User group settings<br>
+Supply the product block tag: UGS<br>
+<div class="highlight"><pre><span></span><code><span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">27</span><span class="w"> </span><span class="mi">11</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="mi">10</span><span class="w"> </span><span class="p">[</span><span class="n">debug</span><span class="p">]</span><span class="w"> </span><span class="k">generated</span><span class="w"> </span><span class="k">SQL</span><span class="w"> </span><span class="p">[</span><span class="n">orchestrator</span><span class="p">.</span><span class="n">cli</span><span class="p">.</span><span class="n">domain_gen_helpers</span><span class="p">.</span><span class="n">helpers</span><span class="p">]</span><span class="w"> </span><span class="n">sql_string</span><span class="o">=`#!</span><span class="k">sql</span><span class="w"> </span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">product_blocks</span><span class="w"> </span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">description</span><span class="p">,</span><span class="w"> </span><span class="n">tag</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;UserGroupBlock&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;User group settings&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;UGS&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;active&#39;</span><span class="p">)</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">product_blocks</span><span class="p">.</span><span class="n">product_block_id</span><span class="o">`</span>
+</code></pre></div></p>
+</blockquote>
+</li>
+<li>
+<p>new resource type:</p>
+<blockquote>
+<p><u><strong>Create resource types</strong></u><br>
+Supply description for new resource type <span style="color:magenta">group_name</span>: Unique name of user group
+<div class="highlight"><pre><span></span><code><span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">27</span><span class="w"> </span><span class="mi">11</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="mi">10</span><span class="w"> </span><span class="p">[</span><span class="n">debug</span><span class="p">]</span><span class="w"> </span><span class="k">generated</span><span class="w"> </span><span class="k">SQL</span><span class="w"> </span><span class="p">[</span><span class="n">orchestrator</span><span class="p">.</span><span class="n">cli</span><span class="p">.</span><span class="n">domain_gen_helpers</span><span class="p">.</span><span class="n">helpers</span><span class="p">]</span><span class="w"> </span><span class="n">sql_string</span><span class="o">=</span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">resource_types</span><span class="w"> </span><span class="p">(</span><span class="n">resource_type</span><span class="p">,</span><span class="w"> </span><span class="n">description</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;group_name&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Unique name of user group&#39;</span><span class="p">)</span><span class="w"> </span><span class="n">RETURNING</span><span class="w"> </span><span class="n">resource_types</span><span class="p">.</span><span class="n">resource_type_id</span>
+</code></pre></div></p>
+</blockquote>
+</li>
+<li>
+<p>default value for resource type per product block (necessary for adding a default value to existing instances):</p>
+<blockquote>
+<p><u><strong>Create subscription instance values</strong></u><br>
+Supply default subscription instance value for resource type <span style="color:magenta">group_name</span> and product block <strong>UserGroupBlock</strong>: group
+<div class="highlight"><pre><span></span><code><span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">27</span><span class="w"> </span><span class="mi">11</span><span class="p">:</span><span class="mi">45</span><span class="p">:</span><span class="mi">10</span><span class="w"> </span><span class="p">[</span><span class="n">debug</span><span class="p">]</span><span class="w"> </span><span class="k">generated</span><span class="w"> </span><span class="k">SQL</span><span class="w"> </span><span class="p">[</span><span class="n">orchestrator</span><span class="p">.</span><span class="n">cli</span><span class="p">.</span><span class="n">domain_gen_helpers</span><span class="p">.</span><span class="n">resource_type_helpers</span><span class="p">]</span><span class="w"> </span><span class="n">sql_string</span><span class="o">=</span>
+<span class="w">                </span><span class="k">WITH</span><span class="w"> </span><span class="n">subscription_instance_ids</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">                    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">subscription_instances</span><span class="p">.</span><span class="n">subscription_instance_id</span>
+<span class="w">                    </span><span class="k">FROM</span><span class="w">   </span><span class="n">subscription_instances</span>
+<span class="w">                    </span><span class="k">WHERE</span><span class="w">  </span><span class="n">subscription_instances</span><span class="p">.</span><span class="n">product_block_id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span>
+<span class="w">                        </span><span class="k">SELECT</span><span class="w"> </span><span class="n">product_blocks</span><span class="p">.</span><span class="n">product_block_id</span>
+<span class="w">                        </span><span class="k">FROM</span><span class="w">   </span><span class="n">product_blocks</span>
+<span class="w">                        </span><span class="k">WHERE</span><span class="w">  </span><span class="n">product_blocks</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;UserGroupBlock&#39;</span>
+<span class="w">                    </span><span class="p">)</span>
+<span class="w">                </span><span class="p">)</span>
+
+<span class="w">                </span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span>
+<span class="w">                    </span><span class="n">subscription_instance_values</span><span class="w"> </span><span class="p">(</span><span class="n">subscription_instance_id</span><span class="p">,</span><span class="w"> </span><span class="n">resource_type_id</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">)</span>
+<span class="w">                </span><span class="k">SELECT</span>
+<span class="w">                    </span><span class="n">subscription_instance_ids</span><span class="p">.</span><span class="n">subscription_instance_id</span><span class="p">,</span>
+<span class="w">                    </span><span class="n">resource_types</span><span class="p">.</span><span class="n">resource_type_id</span><span class="p">,</span>
+<span class="w">                    </span><span class="s1">&#39;group&#39;</span>
+<span class="w">                </span><span class="k">FROM</span><span class="w"> </span><span class="n">resource_types</span>
+<span class="w">                </span><span class="k">CROSS</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">subscription_instance_ids</span>
+<span class="w">                </span><span class="k">WHERE</span><span class="w"> </span><span class="n">resource_types</span><span class="p">.</span><span class="n">resource_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;group_name&#39;</span>
+</code></pre></div></p>
+</blockquote>
+</li>
+</ul>
+<p>Last part generates the migration with the generated SQL:
+<div class="highlight"><pre><span></span><code>Generating migration file
+2022-10-27 11:45:10 [info] Version Locations [orchestrator.cli.database] locations=/home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema /home/tjeerddie/projects_surf/example-orchestrator/.venv/lib/python3.10/site-packages/orchestrator/migrations/versions/schema
+  Generating /home/tjeerddie/projects_surf/example-orchestrator/migrations/versions/schema/2022-10-27_a8946b2d1647_test.py ...  done
+Migration generated. Don&#39;t forget to create a database backup before migrating!
+</code></pre></div></p>
+<p>If you are running with <code>--test</code>, the SQL file will not be generated.</p>
+<h3 id="migrate-workflows">migrate-workflows</h3>
+<p>The <code>main.py db migrate-workflows</code> command creates a migration file based on
+the difference between de worfklows code and the workflows that are registered
+in the database.</p>
+<p>Arguments</p>
+<p>message - Migration name [default: None] [required]</p>
+<p>Options</p>
+<p>--test | --no-test - Optional boolean if you don't want to generate a
+migration file [default: no-test]</p>
+<h3 id="revision">revision</h3>
+<p>The <code>main.py db revision</code> command creates a new Alembic revision file.</p>
+<p>Arguments</p>
+<p>--message - The revision message [default: None]
+--version-path - Specify specific path from config for version file
+[default: None]
+--autogenerate | --no-autogenerate - Detect schema changes and add
+migrations [default: no-autogenerate]
+--head - Determine the head you need to add your migration to. [default: None]</p>
+<h3 id="upgrade">upgrade</h3>
+<p>The <code>main.py db upgrade</code> command will upgrade the database to the specified
+revision</p>
+<p>Arguments</p>
+<p>revision - Rev id to upgrade to [default: none]</p>
+<h2 id="generate">generate</h2>
+<p>Generate products, workflows and other artifacts.</p>
+<p>Products can be described in a YAML configuration file which makes it easy to
+generate product and product block domain models, and skeleton workflows and
+unit tests. Note that this is a one time thing, the generate commands do not
+support updating existing products, product-blocks, workflows and migrations,
+in this case have a look at the <code>db migrate-domain-models</code> and <code>db migrate-workflows</code> commands.
+But it does however help in defining new products with stakeholders, will
+generate code that conforms to current workfloworchestrator coding BCP, and
+will actually run (although limited in functionality of course).</p>
+<p>After describing a new product in a configuration file, the following commands
+are typically run:</p>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>main.py<span class="w"> </span>generate<span class="w"> </span>product-blocks
+python<span class="w"> </span>main.py<span class="w"> </span>generate<span class="w"> </span>products
+python<span class="w"> </span>main.py<span class="w"> </span>generate<span class="w"> </span>workflows
+python<span class="w"> </span>main.py<span class="w"> </span>generate<span class="w"> </span>migration
+</code></pre></div>
+<p>The generate command should be called from the top level folder of your orchestrator
+implementation, this is the folder that contains the <code>products</code> sub folder, amongst others, except when
+the <code>--prefix</code> is used to point to that folder. In case there are product blocks defined that use other
+generated product blocks, the order in which <code>generate product-blocks</code> is run is important,
+the code for the blocks used in other blocks should be generated first.</p>
+<h3 id="config-file">config file</h3>
+<p>An example of a simple product configuration:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">summary_forms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Node</span>
+<span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NODE</span>
+<span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Network</span><span class="nv"> </span><span class="s">node&quot;</span>
+<span class="nt">fixed_inputs</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_rack_mountable</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bool</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;is</span><span class="nv"> </span><span class="s">node</span><span class="nv"> </span><span class="s">rack</span><span class="nv"> </span><span class="s">mountable&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_vendor</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enum</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;vendor</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">node&quot;</span>
+<span class="w">    </span><span class="nt">enum_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">str</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;Cisco&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;Nokia&quot;</span>
+<span class="nt">product_blocks</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Node</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NODE</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;node</span><span class="nv"> </span><span class="s">product</span><span class="nv"> </span><span class="s">block&quot;</span>
+<span class="w">    </span><span class="nt">fields</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_name</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Unique</span><span class="nv"> </span><span class="s">name</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">node&quot;</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">str</span>
+<span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">provisioning</span>
+<span class="w">        </span><span class="nt">modifiable</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_description</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Description</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">node&quot;</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">str</span>
+<span class="w">        </span><span class="nt">modifiable</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ims_id</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ID</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">node</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">inventory</span><span class="nv"> </span><span class="s">management</span><span class="nv"> </span><span class="s">system&quot;</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int</span>
+<span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">active</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">under_maintenance</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;node</span><span class="nv"> </span><span class="s">is</span><span class="nv"> </span><span class="s">under</span><span class="nv"> </span><span class="s">maintenance&quot;</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bool</span>
+<span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">initial</span>
+<span class="w">        </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
+
+<span class="nt">workflows</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">terminate</span>
+<span class="w">    </span><span class="nt">validations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">can_only_terminate_when_under_maintenance</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Can</span><span class="nv"> </span><span class="s">only</span><span class="nv"> </span><span class="s">terminate</span><span class="nv"> </span><span class="s">when</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">node</span><span class="nv"> </span><span class="s">is</span><span class="nv"> </span><span class="s">placed</span><span class="nv"> </span><span class="s">under</span><span class="nv"> </span><span class="s">maintenance&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validate</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">validations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validate_ims_administration</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Validate</span><span class="nv"> </span><span class="s">that</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">node</span><span class="nv"> </span><span class="s">is</span><span class="nv"> </span><span class="s">correctly</span><span class="nv"> </span><span class="s">administered</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">IMS&quot;</span>
+</code></pre></div>
+<p>Next we will describe the different sections in more detail:</p>
+<h4 id="global-config-section">global <code>config</code> section</h4>
+<p>This section sets some global configuration, applicable for most workflows.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">summary_forms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<ul>
+<li><code>summary_forms</code> indicates if a summary form will be generated in the
+  create and modify workflows, default is <code>false</code>.</li>
+</ul>
+<h4 id="product-type-definition">product type definition</h4>
+<div class="highlight"><pre><span></span><code><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Node</span>
+<span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NODE</span>
+<span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Network</span><span class="nv"> </span><span class="s">node&quot;</span>
+</code></pre></div>
+<p>Every product type is described using the following fields:
+- <code>name</code>: the name of type product type, used in descriptions, as variable name, and to generate
+          filenames
+- <code>type</code>: used to indicate the type of the product in Python code, types in
+          Python usually starts with an uppercase character
+- <code>tag</code>: used to register the product tag in the database, can for example be used to filter
+         products, will typically be all uppercase
+- <code>description</code>: descriptive text for the product type</p>
+<h4 id="fixed_inputs-section"><code>fixed_inputs</code> section</h4>
+<p>In this section we define a list of fixed inputs for a product.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">fixed_inputs</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_vendor</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enum</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;vendor</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">node&quot;</span>
+<span class="w">    </span><span class="nt">enum_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">str</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;Cisco&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;Nokia&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node_ports</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enum</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;number</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">ports</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">chassis&quot;</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40</span>
+</code></pre></div>
+<p>A fixed input has a <code>name</code>, <code>type</code> and <code>description</code> field. If the type is a primitive type
+(for example: str, bool, int), then this is sufficient. In case of
+<code>node_vendor</code> an <code>enum</code> type is used, and two additional fields to describe the
+enumeration <code>type</code> and its possible <code>values</code>. Both <code>str</code> and <code>int</code> enums are supported.</p>
+<p>When one or more enum types are specified, the necessary migration and product registry code
+will be generated for all possible combinations of the enums. In this example six products of type
+Node will
+be generated: "Cisco 10", "Cisco 20", "Cisco 40", "Nokia 10", "Nokia 20" and "Nokia 40".</p>
+<h4 id="product_blocks-section"><code>product_blocks</code> section</h4>
+<div class="highlight"><pre><span></span><code><span class="nt">product_blocks</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">port</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Port</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PORT</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;port</span><span class="nv"> </span><span class="s">product</span><span class="nv"> </span><span class="s">block&quot;</span>
+<span class="w">    </span><span class="nt">fields</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span>
+<span class="w">      </span><span class="p p-Indicator">-</span>
+</code></pre></div>
+<p>In this section we define the product block(s) that are part of this product. The first
+product block will automatically be the root product block.</p>
+<p>The use of <code>name</code>, <code>type</code>, <code>tag</code> and <code>description</code> in the product block definition is equivalent
+to the product definition above. The <code>fields</code> describe the product block resource types.</p>
+<h4 id="product-block-fields">product block fields</h4>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">port_mode</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;port</span><span class="nv"> </span><span class="s">mode&#39;</span>
+<span class="w">    </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">provisioning</span>
+<span class="w">    </span><span class="nt">modifiable</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enum</span>
+<span class="w">    </span><span class="nt">enum_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">str</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;untagged&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;tagged&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;link_member&quot;</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tagged&quot;</span>
+<span class="w">    </span><span class="nt">validations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">must_be_unused_to_change_mode</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Mode</span><span class="nv"> </span><span class="s">can</span><span class="nv"> </span><span class="s">only</span><span class="nv"> </span><span class="s">be</span><span class="nv"> </span><span class="s">changed</span><span class="nv"> </span><span class="s">when</span><span class="nv"> </span><span class="s">there</span><span class="nv"> </span><span class="s">are</span><span class="nv"> </span><span class="s">no</span><span class="nv"> </span><span class="s">services</span><span class="nv"> </span><span class="s">attached</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">it&quot;</span>
+</code></pre></div>
+<p>Resource types are described by the following:</p>
+<ul>
+<li><code>name</code>: name of the resource type, usually in snake case</li>
+<li><code>decription</code>: resource type description</li>
+<li><code>required</code>: if the resource type is required starting from lifecycle state <code>inital</code>, <code>provisioning</code>
+              or <code>active</code>, when omitted the resource type will always be optional</li>
+<li><code>modifiable</code>: indicate if the resource type can be altered by a modify workflow, when omitted
+                no code will be generated to modify the resource type, currently only supported for simple types</li>
+<li><code>default</code>: specify the default for this resource type, this is mandatory when <code>required</code> is set to
+             <code>intitial</code>, will be <code>None</code> if not specified</li>
+<li><code>validations</code>: specify the validation <code>id</code> and <code>description</code>, generates a skeleton
+                 validation function used in a new annotated type</li>
+<li><code>type</code>: see explanation below</li>
+</ul>
+<h4 id="resource-type-types">resource type types</h4>
+<p>The following types are supported when specifying resource types:</p>
+<ul>
+<li>primitive types like <code>int</code>, <code>str</code>, and <code>bool</code>
+  <div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">circuit_id</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int</span>
+</code></pre></div></li>
+<li>types with a period in there name will generate code to import that type, e.q. <code>ipaddress.IPv4Address</code>
+  <div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ipv4_loopback</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ipaddress.IPv4Address</span>
+</code></pre></div></li>
+<li>existing product block types like <code>UserGroup</code>, possible types will be read from <code>products/product_blocks</code>
+  <div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">UserGroup</span>
+</code></pre></div></li>
+<li>the type <code>list</code>, used together with <code>min_items</code> and <code>max_items</code> to specify the constraints, and
+  <code>list_type</code> to specify the type of the list items
+  <div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">link_members</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">list</span>
+<span class="w">  </span><span class="nt">list_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Link</span>
+<span class="w">  </span><span class="nt">min_items</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">max_items</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+</code></pre></div></li>
+<li>validation code for constrained a <code>int</code> is generated when <code>min_value</code> and <code>max_value</code> are specified
+  <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ims_id</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int</span>
+<span class="w">    </span><span class="nt">min_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="nt">max_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32_767</span>
+</code></pre></div></li>
+</ul>
+<h4 id="workflows">workflows</h4>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">create</span>
+<span class="w">    </span><span class="nt">validations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">endpoints_cannot_be_on_same_node</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Service</span><span class="nv"> </span><span class="s">endpoints</span><span class="nv"> </span><span class="s">must</span><span class="nv"> </span><span class="s">land</span><span class="nv"> </span><span class="s">on</span><span class="nv"> </span><span class="s">different</span><span class="nv"> </span><span class="s">nodes&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validate</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">validations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validate_ims_administration</span>
+<span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Validate</span><span class="nv"> </span><span class="s">that</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">node</span><span class="nv"> </span><span class="s">is</span><span class="nv"> </span><span class="s">correctly</span><span class="nv"> </span><span class="s">administered</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">IMS&quot;</span>
+</code></pre></div>
+<p>The following optional workflow configuration is supported:</p>
+<ul>
+<li><code>name</code>: can be either <code>create</code>, <code>modify</code>, <code>terminate</code> or <code>validate</code></li>
+<li><code>enabled</code>: to enable or disable the generation of code for that type of workflow, is <code>true</code> when omitted</li>
+<li><code>validations</code>: list of validations used to generate skeleton code as <code>model_validator</code> in input forms,
+  and validation steps in the validate workflow</li>
+</ul>
+<h3 id="migration">migration</h3>
+<p>The <code>python main.py generate migration</code> command creates a migration from a
+configuration file.</p>
+<p>Options</p>
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+<p>--config-file - The configuration file [default: None]<br />
+--python-version - Python version for generated code [default: 3.11]  </p>
+<h3 id="product">product</h3>
+<p>The <code>python main.py generate product</code> command creates a product domain model
+from a configuration file.</p>
+<p>Options</p>
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+<p>--config-file - The configuration file [default: None]<br />
+--dryrun | --no-dryrun - Dry run [default: dryrun]<br />
+--force - Force overwrite of existing files<br />
+--python-version - Python version for generated code [default: 3.11]<br />
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  </p>
+<h3 id="product-blocks">product-blocks</h3>
+<p>The <code>python main.py generate product-blocks</code> command creates product block
+domain models from a configuration file.</p>
+<p>Options</p>
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+<p>--config-file - The configuration file [default: None]<br />
+--dryrun | --no-dryrun - Dry run [default: dryrun]<br />
+--force - Force overwrite of existing files<br />
+--python-version - Python version for generated code [default: 3.11]<br />
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default: None]  </p>
+<h3 id="unit-tests">unit-tests</h3>
+<p>The <code>python main.py generate unit-tests</code> command creates unit tests from a
+configuration file.</p>
+<p>Options</p>
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+<p>--config-file - The configuration file [default: None]<br />
+--dryrun | --no-dryrun - Dry run [default: dryrun]<br />
+--force - Force overwrite of existing files<br />
+--python-version - Python version for generated code [default: 3.11]<br />
+--tdd - Force test driven development with failing asserts [default: True]  </p>
+<h3 id="workflows_1">workflows</h3>
+<p>The <code>python main.py generate workflows</code> command creates create, modify,
+terminate and validate workflows from a configuration file. The
+<code>--custom-templates</code> option can be used to specify a folder with custom
+templates to add additional import statements, input form fields and workflow
+steps to the create, modify and terminate workflows.</p>
+<p>Options</p>
+<!--- do not remove the two spaces at the end of each line below, they generate line breaks --->
+<p>--config-file - The configuration file [default: None]<br />
+--dryrun | --no-dryrun - Dry run [default: dryrun]<br />
+--force - Force overwrite of existing files<br />
+--python-version - Python version for generated code [default: 3.11]<br />
+--folder-prefix - Folder prefix, e.g. <folder-prefix>/workflows [default:<br />
+None]
+--custom-templates - Custom templates folder [default: None]</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code>workflows/__init__.py</code> will only be extended with the needed <code>LazyWorkflowInstance</code>
+declarations when <code>--force</code> is used.</p>
+</div>
+<h2 id="scheduler">scheduler</h2>
+<p>Access all the scheduler functions.</p>
+<h3 id="force">force</h3>
+<p>Force the execution of (a) scheduler(s) based on a keyword.</p>
+<p>Arguments</p>
+<p>keyword - [required]</p>
+<h3 id="run">run</h3>
+<p>Loop eternally and run schedulers at configured times.</p>
+<h3 id="show-schedule">show-schedule</h3>
+<p>Show the currently configured schedule.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["search.suggest", "search.highlight", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.tracking", "navigation.instant", "navigation.indexes", "content.code.copy", "content.code.annotate"], "search": "../../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.bd41221c.min.js"></script>
+      
+        <script src="../../../js/termynal.js"></script>
+      
+        <script src="../../../js/custom.js"></script>
+      
+    
+  </body>
+</html>
