@@ -116,7 +116,9 @@ nav:
     - Forms: reference-docs/forms.md
     - GraphQL: reference-docs/graphql.md
     - Pydantic Forms: reference-docs/pydantic-forms.md
+    - Python Version: reference-docs/python.md
     - Runtimes: reference-docs/app/runtimes.md
+    - Scaling: reference-docs/scaling.md
     - Serialization: reference-docs/serialization.md
     - Subscriptions: reference-docs/subscriptions.md
     - Tasks:  reference-docs/tasks.md
@@ -124,6 +126,7 @@ nav:
     - Workflows:
       - Workflow States:  reference-docs/workflows/workflow-states.md
       - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
+      - Callbacks: reference-docs/workflows/callbacks.md
     - Websockets: reference-docs/websockets.md
   - Architecture:
     - Architecture; TL;DR: architecture/tldr.md
@@ -146,11 +149,6 @@ nav:
       - What are tasks?: architecture/application/tasks.md
       - Validating input through forms: architecture/application/forms.md
       - Domain Models: architecture/application/domainmodels.md
-    - Documentation:
-      - Scaling: architecture/application/scaling.md
-      - Python version: architecture/application/python.md
-      - GraphQL: architecture/application/graphql.md
-      - Callbacks: architecture/application/callbacks.md
   - Workshops:
     - Beginner:
       - Overview: workshops/beginner/overview.md
