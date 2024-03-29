@@ -120,6 +120,7 @@ doc = [
     "mkdocs-render-swagger-plugin",
     "mkdocs-include-markdown-plugin",
     "mkdocstrings[python]",
+    "mkdocs-open-in-new-tab",
 ]
 dev = [
     "toml",

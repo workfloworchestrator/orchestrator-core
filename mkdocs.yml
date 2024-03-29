@@ -33,6 +33,7 @@ theme:
   - content.code.annotate
 plugins:
   - search
+  - open-in-new-tab
   - render_swagger
   - include-markdown
   - privacy
