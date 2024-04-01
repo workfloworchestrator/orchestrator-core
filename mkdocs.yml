@@ -31,10 +31,12 @@ theme:
   - navigation.indexes
   - content.code.copy
   - content.code.annotate
+  - content.tooltips
 plugins:
   - search
   - open-in-new-tab
   - render_swagger
+  - macros
   - include-markdown
   - privacy
   - social
@@ -50,6 +52,7 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             docstring_style: null
+            docstring_section_style: list
             annotations_path: full
             separate_signature: true
             line_length: 80
@@ -72,13 +75,16 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
   - pymdownx.keys
   - pymdownx.inlinehilite
   - pymdownx.tabbed:
       alternate_style: true
   - attr_list
   - codehilite
+  - abbr
 
 extra_css:
   - 'css/termynal.css'
@@ -190,3 +196,5 @@ nav:
     - Testing: contributing/testing.md
     - Documentation: contributing/documentation.md
   - Migration guide: migration-guide/2.0.md
+watch:
+  - includes
