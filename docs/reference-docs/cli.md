@@ -1,61 +1,45 @@
-# Command line interface commands
+# Command Line Interface Commands
 
 Top level options:
 
---install-completion [bash|zsh|fish|powershell|pwsh]
+`--install-completion [bash|zsh|fish|powershell|pwsh]`
 
 Install completion for the specified shell. [default: None]
 
---show-completion [bash|zsh|fish|powershell|pwsh]
+`--show-completion [bash|zsh|fish|powershell|pwsh]`
 
 Show completion for the specified shell, to copy it or customize the
 installation. [default: None]
 
+CLI Arguments:
+        ```sh
+        --revision - Rev id to downgrade to
+        ```
+
 ## db
 
-Interact with the application database.
+Interact with the application database. By default, does nothing, specify `main.py db --help` for more information.
 
-### downgrade
-
-The `main.py db downgrade` command will downgrade the database to the previous
-revision or to the optionally specified revision.
-
-Arguments
-
-revision - Rev id to upgrade to [default: -1]
-
-### heads
-
-The `main.py db heads` command shows the Alembic database heads.
-
-### history
-
-The `main.py db history` command lists Alembic revision history in
-chronological order.
-
-Options
-
---verbose - Verbose output
---current - Indicate current revision
-
-### init
-
-The `main.py db init` command initialises an empty migrations environment.
-This command will throw an exception when it detects conflicting files and
-directories.
-
-### merge
-
-The `main.py db merge` command merges database revisions.
-
-Arguments
-
-revisions - Add the revision you would like to merge to this command
-[default: None]
-
-Options
-
---message TEXT - The revision message
+::: orchestrator.cli.database
+    options:
+      show_signature: false
+      show_root_heading: false
+      docstring_style: google
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_toc_entry: false
+      show_symbol_type_toc: false
+      show_symbol_type_heading: false
+      members:
+        - downgrade
+        - heads
+        - history
+        - init
+        - merge
+        - migrate_workflows
+        - revision
+        - upgrade
+      heading_level: 3
 
 ### migrate-domain-models
 
@@ -421,43 +405,6 @@ Migration generated. Don't forget to create a database backup before migrating!
 
 If you are running with `--test`, the SQL file will not be generated.
 
-### migrate-workflows
-
-The `main.py db migrate-workflows` command creates a migration file based on
-the difference between de worfklows code and the workflows that are registered
-in the database.
-
-Arguments
-
-message - Migration name [default: None] [required]
-
-Options
-
---test | --no-test - Optional boolean if you don't want to generate a
-migration file [default: no-test]
-
-### revision
-
-The `main.py db revision` command creates a new Alembic revision file.
-
-Arguments
-
---message - The revision message [default: None]
---version-path - Specify specific path from config for version file
-[default: None]
---autogenerate | --no-autogenerate - Detect schema changes and add
-migrations [default: no-autogenerate]
---head - Determine the head you need to add your migration to. [default: None]
-
-### upgrade
-
-The `main.py db upgrade` command will upgrade the database to the specified
-revision
-
-Arguments
-
-revision - Rev id to upgrade to [default: none]
-
 ## generate
 
 Generate products, workflows and other artifacts.
@@ -486,7 +433,6 @@ implementation, this is the folder that contains the `products` sub folder, amon
 the `--prefix` is used to point to that folder. In case there are product blocks defined that use other
 generated product blocks, the order in which `generate product-blocks` is run is important,
 the code for the blocks used in other blocks should be generated first.
-
 
 ### config file
 
