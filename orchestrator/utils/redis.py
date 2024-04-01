@@ -10,13 +10,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from os import getenv
 from typing import Any
 from uuid import UUID
 
 from redis import Redis
 from redis.asyncio import Redis as AIORedis
+from redis.asyncio.client import Pipeline, PubSub
 from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
@@ -87,3 +89,55 @@ async def delete_keys_matching_pattern(_cache: AIORedis, pattern: str, chunksize
 
     logger.debug("Deleted keys matching pattern", pattern=pattern, deleted=deleted)
     return deleted
+
+
+class RedisBroadcast:
+    """Small wrapper around redis.asyncio.Redis used by websocket broadcasting.
+
+    Note:
+        redis.asyncio.Redis.from_url() returns a client which maintains a ConnectionPool.
+        This instance is thread-safe and does not create connections until needed.
+        However, you cannot instantiate this in one asyncio event loop and use it in
+        another event loop, as the created connections in the pool will then only
+        be usable by the loop they were created in.
+    """
+
+    client: AIORedis
+
+    def __init__(self, redis_url: str):
+        self.client = AIORedis.from_url(redis_url)
+        self.redis_url = redis_url
+
+    @asynccontextmanager
+    async def pipeline(self) -> AsyncGenerator[Pipeline, None]:
+        """Context to prepare a pipeline object for issueing multiple commands, such as .publish().
+
+        Automatically executes the pipeline afterwards (unless there was an exception).
+        """
+        async with self.client.pipeline() as pipe:
+            yield pipe
+            await pipe.execute()
+
+    @asynccontextmanager
+    async def subscriber(self, *channels: str) -> AsyncGenerator[PubSub, None]:
+        """Context to subscribe to one or more channels.
+
+        Automatically unsubscribes and releases the connection afterwards.
+        """
+        pubsub = self.client.pubsub(ignore_subscribe_messages=True)
+        try:
+            await pubsub.subscribe(*channels)
+            yield pubsub
+        finally:
+            await pubsub.unsubscribe(*channels)
+            await pubsub.aclose()  # type: ignore[attr-defined]
+
+    async def connect(self) -> None:
+        # Execute a simple command to ensure we can establish a connection
+        result = await self.client.ping()
+        logger.debug("RedisBroadcast can connect to redis", ping_result=result)
+
+    async def disconnect(self) -> None:
+        logger.debug("Closing redis client")
+        await self.client.aclose()  # type: ignore[attr-defined]
+        logger.debug("Closed redis client")

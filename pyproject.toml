@@ -37,7 +37,6 @@ classifiers = [
 dependencies = [
     "alembic==1.13.1",
     "anyio>=3.7.0",
-    "broadcaster[redis]==0.2.0",
     "click==8.*",
     "deprecated",
     "deepmerge==1.1.1",
@@ -53,15 +52,15 @@ dependencies = [
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.9,<1.17",
     "pytz==2024.1",
-    "redis>=4.6, <4.7.0",
+    "redis==5.0.3",
     "schedule==1.1.0",
-    "sentry-sdk[fastapi]==1.42.0",
+    "sentry-sdk[fastapi]==1.43.0",
     "SQLAlchemy==2.0.28",
-    "SQLAlchemy-Utils==0.41.1",
+    "SQLAlchemy-Utils==0.41.2",
     "structlog",
     "typer==0.9.0",
-    "uvicorn[standard]~=0.28.0",
-    "nwa-stdlib~=1.6.0",
+    "uvicorn[standard]~=0.29.0",
+    "nwa-stdlib~=1.7.0",
     "oauth2-lib~=1.5.0",
     "tabulate==0.9.0",
     "strawberry-graphql==0.210.0",
@@ -151,6 +150,7 @@ exclude = '''
     | venv
     | src
     | test/unit_tests/cli/data/generate
+    | orchestrator/vendor
   )/
 )
 '''
@@ -174,6 +174,7 @@ exclude = [
     ".venv",
     "docs",
     "test/unit_tests/cli/data/generate",
+    "orchestrator/vendor",
 ]
 ignore = [
     "C417",
@@ -208,6 +209,7 @@ ban-relative-imports = "all"
 "orchestrator/cli/*" = ["B008"]
 "orchestrator/devtools/scripts/*" = ["S101", "T201"]
 "test/*" = ["S101", "B033", "N816", "N802"]
+"orchestrator/__init__.py" = ["E402"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
