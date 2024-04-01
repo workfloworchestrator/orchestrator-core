@@ -121,6 +121,7 @@ doc = [
     "mkdocs-include-markdown-plugin",
     "mkdocstrings[python]",
     "mkdocs-open-in-new-tab",
+    "mkdocs-macros-plugin",
 ]
 dev = [
     "toml",
