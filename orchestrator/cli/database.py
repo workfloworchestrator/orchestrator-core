@@ -60,9 +60,12 @@ def init() -> None:
     """Initialize the `migrations` directory.
 
     This command will initialize a migration directory for the orchestrator core application and setup a correct
-    migration environment.
+    migration environment. It will also throw an exception when it detects conflicting files and directories.
 
     Returns:
+        None
+
+    CLI Options:
         None
 
     """
@@ -106,6 +109,12 @@ def init() -> None:
 
 @app.command(help="Get the database heads")
 def heads() -> None:
+    """The `heads` command command shows the Alembic database heads.
+
+    CLI Options:
+        None
+
+    """
     command.heads(alembic_cfg())  # type: ignore[no-untyped-call]
 
 
@@ -123,13 +132,21 @@ def merge(
     Returns:
         None
 
+    CLI Options:
+        ```sh
+        Arguments:
+            [REVISIONS]  Add the revision you would like to merge to this command.
+
+        Options:
+            -m, --message TEXT  The revision message
+        ```
     """
     command.merge(alembic_cfg(), revisions, message=message)
 
 
 @app.command()
 def upgrade(revision: str = typer.Argument(default=None, help="Rev id to upgrade to")) -> None:
-    """Upgrade the database.
+    """The `upgrade` command will upgrade the database to the specified revision.
 
     Args:
         revision: Optional argument to indicate where to upgrade to.
@@ -137,19 +154,34 @@ def upgrade(revision: str = typer.Argument(default=None, help="Rev id to upgrade
     Returns:
         None
 
+    CLI Options:
+        ```sh
+        Arguments:
+            [REVISION]  Rev id to upgrade to
+
+        Options:
+            --help  Show this message and exit.
+        ```
+
     """
     command.upgrade(alembic_cfg(), revision)
 
 
 @app.command()
-def downgrade(revision: str = typer.Argument("-1", help="Rev id to upgrade to")) -> None:
-    """Downgrade the database.
+def downgrade(revision: str = typer.Argument("-1", help="Rev id to downgrade to")) -> None:
+    """The `downgrade` command will downgrade the database to the previous revision or to the optionally specified revision.
 
     Args:
-        revision: Optional argument to indicate where to downgrade to.
+        revision (str, optional): Optional argument to indicate where to downgrade to. [default: -1]
 
     Returns:
         None
+
+    CLI Options:
+        ```sh
+        Arguments:
+            [REVISION]  Rev id to upgrade to  [default: -1]
+        ```
 
     """
     command.downgrade(alembic_cfg(), revision)
@@ -162,7 +194,7 @@ def revision(
     autogenerate: bool = typer.Option(False, help="Detect schema changes and add migrations"),
     head: str = typer.Option(None, help="Determine the head you need to add your migration to."),
 ) -> None:
-    """Create a new revision file.
+    """The `revision` command creates a new Alembic revision file.
 
     Args:
         message: The revision message
@@ -173,6 +205,15 @@ def revision(
     Returns:
         None
 
+    CLI Options:
+        ```sh
+        Options:
+            -m, --message TEXT              The revision message
+            --version-path TEXT             Specify specific path from config for version file
+            --autogenerate / --no-autogenerate
+                                            Detect schema changes and add migrations [default: no-autogenerate]
+            --head TEXT                     Determine the head you need to add your migration to.
+        ```
     """
     command.revision(alembic_cfg(), message, version_path=version_path, autogenerate=autogenerate, head=head)
 
@@ -182,15 +223,21 @@ def history(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     indicate_current: bool = typer.Option(False, "--current", "-c", help="Indicate current revision"),
 ) -> None:
-    """List changeset scripts in chronological order.
+    """The `history` command lists Alembic revision history/changeset scripts in chronological order.
 
     Args:
-        verbose: Verbose output
-        indicate_current: Indicate current revision
+        verbose (bool, optional): Verbose output
+        indicate_current (bool, optional): Indicate current revision
 
     Returns:
         None
 
+    CLI Options:
+        ```sh
+        Options:
+            -v, --verbose  Verbose output
+            -c, --current  Indicate current revision
+        ```
     """
     command.history(alembic_cfg(), verbose=verbose, indicate_current=indicate_current)
 
@@ -269,7 +316,9 @@ def migrate_workflows(
     message: str = typer.Argument(..., help="Migration name"),
     test: bool = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
 ) -> tuple[list[dict], list[dict]] | None:
-    """Create a migration file based on the difference between workflows in the database and registered WorkflowInstances. BACKUP DATABASE BEFORE USING THE MIGRATION!.
+    """The `migrate-workflows` commanad creates a migration file based on the difference between workflows in the database and registered WorkflowInstances in your codebase.
+
+    !!! warning "BACKUP YOUR DATABASE BEFORE USING THE MIGRATION!"
 
     You will be prompted with inputs for new models and resource type updates.
     Resource type updates are only handled when it's renamed in all product blocks.
@@ -282,6 +331,16 @@ def migrate_workflows(
         - tuple:
             - list of upgrade SQL statements in string format.
             - list of downgrade SQL statements in string format.
+
+    CLI Arguments:
+        ```sh
+        Arguments:
+            MESSAGE  Migration name  [required]
+
+        Options:
+            --test / --no-test  Optional boolean if you don't want to generate a migration
+            file  [default: no-test]
+        ```
     """
     if not app_settings.TESTING:
         init_database(app_settings)
