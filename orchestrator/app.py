@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""app module.
+"""The main application module.
 
 This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
 provides the ability to run the CLI.
