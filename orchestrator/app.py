@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
+"""app module.
 
-# Copyright 2019-2020 SURF.
+This module contains the main `OrchestratorCore` class for the `FastAPI` backend and
+provides the ability to run the CLI.
+"""
+
+# Copyright 2019-2020 SURF, ESnet
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
