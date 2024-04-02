@@ -11,11 +11,6 @@ Install completion for the specified shell. [default: None]
 Show completion for the specified shell, to copy it or customize the
 installation. [default: None]
 
-CLI Arguments:
-        ```sh
-        --revision - Rev id to downgrade to
-        ```
-
 ## db
 
 Interact with the application database. By default, does nothing, specify `main.py db --help` for more information.
