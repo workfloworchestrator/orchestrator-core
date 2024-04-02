@@ -124,7 +124,7 @@ def test_wf_with_multiple_callback_steps(test_client):
         # Check process status
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
-        assert response_data["status"] == "awaiting_callback"
+        assert response_data["last_status"] == "awaiting_callback"
         state = response_data["current_state"]
         assert state["phase"] == "DRY_RUN"
         assert state["__step_group"] == "Dry run"
@@ -139,7 +139,7 @@ def test_wf_with_multiple_callback_steps(test_client):
         # Check process status
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
-        assert response_data["status"] == "awaiting_callback"
+        assert response_data["last_status"] == "awaiting_callback"
         state = response_data["current_state"]
         assert state["dr_ext_data"] == "12345"
         assert state["phase"] == "FOR_REAL"
@@ -159,7 +159,7 @@ def test_wf_with_multiple_callback_steps(test_client):
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
 
-        assert response_data["status"] == "completed"
+        assert response_data["last_status"] == "completed"
 
         state = response_data["current_state"]
         assert state["ext_data"] == "56789"

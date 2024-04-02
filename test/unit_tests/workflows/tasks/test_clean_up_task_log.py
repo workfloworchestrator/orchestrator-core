@@ -66,6 +66,6 @@ def test_remove_tasks(task):
     processes = db.session.scalars(select(ProcessTable)).all()
 
     assert len(processes) == 3
-    assert sorted(p.workflow_name for p in processes) == sorted(
+    assert sorted(p.workflow.name for p in processes) == sorted(
         ["nice and new task", "nice process", "task_clean_up_tasks"]
     )

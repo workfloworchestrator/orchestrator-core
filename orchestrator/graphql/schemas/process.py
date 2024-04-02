@@ -1,6 +1,4 @@
-from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
-from uuid import UUID
 
 import strawberry
 from strawberry.federation.schema_directives import Key
@@ -15,7 +13,6 @@ from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.settings import app_settings
-from orchestrator.workflow import ProcessStatus
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
@@ -34,13 +31,6 @@ class ProcessStepType:
     commit_hash: strawberry.auto
     state: JSON | None
     state_delta: JSON | None
-
-    @authenticated_field(
-        description="Returns step id",
-        deprecation_reason="Changed to 'stepId' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def stepid(self) -> UUID | None:
-        return self.step_id
 
 
 @strawberry.experimental.pydantic.type(model=ProcessSchema, directives=federation_key_directives)
@@ -63,48 +53,6 @@ class ProcessType:
     steps: strawberry.auto
     form: JSON | None
     current_state: JSON | None
-
-    @authenticated_field(
-        description="Returns process id",
-        deprecation_reason="Changed to 'processId' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def pid(self) -> UUID:
-        return self.process_id
-
-    @authenticated_field(
-        description="Returns process workflow name",
-        deprecation_reason="Changed to 'workflowName' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def workflow(self) -> str:
-        return self.workflow_name
-
-    @authenticated_field(
-        description="Returns process last status",
-        deprecation_reason="Changed to 'lastStatus' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def status(self) -> ProcessStatus:
-        return self.last_status
-
-    @authenticated_field(
-        description="Returns process last step",
-        deprecation_reason="Changed to 'lastStep' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def step(self) -> str:
-        return self.last_step
-
-    @authenticated_field(
-        description="Returns process started at datetime",
-        deprecation_reason="Changed to 'startedAt' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def started(self) -> datetime:
-        return self.started_at
-
-    @authenticated_field(
-        description="Returns process last modified at datetime",
-        deprecation_reason="Changed to 'lastModifiedAt' from version 1.2.3, will be removed in 1.4",
-    )  # type: ignore
-    def last_modified(self) -> datetime:
-        return self.last_modified_at
 
     @authenticated_field(description="Returns the associated product")  # type: ignore
     def product(self) -> ProductType | None:

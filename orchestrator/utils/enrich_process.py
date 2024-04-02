@@ -101,7 +101,7 @@ def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> 
         "last_step": process.last_step,
         "is_task": process.is_task,
         "workflow_id": process.workflow_id,
-        "workflow_name": process.workflow_name,
+        "workflow_name": process.workflow.name,
         "workflow_target": process.process_subscriptions[0].workflow_target if process.process_subscriptions else None,
         "failed_reason": process.failed_reason,
         "created_by": process.created_by,
@@ -113,12 +113,4 @@ def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> 
         "steps": None,
         "form": None,
         "current_state": None,
-        "id": process.process_id,  # TODO: will be removed in 1.4
-        "pid": process.process_id,  # TODO: will be removed in 1.4
-        "workflow": process.workflow_name,  # TODO: will be removed in 1.4
-        "status": process.last_status,  # TODO: will be removed in 1.4
-        "step": process.last_step,  # TODO: will be removed in 1.4
-        "started": process.started_at,  # TODO: will be removed in 1.4
-        "last_modified": process.last_modified_at,  # TODO: will be removed in 1.4
-        "customer": subscriptions[0]["customer_id"] if subscriptions else None,  # TODO: will be removed in 1.4
     } | details

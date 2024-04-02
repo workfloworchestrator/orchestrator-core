@@ -693,7 +693,7 @@ def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
-    workflow = get_workflow(str(process.workflow_name))
+    workflow = get_workflow(str(process.workflow.name))
 
     if not workflow:
         workflow = removed_workflow

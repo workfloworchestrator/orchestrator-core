@@ -433,30 +433,21 @@ def test_processes_filterable_response_model(
     assert len(process["subscriptions"]) == 1
 
     # Check if the other fields are filled with correct data
-    del process["id"]  # skip process_id as it's dynamic
-    del process["pid"]  # skip process_id as it's dynamic
     del process["process_id"]  # skip process_id as it's dynamic
     del process["product_id"]  # skip product_id as it's dynamic
-    del process["product"]  # skip product as it's dynamic
     del process["workflow_id"]  # skip workflow_id as it's dynamic
     del process["subscriptions"]
     assert process == {
         "customer_id": "2f47f65a-0911-e511-80d0-005056956c1a",
-        "customer": "2f47f65a-0911-e511-80d0-005056956c1a",
-        "workflow": "workflow_for_testing_processes_py",
         "workflow_name": "workflow_for_testing_processes_py",
         "is_task": False,
         "assignee": "SYSTEM",
-        "status": "completed",
         "last_status": "completed",
-        "step": "Modify",
         "last_step": "Modify",
         "failed_reason": None,
         "traceback": None,
         "created_by": None,
-        "started": 1578994200.0,
         "started_at": 1578994200.0,
-        "last_modified": 1578994800.0,
         "last_modified_at": 1578994800.0,
         "current_state": None,
         "steps": None,

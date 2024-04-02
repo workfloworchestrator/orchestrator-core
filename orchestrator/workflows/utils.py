@@ -162,7 +162,6 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
         begin_state = {
             "subscription_id": str(subscription.subscription_id),
             "product": str(subscription.product_id),
-            "organisation": subscription.customer_id,  # TODO: deprecated, remove in the future
             "customer_id": subscription.customer_id,
         }
 

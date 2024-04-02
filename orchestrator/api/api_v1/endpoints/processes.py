@@ -20,7 +20,6 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from deprecated import deprecated
 from fastapi import Request
 from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
@@ -43,9 +42,9 @@ from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
 from orchestrator.schemas import (
-    ProcessDeprecationsSchema,
     ProcessIdSchema,
     ProcessResumeAllSchema,
+    ProcessSchema,
     ProcessStatusCounts,
     ProcessSubscriptionBaseSchema,
     ProcessSubscriptionSchema,
@@ -244,12 +243,6 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> list[Proc
     return list(db.session.scalars(stmt))
 
 
-@deprecated("Changed to '/process-subscriptions-by-process_id/{process_id}' from version 1.2.3, will be removed in 1.4")
-@router.get("/process-subscriptions-by-pid/{pid}", response_model=list[ProcessSubscriptionBaseSchema])
-def process_subscriptions_by_process_pid(pid: UUID) -> list[ProcessSubscriptionTable]:
-    return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=pid)))
-
-
 @router.get("/process-subscriptions-by-process_id/{process_id}", response_model=list[ProcessSubscriptionBaseSchema])
 def process_subscriptions_by_process_process_id(process_id: UUID) -> list[ProcessSubscriptionTable]:
     return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=process_id)))
@@ -281,17 +274,12 @@ def assignees() -> list[str]:
     return [assignee.value for assignee in Assignee]
 
 
-@deprecated("product (UUID) changed to product_id from version 1.2.3, will be removed in 1.4")
-def convert_to_old_process(process: dict) -> dict:
-    return {**process, "product": process["product_id"]}
-
-
-@router.get("/{process_id}", response_model=ProcessDeprecationsSchema)
+@router.get("/{process_id}", response_model=ProcessSchema)
 def show(process_id: UUID) -> dict[str, Any]:
     process = _get_process(process_id)
     p = load_process(process)
 
-    return convert_to_old_process(enrich_process(process, p))
+    return enrich_process(process, p)
 
 
 def handle_process_error(message: str, **kwargs: Any) -> None:
@@ -310,7 +298,7 @@ def _calculate_processes_crc32_checksum(results: list[ProcessTable]) -> int:
     return checksum
 
 
-@router.get("/", response_model=list[ProcessDeprecationsSchema])
+@router.get("/", response_model=list[ProcessSchema])
 def processes_filterable(  # noqa: C901
     response: Response,
     range: str | None = None,
@@ -358,7 +346,7 @@ def processes_filterable(  # noqa: C901
     if if_none_match == entity_tag:
         raise CacheHit(HTTPStatus.NOT_MODIFIED, headers=dict(response.headers))
 
-    return [convert_to_old_process(enrich_process(p)) for p in results]
+    return [enrich_process(p) for p in results]
 
 
 ws_router = APIRouter()

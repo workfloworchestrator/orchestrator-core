@@ -35,7 +35,6 @@ from uuid import UUID
 
 import strawberry
 import structlog
-from deprecated import deprecated
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -489,11 +488,6 @@ class ProcessStat:
     state: Process
     log: StepList
     current_user: str
-
-    @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
-    def pid(self) -> UUID:
-        return self.process_id
 
     def update(self, **vs: Any) -> ProcessStat:
         """Update ProcessStat.

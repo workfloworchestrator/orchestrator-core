@@ -4,7 +4,7 @@ from sqlalchemy import Column, Select
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
 from orchestrator.db.sorting.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
@@ -43,11 +43,6 @@ PROCESS_SORT_FUNCTIONS_BY_COLUMN = (
     | {
         "workflowTarget": generic_process_relation_sort(ProcessSubscriptionTable.workflow_target),
         "subscriptions": generic_process_relation_sort(SubscriptionTable.description),
-        "workflow": generic_process_relation_sort(WorkflowTable.name),  # TODO: deprecated, remove in 1.4
-        "status": generic_column_sort(ProcessTable.last_status, ProcessTable),  # TODO: deprecated, remove in 1.4
-        "creator": generic_column_sort(ProcessTable.created_by, ProcessTable),  # TODO: deprecated, remove in 1.4
-        "started": generic_column_sort(ProcessTable.started_at, ProcessTable),  # TODO: deprecated, remove in 1.4
-        "modified": generic_column_sort(ProcessTable.last_modified_at, ProcessTable),  # TODO: deprecated, remove in 1.4
     }
 )
 process_sort_fields = list(PROCESS_SORT_FUNCTIONS_BY_COLUMN.keys())
