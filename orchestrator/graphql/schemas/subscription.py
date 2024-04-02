@@ -72,12 +72,6 @@ class SubscriptionInterface:
     ) -> list[ProductBlockInstance]:
         return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
 
-    @strawberry.field(description="Return all products blocks that are part of a subscription", deprecation_reason="changed to product_block_instances")  # type: ignore
-    async def product_blocks(
-        self, tags: list[str] | None = None, resource_types: list[str] | None = None
-    ) -> list[ProductBlockInstance]:
-        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
-
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> strawberry.scalars.JSON:
         fixed_inputs = get_fixed_inputs(filters=[FixedInputTable.product_id == self.product.product_id])  # type: ignore
