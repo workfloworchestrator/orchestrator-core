@@ -19,8 +19,8 @@ from pydantic import BaseModel
 from sqlalchemy import Select, false
 
 from orchestrator.api.error_handling import ProblemDetailException
-from orchestrator.utils.helpers import camel_to_snake, snake_to_camel, to_camel
-from orchestrator.utils.search_query import WhereCondGenerator, Node, SQLAlchemyVisitor
+from orchestrator.utils.helpers import camel_to_snake, to_camel
+from orchestrator.utils.search_query import Node, SQLAlchemyVisitor, WhereCondGenerator
 
 
 class CallableErrorHandler(Protocol):
@@ -102,7 +102,7 @@ def _filter_to_node(filter_item: Filter) -> Node:
 
     # Workaround to deal with date fields. These should not be split like other fields.
     # Fix after deprecating '-' as split-separator in favor of '|'
-    values = _re_split.split(filter_item.value) if not "date" in filter_item.field.lower() else [filter_item.value]
+    values = _re_split.split(filter_item.value) if "date" not in filter_item.field.lower() else [filter_item.value]
     key_node = "Word", filter_item.field
     value_node: Node
     if len(values) > 1:
@@ -156,8 +156,7 @@ def generic_filter_from_clauses(
                     "Invalid filter arguments", invalid_filters=invalid_list, valid_filter_keys=valid_filter_keys
                 )
 
-            stmt = _apply_filters(query, valid_filter_items, handle_filter_error)
-            return stmt
+            return _apply_filters(query, valid_filter_items, handle_filter_error)
         except Exception as e:
             handle_filter_error(str(e))
             return query.where(false())

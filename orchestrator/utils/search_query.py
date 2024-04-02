@@ -452,4 +452,6 @@ def create_sqlalchemy_select(
     base_table: type[BaseModel],
     join_key: MappedColumn | InstrumentedAttribute,
 ) -> Select | CompoundSelect:
-    return SQLAlchemyVisitor(stmt, mappings, base_table=base_table, join_key=join_key).visit(Parser(Lexer(search_query).lex()).parse())
+    return SQLAlchemyVisitor(stmt, mappings, base_table=base_table, join_key=join_key).visit(
+        Parser(Lexer(search_query).lex()).parse()
+    )

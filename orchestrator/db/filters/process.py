@@ -14,7 +14,7 @@
 from uuid import UUID
 
 import structlog
-from sqlalchemy import BinaryExpression, select, false, ColumnElement
+from sqlalchemy import BinaryExpression, ColumnElement, false, select
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
 from orchestrator.db.filters.filters import generic_filter_from_clauses

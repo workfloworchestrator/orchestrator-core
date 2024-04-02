@@ -846,7 +846,9 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     ).scalar_one_or_none()
     subscription.customer_id = CUSTOMER_ID
     subscription.customer_descriptions = [
-        SubscriptionCustomerDescriptionTable(subscription_id=subscription_id, customer_id=CUSTOMER_ID, description="customer alias")
+        SubscriptionCustomerDescriptionTable(
+            subscription_id=subscription_id, customer_id=CUSTOMER_ID, description="customer alias"
+        )
     ]
     db.session.add(subscription)
     db.session.commit()

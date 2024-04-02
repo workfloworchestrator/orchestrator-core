@@ -12,7 +12,7 @@
 # limitations under the License.
 import uuid
 from datetime import datetime
-from typing import Callable, Any
+from typing import Any, Callable
 
 import pytz
 import sqlalchemy
