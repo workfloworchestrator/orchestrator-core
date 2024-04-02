@@ -12,25 +12,37 @@
 # limitations under the License.
 
 """Module that implements workflows related API endpoints."""
-
-
+from fastapi import Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import select
 
 from orchestrator.db import ProductTable, WorkflowTable, db
 from orchestrator.schemas import WorkflowSchema, WorkflowWithProductTagsSchema
 from orchestrator.services.workflows import get_workflows
+from orchestrator.utils.deprecation_logger import deprecated_endpoint
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[WorkflowSchema])
+@router.get(
+    "/",
+    response_model=list[WorkflowSchema],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def get_all(target: str | None = None, include_steps: bool = False) -> list[WorkflowSchema]:
     filters = {"target": target} if target else None
     return list(get_workflows(filters=filters, include_steps=include_steps))
 
 
-@router.get("/with_product_tags", response_model=list[WorkflowWithProductTagsSchema])
+@router.get(
+    "/with_product_tags",
+    response_model=list[WorkflowWithProductTagsSchema],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def get_all_with_product_tags() -> list[WorkflowWithProductTagsSchema]:
     all_workflows = get_workflows()
 

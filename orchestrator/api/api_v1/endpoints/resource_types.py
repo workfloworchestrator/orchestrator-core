@@ -14,7 +14,7 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.params import Body, Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import select
 
@@ -23,16 +23,29 @@ from orchestrator.api.models import delete, save, update
 from orchestrator.db import ProductBlockTable, ResourceTypeTable, db
 from orchestrator.schemas import ResourceTypeBaseSchema, ResourceTypeSchema
 from orchestrator.services.resource_types import get_resource_types
+from orchestrator.utils.deprecation_logger import deprecated_endpoint
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ResourceTypeSchema])
+@router.get(
+    "/",
+    response_model=list[ResourceTypeSchema],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def fetch() -> list[ResourceTypeTable]:
     return get_resource_types()
 
 
-@router.get("/{resource_type_id}", response_model=ResourceTypeSchema)
+@router.get(
+    "/{resource_type_id}",
+    response_model=ResourceTypeSchema,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
     resource_type_stmt = select(ResourceTypeTable).filter_by(resource_type_id=resource_type_id)
     resource_type = db.session.scalars(resource_type_stmt).first()
@@ -41,13 +54,27 @@ def resource_type_by_id(resource_type_id: UUID) -> ResourceTypeTable:
     return resource_type
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def save_resource_type(data: ResourceTypeBaseSchema = Body(...)) -> None:
+@router.post(
+    "/",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
+def save_resource_type(data: ResourceTypeBaseSchema = Body(...)) -> None:  # type: ignore
     return save(ResourceTypeTable, data)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def update_resource_type(data: ResourceTypeSchema = Body(...)) -> None:
+@router.put(
+    "/",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
+def update_resource_type(data: ResourceTypeSchema = Body(...)) -> None:  # type: ignore
     return update(ResourceTypeTable, data)
 
 

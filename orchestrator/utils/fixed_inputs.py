@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2024 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,13 +16,15 @@ from typing import Any
 
 from more_itertools import first_true, one
 from sqlalchemy.exc import NoResultFound
+from structlog import get_logger
 
-from orchestrator.api.api_v1.endpoints.fixed_input import logger
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.services import products
 
+logger = get_logger(__name__)
 
-def fi_configuration() -> dict[str, Any]:  # noqa: C901
+
+def fixed_input_configuration() -> dict[str, Any]:  # noqa: C901
     product_tags = products.get_tags()
 
     data: dict = {"fixed_inputs": [], "by_tag": {}}

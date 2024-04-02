@@ -34,6 +34,12 @@ from orchestrator.api.api_v1.endpoints import (
 from orchestrator.security import opa_security_default
 
 api_router = APIRouter()
+api_router.include_router(
+    fixed_input.router,
+    prefix="/fixed_inputs",
+    tags=["Core", "Fixed Inputs"],
+    dependencies=[Depends(opa_security_default)],
+)
 
 api_router.include_router(
     processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(opa_security_default)]

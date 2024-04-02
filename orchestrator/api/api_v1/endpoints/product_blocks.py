@@ -15,6 +15,7 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi.param_functions import Body
+from fastapi.params import Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -24,17 +25,30 @@ from orchestrator.api.models import delete, save, update
 from orchestrator.db import ProductBlockTable, ProductTable, db
 from orchestrator.schemas import ProductBlockBaseSchema
 from orchestrator.schemas import ProductBlockEnrichedSchema as ProductBlockSchema
+from orchestrator.utils.deprecation_logger import deprecated_endpoint
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ProductBlockSchema])
+@router.get(
+    "/",
+    response_model=list[ProductBlockSchema],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def fetch() -> list[ProductBlockTable]:
     stmt = select(ProductBlockTable).options(joinedload(ProductBlockTable.resource_types))
     return list(db.session.scalars(stmt).unique())
 
 
-@router.get("/{product_block_id}", response_model=ProductBlockSchema)
+@router.get(
+    "/{product_block_id}",
+    response_model=ProductBlockSchema,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
     product_block_stmt = (
         select(ProductBlockTable)
@@ -47,17 +61,38 @@ def product_block_by_id(product_block_id: UUID) -> ProductBlockTable:
     return product_block
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.post(
+    "/",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def save_product_block(data: ProductBlockBaseSchema = Body(...)) -> None:
     return save(ProductBlockTable, data)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.put(
+    "/",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def update_product_block(data: ProductBlockBaseSchema = Body(...)) -> None:
     return update(ProductBlockTable, data)
 
 
-@router.delete("/{product_block_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete(
+    "/{product_block_id}",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def delete_product_block(product_block_id: UUID) -> None:
     products_stmt = select(ProductTable).filter(
         ProductTable.product_blocks.any(ProductBlockTable.product_block_id == product_block_id)
