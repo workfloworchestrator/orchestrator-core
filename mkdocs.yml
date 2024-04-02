@@ -131,7 +131,7 @@ nav:
     - Tasks:  reference-docs/tasks.md
     - Tests: reference-docs/tests.md
     - Workflows:
-      - Workflow States:  reference-docs/workflows/workflow-states.md
+      - Workflow Steps:  reference-docs/workflows/workflow-steps.md
       - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
       - Callbacks: reference-docs/workflows/callbacks.md
     - Websockets: reference-docs/websockets.md
