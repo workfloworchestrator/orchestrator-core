@@ -116,7 +116,6 @@ nav:
         - Product Types: reference-docs/domain_models/product_types.md
         - Product Blocks: reference-docs/domain_models/product_blocks.md
         - Resource Types: reference-docs/domain_models/resource_types.md
-        - Fixed Inputs: reference-docs/domain_models/fixed_inputs.md
       - Helpers:
         - Generator: reference-docs/domain_models/generator.md
       - Advanced Featuers:

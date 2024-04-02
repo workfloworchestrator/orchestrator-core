@@ -12,7 +12,7 @@ A Product type (often referred to simply as a product) is the top level object o
     Notice how type hints are used on these classes, as the orchestrator uses these types for pydantic validations and for type safety when serializing data into and out of the database.
 
 !!! abstract inline end "Fixed Inputs"
-    When a hard coded value is stored on product model, like `Node_Type` is here, it is called a Fixed Input. Read more about Fixed Inputs [here](fixed_inputs.md)
+    When a hard coded value is stored on product model, like `Node_Type` is here, it is called a Fixed Input. Read more about Fixed Inputs [here](resource_types.md#fixed-inputs)
 
 Breaking this product down a bit more, we see 3 classes, `NodeInactive`, `NodeProvisioning`, and finally `Node`. These three classes are built off of each-other, with the lowest level class (`NodeInactive`) based off of the `SubscriptionModel` base class. Each class has two simple attributes, one is the Fixed Input of `Node_Type`, and the other is the root product block `node`. Each one of these classes represents the `Node` product in its various lifecycle states, which are defined here in the `SubscriptionLifecycle` enum:
 
