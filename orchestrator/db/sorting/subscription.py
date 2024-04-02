@@ -32,5 +32,6 @@ SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN = (
     SUBSCRIPTION_PRODUCT_SORT | subscription_table_sort | {"tag": SUBSCRIPTION_PRODUCT_SORT["productTag"]}
 )
 
+# TODO: Fix sorting on customer fields
 subscription_sort_fields = list(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN.keys())
 sort_subscriptions = generic_sort(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN)

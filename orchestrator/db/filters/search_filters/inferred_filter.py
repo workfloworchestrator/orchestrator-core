@@ -12,13 +12,34 @@
 # limitations under the License.
 import uuid
 from datetime import datetime
+from typing import Callable, Any
 
+import pytz
 import sqlalchemy
+from dateutil.parser import parse
 from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, String, cast
 from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.sql.operators import eq
 
 from orchestrator.utils.search_query import Node, WhereCondGenerator
+
+
+def convert_to_datetime(value: str) -> datetime:
+    """Parse iso 8601 date from string to datetime.
+
+    Example date: "2022-07-21T03:40:48+00:00"
+    """
+    try:
+        return parse(value).replace(tzinfo=pytz.UTC)
+    except ValueError:
+        raise ValueError(f"{value} is not a valid date")
+
+
+def convert_to_int(value: str) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"{value} is not a valid integer")
 
 
 def _phrase_to_ilike_str(phrase_node: Node) -> str:
@@ -29,12 +50,12 @@ def _phrase_to_ilike_str(phrase_node: Node) -> str:
     return " ".join(to_str(w) for w in phrase_node[1])
 
 
-def _coalesce_if_nullable(field: ColumnElement) -> ColumnElement:
+def _coalesce_if_nullable(field: ColumnElement, default_value: Any = "") -> ColumnElement:
     if isinstance(field, Cast):
         is_nullable = field.wrapped_column_expression.nullable
     else:
         is_nullable = getattr(field, "nullable", False)
-    return coalesce(field, "") if is_nullable else field
+    return coalesce(field, default_value) if is_nullable else field
 
 
 def _filter_string(field: ColumnElement) -> WhereCondGenerator:
@@ -53,6 +74,29 @@ def _filter_string(field: ColumnElement) -> WhereCondGenerator:
 
 def _filter_as_string(field: ColumnClause) -> WhereCondGenerator:
     return _filter_string(cast(field, String))
+
+
+RANGE_TYPES = {
+    ">": ColumnClause.__gt__,
+    ">=": ColumnClause.__ge__,
+    "<": ColumnClause.__lt__,
+    "<=": ColumnClause.__le__,
+    "!": ColumnClause.__ne__,
+}
+
+
+def _filter_comparable(field: ColumnClause, value_converter: Callable[[str], Any]) -> WhereCondGenerator:
+    _default_clause = _filter_as_string(field)
+
+    def _clause_gen(node: Node) -> ColumnElement[bool]:
+        v = node_to_str_val(node)
+        range_comparison_op = next((op for op in [">=", "<=", ">", "<"] if v.startswith(op)), "")
+        if range_comparison_op:
+            op = RANGE_TYPES.get(range_comparison_op)
+            return op(field, value_converter(v[len(range_comparison_op) :]))  # type:ignore
+        return _default_clause(node)
+
+    return _clause_gen
 
 
 def _value_as_bool(v: str) -> bool | None:
@@ -86,14 +130,16 @@ def inferred_filter(field: ColumnClause) -> WhereCondGenerator:
     if python_type == bool:
         return _filter_bool(field)
     if python_type == datetime:
-        return _filter_as_string(field)
+        return _filter_comparable(field, convert_to_datetime)
+    if python_type == int:
+        return _filter_comparable(field, convert_to_int)
 
     raise Exception(f"Unsupported column type for generic filter: {field}")
 
 
-def node_to_str_val(node: Node) -> str:
+def node_to_str_val(node: Node, *, sep: str = " ") -> str:
     if node[0] in ["Phrase", "ValueGroup"]:
-        return " ".join(w[1] for w in node[1])
+        return sep.join(w[1] for w in node[1])
     return node[1]
 
 

@@ -100,7 +100,9 @@ def _filter_to_node(filter_item: Filter) -> Node:
         updated_filter_item = Filter(field=filter_item.field, value=value[1:])
         return "Negation", _filter_to_node(updated_filter_item)
 
-    values = _re_split.split(filter_item.value)
+    # Workaround to deal with date fields. These should not be split like other fields.
+    # Fix after deprecating '-' as split-separator in favor of '|'
+    values = _re_split.split(filter_item.value) if not "date" in filter_item.field.lower() else [filter_item.value]
     key_node = "Word", filter_item.field
     value_node: Node
     if len(values) > 1:
