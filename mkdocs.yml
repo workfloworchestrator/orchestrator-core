@@ -23,7 +23,6 @@ theme:
   features:
   - search.suggest
   - search.highlight
-  - navigation.sections
   - navigation.tabs
   - navigation.tabs.sticky
   - navigation.tracking
@@ -102,31 +101,38 @@ nav:
     - Preparing source folder: getting-started/prepare-source-folder.md
   - Reference Documentation:
     - TL;DR: reference-docs/tldr.md
-    - API: reference-docs/api.md
+    - API:
+      - Rest API: reference-docs/api.md
+      - GraphQL: reference-docs/graphql.md
     - App.py : reference-docs/app/app.md
     - Auth(n|z): reference-docs/auth.md
     - CLI Tools: reference-docs/cli.md
-    - Database: reference-docs/database.md
+    - Database and Serialization:
+      - Database: reference-docs/database.md
+      - Serialization: reference-docs/serialization.md
     - Domain Models:
       - Overview: reference-docs/domain_models/overview.md
-      - Product Types: reference-docs/domain_models/product_types.md
-      - Product Blocks: reference-docs/domain_models/product_blocks.md
-      - Resource Types: reference-docs/domain_models/resource_types.md
-      - Fixed Inputs: reference-docs/domain_models/fixed_inputs.md
-      - Product model generator: reference-docs/domain_models/generator.md
+      - Domain model Types:
+        - Product Types: reference-docs/domain_models/product_types.md
+        - Product Blocks: reference-docs/domain_models/product_blocks.md
+        - Resource Types: reference-docs/domain_models/resource_types.md
+        - Fixed Inputs: reference-docs/domain_models/fixed_inputs.md
+      - Helpers:
+        - Generator: reference-docs/domain_models/generator.md
+      - Advanced Featuers:
+        - Properties: reference-docs/domain_models/properties.md
+        - Union Types: reference-docs/domain_models/union_types.md
+        - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
       - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
       - Validation: reference-docs/domain_models/validation.md
-      - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
-      - Properties: reference-docs/domain_models/properties.md
       - Type-casting and serialisation: reference-docs/domain_models/type_casting.md
-      - Union Types: reference-docs/domain_models/union_types.md
-    - Forms: reference-docs/forms.md
-    - GraphQL: reference-docs/graphql.md
-    - Pydantic Forms: reference-docs/pydantic-forms.md
-    - Python Version: reference-docs/python.md
-    - Runtimes: reference-docs/app/runtimes.md
-    - Scaling: reference-docs/scaling.md
-    - Serialization: reference-docs/serialization.md
+    - Forms:
+      - Examples: reference-docs/forms.md
+      - Pydantic Forms: reference-docs/pydantic-forms.md
+    - Running the App:
+      - Python Version: reference-docs/python.md
+      - Runtimes: reference-docs/app/runtimes.md
+      - Scaling: reference-docs/scaling.md
     - Subscriptions: reference-docs/subscriptions.md
     - Tasks:  reference-docs/tasks.md
     - Tests: reference-docs/tests.md
