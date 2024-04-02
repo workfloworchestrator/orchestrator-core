@@ -65,6 +65,7 @@ from orchestrator.services.processes import (
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON, State
+from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
@@ -230,7 +231,11 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
 
 
 @router.get(
-    "/process-subscriptions-by-subscription-id/{subscription_id}", response_model=list[ProcessSubscriptionSchema]
+    "/process-subscriptions-by-subscription-id/{subscription_id}",
+    response_model=list[ProcessSubscriptionSchema],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
 )
 def process_subscriptions_by_subscription_id(subscription_id: UUID) -> list[ProcessSubscriptionSchema]:
     stmt = (
@@ -243,12 +248,24 @@ def process_subscriptions_by_subscription_id(subscription_id: UUID) -> list[Proc
     return list(db.session.scalars(stmt))
 
 
-@router.get("/process-subscriptions-by-process_id/{process_id}", response_model=list[ProcessSubscriptionBaseSchema])
+@router.get(
+    "/process-subscriptions-by-process_id/{process_id}",
+    response_model=list[ProcessSubscriptionBaseSchema],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def process_subscriptions_by_process_process_id(process_id: UUID) -> list[ProcessSubscriptionTable]:
     return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=process_id)))
 
 
-@router.get("/statuses", response_model=list[ProcessStatus])
+@router.get(
+    "/statuses",
+    response_model=list[ProcessStatus],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def statuses() -> list[str]:
     return [status.value for status in ProcessStatus]
 
@@ -269,7 +286,13 @@ def status_counts() -> ProcessStatusCounts:
     )
 
 
-@router.get("/assignees", response_model=list[Assignee])
+@router.get(
+    "/assignees",
+    response_model=list[Assignee],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def assignees() -> list[str]:
     return [assignee.value for assignee in Assignee]
 

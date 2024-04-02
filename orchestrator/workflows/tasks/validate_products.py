@@ -20,7 +20,6 @@ from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
 import orchestrator.workflows
-from orchestrator.utils.fixed_inputs import fi_configuration
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services import products
@@ -30,6 +29,7 @@ from orchestrator.services.workflows import get_workflow_by_name, get_workflows
 from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.utils.errors import ProcessFailureError
+from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflow import StepList, done, init, step, workflow
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
