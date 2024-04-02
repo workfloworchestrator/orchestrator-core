@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2020 SURF, ESnet
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -213,7 +213,8 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
 def inject_args(func: StepFunc) -> Callable[[State], State]:
     """Allow functions to specify values from the state dict as parameters named after the state keys.
 
-    .. note:: domain models are subject to special processing (see: :ref:`domain models processing
+    !!! note
+        Domain models are subject to special processing (see: :ref:`domain models processing
         <domain-models-processing>`)
 
     What this decorator does is better explained with an example than lots of text. So normally we do this::

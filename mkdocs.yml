@@ -198,3 +198,4 @@ nav:
   - Migration guide: migration-guide/2.0.md
 watch:
   - includes
+  - orchestrator
