@@ -20,7 +20,7 @@ from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
 import orchestrator.workflows
-from orchestrator.api.api_v1.endpoints.fixed_input import fi_configuration
+from orchestrator.utils.fixed_inputs import fi_configuration
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services import products
