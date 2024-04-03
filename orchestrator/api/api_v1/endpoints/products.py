@@ -14,7 +14,7 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.param_functions import Body
+from fastapi.params import Body, Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
@@ -25,11 +25,15 @@ from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable, 
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas import ProductCRUDSchema, ProductSchema
 from orchestrator.services.products import get_tags, get_types
+from orchestrator.utils.deprecation_logger import deprecated_endpoint
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ProductSchema])
+@router.get(
+    "/",
+    response_model=list[ProductSchema],
+)
 def fetch(tag: str | None = None, product_type: str | None = None) -> list[ProductSchema]:
     stmt = select(ProductTable).options(
         selectinload(ProductTable.workflows),
@@ -44,7 +48,10 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
     return list(db.session.scalars(stmt))
 
 
-@router.get("/{product_id}", response_model=ProductSchema)
+@router.get(
+    "/{product_id}",
+    response_model=ProductSchema,
+)
 def product_by_id(product_id: UUID) -> ProductTable:
     stmt = (
         select(ProductTable)
@@ -61,17 +68,35 @@ def product_by_id(product_id: UUID) -> ProductTable:
     return product
 
 
-@router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def save_product(data: ProductCRUDSchema = Body(...)) -> None:
+@router.post(
+    "/",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
+def save_product(data: ProductCRUDSchema = Body(...)) -> None:  # type: ignore
     return save(ProductTable, data)
 
 
-@router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def update_product(data: ProductCRUDSchema = Body(...)) -> None:
+@router.put(
+    "/",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+)
+def update_product(data: ProductCRUDSchema = Body(...)) -> None:  # type: ignore
     return update(ProductTable, data)
 
 
-@router.delete("/{product_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
+@router.delete(
+    "/{product_id}",
+    response_model=None,
+    status_code=HTTPStatus.NO_CONTENT,
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def delete_product(product_id: UUID) -> None:
     subscriptions_stmt = select(SubscriptionTable).filter(SubscriptionTable.product_id == product_id)
     subscriptions = db.session.scalars(subscriptions_stmt).all()
@@ -81,16 +106,34 @@ def delete_product(product_id: UUID) -> None:
     return delete(ProductTable, product_id)
 
 
-@router.get("/tags/all", response_model=list[str])
+@router.get(
+    "/tags/all",
+    response_model=list[str],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def tags() -> list[str]:
     return get_tags()
 
 
-@router.get("/types/all", response_model=list[str])
+@router.get(
+    "/types/all",
+    response_model=list[str],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def types() -> list[str]:
     return get_types()
 
 
-@router.get("/statuses/all", response_model=list[ProductLifecycle])
+@router.get(
+    "/statuses/all",
+    response_model=list[ProductLifecycle],
+    deprecated=True,
+    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
+    dependencies=[Depends(deprecated_endpoint)],
+)
 def statuses() -> list[ProductLifecycle]:
     return ProductLifecycle.values()

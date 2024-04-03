@@ -127,10 +127,6 @@ PROCESS_FILTER_FUNCTIONS_BY_COLUMN: dict[str, Callable[[QueryType, str], QueryTy
         "workflow_name": workflow_name_filter,
         "workflowName": workflow_name_filter,
         "customer": customer_filter,
-        "istask": generic_bool_filter(ProcessTable.is_task),  # TODO: will be removed in 1.4
-        "status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
-        "last_status": generic_values_in_column_filter(ProcessTable.last_status),  # TODO: will be removed in 1.4
-        "creator": generic_is_like_filter(ProcessTable.created_by),  # TODO: will be removed in 1.4
     }
 )
 
