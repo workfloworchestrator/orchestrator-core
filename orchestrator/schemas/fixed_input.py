@@ -39,8 +39,3 @@ class FixedInputConfigurationItemSchema(OrchestratorBaseModel):
     name: str
     description: str
     values: list[str]
-
-
-class FixedInputConfigurationSchema(OrchestratorBaseModel):
-    fixed_inputs: list[FixedInputConfigurationItemSchema]
-    by_tag: TagConfig
