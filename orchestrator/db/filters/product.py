@@ -2,9 +2,8 @@ import structlog
 from sqlalchemy import BinaryExpression
 
 from orchestrator.db import ProductBlockTable, ProductTable
-from orchestrator.db.filters.filters import generic_filter_from_clauses
-from orchestrator.db.filters.search_filters import default_inferred_column_clauses, node_to_str_val
-from orchestrator.db.filters.search_filters.inferred_filter import filter_exact
+from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses, filter_exact, node_to_str_val
 from orchestrator.utils.search_query import Node
 
 logger = structlog.get_logger(__name__)

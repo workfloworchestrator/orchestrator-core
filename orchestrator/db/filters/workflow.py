@@ -2,9 +2,8 @@ import structlog
 from sqlalchemy import BinaryExpression, select
 
 from orchestrator.db import ProductTable, WorkflowTable
-from orchestrator.db.filters.filters import generic_filter_from_clauses
-from orchestrator.db.filters.search_filters import default_inferred_column_clauses, inferred_filter
-from orchestrator.db.filters.search_filters.inferred_filter import filter_exact
+from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters.search_filters import default_inferred_column_clauses, filter_exact, inferred_filter
 from orchestrator.utils.search_query import Node, WhereCondGenerator
 
 logger = structlog.get_logger(__name__)

@@ -17,9 +17,13 @@ import structlog
 from sqlalchemy import BinaryExpression, ColumnElement, false, select
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
-from orchestrator.db.filters.filters import generic_filter_from_clauses
-from orchestrator.db.filters.search_filters import default_inferred_column_clauses, inferred_filter
-from orchestrator.db.filters.search_filters.inferred_filter import filter_exact, node_to_str_val
+from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters.search_filters import (
+    default_inferred_column_clauses,
+    filter_exact,
+    inferred_filter,
+    node_to_str_val,
+)
 from orchestrator.utils.search_query import Node, WhereCondGenerator
 
 logger = structlog.get_logger(__name__)
