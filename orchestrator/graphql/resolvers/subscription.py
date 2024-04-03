@@ -113,7 +113,6 @@ async def resolve_subscriptions(
         else:
             graphql_subscriptions = [format_base_subscription(p) for p in subscriptions]
     logger.info("Resolve subscriptions", filter_by=filter_by, total=graphql_subscriptions)
-    # TODO: Fix sorting on customer fields. subscription_sort_fields must use extended fields from customer_override
 
     return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()
