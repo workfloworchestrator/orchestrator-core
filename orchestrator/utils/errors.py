@@ -16,7 +16,6 @@ from http import HTTPStatus
 from typing import Any, cast
 
 import structlog
-from deprecated import deprecated
 
 from nwastdlib.ex import show_ex
 from orchestrator.types import JSON, ErrorDict
@@ -71,21 +70,7 @@ class ProcessFailureError(Exception):
         self.details = details
 
 
-@deprecated(
-    "Renamed the error 'ProcessFailure', `from orchestrator.errors import ProcessFailureError` removing in version 1.3.0"
-)
-class ProcessFailure(ProcessFailureError):  # noqa: N818
-    pass
-
-
 class InconsistentDataError(ProcessFailureError):
-    pass
-
-
-@deprecated(
-    "Renamed the error 'InconsistentDataError', `from orchestrator.errors import InconsistentDataError` removing in version 1.3.0"
-)
-class InconsistentData(InconsistentDataError):  # noqa: N818
     pass
 
 

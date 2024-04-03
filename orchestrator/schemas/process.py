@@ -54,8 +54,6 @@ class ProcessStepSchema(OrchestratorBaseModel):
     state: dict[str, Any] | None = None
     state_delta: dict[str, Any] | None = None
 
-    stepid: UUID | None = None  # TODO: will be removed in 1.4
-
 
 class ProcessSchema(ProcessBaseSchema):
     product_id: UUID | None = None
@@ -67,18 +65,6 @@ class ProcessSchema(ProcessBaseSchema):
     form: dict[str, Any] | None = None
 
 
-class ProcessDeprecationsSchema(ProcessSchema):
-    id: UUID | None = None  # TODO: will be removed in 1.4
-    pid: UUID | None = None  # TODO: will be removed in 1.4
-    workflow: str | None = None  # TODO: will be removed in 1.4
-    status: ProcessStatus | None = None  # TODO: will be removed in 1.4
-    step: str | None = None  # TODO: will be removed in 1.4
-    started: datetime | None = None  # TODO: will be removed in 1.4
-    last_modified: datetime | None = None  # TODO: will be removed in 1.4
-    product: UUID | None = None  # TODO: will be removed in 1.4
-    customer: str | None = None  # TODO: will be removed in 1.4
-
-
 class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     id: UUID
     process_id: UUID
@@ -86,7 +72,6 @@ class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
     workflow_target: Target | None = None
     created_at: datetime
 
-    pid: UUID  # TODO: will be removed in 1.4
     model_config = ConfigDict(from_attributes=True)
 
 
