@@ -7,7 +7,7 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.filters.workflow import WORKFLOW_TABLE_COLUMN_CLAUSES, filter_workflows, workflow_filter_fields
 from orchestrator.db.models import WorkflowTable
 from orchestrator.db.range.range import apply_range_to_statement
-from orchestrator.db.sorting.sorting import Sort
+from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.workflow import sort_workflows, workflow_sort_fields
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
@@ -56,4 +56,6 @@ async def resolve_workflows(
     if is_querying_page_data(info):
         workflows = rows_from_statement(stmt, WorkflowTable, unique=True)
         graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
-    return to_graphql_result_page(graphql_workflows, first, after, total, workflow_sort_fields, workflow_filter_fields)
+    return to_graphql_result_page(
+        graphql_workflows, first, after, total, workflow_sort_fields(), workflow_filter_fields()
+    )

@@ -12,6 +12,7 @@
 # limitations under the License.
 import re
 from collections.abc import Callable, Iterable
+from functools import cache
 from typing import Any, Protocol
 
 from more_itertools import partition
@@ -119,3 +120,17 @@ def generic_filter_from_clauses(
             return query.where(false())
 
     return _filter
+
+
+def create_memoized_field_list(column_mappings: dict[str, Any]) -> Callable[[], list[str]]:
+    """Used to evaluate the list of keys for filtering/sorting once on first invocation.
+
+    This is necessary to get the fully initialized list values, which can be updated during module importing.
+    It works because Python closures are late-binding.
+    """
+
+    @cache
+    def _filter_fields() -> list[str]:
+        return sorted(column_mappings.keys())
+
+    return _filter_fields

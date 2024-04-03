@@ -51,12 +51,12 @@ query PageInfoSortAndFilterQuery {{
 @pytest.mark.parametrize(
     "type_name, sort_fields, filter_fields",
     [
-        ("processes", process_sort_fields, process_filter_fields),
-        ("subscriptions", subscription_sort_fields(), subscription_filter_fields),
-        ("products", product_sort_fields, product_filter_fields),
-        ("productBlocks", product_block_sort_fields, product_block_filter_fields),
-        ("workflows", workflow_sort_fields, workflow_filter_fields),
-        ("resourceTypes", resource_type_sort_fields, resource_type_filter_fields),
+        ("processes", process_sort_fields(), process_filter_fields()),
+        ("subscriptions", subscription_sort_fields(), subscription_filter_fields()),
+        ("products", product_sort_fields(), product_filter_fields()),
+        ("productBlocks", product_block_sort_fields(), product_block_filter_fields()),
+        ("workflows", workflow_sort_fields(), workflow_filter_fields()),
+        ("resourceTypes", resource_type_sort_fields(), resource_type_filter_fields()),
     ],
 )
 def test_process_sort_and_filter_fields_in_page_info(test_client, type_name, sort_fields, filter_fields):

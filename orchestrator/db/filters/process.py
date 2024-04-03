@@ -17,7 +17,7 @@ import structlog
 from sqlalchemy import BinaryExpression, ColumnElement, false, select
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
-from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters import create_memoized_field_list, generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import (
     default_inferred_column_clauses,
     filter_exact,
@@ -107,5 +107,5 @@ PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable) | {
 }
 
 
-process_filter_fields = list(PROCESS_TABLE_COLUMN_CLAUSES.keys())
+process_filter_fields = create_memoized_field_list(PROCESS_TABLE_COLUMN_CLAUSES)
 filter_processes = generic_filter_from_clauses(PROCESS_TABLE_COLUMN_CLAUSES)

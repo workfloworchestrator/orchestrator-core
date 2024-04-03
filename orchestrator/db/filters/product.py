@@ -2,7 +2,7 @@ import structlog
 from sqlalchemy import BinaryExpression
 
 from orchestrator.db import ProductBlockTable, ProductTable
-from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters import create_memoized_field_list, generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import default_inferred_column_clauses, filter_exact, node_to_str_val
 from orchestrator.utils.search_query import Node
 
@@ -18,5 +18,5 @@ PRODUCT_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProductTable) | {
     "tag": filter_exact(ProductTable.tag),
 }
 
-product_filter_fields = list(PRODUCT_TABLE_COLUMN_CLAUSES.keys())
+product_filter_fields = create_memoized_field_list(PRODUCT_TABLE_COLUMN_CLAUSES)
 filter_products = generic_filter_from_clauses(PRODUCT_TABLE_COLUMN_CLAUSES)

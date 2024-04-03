@@ -2,7 +2,7 @@ import structlog
 from sqlalchemy import BinaryExpression, select
 
 from orchestrator.db import ProductTable, WorkflowTable
-from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters import create_memoized_field_list, generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import default_inferred_column_clauses, filter_exact, inferred_filter
 from orchestrator.utils.search_query import Node, WhereCondGenerator
 
@@ -25,5 +25,5 @@ WORKFLOW_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(WorkflowTable) |
 }
 
 
-workflow_filter_fields = list(WORKFLOW_TABLE_COLUMN_CLAUSES.keys())
+workflow_filter_fields = create_memoized_field_list(WORKFLOW_TABLE_COLUMN_CLAUSES)
 filter_workflows = generic_filter_from_clauses(WORKFLOW_TABLE_COLUMN_CLAUSES)

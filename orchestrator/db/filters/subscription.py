@@ -14,7 +14,7 @@ import structlog
 
 from orchestrator.api.helpers import add_subscription_search_query_filter
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.filters import generic_filter_from_clauses
+from orchestrator.db.filters import create_memoized_field_list, generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import default_inferred_column_clauses, inferred_filter
 from orchestrator.db.filters.search_filters.inferred_filter import filter_exact
 
@@ -26,7 +26,7 @@ SUBSCRIPTION_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(Subscription
     "tag": filter_exact(ProductTable.tag),
 }
 
-subscription_filter_fields = list(SUBSCRIPTION_TABLE_COLUMN_CLAUSES.keys())
+subscription_filter_fields = create_memoized_field_list(SUBSCRIPTION_TABLE_COLUMN_CLAUSES)
 filter_subscriptions = generic_filter_from_clauses(SUBSCRIPTION_TABLE_COLUMN_CLAUSES)
 
 filter_by_query_string = add_subscription_search_query_filter

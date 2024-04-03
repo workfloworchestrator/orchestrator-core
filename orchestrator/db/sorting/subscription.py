@@ -5,7 +5,8 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.sorting.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
+from orchestrator.db.filters import create_memoized_field_list
+from orchestrator.db.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
 
@@ -33,8 +34,5 @@ SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN = (
 )
 
 
-def subscription_sort_fields() -> list[str]:
-    return list(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN.keys())
-
-
+subscription_sort_fields = create_memoized_field_list(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN)
 sort_subscriptions = generic_sort(SUBSCRIPTION_SORT_FUNCTIONS_BY_COLUMN)

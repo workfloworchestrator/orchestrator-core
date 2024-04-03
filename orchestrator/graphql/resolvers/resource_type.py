@@ -10,8 +10,8 @@ from orchestrator.db.filters.resource_type import (
 )
 from orchestrator.db.models import ResourceTypeTable
 from orchestrator.db.range import apply_range_to_statement
+from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.resource_type import resource_type_sort_fields, sort_resource_types
-from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.resource_type import ResourceType
@@ -60,5 +60,5 @@ async def resolve_resource_types(
         resource_types = rows_from_statement(stmt, ResourceTypeTable)
         graphql_resource_types = [ResourceType.from_pydantic(p) for p in resource_types]
     return to_graphql_result_page(
-        graphql_resource_types, first, after, total, resource_type_sort_fields, resource_type_filter_fields
+        graphql_resource_types, first, after, total, resource_type_sort_fields(), resource_type_filter_fields()
     )

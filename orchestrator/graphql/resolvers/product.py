@@ -6,8 +6,8 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.filters.product import PRODUCT_TABLE_COLUMN_CLAUSES, filter_products, product_filter_fields
 from orchestrator.db.models import ProductTable
 from orchestrator.db.range.range import apply_range_to_statement
+from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.product import product_sort_fields, sort_products
-from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.product import ProductType
@@ -54,4 +54,4 @@ async def resolve_products(
     if is_querying_page_data(info):
         products = rows_from_statement(stmt, ProductTable, unique=True)
         graphql_products = [ProductType.from_pydantic(p) for p in products]
-    return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields, product_filter_fields)
+    return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields, product_filter_fields())
