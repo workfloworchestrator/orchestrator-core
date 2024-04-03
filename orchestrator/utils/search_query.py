@@ -401,8 +401,8 @@ class SQLAlchemyVisitor:
         return stmt.where(or_expr if not is_negated else not_(or_expr))
 
     def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
-        if not self.join_key:
-            logger.error("Group statements not supported without a join key")
+        if self.join_key is None or self.base_table is None:
+            logger.error("Group statements not supported without a base_table and a join_key")
             return stmt
         subquery = self.visit_query(self.base_stmt, node).cte()
         if is_negated:
