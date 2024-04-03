@@ -917,6 +917,47 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
 
 
 @pytest.mark.parametrize(
+    "query_args,total_items",
+    [
+        (lambda ids: {}, 33),
+        (lambda ids: {"filter_by": [{"field": "subscriptionId", "value": f"{ids[0]}|{ids[1]}"}]}, 2),
+        (lambda ids: {"filter_by": [{"field": "subscriptionId", "value": "|".join(ids[3:8])}]}, 5),
+    ],
+)
+def test_multiple_subscriptions(
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args, total_items
+):
+    # given
+
+    _, GenericProductOne = generic_product_type_1
+    subscription_ids = product_type_1_subscriptions_factory(30)
+
+    do_refresh_subscriptions_search_view()
+
+    # when
+    data = get_subscriptions_query(first=100, **query_args(subscription_ids))
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert "errors" not in result
+    assert len(subscriptions) == total_items
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": total_items - 1,
+        "totalItems": total_items,
+    }
+
+
+@pytest.mark.parametrize(
     "query_args",
     [
         lambda sid: {"filter_by": [{"field": "subscriptionId", "value": sid}]},
