@@ -116,5 +116,5 @@ async def resolve_subscriptions(
     # TODO: Fix sorting on customer fields. subscription_sort_fields must use extended fields from customer_override
 
     return to_graphql_result_page(
-        graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields
+        graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()
     )

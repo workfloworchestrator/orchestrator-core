@@ -54,4 +54,4 @@ async def resolve_products(
     if is_querying_page_data(info):
         products = rows_from_statement(stmt, ProductTable, unique=True)
         graphql_products = [ProductType.from_pydantic(p) for p in products]
-    return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields, product_filter_fields())
+    return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields(), product_filter_fields())
