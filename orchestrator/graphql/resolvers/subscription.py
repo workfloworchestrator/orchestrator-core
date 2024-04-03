@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from typing import cast
+from uuid import UUID
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
@@ -71,6 +72,16 @@ def format_base_subscription(subscription: SubscriptionTable) -> SubscriptionInt
 
     strawberry_type = GRAPHQL_MODELS["subscription"]
     return strawberry_type.from_pydantic(subscription)
+
+
+async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
+    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
+
+    if subscription := db.session.scalar(stmt):
+        if _is_subscription_detailed(info):
+            return get_subscription_details(subscription)
+        return format_base_subscription(subscription)
+    return None
 
 
 async def resolve_subscriptions(
