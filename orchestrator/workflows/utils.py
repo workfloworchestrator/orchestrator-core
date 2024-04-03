@@ -16,7 +16,8 @@ from inspect import isgeneratorfunction
 from typing import cast
 from uuid import UUID
 
-from more_itertools import first_true
+import structlog
+from more_itertools import first, first_true
 from pydantic import field_validator
 from sqlalchemy import select
 
@@ -41,6 +42,8 @@ from orchestrator.workflows.steps import (
 )
 from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, StateInputStepFunc
+
+logger = structlog.get_logger()
 
 
 def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:
@@ -246,18 +249,30 @@ def modify_workflow(
     wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
+        steps_expanded = f()
+
         steplist = (
             init
             >> store_process_subscription(Target.MODIFY)
             >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
-            >> f()
+            >> steps_expanded
             >> (additional_steps or StepList())
             >> resync
             >> push_domain_models(cache_domain_models)
             >> refresh_subscription_search_index
             >> done
         )
+
+        if update_step := first((s for s in steps_expanded if getattr(s, "is_subscription_update", False)), None):
+            # TODO
+            #  1. Wrap the input form generator, store its return value; the initial state
+            #  2. Call update step function with initial state, store its return value; the modified subscription
+            #  3. Compare original and modified subscription, generate a delta
+            #  4. Yield a Form step displaying the generated delta
+            logger.warning("Found an update step", workflow=description, step_found=update_step)
+        else:
+            logger.warning("Did not find an update step", workflow=description)
 
         return make_workflow(f, description, wrapped_modify_initial_input_form_generator, Target.MODIFY, steplist)
 
