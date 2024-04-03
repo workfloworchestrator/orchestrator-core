@@ -52,7 +52,7 @@ query PageInfoSortAndFilterQuery {{
     "type_name, sort_fields, filter_fields",
     [
         ("processes", process_sort_fields, process_filter_fields),
-        ("subscriptions", subscription_sort_fields, subscription_filter_fields),
+        ("subscriptions", subscription_sort_fields(), subscription_filter_fields),
         ("products", product_sort_fields, product_filter_fields),
         ("productBlocks", product_block_sort_fields, product_block_filter_fields),
         ("workflows", workflow_sort_fields, workflow_filter_fields),
