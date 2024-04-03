@@ -402,23 +402,23 @@ def test_processes_filterable(test_client, mocked_processes, generic_subscriptio
     assert HTTPStatus.OK == response.status_code
     processes = response.json()
 
-    assert 9 == len(processes)
+    assert len(processes) == 9
     assert "workflow_for_testing_processes_py", processes[0]["workflow"]
 
     response = test_client.get("/api/processes?filter=lastStatus,completed")
-    assert 3 == len(response.json())
+    assert len(response.json()) == 3
     response = test_client.get("/api/processes?filter=lastStatus,suspended")
-    assert 2 == len(response.json())
+    assert len(response.json()) == 2
     response = test_client.get("/api/processes?filter=lastStatus,resumed")
-    assert 2 == len(response.json())
+    assert len(response.json()) == 2
 
     product_name = db.session.get(SubscriptionTable, generic_subscription_1).product.name
     response = test_client.get(f"/api/processes?filter=product,{product_name}")
-    assert 4 == len(response.json())
+    assert len(response.json()) == 4
     response = test_client.get("/api/processes?sort=assignee,asc")
     assert response.json()[0]["assignee"] == "NOC"
-    response = test_client.get("/api/processes?sort=startedAt&filter=isTask,y")
-    assert 4 == len(response.json())
+    response = test_client.get("/api/processes?sort=startedAt&filter=isTask,true")
+    assert len(response.json()) == 4
 
 
 def test_processes_filterable_response_model(
