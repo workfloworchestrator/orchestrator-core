@@ -2,16 +2,14 @@ from orchestrator.db.filters.filters import (
     CallableErrorHandler,
     Filter,
     QueryType,
-    generic_apply_filters,
-    generic_filter,
+    generic_filter_from_clauses,
     generic_filters_validate,
 )
 
 __all__ = [
     "Filter",
     "CallableErrorHandler",
-    "generic_filter",
-    "generic_apply_filters",
+    "generic_filter_from_clauses",
     "generic_filters_validate",
     "QueryType",
 ]

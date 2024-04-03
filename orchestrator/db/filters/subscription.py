@@ -14,18 +14,11 @@ import structlog
 
 from orchestrator.api.helpers import add_subscription_search_query_filter
 from orchestrator.db import ProductTable, SubscriptionTable
-from orchestrator.db.filters.filters import generic_filter_from_clauses
-from orchestrator.db.filters.generic_filters import (
-    generic_range_filters,
-)
+from orchestrator.db.filters import generic_filter_from_clauses
 from orchestrator.db.filters.search_filters import default_inferred_column_clauses, inferred_filter
 from orchestrator.db.filters.search_filters.inferred_filter import filter_exact
 
 logger = structlog.get_logger(__name__)
-
-
-start_date_range_filters = generic_range_filters(SubscriptionTable.start_date)
-end_date_range_filters = generic_range_filters(SubscriptionTable.end_date)
 
 
 SUBSCRIPTION_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(SubscriptionTable) | {

@@ -18,7 +18,6 @@ from more_itertools import partition
 from pydantic import BaseModel
 from sqlalchemy import Select, false
 
-from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 from orchestrator.utils.search_query import Node, SQLAlchemyVisitor, WhereCondGenerator
 
@@ -47,48 +46,6 @@ def generic_filters_validate(
         return partition(_is_valid_filter, filter_by)
 
     return _validate_filters
-
-
-def generic_apply_filters(
-    valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[QueryType, Iterable[Filter], CallableErrorHandler], QueryType]:
-    def _apply_filters(
-        query: QueryType, filter_by: Iterable[Filter], handle_filter_error: CallableErrorHandler
-    ) -> QueryType:
-        for item in filter_by:
-            filter_fn = valid_filter_functions_by_column[item.field]
-            try:
-                query = filter_fn(query, item.value)
-            except ProblemDetailException as exception:
-                handle_filter_error(exception.detail, field=item.field, value=item.value)
-            except ValueError as exception:
-                handle_filter_error(str(exception), field=item.field, value=item.value)
-        return query
-
-    return _apply_filters
-
-
-def generic_filter(
-    valid_filter_functions_by_column: ValidFilterFunctionsByColumnType,
-) -> Callable[[QueryType, list[Filter], CallableErrorHandler], QueryType]:
-    _validate_filters = generic_filters_validate(valid_filter_functions_by_column.keys())
-    _apply_filters = generic_apply_filters(valid_filter_functions_by_column)
-
-    def _filter(
-        query: QueryType,
-        filter_by: list[Filter],
-        handle_filter_error: CallableErrorHandler,
-    ) -> QueryType:
-        invalid_filter_items, valid_filter_items = _validate_filters(filter_by)
-        if invalid_list := [item.field for item in invalid_filter_items]:
-            valid_filter_keys = sorted(valid_filter_functions_by_column.keys())
-            handle_filter_error(
-                "Invalid filter arguments", invalid_filters=invalid_list, valid_filter_keys=valid_filter_keys
-            )
-
-        return _apply_filters(query, valid_filter_items, handle_filter_error)
-
-    return _filter
 
 
 _re_split = re.compile("[-|]")
