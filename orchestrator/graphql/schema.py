@@ -42,6 +42,7 @@ from orchestrator.graphql.resolvers import (
     resolve_subscriptions,
     resolve_workflows,
 )
+from orchestrator.graphql.resolvers.subscription import resolve_subscription
 from orchestrator.graphql.schemas import GRAPHQL_MODELS
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
@@ -76,6 +77,9 @@ class Query:
     )
     workflows: Connection[Workflow] = authenticated_field(
         resolver=resolve_workflows, description="Returns list of workflows"
+    )
+    subscription: SubscriptionInterface | None = authenticated_field(
+        resolver=resolve_subscription, description="Returns a single Subscription"
     )
     subscriptions: Connection[SubscriptionInterface] = authenticated_field(
         resolver=resolve_subscriptions, description="Returns list of subscriptions"
