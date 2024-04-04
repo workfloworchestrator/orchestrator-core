@@ -4,7 +4,7 @@ from sqlalchemy import Column, Select
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
 from orchestrator.db.filters import create_memoized_field_list
 from orchestrator.db.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
