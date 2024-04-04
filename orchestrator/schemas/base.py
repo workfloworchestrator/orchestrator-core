@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class OrchestratorBaseModel(BaseModel):
-    # TODO #429 json_encoders is deprecated and will be removed in Pydantic 3.x
+    # Unable to refactor in a neat way without using an ugly recursive function. Leaving Pydantic v1 functionality intact
     model_config = ConfigDict(
         json_encoders={
             datetime: lambda dt: dt.timestamp(),
