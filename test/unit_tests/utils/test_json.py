@@ -99,7 +99,7 @@ def test_orchestrator_base_serializer():
         bar: int
 
     foo = Foo(baz=datetime(2024, 12, 1, 1, 1), bar=1)
-    assert foo.model_dump(mode='json') == {"baz": datetime(2024, 12, 1, 1, 1).timestamp(), "bar": 1}
+    assert foo.model_dump(mode="json") == {"baz": datetime(2024, 12, 1, 1, 1).timestamp(), "bar": 1}
 
 
 def test_orchestrator_base_serializer_recursive():
@@ -112,7 +112,7 @@ def test_orchestrator_base_serializer_recursive():
         bing: int
 
     foo = Foo(baz=datetime(2024, 12, 1, 1, 1), nested_bar=Bar(baz=datetime(2024, 11, 1, 1, 1)), bing=1)
-    assert foo.model_dump(mode='json') == {
+    assert foo.model_dump(mode="json") == {
         "baz": datetime(2024, 12, 1, 1, 1).timestamp(),
         "nested_bar": {"baz": datetime(2024, 11, 1, 1, 1).timestamp()},
         "bing": 1,
