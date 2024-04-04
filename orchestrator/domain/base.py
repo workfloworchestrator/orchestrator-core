@@ -926,14 +926,12 @@ class ProductBlockModel(DomainModel):
 
     @property
     def in_use_by(self) -> list[SubscriptionInstanceTable]:
-        """This provides a list of product blocks that depend on this product block.
-        """
+        """This provides a list of product blocks that depend on this product block."""
         return self._db_model.in_use_by
 
     @property
     def depends_on(self) -> list[SubscriptionInstanceTable]:
-        """This provides a list of product blocks that this product block depends on.
-        """
+        """This provides a list of product blocks that this product block depends on."""
         return self._db_model.depends_on
 
 
