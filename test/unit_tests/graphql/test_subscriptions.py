@@ -922,6 +922,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         (lambda ids: {}, 33),
         (lambda ids: {"filter_by": [{"field": "subscriptionId", "value": f"{ids[0]}|{ids[1]}"}]}, 2),
         (lambda ids: {"filter_by": [{"field": "subscriptionId", "value": "|".join(ids[3:8])}]}, 5),
+        (lambda ids: {"query_string": f"subscriptionId:({ids[2]}|{ids[3]})"}, 2),
     ],
 )
 def test_multiple_subscriptions(
