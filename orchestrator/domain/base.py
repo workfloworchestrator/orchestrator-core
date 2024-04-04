@@ -858,7 +858,9 @@ class ProductBlockModel(DomainModel):
     ) -> tuple[list[SubscriptionInstanceTable], SubscriptionInstanceTable]:
         """Save the current model instance to the database.
 
-        This means saving the whole tree of subscription instances and separately saving all instance values for this instance.
+        This means saving the whole tree of subscription instances and separately saving all instance
+        values for this instance. This is called automatically when you return a subscription to the state
+        in a workflow step.
 
         Args:
             status: current SubscriptionLifecycle to check if all constraints match
@@ -924,10 +926,14 @@ class ProductBlockModel(DomainModel):
 
     @property
     def in_use_by(self) -> list[SubscriptionInstanceTable]:
+        """This provides a list of product blocks that depend on this product block.
+        """
         return self._db_model.in_use_by
 
     @property
     def depends_on(self) -> list[SubscriptionInstanceTable]:
+        """This provides a list of product blocks that this product block depends on.
+        """
         return self._db_model.depends_on
 
 

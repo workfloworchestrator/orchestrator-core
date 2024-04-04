@@ -112,10 +112,10 @@ nav:
       - Serialization: reference-docs/serialization.md
     - Domain Models:
       - Overview: reference-docs/domain_models/overview.md
-      - Domain model Types:
+      - Domain Model Types:
         - Product Types: reference-docs/domain_models/product_types.md
         - Product Blocks: reference-docs/domain_models/product_blocks.md
-        - Resource Types: reference-docs/domain_models/resource_types.md
+        - Model Attributes: reference-docs/domain_models/model_attributes.md
       - Helpers:
         - Generator: reference-docs/domain_models/generator.md
       - Advanced Featuers:
@@ -124,7 +124,7 @@ nav:
         - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
       - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
       - Validation: reference-docs/domain_models/validation.md
-      - Type-casting and serialisation: reference-docs/domain_models/type_casting.md
+      - Type Vasting and Serialisation: reference-docs/domain_models/type_casting.md
     - Forms:
       - Examples: reference-docs/forms.md
       - Pydantic Forms: reference-docs/pydantic-forms.md
