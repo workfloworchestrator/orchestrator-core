@@ -5,7 +5,8 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
-from orchestrator.db.sorting.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
+from orchestrator.db.filters import create_memoized_field_list
+from orchestrator.db.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
 
 PROCESS_CAMEL_SORT = {
@@ -45,5 +46,5 @@ PROCESS_SORT_FUNCTIONS_BY_COLUMN = (
         "subscriptions": generic_process_relation_sort(SubscriptionTable.description),
     }
 )
-process_sort_fields = list(PROCESS_SORT_FUNCTIONS_BY_COLUMN.keys())
+process_sort_fields = create_memoized_field_list(PROCESS_SORT_FUNCTIONS_BY_COLUMN)
 sort_processes = generic_sort(PROCESS_SORT_FUNCTIONS_BY_COLUMN)

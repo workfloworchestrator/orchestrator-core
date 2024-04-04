@@ -83,6 +83,6 @@ class ProcessType:
         if not subscription_ids:
             return EMPTY_PAGE
         filter_by_with_related_subscriptions = (filter_by or []) + [
-            GraphqlFilter(field="subscriptionIds", value=",".join(subscription_ids))
+            GraphqlFilter(field="subscriptionId", value="|".join(subscription_ids))
         ]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)

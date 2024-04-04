@@ -27,7 +27,10 @@ from orchestrator.db.filters.subscription import (
 )
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
-from orchestrator.db.sorting.subscription import sort_subscriptions, subscription_sort_fields
+from orchestrator.db.sorting.subscription import (
+    sort_subscriptions,
+    subscription_sort_fields,
+)
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
@@ -103,7 +106,6 @@ async def resolve_subscriptions(
         filter=pydantic_filter_by,
         query=query,
     )
-
     stmt = select(SubscriptionTable).join(ProductTable)
 
     stmt = filter_subscriptions(stmt, pydantic_filter_by, _error_handler)
@@ -121,6 +123,8 @@ async def resolve_subscriptions(
             graphql_subscriptions = [get_subscription_details(p) for p in subscriptions]
         else:
             graphql_subscriptions = [format_base_subscription(p) for p in subscriptions]
+    logger.info("Resolve subscriptions", filter_by=filter_by, total=graphql_subscriptions)
+
     return to_graphql_result_page(
-        graphql_subscriptions, first, after, total, subscription_sort_fields, subscription_filter_fields
+        graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()
     )

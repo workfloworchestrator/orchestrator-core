@@ -406,12 +406,12 @@ def test_processes_filtering_with_invalid_filter(
     assert errors == [
         {
             "message": (
-                "Invalid filter arguments (invalid_filters=['test'] valid_filter_keys=['assignee', 'createdBy', "
-                "'created_by', 'customer', 'failedReason', 'failed_reason', 'isTask', 'is_task', 'lastModifiedAt', "
-                "'lastStatus', 'lastStep', 'last_modified_at', 'last_status', 'last_step', 'processId', 'process_id', "
-                "'product', 'productTag', 'startedAt', 'started_at', 'subscriptionId', 'subscription_id', "
-                "'subscriptions', 'tag', 'target', 'traceback', 'workflowId', 'workflowName', 'workflow_id', "
-                "'workflow_name'])"
+                "Invalid filter arguments (invalid_filters=['test'] "
+                "valid_filter_keys=['assignee', 'createdBy', "
+                "'customer', 'failedReason', 'isTask', 'lastModifiedAt', 'lastStatus', "
+                "'lastStep', 'processId', 'product', 'productDescription', 'startedAt', "
+                "'subscriptionId', 'tag', 'target', 'traceback', 'workflowId', "
+                "'workflowName'])"
             ),
             "path": [None, "processes", "Query"],
             "extensions": {"error_type": "internal_error"},
@@ -432,10 +432,12 @@ def test_processes_filtering_with_invalid_filter(
 @pytest.mark.parametrize(
     "query_args,num_results",
     [
-        ({"query_string": "is_task:no", "first": 20}, 6),
-        ({"query_string": 'is_task:"yes"', "first": 20}, 13),
-        ({"query_string": "is_task:(y|n)", "first": 20}, 19),
+        ({"query_string": "isTask:no", "first": 20}, 0),
+        ({"filter_by": [{"field": "isTask", "value": "false"}], "first": 20}, 6),
+        ({"query_string": 'isTask:"true"', "first": 20}, 13),
+        ({"query_string": "isTask:(true|false)", "first": 20}, 19),
         ({"query_string": "nonsense"}, 0),
+        ({"filter_by": [{"field": "assignee", "value": ""}]}, 0),
         ({"query_string": None, "first": 100}, 19),
         ({"query_string": "one"}, 8),
         ({"query_string": "two"}, 7),

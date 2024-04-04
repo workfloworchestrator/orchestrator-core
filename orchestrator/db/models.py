@@ -542,7 +542,7 @@ class SubscriptionTable(BaseModel):
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     product = relationship("ProductTable")
-    customer_id = mapped_column(String, index=True)
+    customer_id = mapped_column(String, index=True, nullable=False)
     insync = mapped_column(Boolean())
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)

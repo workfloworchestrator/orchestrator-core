@@ -121,7 +121,7 @@ def test_resource_types_filter_by_resource_type(test_client, query_args):
 @pytest.mark.parametrize(
     "query_args",
     [
-        {"filter_by": [{"field": "productBlocks", "value": "PB_1"}]},
+        {"filter_by": [{"field": "productBlock", "value": "PB_1"}]},
         {"query_string": '"product_block":"PB_1"'},
         {"query_string": "productBlock:PB_1"},
         # {"query_string": "PB_1"}, Trouble comparing arbitrary text with UUID columns
