@@ -16,35 +16,48 @@ from uuid import uuid4
 
 
 def build_simple_query(subscription_id):
-    q = f"""
-        {{
-            subscription(id: "{subscription_id}") {{
-                insync
-                status
-          }}
-        }}
-    """
-    return json.dumps({"query": q}).encode("utf-8")
+
+    q = """query SubscriptionQuery($id: UUID!) {
+          subscription(id: $id) {
+            insync
+            status
+            }
+        }"""
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": q,
+            "variables": {
+                "id": str(subscription_id),
+            },
+        }
+    ).encode("utf-8")
 
 
 def build_complex_query(subscription_id):
-    q = f"""
-        {{
-            subscription(id: "{subscription_id}") {{
-                __typename
-                insync
-                product {{
-                    status
-                }}
-                ... on ProductSubListUnionSubscription {{
-                    testBlock {{
-                        intField
-                    }}
-                }}
-            }}
-        }}
-    """
-    return json.dumps({"query": q}).encode("utf-8")
+    q = """query SubscriptionQuery($id: UUID!) {
+        subscription(id: $id) {
+            insync
+            __typename
+            product {
+                status
+            }
+            ... on ProductSubListUnionSubscription {
+                testBlock {
+                    intField
+                }
+            }
+        }
+    }"""
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": q,
+            "variables": {
+                "id": str(subscription_id),
+            },
+        }
+    ).encode("utf-8")
 
 
 def test_single_simple_subscription(fastapi_app_graphql, test_client, product_sub_list_union_subscription_1):
