@@ -290,7 +290,7 @@ class TSQueryVisitor:
         # Postgres is finicky with single quotes in the query. In some situations it throws an error.
         # To avoid the special handling of ' by PG, we replace it with double quotes.
         # We also replace underscores with the 'followed by' operator
-        text = node[1].replace("'", '"').replace("_", " <-> ")
+        text = node[1].replace("'", '"').replace("_", " <-> ").replace("-", " <-> ")
         if node[0] == "Word":
             acc.append(text)
         elif node[0] == "PrefixWord":

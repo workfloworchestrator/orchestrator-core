@@ -5,16 +5,17 @@ on:
 
 jobs:
   container_job:
-    name: Unit tests
+    name: Unit tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
+        postgres-version: ['11', '12', '13', '14', '15', '16']
       fail-fast: false
     container: python:${{ matrix.python-version }}-slim
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:${{ matrix.postgres-version }}-alpine
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
