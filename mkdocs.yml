@@ -124,7 +124,7 @@ nav:
         - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
       - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
       - Validation: reference-docs/domain_models/validation.md
-      - Type Vasting and Serialisation: reference-docs/domain_models/type_casting.md
+      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
     - Forms:
       - Examples: reference-docs/forms.md
       - Pydantic Forms: reference-docs/pydantic-forms.md
