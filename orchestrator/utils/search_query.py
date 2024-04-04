@@ -363,11 +363,14 @@ class SQLAlchemyVisitor:
         self,
         stmt: Select,
         mappings: dict[str, WhereCondGenerator],
-        base_table: type[BaseModel],
-        join_key: MappedColumn | InstrumentedAttribute,
+        *,
+        base_table: type[BaseModel] | None = None,
+        join_key: MappedColumn | InstrumentedAttribute | None = None,
     ):
         self.base_stmt = stmt
         self.mappings = mappings
+        # base_table and join_key are required for group terms, because of the union join
+        # If the query does not use grouping, these parameters are optional
         self.base_table = base_table
         self.join_key = join_key
 
@@ -398,6 +401,9 @@ class SQLAlchemyVisitor:
         return stmt.where(or_expr if not is_negated else not_(or_expr))
 
     def visit_group(self, stmt: Select, node: Node, is_negated: bool) -> Select:
+        if self.join_key is None or self.base_table is None:
+            logger.error("Group statements not supported without a base_table and a join_key")
+            return stmt
         subquery = self.visit_query(self.base_stmt, node).cte()
         if is_negated:
             return stmt.outerjoin_from(
@@ -446,4 +452,6 @@ def create_sqlalchemy_select(
     base_table: type[BaseModel],
     join_key: MappedColumn | InstrumentedAttribute,
 ) -> Select | CompoundSelect:
-    return SQLAlchemyVisitor(stmt, mappings, base_table, join_key).visit(Parser(Lexer(search_query).lex()).parse())
+    return SQLAlchemyVisitor(stmt, mappings, base_table=base_table, join_key=join_key).visit(
+        Parser(Lexer(search_query).lex()).parse()
+    )

@@ -148,7 +148,7 @@ def test_workflows_filter_by_name(test_client, query_args):
 @pytest.mark.parametrize(
     "query_args",
     [
-        {"filter_by": [{"field": "products", "value": "Product 1"}]},
+        {"filter_by": [{"field": "product", "value": "Product 1"}]},
         {"query_string": 'product:"Product 1"'},
     ],
 )

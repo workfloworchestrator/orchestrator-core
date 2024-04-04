@@ -20,15 +20,14 @@ from shlex import shlex
 from typing import Any
 from uuid import UUID
 
-from deprecated import deprecated
-from more_itertools import chunked, first
+from more_itertools import chunked
 from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.sql import expression
 from starlette.responses import Response
 from structlog import get_logger
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, db
+from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.models import SubscriptionSearchView
 from orchestrator.db.range.range import Selectable, apply_range_to_statement
 from orchestrator.domain.base import SubscriptionModel
@@ -218,51 +217,6 @@ class _ProcessListItem:
     workflow: str
     workflow_target: str | None
     is_task: bool
-
-
-@deprecated(
-    "consolidated with `show_process` into enrich_process in `orchestrator.utils.enrich_process` from version 1.2.3, will be removed in 1.4"
-)
-def enrich_process(p: ProcessTable) -> _ProcessListItem:
-    # p.subscriptions is a non JSON serializable AssociationProxy
-    # So we need to build a list of Subscriptions here.
-    subscriptions: list[_Subscription] = []
-    for sub in p.subscriptions:
-        prod = sub.product
-
-        subscription = _Subscription(
-            customer_id=sub.customer_id,
-            description=sub.description,
-            end_date=sub.end_date if sub.end_date else None,
-            insync=sub.insync,
-            start_date=sub.start_date if sub.start_date else None,
-            status=sub.status,
-            subscription_id=sub.subscription_id,
-            product=ProductEnriched(
-                product_id=prod.product_id,
-                description=prod.description,
-                name=prod.name,
-                tag=prod.tag,
-                status=prod.status,
-                product_type=prod.product_type,
-            ),
-        )
-        subscriptions.append(subscription)
-
-    return _ProcessListItem(
-        assignee=p.assignee,
-        created_by=p.created_by,
-        failed_reason=p.failed_reason,
-        last_modified_at=p.last_modified_at,
-        pid=p.process_id,
-        started_at=p.started_at.timestamp(),
-        last_status=p.last_status,
-        last_step=p.last_step,
-        subscriptions=subscriptions,
-        workflow=str(p.workflow_name),
-        workflow_target=first([ps.workflow_target for ps in p.process_subscriptions], None),
-        is_task=p.is_task,
-    )
 
 
 def update_in(dct: dict | list, path: str, value: Any, sep: str = ".") -> None:
