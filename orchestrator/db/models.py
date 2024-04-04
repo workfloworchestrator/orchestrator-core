@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 
 import sqlalchemy
 import structlog
-from deprecated import deprecated
 from more_itertools import first_true
 from sqlalchemy import (
     TIMESTAMP,
@@ -109,11 +108,6 @@ class ProcessTable(BaseModel):
     workflow = relationship("WorkflowTable", back_populates="processes")
 
     @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
-    def pid(self) -> Column:
-        return self.process_id
-
-    @property
     def workflow_name(self) -> Column:
         return self.workflow.name
 
@@ -132,16 +126,6 @@ class ProcessStepTable(BaseModel):
     executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
-    @property
-    @deprecated("Changed to 'step_id' from version 1.2.3, will be removed in 1.4")
-    def stepid(self) -> Column:
-        return self.step_id
-
-    @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
-    def pid(self) -> Column:
-        return self.process_id
-
 
 class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
@@ -153,11 +137,6 @@ class ProcessSubscriptionTable(BaseModel):
     subscription = relationship("SubscriptionTable", lazy=True)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     workflow_target = mapped_column(String(255), nullable=False, server_default=Target.CREATE)
-
-    @property
-    @deprecated("Changed to 'process_id' from version 1.2.3, will be removed in 1.4")
-    def pid(self) -> Column:
-        return self.process_id
 
 
 processes_subscriptions_ix = Index(
@@ -563,7 +542,7 @@ class SubscriptionTable(BaseModel):
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     product = relationship("ProductTable")
-    customer_id = mapped_column(String, index=True)
+    customer_id = mapped_column(String, index=True, nullable=False)
     insync = mapped_column(Boolean())
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)

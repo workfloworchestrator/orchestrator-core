@@ -735,13 +735,13 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
     first_subscription = response.json()["data"]["subscriptions"]["page"][0]
 
     first_subscription_date = datetime.datetime.fromisoformat(first_subscription["startDate"])
-    higher_then_date = first_subscription_date.isoformat()
-    lower_then_date = (first_subscription_date + datetime.timedelta(days=3)).isoformat()
+    higher_than_date = first_subscription_date.isoformat()
+    lower_than_date = (first_subscription_date + datetime.timedelta(days=3)).isoformat()
 
     data = get_subscriptions_query(
         filter_by=[
-            {"field": "startDateGte", "value": higher_then_date},
-            {"field": "startDateLte", "value": lower_then_date},
+            {"field": "startDate", "value": f">={higher_than_date}"},
+            {"field": "startDate", "value": f"<={lower_than_date}"},
         ]
     )
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -764,7 +764,7 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
     }
 
     for subscription in subscriptions:
-        assert higher_then_date <= subscription["startDate"] <= lower_then_date
+        assert higher_than_date <= subscription["startDate"] <= lower_than_date
 
 
 def test_subscriptions_filtering_with_invalid_filter(
@@ -803,12 +803,8 @@ def test_subscriptions_filtering_with_invalid_filter(
         {
             "message": (
                 "Invalid filter arguments (invalid_filters=['test'] "
-                "valid_filter_keys=['description', 'endDate', 'endDateGt', "
-                "'endDateGte', 'endDateLt', 'endDateLte', 'endDateNe', 'insync', "
-                "'note', 'product', 'startDate', 'startDateGt', 'startDateGte', "
-                "'startDateLt', 'startDateLte', 'startDateNe', 'status', "
-                "'statuses', 'subscriptionId', 'subscriptionIds', 'tag', 'tags', "
-                "'tsv'])"
+                "valid_filter_keys=['customerId', 'description', 'endDate', 'insync', "
+                "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag'])"
             ),
             "path": [None, "subscriptions", "Query"],
             "extensions": {"error_type": "internal_error"},
@@ -834,26 +830,32 @@ def test_subscriptions_filtering_with_invalid_filter(
         lambda sid: {"query_string": f"subscriptionId:{sid}"},
         lambda sid: {"query_string": f"{sid}"},
         lambda sid: {"query_string": f"{sid.split('-')[0]}"},
+        lambda sid: {"filter_by": [{"field": "customerId", "value": CUSTOMER_ID.split("-")[0]}]},
+        lambda sid: {"query_string": CUSTOMER_ID.split("-")[0]},
     ],
 )
 def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args):
-    # when
+    # given
 
     _, GenericProductOne = generic_product_type_1
     subscription_ids = product_type_1_subscriptions_factory(30)
-
-    do_refresh_subscriptions_search_view()
 
     subscription_id = subscription_ids[10]
     subscription = db.session.execute(
         select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)
     ).scalar_one_or_none()
+    subscription.customer_id = CUSTOMER_ID
     subscription.customer_descriptions = [
-        SubscriptionCustomerDescriptionTable(customer_id=CUSTOMER_ID, description="customer alias")
+        SubscriptionCustomerDescriptionTable(
+            subscription_id=subscription_id, customer_id=CUSTOMER_ID, description="customer alias"
+        )
     ]
     db.session.add(subscription)
     db.session.commit()
 
+    do_refresh_subscriptions_search_view()
+
+    # when
     data = get_subscriptions_query(**query_args(subscription_id))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -912,6 +914,48 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
             "inUseByRelations": [],
         },
     ]
+
+
+@pytest.mark.parametrize(
+    "query_args,total_items",
+    [
+        (lambda ids: {}, 33),
+        (lambda ids: {"filter_by": [{"field": "subscriptionId", "value": f"{ids[0]}|{ids[1]}"}]}, 2),
+        (lambda ids: {"filter_by": [{"field": "subscriptionId", "value": "|".join(ids[3:8])}]}, 5),
+        (lambda ids: {"query_string": f"subscriptionId:({ids[2]}|{ids[3]})"}, 2),
+    ],
+)
+def test_multiple_subscriptions(
+    test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args, total_items
+):
+    # given
+
+    _, GenericProductOne = generic_product_type_1
+    subscription_ids = product_type_1_subscriptions_factory(30)
+
+    do_refresh_subscriptions_search_view()
+
+    # when
+    data = get_subscriptions_query(first=100, **query_args(subscription_ids))
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert "errors" not in result
+    assert len(subscriptions) == total_items
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": total_items - 1,
+        "totalItems": total_items,
+    }
 
 
 @pytest.mark.parametrize(

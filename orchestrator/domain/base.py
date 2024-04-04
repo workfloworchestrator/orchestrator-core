@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import warnings
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
@@ -31,7 +30,6 @@ from typing import (
 from uuid import UUID, uuid4
 
 import structlog
-import typing_extensions
 from more_itertools import first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
@@ -424,15 +422,6 @@ class DomainModel(BaseModel):
                 saved_instances.extend(saved)
 
         return saved_instances, depends_on_instances
-
-    @typing_extensions.deprecated("dict() is deprecated and will be removed in the future, use model_dump() instead")
-    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        warnings.warn(
-            "dict() is deprecated and will be removed in the future, use model_dump() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.model_dump(*args, **kwargs)
 
 
 def get_depends_on_product_block_type_list(

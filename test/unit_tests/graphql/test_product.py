@@ -222,7 +222,7 @@ def test_product_has_previous_page(test_client, generic_product_1, generic_produ
 @pytest.mark.parametrize(
     "query_args",
     [
-        {"filter_by": [{"field": "product_blocks", "value": "PB_1-PB_3"}]},
+        {"filter_by": [{"field": "productBlock", "value": "PB_1|PB_3"}]},
         {"query_string": "product_block:(PB_1|PB_3)"},
         {"query_string": "productBlock:PB_1 | product_block:PB_3"},
     ],

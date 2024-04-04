@@ -490,7 +490,7 @@ from sqlalchemy import func, select
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.range.range import apply_range_to_statement
-from orchestrator.db.sorting.sorting import Sort
+from orchestrator.db.sorting import Sort
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.customer import CustomerType

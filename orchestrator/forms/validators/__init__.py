@@ -11,11 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from nwastdlib.vlans import VlanRanges
 from orchestrator.forms.validators.customer_contact_list import customer_contact_list
 from orchestrator.forms.validators.customer_id import CustomerId
 from orchestrator.forms.validators.display_subscription import DisplaySubscription
-from orchestrator.forms.validators.network_type_validators import BFD, MTU
 from orchestrator.forms.validators.product_id import ProductId, ProductIdError, product_id
 from pydantic_forms.types import strEnum
 from pydantic_forms.validators import (
@@ -64,8 +64,6 @@ __all__ = [
     "strEnum",
     "timestamp",
     "unique_conlist",
-    "BFD",
-    "MTU",
     "VlanRanges",
     "customer_contact_list",
 ]

@@ -10,8 +10,8 @@ from orchestrator.db.filters.product_block import (
 )
 from orchestrator.db.models import ProductBlockTable
 from orchestrator.db.range.range import apply_range_to_statement
+from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.product_block import product_block_sort_fields, sort_product_blocks
-from orchestrator.db.sorting.sorting import Sort
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.product_block import ProductBlock
@@ -61,5 +61,5 @@ async def resolve_product_blocks(
         product_blocks = rows_from_statement(stmt, ProductBlockTable)
         graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
     return to_graphql_result_page(
-        graphql_product_blocks, first, after, total, product_block_sort_fields, product_block_filter_fields
+        graphql_product_blocks, first, after, total, product_block_sort_fields(), product_block_filter_fields()
     )

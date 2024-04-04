@@ -246,7 +246,7 @@ def test_product_blocks_has_previous_page(test_client):
 @pytest.mark.parametrize(
     "query_args",
     [
-        {"filter_by": [{"field": "resource_types", "value": "rt_1"}]},
+        {"filter_by": [{"field": "resourceType", "value": "rt_1"}]},
         {"query_string": "resourceType:rt_1"},
     ],
 )
@@ -271,7 +271,7 @@ def test_product_blocks_filter_by_resource_types(test_client, query_args):
 
 def test_product_blocks_filter_by_products(test_client):
     data = get_product_blocks_query(
-        filter_by=[{"field": "products", "value": "Product 1-Product 3"}],
+        filter_by=[{"field": "product", "value": "Product 1|Product 3"}],
         sort_by=[{"field": "name", "order": "ASC"}],
     )
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})

@@ -3,12 +3,12 @@ from more_itertools.recipes import first_true
 from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
-from orchestrator.api.api_v1.endpoints.fixed_input import fi_configuration
 from orchestrator.db import ProductTable, WorkflowTable, db
 from orchestrator.db.models import FixedInputTable
 from orchestrator.services import products
 from orchestrator.services.products import get_products
 from orchestrator.targets import Target
+from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflows import ALL_WORKFLOWS
 
 

@@ -96,4 +96,6 @@ async def resolve_processes(
         processes = rows_from_statement(stmt, ProcessTable)
         is_detailed = _is_process_detailed(info)
         graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
-    return to_graphql_result_page(graphql_processes, first, after, total, process_sort_fields, process_filter_fields)
+    return to_graphql_result_page(
+        graphql_processes, first, after, total, process_sort_fields(), process_filter_fields()
+    )

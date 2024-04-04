@@ -21,10 +21,6 @@ class ProductBlockInstance:
     in_use_by_relations: list[JSON]
     product_block_instance_values: JSON
 
-    @strawberry.field(description="Returns all resource types of a product block", deprecation_reason="changed to product_block_instance_values")  # type: ignore
-    async def resource_types(self) -> JSON:
-        return {v["field"]: v["value"] for v in self.product_block_instance_values}
-
 
 def is_product_block(candidate: Any) -> bool:
     if isinstance(candidate, dict):

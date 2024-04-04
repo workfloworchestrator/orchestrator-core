@@ -70,7 +70,7 @@ def test_db_create_process(simple_workflow):
 
     process = db.session.get(ProcessTable, process_id)
     assert process
-    assert process.workflow_name == "wf name"
+    assert process.workflow.name == "wf name"
     assert process.is_task
 
 
