@@ -15,15 +15,17 @@ from urllib.parse import urlparse
 
 from fastapi import WebSocket, status
 from fastapi.exceptions import HTTPException
-from httpx import AsyncClient
 from structlog import get_logger
 
-from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT
-from orchestrator.security import oidc_user, opa_security_default
+from oauth2_lib.fastapi import OIDCAuth
+from orchestrator.security import get_authorization, get_oidc_authentication
 from orchestrator.websocket.managers.broadcast_websocket_manager import BroadcastWebsocketManager
 from orchestrator.websocket.managers.memory_websocket_manager import MemoryWebsocketManager
 
 logger = get_logger(__name__)
+
+oidc_auth: OIDCAuth = get_oidc_authentication()
+authorization = get_authorization()
 
 
 class WebSocketManager:
@@ -40,10 +42,9 @@ class WebSocketManager:
 
     async def authorize(self, websocket: WebSocket, token: str) -> dict | None:
         try:
-            async with AsyncClient(verify=HTTPX_SSL_CONTEXT) as client:
-                user = await oidc_user(websocket, token=token)  # type: ignore
-                if user:
-                    await opa_security_default(websocket, user, client)  # type: ignore
+            user = await oidc_auth.authenticate(websocket, token=token)
+            if user:
+                await authorization.authorize(websocket, user)
         except HTTPException as e:
             return {"error": vars(e)}
         return None

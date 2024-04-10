@@ -52,14 +52,14 @@ class OrchestratorContext(OauthContext):
     def __init__(
         self,
         get_current_user: Callable[[Request], Awaitable[OIDCUserModel]],
-        get_opa_decision: Callable[[str, OIDCUserModel], Awaitable[bool | None]],
+        get_authorization_decision: Callable[[str, OIDCUserModel], Awaitable[bool | None]],
         broadcast_thread: ProcessDataBroadcastThread | None = None,
         graphql_models: StrawberryModelType | None = None,
     ):
         self.errors: list[GraphQLError] = []
         self.broadcast_thread = broadcast_thread
         self.graphql_models = graphql_models or {}
-        super().__init__(get_current_user, get_opa_decision)
+        super().__init__(get_current_user, get_authorization_decision)
 
 
 OrchestratorInfo = Info[OrchestratorContext, RootValueType]

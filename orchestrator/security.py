@@ -10,41 +10,103 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
 
 from authlib.integrations.starlette_client import OAuth
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, OIDCUser, opa_decision, opa_graphql_decision
-from orchestrator.settings import oauth2_settings
+from oauth2_lib.fastapi import (
+    HTTPX_SSL_CONTEXT,
+    AuthenticationFunc,
+    Authorization,
+    GraphqlAuthorization,
+    GraphqlAuthorizationFunc,
+    OIDCAuth,
+)
+from oauth2_lib.settings import oauth2lib_settings
+from orchestrator.settings import auth_settings
 
 oauth_client_credentials = OAuth()
 
-well_known_endpoint = URL(oauth2_settings.OIDC_CONF_WELL_KNOWN_URL)
-
 oauth_client_credentials.register(
     "connext",
-    server_metadata_url=well_known_endpoint / ".well-known" / "openid-configuration",
-    client_id=oauth2_settings.OAUTH2_RESOURCE_SERVER_ID,
-    client_secret=oauth2_settings.OAUTH2_RESOURCE_SERVER_SECRET,
+    server_metadata_url=URL(oauth2lib_settings.OIDC_CONF_URL),
+    client_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
+    client_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
     request_token_params={"grant_type": "client_credentials"},
     client_kwargs={"verify": HTTPX_SSL_CONTEXT},
 )
 
-oidc_user = OIDCUser(
-    oauth2_settings.OIDC_CONF_WELL_KNOWN_URL,
-    oauth2_settings.OAUTH2_RESOURCE_SERVER_ID,
-    oauth2_settings.OAUTH2_RESOURCE_SERVER_SECRET,
-)
-
-opa_security_default = opa_decision(oauth2_settings.OPA_URL, oidc_user)
+_oidc_auth = None
+_authorization = None
+_graphql_authorization = None
 
 
-opa_security_graphql = opa_graphql_decision(oauth2_settings.OPA_URL, oidc_user)
+def _get_authentication() -> OIDCAuth:
+    module_path, instance_name = auth_settings.AUTHENTICATION_INSTANCE.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    auth_instance = getattr(module, instance_name)
+
+    if not isinstance(auth_instance, OIDCAuth):
+        raise TypeError(f"The instance {instance_name} is not a subclass of OIDCAuth")
+
+    return auth_instance
 
 
-def get_oidc_user() -> OIDCUser:
-    return oidc_user
+def _get_authorization() -> Authorization:
+    module_path, instance_name = auth_settings.AUTHORIZATION_INSTANCE.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    authorization_instance = getattr(module, instance_name)
+
+    if not isinstance(authorization_instance, Authorization):
+        raise TypeError(f"The instance {instance_name} is not a subclass of Authorization")
+
+    return authorization_instance
 
 
-def get_opa_security_graphql():  # type: ignore
-    return opa_security_graphql
+def _get_graphql_authorization() -> GraphqlAuthorization:
+    module_path, instance_name = auth_settings.GRAPHQL_AUTHORIZATION_INSTANCE.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    authorization_instance = getattr(module, instance_name)
+
+    if not isinstance(authorization_instance, GraphqlAuthorization):
+        raise TypeError(f"The instance {instance_name} is not a subclass of GraphqlAuthorization")
+
+    return authorization_instance
+
+
+def get_oidc_authentication() -> OIDCAuth:
+    global _oidc_auth
+
+    if not _oidc_auth:
+        _oidc_auth = _get_authentication()
+
+    return _oidc_auth
+
+
+def get_authorization() -> Authorization:
+    global _authorization
+
+    if not _authorization:
+        _authorization = _get_authorization()
+
+    return _authorization
+
+
+def get_graphql_authorization() -> GraphqlAuthorization:
+    global _graphql_authorization
+
+    if not _graphql_authorization:
+        _graphql_authorization = _get_graphql_authorization()
+
+    return _graphql_authorization
+
+
+def get_oidc_authentication_function() -> AuthenticationFunc:
+    oidc_auth = get_oidc_authentication()
+    return oidc_auth.authenticate
+
+
+def get_graphql_authorization_function() -> GraphqlAuthorizationFunc:
+    authorization = get_graphql_authorization()
+    return authorization.authorize
