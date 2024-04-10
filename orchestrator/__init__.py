@@ -16,13 +16,13 @@
 __version__ = "2.2.2rc1"
 
 from orchestrator.app import OrchestratorCore
-from orchestrator.settings import app_settings, oauth2_settings
+from orchestrator.settings import app_settings, auth_settings
 from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
 
 __all__ = [
     "OrchestratorCore",
     "app_settings",
-    "oauth2_settings",
+    "auth_settings",
     "step",
     "inputstep",
     "workflow",

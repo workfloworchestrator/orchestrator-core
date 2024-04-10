@@ -42,7 +42,7 @@ from orchestrator.db import (
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
 from orchestrator.schemas.subscription import SubscriptionWithMetadata
-from orchestrator.security import oidc_user
+from orchestrator.security import get_oidc_authentication
 from orchestrator.services.subscriptions import (
     _generate_etag,
     build_extended_domain_model,
@@ -62,6 +62,8 @@ from orchestrator.utils.redis import from_redis
 router = APIRouter()
 
 logger = structlog.get_logger(__name__)
+
+oidc_auth = get_oidc_authentication()
 
 
 def _delete_subscription_tree(subscription: SubscriptionTable) -> None:
@@ -366,7 +368,9 @@ def subscription_instance_in_use_by(
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
-def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(oidc_user)) -> None:
+def subscription_set_in_sync(
+    subscription_id: UUID, current_user: OIDCUserModel | None = Depends(oidc_auth.authenticate)
+) -> None:
     def failed_processes() -> list[str]:
         if app_settings.DISABLE_INSYNC_CHECK:
             return []

@@ -55,7 +55,7 @@ from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface, federation_key_directives
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
-from orchestrator.security import get_oidc_user, get_opa_security_graphql
+from orchestrator.security import get_graphql_authorization_function, get_oidc_authentication_function
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
 
@@ -123,10 +123,10 @@ class OrchestratorSchema(strawberry.federation.Schema):
 
 
 def custom_context_dependency(
-    get_current_user: Callable = Depends(get_oidc_user),  # noqa: B008
-    get_opa_decision: Callable = Depends(get_opa_security_graphql),  # noqa: B008
+    get_current_user: Callable = Depends(get_oidc_authentication_function),  # noqa: B008
+    get_authorization_decision: Callable = Depends(get_graphql_authorization_function),  # noqa: B008
 ) -> OrchestratorContext:
-    return OrchestratorContext(get_current_user=get_current_user, get_opa_decision=get_opa_decision)
+    return OrchestratorContext(get_current_user=get_current_user, get_authorization_decision=get_authorization_decision)
 
 
 def get_context(
