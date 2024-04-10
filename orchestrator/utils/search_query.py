@@ -5,10 +5,12 @@ from itertools import chain
 from typing import Any, Union, cast
 
 import structlog
-from sqlalchemy import BinaryExpression, ColumnElement, CompoundSelect, Select, false, not_, or_
+from sqlalchemy import BinaryExpression, ColumnElement, CompoundSelect, Select, column, false, func, not_, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, MappedColumn
 
+from orchestrator.db import db
 from orchestrator.db.database import BaseModel
+from orchestrator.db.helpers import get_postgres_version
 from orchestrator.utils.helpers import camel_to_snake
 
 logger = structlog.getLogger(__name__)
@@ -255,6 +257,30 @@ class Parser:
 
 
 class TSQueryVisitor:
+
+    _glue_chars = re.compile(r"[-_@#$%^&]")
+
+    @staticmethod
+    def _split_term(term: str) -> list[str]:
+        """Workaround for the way Postgres <14 parses text with to_tsquery.
+
+        For Postgres <14, we issue a database query to parse the text for us in a way that is compatible with to_tsvector. This is the same behavior as Postgres >=14.
+        """
+
+        # TODO: Remove this workaround when support for Postgres <14 is dropped
+        # https://github.com/workfloworchestrator/orchestrator-core/issues/621
+
+        if get_postgres_version() < 14:
+            # tokid 12 is the space separator token
+            stmt = (
+                select(func.array_agg(column("token")))
+                .select_from(func.ts_parse("default", func.replace(term, "-", "_")))
+                .where(column("tokid") != 12)
+            )
+            return db.session.scalar(stmt) or []
+
+        return TSQueryVisitor._glue_chars.split(term)
+
     @staticmethod
     def visit_group(node: Node, acc: list[str]) -> None:
         acc.append("(")
@@ -287,16 +313,28 @@ class TSQueryVisitor:
 
     @staticmethod
     def visit_search_word(node: Node, acc: list[str]) -> None:
+
+        if node[0] not in ["Word", "PrefixWord"]:
+            raise Exception(f"Invalid SearchWord type {node[0]}")
+
         # Postgres is finicky with single quotes in the query. In some situations it throws an error.
         # To avoid the special handling of ' by PG, we replace it with double quotes.
-        # We also replace underscores with the 'followed by' operator
-        text = node[1].replace("'", '"').replace("_", " <-> ").replace("-", " <-> ")
-        if node[0] == "Word":
-            acc.append(text)
-        elif node[0] == "PrefixWord":
-            acc.append(f"{text}:*")
-        else:
-            raise Exception(f"Invalid SearchWord type {node[0]}")
+
+        text = node[1].replace("'", '"')
+
+        parts = TSQueryVisitor._split_term(text)
+
+        if not parts:
+            return
+
+        text = " <-> ".join(parts)
+
+        if node[0] == "PrefixWord":
+            text = f"{text}:*"
+
+        # Wrap parentheses for clarity, even though <-> has the highest operator precedence
+        text = f"({text})" if len(parts) > 1 else text
+        acc.append(text)
 
     @staticmethod
     def visit_phrase(node: Node, acc: list[str]) -> None:

@@ -152,3 +152,17 @@ def filter_exact(field: ColumnClause) -> WhereCondGenerator:
         return _filter_string(field)(node)
 
     return _clause_gen
+
+
+def filter_uuid_exact(field: ColumnClause) -> WhereCondGenerator:
+    assert field.type.python_type == uuid.UUID  # noqa: S101
+
+    def _clause_gen(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
+        try:
+            v = uuid.UUID(node_to_str_val(node))
+        except ValueError:
+            # Not a valid uuid
+            return sqlalchemy.false()
+        return eq(field, v)
+
+    return _clause_gen
