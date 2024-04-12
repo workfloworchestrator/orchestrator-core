@@ -43,7 +43,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import Mutation, Query, create_graphql_router
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
-from orchestrator.services.processes import ProcessDataBroadcastThread
+from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
@@ -63,6 +63,7 @@ sentry_integrations: list[Integration] = [
 
 class OrchestratorCore(FastAPI):
     graphql_router: Any | None = None
+    broadcast_thread: ProcessDataBroadcastThread | None = None
 
     def __init__(
         self,
@@ -86,7 +87,6 @@ class OrchestratorCore(FastAPI):
             startup_functions.append(websocket_manager.connect_redis)
             shutdown_functions.extend([websocket_manager.disconnect_all, websocket_manager.disconnect_redis])
 
-        self.broadcast_thread: ProcessDataBroadcastThread | None = None
         if base_settings.EXECUTOR == ExecutorType.THREADPOOL:
             # Only need broadcast thread when using threadpool executor
             self.broadcast_thread = ProcessDataBroadcastThread(websocket_manager)
@@ -189,7 +189,9 @@ class OrchestratorCore(FastAPI):
         register_models: bool = True,
         subscription_interface: Any = SubscriptionInterface,
     ) -> None:
-        new_router = create_graphql_router(query, mutation, register_models, subscription_interface)
+        new_router = create_graphql_router(
+            query, mutation, register_models, subscription_interface, self.broadcast_thread
+        )
         if not self.graphql_router:
             self.graphql_router = new_router
             self.include_router(new_router, prefix="/api/graphql")

@@ -12,7 +12,7 @@
 # limitations under the License.
 from collections.abc import Callable
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Coroutine
 
 import strawberry
 import structlog
@@ -31,6 +31,7 @@ from orchestrator.graphql.autoregistration import register_domain_models
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
+from orchestrator.graphql.mutations.start_process import ProcessMutation
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
@@ -55,6 +56,7 @@ from orchestrator.graphql.schemas.subscription import SubscriptionInterface, fed
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
+from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
 
 api_router = APIRouter()
@@ -94,7 +96,7 @@ class Query:
     )
 
 
-Mutation = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation))
+Mutation = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation, ProcessMutation))
 
 OrchestratorGraphqlRouter = GraphQLRouter
 
@@ -127,8 +129,16 @@ def custom_context_dependency(
     return OrchestratorContext(get_current_user=get_current_user, get_opa_decision=get_opa_decision)
 
 
-async def get_context(custom_context=Depends(custom_context_dependency)) -> OrchestratorContext:  # type: ignore # noqa: B008
-    return custom_context
+def get_context(
+    broadcast_thread: ProcessDataBroadcastThread | None = None,
+) -> Callable[[OrchestratorContext], Coroutine[Any, Any, OrchestratorContext]]:
+    async def _get_context(
+        custom_context: OrchestratorContext = Depends(custom_context_dependency),  # noqa: B008
+    ) -> OrchestratorContext:
+        custom_context.broadcast_thread = broadcast_thread
+        return custom_context
+
+    return _get_context
 
 
 GRAPHQL_MODELS_INITIAL = dict(GRAPHQL_MODELS)
@@ -139,6 +149,7 @@ def create_graphql_router(
     mutation: Any = Mutation,
     register_models: bool = True,
     subscription_interface: type | None = SubscriptionInterface,
+    broadcast_thread: ProcessDataBroadcastThread | None = None,
 ) -> OrchestratorGraphqlRouter:
     @strawberry.experimental.pydantic.type(
         model=SubscriptionModel, all_fields=True, directives=federation_key_directives
@@ -162,7 +173,9 @@ def create_graphql_router(
         scalar_overrides=SCALAR_OVERRIDES,
     )
 
-    return OrchestratorGraphqlRouter(schema, context_getter=get_context, graphiql=app_settings.SERVE_GRAPHQL_UI)
+    return OrchestratorGraphqlRouter(
+        schema, context_getter=get_context(broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
+    )
 
 
 graphql_router = create_graphql_router()

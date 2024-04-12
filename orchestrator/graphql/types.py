@@ -30,6 +30,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from oauth2_lib.strawberry import OauthContext
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
+from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 
 
 def serialize_to_string(value: Any) -> str:
@@ -41,12 +42,16 @@ def serialize_vlan(vlan: VlanRanges) -> list[tuple[int, int]]:
 
 
 class OrchestratorContext(OauthContext):
+    broadcast_thread: ProcessDataBroadcastThread | None = None
+
     def __init__(
         self,
         get_current_user: Callable[[Request], Awaitable[OIDCUserModel]],
         get_opa_decision: Callable[[str, OIDCUserModel], Awaitable[bool | None]],
+        broadcast_thread: ProcessDataBroadcastThread | None = None,
     ):
         self.errors: list[GraphQLError] = []
+        self.broadcast_thread = broadcast_thread
         super().__init__(get_current_user, get_opa_decision)
 
 
