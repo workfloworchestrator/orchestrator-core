@@ -125,5 +125,5 @@ class MutationError:
 
 
 @strawberry.type(description="Error class if a resource couldn't be found (404)")
-class NotFound(MutationError):  # noqa: N818
+class NotFoundError(MutationError):  # noqa: N818
     pass

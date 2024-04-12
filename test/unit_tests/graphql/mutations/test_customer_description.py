@@ -11,7 +11,7 @@ def get_customer_description_upsert_mutation(
     description: str,
 ) -> bytes:
     query = """
-mutation CustomerDescriptionUpsertMutation ($customerId: UUID!, $subscriptionId: UUID!, $description: String!) {
+mutation CustomerDescriptionUpsertMutation ($customerId: String!, $subscriptionId: UUID!, $description: String!) {
     upsertCustomerDescription(customerId: $customerId, subscriptionId: $subscriptionId, description: $description) {
         ... on CustomerDescription {
             customerId
@@ -19,7 +19,7 @@ mutation CustomerDescriptionUpsertMutation ($customerId: UUID!, $subscriptionId:
             description
         }
 
-        ... on NotFound {
+        ... on NotFoundError {
             message
         }
     }
@@ -43,7 +43,7 @@ def get_customer_description_remove_mutation(
     subscription_id: str,
 ) -> bytes:
     query = """
-mutation CustomerDescriptionRemoveMutation ($customerId: UUID!, $subscriptionId: UUID!) {
+mutation CustomerDescriptionRemoveMutation ($customerId: String!, $subscriptionId: UUID!) {
     removeCustomerDescription(customerId: $customerId, subscriptionId: $subscriptionId) {
         ... on CustomerDescription {
             customerId
@@ -51,7 +51,7 @@ mutation CustomerDescriptionRemoveMutation ($customerId: UUID!, $subscriptionId:
             description
         }
 
-        ... on NotFound {
+        ... on NotFoundError {
             message
         }
     }
