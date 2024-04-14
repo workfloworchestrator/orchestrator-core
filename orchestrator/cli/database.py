@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2020 SURF, ESnet
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -124,6 +124,13 @@ def merge(
     message: str = typer.Option(None, "--message", "-m", help="The revision message"),
 ) -> None:
     """Merge database revisions.
+
+    It is possible when using multiple git branches in your WFO development lifecycle to have
+    multiple almembic heads emerge. This command will allow you to merge those two (or more)
+    heads to resolve the issue. You also might need to run this after updating your version
+    of orchestrator-core if there have been schema changes.
+
+    [Read More Here](https://alembic.sqlalchemy.org/en/latest/branches.html#merging-branches)
 
     Args:
         revisions: List of revisions to merge

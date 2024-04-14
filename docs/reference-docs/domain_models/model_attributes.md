@@ -20,7 +20,7 @@ For understanding the various attributes that can live on a domain model, let's 
 
 ## Resource Types
 
-A resource type is simply an attribute on a product block's python class. These are used to store values on a domain model that are *__mutable__* and will be changed over the lifecycle of the product. These are type-annotated so that they can be safely serialized and de-serialized from the database and so that pydantic can validate what you store on your domain model. When these attributes are added to a domain model, the appropriate database table must be populated via a migration. This can be handled automatically for you by [the `migrate-domain-models` command in the WFO CLI](../../cli/#migrate-domain-models). To better understand how this looks from a database standpoint, you can see the database table that needs to be populated here:
+A resource type is simply an attribute on a product block's python class. These are used to store values on a domain model that are *__mutable__* and will be changed over the lifecycle of the product. These are type-annotated so that they can be safely serialized and de-serialized from the database and so that pydantic can validate what you store on your domain model. When these attributes are added to a domain model, the appropriate database table must be populated via a migration. This can be handled automatically for you by [the `migrate-domain-models` command in the WFO CLI](../cli.md#migrate-domain-models). To better understand how this looks from a database standpoint, you can see the database table that needs to be populated here:
 
 ::: orchestrator.db.models.ResourceTypeTable
     options:
