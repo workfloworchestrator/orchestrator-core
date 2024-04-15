@@ -22,3 +22,15 @@ An important thing to understand about interacting with the database inside of w
 ::: orchestrator.db.database.WrappedSession
     options:
         heading_level: 3
+
+
+## Multiple Heads
+
+When you have multiple features in flight at a time with your WFO development process, you might come across this error when starting up your WFO instance, especially after performing `git` merges:
+
+```python
+Only a single head is supported. The script directory has multiple heads (due branching), which must be resolved by manually editing the revision files to form a linear sequence.
+Run `alembic branches` to see the divergence(s).
+```
+
+Thankfully alembic is great at handling this and you can use the WFO CLI `db merge` command to resolve this, [documented in depth here.](cli.md#orchestrator.cli.database.merge)
