@@ -125,8 +125,8 @@ nav:
       # - Validation: reference-docs/domain_models/validation.md
       # - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
     - Forms:
-      - Examples: reference-docs/forms.md
-      - Pydantic Forms: reference-docs/pydantic-forms.md
+      - Examples: reference-docs/forms/examples.md
+      - Pydantic Forms: reference-docs/forms/pydantic-forms.md
     - Running the App:
       - Python Version: reference-docs/python.md
       # - Runtimes: reference-docs/app/runtimes.md
