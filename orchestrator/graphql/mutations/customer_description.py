@@ -25,7 +25,6 @@ from orchestrator.domain.customer_description import (
 )
 from orchestrator.graphql.schemas.customer_description import CustomerDescription
 from orchestrator.graphql.types import MutationError, NotFoundError
-from orchestrator.utils.redis import delete_from_redis
 
 logger = structlog.get_logger(__name__)
 
@@ -47,7 +46,6 @@ async def resolve_upsert_customer_description(
         customer_description = upsert_customer_description(customer_id, subscription_id, description)
     except Exception:
         return NotFoundError(message="Subscription not found")
-    delete_from_redis(subscription_id)
     return CustomerDescription.from_pydantic(customer_description)  # type: ignore
 
 
@@ -59,7 +57,6 @@ async def resolve_remove_customer_description(
     )
     if not description:
         return NotFoundError(message="Customer description not found")
-    delete_from_redis(subscription_id)
     return CustomerDescription.from_pydantic(description)  # type: ignore
 
 

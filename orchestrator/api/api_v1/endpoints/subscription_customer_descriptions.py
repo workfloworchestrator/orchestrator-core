@@ -34,7 +34,6 @@ router = APIRouter()
 @router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
 def save_subscription_customer_description_endpoint(data: SubscriptionDescriptionBaseSchema = Body(...)) -> None:
     create_subscription_customer_description(data.customer_id, data.subscription_id, data.description)
-    delete_from_redis(data.subscription_id)
 
 
 @router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
@@ -42,7 +41,6 @@ def update_subscription_customer_description_endpoint(data: SubscriptionDescript
     description = get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id)
     if description:
         update_subscription_customer_description(description, data.description, data.created_at)
-        delete_from_redis(data.subscription_id)
 
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)

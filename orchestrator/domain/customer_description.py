@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from orchestrator.api.models import delete
 from orchestrator.db import SubscriptionCustomerDescriptionTable, db
+from orchestrator.utils.redis import delete_from_redis
 
 router = APIRouter()
 
@@ -28,7 +29,7 @@ def get_customer_description_by_customer_subscription(
     customer_id: str, subscription_id: UUID
 ) -> SubscriptionCustomerDescriptionTable | None:
     stmt = select(SubscriptionCustomerDescriptionTable).filter(
-        SubscriptionCustomerDescriptionTable.customer_id == str(customer_id),
+        SubscriptionCustomerDescriptionTable.customer_id == customer_id,
         SubscriptionCustomerDescriptionTable.subscription_id == str(subscription_id),
     )
     return db.session.scalars(stmt).one_or_none()
@@ -44,6 +45,7 @@ def create_subscription_customer_description(
     )
     db.session.add(customer_description)
     db.session.commit()
+    delete_from_redis(subscription_id)
     return customer_description
 
 
@@ -53,6 +55,7 @@ def update_subscription_customer_description(
     customer_description.description = description
     customer_description.created_at = created_at if created_at else datetime.now(tz=timezone("UTC"))
     db.session.commit()
+    delete_from_redis(customer_description.subscription_id)
     return customer_description
 
 
@@ -64,4 +67,5 @@ def delete_subscription_customer_description_by_customer_subscription(
         return None
 
     delete(SubscriptionCustomerDescriptionTable, customer_description.id)
+    delete_from_redis(subscription_id)
     return customer_description
