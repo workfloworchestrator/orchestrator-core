@@ -124,9 +124,7 @@ nav:
       # - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
       # - Validation: reference-docs/domain_models/validation.md
       # - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
-    - Forms:
-      - Examples: reference-docs/forms/examples.md
-      - Pydantic Forms: reference-docs/forms/pydantic-forms.md
+    - Forms: reference-docs/forms/forms.md
     - Running the App:
       - Python Version: reference-docs/python.md
       # - Runtimes: reference-docs/app/runtimes.md
