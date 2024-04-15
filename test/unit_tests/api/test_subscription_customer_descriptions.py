@@ -70,7 +70,7 @@ def test_update(seed, test_client):
     body = {
         "id": SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID,
         "subscription_id": SUBSCRIPTION_ID,
-        "customer_id": str(uuid4()),
+        "customer_id": CUSTOMER_ID,
         "description": new_desc,
     }
     response = test_client.put("/api/subscription_customer_descriptions/", json=body)
@@ -79,8 +79,8 @@ def test_update(seed, test_client):
     count = db.session.query(SubscriptionCustomerDescriptionTable).count()
     assert 1 == count
 
-    res = db.session.query(SubscriptionCustomerDescriptionTable).first()
-    assert new_desc == res.description
+    customer_description = db.session.query(SubscriptionCustomerDescriptionTable).first()
+    assert new_desc == customer_description.description
 
 
 def test_delete(seed, test_client):

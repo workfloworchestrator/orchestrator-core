@@ -30,6 +30,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import register_domain_models
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
+from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
@@ -93,7 +94,7 @@ class Query:
     )
 
 
-Mutation = merge_types("Mutation", (SettingsMutation,))
+Mutation = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation))
 
 OrchestratorGraphqlRouter = GraphQLRouter
 
