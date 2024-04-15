@@ -14,6 +14,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.customer import CustomerType
+from orchestrator.graphql.schemas.customer_description import CustomerDescription
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -21,7 +22,6 @@ from orchestrator.graphql.utils.get_subscription_product_blocks import (
     ProductBlockInstance,
     get_subscription_product_blocks,
 )
-from orchestrator.schemas import SubscriptionDescriptionBaseSchema
 from orchestrator.services.fixed_inputs import get_fixed_inputs
 from orchestrator.services.subscriptions import (
     get_subscription_metadata,
@@ -33,11 +33,6 @@ federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
 MetadataDict: dict[str, type[BaseModel] | None] = {"metadata": None}
 static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "properties": {}, "definitions": {}}
-
-
-@strawberry.experimental.pydantic.type(model=SubscriptionDescriptionBaseSchema, all_fields=True)
-class CustomerDescription:
-    pass
 
 
 @strawberry.federation.interface(description="Virtual base interface for subscriptions", keys=["subscriptionId"])

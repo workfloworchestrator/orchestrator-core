@@ -116,3 +116,14 @@ SCALAR_OVERRIDES: dict[object, Any | ScalarWrapper | ScalarDefinition] = {
     IPv6Interface: IPv6InterfaceType,
     int: IntType,
 }
+
+
+@strawberry.type(description="Generic class to capture errors")
+class MutationError:
+    message: str = strawberry.field(description="Error message")
+    details: str | None = strawberry.field(description="Details of error cause", default=None)
+
+
+@strawberry.type(description="Error class if a resource couldn't be found (404)")
+class NotFoundError(MutationError):  # noqa: N818
+    pass
