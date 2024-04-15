@@ -10,10 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from os import getenv
-from typing import Any
+from typing import Any, Callable
 from uuid import UUID
 
 from redis import Redis
@@ -68,6 +69,30 @@ def delete_from_redis(subscription_id: UUID) -> None:
         cache.delete(f"domain:etag:{subscription_id}")
     else:
         logger.warning("Caching disabled, not deleting subscription", subscription=subscription_id)
+
+
+def default_get_subscription_id(data: Any) -> UUID:
+    if hasattr(data, "subscription_id"):
+        return data.subscription_id
+    if isinstance(data, dict):
+        return data["subscription_id"]
+    return data
+
+
+def delete_subscription_from_redis(
+    extract_fn: Callable[..., UUID] = default_get_subscription_id
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def _delete_subscription_from_redis(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+            data = func(*args, **kwargs)
+            key = extract_fn(data)
+            delete_from_redis(key)
+            return data
+
+        return wrapper
+
+    return _delete_subscription_from_redis
 
 
 async def delete_keys_matching_pattern(_cache: AIORedis, pattern: str, chunksize: int = 5000) -> int:
