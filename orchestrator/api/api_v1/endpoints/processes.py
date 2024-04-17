@@ -51,12 +51,12 @@ from orchestrator.schemas import (
     Reporter,
 )
 from orchestrator.security import oidc_user
+from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
     SYSTEM_USER,
     _async_resume_processes,
     _get_process,
     abort_process,
-    api_broadcast_process_data,
     continue_awaiting_process,
     load_process,
     resume_process,
