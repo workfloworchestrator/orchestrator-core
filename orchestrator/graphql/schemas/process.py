@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
-federation_key_directives = [Key(fields="id", resolvable=UNSET)]
+federation_key_directives = [Key(fields="processId", resolvable=UNSET)]
 
 
 @strawberry.experimental.pydantic.type(model=ProcessStepSchema)

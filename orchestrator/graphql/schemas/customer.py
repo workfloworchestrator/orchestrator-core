@@ -1,7 +1,7 @@
 import strawberry
 
 
-@strawberry.type
+@strawberry.federation.type(keys=["customerId"])
 class CustomerType:
     customer_id: str
     fullname: str
