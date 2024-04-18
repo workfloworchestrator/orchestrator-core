@@ -10,16 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TypeVar
-
-from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
-
 from orchestrator.graphql.schemas.product import ProductModelGraphql
+from orchestrator.graphql.types import StrawberryModelType
 
-StrawberryPydanticModel = TypeVar("StrawberryPydanticModel", bound=StrawberryTypeFromPydantic)
-StrawberryModelType = dict[str, StrawberryPydanticModel]
-
-
-GRAPHQL_MODELS: StrawberryModelType = {
+DEFAULT_GRAPHQL_MODELS: StrawberryModelType = {
     "ProductModelGraphql": ProductModelGraphql,
 }
+GRAPHQL_MODELS: StrawberryModelType = DEFAULT_GRAPHQL_MODELS

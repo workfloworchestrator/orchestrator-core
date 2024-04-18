@@ -42,7 +42,9 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import Mutation, Query, create_graphql_router
+from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.graphql.types import StrawberryModelType
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
@@ -188,9 +190,13 @@ class OrchestratorCore(FastAPI):
         mutation: Any = Mutation,
         register_models: bool = True,
         subscription_interface: Any = SubscriptionInterface,
+        graphql_models: StrawberryModelType | None = None,
     ) -> None:
+        if not graphql_models:
+            graphql_models = DEFAULT_GRAPHQL_MODELS
+
         new_router = create_graphql_router(
-            query, mutation, register_models, subscription_interface, self.broadcast_thread
+            query, mutation, register_models, subscription_interface, self.broadcast_thread, graphql_models
         )
         if not self.graphql_router:
             self.graphql_router = new_router

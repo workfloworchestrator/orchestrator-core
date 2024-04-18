@@ -45,7 +45,6 @@ from orchestrator.graphql.resolvers import (
     resolve_workflows,
 )
 from orchestrator.graphql.resolvers.subscription import resolve_subscription
-from orchestrator.graphql.schemas import GRAPHQL_MODELS
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductType
@@ -54,7 +53,7 @@ from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface, federation_key_directives
 from orchestrator.graphql.schemas.workflow import Workflow
-from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext
+from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, StrawberryModelType
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
@@ -130,18 +129,26 @@ def custom_context_dependency(
 
 
 def get_context(
+    graphql_models: StrawberryModelType,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
 ) -> Callable[[OrchestratorContext], Coroutine[Any, Any, OrchestratorContext]]:
     async def _get_context(
         custom_context: OrchestratorContext = Depends(custom_context_dependency),  # noqa: B008
     ) -> OrchestratorContext:
         custom_context.broadcast_thread = broadcast_thread
+        custom_context.graphql_models = graphql_models
         return custom_context
 
     return _get_context
 
 
-GRAPHQL_MODELS_INITIAL = dict(GRAPHQL_MODELS)
+INTERNAL_GRAPHQL_MODELS: StrawberryModelType = {}
+
+
+def internal_graphql_model_logic(graphql_models: dict) -> dict:
+    """Necessary for some reason yet to be found."""
+    INTERNAL_GRAPHQL_MODELS.update(graphql_models)
+    return INTERNAL_GRAPHQL_MODELS
 
 
 def create_graphql_router(
@@ -150,6 +157,7 @@ def create_graphql_router(
     register_models: bool = True,
     subscription_interface: type | None = SubscriptionInterface,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
+    graphql_models: StrawberryModelType | None = None,
 ) -> OrchestratorGraphqlRouter:
     @strawberry.experimental.pydantic.type(
         model=SubscriptionModel, all_fields=True, directives=federation_key_directives
@@ -157,12 +165,12 @@ def create_graphql_router(
     class Subscription(SubscriptionInterface):
         pass
 
-    models = dict(GRAPHQL_MODELS_INITIAL)
+    models = dict(graphql_models) if graphql_models else {}
     models["subscription"] = Subscription
 
     if register_models:
         models = register_domain_models(subscription_interface, existing_models=models)
-        GRAPHQL_MODELS.update(models)
+        models = internal_graphql_model_logic(models)
 
     schema = OrchestratorSchema(
         query=query,
@@ -174,8 +182,5 @@ def create_graphql_router(
     )
 
     return OrchestratorGraphqlRouter(
-        schema, context_getter=get_context(broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
+        schema, context_getter=get_context(models, broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
     )
-
-
-graphql_router = create_graphql_router()
