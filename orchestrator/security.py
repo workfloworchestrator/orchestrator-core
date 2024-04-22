@@ -12,13 +12,14 @@
 # limitations under the License.
 import importlib
 
+import structlog
 from authlib.integrations.starlette_client import OAuth
 
-from nwastdlib.url import URL
 from oauth2_lib.fastapi import (
     HTTPX_SSL_CONTEXT,
     AuthenticationFunc,
     Authorization,
+    AuthorizationFunc,
     GraphqlAuthorization,
     GraphqlAuthorizationFunc,
     OIDCAuth,
@@ -28,9 +29,10 @@ from orchestrator.settings import auth_settings
 
 oauth_client_credentials = OAuth()
 
+# TODO this can probably go to the orchestrator implementation? otherwise introduce env-var for "connext"
 oauth_client_credentials.register(
     "connext",
-    server_metadata_url=URL(oauth2lib_settings.OIDC_CONF_URL),
+    server_metadata_url=oauth2lib_settings.OIDC_CONF_URL,
     client_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
     client_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
     request_token_params={"grant_type": "client_credentials"},
@@ -41,9 +43,12 @@ _oidc_auth = None
 _authorization = None
 _graphql_authorization = None
 
+logger = structlog.get_logger()
+
 
 def _get_authentication() -> OIDCAuth:
     module_path, instance_name = auth_settings.AUTHENTICATION_INSTANCE.rsplit(".", 1)
+    logger.warning("Get authn instance", module_path=module_path, instance_name=instance_name)  # TODO remove
     module = importlib.import_module(module_path)
     auth_instance = getattr(module, instance_name)
 
@@ -55,6 +60,7 @@ def _get_authentication() -> OIDCAuth:
 
 def _get_authorization() -> Authorization:
     module_path, instance_name = auth_settings.AUTHORIZATION_INSTANCE.rsplit(".", 1)
+    logger.warning("Get authz instance", module_path=module_path, instance_name=instance_name)  # TODO remove
     module = importlib.import_module(module_path)
     authorization_instance = getattr(module, instance_name)
 
@@ -66,6 +72,7 @@ def _get_authorization() -> Authorization:
 
 def _get_graphql_authorization() -> GraphqlAuthorization:
     module_path, instance_name = auth_settings.GRAPHQL_AUTHORIZATION_INSTANCE.rsplit(".", 1)
+    logger.warning("Get gql authz instance", module_path=module_path, instance_name=instance_name)  # TODO remove
     module = importlib.import_module(module_path)
     authorization_instance = getattr(module, instance_name)
 
@@ -104,9 +111,20 @@ def get_graphql_authorization() -> GraphqlAuthorization:
 
 def get_oidc_authentication_function() -> AuthenticationFunc:
     oidc_auth = get_oidc_authentication()
-    return oidc_auth.authenticate
+    func = oidc_auth.authenticate
+    logger.warning("Returning authn func", obj=oidc_auth, func=func)  # TODO remove
+    return func
+
+
+def get_authorization_function() -> AuthorizationFunc:
+    authorization = get_authorization()
+    func = authorization.authorize
+    logger.warning("Returning authz func", obj=authorization, func=func)  # TODO remove
+    return func  # type: ignore  # TODO fix AuthorizationFunc type
 
 
 def get_graphql_authorization_function() -> GraphqlAuthorizationFunc:
     authorization = get_graphql_authorization()
-    return authorization.authorize
+    func = authorization.authorize
+    logger.warning("Returning gql authz func", obj=authorization, func=func)  # TODO remove
+    return func

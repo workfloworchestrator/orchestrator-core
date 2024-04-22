@@ -31,20 +31,21 @@ from orchestrator.api.api_v1.endpoints import (
     workflows,
     ws,
 )
-from orchestrator.security import get_authorization
-
-authorization = get_authorization()
+from orchestrator.security import get_authorization_function
 
 api_router = APIRouter()
 api_router.include_router(
     fixed_input.router,
     prefix="/fixed_inputs",
     tags=["Core", "Fixed Inputs"],
-    dependencies=[Depends(authorization.authorize)],
+    dependencies=[Depends(get_authorization_function)],
 )
 
 api_router.include_router(
-    processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(authorization.authorize)]
+    processes.router,
+    prefix="/processes",
+    tags=["Core", "Processes"],
+    dependencies=[Depends(get_authorization_function)],
 )
 api_router.include_router(processes.ws_router, prefix="/processes", tags=["Core", "Processes"])
 
@@ -52,37 +53,40 @@ api_router.include_router(
     product_blocks.router,
     prefix="/product_blocks",
     tags=["Core", "Product Blocks"],
-    dependencies=[Depends(authorization.authorize)],
+    dependencies=[Depends(get_authorization_function)],
 )
 api_router.include_router(
-    products.router, prefix="/products", tags=["Core", "Product"], dependencies=[Depends(authorization.authorize)]
+    products.router, prefix="/products", tags=["Core", "Product"], dependencies=[Depends(get_authorization_function)]
 )
 api_router.include_router(
     resource_types.router,
     prefix="/resource_types",
     tags=["Core", "Resource Types"],
-    dependencies=[Depends(authorization.authorize)],
+    dependencies=[Depends(get_authorization_function)],
 )
 api_router.include_router(
     subscriptions.router,
     prefix="/subscriptions",
     tags=["Core", "Subscriptions"],
-    dependencies=[Depends(authorization.authorize)],
+    dependencies=[Depends(get_authorization_function)],
 )
 api_router.include_router(
     subscription_customer_descriptions.router,
     prefix="/subscription_customer_descriptions",
     tags=["Core", "Subscription Customer Descriptions"],
-    dependencies=[Depends(authorization.authorize)],
+    dependencies=[Depends(get_authorization_function)],
 )
 api_router.include_router(
-    user.router, prefix="/user", tags=["Core", "User"], dependencies=[Depends(authorization.authorize)]
+    user.router, prefix="/user", tags=["Core", "User"], dependencies=[Depends(get_authorization_function)]
 )
 api_router.include_router(
-    workflows.router, prefix="/workflows", tags=["Core", "Workflows"], dependencies=[Depends(authorization.authorize)]
+    workflows.router,
+    prefix="/workflows",
+    tags=["Core", "Workflows"],
+    dependencies=[Depends(get_authorization_function)],
 )
 api_router.include_router(
-    settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(authorization.authorize)]
+    settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(get_authorization_function)]
 )
 api_router.include_router(settings.ws_router, prefix="/settings", tags=["Core", "Settings"])
 api_router.include_router(health.router, prefix="/health", tags=["Core"])

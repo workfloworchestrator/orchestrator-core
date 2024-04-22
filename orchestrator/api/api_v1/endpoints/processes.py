@@ -50,7 +50,7 @@ from orchestrator.schemas import (
     ProcessSubscriptionSchema,
     Reporter,
 )
-from orchestrator.security import get_oidc_authentication
+from orchestrator.security import get_oidc_authentication_function
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
     SYSTEM_USER,
@@ -74,8 +74,6 @@ router = APIRouter()
 
 logger = structlog.get_logger(__name__)
 
-oidc_auth = get_oidc_authentication()
-
 
 def check_global_lock() -> None:
     """Check the global lock of the engine.
@@ -93,7 +91,7 @@ def check_global_lock() -> None:
 
 
 def resolve_user_name(
-    reporter: Reporter | None = None, resolved_user: OIDCUserModel | None = Depends(oidc_auth.authenticate)
+    reporter: Reporter | None = None, resolved_user: OIDCUserModel | None = Depends(get_oidc_authentication_function)
 ) -> str:
     if reporter:
         return reporter
