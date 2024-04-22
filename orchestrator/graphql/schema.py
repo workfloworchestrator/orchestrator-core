@@ -27,7 +27,7 @@ from strawberry.utils.logging import StrawberryLogger
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
-from orchestrator.graphql.autoregistration import register_domain_models
+from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
 from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
 from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
@@ -45,15 +45,16 @@ from orchestrator.graphql.resolvers import (
     resolve_workflows,
 )
 from orchestrator.graphql.resolvers.subscription import resolve_subscription
+from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.schemas.settings import StatusType
-from orchestrator.graphql.schemas.subscription import SubscriptionInterface, federation_key_directives
+from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.schemas.workflow import Workflow
-from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, StrawberryModelType
+from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, ScalarOverrideType, StrawberryModelType
 from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
@@ -64,7 +65,7 @@ logger = structlog.get_logger(__name__)
 
 
 @strawberry.federation.type(description="Orchestrator queries")
-class Query:
+class OrchestratorQuery:
     processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
@@ -90,11 +91,16 @@ class Query:
         resolver=resolve_settings,
         description="Returns information about cache, workers, and global engine settings",
     )
+
+
+@strawberry.federation.type(description="Orchestrator customer Query")
+class CustomerQuery:
     customers: Connection[CustomerType] = authenticated_field(
         resolver=resolve_customer, description="Returns default customer information"
     )
 
 
+Query = merge_types("Query", (OrchestratorQuery, CustomerQuery))
 Mutation = merge_types("Mutation", (SettingsMutation, CustomerSubscriptionDescriptionMutation, ProcessMutation))
 
 OrchestratorGraphqlRouter = GraphQLRouter
@@ -145,32 +151,38 @@ def get_context(
 INTERNAL_GRAPHQL_MODELS: StrawberryModelType = {}
 
 
-def internal_graphql_model_logic(graphql_models: dict) -> dict:
-    """Necessary for some reason yet to be found."""
-    INTERNAL_GRAPHQL_MODELS.update(graphql_models)
-    return INTERNAL_GRAPHQL_MODELS
+def internal_graphql_model_test_logic(graphql_models: dict) -> dict:
+    """Necessary Graphql logic for unit tests since we create and delete subscription models in each test and graphql expect static models.
+
+    We create and destroy the subscription models in each test. (which makes the pydantic model technically not the same after its re-created)
+    Strawberry will error saying that a nested product block can't be resolver and if you are actually using strawberry.field, This should never happen outside of testing.
+
+    returns INTERNAL_GRAPHQL_MOEDLS if environment is 'TESTING' and graphql_models if isn't
+    """
+    if app_settings.ENVIRONMENT == "TESTING":
+        INTERNAL_GRAPHQL_MODELS.update(graphql_models)
+        return INTERNAL_GRAPHQL_MODELS
+    return graphql_models
 
 
 def create_graphql_router(
     query: Any = Query,
     mutation: Any = Mutation,
     register_models: bool = True,
-    subscription_interface: type | None = SubscriptionInterface,
+    subscription_interface: type = SubscriptionInterface,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
     graphql_models: StrawberryModelType | None = None,
+    scalar_overrides: ScalarOverrideType | None = None,
 ) -> OrchestratorGraphqlRouter:
-    @strawberry.experimental.pydantic.type(
-        model=SubscriptionModel, all_fields=True, directives=federation_key_directives
+    scalar_overrides = scalar_overrides if scalar_overrides else dict(SCALAR_OVERRIDES)
+    models = graphql_models if graphql_models else dict(DEFAULT_GRAPHQL_MODELS)
+    models["subscription"] = create_subscription_strawberry_type(
+        "Subscription", SubscriptionModel, subscription_interface
     )
-    class Subscription(SubscriptionInterface):
-        pass
-
-    models = dict(graphql_models) if graphql_models else {}
-    models["subscription"] = Subscription
 
     if register_models:
         models = register_domain_models(subscription_interface, existing_models=models)
-        models = internal_graphql_model_logic(models)
+        models = internal_graphql_model_test_logic(models)
 
     schema = OrchestratorSchema(
         query=query,
@@ -178,7 +190,7 @@ def create_graphql_router(
         enable_federation_2=app_settings.FEDERATION_ENABLED,
         types=tuple(models.values()),
         extensions=[ErrorHandlerExtension, make_deprecation_checker_extension(query=query)],
-        scalar_overrides=SCALAR_OVERRIDES,
+        scalar_overrides=scalar_overrides,
     )
 
     return OrchestratorGraphqlRouter(

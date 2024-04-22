@@ -1,5 +1,7 @@
 import pytest
 
+from orchestrator import app_settings
+
 
 @pytest.fixture(autouse=True)
 def fastapi_app_graphql(
@@ -24,5 +26,8 @@ def fastapi_app_graphql(
 
     MetadataDict.update({"metadata": Metadata})
 
+    actual_env = app_settings.ENVIRONMENT
+    app_settings.ENVIRONMENT = "TESTING"
     fastapi_app.register_graphql()
-    return fastapi_app
+    yield fastapi_app
+    app_settings.ENVIRONMENT = actual_env

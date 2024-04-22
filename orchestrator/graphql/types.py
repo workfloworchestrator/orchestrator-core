@@ -119,7 +119,8 @@ IntType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
-SCALAR_OVERRIDES: dict[object, Any | ScalarWrapper | ScalarDefinition] = {
+ScalarOverrideType = dict[object, type | ScalarWrapper | ScalarDefinition]
+SCALAR_OVERRIDES: ScalarOverrideType = {
     dict: JSON,
     VlanRanges: VlanRangesType,
     IPv4Address: IPv4AddressType,

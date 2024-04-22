@@ -17,21 +17,26 @@ from orchestrator.graphql.autoregistration import (
     register_domain_models,
 )
 from orchestrator.graphql.schema import (
+    CustomerQuery,
     Mutation,
     OrchestratorGraphqlRouter,
+    OrchestratorQuery,
     OrchestratorSchema,
     Query,
     create_graphql_router,
     custom_context_dependency,
     get_context,
 )
-from orchestrator.graphql.schemas import GRAPHQL_MODELS
+from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS, GRAPHQL_MODELS
 from orchestrator.graphql.types import SCALAR_OVERRIDES
 
 __all__ = [
     "GRAPHQL_MODELS",
+    "DEFAULT_GRAPHQL_MODELS",
     "SCALAR_OVERRIDES",
     "Query",
+    "OrchestratorQuery",
+    "CustomerQuery",
     "Mutation",
     "OrchestratorGraphqlRouter",
     "OrchestratorSchema",
