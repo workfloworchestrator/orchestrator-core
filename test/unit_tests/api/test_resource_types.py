@@ -43,9 +43,7 @@ def test_save_invalid_resource_type(seed, test_client):
 
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
     assert {
-        "detail": [
-            {"type": "missing", "loc": ["body", "resource_type"], "msg": "Field required", "input": {}}
-        ]
+        "detail": [{"type": "missing", "loc": ["body", "resource_type"], "msg": "Field required", "input": {}}]
     } == response.json()
 
 
