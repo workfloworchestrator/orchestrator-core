@@ -72,7 +72,7 @@ app.register_graphql(query=NewQuery)
 
 ## Adding federated types to the graphql
 
-Within a federation, it is possible to add orchestrator data to graphql types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={}). Here is an example for when instead of overriding the customers resolver, you instead use a different graphql source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
+Within a federation, it is possible to add orchestrator data to graphql types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`. Here is an example for when instead of overriding the customers resolver, you instead use a different graphql source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
 
 ```python
 import strawberry
@@ -115,7 +115,7 @@ app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MOD
 ```
 
 Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the graphql ui interface.
-Adding product or product block strawberry types to the `graphql_models` will skip their generation inside `autoregister_domain_models`. more info [here](#domain-models-auto-registration-for-graphql)
+Adding product or product block strawberry types to the `graphql_models` will skip their generation inside `register_domain_models`. More info [here](#domain-models-auto-registration-for-graphql)
 
 ## Add Json schema for metadata
 
@@ -159,7 +159,7 @@ This will result in json schema:
 ## Domain Models Auto Registration for GraphQL
 
 When using the `app.register_graphql()` function, all products in the `SUBSCRIPTION_MODEL_REGISTRY` will be automatically converted into GraphQL types.
-You are able to turn this off with `app.register_graphql(register_models=False)` but will only be able to fetch the default `Subscription` data.
+You are able to turn this off with `app.register_graphql(register_models=False)`, but then you can only query fields from the default `SubscriptionModel`.
 The registration process iterates through the list, starting from the deepest product block and working its way back up to the product level.
 
 However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it could lead to an error expecting the `ProductBlock` type to exist.
