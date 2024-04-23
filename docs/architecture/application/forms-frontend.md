@@ -29,11 +29,11 @@ In the example json response below one of the properties is
             }
 ...
 
-In the AutofieldLoader function this maps to a CustomerField.
+In the autoFieldFunction this maps to a CustomerField.
 
 export function autoFieldFunction(
-    props: GuaranteedProps<unknown> & Record<string, unknown>,
-    uniforms: Context<Record<string, unknown>>,
+    props,
+    uniforms,
 ) {
     const { allowedValues, checkboxes, fieldType, field } = props;
     const { format } = field;
@@ -50,17 +50,20 @@ export function autoFieldFunction(
     ...
 
 The CustomerField is a React component that is provided by the Orchestrator Component Library.
-When it is rendered it's passed the complete property object so it can use the other properties like
-the ones under 'uniforms' to adjust it's behavior based on them.
+It's passed the complete property object so it can use them to adjust it's behavior.
 ```
 
 -   A `POST` with the form values is made to the same `/processes/<workflow_name>` endpoint
 -   The response status code can be:
     -   `400: Form invalid` Invalid values have been detected because the validators the backend runs have failed. An error message is shown.
-    -   `510: FormNotComplete` There is another step. This response contains another JSON6Response containing another form to ask for user input.
+    -   `510: FormNotComplete` There is another step. This response contains another json response containing a form.
     -   `201: Created` The workflow was initiated successfully. The response contains a workflow id and the user is redirected to the workflow detail page
 
-**Note**. For forms that have multiple steps the user input for each step is accumulated in local frontend state and posted to `/processes/<workflowname>` on each step. The endpoint will receive all available user inputs on each step and determine what other user input it needs or if it's ready to start the workflow.
+**Note**. For forms that have multiple steps the user input for each step is accumulated in local frontend state and posted to `/processes/<workflowname>` on each step. The endpoint will receive all available user inputs on each step and determine what other user input it till needs or if it's ready to start the workflow.
+
+**Note 2** The Orchestrator Component library contains fields that are marked as deprecated and live in a folder named `deprectated`. These contain field types that are very specific to workflows that are in use by SURF. There are plans to remove these from the general purpose components library.
+
+**Note 3** There are plans to make it easier to extend this functionality with to add custom field types and extend the switch statement in the autoFieldFunction to include these custom `types` or `formats`
 
 ### Backend: Creating a workflow that generates a form that asks for user input
 
