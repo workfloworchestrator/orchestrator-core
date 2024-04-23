@@ -16,7 +16,8 @@ from orchestrator.settings import app_settings
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
-
+else:
+    SubscriptionInterface = Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]
 
 federation_key_directives = [Key(fields="processId", resolvable=UNSET)]
 
@@ -76,7 +77,7 @@ class ProcessType:
         sort_by: list[GraphqlSort] | None = None,
         first: int = 10,
         after: int = 0,
-    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
+    ) -> Connection[SubscriptionInterface]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
         subscription_ids = [str(s.subscription_id) for s in self._original_model.subscriptions]  # type: ignore

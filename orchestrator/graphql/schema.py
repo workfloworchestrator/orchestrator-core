@@ -36,16 +36,19 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
     resolve_customer,
+    resolve_process,
     resolve_processes,
     resolve_product_blocks,
     resolve_products,
     resolve_resource_types,
     resolve_settings,
+    resolve_subscription,
     resolve_subscriptions,
     resolve_workflows,
 )
 from orchestrator.graphql.resolvers.subscription import resolve_subscription
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
+
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductType
@@ -65,6 +68,7 @@ logger = structlog.get_logger(__name__)
 
 @strawberry.federation.type(description="Orchestrator queries")
 class OrchestratorQuery:
+    process: ProcessType | None = authenticated_field(resolver=resolve_process, description="Returns a single process")
     processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
