@@ -27,11 +27,18 @@ app.register_graphql()
 
 ## Extending the Query and Mutation
 
+You are not able to remove resolvers from a Query, so we split the Query into 2 and merged them back for a default Query.
+Our usecase for this is that we use an external graphql source as our customers root.
+
+- `OrchestratorQuery` all resolvers except for customers.
+- `CustomerQuery` only has `customers` resolver.
+- `Query` Merges of `OrchestratorQuery` and `CustomerQuery` and serves as the default.
+
 This is an basic example of how to extend the query.
 You can do the same to extend Mutation.
 
 ```python
-from orchestrator.graphql import Query, Mutation
+from orchestrator.graphql import Query, Mutation, OrchestratorQuery
 
 
 # Queries
@@ -39,8 +46,18 @@ def resolve_new(info) -> str:
     return "resolve new..."
 
 
+# with customers.
 @strawberry.federation.type(description="Orchestrator queries")
 class NewQuery(Query):
+    other_processes: Connection[ProcessType] = authenticated_field(
+        resolver=resolve_processes,
+        description="resolve_processes used for another field",
+    )
+    new: str = strawberry.field(resolve_new, description="new resolver")
+
+# without customers.
+@strawberry.federation.type(description="Orchestrator queries")
+class NewQueryWithoutCustomers(OrchestratorQuery):
     other_processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes,
         description="resolve_processes used for another field",
@@ -52,6 +69,53 @@ app = OrchestratorCore(base_settings=AppSettings())
 # register SUBSCRIPTION_MODEL_REGISTRY
 app.register_graphql(query=NewQuery)
 ```
+
+## Adding federated types to the graphql
+
+Within a federation, it is possible to add orchestrator data to graphql types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={}). Here is an example for when instead of overriding the customers resolver, you instead use a different graphql source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
+
+```python
+import strawberry
+from sqlalchemy import select
+
+from oauth2_lib.strawberry import authenticated_field
+from orchestrator.db import db
+from orchestrator.graphql.pagination import Connection
+from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+
+
+@strawberry.federation.type(description="Customer", keys=["customer_id"])
+class Customer:
+    customer_id: str
+
+    @classmethod
+    async def resolve_reference(cls, customer_id: str) -> "Customer":  # noqa: N803
+        return Customer(customer_id=customer_id)
+
+    @authenticated_field(description="Returns subscriptions of a customer")  # type: ignore
+    async def subscriptions(
+        self,
+        info: OrchestratorInfo,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> Connection[SubscriptionInterface]:
+        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+
+        filter_by_customer_id = (filter_by or []) + [GraphqlFilter(field="customerId", value=str(self.uuid))]  # type: ignore
+        return await resolve_subscriptions(info, filter_by_customer_id, sort_by, first, after)
+
+UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+    "Customer": Customer,
+}
+
+app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
+```
+
+Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the graphql ui interface.
+Adding product or product block strawberry types to the `graphql_models` will skip their generation inside `autoregister_domain_models`. more info [here](#domain-models-auto-registration-for-graphql)
 
 ## Add Json schema for metadata
 
@@ -94,10 +158,11 @@ This will result in json schema:
 
 ## Domain Models Auto Registration for GraphQL
 
-When using the `register_graphql()` function, all products in the `SUBSCRIPTION_MODEL_REGISTRY` will be automatically converted into GraphQL types.
+When using the `app.register_graphql()` function, all products in the `SUBSCRIPTION_MODEL_REGISTRY` will be automatically converted into GraphQL types.
+You are able to turn this off with `app.register_graphql(register_models=False)` but will only be able to fetch the default `Subscription` data.
 The registration process iterates through the list, starting from the deepest product block and working its way back up to the product level.
 
-However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it leads to an error expecting the `ProductBlock` type to exist.
+However, there is a potential issue when dealing with a `ProductBlock` that references itself, as it could lead to an error expecting the `ProductBlock` type to exist.
 
 Here is an example of the expected error with a self referenced `ProductBlock`:
 
@@ -105,7 +170,7 @@ Here is an example of the expected error with a self referenced `ProductBlock`:
 strawberry.experimental.pydantic.exceptions.UnregisteredTypeException: Cannot find a Strawberry Type for <class 'products.product_blocks.product_block_file.ProductBlock'> did you forget to register it?
 ```
 
-To handle this situation, you must manually create the GraphQL type for that `ProductBlock` and add it to the `GRAPHQL_MODELS` list.
+To handle this situation, you must manually create the GraphQL type for that `ProductBlock` and add it to the `DEFAULT_GRAPHQL_MODELS` list.
 
 Here's an example of how to do it:
 
@@ -114,7 +179,7 @@ Here's an example of how to do it:
 import strawberry
 from typing import Annotated
 from app.product_blocks import ProductBlock
-from orchestrator.graphql import GRAPHQL_MODELS
+from orchestrator.graphql import DEFAULT_GRAPHQL_MODELS
 
 
 # It is necessary to use pydantic type, so that other product blocks can recognize it when typing to GraphQL.
@@ -127,16 +192,20 @@ class ProductBlockGraphql:
     ...
 
 
-# Add the ProductBlockGraphql type to GRAPHQL_MODELS, which is used in auto-registration for already created product blocks.
-GRAPHQL_MODELS.update({"ProductBlockGraphql": ProductBlockGraphql})
+# Add the ProductBlockGraphql type to GRAPHQL_MODELS, which skips its auto-register and used for products or product blocks dependant on it.
+UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
+    "ProductBlockGraphql": ProductBlockGraphql,
+}
+
+app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
 ```
 
-By following this example, you can effectively create the necessary GraphQL type for `ProductBlock` and ensure proper registration with `register_graphql()`. This will help you avoid any `Cannot find a Strawberry Type` scenarios and enable smooth integration of domain models with GraphQL.
+By following this example, you can effectively create the necessary GraphQL type for `ProductBlock` and ensure proper registration with `app.register_graphql()`. This will help you avoid any `Cannot find a Strawberry Type` scenarios and enable smooth integration of domain models with GraphQL.
 
 ### Scalars for Auto Registration
 
 When working with special types such as `VlanRanges` or `IPv4Interface` in the core module, scalar types are essential for the auto registration process.
-Scalar types enable smooth integration of these special types into the GraphQL schema, They need to be initialized before `register_graphql()`.
+Scalar types enable smooth integration of these special types into the GraphQL schema, They need to be initialized and can be added with a dict to `app.register_graphql(scalar_overrides={})`.
 
 Here's an example of how to add a new scalar:
 
@@ -153,18 +222,17 @@ VlanRangesType = strawberry.scalar(
 )
 
 # Add the scalar to the SCALAR_OVERRIDES dictionary, with the type in the product block as the key and the scalar as the value
-SCALAR_OVERRIDES.update(
-    {
-        VlanRanges: VlanRangesType,
-    }
-)
+UPDATED_SCALAR_OVERRIDES = SCALAR_OVERRIDES | {
+    VlanRanges: VlanRangesType,
+}
+
+app.register_graphql(other_params..., scalar_overrides=UPDATED_SCALAR_OVERRIDES)
 ```
 
 You can find more examples of scalar usage in the `orchestrator/graphql/types.py` file.
 For additional information on Scalars, please refer to the Strawberry documentation on Scalars: https://strawberry.rocks/docs/types/scalars.
 
 By using scalar types for auto registration, you can seamlessly incorporate special types into your GraphQL schema, making it easier to work with complex data in the Orchestrator application.
-
 
 
 ### Federating with Autogenerated Types
@@ -375,7 +443,7 @@ For instance, consider the scenario of overriding the `CustomerType`. you would 
 
 To enhance the override process, we created a helper function `override_class` to override fields. It takes the base class as well as a list of fields that will replace their counterparts within the class or add new fields.
 
-It's worth noting that `SubscriptionInterface` poses a unique challenge due to its auto-generated types. The issue arises from the fact that the models inherited from `SubscriptionInterface` do not automatically update. This can be addressed by utilizing the `override_class` function and incorporating the returned class into the `register_graphql` function. This ensures that the updated class, with overridden fields, becomes the basis for generating the auto-generated models.
+It's worth noting that `SubscriptionInterface` poses a unique challenge due to its auto-generated types. The issue arises from the fact that the models inherited from `SubscriptionInterface` do not automatically update. This can be addressed by utilizing the `override_class` function and incorporating the returned class into the `app.register_graphql` function. This ensures that the updated class, with overridden fields, becomes the basis for generating the auto-generated models.
 
 ```python
 # Define a custom subscription interface using the `override_class` function, incorporating specified override fields.
