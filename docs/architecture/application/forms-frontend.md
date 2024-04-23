@@ -4,14 +4,14 @@ Orchestrator Core contains a module called Pydantic Forms. Pydantic Forms allows
 
 ### Initiating a workflow from frontend
 
-A workflow can be initiated by doing a POST call to the endpoint ''/processes/<workflow_name>''
+A workflow can be initiated by doing a POST call to ''/processes/<workflow_name>''
 
 The steps that happen to initiate a workflow on the frontend are:
 
 -   A `POST` request to `/processes/<workflow_name>` with an empty payload
--   The backend determines what input values are missing and sends a response with http status code `510` and a payload containing a [JSON6Schema definition][2] describing the form to be displayed. See [Example JSON6Schema response](#example-json6schema-response)
--   The frontend uses the [Uniforms library][1] to parse the response into a form to display
--   The [AutofieldLoader function][3] is called to for each of the form.properties in the JSON response. This functions uses the properties `type` and `format` to determine what kind of field will be displayed.
+-   The backend determines what input values are missing and sends a response with http status code `510` and a payload containing a [JSON6Schema definition][2] describing the form to display. See [Example JSON6Schema response](#example-json6schema-response)
+-   The frontend uses the [Uniforms library][1] to parse the JSON response into a form to display
+-   The [AutofieldLoader function][3] is called for each of the form.properties in the JSON response. This functions uses the properties `type` and `format` to determine what kind of field will be displayed.
 
 ```
 
@@ -31,6 +31,14 @@ In the example json response below one of the properties is
 
 In the AutofieldLoader function this maps to a CustomerField.
 
+export function autoFieldFunction(
+    props: GuaranteedProps<unknown> & Record<string, unknown>,
+    uniforms: Context<Record<string, unknown>>,
+) {
+    const { allowedValues, checkboxes, fieldType, field } = props;
+    const { format } = field;
+
+    switch (fieldType) {
     ...
         case String:
             switch (format) {
