@@ -6,7 +6,6 @@ from sqlalchemy import delete
 
 from orchestrator.db import ProductBlockTable, ProductTable, ResourceTypeTable, db
 from test.unit_tests.config import IMS_CIRCUIT_ID
-from test.unit_tests.helpers import URL_MISSING
 
 PRODUCT_BLOCK_ID = "f51f9542-e83f-42e5-a590-0284dd5493e4"
 
@@ -75,8 +74,8 @@ def test_save_invalid_product_block(seed, test_client):
     assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
     assert {
         "detail": [
-            {"type": "missing", "loc": ["body", "name"], "msg": "Field required", "input": {}} | URL_MISSING,
-            {"type": "missing", "loc": ["body", "description"], "msg": "Field required", "input": {}} | URL_MISSING,
+            {"type": "missing", "loc": ["body", "name"], "msg": "Field required", "input": {}},
+            {"type": "missing", "loc": ["body", "description"], "msg": "Field required", "input": {}},
         ]
     } == response.json()
 
