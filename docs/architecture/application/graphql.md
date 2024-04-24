@@ -72,6 +72,8 @@ app.register_graphql(query=NewQuery)
 
 ## Adding federated types to the graphql
 
+federation introduction: https://strawberry.rocks/docs/federation/introduction
+
 Within a federation, it is possible to add orchestrator data to graphql types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`. Here is an example for when instead of overriding the customers resolver, you instead use a different graphql source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
 
 ```python

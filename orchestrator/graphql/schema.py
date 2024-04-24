@@ -148,23 +148,6 @@ def get_context(
     return _get_context
 
 
-INTERNAL_GRAPHQL_MODELS: StrawberryModelType = {}
-
-
-def internal_graphql_model_test_logic(graphql_models: dict) -> dict:
-    """Necessary Graphql logic for unit tests since we create and delete subscription models in each test and graphql expect static models.
-
-    We create and destroy the subscription models in each test. (which makes the pydantic model technically not the same after its re-created)
-    Strawberry will error saying that a nested product block can't be resolver and if you are actually using strawberry.field, This should never happen outside of testing.
-
-    returns INTERNAL_GRAPHQL_MOEDLS if environment is 'TESTING' and graphql_models if it isn't
-    """
-    if app_settings.ENVIRONMENT == "TESTING":
-        INTERNAL_GRAPHQL_MODELS.update(graphql_models)
-        return INTERNAL_GRAPHQL_MODELS
-    return graphql_models
-
-
 def create_graphql_router(
     query: Any = Query,
     mutation: Any = Mutation,
@@ -182,7 +165,6 @@ def create_graphql_router(
 
     if register_models:
         models = register_domain_models(subscription_interface, existing_models=models)
-        models = internal_graphql_model_test_logic(models)
 
     schema = OrchestratorSchema(
         query=query,
