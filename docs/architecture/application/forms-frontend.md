@@ -59,9 +59,9 @@ It's passed the complete property object so it can use them to adjust it's behav
     -   `510: FormNotComplete` There is another step. This response contains another json response containing a form.
     -   `201: Created` The workflow was initiated successfully. The response contains a workflow id and the user is redirected to the workflow detail page
 
-**Note**. For forms that have multiple steps the user input for each step is accumulated in local frontend state and posted to `/processes/<workflowname>` on each step. The endpoint will receive all available user inputs on each step and determine what other user input it till needs or if it's ready to start the workflow.
+**Note**. For forms that have multiple steps the user input for each step is accumulated in local frontend state and posted to `/processes/<workflowname>` on each step. The endpoint will receive all available user inputs on each step and determine what other user input it still needs or if it's ready to start the workflow.
 
-**Note 2** The Orchestrator Component library contains fields that are marked as deprecated and live in a folder named `deprectated`. These contain field types that are very specific to workflows that are in use by SURF. There are plans to remove these from the general purpose components library.
+**Note 2** The Orchestrator Component library contains fields that are marked as deprecated and live in a folder named `deprecated`. These contain field types that are very specific to workflows that are in use by SURF. There are plans to remove these from the general purpose components library.
 
 **Note 3** There are plans to make it easier to extend this functionality with to add custom field types and extend the switch statement in the autoFieldFunction to include these custom `types` or `formats`
 
