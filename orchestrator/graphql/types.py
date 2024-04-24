@@ -15,12 +15,13 @@ from collections.abc import Awaitable, Callable
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 
 # Map some Orchestrator types to scalars
-from typing import Any, NewType
+from typing import Any, NewType, TypeVar
 
 import strawberry
 from graphql import GraphQLError
 from starlette.requests import Request
 from strawberry.custom_scalar import ScalarDefinition, ScalarWrapper
+from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.scalars import JSON
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
@@ -32,6 +33,9 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 
+StrawberryPydanticModel = TypeVar("StrawberryPydanticModel", bound=StrawberryTypeFromPydantic)
+StrawberryModelType = dict[str, StrawberryPydanticModel]
+
 
 def serialize_to_string(value: Any) -> str:
     return str(value)
@@ -42,16 +46,19 @@ def serialize_vlan(vlan: VlanRanges) -> list[tuple[int, int]]:
 
 
 class OrchestratorContext(OauthContext):
-    broadcast_thread: ProcessDataBroadcastThread | None = None
+    broadcast_thread: ProcessDataBroadcastThread | None
+    graphql_models: StrawberryModelType
 
     def __init__(
         self,
         get_current_user: Callable[[Request], Awaitable[OIDCUserModel]],
         get_opa_decision: Callable[[str, OIDCUserModel], Awaitable[bool | None]],
         broadcast_thread: ProcessDataBroadcastThread | None = None,
+        graphql_models: StrawberryModelType | None = None,
     ):
         self.errors: list[GraphQLError] = []
         self.broadcast_thread = broadcast_thread
+        self.graphql_models = graphql_models or {}
         super().__init__(get_current_user, get_opa_decision)
 
 
@@ -112,7 +119,8 @@ IntType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
-SCALAR_OVERRIDES: dict[object, Any | ScalarWrapper | ScalarDefinition] = {
+ScalarOverrideType = dict[object, type | ScalarWrapper | ScalarDefinition]
+SCALAR_OVERRIDES: ScalarOverrideType = {
     dict: JSON,
     VlanRanges: VlanRangesType,
     IPv4Address: IPv4AddressType,
