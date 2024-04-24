@@ -297,7 +297,7 @@ def test_processes_sorting_asc(
     }
 
     assert processes[0]["startedAt"] == "2020-01-14T09:30:00+00:00"
-    assert processes[1]["startedAt"] == "2020-01-14T09:30:00+00:00"
+    assert processes[1]["startedAt"] == "2020-01-15T09:30:00+00:00"
     assert processes[2]["startedAt"] == "2020-01-15T09:30:00+00:00"
 
 
@@ -329,11 +329,11 @@ def test_processes_sorting_desc(
         "totalItems": 19,
     }
 
-    assert processes[0]["startedAt"] == "2020-01-19T09:30:00+00:00"
-    assert processes[1]["startedAt"] == "2020-01-19T09:30:00+00:00"
-    assert processes[2]["startedAt"] == "2020-01-19T09:30:00+00:00"
-    assert processes[3]["startedAt"] == "2020-01-19T09:30:00+00:00"
-    assert processes[4]["startedAt"] == "2020-01-18T09:30:00+00:00"
+    assert processes[0]["startedAt"] == "2020-02-19T09:30:00+00:00"
+    assert processes[1]["startedAt"] == "2020-02-19T09:30:00+00:00"
+    assert processes[2]["startedAt"] == "2020-02-18T09:30:00+00:00"
+    assert processes[3]["startedAt"] == "2020-02-17T09:30:00+00:00"
+    assert processes[4]["startedAt"] == "2020-02-16T09:30:00+00:00"
 
 
 @pytest.mark.parametrize(

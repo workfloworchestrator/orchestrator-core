@@ -979,6 +979,7 @@ def test_single_subscription_with_processes(
 
     product_type_1_subscriptions_factory(30)
     subscription_id = generic_subscription_1
+
     do_refresh_subscriptions_search_view()
 
     data = get_subscriptions_query_with_relations(**query_args(subscription_id))
@@ -1016,6 +1017,7 @@ def test_single_subscription_with_depends_on_subscriptions(
     # when
 
     product_type_1_subscriptions_factory(30)
+
     do_refresh_subscriptions_search_view()
 
     subscription_id = str(product_sub_list_union_subscription_1)
@@ -1060,7 +1062,7 @@ def test_single_subscription_with_in_use_by_subscriptions(
     # when
 
     product_type_1_subscriptions_factory(30)
-    do_refresh_subscriptions_search_view()
+
     subscription_id = str(sub_one_subscription_1.subscription_id)
     subscription_query = get_subscriptions_query_with_relations(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]

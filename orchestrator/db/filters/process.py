@@ -24,6 +24,7 @@ from orchestrator.db.filters.search_filters import (
     inferred_filter,
     node_to_str_val,
 )
+from orchestrator.db.filters.search_filters.inferred_filter import filter_uuid_exact
 from orchestrator.utils.search_query import Node, WhereCondGenerator
 
 logger = structlog.get_logger(__name__)
@@ -65,9 +66,7 @@ def customer_clause(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
 def make_subscription_id_clause(filter_generator: WhereCondGenerator) -> WhereCondGenerator:
     def subscription_id_clause(node: Node) -> BinaryExpression:
 
-        process_subscriptions = (
-            select(ProcessSubscriptionTable.process_id).join(SubscriptionTable).where(filter_generator(node)).subquery()
-        )
+        process_subscriptions = select(ProcessSubscriptionTable.process_id).where(filter_generator(node)).subquery()
 
         return ProcessTable.process_id.in_(process_subscriptions)
 
@@ -100,7 +99,7 @@ PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable) | {
     "customer": customer_clause,
     "product": make_product_clause(inferred_filter(ProductTable.name)),
     "product_description": make_product_clause(inferred_filter(ProductTable.description)),
-    "subscription_id": make_subscription_id_clause(inferred_filter(SubscriptionTable.subscription_id)),
+    "subscription_id": make_subscription_id_clause(filter_uuid_exact(ProcessSubscriptionTable.subscription_id)),
     "tag": make_product_clause(filter_exact(ProductTable.tag)),
     "target": workflow_targets_clause,
     "workflow_name": workflow_name_clause,
