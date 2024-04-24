@@ -20,6 +20,7 @@ class ProductBlockInstance:
     owner_subscription_id: UUID
     in_use_by_relations: list[JSON]
     product_block_instance_values: JSON
+    outside_subscription_boundary: bool
 
 
 def is_product_block(candidate: Any) -> bool:
@@ -88,6 +89,7 @@ async def get_subscription_product_blocks(
                 if included(k, v)
             ],
             in_use_by_relations=product_block.get("in_use_by_relations", []),
+            outside_subscription_boundary=product_block["owner_subscription_id"] == subscription_id,
         )
 
     product_blocks = (to_product_block(product_block) for product_block in get_all_product_blocks(subscription, tags))
