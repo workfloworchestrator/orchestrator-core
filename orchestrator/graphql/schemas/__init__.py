@@ -16,4 +16,3 @@ from orchestrator.graphql.types import StrawberryModelType
 DEFAULT_GRAPHQL_MODELS: StrawberryModelType = {
     "ProductModelGraphql": ProductModelGraphql,
 }
-GRAPHQL_MODELS: StrawberryModelType = DEFAULT_GRAPHQL_MODELS
