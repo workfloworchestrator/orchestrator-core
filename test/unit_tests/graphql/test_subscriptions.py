@@ -825,13 +825,13 @@ def test_subscriptions_filtering_with_invalid_filter(
 @pytest.mark.parametrize(
     "query_args",
     [
-        # lambda sid: {"filter_by": [{"field": "subscriptionId", "value": sid}]},
+        lambda sid: {"filter_by": [{"field": "subscriptionId", "value": sid}]},
         lambda sid: {"query_string": f"subscription_id:{sid}"},
-        # lambda sid: {"query_string": f"subscriptionId:{sid}"},
-        # lambda sid: {"query_string": f"{sid}"},
-        # lambda sid: {"query_string": f"{sid.split('-')[0]}"},
-        # lambda sid: {"filter_by": [{"field": "customerId", "value": CUSTOMER_ID.split("-")[0]}]},
-        # lambda sid: {"query_string": CUSTOMER_ID.split("-")[0]},
+        lambda sid: {"query_string": f"subscriptionId:{sid}"},
+        lambda sid: {"query_string": f"{sid}"},
+        lambda sid: {"query_string": f"{sid.split('-')[0]}"},
+        lambda sid: {"filter_by": [{"field": "customerId", "value": CUSTOMER_ID.split("-")[0]}]},
+        lambda sid: {"query_string": CUSTOMER_ID.split("-")[0]},
     ],
 )
 def test_single_subscription(test_client, product_type_1_subscriptions_factory, generic_product_type_1, query_args):

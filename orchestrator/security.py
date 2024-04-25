@@ -10,8 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Annotated
 
 from authlib.integrations.starlette_client import OAuth
+from fastapi import Depends
 from starlette.requests import Request
 from starlette.websockets import WebSocket
 
@@ -38,10 +40,7 @@ async def authenticate(request: Request) -> OIDCUserModel | None:
     return await request.app.auth_manager.authentication.authenticate(request)
 
 
-async def authorize(request: Request, user: OIDCUserModel | None) -> bool | None:
-    if not user:
-        user = authenticate(request)
-
+async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
     return await request.app.auth_manager.authorization.authorize(request, user)
 
 
@@ -49,8 +48,7 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserMo
     return await websocket.app.auth_manager.authentication.authenticate(websocket, token)
 
 
-async def authorize_websocket(websocket: WebSocket, user: OIDCUserModel | None) -> bool | None:
-    if not user:
-        user = authenticate_websocket(websocket)
-
+async def authorize_websocket(
+    websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
+) -> bool | None:
     return await websocket.app.auth_manager.authorization.authorize(websocket, user)
