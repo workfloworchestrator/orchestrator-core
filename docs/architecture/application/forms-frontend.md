@@ -2,7 +2,7 @@
 
 Orchestrator Core contains a module called Pydantic Forms. Pydantic Forms allows for configuration of input forms to collect user input needed for the execution of a workflow. The module contains a frontend part that display the forms automatically and handles submission and showing validation errors. This documentation describes what happens on the frontend side of this process.
 
-### Initiating a workflow from frontend
+## Initiating a workflow from frontend
 
 A workflow can be initiated by doing a POST call to ''/processes/<workflow_name>''
 
@@ -65,7 +65,7 @@ It's passed the complete property object so it can use them to adjust it's behav
 
 **Note 3** There are plans to make it easier to extend this functionality with to add custom field types and extend the switch statement in the autoFieldFunction to include these custom `types` or `formats`
 
-### Backend: Creating a workflow that generates a form that asks for user input
+## Backend: Creating a workflow that generates a form that asks for user input
 
 Creating workflows is described in other parts of this documentation in more detail. The practical steps and those that are relevant to the frontend
 are these
@@ -136,7 +136,7 @@ The type specified for each property (eg divider_1: Divider) determines what `ty
 
 -   The response for a POST call without user input to _<wfo-url>/processes/create_core_link_ is
 
-### Example JSON6Schema response:
+## Example JSON6Schema response:
 
 ```
 {
