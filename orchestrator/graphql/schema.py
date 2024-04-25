@@ -132,7 +132,9 @@ def get_context(
     broadcast_thread: ProcessDataBroadcastThread | None = None,
 ) -> Callable[[OrchestratorContext], Coroutine[Any, Any, OrchestratorContext]]:
     async def _get_context() -> OrchestratorContext:
-        return OrchestratorContext(auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread)
+        return OrchestratorContext(
+            auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread
+        )
 
     return _get_context
 
@@ -166,5 +168,7 @@ def create_graphql_router(
     )
 
     return OrchestratorGraphqlRouter(
-        schema, context_getter=get_context(auth_manager, models, broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
+        schema,
+        context_getter=get_context(auth_manager, models, broadcast_thread),
+        graphiql=app_settings.SERVE_GRAPHQL_UI,
     )
