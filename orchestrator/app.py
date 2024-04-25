@@ -37,6 +37,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
 from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_logging
+from oauth2_lib.fastapi import AuthManager, Authorization, GraphqlAuthorization, OIDCAuth
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.error_handling import ProblemDetailException
@@ -83,6 +84,7 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        self.auth_manager = AuthManager()
         self.base_settings = base_settings
         websocket_manager = init_websocket_manager(base_settings)
         distlock_manager = init_distlock_manager(base_settings)
@@ -198,6 +200,7 @@ class OrchestratorCore(FastAPI):
         scalar_overrides: ScalarOverrideType | None = None,
     ) -> None:
         new_router = create_graphql_router(
+            self.auth_manager,
             query,
             mutation,
             register_models,
@@ -211,6 +214,15 @@ class OrchestratorCore(FastAPI):
             self.include_router(new_router, prefix="/api/graphql")
         else:
             self.graphql_router.schema = new_router.schema
+
+    def register_authentication(self, authentication_instance: OIDCAuth) -> None:
+        self.auth_manager.authentication = authentication_instance
+
+    def register_authorization(self, authorization_instance: Authorization) -> None:
+        self.auth_manager.authorization = authorization_instance
+
+    def register_graphql_authorization(self, graphql_authorization_instance: GraphqlAuthorization) -> None:
+        self.auth_manager.graphql_authorization = graphql_authorization_instance
 
 
 main_typer_app = typer.Typer()

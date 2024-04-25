@@ -16,7 +16,6 @@ from typing import Any, Coroutine
 
 import strawberry
 import structlog
-from fastapi import Depends
 from fastapi.routing import APIRouter
 from graphql import GraphQLError
 from httpx import HTTPStatusError
@@ -25,6 +24,7 @@ from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
 
+from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
@@ -55,7 +55,6 @@ from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, ScalarOverrideType, StrawberryModelType
-from orchestrator.security import get_graphql_authorization_function, get_oidc_authentication_function
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
 
@@ -127,28 +126,19 @@ class OrchestratorSchema(strawberry.federation.Schema):
                 StrawberryLogger.error(error, execution_context)
 
 
-def custom_context_dependency(
-    get_current_user: Callable = Depends(get_oidc_authentication_function),  # noqa: B008
-    get_authorization_decision: Callable = Depends(get_graphql_authorization_function),  # noqa: B008
-) -> OrchestratorContext:
-    return OrchestratorContext(get_current_user=get_current_user, get_authorization_decision=get_authorization_decision)
-
-
 def get_context(
+    auth_manager: AuthManager,
     graphql_models: StrawberryModelType,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
 ) -> Callable[[OrchestratorContext], Coroutine[Any, Any, OrchestratorContext]]:
-    async def _get_context(
-        custom_context: OrchestratorContext = Depends(custom_context_dependency),  # noqa: B008
-    ) -> OrchestratorContext:
-        custom_context.broadcast_thread = broadcast_thread
-        custom_context.graphql_models = graphql_models
-        return custom_context
+    async def _get_context() -> OrchestratorContext:
+        return OrchestratorContext(auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread)
 
     return _get_context
 
 
 def create_graphql_router(
+    auth_manager: AuthManager,
     query: Any = Query,
     mutation: Any = Mutation,
     register_models: bool = True,
@@ -176,5 +166,5 @@ def create_graphql_router(
     )
 
     return OrchestratorGraphqlRouter(
-        schema, context_getter=get_context(models, broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
+        schema, context_getter=get_context(auth_manager, models, broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
     )

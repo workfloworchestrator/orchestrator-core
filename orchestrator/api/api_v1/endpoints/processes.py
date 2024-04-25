@@ -50,7 +50,7 @@ from orchestrator.schemas import (
     ProcessSubscriptionSchema,
     Reporter,
 )
-from orchestrator.security import get_oidc_authentication
+from orchestrator.security import authenticate
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
     SYSTEM_USER,
@@ -74,8 +74,6 @@ router = APIRouter()
 
 logger = structlog.get_logger(__name__)
 
-oidc_auth = get_oidc_authentication()
-
 
 def check_global_lock() -> None:
     """Check the global lock of the engine.
@@ -93,13 +91,20 @@ def check_global_lock() -> None:
 
 
 def resolve_user_name(
-    reporter: Reporter | None = None, resolved_user: OIDCUserModel | None = Depends(oidc_auth.authenticate)
+    reporter: Reporter | None = None,
+    resolved_user: OIDCUserModel | None = None,
 ) -> str:
     if reporter:
         return reporter
+
     if resolved_user:
         return resolved_user.name if resolved_user.name else resolved_user.user_name
+
     return SYSTEM_USER
+
+
+def user_name(user: OIDCUserModel | None = Depends(authenticate)) -> str:
+    return resolve_user_name(resolved_user=user)
 
 
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
@@ -127,7 +132,7 @@ def new_process(
     workflow_key: str,
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
-    user: str = Depends(resolve_user_name),
+    user: str = Depends(user_name),
 ) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
     process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
@@ -142,7 +147,7 @@ def new_process(
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
 def resume_process_endpoint(
-    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(resolve_user_name)
+    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(user_name)
 ) -> None:
     process = _get_process(process_id)
 
@@ -187,7 +192,7 @@ def continue_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> dict[str, int]:
+async def resume_all_processess_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -221,7 +226,7 @@ async def resume_all_processess_endpoint(request: Request, user: str = Depends(r
 
 
 @router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(resolve_user_name)) -> None:
+def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:
     process = _get_process(process_id)
 
     broadcast_func = api_broadcast_process_data(request)

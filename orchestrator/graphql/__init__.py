@@ -24,7 +24,6 @@ from orchestrator.graphql.schema import (
     OrchestratorSchema,
     Query,
     create_graphql_router,
-    custom_context_dependency,
     get_context,
 )
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
@@ -39,7 +38,6 @@ __all__ = [
     "Mutation",
     "OrchestratorGraphqlRouter",
     "OrchestratorSchema",
-    "custom_context_dependency",
     "get_context",
     "create_graphql_router",
     "EnumDict",

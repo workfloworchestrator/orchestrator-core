@@ -81,9 +81,6 @@ class AppSettings(BaseSettings):
 
 
 class AuthSettings(BaseSettings):
-    AUTHENTICATION_INSTANCE: str = "oauth2_lib.fastapi.oidc_instance"
-    AUTHORIZATION_INSTANCE: str = "oauth2_lib.fastapi.opa_instance"
-    GRAPHQL_AUTHORIZATION_INSTANCE: str = "oauth2_lib.fastapi.opa_instance_graphql"
     OPA_URL: str = "http://localhost:8181"
 
 

@@ -10,21 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib
 
 from authlib.integrations.starlette_client import OAuth
+from starlette.requests import Request
+from starlette.websockets import WebSocket
 
 from nwastdlib.url import URL
 from oauth2_lib.fastapi import (
     HTTPX_SSL_CONTEXT,
-    AuthenticationFunc,
-    Authorization,
-    GraphqlAuthorization,
-    GraphqlAuthorizationFunc,
-    OIDCAuth,
+    OIDCUserModel,
 )
 from oauth2_lib.settings import oauth2lib_settings
-from orchestrator.settings import auth_settings
 
 oauth_client_credentials = OAuth()
 
@@ -37,76 +33,24 @@ oauth_client_credentials.register(
     client_kwargs={"verify": HTTPX_SSL_CONTEXT},
 )
 
-_oidc_auth = None
-_authorization = None
-_graphql_authorization = None
+
+async def authenticate(request: Request) -> OIDCUserModel | None:
+    return await request.app.auth_manager.authentication.authenticate(request)
 
 
-def _get_authentication() -> OIDCAuth:
-    module_path, instance_name = auth_settings.AUTHENTICATION_INSTANCE.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    auth_instance = getattr(module, instance_name)
+async def authorize(request: Request, user: OIDCUserModel | None) -> bool | None:
+    if not user:
+        user = authenticate(request)
 
-    if not isinstance(auth_instance, OIDCAuth):
-        raise TypeError(f"The instance {instance_name} is not a subclass of OIDCAuth")
-
-    return auth_instance
+    return await request.app.auth_manager.authorization.authorize(request, user)
 
 
-def _get_authorization() -> Authorization:
-    module_path, instance_name = auth_settings.AUTHORIZATION_INSTANCE.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    authorization_instance = getattr(module, instance_name)
-
-    if not isinstance(authorization_instance, Authorization):
-        raise TypeError(f"The instance {instance_name} is not a subclass of Authorization")
-
-    return authorization_instance
+async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserModel | None:
+    return await websocket.app.auth_manager.authentication.authenticate(websocket, token)
 
 
-def _get_graphql_authorization() -> GraphqlAuthorization:
-    module_path, instance_name = auth_settings.GRAPHQL_AUTHORIZATION_INSTANCE.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    authorization_instance = getattr(module, instance_name)
+async def authorize_websocket(websocket: WebSocket, user: OIDCUserModel | None) -> bool | None:
+    if not user:
+        user = authenticate_websocket(websocket)
 
-    if not isinstance(authorization_instance, GraphqlAuthorization):
-        raise TypeError(f"The instance {instance_name} is not a subclass of GraphqlAuthorization")
-
-    return authorization_instance
-
-
-def get_oidc_authentication() -> OIDCAuth:
-    global _oidc_auth
-
-    if not _oidc_auth:
-        _oidc_auth = _get_authentication()
-
-    return _oidc_auth
-
-
-def get_authorization() -> Authorization:
-    global _authorization
-
-    if not _authorization:
-        _authorization = _get_authorization()
-
-    return _authorization
-
-
-def get_graphql_authorization() -> GraphqlAuthorization:
-    global _graphql_authorization
-
-    if not _graphql_authorization:
-        _graphql_authorization = _get_graphql_authorization()
-
-    return _graphql_authorization
-
-
-def get_oidc_authentication_function() -> AuthenticationFunc:
-    oidc_auth = get_oidc_authentication()
-    return oidc_auth.authenticate
-
-
-def get_graphql_authorization_function() -> GraphqlAuthorizationFunc:
-    authorization = get_graphql_authorization()
-    return authorization.authorize
+    return await websocket.app.auth_manager.authorization.authorize(websocket, user)
