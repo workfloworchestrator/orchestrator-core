@@ -80,12 +80,7 @@ class AppSettings(BaseSettings):
     TASK_LOG_RETENTION_DAYS: int = 3
 
 
-class AuthSettings(BaseSettings):
-    OPA_URL: str = "http://localhost:8181"
-
-
 app_settings = AppSettings()
-auth_settings = AuthSettings()
 
 # Set oauth2lib_settings variables to the same (default) value of settings
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
