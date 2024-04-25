@@ -130,7 +130,7 @@ def get_context(
     auth_manager: AuthManager,
     graphql_models: StrawberryModelType,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
-) -> Callable[[OrchestratorContext], Coroutine[Any, Any, OrchestratorContext]]:
+) -> Callable[[], Coroutine[Any, Any, OrchestratorContext]]:
     async def _get_context() -> OrchestratorContext:
         return OrchestratorContext(
             auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread
