@@ -20,7 +20,8 @@ from functools import partial
 from typing import get_args, get_origin
 
 import strawberry
-from more_itertools import first_true
+from more_itertools import consume, first_true, side_effect
+from pydantic.fields import FieldInfo
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib import const
@@ -62,9 +63,7 @@ def map_type(annotation: type | None, modify_map: ModifyMap) -> type | None:
 
 
 def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[DomainModel]:
-    clone = copy.deepcopy(klass)
-
-    for _, fi in clone.model_fields.items():
+    def map_field(fi: FieldInfo) -> None:
         annotation = fi.annotation
         if mapped_type := map_type(annotation, modify_map):
             fi.annotation = mapped_type
@@ -72,6 +71,11 @@ def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[Domain
             orig_type = get_args(annotation)[0]
             if mapped_type := map_type(orig_type, modify_map):
                 fi.annotation = list[mapped_type]  # type: ignore
+
+    clone = copy.deepcopy(klass)
+    fields = clone.model_fields.values()
+    consume(side_effect(map_field, fields))
+
     return clone
 
 
