@@ -4,7 +4,7 @@ from strawberry.field import StrawberryField
 def override_class(strawberry_class: type, fields: list[StrawberryField]) -> type:
     """Override fields or add fields to a existing strawberry class.
 
-    Usefull for overriding orchestrator core strawberry classes.
+    Useful for overriding orchestrator core strawberry classes.
 
     Parameters:
         - strawberry_class: The strawberry class which you want to change fields.

@@ -11,6 +11,7 @@ from orchestrator.graphql.schemas.fixed_input import FixedInput
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.graphql.utils.modify_class import strawberry_orchestrator_type
 from orchestrator.schemas.product import ProductSchema
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ class ProductType:
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
 
-@strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)
+@strawberry_orchestrator_type(model=ProductModel, all_fields=True)
 class ProductModelGraphql:
     @strawberry.field(description="Returns the product type")  # type: ignore
     async def type(self) -> str:
