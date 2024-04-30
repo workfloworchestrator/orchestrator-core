@@ -40,6 +40,10 @@ When you define a Product Type as a domain model in python, you also need to reg
 {% include 'https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/products/__init__.py' %}
 ```
 
+## Automatically Generating Product Types
+
+If all of this seems like too much work, then good news, as all clever engineers before us have done, we've fixed that with YAML! Using the WFO CLI, you can generate your product types directly from a YAML. For more information on how to do that, check out the [CLI `generate` command documentation.](../cli.md#generate)
+
 ## Creating Database Migrations
 
 After defining all of the components of a Product type, you'll also need to create a database migration to properly wire-up the product in the orchestrator's database. A migration file for this example Node model looks like this:
@@ -50,7 +54,3 @@ After defining all of the components of a Product type, you'll also need to crea
     ```
 
 Thankfully, you don't have to write these database migrations by hand, you can simply use the `main.py db migrate-domain-models` command that is part of the [orchestrator CLI, documented here.](../cli.md#migrate-domain-models)
-
-## Automatically Generating Product Types
-
-If all of this seems like too much work, then good news, as all clever engineers before us have done, we've fixed that with YAML! Using the WFO CLI, you can generate your product types directly from a YAML. For more information on how to do that, check out the [CLI `generate` command documentation.](../cli.md#generate)
