@@ -14,28 +14,31 @@
 import copy
 import inspect
 import types
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from enum import IntEnum, StrEnum
 from functools import partial
-from typing import get_args, get_origin, cast
+from typing import get_args, get_origin
 
 import strawberry
+from more_itertools import first_true
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
+from nwastdlib import const
 from orchestrator.domain.base import DomainModel
 from pydantic_forms.types import strEnum
 
-
-def is_domain_model(annotation: type | None) -> bool:
-    return inspect.isclass(annotation) and issubclass(annotation, DomainModel)
-
-
-def is_int_enum(annotation: type | None) -> bool:
-    return inspect.isclass(annotation) and issubclass(annotation, IntEnum)
+MatchFunc = Callable
+ActionFunc = Callable
+ModifyMap = Iterable[tuple[MatchFunc, ActionFunc]]
 
 
-def is_str_enum(annotation: type | None) -> bool:
-    return inspect.isclass(annotation) and issubclass(annotation, (strEnum, StrEnum))
+def is_subclass_of(annotation: type, class_or_tuple: type | tuple[type]) -> bool:
+    return inspect.isclass(annotation) and issubclass(annotation, class_or_tuple)
+
+
+is_domain_model = partial(is_subclass_of, class_or_tuple=DomainModel)
+is_int_enum = partial(is_subclass_of, class_or_tuple=IntEnum)
+is_str_enum = partial(is_subclass_of, class_or_tuple=(strEnum, StrEnum))
 
 
 def is_optional_enum_of_type(annotation: type | None, is_type_enum: Callable) -> bool:
@@ -50,37 +53,39 @@ is_optional_int_enum = partial(is_optional_enum_of_type, is_type_enum=is_int_enu
 is_optional_str_enum = partial(is_optional_enum_of_type, is_type_enum=is_str_enum)
 
 
-def modify_class(klass: type[DomainModel]) -> type[DomainModel]:  # noqa: C901
+def map_type(annotation: type | None, modify_map: ModifyMap) -> type | None:
+    match first_true(modify_map, pred=lambda match: match[0](annotation)):
+        case _, action:
+            return action(annotation, modify_map)
+        case _:
+            return None
+
+
+def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[DomainModel]:
     clone = copy.deepcopy(klass)
 
-    # TODO: replace by a nice extendable tree-walker implementation with some match:action map
-
-    for _key, fi in clone.model_fields.items():
+    for _, fi in clone.model_fields.items():
         annotation = fi.annotation
-        if is_domain_model(annotation):
-            assert annotation  # make mypy happy
-            fi.annotation = modify_class(annotation)
-        if is_str_enum(annotation):
-            fi.annotation = str
-        if is_optional_str_enum(annotation):
-            fi.annotation = str | None  # type: ignore
-        if is_int_enum(annotation):
-            fi.annotation = int
-        if is_optional_int_enum(annotation):
-            fi.annotation = int | None  # type: ignore
+        if mapped_type := map_type(annotation, modify_map):
+            fi.annotation = mapped_type
         if get_origin(annotation) is list:
             orig_type = get_args(annotation)[0]
-            if is_domain_model(orig_type):
-                fi.annotation = list[modify_class(orig_type)]  # type: ignore
-            if is_str_enum(orig_type):
-                fi.annotation = list[str]
-            if is_optional_str_enum(orig_type):
-                fi.annotation = list[str | None]
-            if is_int_enum(orig_type):
-                fi.annotation = list[int]
-            if is_optional_int_enum(orig_type):
-                fi.annotation = list[int | None]
+            if mapped_type := map_type(orig_type, modify_map):
+                fi.annotation = list[mapped_type]  # type: ignore
     return clone
+
+
+MODIFY_MAP = (
+    (is_domain_model, class_walker),
+    (is_str_enum, const(str)),
+    (is_int_enum, const(int)),
+    (is_optional_str_enum, const(str | None)),
+    (is_optional_int_enum, const(int | None)),
+)
+
+
+def modify_class(klass: type[DomainModel]) -> type[DomainModel]:
+    return class_walker(klass, modify_map=MODIFY_MAP)
 
 
 def strawberry_orchestrator_type(
