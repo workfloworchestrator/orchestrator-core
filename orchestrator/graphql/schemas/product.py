@@ -34,6 +34,10 @@ class ProductType:
     fixed_inputs: list[FixedInput]
     workflows: list[Workflow]
 
+    @strawberry.field(description="Returns the product type")  # type: ignore
+    async def type(self) -> str:
+        return self.product_type
+
     @authenticated_field(description="Returns list of subscriptions of the product type")  # type: ignore
     async def subscriptions(
         self,
@@ -51,4 +55,6 @@ class ProductType:
 
 @strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)
 class ProductModelGraphql:
-    pass
+    @strawberry.field(description="Returns the product type")  # type: ignore
+    async def type(self) -> str:
+        return self.product_type  # type: ignore

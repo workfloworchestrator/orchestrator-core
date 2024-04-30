@@ -131,7 +131,9 @@ class ProcessSubscriptionTable(BaseModel):
     __tablename__ = "processes_subscriptions"
 
     id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
-    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), index=True)
+    process_id = mapped_column(
+        "pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), index=True, nullable=False
+    )
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     subscription = relationship("SubscriptionTable", lazy=True)
@@ -537,7 +539,9 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
 class SubscriptionTable(BaseModel):
     __tablename__ = "subscriptions"
 
-    subscription_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    subscription_id = mapped_column(
+        UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, nullable=False
+    )
     description = mapped_column(Text(), nullable=False)
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)

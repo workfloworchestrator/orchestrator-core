@@ -23,7 +23,7 @@ from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
-from orchestrator.graphql.schemas import StrawberryModelType
+from orchestrator.graphql.types import StrawberryModelType
 from orchestrator.types import filter_nonetype, is_of_type, is_optional_type
 from orchestrator.utils.helpers import to_camel
 

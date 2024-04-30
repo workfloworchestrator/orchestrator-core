@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
 from orchestrator.db import ResourceTypeTable, SubscriptionTable, WorkflowTable, db, transactional
+from orchestrator.db.helpers import get_postgres_version
 from orchestrator.targets import Target
 
 
@@ -174,3 +175,9 @@ def test_str_method():
         str(SubscriptionTable())
         == "SubscriptionTable(subscription_id=None, description=None, status=None, product_id=None, customer_id=None, insync=None, start_date=None, end_date=None, note=None)"
     )
+
+
+def test_get_postgres_version():
+    pg_version = get_postgres_version()
+    assert isinstance(pg_version, int)
+    assert 0 < pg_version < 20

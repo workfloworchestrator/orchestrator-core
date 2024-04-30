@@ -1,6 +1,9 @@
-import pytest
-from sqlalchemy import Column, Integer, String, select
+import uuid
 
+import pytest
+from sqlalchemy import Column, Integer, String, func, select
+
+from orchestrator.db import db
 from orchestrator.db.database import BaseModel
 from orchestrator.db.helpers import to_sql_string
 from orchestrator.utils.search_query import Lexer, ParseError, Parser, TSQueryVisitor, create_sqlalchemy_select
@@ -60,10 +63,27 @@ def test_parse_errors(query, msg):
 
 def test_parse_edge_cases():
     # Just test whether this parses without error
-    q = "aa*bb@cc?dd>ee'ff_g<g[hh]ij$kk%;\\=+12`3€crazy!text kk|ll:''"
+    q = "aa*bb@cc?dd>ee'ff_g<g[hh]ij$kk%;\\=+12`3€crazy!text kk|ll:m"
     parse_tree, tsquery = _parse_tree_and_tsquery(q)
     assert tsquery.startswith("aa:*")
-    assert tsquery.endswith('| ll <-> ""')
+    assert tsquery.endswith("| ll <-> m")
+
+
+@pytest.mark.parametrize(
+    "query,expected_tsquery",
+    [
+        ("basic query example", "basic & query & example"),
+        ("example status:(suspended | terminated)", "example & status <-> (suspended | terminated)"),
+        (
+            "subscription_id:849fb72a-4366-4d41-9d37-3821d73e4dd4",
+            "(subscription <-> id) <-> (849fb72a <-> 4366 <-> 4d41 <-> 9d37 <-> 3821d73e4dd4)",
+        ),
+        ("something aaa_bbb else", "something & (aaa <-> bbb) & else"),
+    ],
+)
+def test_common_queries(query, expected_tsquery):
+    _, tsquery = _parse_tree_and_tsquery(query)
+    assert tsquery == expected_tsquery
 
 
 def test_parse_complex_query():
@@ -92,11 +112,11 @@ def test_parse_complex_query():
 
 
 def test_query_with_underscores():
-    q = 'word_with_underscores prefix_word* key_value:term_1 key_value2:(val_1 | "val_2" | val_3*)'
+    q = 'word_with_underscores prefix_word* key_value:term_1 key_value2:(val1 | "val2" | val3*)'
     parse_tree, tsquery = _parse_tree_and_tsquery(q)
     assert (
         tsquery
-        == "word <-> with <-> underscores & prefix <-> word:* & key <-> value <-> term <-> 1 & key <-> value2 <-> (val <-> 1 | val <-> 2 | val <-> 3:*)"
+        == "(word <-> with <-> underscores) & (prefix <-> word:*) & (key <-> value) <-> (term <-> 1) & (key <-> value2) <-> (val1 | val2 | val3:*)"
     )
 
 
@@ -129,3 +149,22 @@ def test_sqlalchemy_visitor(search_query, substrings):
         assert substring in to_sql_string(stmt)
 
     MyTable.metadata.clear()
+
+
+@pytest.mark.parametrize("i", range(100))
+def test_uuid_queries(i):
+    # Tests whether a text search vector containing a UUID can be successfully queried
+    # This used to fail sometimes in Postgres <14 versions.
+
+    # TODO: Remove when support for Postgres <14 is dropped
+    uid = uuid.uuid4()
+
+    query = f"subscription_id:{uid}"
+    tsv = func.to_tsvector("simple", func.replace(query, "-", "_"))
+
+    _, ts_query = _parse_tree_and_tsquery(query)
+
+    stmt = select(tsv.op("@@")(func.to_tsquery("simple", ts_query)))
+
+    matches = db.session.scalar(stmt)
+    assert matches

@@ -116,7 +116,7 @@ def mocked_processes(test_workflow, generic_subscription_1, generic_subscription
 
 @pytest.fixture
 def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_subscription_2):
-    first_datetime = datetime(2020, 1, 14, 9, 30, tzinfo=pytz.utc)
+    first_datetime = datetime(2020, 2, 14, 9, 30, tzinfo=pytz.utc)
 
     def mock_process(subscription_id, status, started, assignee=Assignee.SYSTEM, is_task=False):
         process_id = uuid4()

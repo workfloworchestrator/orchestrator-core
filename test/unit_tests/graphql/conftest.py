@@ -1,4 +1,9 @@
+from unittest import mock
+
 import pytest
+
+from orchestrator import app_settings
+from orchestrator.graphql.autoregistration import register_domain_models
 
 
 @pytest.fixture(autouse=True)
@@ -24,5 +29,21 @@ def fastapi_app_graphql(
 
     MetadataDict.update({"metadata": Metadata})
 
+    actual_env = app_settings.ENVIRONMENT
+    app_settings.ENVIRONMENT = "TESTING"
     fastapi_app.register_graphql()
-    return fastapi_app
+    yield fastapi_app
+    app_settings.ENVIRONMENT = actual_env
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fix_graphql_model_registration():
+    internal_graphql_models = {}
+
+    def patched_register_domain_models(*args, **kwargs):
+        graphql_models = register_domain_models(*args, **kwargs)
+        internal_graphql_models.update(graphql_models)
+        return internal_graphql_models
+
+    with mock.patch("orchestrator.graphql.schema.register_domain_models", side_effect=patched_register_domain_models):
+        yield
