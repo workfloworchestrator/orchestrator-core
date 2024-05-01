@@ -721,8 +721,8 @@ def test_subscriptions_filtering_on_status(
 
     result_subscription_ids = {subscription["subscriptionId"] for subscription in subscriptions}
     assert result_subscription_ids == {str(subscription_1.subscription_id), str(subscription_9.subscription_id)}
-    assert subscriptions[0]["status"] == "TERMINATED"
-    assert subscriptions[1]["status"] == "TERMINATED"
+    assert subscriptions[0]["status"] == "terminated"
+    assert subscriptions[1]["status"] == "terminated"
 
 
 def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
@@ -819,7 +819,7 @@ def test_subscriptions_filtering_with_invalid_filter(
     }
 
     for subscription in subscriptions:
-        assert subscription["status"] == "TERMINATED"
+        assert subscription["status"] == "terminated"
 
 
 @pytest.mark.parametrize(
