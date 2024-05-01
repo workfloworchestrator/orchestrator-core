@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import inspect
 import types
 from collections.abc import Callable, Iterable, Sequence
@@ -21,11 +20,13 @@ from typing import get_args, get_origin
 
 import strawberry
 from more_itertools import consume, first_true, side_effect
+from pydantic import create_model
 from pydantic.fields import FieldInfo
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib import const
 from orchestrator.domain.base import DomainModel
+from orchestrator.types import is_list_type
 from pydantic_forms.types import strEnum
 
 MatchFunc = Callable
@@ -67,12 +68,12 @@ def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[Domain
         annotation = fi.annotation
         if mapped_type := map_type(annotation, modify_map):
             fi.annotation = mapped_type
-        if get_origin(annotation) is list:
+        if is_list_type(annotation):
             orig_type = get_args(annotation)[0]
             if mapped_type := map_type(orig_type, modify_map):
                 fi.annotation = list[mapped_type]  # type: ignore
 
-    clone = copy.deepcopy(klass)
+    clone = create_model(f"{klass.__name__}_CLONE", __base__=klass)
     fields = clone.model_fields.values()
     consume(side_effect(map_field, fields))
 
@@ -102,7 +103,7 @@ def strawberry_orchestrator_type(
     use_pydantic_alias: bool = True,
 ) -> Callable[..., type[StrawberryTypeFromPydantic[DomainModel]]]:
     updated_model = modify_class(model)
-    return strawberry.experimental.pydantic.type(
+    mapper_func = strawberry.experimental.pydantic.type(
         updated_model,
         name=name,
         all_fields=all_fields,
@@ -110,3 +111,11 @@ def strawberry_orchestrator_type(
         description=description,
         use_pydantic_alias=use_pydantic_alias,
     )
+
+    def updated_mapper_func(*args, **kwargs):
+        map_result = mapper_func(*args, **kwargs)
+        # NOTE: dirty hack to register the intermediate type as a strawberry type
+        model._strawberry_type = updated_model._strawberry_type
+        return map_result
+
+    return updated_mapper_func
