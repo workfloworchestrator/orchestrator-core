@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
 import strawberry
@@ -34,18 +34,25 @@ class ProductBlock:
         return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.in_use_by]  # type: ignore
 
 
-@strawberry.type
+async def owner_subscription_resolver(
+    root: Any, info: OrchestratorInfo
+) -> Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None:
+    from orchestrator.graphql.resolvers.subscription import format_subscription
+
+    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == root.owner_subscription_id)
+
+    if subscription := db.session.scalar(stmt):
+        return format_subscription(info, subscription)
+    return None
+
+
+@strawberry.interface
 class BaseProductBlockType:
+    subscription_instance_id: UUID
     owner_subscription_id: UUID
-
-    @strawberry.field(description="resolve to subscription of the product block")
-    async def subscription(
-        self, info: OrchestratorInfo
-    ) -> Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None:
-        from orchestrator.graphql.resolvers.subscription import format_subscription
-
-        stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == self.owner_subscription_id)
-
-        if subscription := db.session.scalar(stmt):
-            return format_subscription(info, subscription)
-        return None
+    name: str | None = None
+    label: str | None = None
+    title: str | None = None
+    subscription: Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None = strawberry.field(
+        description="resolve to subscription of the product block", resolver=owner_subscription_resolver
+    )

@@ -84,11 +84,15 @@ def create_block_strawberry_type(
     if keys := [key for key in model.__annotations__.keys() if "_id" in key]:
         federation_key_directives.extend([Key(fields=to_camel(key), resolvable=True) for key in keys])
 
-    new_type = type(strawberry_name, (BaseProductBlockType,), {})
-    strawberry_wrapper = strawberry.experimental.pydantic.type(
-        model, name=strawberry_name, all_fields=True, directives=federation_key_directives
+    base_type = type(strawberry_name, (BaseProductBlockType,), {})
+    pydantic_wrapper = strawberry.experimental.pydantic.type(
+        model,
+        all_fields=True,
+        directives=federation_key_directives,
+        description=f"{strawberry_name} Type",
+        use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
-    return type(strawberry_name, (strawberry_wrapper(new_type),), {})
+    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
 
 
 def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
