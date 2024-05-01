@@ -16,7 +16,7 @@ import types
 from collections.abc import Callable, Iterable, Sequence
 from enum import IntEnum, StrEnum
 from functools import partial
-from typing import get_args, get_origin, Any
+from typing import Any, get_args, get_origin
 
 import strawberry
 from more_itertools import consume, first_true, side_effect
