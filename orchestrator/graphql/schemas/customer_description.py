@@ -1,8 +1,7 @@
-import strawberry
-
+from orchestrator.graphql.utils.modify_class import strawberry_orchestrator_type
 from orchestrator.schemas import SubscriptionDescriptionSchema
 
 
-@strawberry.experimental.pydantic.type(model=SubscriptionDescriptionSchema, all_fields=True)
+@strawberry_orchestrator_type(model=SubscriptionDescriptionSchema, all_fields=True)
 class CustomerDescription:
     pass

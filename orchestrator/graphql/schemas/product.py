@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 federation_key_directives = [Key(fields="productId", resolvable=UNSET)]
 
 
-@strawberry.experimental.pydantic.type(model=ProductSchema, directives=federation_key_directives)
+@strawberry_orchestrator_type(model=ProductSchema, directives=federation_key_directives)
 class ProductType:
     product_id: strawberry.auto
     name: strawberry.auto

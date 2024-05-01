@@ -8,13 +8,14 @@ from orchestrator.db import db
 from orchestrator.db.models import SubscriptionTable
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.types import OrchestratorInfo
+from orchestrator.graphql.utils.modify_class import strawberry_orchestrator_type
 from orchestrator.schemas.product_block import ProductBlockSchema
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
-@strawberry.experimental.pydantic.type(model=ProductBlockSchema)
+@strawberry_orchestrator_type(model=ProductBlockSchema, all_fields=False)
 class ProductBlock:
     product_block_id: strawberry.auto
     name: strawberry.auto

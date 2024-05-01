@@ -13,7 +13,6 @@
 
 from typing import TYPE_CHECKING, TypeVar
 
-import strawberry
 import structlog
 
 from orchestrator.types import SubscriptionLifecycle, strEnum
@@ -24,7 +23,6 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
-@strawberry.enum
 class ProductLifecycle(strEnum):
     ACTIVE = "active"
     PRE_PRODUCTION = "pre production"
