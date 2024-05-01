@@ -16,7 +16,7 @@ import types
 from collections.abc import Callable, Iterable, Sequence
 from enum import IntEnum, StrEnum
 from functools import partial
-from typing import get_args, get_origin
+from typing import get_args, get_origin, Any
 
 import strawberry
 from more_itertools import consume, first_true, side_effect
@@ -112,10 +112,10 @@ def strawberry_orchestrator_type(
         use_pydantic_alias=use_pydantic_alias,
     )
 
-    def updated_mapper_func(*args, **kwargs):
+    def updated_mapper_func(*args: Any, **kwargs: Any) -> type[StrawberryTypeFromPydantic[DomainModel]]:
         map_result = mapper_func(*args, **kwargs)
         # NOTE: dirty hack to register the intermediate type as a strawberry type
-        model._strawberry_type = updated_model._strawberry_type
+        model._strawberry_type = updated_model._strawberry_type  # type: ignore
         return map_result
 
     return updated_mapper_func
