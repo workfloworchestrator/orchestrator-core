@@ -1,6 +1,6 @@
 # Database
 
-For most operation database interactions, you will want to use the CLI tool, which is documented in depth [here.](cli.md#db) The rest of this page documents other unique things that you should know about the database in the WFO.
+For most operation database interactions, you will want to use the CLI tool, which is documented in depth [here](cli.md#db). The rest of this page documents other unique things that you should know about the database in the WFO.
 
 ## Architecture
 

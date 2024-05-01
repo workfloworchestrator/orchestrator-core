@@ -126,7 +126,7 @@ def merge(
     """Merge database revisions.
 
     It is possible when using multiple git branches in your WFO development lifecycle to have
-    multiple almembic heads emerge. This command will allow you to merge those two (or more)
+    multiple Alembic heads emerge. This command will allow you to merge those two (or more)
     heads to resolve the issue. You also might need to run this after updating your version
     of orchestrator-core if there have been schema changes.
 
