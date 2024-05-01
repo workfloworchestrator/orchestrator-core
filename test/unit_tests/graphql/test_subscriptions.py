@@ -881,7 +881,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.ACTIVE.name
+    assert subscriptions[0]["status"] == "active"
     assert subscriptions[0]["customerDescriptions"] == [
         {
             "subscriptionId": subscription_id,
@@ -1360,7 +1360,7 @@ def test_subscriptions_product_generic_one(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.ACTIVE.name
+    assert subscriptions[0]["status"] == "active"
     assert subscriptions[0]["pb1"] == {"rt1": "Value1"}
     assert subscriptions[0]["pb2"] == {"rt2": 42, "rt3": "Value2"}
     assert subscriptions[0]["customerDescriptions"] == [
@@ -1401,7 +1401,7 @@ def test_single_subscription_product_list_union_type(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.ACTIVE.name
+    assert subscriptions[0]["status"] == "active"
     assert subscriptions[0]["testBlock"] == {
         "intField": 1,
         "strField": "blah",
