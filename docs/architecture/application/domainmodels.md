@@ -157,7 +157,7 @@ this product block model must have all resource_types filled in except for `auto
     of`Pydantic`.
 
 #### Product Model a.k.a SubscriptionModel
-Product models are very similar to Prodblock Models in that they adhere to the same principles as explained above. However
+Product models are very similar to Product Block Models in that they adhere to the same principles as explained above. However
 the difference to Product Block models is that they create `Subscriptions` in the database. They must always have a reference
 to a customer and instead of containing other `ProductBlockModel` or `resource_types` they contain either `fixed_inputs`
 which basically describe fixed product attributes or other `ProductBlockModels.`
@@ -221,7 +221,7 @@ This is valid use of the domain models. The code will detect that `port` is part
 ownership. It basically will treat it as a `read-only` property.
 
 #### Union types
-There may also be a case where a user would like to define two different types to a `ProductBlockModel` propery.
+There may also be a case where a user would like to define two different types to a `ProductBlockModel` property.
 This can be achieved by using the `Union` type decorator.
 
 !!! danger

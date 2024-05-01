@@ -1,25 +1,31 @@
-# Form input logic
+# Pydantic Forms
 
-In the orchestrator core, form input elements are now class based and subclass the `FormPage` class in the core.
+In the orchestrator core, the forms a user will use in the web UI are created by defining your form input elements as a class that is a subclass of the `FormPage` class in the core. This allows you to write your form data for your WFO instance as simple python classes, but still have a useful form rendered in the frontend Web UI. This is achieved by using the library [pydantic-forms](https://github.com/workfloworchestrator/pydantic-forms). One benefit of this model is that it lets WFO developers not have to understand much about frontend technologies to build complex form structures. It's definitely worth poking around in that module to see the various input types the core library exposes.
+
+## Form Examples
+
+### Importing Form Elements
+
+To use the pydantic forms, you must import the `FormPage` class:
 
 ```python
 from orchestrator.forms import FormPage, ReadOnlyField
 ```
 
-And the validators module exposes validators that also function as "input type widgets":
+Additionally, the validators module exposes validators that also function as "input type widgets". Here is an example of importing some of the built-in validators for use in a workflow:
 
 ```python
 from orchestrator.forms.validators import CustomerId, choice_list, Choice
 ```
 
-It's worth poking around in that module to see the various input types the core library exposes.
+You can, of course, define you own validators as well simply by using pydantic validators, as described in the [pydantic documentation.](https://docs.pydantic.dev/latest/concepts/validators/)
 
-## Form examples
+### Writing Forms
 
-Here is a relatively simple input form:
+Writing forms is quite straight forward, here is a relatively simple input form:
 
 ```python
-equipment = get_planned_equipment()
+equipment = get_planned_equipment() # grab available equipment from inventory system
 choices = [f"{eq['name']}" for eq in equipment]
 
 EquipmentList = choice_list(
@@ -34,7 +40,7 @@ class CreateNodeEnrollmentForm(FormPage):
     class Config:
         title = product_name
 
-    customer_id: CustomerId = ReadOnlyField(CustomerId(ESNET_ORG_UUID))
+    customer_id: CustomerId = ReadOnlyField(CustomerId(DEFAULT_ORG_UUID))
     select_node_choice: EquipmentList
 
 
@@ -43,11 +49,11 @@ class CreateNodeEnrollmentForm(FormPage):
 user_input = yield CreateNodeEnrollmentForm
 ```
 
-It has a read only ORG ID and exposes a list of devices pulled from ESDB for the user to choose from.
+The only real data gathered with this form are `customer_id`, which is read-only, so the user cannot modify it, and the form exposes a list of devices pulled from a network inventory system for the user to choose from.
 
-### Choice widgets
+#### Choice Widgets
 
-Of note: `min_items` and `max_items` do not refer to the number of elements in the list. This UI construct allows for an arbitrary number of choices to be made - there are `+` and `-` options exposed in the UI allowing for multiple choices selected by the user. So `min 1 / max 1` tells the UI to display one pull down list of choices one of which must be selected, and additional choices can not be added.
+Of note: `min_items` and `max_items` do not refer to the number of elements in the list. This UI construct allows for an arbitrary number of choices to be made. There are `+` and `-` options exposed in the UI allowing for multiple choices selected by the user. So `min 1 / max 1` tells the UI to display one pull down list of choices one of which must be selected, and additional choices can not be added.
 
 If one defined something like `min 1 / max 3` it would display one pulldown box by default and expose a `+` element in the UI. The user could click on it to arbitrarily add a second or a third pulldown list. `min 0` would not display any list by default but the user could use `+` to add some, etc.
 
@@ -57,11 +63,11 @@ Since multiple choices are allowed, the results are returned as a list even if t
 eq_name = user_input.select_node_choice[0]
 ```
 
-The `zip()` maneuver takes the list and makes it into a dict with the same keys and values. So the display text doesn't have to be the same as the value returned.
+The `zip()` maneuver takes the list and makes it into a dict with the same keys and values so that the display text doesn't have to be the same as the value returned.
 
-### Accept actions
+#### Accept Actions
 
-Confirming actions is a common bit of functionality. This bit of code displays some read only NSO payload and lets the user ok the dry run:
+Confirming actions is a common bit of functionality. This bit of code displays a read only payload from an external system, lets the user check that value and then approve that the payload is correct as a form of a dry run:
 
 ```python
 from orchestrator.forms import FormPage, ReadOnlyField
@@ -78,7 +84,7 @@ def confirm_dry_run_results(dry_run_results: str) -> State:
     return user_input
 ```
 
-### Generic python types
+#### Generic Python Types
 
 It is possible to mix generic python types in the with the defined validation fields:
 
@@ -96,9 +102,9 @@ class CreateLightPathForm(FormPage):
     remote_port_shutdown: bool = True
 ```
 
-### Multi step form input
+#### Multi-step Form Input
 
-Similar to the original "list based" form `Input` elements, to do a multistep form flow yield multiple times and then combine the results at the end:
+To do a multi-step form in your workflow, you simply yield multiple times and then combine the results at the end:
 
 ```python
 def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGenerator:
@@ -125,7 +131,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
     return {**user_input.dict(), **user_input_node.dict()}
 ```
 
-## custom form field
+### Custom Form Fields
 
 You can create a custom field component in the frontend. The components in `orchestrator-gui/src/lib/uniforms-surfnet/src` can be used to study reference implementations for a couple of custom form field types.
 
@@ -133,7 +139,7 @@ For it to show up in the form, you have to do 2 things, a pydantic type/class in
 
 as an example I will create a custom field with name field and group select field.
 
-### pydantic type/class in backend
+#### Pydantic Type/Class In Backend
 
 Create a pydantic type/class.
 
@@ -187,7 +193,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
     user_input = yield ChoseUserForm
 ```
 
-### auto field loader
+#### Auto Field Loader
 
 The auto field loader is for loading the correct field component in the form.
 It has switches that check the field type and the field format.
@@ -219,7 +225,7 @@ export function autoFieldFunction(props: GuaranteedProps<unknown> & Record<strin
 
 ```
 
-### custom field example
+#### Custom Field Example
 
 example custom field to select a user by group.
 
@@ -427,5 +433,3 @@ function ChoosePerson({
 
 export default connectField(injectIntl(ChoosePerson), { kind: "leaf" });
 ```
-
-## TBA
