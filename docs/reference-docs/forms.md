@@ -104,7 +104,7 @@ class CreateLightPathForm(FormPage):
 
 #### Multi-step Form Input
 
-To do a multi-step form in your workflow, you simply yield multiple times and then combine the results at the end:
+To do a multistep form in your workflow, you simply yield multiple times and then combine the results at the end:
 
 ```python
 def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGenerator:
@@ -118,7 +118,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
 
     user_input = yield CreateNodeForm
 
-    class NodeIdForm(FormPage):
+    class NodeIdForm(SubmitFormPage):
         class Config:
             title = product_name
 
@@ -131,6 +131,8 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
     return {**user_input.dict(), **user_input_node.dict()}
 ```
 
+For multistep forms especially, it can be useful to use the `orchestrator.forms.SubmitFormPage` class, which is just a subclass of `orchestraot.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
+
 ### Custom Form Fields
 
 You can create a custom field component in the frontend. The components in `orchestrator-gui/src/lib/uniforms-surfnet/src` can be used to study reference implementations for a couple of custom form field types.
@@ -138,6 +140,7 @@ You can create a custom field component in the frontend. The components in `orch
 For it to show up in the form, you have to do 2 things, a pydantic type/class in the backend and add the component to the `AutoFieldLoader.tsx`.
 
 as an example I will create a custom field with name field and group select field.
+
 
 #### Pydantic Type/Class In Backend
 
