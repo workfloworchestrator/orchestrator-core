@@ -1,6 +1,6 @@
 from collections.abc import Generator
 from itertools import count
-from typing import Any
+from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
 import strawberry
@@ -8,8 +8,12 @@ from pydantic.alias_generators import to_camel as to_lower_camel
 from strawberry.scalars import JSON
 
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.graphql.schemas.product_block import owner_subscription_resolver
 from orchestrator.services.subscriptions import build_extended_domain_model
 from orchestrator.utils.redis import from_redis
+
+if TYPE_CHECKING:
+    from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 
 
 @strawberry.type
@@ -20,6 +24,11 @@ class ProductBlockInstance:
     owner_subscription_id: UUID
     in_use_by_relations: list[JSON]
     product_block_instance_values: JSON
+    subscription: (
+        Annotated["SubscriptionInterface", strawberry.lazy("orchestrator.graphql.schemas.subscription")] | None
+    ) = strawberry.field(
+        description="resolve to subscription of the product block", resolver=owner_subscription_resolver
+    )
 
 
 def is_product_block(candidate: Any) -> bool:
