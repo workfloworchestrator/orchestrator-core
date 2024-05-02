@@ -56,12 +56,21 @@ is_optional_int_enum = partial(is_optional_enum_of_type, is_type_enum=is_int_enu
 is_optional_str_enum = partial(is_optional_enum_of_type, is_type_enum=is_str_enum)
 
 
+__MAPPED_TYPES = {}
+
+
 def map_type(annotation: type | None, modify_map: ModifyMap) -> type | None:
+    if result := __MAPPED_TYPES.get(annotation):
+        return result
+
     match first_true(modify_map, pred=lambda match: match[0](annotation)):
         case _, action:
-            return action(annotation, modify_map)
+            result = action(annotation, modify_map)
         case _:
-            return None
+            result = None
+
+    __MAPPED_TYPES[annotation] = result
+    return result
 
 
 def map_union_members(annotation: type | None, modify_map: ModifyMap) -> Iterator[type]:
