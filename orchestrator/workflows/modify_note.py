@@ -12,6 +12,7 @@
 # limitations under the License.
 from orchestrator.db import db
 from orchestrator.services import subscriptions
+from orchestrator.forms import SubmitFormPage
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import UUIDstr
@@ -19,7 +20,6 @@ from orchestrator.utils.json import to_serializable
 from orchestrator.workflow import StepList, conditional, done, init, workflow
 from orchestrator.workflows.steps import cache_domain_models, store_process_subscription
 from orchestrator.workflows.utils import wrap_modify_initial_input_form
-from pydantic_forms.core import FormPage
 from pydantic_forms.types import FormGenerator
 from pydantic_forms.validators import LongText
 
@@ -29,7 +29,7 @@ def initial_input_form(subscription_id: UUIDstr) -> FormGenerator:
     subscription_backup = {subscription_id: to_serializable(subscription)}
     old_note = subscription.note
 
-    class ModifyNoteForm(FormPage):
+    class ModifyNoteForm(SubmitFormPage):
         note: LongText = old_note
 
     user_input = yield ModifyNoteForm
