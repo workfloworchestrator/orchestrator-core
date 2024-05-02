@@ -13,9 +13,10 @@
 
 import inspect
 import types
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from enum import IntEnum, StrEnum
-from functools import partial
+from functools import partial, reduce
+from operator import or_
 from typing import Any, get_args, get_origin
 
 import strawberry
@@ -26,7 +27,7 @@ from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFrom
 
 from nwastdlib import const
 from orchestrator.domain.base import DomainModel
-from orchestrator.types import is_list_type
+from orchestrator.types import is_list_type, is_union_type
 from pydantic_forms.types import strEnum
 
 MatchFunc = Callable
@@ -63,7 +64,16 @@ def map_type(annotation: type | None, modify_map: ModifyMap) -> type | None:
             return None
 
 
+def map_union_members(annotation: type | None, modify_map: ModifyMap) -> Iterator[type]:
+    for orig_member in get_args(annotation):
+        if mapped_member := map_type(orig_member, modify_map):
+            yield mapped_member
+        else:
+            yield orig_member
+
+
 def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[DomainModel]:
+
     def map_field(fi: FieldInfo) -> None:
         annotation = fi.annotation
         if mapped_type := map_type(annotation, modify_map):
@@ -72,6 +82,8 @@ def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[Domain
             orig_type = get_args(annotation)[0]
             if mapped_type := map_type(orig_type, modify_map):
                 fi.annotation = list[mapped_type]  # type: ignore
+        if is_union_type(annotation) and not is_union_type(annotation, klass):
+            fi.annotation = reduce(or_, map_union_members(annotation, modify_map))
 
     clone = create_model(f"{klass.__name__}_CLONE", __base__=klass)
     fields = clone.model_fields.values()
