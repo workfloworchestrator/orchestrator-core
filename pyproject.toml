@@ -176,6 +176,10 @@ exclude = [
     "test/unit_tests/cli/data/generate",
     "orchestrator/vendor",
 ]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
 ignore = [
     "C417",
     "D100",
@@ -197,24 +201,22 @@ ignore = [
     "N815",
     "N802",
 ]
-line-length = 120
 select = ["B", "C", "D", "E", "F", "I", "N", "RET", "S", "T", "W"]
-target-version = "py39"
 
-[tool.ruff.flake8-tidy-imports]
+[tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "orchestrator/api/*" = ["B008"]
 "orchestrator/cli/*" = ["B008"]
 "orchestrator/devtools/scripts/*" = ["S101", "T201"]
 "test/*" = ["S101", "B033", "N816", "N802"]
 "orchestrator/__init__.py" = ["E402"]
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-third-party = ["pynso", "pydantic"]
 known-first-party = [
     "migrations",
