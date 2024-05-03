@@ -216,12 +216,49 @@ class OrchestratorCore(FastAPI):
             self.graphql_router.schema = new_router.schema
 
     def register_authentication(self, authentication_instance: OIDCAuth) -> None:
+        """Registers an authentication instance to manage authentication processes throughout the application.
+
+        This method configures the main authentication mechanism, which will be used to authenticate users
+        based on the provided OIDC (OpenID Connect) configuration. This is crucial for securing the application
+        and ensuring that only authorized users can access certain features or APIs.
+
+        Args:
+            authentication_instance (OIDCAuth): An instance of OIDCAuth that handles the authentication logic.
+
+        Returns:
+            None
+        """
         self.auth_manager.authentication = authentication_instance
 
     def register_authorization(self, authorization_instance: Authorization) -> None:
+        """Registers an authorization instance to manage user permissions and access controls.
+
+        This method sets up the authorization logic for the application, determining what authenticated users are
+        allowed to do within the application. It integrates with the application's security framework to enforce
+        permission checks across various parts of the system.
+
+        Args:
+            authorization_instance (Authorization): An instance of Authorization that manages the authorization logic.
+
+        Returns:
+            None
+        """
         self.auth_manager.authorization = authorization_instance
 
     def register_graphql_authorization(self, graphql_authorization_instance: GraphqlAuthorization) -> None:
+        """Registers a GraphQL-specific authorization instance to manage access controls specific to GraphQL operations.
+
+        This method is intended to provide an additional layer of authorization for operations performed via the
+        GraphQL API, enhancing the security by applying specific rules or policies that are tailored for GraphQL
+        interactions.
+
+        Args:
+            graphql_authorization_instance (GraphqlAuthorization): An instance responsible for handling authorization
+            within the GraphQL context.
+
+        Returns:
+            None
+        """
         self.auth_manager.graphql_authorization = graphql_authorization_instance
 
 
