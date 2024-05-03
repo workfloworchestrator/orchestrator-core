@@ -20,7 +20,7 @@ hide:
 <br>
 <br>
 __The orchestrator core is a project developed by [SURF](https://www.surf.nl) to facilitate the orchestration of services.
-Together with [ESnet](https://www.es.net) this project has been opensourced in [the commons conservancy](https://commonsconservancy.org)
+Together with [ESnet](https://www.es.net) this project has been open-sourced in [the commons conservancy](https://commonsconservancy.org)
 to help facilitate collaboration. We invite all who are interested to take a look and to contribute!__
 
 ## Orchestration
@@ -63,14 +63,14 @@ def workflow():
     )
 ```
 
-## I'm conviced! Show me more!
+## I'm convinced! Show me more!
 
 There are a number of options for getting started:
 
 - For those of you who would like to see it working, take a look at [this repo](https://github.com/workfloworchestrator/example-orchestrator) and follow the README to setup a
   docker-compose so you can experiment on your localhost.
-- For those who are more adventurous, follow the guide on the [next page](/orchestrator-core/getting-started/base) to
-  start codeing right away.
+- For those who are more adventurous, follow the guide on the [next page](getting-started/base.md) to
+  start coding right away.
 
 [//]: # (- If you would like to see the workflow engine in action, click [here]&#40;https://demo.workfloworchestrator.org&#41; this )
 
