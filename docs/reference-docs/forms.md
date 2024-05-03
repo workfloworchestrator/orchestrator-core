@@ -131,7 +131,7 @@ def initial_input_form_generator(product: UUIDstr, product_name: str) -> FormGen
     return {**user_input.dict(), **user_input_node.dict()}
 ```
 
-For multistep forms especially, it can be useful to use the `orchestrator.forms.SubmitFormPage` class, which is just a subclass of `orchestraot.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
+For multistep forms especially, it can be useful to use the `orchestrator.forms.SubmitFormPage` class, which is just a subclass of `orchestrator.forms.FormPage` that has some metadata informing the frontend that this form is the last page in the flow so it can style the submit button differently. This is entirely optional.
 
 ### Custom Form Fields
 
