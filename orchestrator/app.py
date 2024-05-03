@@ -216,14 +216,13 @@ class OrchestratorCore(FastAPI):
             self.graphql_router.schema = new_router.schema
 
     def register_authentication(self, authentication_instance: OIDCAuth) -> None:
-        """Registers an authentication instance to manage authentication processes throughout the application.
+        """Registers a custom authentication instance for the application.
 
-        This method configures the main authentication mechanism, which will be used to authenticate users
-        based on the provided OIDC (OpenID Connect) configuration. This is crucial for securing the application
-        and ensuring that only authorized users can access certain features or APIs.
+        Use this method to replace the default OIDC authentication mechanism with a custom one,
+        enhancing the security and tailoring user authentication to specific needs of the application.
 
         Args:
-            authentication_instance (OIDCAuth): An instance of OIDCAuth that handles the authentication logic.
+            authentication_instance (OIDCAuth): The custom OIDCAuth instance to use.
 
         Returns:
             None
@@ -231,14 +230,14 @@ class OrchestratorCore(FastAPI):
         self.auth_manager.authentication = authentication_instance
 
     def register_authorization(self, authorization_instance: Authorization) -> None:
-        """Registers an authorization instance to manage user permissions and access controls.
+        """Registers a custom authorization instance to manage user permissions and access controls.
 
-        This method sets up the authorization logic for the application, determining what authenticated users are
-        allowed to do within the application. It integrates with the application's security framework to enforce
-        permission checks across various parts of the system.
+        This method enables customization of the authorization logic, defining what authenticated users
+        can do within the application. It integrates with the application's security framework to enforce
+        permission checks tailored to your requirements.
 
         Args:
-            authorization_instance (Authorization): An instance of Authorization that manages the authorization logic.
+            authorization_instance (Authorization): The custom Authorization instance to use.
 
         Returns:
             None
@@ -246,15 +245,13 @@ class OrchestratorCore(FastAPI):
         self.auth_manager.authorization = authorization_instance
 
     def register_graphql_authorization(self, graphql_authorization_instance: GraphqlAuthorization) -> None:
-        """Registers a GraphQL-specific authorization instance to manage access controls specific to GraphQL operations.
+        """Registers a custom GraphQL-specific authorization instance for managing access controls in GraphQL operations.
 
-        This method is intended to provide an additional layer of authorization for operations performed via the
-        GraphQL API, enhancing the security by applying specific rules or policies that are tailored for GraphQL
-        interactions.
+        This provides an opportunity to apply specialized authorization rules and policies for GraphQL interactions,
+        enhancing security where the default settings do not suffice.
 
         Args:
-            graphql_authorization_instance (GraphqlAuthorization): An instance responsible for handling authorization
-            within the GraphQL context.
+            graphql_authorization_instance (GraphqlAuthorization): The instance responsible for GraphQL-specific authorization.
 
         Returns:
             None
