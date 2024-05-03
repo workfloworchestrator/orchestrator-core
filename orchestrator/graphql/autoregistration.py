@@ -23,6 +23,7 @@ from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
+from orchestrator.graphql.schemas.product_block import BaseProductBlockType
 from orchestrator.graphql.types import StrawberryModelType
 from orchestrator.types import filter_nonetype, is_of_type, is_optional_type
 from orchestrator.utils.helpers import to_camel
@@ -81,13 +82,17 @@ def create_block_strawberry_type(
     federation_key_directives = [Key(fields="subscriptionInstanceId", resolvable=UNSET)]
 
     if keys := [key for key in model.__annotations__.keys() if "_id" in key]:
-        federation_key_directives.extend([Key(fields=to_camel(key), resolvable=UNSET) for key in keys])
+        federation_key_directives.extend([Key(fields=to_camel(key), resolvable=True) for key in keys])
 
-    new_type = type(strawberry_name, (), {})
-    strawberry_wrapper = strawberry.experimental.pydantic.type(
-        model, name=strawberry_name, all_fields=True, directives=federation_key_directives
+    base_type = type(strawberry_name, (BaseProductBlockType,), {})
+    pydantic_wrapper = strawberry.experimental.pydantic.type(
+        model,
+        all_fields=True,
+        directives=federation_key_directives,
+        description=f"{strawberry_name} Type",
+        use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
-    return strawberry_wrapper(new_type)
+    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
 
 
 def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
