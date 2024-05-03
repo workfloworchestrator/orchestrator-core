@@ -77,7 +77,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 
 [project.optional-dependencies]
 celery = [
-    "celery~=5.3.1"
+    "celery~=5.4.0"
 ]
 
 test = [
@@ -87,9 +87,9 @@ test = [
     "deepdiff",
     "dirty-equals",
     "jsonref",
-    "mypy==1.9.0",
-    "pytest",
-    "pytest-asyncio==0.21.0",
+    "mypy==1.9",
+    "pytest==8.2.0",
+    "pytest-asyncio==0.21.2",
     "pytest-cov",
     "pytest-httpx",
     "pytest-xdist",
@@ -118,6 +118,9 @@ doc = [
     "mkdocs-material[imaging]",
     "mkdocs-render-swagger-plugin",
     "mkdocs-include-markdown-plugin",
+    "mkdocstrings[python]",
+    "mkdocs-open-in-new-tab",
+    "mkdocs-macros-plugin",
 ]
 dev = [
     "toml",
