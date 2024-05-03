@@ -61,7 +61,7 @@ async def test_websocket_events_not_authorized(mock_user, mock_security, test_cl
     assert reply != "__pong__"
     assert json.loads(reply) == {"error": {"detail": "Forbidden", "headers": None, "status_code": 403}}
     assert mock_user.call_count == 1
-    assert mock_user.call_args[1]["token"] == "my token"  # noqa S105
+    assert mock_user.call_args[1]["token"] == "my token"  # noqa: S105
     assert mock_security.call_count == 1
 
 
@@ -79,5 +79,5 @@ async def test_websocket_events_authorized(mock_user, mock_security, test_client
 
     # then: it replies with pong
     assert reply == "__pong__"
-    assert mock_user.call_args[1]["token"] == "my token"  # noqa S105
+    assert mock_user.call_args[1]["token"] == "my token"  # noqa: S105
     assert mock_security.call_count == 1
