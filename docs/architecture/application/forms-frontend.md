@@ -1,6 +1,6 @@
 # Forms - from a frontend perspective
 
-Orchestrator Core contains a module called Pydantic Forms. Pydantic Forms allows for configuration of input forms to collect user input needed for the execution of a workflow. The module contains a frontend part that display the forms automatically and handles submission and showing validation errors. This documentation describes what happens on the frontend side of this process.
+Orchestrator Core contains a module called Pydantic Forms. Pydantic Forms allows for configuration of input forms to collect user input needed for the execution of a workflow. The module contains a frontend part that displays the forms automatically and handles submission and showing validation errors. This documentation describes what happens on the frontend side of this process.
 
 ## Initiating a workflow from frontend
 
@@ -11,7 +11,7 @@ The steps that happen to initiate a workflow on the frontend are:
 -   A `POST` request to `/processes/<workflow_name>` with an empty payload
 -   The backend determines what input values are missing and sends a response with http status code `510` and a payload containing a [JSON6Schema definition][2] describing the form to display. See [Example JSON6Schema response](#example-json6schema-response)
 -   The frontend uses the [Uniforms library][1] to parse the JSON response into a form to display
--   The [AutofieldLoader function][3] is called for each of the form.properties in the JSON response. This functions uses the properties `type` and `format` to determine what kind of field will be displayed.
+-   The [AutofieldLoader function][3] is called for each of the form.properties in the JSON response. This function uses the properties `type` and `format` to determine what kind of field will be displayed.
 
 ```
 
@@ -63,7 +63,7 @@ It's passed the complete property object so it can use them to adjust it's behav
 
 **Note 2** The Orchestrator Component library contains fields that are marked as deprecated and live in a folder named `deprecated`. These contain field types that are very specific to workflows that are in use by SURF. There are plans to remove these from the general purpose components library.
 
-**Note 3** There are plans to make it easier to extend this functionality with to add custom field types and extend the switch statement in the autoFieldFunction to include these custom `types` or `formats`
+**Note 3** There are plans to make it easier to extend this functionality to add custom field types and extend the switch statement in the autoFieldFunction to include these custom `types` or `formats`
 
 ## Backend: Creating a workflow that generates a form that asks for user input
 
