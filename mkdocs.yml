@@ -162,6 +162,7 @@ nav:
       - How do Workflows work?: architecture/application/workflow.md
       - What are tasks?: architecture/application/tasks.md
       - Validating input through forms: architecture/application/forms.md
+      - Forms from a frontend perspective: architecture/application/forms-frontend.md
       - Domain Models: architecture/application/domainmodels.md
   - Workshops:
     - Beginner:
