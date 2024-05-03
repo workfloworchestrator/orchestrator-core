@@ -64,8 +64,8 @@ from orchestrator.workflows.steps import resync, store_process_subscription, uns
 def import_node_subscription(subscription_id: UUIDstr) -> State:
     """Take an ImportedNode subscription, and turn it into a Node subscription."""
     imported_node = ImportedNode.from_subscription(subscription_id)
-    new_subscription_id = get_product_id_by_name(ProductName.NODE)
-    new_subscription = Node.from_other_product(imported_node, new_subscription_id)
+    new_product_id = get_product_id_by_name(ProductName.NODE)
+    new_subscription = Node.from_other_product(imported_node, new_product_id)
 
     return {"subscription": new_subscription}
 
