@@ -77,7 +77,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 
 [project.optional-dependencies]
 celery = [
-    "celery~=5.3.1"
+    "celery~=5.4.0"
 ]
 
 test = [
