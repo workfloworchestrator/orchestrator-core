@@ -83,6 +83,11 @@ markdown_extensions:
       alternate_style: true
   - attr_list
   - codehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - abbr
 
 extra_css:
@@ -152,6 +157,7 @@ nav:
         - L2 VPN: architecture/product_modelling/l2_vpn.md
         - IP Static: architecture/product_modelling/ip_static.md
       - Product Block Graph: architecture/product_modelling/product_block_graph.md
+      - Importing Existing Products: architecture/product_modelling/imports.md
     - Internals:
       - How do Workflows work?: architecture/application/workflow.md
       - What are tasks?: architecture/application/tasks.md
