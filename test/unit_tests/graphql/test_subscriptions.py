@@ -840,6 +840,8 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     _, GenericProductOne = generic_product_type_1
     subscription_ids = product_type_1_subscriptions_factory(30)
 
+    do_refresh_subscriptions_search_view()
+
     subscription_id = subscription_ids[10]
     subscription = db.session.execute(
         select(SubscriptionTable).filter(SubscriptionTable.subscription_id == subscription_id)

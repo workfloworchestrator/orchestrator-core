@@ -30,18 +30,6 @@ class ProductBlockBaseSchema(OrchestratorBaseModel):
     resource_types: list[ResourceTypeBaseSchema] | None = None
 
 
-class ProductBlockEnrichedSchema(OrchestratorBaseModel):
-    product_block_id: UUID
-    name: str
-    description: str
-    tag: str | None = None
-    status: ProductLifecycle
-    created_at: datetime | None = None
-    end_date: datetime | None = None
-    resource_types: list[ResourceTypeSchema] | None = None
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ProductBlockSchema(ProductBlockBaseSchema):
     product_block_id: UUID
     status: ProductLifecycle
