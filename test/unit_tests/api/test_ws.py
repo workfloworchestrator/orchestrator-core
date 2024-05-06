@@ -25,12 +25,12 @@ async def test_websocket_events_invalidate_cache_async(test_client):
         assert websocket.receive_json() == {"name": "invalidateCache", "value": ["foo", "bar"]}
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.opa_security_default")
-@mock.patch("orchestrator.websocket.websocket_manager.oidc_user")
-async def test_websocket_events_not_authenticated(mock_user, mock_security, test_client):
+@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
+async def test_websocket_events_not_authenticated(mock_authenticate_websocket, mock_authorize_websocket, test_client):
     # given: the user is not authenticated
-    mock_user.side_effect = AsyncMock(side_effect=HTTPException(status_code=401))
-    mock_security.side_effect = AsyncMock(side_effect=Exception("This should not be called"))
+    mock_authenticate_websocket.side_effect = AsyncMock(side_effect=HTTPException(status_code=401))
+    mock_authorize_websocket.side_effect = AsyncMock(side_effect=Exception("This should not be called"))
 
     # when: we create a websocket connection and ping it
     with test_client.websocket_connect("api/ws/events") as websocket:
@@ -40,12 +40,13 @@ async def test_websocket_events_not_authenticated(mock_user, mock_security, test
     # then: it does not reply with pong and returns 401
     assert reply != "__pong__"
     assert json.loads(reply) == {"error": {"detail": "Unauthorized", "headers": None, "status_code": 401}}
-    assert mock_user.call_args[1] == {"token": ""}
-    assert len(mock_security.mock_calls) == 0
+    assert mock_authenticate_websocket.call_count == 1
+    assert mock_authenticate_websocket.call_args[1]["token"] == ""
+    assert mock_authorize_websocket.call_count == 0
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.opa_security_default")
-@mock.patch("orchestrator.websocket.websocket_manager.oidc_user")
+@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
 async def test_websocket_events_not_authorized(mock_user, mock_security, test_client):
     # given: the user is authenticated but not authorized
     mock_user.side_effect = AsyncMock(return_value={"active": True})
@@ -59,12 +60,13 @@ async def test_websocket_events_not_authorized(mock_user, mock_security, test_cl
     # then: it does not reply with pong and returns 403
     assert reply != "__pong__"
     assert json.loads(reply) == {"error": {"detail": "Forbidden", "headers": None, "status_code": 403}}
-    assert mock_user.call_args[1] == {"token": "my token"}
-    assert len(mock_security.mock_calls) == 1
+    assert mock_user.call_count == 1
+    assert mock_user.call_args[1]["token"] == "my token"  # noqa: S105
+    assert mock_security.call_count == 1
 
 
-@mock.patch("orchestrator.websocket.websocket_manager.opa_security_default")
-@mock.patch("orchestrator.websocket.websocket_manager.oidc_user")
+@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
 async def test_websocket_events_authorized(mock_user, mock_security, test_client):
     # given: the user is authenticated and authorized
     mock_user.side_effect = AsyncMock(return_value={"active": True})
@@ -77,5 +79,5 @@ async def test_websocket_events_authorized(mock_user, mock_security, test_client
 
     # then: it replies with pong
     assert reply == "__pong__"
-    assert mock_user.call_args[1] == {"token": "my token"}
-    assert len(mock_security.mock_calls) == 1
+    assert mock_user.call_args[1]["token"] == "my token"  # noqa: S105
+    assert mock_security.call_count == 1

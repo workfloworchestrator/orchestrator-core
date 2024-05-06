@@ -27,34 +27,35 @@ from orchestrator.api.api_v1.endpoints import (
     user,
     ws,
 )
-from orchestrator.security import opa_security_default
+from orchestrator.security import authorize
 
 api_router = APIRouter()
 
 api_router.include_router(
-    processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(opa_security_default)]
+    processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(authorize)]
 )
 api_router.include_router(processes.ws_router, prefix="/processes", tags=["Core", "Processes"])
 api_router.include_router(
-    products.router, prefix="/products", tags=["Core", "Product"], dependencies=[Depends(opa_security_default)]
+    products.router, prefix="/products", tags=["Core", "Product"], dependencies=[Depends(authorize)]
 )
 api_router.include_router(
     subscriptions.router,
     prefix="/subscriptions",
     tags=["Core", "Subscriptions"],
-    dependencies=[Depends(opa_security_default)],
+    dependencies=[Depends(authorize)],
 )
 api_router.include_router(
     subscription_customer_descriptions.router,
     prefix="/subscription_customer_descriptions",
     tags=["Core", "Subscription Customer Descriptions"],
-    dependencies=[Depends(opa_security_default)],
+    dependencies=[Depends(authorize)],
+)
+api_router.include_router(user.router, prefix="/user", tags=["Core", "User"], dependencies=[Depends(authorize)])
+api_router.include_router(
+    workflows.router, prefix="/workflows", tags=["Core", "Workflows"], dependencies=[Depends(authorize)]
 )
 api_router.include_router(
-    user.router, prefix="/user", tags=["Core", "User"], dependencies=[Depends(opa_security_default)]
-)
-api_router.include_router(
-    settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(opa_security_default)]
+    settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(authorize)]
 )
 api_router.include_router(settings.ws_router, prefix="/settings", tags=["Core", "Settings"])
 api_router.include_router(health.router, prefix="/health", tags=["Core"])

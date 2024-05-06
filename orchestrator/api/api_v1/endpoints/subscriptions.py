@@ -40,7 +40,7 @@ from orchestrator.db import (
 from orchestrator.domain import SubscriptionModel
 from orchestrator.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
-from orchestrator.security import oidc_user
+from orchestrator.security import authenticate
 from orchestrator.services.subscriptions import (
     _generate_etag,
     build_extended_domain_model,
@@ -191,7 +191,7 @@ def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[s
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
-def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(oidc_user)) -> None:
+def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)) -> None:
     def failed_processes() -> list[str]:
         if app_settings.DISABLE_INSYNC_CHECK:
             return []
