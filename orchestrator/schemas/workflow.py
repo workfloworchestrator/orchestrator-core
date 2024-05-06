@@ -40,10 +40,6 @@ class WorkflowSchema(WorkflowBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
 
-class WorkflowWithProductTagsSchema(WorkflowBaseSchema):
-    product_tags: list[str]
-
-
 class WorkflowListItemSchema(OrchestratorBaseModel):
     name: str
     description: str | None = None

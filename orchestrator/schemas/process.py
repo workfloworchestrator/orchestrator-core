@@ -65,20 +65,6 @@ class ProcessSchema(ProcessBaseSchema):
     form: dict[str, Any] | None = None
 
 
-class ProcessSubscriptionBaseSchema(OrchestratorBaseModel):
-    id: UUID
-    process_id: UUID
-    subscription_id: UUID
-    workflow_target: Target | None = None
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ProcessSubscriptionSchema(ProcessSubscriptionBaseSchema):
-    process: ProcessBaseSchema
-
-
 class ProcessResumeAllSchema(OrchestratorBaseModel):
     count: int
 

@@ -19,7 +19,6 @@ from orchestrator.db import (
 from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
-from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -255,36 +254,6 @@ def test_abort_process(test_client, started_process):
     assert "aborted" == aborted_process["last_status"]
 
 
-def test_process_subscription_by_subscription_id(test_client, started_process, generic_subscription_1):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-subscription-id/{generic_subscription_1}")
-    assert HTTPStatus.OK == response.status_code
-    process_subscriptions = response.json()
-    assert 1 == len(process_subscriptions)
-    assert process_subscriptions[0]["subscription_id"].lower(), generic_subscription_1
-    assert process_subscriptions[0]["process_id"].lower(), started_process
-    assert process_subscriptions[0]["workflow_target"], Target.CREATE
-    assert process_subscriptions[0]["process"]["workflow_name"], "workflow_for_testing_processes_py"
-
-
-def test_process_subscription_by_process_id(test_client, started_process, generic_subscription_1):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-process_id/{started_process}")
-    assert HTTPStatus.OK == response.status_code
-    process_subscriptions = response.json()
-    assert 1 == len(process_subscriptions)
-    assert process_subscriptions[0]["subscription_id"].lower(), generic_subscription_1
-    assert process_subscriptions[0]["workflow_target"], Target.CREATE
-
-
-def test_process_subscription_by_process_id_404(test_client):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-process_id/{uuid4()}")
-    assert 0 == len(response.json())
-
-
-def test_process_subscription_by_subscription_id_404(test_client):
-    response = test_client.get(f"/api/processes/process-subscriptions-by-subscription-id/{uuid4()}")
-    assert 0 == len(response.json())
-
-
 def test_new_process_invalid_body(test_client, long_running_workflow):
     response = test_client.post(f"/api/processes/{long_running_workflow}", json=[{"wrong": "body"}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
@@ -468,16 +437,6 @@ def test_processes_filterable_response_model_contains_product_info(
     assert len(process["subscriptions"]) == 1
     assert process["subscriptions"][0]["product"]["tag"] == "GEN1"
     assert process["subscriptions"][0]["product"]["name"] == "Product 1"
-
-
-def test_processes_assignees(test_client):
-    response = test_client.get("/api/processes/assignees")
-    assert HTTPStatus.OK == response.status_code
-
-
-def test_processes_statuses(test_client):
-    response = test_client.get("/api/processes/statuses")
-    assert HTTPStatus.OK == response.status_code
 
 
 def test_resume_all_processes(test_client, mocked_processes_resumeall):
