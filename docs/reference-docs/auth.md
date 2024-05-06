@@ -1,32 +1,52 @@
 # Authentication and Authorization
 ## Overview
-The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for authentication and Open Policy Agent (OPA) for authorization. 
+The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for authentication and Open Policy Agent (OPA) for authorization.
 This flexible system ensures secure access, allowing you to tailor the authorization components to best fit your application's specific requirements.
 
-## Authentication
-In `Orchestrator-Core`, authentication is managed through OIDC to confirm user identities and control access to various endpoints.
+## Default Configuration
+You don't need to modify any settings by default. Simply set the environment variables as needed, and the system will use these settings:
 
-### OIDCAuth Configuration
-The `OIDCAuth` class manages OIDC authentication processes including token validation and retrieval of user information. Below is a configuration example:
+```python
+from pydantic_settings import BaseSettings
+
+class Oauth2LibSettings(BaseSettings):
+    # General settings
+    ENVIRONMENT: str = "local"
+    SERVICE_NAME: str = ""
+    MUTATIONS_ENABLED: bool = False
+    ENVIRONMENT_IGNORE_MUTATION_DISABLED: list[str] = []
+
+    # OIDC settings
+    OAUTH2_ACTIVE: bool = True
+    OAUTH2_AUTHORIZATION_ACTIVE: bool = True
+    OAUTH2_RESOURCE_SERVER_ID: str = ""
+    OAUTH2_RESOURCE_SERVER_SECRET: str = ""
+    OAUTH2_TOKEN_URL: str = ""
+    OIDC_BASE_URL: str = ""
+    OIDC_CONF_URL: str = ""
+
+    # OPA settings
+    OPA_URL: str = ""
+```
+
+## Authentication Process
+Authentication through OIDC confirms user identities and controls access to various endpoints:
 
 ```python
 from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel
 
 # Initialize OIDC Authentication
 oidc_auth = OIDCAuth(
-    openid_url="https://example-opendid.com",
-    openid_config_url="https://example-opendid.com/.well-known/openid-configuration",
+    openid_url="https://example-opendid.com/.well-known/openid-configuration",
+    openid_config_url="https://example-opendid.com/openid/config",
     resource_server_id="your-client-id",
     resource_server_secret="your-client-secret",
     oidc_user_model_cls=OIDCUserModel
 )
 ```
 
-## Authorization
-Authorization is handled by OPA, providing detailed control over user permissions based on defined policies.
-
-### OPAAuthorization Setup
-Configure OPA for authorization using the following setup:
+## Authorization Process
+Authorization with OPA provides detailed control over user permissions:
 
 ```python
 from oauth2_lib.fastapi import OPAAuthorization, GraphQLOPAAuthorization
@@ -38,7 +58,7 @@ graphql_opa_auth = GraphQLOPAAuthorization(opa_url="https://opa.example.com/v1/d
 
 ## Customizing Authentication and Authorization
 ### AuthManager
-`AuthManager` serves as the central unit for managing both `authentication` and `authorization` mechanisms. 
+`AuthManager` serves as the central unit for managing both `authentication` and `authorization` mechanisms.
 While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for http authorization and `GraphQLOPAAuthorization` for graphql authorization , it supports extensive customization.
 
 ### Implementing Custom Authentication:
@@ -73,12 +93,12 @@ class CustomAuthorization(Authorization):
     async def authorize(self, request: HTTPConnection, user: OIDCUserModel) -> Optional[bool]:
         # Implement custom authorization logic
         return True
-    
+
 class CustomGraphqlAuthorization(GraphqlAuthorization):
-    async def authorize(self, request: RequestPath, user: OIDCUserModel) -> Optional[bool]:        
+    async def authorize(self, request: RequestPath, user: OIDCUserModel) -> Optional[bool]:  
         # Implement custom GraphQL authorization logic
         return True
-    
+
 oidc_instance = CustomOIDCAuth(
     openid_url=oauth2lib_settings.OIDC_BASE_URL,
     openid_config_url=oauth2lib_settings.OIDC_CONF_URL,
@@ -100,4 +120,3 @@ app.register_graphql_authorization(graphql_authorization_instance)
 - Ensure secure HTTPS communications for all OIDC and OPA interactions.
 - Securely store sensitive information like client secrets.
 - Regularly revise OIDC and OPA configurations to align with evolving security standards and changes in external services.
-
