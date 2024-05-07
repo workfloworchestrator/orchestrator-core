@@ -110,10 +110,10 @@ nav:
       - Rest API: reference-docs/api.md
       - GraphQL: reference-docs/graphql.md
     - App.py : reference-docs/app/app.md
-    # - Auth(n|z): reference-docs/auth.md
+    - Auth(n|z): reference-docs/auth.md
     - CLI Tools: reference-docs/cli.md
     - Database: reference-docs/database.md
-    # - Serialization: reference-docs/serialization.md
+    - Serialization: reference-docs/serialization.md
     - Domain Models:
       - Overview: reference-docs/domain_models/overview.md
       - Domain Model Types:
@@ -122,23 +122,23 @@ nav:
         - Model Attributes: reference-docs/domain_models/model_attributes.md
       - Helpers:
         - Generator: reference-docs/domain_models/generator.md
-      # - Advanced Featuers:
-      #   - Properties: reference-docs/domain_models/properties.md
-      #   - Union Types: reference-docs/domain_models/union_types.md
-      #   - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
-      # - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
-      # - Validation: reference-docs/domain_models/validation.md
-      # - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
+      - Advanced Featuers:
+        - Properties: reference-docs/domain_models/properties.md
+        - Union Types: reference-docs/domain_models/union_types.md
+        - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
+      - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
+      - Validation: reference-docs/domain_models/validation.md
+      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
     - Forms: reference-docs/forms.md
     - Running the App:
       - Python Version: reference-docs/python.md
-      # - Runtimes: reference-docs/app/runtimes.md
+      - Runtimes: reference-docs/app/runtimes.md
       - Scaling: reference-docs/scaling.md
-    # - Tasks:  reference-docs/tasks.md
-    # - Tests: reference-docs/tests.md
+    - Tasks:  reference-docs/tasks.md
+    - Tests: reference-docs/tests.md
     - Workflows:
       - Workflow Steps:  reference-docs/workflows/workflow-steps.md
-      # - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
+      - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
       - Callbacks: reference-docs/workflows/callbacks.md
     - Websockets: reference-docs/websockets.md
   - Architecture:
