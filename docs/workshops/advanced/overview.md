@@ -24,8 +24,10 @@ Workflow Orchestrator.
     Explains the benefits of the use of domain models and shows how the hierarchy of products, product blocks, fixed inputs and resource types are used to create product subscriptions for customers.
   * **Database migration**  
     Use the orchestrator CLI to create an Alembic database migration based on the domain models that describe the created products and product blocks.
-* **Create Node and Circuit Workflows**  
-  For the Node and Circuit products, we will make CREATE workflows. The use of input forms is explained as part of defining the create workflow. The Node product will introduce connecting to an external system from within a workflow, and then the Circuit workflow will build upon the existing Node subscriptions to highlight the ability to link products in the Workflow Orchestrator as dependencies. The circuit workflow will also demonstrate using the forms library to create complex objects in external systems.
+* **L2 Point-to-Point product modelling and workflow**  
+  For the L2 Point-to-Point product, we will make the CREATE workflow by using the product generator. The use of input 
+  forms is explained as part of defining the create workflow. By using this method you should be able to quickly get 
+  up to speed and start coding quickly
 
 ## Workshop folder layout
 

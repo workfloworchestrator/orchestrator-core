@@ -202,7 +202,8 @@ nav:
       - Workflows:
         - Introduction: workshops/advanced/workflow-introduction.md
       - Create your own product and workflows:
-        - Introduction: workshops/advanced/create-your-own.md
+        - L2 Point-to-Point: workshops/advanced/create-your-own.md
+        - Product Generator: workshops/advanced/generator.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
