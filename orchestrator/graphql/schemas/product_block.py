@@ -63,7 +63,7 @@ def related_subscriptions_resolver(relation: RelationLiteral) -> Callable[[Any],
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        subscription_ids = list(get_subscription_ids(root, relation))
+        subscription_ids = [id for id in get_subscription_ids(root, relation) if not root.owner_subscription_id]
         if not subscription_ids:
             return EMPTY_PAGE
         filter_by_with_related_subscriptions = (filter_by or []) + [
