@@ -52,9 +52,6 @@ api_router.include_router(
 )
 api_router.include_router(user.router, prefix="/user", tags=["Core", "User"], dependencies=[Depends(authorize)])
 api_router.include_router(
-    workflows.router, prefix="/workflows", tags=["Core", "Workflows"], dependencies=[Depends(authorize)]
-)
-api_router.include_router(
     settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(authorize)]
 )
 api_router.include_router(settings.ws_router, prefix="/settings", tags=["Core", "Settings"])
