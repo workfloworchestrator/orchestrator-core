@@ -1,6 +1,7 @@
 # Scenario
 
-During this workshop a set of products will be created together with the needed workflows to manage enrolling network nodes into the Workflow Orchestrator and creating circuits between nodes. The products will be just complex enough to show the basic capabilities of products, product blocks, fixed inputs, resource types and workflows in the workflow orchestrator, and in addition to the lessons taught in the beginner workshop, we will cover nesting product blocks and products together.
+During this workshop a set of products will be created together with the needed workflows to manage enrolling network 
+nodes into the Workflow Orchestrator and creating circuits between nodes. The products will be just complex enough to show the basic capabilities of products, product blocks, fixed inputs, resource types and workflows in the workflow orchestrator, and in addition to the lessons taught in the beginner workshop, we will cover nesting product blocks and products together.
 
 The following attributes need to be either stored from user input, pulled from external systems, or created dynamically in external systems:
 

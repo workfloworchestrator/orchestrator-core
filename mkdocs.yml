@@ -165,32 +165,33 @@ nav:
       - Forms from a frontend perspective: architecture/application/forms-frontend.md
       - Domain Models: architecture/application/domainmodels.md
   - Workshops:
-    - Beginner:
-      - Overview: workshops/beginner/overview.md
-      - Installation:
-        - Manual:
-          - Debian: workshops/beginner/debian.md
-          - MacOS: workshops/beginner/macos.md
-        - Docker compose: workshops/beginner/docker.md
-      - Start applications: workshops/beginner/start-applications.md
-      - Products:
-        - Scenario: workshops/beginner/scenario.md
-        - Domain models: workshops/beginner/domain-models.md
-        - Database migration: workshops/beginner/database-migration.md
-      - Workflows:
-        - Introduction: workshops/beginner/workflow-introduction.md
-        - Register workflows: workshops/beginner/register-workflows.md
-        - Input forms: workshops/beginner/input-forms.md
-        - Create UserGroup: workshops/beginner/create-user-group.md
-        - Modify UserGroup: workshops/beginner/modify-user-group.md
-        - Terminate UserGroup: workshops/beginner/terminate-user-group.md
-        - Create User: workshops/beginner/create-user.md
-        - Modify User: workshops/beginner/modify-user.md
-        - Terminate User: workshops/beginner/terminate-user.md
-      - Explore: workshops/beginner/explore.md
-    - Advanced:
+#    - Beginner:
+#      - Overview: workshops/beginner/overview.md
+#      - Installation:
+#        - Manual:
+#          - Debian: workshops/beginner/debian.md
+#          - MacOS: workshops/beginner/macos.md
+#        - Docker compose: workshops/beginner/docker.md
+#      - Start applications: workshops/beginner/start-applications.md
+#      - Products:
+#        - Scenario: workshops/beginner/scenario.md
+#        - Domain models: workshops/beginner/domain-models.md
+#        - Database migration: workshops/beginner/database-migration.md
+#      - Workflows:
+#        - Introduction: workshops/beginner/workflow-introduction.md
+#        - Register workflows: workshops/beginner/register-workflows.md
+#        - Input forms: workshops/beginner/input-forms.md
+#        - Create UserGroup: workshops/beginner/create-user-group.md
+#        - Modify UserGroup: workshops/beginner/modify-user-group.md
+#        - Terminate UserGroup: workshops/beginner/terminate-user-group.md
+#        - Create User: workshops/beginner/create-user.md
+#        - Modify User: workshops/beginner/modify-user.md
+#        - Terminate User: workshops/beginner/terminate-user.md
+#      - Explore: workshops/beginner/explore.md
+    - Example Orchestrator Workshop:
       - Overview: workshops/advanced/overview.md
       - Installation: workshops/advanced/docker-installation.md
+      - Bootstrapping: workshops/advanced/bootstrap.md
       - Products:
         - Scenario: workshops/advanced/scenario.md
         - Domain models: workshops/advanced/domain-models.md
