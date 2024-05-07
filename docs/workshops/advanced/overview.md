@@ -1,4 +1,4 @@
-# Advanced Workshop Overview
+# Example Orchestrator Workshop Overview
 
 ## Intended audience
 
@@ -58,3 +58,19 @@ flows. In reality there are a number of extra services like Postgres and Redis t
 the Orchestrator, Netbox and LSO.
 
 ![Software topology](../images/Software-topology.drawio.png)
+
+## Workshop topology
+Assuming you have installed the example orchestartor with containerlab integration enabled. We need to build the 
+workshop topology that can be used to actually see packets flow. The workflows that you will run in the following 
+steps will do the following:
+
+* Seed Netbox
+* Provision two PE nodes
+* Create an IS-IS cloud to signal MPLS LSP's with backbone links
+* Provision customer Ports that can be used in network services
+
+The topology will be as follows:
+
+![Topology](../images/topology.drawio.png)
+
+Host 1 and Host 2 will be pre-provisioned, but the routers will need to be bootstrapped from scratch to work.

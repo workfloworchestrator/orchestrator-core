@@ -32,6 +32,7 @@ theme:
   - content.code.annotate
   - content.tooltips
 plugins:
+  - external-markdown
   - search
   - open-in-new-tab
   - render_swagger
@@ -122,13 +123,13 @@ nav:
         - Model Attributes: reference-docs/domain_models/model_attributes.md
       - Helpers:
         - Generator: reference-docs/domain_models/generator.md
-      - Advanced Featuers:
-        - Properties: reference-docs/domain_models/properties.md
-        - Union Types: reference-docs/domain_models/union_types.md
-        - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
-      - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
-      - Validation: reference-docs/domain_models/validation.md
-      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
+#      - Advanced Features:
+#        - Properties: reference-docs/domain_models/properties.md
+#        - Union Types: reference-docs/domain_models/union_types.md
+#        - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
+#      - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
+#      - Validation: reference-docs/domain_models/validation.md
+#      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
     - Forms: reference-docs/forms.md
     - Running the App:
       - Python Version: reference-docs/python.md
@@ -158,12 +159,12 @@ nav:
         - IP Static: architecture/product_modelling/ip_static.md
       - Product Block Graph: architecture/product_modelling/product_block_graph.md
       - Importing Existing Products: architecture/product_modelling/imports.md
+    - Domain Models: architecture/application/domainmodels.md
     - Internals:
       - How do Workflows work?: architecture/application/workflow.md
       - What are tasks?: architecture/application/tasks.md
       - Validating input through forms: architecture/application/forms.md
       - Forms from a frontend perspective: architecture/application/forms-frontend.md
-      - Domain Models: architecture/application/domainmodels.md
   - Workshops:
 #    - Beginner:
 #      - Overview: workshops/beginner/overview.md
@@ -191,11 +192,13 @@ nav:
     - Example Orchestrator Workshop:
       - Overview: workshops/advanced/overview.md
       - Installation: workshops/advanced/docker-installation.md
-      - Bootstrapping: workshops/advanced/bootstrap.md
       - Products:
         - Scenario: workshops/advanced/scenario.md
         - Domain models: workshops/advanced/domain-models.md
         - Database migration: workshops/advanced/database-migration.md
+      - Bootstrapping:
+        - Getting started: workshops/advanced/bootstrap.md
+        - Seeding data: workshops/advanced/execute-workflows.md
       - Workflows:
         - Introduction: workshops/advanced/workflow-introduction.md
         - Create Node: workshops/advanced/node-workflow.md
