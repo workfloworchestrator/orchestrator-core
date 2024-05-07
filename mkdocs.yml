@@ -201,8 +201,8 @@ nav:
         - Seeding data: workshops/advanced/execute-workflows.md
       - Workflows:
         - Introduction: workshops/advanced/workflow-introduction.md
-        - Create Node: workshops/advanced/node-workflow.md
-        - Create Circuit: workshops/advanced/circuit-workflow.md
+      - Create your own product and workflows:
+        - Introduction: workshops/advanced/create-your-own.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
