@@ -12,7 +12,7 @@ The workflow engine is the core of the orchestrator, it is responsible for the f
 
 For more details on what constitutes a workflow, refer to [this section of the example orchestrator.](https://github.com/workfloworchestrator/example-orchestrator?tab=readme-ov-file#workflows-1)
 
-For the purposes of this workshop, we have provided you with already functional workflows that manage the business 
+For the purposes of this workshop, we have provided you with already functional workflows that manage the business
 process when updating the lifecycle of product instantiation.
 
 ## Node Creation workflow example
@@ -20,5 +20,5 @@ The Node Create workflow will be used as an example to describe how a workflow i
 avalable in `.orchestrator.workflows.node.create_node.py`
 
 ### Create Workflow
-{{ external_markdown('https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/README.md', 
+{{ external_markdown('https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/master/README.md',
 '### Create workflow') }}

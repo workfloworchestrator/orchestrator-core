@@ -6,7 +6,7 @@ The Example orchestrator used in this workshop already has a number of products 
 * Ports
 * L2VPN
 
-Once you have successfully started the docker environment with `docker compose up -d` you should be able to view the 
+Once you have successfully started the docker environment with `docker compose up -d` you should be able to view the
 applications here:
 
 1. Orchestrator ui: [Frontend: http://localhost:3000](http://localhost:3000)
@@ -15,6 +15,5 @@ applications here:
 3. Netbox (admin|admin): [Netbox: http://localhost:8000](http://localhost:8000)
 
 !!! note
-    Take your time to familiarise with the applications and make sure they are working correctly. You can then 
+    Take your time to familiarise with the applications and make sure they are working correctly. You can then
     continue with the following steps.
-

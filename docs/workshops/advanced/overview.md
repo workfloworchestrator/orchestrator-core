@@ -2,8 +2,8 @@
 
 ## Intended audience
 
-This workshop is intended for those who are interested in using the Workflow Orchestrator as network orchestrator, but 
-is also accessible to those who are new to the Workflow Orchestrator and would like to use it as a generic orchestrator. 
+This workshop is intended for those who are interested in using the Workflow Orchestrator as network orchestrator, but
+is also accessible to those who are new to the Workflow Orchestrator and would like to use it as a generic orchestrator.
 The main goal of this workshop is to introduce you to how to write orchestrator workflows that talk to external systems,
 as well as teaching you how to relate products to other products, using the dependency model of the
 Workflow Orchestrator.
@@ -25,8 +25,8 @@ Workflow Orchestrator.
   * **Database migration**  
     Use the orchestrator CLI to create an Alembic database migration based on the domain models that describe the created products and product blocks.
 * **L2 Point-to-Point product modelling and workflow**  
-  For the L2 Point-to-Point product, we will make the CREATE workflow by using the product generator. The use of input 
-  forms is explained as part of defining the create workflow. By using this method you should be able to quickly get 
+  For the L2 Point-to-Point product, we will make the CREATE workflow by using the product generator. The use of input
+  forms is explained as part of defining the create workflow. By using this method you should be able to quickly get
   up to speed and start coding quickly
 
 ## Workshop folder layout
@@ -54,16 +54,16 @@ This workshop uses the following folder layout:
 ```
 
 ## Workshop software architecture
-The workshop combines as said a number of opensource software components that can provision a simulated network 
-running in container lab. The following diagram shows the logical components of the application and how the data 
-flows. In reality there are a number of extra services like Postgres and Redis that store the application data of 
+The workshop combines as said a number of opensource software components that can provision a simulated network
+running in container lab. The following diagram shows the logical components of the application and how the data
+flows. In reality there are a number of extra services like Postgres and Redis that store the application data of
 the Orchestrator, Netbox and LSO.
 
 ![Software topology](../images/Software-topology.drawio.png)
 
 ## Workshop topology
-Assuming you have installed the example orchestartor with containerlab integration enabled. We need to build the 
-workshop topology that can be used to actually see packets flow. The workflows that you will run in the following 
+Assuming you have installed the example orchestartor with containerlab integration enabled. We need to build the
+workshop topology that can be used to actually see packets flow. The workflows that you will run in the following
 steps will do the following:
 
 * Seed Netbox
