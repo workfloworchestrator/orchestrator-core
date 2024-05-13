@@ -13,11 +13,10 @@
 
 import inspect
 import types
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from enum import IntEnum, StrEnum
-from functools import partial, reduce
-from operator import or_
-from typing import Any, get_args, get_origin
+from functools import partial
+from typing import Any, get_args, get_origin, Union
 
 import strawberry
 from more_itertools import consume, first_true, side_effect
@@ -27,7 +26,7 @@ from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFrom
 
 from nwastdlib import const
 from orchestrator.domain.base import DomainModel
-from orchestrator.types import is_list_type, is_union_type
+from orchestrator.types import is_list_type
 from pydantic_forms.types import strEnum
 
 MatchFunc = Callable
@@ -42,6 +41,14 @@ def is_subclass_of(annotation: type, class_or_tuple: type | tuple[type]) -> bool
 is_domain_model = partial(is_subclass_of, class_or_tuple=DomainModel)
 is_int_enum = partial(is_subclass_of, class_or_tuple=IntEnum)
 is_str_enum = partial(is_subclass_of, class_or_tuple=(strEnum, StrEnum))
+
+
+def is_union(annotation: type) -> bool:
+    origin = get_origin(annotation)
+    if origin is not None and origin is types.UnionType:
+        args = get_args(annotation)
+        return type(None) not in args
+    return False
 
 
 def is_optional_enum_of_type(annotation: type | None, is_type_enum: Callable) -> bool:
@@ -73,16 +80,7 @@ def map_type(annotation: type | None, modify_map: ModifyMap) -> type | None:
     return result
 
 
-def map_union_members(annotation: type | None, modify_map: ModifyMap) -> Iterator[type]:
-    for orig_member in get_args(annotation):
-        if mapped_member := map_type(orig_member, modify_map):
-            yield mapped_member
-        else:
-            yield orig_member
-
-
 def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[DomainModel]:
-
     def map_field(fi: FieldInfo) -> None:
         annotation = fi.annotation
         if mapped_type := map_type(annotation, modify_map):
@@ -91,8 +89,6 @@ def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[Domain
             orig_type = get_args(annotation)[0]
             if mapped_type := map_type(orig_type, modify_map):
                 fi.annotation = list[mapped_type]  # type: ignore
-        if is_union_type(annotation) and not is_union_type(annotation, klass):
-            fi.annotation = reduce(or_, map_union_members(annotation, modify_map))
 
     clone = create_model(f"{klass.__name__}_CLONE", __base__=klass)
     fields = clone.model_fields.values()
@@ -101,12 +97,20 @@ def class_walker(klass: type[DomainModel], modify_map: ModifyMap) -> type[Domain
     return clone
 
 
+def union_class_walker(klass: type, modify_map) -> type:
+    def union_map(annotation: type) -> type:
+        return mapped_type if (mapped_type := map_type(annotation, modify_map)) else annotation
+    mapped_types = tuple(union_map(annotation) for annotation in get_args(klass))
+    return Union[mapped_types]
+
+
 MODIFY_MAP = (
     (is_domain_model, class_walker),
     (is_str_enum, const(str)),
     (is_int_enum, const(int)),
     (is_optional_str_enum, const(str | None)),
     (is_optional_int_enum, const(int | None)),
+    (is_union, union_class_walker),
 )
 
 
@@ -114,7 +118,7 @@ def modify_class(klass: type[DomainModel]) -> type[DomainModel]:
     return class_walker(klass, modify_map=MODIFY_MAP)
 
 
-def strawberry_orchestrator_type(
+def strawberry_orchestrator_type_new(
     model: type,
     *,
     name: str | None = None,

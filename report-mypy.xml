@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuite errors="0" failures="1" name="mypy" skips="0" tests="1" time="5.288">
+  <testcase classname="mypy" file="mypy" line="1" name="mypy-py3_12-darwin" time="5.288">
+    <failure message="mypy produced messages">orchestrator/graphql/mutations/customer_description.py:60:12: error: "type[CustomerDescription]" has no attribute "from_pydantic"  [attr-defined]
+orchestrator/graphql/resolvers/product_block.py:62:35: error: "type[ProductBlock]" has no attribute "from_pydantic"  [attr-defined]
+orchestrator/graphql/schemas/process.py:60:20: error: "type[ProductType]" has no attribute "from_pydantic"  [attr-defined]
+orchestrator/graphql/schemas/subscription.py:146:13: error: "type[CustomerDescription]" has no attribute "from_pydantic"  [attr-defined]
+orchestrator/graphql/resolvers/product.py:56:29: error: "type[ProductType]" has no attribute "from_pydantic"  [attr-defined]</failure>
+  </testcase>
+</testsuite>

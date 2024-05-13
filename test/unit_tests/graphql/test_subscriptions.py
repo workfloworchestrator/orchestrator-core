@@ -15,6 +15,7 @@ import json
 from http import HTTPStatus
 
 import pytest
+from more_itertools import one
 from sqlalchemy import select
 
 from orchestrator.db import SubscriptionMetadataTable, db
@@ -1400,9 +1401,10 @@ def test_single_subscription_product_list_union_type(
         "endCursor": 0,
         "totalItems": 1,
     }
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == "active"
-    assert subscriptions[0]["testBlock"] == {
+    subscription = one(subscriptions)
+    assert subscription["subscriptionId"] == subscription_id
+    assert subscription["status"] == "active"
+    assert subscription["testBlock"] == {
         "intField": 1,
         "strField": "blah",
         "listField": [2],
