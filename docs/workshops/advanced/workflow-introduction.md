@@ -24,7 +24,7 @@ up to the developer to implement the best practices as well as he/she can.
   attempt a very difficult database query to update the state to solve your conflict
 * Always fetch data needed from an external system, **Just in time**. This will increase the robustness of the step
 * Always create a step function that executes one piece of work at a time. Theoretically you can execute the whole 
-  workflow in a single  step. However this does not help with tracebility and reliability.
+  workflow in a single  step. However this does not help with traceability and reliability.
 
 
 ### Workshop continued
