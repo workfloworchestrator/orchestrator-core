@@ -4,7 +4,7 @@ from sqlalchemy import Column, Select
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import expression
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
 from orchestrator.db.filters import create_memoized_field_list
 from orchestrator.db.sorting import QueryType, SortOrder, generic_column_sort, generic_sort
 from orchestrator.utils.helpers import to_camel
@@ -17,22 +17,29 @@ PROCESS_SNAKE_SORT = {
 }
 
 
-def generic_process_relation_sort(field: Column) -> Callable[[QueryType, SortOrder], QueryType]:
+def generic_process_relation_sort(
+    field: Column, join_tables: list | None = None
+) -> Callable[[QueryType, SortOrder], QueryType]:
+    join_tables = join_tables or []
+
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         if isinstance(query, Select):
-            joined_query: QueryType = query.join(ProcessSubscriptionTable).join(SubscriptionTable).join(ProductTable)
-        else:
-            # Can't join on CompoundSelect
-            joined_query = query
-        if order == SortOrder.DESC:
-            return joined_query.order_by(expression.desc(field))
-        return joined_query.order_by(expression.asc(field))
+            joined_tables = [str(t[0]) for t in query._setup_joins]
+
+            for table in join_tables:
+                if (tablename := getattr(table, "__tablename__", "")) and tablename not in joined_tables:
+                    query = query.join(table)
+
+        order_by_expr = expression.desc if order == SortOrder.DESC else expression.asc
+        return query.order_by(order_by_expr(field))
 
     return sort_function
 
 
 PROCESS_PRODUCT_SORT = {
-    to_camel(key if "product" in key else f"product_{key}"): generic_process_relation_sort(value)
+    to_camel(key if "product" in key else f"product_{key}"): generic_process_relation_sort(
+        value, [ProcessSubscriptionTable, SubscriptionTable, ProductTable]
+    )
     for key, value in inspect(ProductTable).columns.items()
 }
 
@@ -42,8 +49,11 @@ PROCESS_SORT_FUNCTIONS_BY_COLUMN = (
     | PROCESS_CAMEL_SORT
     | PROCESS_SNAKE_SORT
     | {
-        "workflowTarget": generic_process_relation_sort(ProcessSubscriptionTable.workflow_target),
-        "subscriptions": generic_process_relation_sort(SubscriptionTable.description),
+        "workflowName": generic_process_relation_sort(WorkflowTable.name, [WorkflowTable]),
+        "workflowTarget": generic_process_relation_sort(WorkflowTable.target, [WorkflowTable]),
+        "subscriptions": generic_process_relation_sort(
+            SubscriptionTable.description, [ProcessSubscriptionTable, SubscriptionTable]
+        ),
     }
 )
 process_sort_fields = create_memoized_field_list(PROCESS_SORT_FUNCTIONS_BY_COLUMN)

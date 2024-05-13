@@ -74,7 +74,7 @@ def make_subscription_id_clause(filter_generator: WhereCondGenerator) -> WhereCo
 
 
 def make_workflow_field_clause(filter_generator: WhereCondGenerator) -> WhereCondGenerator:
-    def workflow_name_clause(node: Node):
+    def workflow_name_clause(node: Node) -> BinaryExpression[bool]:
         process_workflow = (
             select(ProcessTable.process_id)
             .join(WorkflowTable)
