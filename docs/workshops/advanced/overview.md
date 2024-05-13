@@ -73,5 +73,5 @@ The topology will be as follows:
 
 ![Topology](../images/topology.drawio.png)
 
-Host 1 and Host 2 will be pre-provisioned, but the routers will need to be bootstrapped from scratch to work. This 
+Host 1 and Host 2 will be pre-provisioned, but the routers will need to be bootstrapped from scratch to work. This
 process will be explained step by step in the last section of this workshop.
