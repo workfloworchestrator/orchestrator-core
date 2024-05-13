@@ -73,26 +73,18 @@ def make_subscription_id_clause(filter_generator: WhereCondGenerator) -> WhereCo
     return subscription_id_clause
 
 
-def workflow_name_clause(node: Node) -> BinaryExpression:
-    value = node_to_str_val(node)
-    process_workflow = (
-        select(ProcessTable.process_id)
-        .join(WorkflowTable)
-        .where(WorkflowTable.deleted_at.is_(None), WorkflowTable.name == value)
-        .subquery()
-    )
+def make_workflow_field_clause(filter_generator: WhereCondGenerator) -> WhereCondGenerator:
+    def workflow_name_clause(node: Node):
+        process_workflow = (
+            select(ProcessTable.process_id)
+            .join(WorkflowTable)
+            .where(WorkflowTable.deleted_at.is_(None), filter_generator(node))
+            .subquery()
+        )
 
-    return ProcessTable.process_id.in_(process_workflow)
+        return ProcessTable.process_id.in_(process_workflow)
 
-
-def workflow_targets_clause(node: Node) -> BinaryExpression:
-    process_workflows = (
-        select(ProcessTable.process_id)
-        .join(WorkflowTable)
-        .where(WorkflowTable.deleted_at.is_(None), WorkflowTable.target == node_to_str_val(node))
-        .subquery()
-    )
-    return ProcessTable.process_id.in_(process_workflows)
+    return workflow_name_clause
 
 
 PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable) | {
@@ -101,8 +93,8 @@ PROCESS_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(ProcessTable) | {
     "product_description": make_product_clause(inferred_filter(ProductTable.description)),
     "subscription_id": make_subscription_id_clause(filter_uuid_exact(ProcessSubscriptionTable.subscription_id)),
     "tag": make_product_clause(filter_exact(ProductTable.tag)),
-    "target": workflow_targets_clause,
-    "workflow_name": workflow_name_clause,
+    "target": make_workflow_field_clause(inferred_filter(WorkflowTable.target)),
+    "workflow_name": make_workflow_field_clause(inferred_filter(WorkflowTable.name)),
 }
 
 
