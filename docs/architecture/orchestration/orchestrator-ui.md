@@ -26,8 +26,10 @@ To have a development setup where both the source code of the app and the source
 
 
 ## Example screenshots of orchestrator-ui
-standard orchestrator-ui
+### Standard orchestrator-ui
 ![Screenshot](/docs/img/Standard-orchestrator-ui.png)
 
-custom orchestrator-ui
+### Custom orchestrator-ui
+- showing additional summary card component (in-maintence corelink)
+- additional menu items
 ![Screenshot](/docs/img/Custom-orchestrator-ui-using-override.png)
