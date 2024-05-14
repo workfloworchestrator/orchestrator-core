@@ -5,7 +5,7 @@ possible, initial configuration of what a product looks like can be created with
 At the end of these steps the developer will have all the necessary configuration and boilerplate completed to run
 the workflow and start developing on implementing the business logic.
 
-### Step 1 - Create the file:
+### Step 1 - Create the product configuration file
 Open the Example Orchestrator directory and list the templates directory. It should look similar to this:
 
 ```bash
@@ -23,20 +23,31 @@ This directory houses all the configuration of the initial products that the exa
 starting point for developing new products. In this workshop we will create a new file and generate the
 L2-Point-to-Point model and workflows by configuring it with this yaml file.
 
-### Step 2 - Configure the YAML:
+### Step 2 - Configure the YAML
 Create a new file in the template directory called `l2-p2p.yaml`
 ```bash
 touch templates/l2-p2p.yaml
 ```
 This file will contain the Initial product type configuration. Please create a yaml configuration reflecting the
-product model as described on the [previous page](../create-your-own/). The goal is to configure the
+product model as described on the [previous page](../create-your-own/). The goal is to configure the generator to
+reuse as many of the product blocks already existing in the orchestrator as possible.
 
-!!! Hint
+!!! tip "Inspiration"
     Take a look at the `l2vpn.yaml` model for inspiration. As you can see this file has been configured in a certain
     way to reflect the configuration of the product. For more in depth documentation take a look at the [reference
-    doc](/reference-docs/cli/#generate)
+    doc](/reference-docs/cli/#generate).
 
-??? "Answer - l2-p2p.yaml"
+!!! danger "What can I do when I encounter errors?"
+    If you get stuck just remove all generated files, edit the yaml and try again.
+
+??? example "Answer - l2-p2p.yaml"
+    When creating the YAML you should notice that you do not have to create the **SAP** product blocks again. You just
+    have reference the **SAPS** in the **Virtual Circuit** configuration. In this way you start reusing existing
+    building blocks that already exist in the orchestrator. We cannot reuse the existing Virtual Circuit with the
+    generator due to the different limits on the amount of SAPS that can be connected to the Virtual Circuit of the
+    L2 P2P product.
+
+    #### Yaml file
     ```yaml
     # Copyright 2019-2023 SURF.
     # Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,10 +65,11 @@ product model as described on the [previous page](../create-your-own/). The goal
     #
     # This file describes the "Port" product
     #
+    # Copyright 2019-2023 SURF.
     config:
       summary_forms: true
-    name: l2-p2p
-    type: L2vpn
+    name: l2_p2p
+    type: L2P2P
     tag: L2P2P
     description: "L2 Point-to-Point"
     fixed_inputs:
@@ -70,7 +82,7 @@ product model as described on the [previous page](../create-your-own/). The goal
         description: "Level of network redundancany"
     product_blocks:
       - name: l2_p2p_virtual_circuit
-        type: VirtualCircuit
+        type: L2P2PVirtualCircuit
         tag: VC
         description: "virtual circuit product block"
         fields:
@@ -79,7 +91,7 @@ product model as described on the [previous page](../create-your-own/). The goal
             description: "Virtual circuit service access points"
             list_type: SAP
             min_items: 2
-            max_items: 8
+            max_items: 2
             required: provisioning
           - name: speed
             description: "speed of the L2VPN im Mbit/s"
@@ -99,22 +111,9 @@ product model as described on the [previous page](../create-your-own/). The goal
             type: int
             description: "ID of the L2VPN in the network resource manager"
             required: active
-      - name: sap
-        type: SAP
-        tag: SAP
-        description: "service access point"
-        fields:
-          - name: port
-            description: "Link to Port product block"
-            type: Port
-            required: provisioning
-          - name: vlan
-            description: "VLAN ID on port"
-            type: int
-            required: provisioning
     ```
 
-### Step 3 - Run the generator functions:
+### Step 3 - Run the generator functions
 To help generate the correct file exec into the running container and run the generator:
 
 ```bash
@@ -159,17 +158,22 @@ already has done.
 As a final step the user must generate and run the migrations to wire up the database. This is done as follows.
 
 ```bash
-python main.py generate migration
+python main.py generate migration -cf templates/l2-p2p.yaml
 python main.py db upgrade heads
 ```
 
-### Step 4 -  Profit:
+### Step 4 -  Profit
 If this has been executed without errors, you should be able to create a new subscription for the l2-p2p product by
 running the create workflow through the UI. All it does is create the domain model and fill it in with some
 rudimentary values from the input form, but it's a starting point. Users can now go into the workflow source code
-and start implementing steps to provision the resource that is being created by the create workflow.
+and start implementing steps to provision the resource that is being created by the create workflow. Take some time
+in the orchestrator UI to see what has been configured.
 
-### Step 5 - Bonus:
+* Metadata pages
+* Action menu
+* Available workflows
+
+### Step 5 - Bonus
 Implement a new step in the create workflow that manipulates the subscription in a certain way. An example could be
 to change the subscription description. Or any other value you can think of that exists in the subscription
 
