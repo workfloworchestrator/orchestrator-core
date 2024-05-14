@@ -5,7 +5,7 @@ import strawberry
 
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.resource_type import ResourceType
-from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo, StrawberryPydanticModel
 from orchestrator.schemas.product_block import ProductBlockSchema
 from pydantic_forms.types import UUIDstr
 
@@ -38,16 +38,15 @@ async def owner_subscription_resolver(
 ) -> Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None:
     from orchestrator.graphql.resolvers.subscription import resolve_subscription
 
-    return resolve_subscription(root.owner_subscription_id, info)  # type: ignore
+    return await resolve_subscription(info, root.owner_subscription_id)
 
 
 RelationLiteral = Literal["in_use_by", "depends_on", "subscriptions"]
-BlockRelationLiteral = ["in_use_by", "depends_on"]
 
 
-def get_subscription_ids(root: Any, relation: RelationLiteral) -> Iterable[UUIDstr]:
-    values = getattr(root._original_model, relation, [])
-    if relation in BlockRelationLiteral:
+def get_subscription_ids(root: StrawberryPydanticModel, relation: RelationLiteral) -> Iterable[UUIDstr]:
+    values = getattr(root._original_model, relation, [])  # type: ignore[attr-defined]
+    if relation in ("in_use_by", "depends_on"):
         return map(lambda x: UUIDstr(getattr(x, "subscription_id", "")), values)
     return map(lambda x: UUIDstr(x), values)
 
@@ -63,7 +62,7 @@ def related_subscriptions_resolver(relation: RelationLiteral) -> Callable[[Any],
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        subscription_ids = [id for id in get_subscription_ids(root, relation) if not root.owner_subscription_id]
+        subscription_ids = [id for id in get_subscription_ids(root, relation) if id != str(root.owner_subscription_id)]
         if not subscription_ids:
             return EMPTY_PAGE
         filter_by_with_related_subscriptions = (filter_by or []) + [
