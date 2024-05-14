@@ -11,7 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Any, TypeVar
 
@@ -104,3 +106,13 @@ def snake_to_camel(s: str) -> str:
 def camel_to_snake(s: str) -> str:
     name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+
+
+@contextmanager
+def measure_duration(action: str, **action_kwargs: Any) -> Iterator:
+    start = time.time()
+    try:
+        yield
+    finally:
+        elapsed = round(time.time() - start, ndigits=2)
+        logger.info("Measured time for action", action=action, elapsed_seconds=elapsed, action_kwargs=action_kwargs)

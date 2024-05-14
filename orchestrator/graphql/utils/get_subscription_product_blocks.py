@@ -10,6 +10,7 @@ from strawberry.scalars import JSON
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.schemas.product_block import owner_subscription_resolver
 from orchestrator.services.subscriptions import build_extended_domain_model
+from orchestrator.utils.helpers import measure_duration
 from orchestrator.utils.redis import from_redis
 
 if TYPE_CHECKING:
@@ -66,8 +67,9 @@ async def get_subscription_dict(subscription_id: UUID) -> dict:
     if cached_model := from_redis(subscription_id):
         subscription, _ = cached_model
     else:
-        subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        subscription = build_extended_domain_model(subscription_model)
+        with measure_duration("retrieve subscription from database instead of cache", subscription_id=subscription_id):
+            subscription_model = SubscriptionModel.from_subscription(subscription_id)
+            subscription = build_extended_domain_model(subscription_model)
     return subscription
 
 
