@@ -20,10 +20,8 @@ Workflow Orchestrator.
   Outline how to start the Workflow Orchestrator backend and GUI using docker compose.
 * **Bootstrapping the applications and familiarisation**  
   Through a simple network node and network circuit scenario, a set of products is created showing how domain models are defined.
-  * **Domain models**  
+    * **Domain models**  
     Explains the benefits of the use of domain models and shows how the hierarchy of products, product blocks, fixed inputs and resource types are used to create product subscriptions for customers.
-  * **Database migration**  
-    Use the orchestrator CLI to create an Alembic database migration based on the domain models that describe the created products and product blocks.
 * **L2 Point-to-Point product modelling and workflow**  
   For the L2 Point-to-Point product, we will make the CREATE workflow by using the product generator. The use of input
   forms is explained as part of defining the create workflow. By using this method you should be able to quickly get
@@ -54,8 +52,8 @@ This workshop uses the following folder layout:
 ```
 
 ## Workshop software architecture
-The workshop combines as said a number of opensource software components that can provision a simulated network
-running in container lab. The following diagram shows the logical components of the application and how the data
+The workshop combines a number of opensource software components that can provision a simulated network
+running in containerlab. The following diagram shows the logical components of the application and how the data
 flows. In reality there are a number of extra services like Postgres and Redis that store the application data of
 the Orchestrator, Netbox and LSO.
 
@@ -75,4 +73,5 @@ The topology will be as follows:
 
 ![Topology](../images/topology.drawio.png)
 
-Host 1 and Host 2 will be pre-provisioned, but the routers will need to be bootstrapped from scratch to work.
+Host 1 and Host 2 will be pre-provisioned, but the routers will need to be bootstrapped from scratch to work. This
+process will be explained step by step in the last section of this workshop.
