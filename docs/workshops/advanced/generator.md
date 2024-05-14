@@ -177,7 +177,7 @@ in the orchestrator UI to see what has been configured.
 Implement a new step in the create workflow that manipulates the subscription in a certain way. An example could be
 to change the subscription description. Or any other value you can think of that exists in the subscription
 
-??? Answer
+??? example - "Answer"
     ```python
     @step("Update Subscription Description")
     def update(subscription: L2p2pProvisioning) -> State:
