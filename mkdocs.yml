@@ -192,12 +192,12 @@ nav:
     - Example Orchestrator Workshop:
       - Overview: workshops/advanced/overview.md
       - Installation: workshops/advanced/docker-installation.md
-      - Products:
-        - Scenario: workshops/advanced/scenario.md
-        - Domain models: workshops/advanced/domain-models.md
       - Bootstrapping:
         - Getting started: workshops/advanced/bootstrap.md
         - Seeding data: workshops/advanced/execute-workflows.md
+      - Products:
+        - Scenario: workshops/advanced/scenario.md
+        - Domain models: workshops/advanced/domain-models.md
       - Workflows:
         - Introduction: workshops/advanced/workflow-introduction.md
         - Workflow Basics: workshops/advanced/workflow-basics.md
