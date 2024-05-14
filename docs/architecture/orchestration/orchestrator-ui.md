@@ -27,7 +27,7 @@ To have a development setup where both the source code of the app and the source
 
 ## Example screenshots of orchestrator-ui
 standard orchestrator-ui
-![Screenshot](img/Standard-orchestrator-ui.png)
+![Screenshot](/docs/img/Standard-orchestrator-ui.png)
 
 custom orchestrator-ui
-![Screenshot](img/Custom-orchestrator-ui using override.png)
+![Screenshot](/docs/img/Custom-orchestrator-ui-using-override.png)
