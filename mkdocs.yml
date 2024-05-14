@@ -195,15 +195,20 @@ nav:
       - Products:
         - Scenario: workshops/advanced/scenario.md
         - Domain models: workshops/advanced/domain-models.md
-        - Database migration: workshops/advanced/database-migration.md
       - Bootstrapping:
         - Getting started: workshops/advanced/bootstrap.md
         - Seeding data: workshops/advanced/execute-workflows.md
       - Workflows:
         - Introduction: workshops/advanced/workflow-introduction.md
+        - Workflow Basics: workshops/advanced/workflow-basics.md
+        - Workflow Examples:
+          - Create Workflow: workshops/advanced/node-create.md
+          - Modify Workflow: workshops/advanced/node-modify.md
+          - Terminate Workflow: workshops/advanced/node-terminate.md
+          - Validate Workflow: workshops/advanced/node-validate.md
       - Create your own product and workflows:
         - L2 Point-to-Point: workshops/advanced/create-your-own.md
-        - Product Generator: workshops/advanced/generator.md
+        - Product and Workflow Generator: workshops/advanced/generator.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
