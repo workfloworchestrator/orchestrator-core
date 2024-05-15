@@ -2,7 +2,7 @@
 
 The default workflow orchestrator ui app should offer sufficient functionality to start working and experiencing the workflow orchestrator without any customisation. For this an [example-orchestrator-ui](https://github.com/workfloworchestrator/example-orchestrator-ui) is available to start working with a running workflow orchestrator backend. 
 
-At the same time yhe UI is developed with the concept in mind that any user of the workflow orchestrator can customize the ui to meet their own requirements. There are two possible ways to accomplish this:
+At the same time the UI is developed with the concept in mind that any user of the workflow orchestrator can customize the ui to meet their own requirements. There are two possible ways to accomplish this:
 
 - Overriding components
 - Using components from the npm ui library
