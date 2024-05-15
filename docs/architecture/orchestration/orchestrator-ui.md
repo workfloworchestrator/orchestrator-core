@@ -14,7 +14,7 @@ The first solution is based on using the orchestrator-ui library in its full ext
 - add menu items to the naviation
 - add summary cards to the dashboard page
 
-An example of a custom orchestrator-ui is shown below, which shows custom summary card and additional meu items compared to the standard orchestrator-ui as available from the demo-orchestrator-ui.
+An example of a custom orchestrator-ui is shown below, which shows a custom summary card and additional menu items compared to the standard orchestrator-ui
 
 ## Using components from the npm ui library
 The second solution will probaby require more work, but could be interesting to extend an existing application with orchestrator components
