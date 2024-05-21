@@ -5,17 +5,20 @@ using th Workflow Orchestrator.
 
 ### Putting initial data in place
 
-The first thing we are going to do is populate Netbox with some initial data such as Manifacturers and Device types as well as some networks allocated for: 
+The first thing we are going to do is populate Netbox with some initial data such as Manifacturers and Device types as well as some networks allocated for:
+
 * Loopback addressing
-* Core links addressing 
+* Core links addressing
 
-This is done using the task "Netboxi Bootstrap" under the tasks submenu. 
+This is done using the task "Netbox Bootstrap" under the tasks submenu.
 
-Once the workflow has successfully ran, we can login into netbox (admin/admin) and check the situation: we should see some vendors and some network device models. 
-In the IPAM section we are going to reserve the first address of the loopback newtworks since certain network devices dont like "network addresses" to be used as loopback addresses. 
+Once the workflow has successfully ran, we can login into netbox (admin/admin) and check the situation: we should see some vendors and some network device models.
+In the IPAM section we are going to reserve the first address of the loopback newtworks since certain network devices dont like "network addresses" to be used as loopback addresses.
 
-* from the IPv4 prefix 10.0.127.0/24 we allocate the address 10.0.127.0 marking it with a description "RESERVED" 
-* from the IPv6 prefix fc00:0:0:127::/64 we allocate the address fc00:0:0:127:: marking it with a description "RESERVED" 
+* from the IPv4 prefix 10.0.127.0/24 we allocate the address 10.0.127.0 marking it with a description "RESERVED"
+* from the IPv6 prefix fc00:0:0:127::/64 we allocate the address fc00:0:0:127:: marking it with a description "RESERVED"
+
+We do this from IPAM >> Prefixes.
 
 ### Deploying the nodes
 

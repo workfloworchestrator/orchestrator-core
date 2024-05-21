@@ -1,5 +1,8 @@
 # Bootstrapping the environment
-The fist step is to clone the Example orchestrator repository using `git clone https://github.com/workfloworchestrator/example-orchestrator.git`. 
+The fist step is to clone the Example orchestrator repository using:
+```
+git clone https://github.com/workfloworchestrator/example-orchestrator.git
+``` 
 At this point, you have a functional environment to start play with. This includes:
 
 * The orchestrator (core and GUI)
@@ -37,7 +40,13 @@ drwxr-xr-x  2 root root  4096 May  8 10:35 utils
 drwxr-xr-x  7 root root  4096 May  8 10:56 workflows
 ```
 
-Before starting up the stacks, we have to check the file `docker/orchestrator-ui/orchestrator-ui.env` and adjust the LISTENING_IP value:
+Before starting up the stacks, we have to check the file:
+
+```
+docker/orchestrator-ui/orchestrator-ui.env
+```
+
+and adjust the LISTENING_IP value:
 
 ```
 ENVIRONMENT_NAME="Example Orchestrator"
@@ -51,7 +60,18 @@ NEXTAUTH_SECRET=ToDo
 * if you are running the orchestrator locally, for example on your laptop, use "localhost"
 * if you are running the orchestrator on a remote machine, use the IP of that machine, for example 1.2.3.4
 
-Once you edited the file, you can start the docker environment with `docker compose up -d` and you should be able to view the
+Once you edited the file, you can start the docker environment with:
+
+```
+COMPOSE_PROFILES=lso docker compose up
+```
+This will also enable LSO, so network devices will be actually configured. If you don't want this, just use: 
+
+```
+docker compose up -d
+```
+
+and you should be able to view the
 applications here:
 
 If you are using your laptop: 
@@ -92,8 +112,13 @@ INFO[0000] Parsing & checking topology file: srlinux01.clab.yaml
 +---+-----------------------+--------------+-----------------------+------+---------+----------------+--------------+
 ```
 
-And with the command `containelab graph` we can have a nice rendering of the topology served on port 50080 (for example https://localhost:50080). 
-The topology we are going to use is something like this one: 
+And with the command:
+```
+containerlab graph
+```
+we can have a nice rendering of the topology served on port 50080 (for example https://localhost:50080). 
+
+The topology we are going to use is something like this one:
 
 ![3nodes_topology](../images/clab_topology.png)
 
@@ -103,6 +128,5 @@ The Example orchestrator used in this workshop already has a number of products 
 * Core-links (including Ansible to deploy/delete example config)
 * Ports
 * L2VPN
-
 
 We can start feeding initial data into the environment and run some workflows!
