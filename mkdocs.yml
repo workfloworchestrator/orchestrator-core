@@ -105,11 +105,11 @@ nav:
       - Callbacks: architecture/application/callbacks.md
     - Orchestrator UI:
       - Orchestrator UI: architecture/orchestration/orchestrator-ui.md
-      # - Prerequisites: 
+      # - Prerequisites:
         # - NextJS:
       # - Env variables:
         # - Dark Theme adjustment / dark theme env setting
-        # - Your own company logo 
+        # - Your own company logo
       # - Component-lib
       # - RBAC
         # - Isallowed wrapper
