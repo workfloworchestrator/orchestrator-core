@@ -74,9 +74,10 @@ nav:
     - Base Application: getting-started/base.md
     - Development setup: getting-started/development.md
     - Preparing source folder: getting-started/prepare-source-folder.md
-  - Architecture:
+  - Reference docs:
     - Architecture; TLDR: architecture/tldr.md
-    - Orchestration Philosophy: architecture/orchestration/philosophy.md
+    # - Orchestration Philosophy: architecture/orchestration/philosophy.md
+    - Orchestrator UI: architecture/orchestration/orchestrator-ui.md
     - Product modelling:
       - Introduction: architecture/product_modelling/introduction.md
       - Standards: architecture/product_modelling/standards.md

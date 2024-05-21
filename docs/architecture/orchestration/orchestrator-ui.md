@@ -9,7 +9,7 @@ At the same time the UI is developed with the concept in mind that any user of t
 
 
 ## Overriding components
-The first solution is based on using the orchestrator-ui library in its full extend and just add/tweak components. Examples of this approach would be: 
+The first solution is based on using the orchestrator-ui library in its full extend and just add/tweak components. Examples of this approach would be:
 - render certain resource type differently then the npm normally does
 - add menu items to the naviation
 - add summary cards to the dashboard page
@@ -27,9 +27,9 @@ To have a development setup where both the source code of the app and the source
 
 ## Example screenshots of orchestrator-ui
 ### Standard orchestrator-ui
-![Screenshot](/docs/img/Standard-orchestrator-ui.png)
+![Screenshot](img/Standard-orchestrator-ui.png)
 
 ### Custom orchestrator-ui
 - showing additional summary card component (in-maintence corelink)
 - additional menu items
-![Screenshot](/docs/img/Custom-orchestrator-ui-using-override.png)
+![Screenshot](img/Custom-orchestrator-ui-using-override.png)
