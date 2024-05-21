@@ -1,4 +1,4 @@
-site_name: The Orchestrator Core
+site_name: Workflow Orchestrator
 site_description: An extensible workflow engine to manage customer facing resources and resource facing resources.
 site_url: https://workfloworchestrator.org/orchestrator-core
 theme:
@@ -100,7 +100,9 @@ extra_javascript:
   - 'js/custom.js'
 
 nav:
-  - Orchestrator Core: index.md
+  - Workflow Orchestrator:
+    - Workflow Orchestrator: index.md
+    - Orchestrator Framework: architecture/framework.md
   - Getting Started:
     - Base Application: getting-started/base.md
     - Development setup: getting-started/development.md
@@ -165,6 +167,7 @@ nav:
       - What are tasks?: architecture/application/tasks.md
       - Validating input through forms: architecture/application/forms.md
       - Forms from a frontend perspective: architecture/application/forms-frontend.md
+    - Migration guide: migration-guide/2.0.md
   - Workshops:
 #    - Beginner:
 #      - Overview: workshops/beginner/overview.md
@@ -213,7 +216,6 @@ nav:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
     - Documentation: contributing/documentation.md
-  - Migration guide: migration-guide/2.0.md
 watch:
   - includes
   - orchestrator
