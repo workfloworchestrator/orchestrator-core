@@ -23,6 +23,9 @@ def generic_process_relation_sort(
     join_tables = join_tables or []
 
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
+        # SQLAlchemy can't resolve the query correctly when we join the same table multiple times. A refactor for the sorting logic that
+        # ensures each table is joined once for the sort order is required. For now, we access an internal member `_setup_join` to check whether a table
+        # has already been joined
         if isinstance(query, Select):
             joined_tables = [str(t[0]) for t in query._setup_joins]
 
