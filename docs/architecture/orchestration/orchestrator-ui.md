@@ -1,11 +1,11 @@
 # Workflow Orchestrator UI
 
-The default workflow orchestrator ui app should offer sufficient functionality to start working with and experiencing the workflow orchestrator. For this an [example-orchestrator-ui](https://github.com/workfloworchestrator/example-orchestrator-ui) is available to start working with a running workflow orchestrator backend.
+The default Workflow Orchestrator UI app should offer sufficient functionality to start working with, and experiencing, the workflow orchestrator. For this an [example-orchestrator-ui](https://github.com/workfloworchestrator/example-orchestrator-ui) is available to start working with a ready to deploy example workflow orchestrator backend.
 
-At the same time the UI is developed with the concept in mind that any user of the workflow orchestrator can customize the ui to meet their own requirements. There are two possible ways to accomplish this:
+At the same time the UI is developed with the concept in mind that any user of the workflow orchestrator can customize the UI to meet their own requirements. There are two possible ways to accomplish this:
 
 - Overriding components
-- Using components from the npm ui library
+- Using components from the npm UI library
 
 
 ## Overriding components
@@ -14,12 +14,11 @@ The first solution is based on using the orchestrator-ui library in its full ext
 - add menu items to the navigation
 - add summary cards to the dashboard page
 
-An example of a custom orchestrator-ui is shown below, which shows a custom summary card and additional menu items compared to the standard orchestrator-ui
+An example of a custom orchestrator-ui is shown below, which shows a custom summary card and additional menu items compared to the standard orchestrator-ui.
 
-## Using components from the npm ui library
+## Using components from the npm UI library
 The second solution will probably require more work, but could be interesting to extend an existing application with
-orchestrator components
-
+orchestrator components.
 
 Both customization solutions rely on the npm package of the components libray published in [npm](https://www.npmjs.com/package/@orchestrator-ui/orchestrator-ui-components). This package contains the pages and components that are meant to be used in an app that serves the frontend to a workflow orchestrator backend.
 
@@ -56,13 +55,13 @@ SHOW_WORKFLOW_INFORMATION_LINK: Show a information icon on the workflow detail p
 WORKFLOW_INFORMATION_LINK_URL: The url used to build the url that the information icon links to. The format of the link is: <WORKFLOW_INFORMATION_LINK_URL><WORKFLOW_NAME>. The contents at this url should be maintained in the external documentation system.
 ```
 
-### Starting a workflow from the orchestrator ui - User input forms
+### Starting a workflow from the orchestrator UI - User input forms
 
 Creating a Workflow orchestrator workflow is explained here: [Creating a workflow][5].
 
-Once a workflow is created it will - automatically - show up in the dropdown list that open from '+ New Subscription'. When selected a request will be made to the <api>/processes/<workflowName> endpoint which will return a form definition describing the form that needs to be displayed to collect user input. The form definition is turned into a form automatically.
+Once a workflow is created it will - automatically - show up in the dropdown list that opens from '+ New Subscription'. When selected a request will be made to the <api>/processes/<workflowName> endpoint which will return a form definition describing the form that needs to be displayed to collect user input. The form definition is turned into a form automatically.
 
-The example ui contains an example form that shows an example of a form definition and the form it renders at: http://localhost:3000/example-form
+The example UI contains an example form that shows an example of a form definition and the form it renders at: http://localhost:3000/example-form
 
 ### Deployment to other environments
 
@@ -70,7 +69,7 @@ For deployments to your own environment it's recommended to copy or fork the cod
 
 ### Extensibility:
 
-The Orchestrator UI allows for a number of customizations
+The Orchestrator UI allows for a number of customizations:
 
 #### Adding extra pages
 
