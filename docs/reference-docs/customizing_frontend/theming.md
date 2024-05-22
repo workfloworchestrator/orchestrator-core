@@ -59,7 +59,7 @@ function CustomApp(...) {
 }
 ```
 
-The usage of defaultOrchestratorTheme is not required, a new `EuiThemeModifications` can also be made from scratch or using the [helper tool](https://eui.elastic.co/#/theming/customizing-themes) on the EUI website. 
+The usage of defaultOrchestratorTheme is not required, a new `EuiThemeModifications` can also be made from scratch or using the [helper tool](https://eui.elastic.co/#/theming/customizing-themes) on the EUI website.
 
 ## Color Mode
 
