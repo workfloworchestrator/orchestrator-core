@@ -24,7 +24,7 @@ to help facilitate collaboration. We invite all who are interested to take a loo
 
 ## Orchestration
 When do you orchestrate and when do you automate? The answer is you probably need both. Automation helps you execute repetitive
-tasks reliably and easily, Orchestration adds a layer and allows you to add more intelligence to the tasks you need to automate and
+tasks reliably and easily. Orchestration adds a layer and allows you to add more intelligence to the tasks you need to automate and
 to have a complete audit log of changes.
 
 > #### Orchestrate[*](https://www.lexico.com/en/definition/orchestrate) - Transitive Verb
@@ -41,8 +41,8 @@ This **Workflow Orchestrator** provides a framework through which you can manage
 framework helps and guides **you**, the person who needs to get things done, through the steps from
 automation to orchestration. With an easy to use set of API's and examples, you should be up and running and seeing
 results, before you completely understand all ins and outs of the project. The Workflow Orchestrator enables you to define
-products to which users can subscribe, and helps you intelligently manage the lifecycle of **Creation**, **Modification**,
-**Termination** and **Validation** of resources that you provide to your users.
+products to which users can subscribe, and helps you intelligently manage the lifecycle, with the use of **Creation**, **Modification**,
+**Termination** and **Validation** workflows, of resources that you provide to your users.
 The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI, pydantic and asyncio python.
 
 ## What does a workflow look like? It must be pretty complex!!
