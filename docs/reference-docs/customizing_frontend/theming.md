@@ -43,9 +43,9 @@ function CustomApp(...) {
             },
         },
     };
-    
+
     ...
-    
+
     return (
         <SeveralProviders>
             <EuiProvider
@@ -75,7 +75,7 @@ const WfoAnyComponent: FC<WfoAnyComponentProps> = (...) => {
         colorMode,          // type: EuiThemeColorModeStandard
         isDarkThemeActive   // type: boolean
     } = useOrchestratorTheme();
-    
+
     return(...);
 }
 ```
