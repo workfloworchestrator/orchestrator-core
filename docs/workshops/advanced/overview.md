@@ -59,11 +59,11 @@ the Orchestrator, Netbox and LSO.
 
 ### Software used in the workshop
 * **The orchestrator**: This includes the UI and python backend that will run all workflows. All data is persisted in a Postgres database. Redis is used for caching and syncronisation purposes.
-* **[Netbox](https://docs.netbox.dev/en/stable/)**: Netbox is the source of truth for this network topology. It contains all resources that are known 
+* **[Netbox](https://docs.netbox.dev/en/stable/)**: Netbox is the source of truth for this network topology. It contains all resources that are known
   in the topology: Interfaces, Nodes, IP addresses etc. The Orchestrator will configure Netbox but also retrieve resource from it.
-* **[LSO](https://workfloworchestrator.org/lso/)**: The Network Resource Manager (NRM) of this topology. This software is an API abstraction on top of 
+* **[LSO](https://github.com/workfloworchestrator/lso)**: The Network Resource Manager (NRM) of this topology. This software is an API abstraction on top of
   ansible that integrates well with the orchestrator. It is responsible for running ansible jobs to provision the topology.
-* **[Container Lab](https://containerlab.dev/)**: This software will manage the (virtual) network topology running the Network Operating System 
+* **[Container Lab](https://containerlab.dev/)**: This software will manage the (virtual) network topology running the Network Operating System
   of the workshop. Below the network topology is explained.
 
 ![Software topology](../images/Software-topology.drawio.png)

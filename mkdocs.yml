@@ -165,6 +165,24 @@ nav:
       - What are tasks?: architecture/application/tasks.md
       - Validating input through forms: architecture/application/forms.md
       - Forms from a frontend perspective: architecture/application/forms-frontend.md
+    - Orchestrator UI:
+      - Orchestrator UI: architecture/orchestration/orchestrator-ui.md
+      # - Prerequisites:
+        # - NextJS:
+      # - Env variables:
+        # - Dark Theme adjustment / dark theme env setting
+        # - Your own company logo
+      # - Component-lib
+      # - RBAC
+        # - Isallowed wrapper
+        # - OIDC
+        # - Code flow with PKCE
+      - User input forms:
+        - Generic solution: architecture/application/forms-frontend.md
+        # - Form page with all form field:
+      # - Extensibility:
+        # - Extra menu item
+        # - Add a new summary card
   - Workshops:
 #    - Beginner:
 #      - Overview: workshops/beginner/overview.md
