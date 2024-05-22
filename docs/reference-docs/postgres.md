@@ -1,0 +1,1 @@
+The current advised version of Postgres in combination with orchestrator core version 2.+ is 14 or higher.
