@@ -179,6 +179,7 @@ nav:
 #      - Validation: reference-docs/domain_models/validation.md
 #      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
     - Forms: reference-docs/forms.md
+    - Theming the Frontend: reference-docs/customizing_frontend/theming.md
     - Running the App:
       - App.py : reference-docs/app/app.md
       - Python Version: reference-docs/python.md
