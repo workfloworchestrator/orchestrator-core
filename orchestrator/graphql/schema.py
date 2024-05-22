@@ -46,9 +46,7 @@ from orchestrator.graphql.resolvers import (
     resolve_subscriptions,
     resolve_workflows,
 )
-from orchestrator.graphql.resolvers.subscription import resolve_subscription
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
-
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductType
