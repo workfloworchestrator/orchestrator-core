@@ -29,13 +29,13 @@ Create a new file in the template directory called `l2-p2p.yaml`
 touch templates/l2-p2p.yaml
 ```
 This file will contain the Initial product type configuration. Please create a yaml configuration reflecting the
-product model as described on the [previous page](../create-your-own/). The goal is to configure the generator to
+product model as described on the [previous page](create-your-own.md). The goal is to configure the generator to
 reuse as many of the product blocks already existing in the orchestrator as possible.
 
 !!! tip "Inspiration"
     Take a look at the `l2vpn.yaml` model for inspiration. As you can see this file has been configured in a certain
     way to reflect the configuration of the product. For more in depth documentation take a look at the [reference
-    doc](/reference-docs/cli/#generate).
+    doc](../../reference-docs/cli.md#generate).
 
 !!! danger "What can I do when I encounter errors?"
     If you get stuck just remove all generated files, edit the yaml and try again.

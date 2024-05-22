@@ -38,3 +38,14 @@ pytest test/unit_tests
 ```
 
 If you do not encounter any failures in the test, you should be able to develop features in the orchestrator-core.
+
+
+### Adding to the documentation
+Documentation for the Orchestrator is written by using [Mkdocs](https://www.mkdocs.org/). To contribute to them 
+follow the instructions above to `step 2`, you can then develop them locally by running:
+
+```bash
+mkdocs serve
+```
+
+This should make the docs available on your local machine here: [http://127.0.0.1:8000/orchestrator-core/](http://127.0.0.1:8000/orchestrator-core/)
