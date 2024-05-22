@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from uuid import UUID
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
@@ -51,6 +51,14 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
     pstat = load_process(process) if with_details else None
     process_data = enrich_process(process, pstat)
     return ProcessSchema(**process_data)
+
+
+async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id)
+    if process := db.session.scalar(stmt):
+        is_detailed = _is_process_detailed(info)
+        return ProcessType.from_pydantic(_enrich_process(process, is_detailed))
+    return None
 
 
 async def resolve_processes(
