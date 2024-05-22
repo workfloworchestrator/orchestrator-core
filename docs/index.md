@@ -1,10 +1,9 @@
 ---
 hide:
   - toc
-  - navigation
 ---
 
-<p align="center"><em>Production ready Orchestration Framework to manage product lifecycle and workflows. Easy to use, Built on top of FastAPI</em></p>
+<p align="center"><em>Production ready Workflow Orchestration Framework to manage product lifecycle and workflows. Easy to use, Built on top of FastAPI</em></p>
 
 <p align="center">
     <a href="https://pepy.tech/project/orchestrator-core" target="_blank">
@@ -19,7 +18,7 @@ hide:
 </p>
 <br>
 <br>
-__The orchestrator core is a project developed by [SURF](https://www.surf.nl) to facilitate the orchestration of services.
+__The Workflow Orchestrator is a project developed by [SURF](https://www.surf.nl) to facilitate the orchestration of services.
 Together with [ESnet](https://www.es.net) this project has been open-sourced in [the commons conservancy](https://commonsconservancy.org)
 to help facilitate collaboration. We invite all who are interested to take a look and to contribute!__
 
@@ -38,10 +37,10 @@ to have a complete audit log of changes.
 >   *‘the developers were able to orchestrate a favorable media campaign’*
 
 ## Project Goal
-This **orchestrator-core** provides a framework through which you can manage service orchestration for your end
-users. The framework helps and guides **you**, the person who needs to get things done, through the steps from
-automation, to orchestration. With an easy to use set of API's and example, you should be up and running and seeing
-results, before you completely understand all ins and outs of the project. The Orchestrator enables you to define
+This **Workflow Orchestrator** provides a framework through which you can manage service orchestration for your end-users. The
+framework helps and guides **you**, the person who needs to get things done, through the steps from
+automation to orchestration. With an easy to use set of API's and examples, you should be up and running and seeing
+results, before you completely understand all ins and outs of the project. The Workflow Orchestrator enables you to define
 products to which users can subscribe, and helps you intelligently manage the lifecycle of **Creation**, **Modification**,
 **Termination** and **Validation** of resources that you provide to your users.
 The Application extends a FastAPI application and therefore can make use of all the awesome features of FastAPI, pydantic and asyncio python.
@@ -67,11 +66,13 @@ def workflow():
 
 There are a number of options for getting started:
 
+- First have a look at the [demo orchestrator](https://demo.workfloworchestrator.org/), where you can get a feel for creating subscriptions using workflows. It will take you to our demo environment, where you can see some of our examples in action.
 - For those of you who would like to see it working, take a look at [this repo](https://github.com/workfloworchestrator/example-orchestrator) and follow the README to setup a
   docker-compose so you can experiment on your localhost.
 - For those who are more adventurous, follow the guide on the [next page](getting-started/base.md) to
   start coding right away.
 
+<!-- Followinh line are not visible? -->
 [//]: # (- If you would like to see the workflow engine in action, click [here]&#40;https://demo.workfloworchestrator.org&#41; this )
 
 [//]: # (will take you to our demo environment, where you can see some of our examples in action.)

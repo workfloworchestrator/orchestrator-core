@@ -32,5 +32,5 @@ The following pages try to introduce the workflow concept and how it relates to 
 can be found in the example orchestrator `.workflows.node` directory. Please read at least the following pages to grasp
 the functionality of how workflows work and how the user/frontend will interact with the Orchestrator API:
 
-* [Workflow Basics](../workflow-basics)
-* [Create Workflow](../node-create)
+* [Workflow Basics](workflow-basics.md)
+* [Create Workflow](node-create.md)
