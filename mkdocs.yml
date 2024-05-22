@@ -23,7 +23,6 @@ theme:
   features:
   - search.suggest
   - search.highlight
-  - navigation.sections
   - navigation.tabs
   - navigation.tabs.sticky
   - navigation.tracking
@@ -31,12 +30,36 @@ theme:
   - navigation.indexes
   - content.code.copy
   - content.code.annotate
+  - content.tooltips
 plugins:
+  - external-markdown
   - search
+  - open-in-new-tab
   - render_swagger
+  - macros
   - include-markdown
   - privacy
   - social
+  - mkdocstrings:
+      default_handler: python
+      enable_inventory: true
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: null
+            docstring_section_style: list
+            annotations_path: full
+            separate_signature: true
+            line_length: 80
+            show_signature_annotations: true
+            unwrap_annotated: true
+            docstring_options:
+              trim_doctest_flags: true
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
   generator: false
@@ -52,13 +75,21 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
   - pymdownx.keys
   - pymdownx.inlinehilite
   - pymdownx.tabbed:
       alternate_style: true
   - attr_list
   - codehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - abbr
 
 extra_css:
   - 'css/termynal.css'
@@ -74,8 +105,45 @@ nav:
     - Base Application: getting-started/base.md
     - Development setup: getting-started/development.md
     - Preparing source folder: getting-started/prepare-source-folder.md
-  - Reference docs:
-    - Architecture; TLDR: architecture/tldr.md
+  - Reference Documentation:
+    - TL;DR: reference-docs/tldr.md
+    - API:
+      - Rest API: reference-docs/api.md
+      - GraphQL: reference-docs/graphql.md
+    - App.py : reference-docs/app/app.md
+    - Auth(n|z): reference-docs/auth.md
+    - CLI Tools: reference-docs/cli.md
+    - Database: reference-docs/database.md
+    - Serialization: reference-docs/serialization.md
+    - Domain Models:
+      - Overview: reference-docs/domain_models/overview.md
+      - Domain Model Types:
+        - Product Types: reference-docs/domain_models/product_types.md
+        - Product Blocks: reference-docs/domain_models/product_blocks.md
+        - Model Attributes: reference-docs/domain_models/model_attributes.md
+      - Helpers:
+        - Generator: reference-docs/domain_models/generator.md
+#      - Advanced Features:
+#        - Properties: reference-docs/domain_models/properties.md
+#        - Union Types: reference-docs/domain_models/union_types.md
+#        - Pydantic hooks: reference-docs/domain_models/pydantic_hooks.md
+#      - Instantiating Domain Models: reference-docs/domain_models/instantiating.md
+#      - Validation: reference-docs/domain_models/validation.md
+#      - Type Casting and Serialisation: reference-docs/domain_models/type_casting.md
+    - Forms: reference-docs/forms.md
+    - Running the App:
+      - Python Version: reference-docs/python.md
+      - Runtimes: reference-docs/app/runtimes.md
+      - Scaling: reference-docs/scaling.md
+    - Tasks:  reference-docs/tasks.md
+    - Tests: reference-docs/tests.md
+    - Workflows:
+      - Workflow Steps:  reference-docs/workflows/workflow-steps.md
+      - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
+      - Callbacks: reference-docs/workflows/callbacks.md
+    - Websockets: reference-docs/websockets.md
+  - Architecture:
+    - Architecture; TL;DR: architecture/tldr.md
     # - Orchestration Philosophy: architecture/orchestration/philosophy.md
     - Product modelling:
       - Introduction: architecture/product_modelling/introduction.md
@@ -90,20 +158,13 @@ nav:
         - L2 VPN: architecture/product_modelling/l2_vpn.md
         - IP Static: architecture/product_modelling/ip_static.md
       - Product Block Graph: architecture/product_modelling/product_block_graph.md
+      - Importing Existing Products: architecture/product_modelling/imports.md
+    - Domain Models: architecture/application/domainmodels.md
     - Internals:
       - How do Workflows work?: architecture/application/workflow.md
       - What are tasks?: architecture/application/tasks.md
       - Validating input through forms: architecture/application/forms.md
-      - Domain Models: architecture/application/domainmodels.md
-    - Documentation:
-      - Command Line Interface: architecture/application/cli.md
-      - Web sockets: architecture/application/websockets.md
-      - Api Docs: architecture/application/api.md
-      - Scaling: architecture/application/scaling.md
-      - Python version: architecture/application/python.md
-      - GraphQL: architecture/application/graphql.md
-      - Callbacks: architecture/application/callbacks.md
-    - Orchestrator UI:
+      - Orchestrator UI:
       - Orchestrator UI: architecture/orchestration/orchestrator-ui.md
       # - Prerequisites:
         # - NextJS:
@@ -121,42 +182,56 @@ nav:
       # - Extensibility:
         # - Extra menu item
         # - Add a new summary card
+      - Forms from a frontend perspective: architecture/application/forms-frontend.md
   - Workshops:
-    - Beginner:
-      - Overview: workshops/beginner/overview.md
-      - Installation:
-        - Manual:
-          - Debian: workshops/beginner/debian.md
-          - MacOS: workshops/beginner/macos.md
-        - Docker compose: workshops/beginner/docker.md
-      - Start applications: workshops/beginner/start-applications.md
-      - Products:
-        - Scenario: workshops/beginner/scenario.md
-        - Domain models: workshops/beginner/domain-models.md
-        - Database migration: workshops/beginner/database-migration.md
-      - Workflows:
-        - Introduction: workshops/beginner/workflow-introduction.md
-        - Register workflows: workshops/beginner/register-workflows.md
-        - Input forms: workshops/beginner/input-forms.md
-        - Create UserGroup: workshops/beginner/create-user-group.md
-        - Modify UserGroup: workshops/beginner/modify-user-group.md
-        - Terminate UserGroup: workshops/beginner/terminate-user-group.md
-        - Create User: workshops/beginner/create-user.md
-        - Modify User: workshops/beginner/modify-user.md
-        - Terminate User: workshops/beginner/terminate-user.md
-      - Explore: workshops/beginner/explore.md
-    - Advanced:
+#    - Beginner:
+#      - Overview: workshops/beginner/overview.md
+#      - Installation:
+#        - Manual:
+#          - Debian: workshops/beginner/debian.md
+#          - MacOS: workshops/beginner/macos.md
+#        - Docker compose: workshops/beginner/docker.md
+#      - Start applications: workshops/beginner/start-applications.md
+#      - Products:
+#        - Scenario: workshops/beginner/scenario.md
+#        - Domain models: workshops/beginner/domain-models.md
+#        - Database migration: workshops/beginner/database-migration.md
+#      - Workflows:
+#        - Introduction: workshops/beginner/workflow-introduction.md
+#        - Register workflows: workshops/beginner/register-workflows.md
+#        - Input forms: workshops/beginner/input-forms.md
+#        - Create UserGroup: workshops/beginner/create-user-group.md
+#        - Modify UserGroup: workshops/beginner/modify-user-group.md
+#        - Terminate UserGroup: workshops/beginner/terminate-user-group.md
+#        - Create User: workshops/beginner/create-user.md
+#        - Modify User: workshops/beginner/modify-user.md
+#        - Terminate User: workshops/beginner/terminate-user.md
+#      - Explore: workshops/beginner/explore.md
+    - Example Orchestrator Workshop:
       - Overview: workshops/advanced/overview.md
       - Installation: workshops/advanced/docker-installation.md
+      - Bootstrapping:
+        - Getting started: workshops/advanced/bootstrap.md
+        - Seeding data: workshops/advanced/execute-workflows.md
       - Products:
         - Scenario: workshops/advanced/scenario.md
         - Domain models: workshops/advanced/domain-models.md
-        - Database migration: workshops/advanced/database-migration.md
       - Workflows:
         - Introduction: workshops/advanced/workflow-introduction.md
-        - Create Node: workshops/advanced/node-workflow.md
-        - Create Circuit: workshops/advanced/circuit-workflow.md
+        - Workflow Basics: workshops/advanced/workflow-basics.md
+        - Workflow Examples:
+          - Create Workflow: workshops/advanced/node-create.md
+          - Modify Workflow: workshops/advanced/node-modify.md
+          - Terminate Workflow: workshops/advanced/node-terminate.md
+          - Validate Workflow: workshops/advanced/node-validate.md
+      - Create your own product and workflows:
+        - L2 Point-to-Point: workshops/advanced/create-your-own.md
+        - Product and Workflow Generator: workshops/advanced/generator.md
   - Contributing:
     - Guidelines: contributing/guidelines.md
     - Testing: contributing/testing.md
+    - Documentation: contributing/documentation.md
   - Migration guide: migration-guide/2.0.md
+watch:
+  - includes
+  - orchestrator
