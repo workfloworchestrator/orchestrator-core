@@ -19,7 +19,7 @@ As part of the boilerplate code, the `_app.tsx` file applies a `defaultOrchestra
 </SeveralProviders>
 ```
 
-The default defaultOrchestratorTheme object are adjustments of the standard theme provided by Elastic UI and can be imported from the [@orchestrator-ui/orchestrator-ui-components](https://www.npmjs.com/package/@orchestrator-ui/orchestrator-ui-components) package.
+The default defaultOrchestratorTheme object contains adjustments of the standard theme provided by Elastic UI and can be imported from the [@orchestrator-ui/orchestrator-ui-components](https://www.npmjs.com/package/@orchestrator-ui/orchestrator-ui-components) package.
 
 To make small adjustments, simply use [defaultOrchestratorTheme](https://github.com/workfloworchestrator/orchestrator-ui-library/blob/main/packages/orchestrator-ui-components/src/theme/defaultOrchestratorTheme.ts) as a base and override the desired properties:
 
