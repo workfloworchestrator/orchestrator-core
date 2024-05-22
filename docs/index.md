@@ -37,7 +37,7 @@ to have a complete audit log of changes.
 >   *‘the developers were able to orchestrate a favorable media campaign’*
 
 ## Project Goal
-This **Workflow Orchestrator** provides a framework through which you can manage service orchestration for your end-users. The 
+This **Workflow Orchestrator** provides a framework through which you can manage service orchestration for your end-users. The
 framework helps and guides **you**, the person who needs to get things done, through the steps from
 automation to orchestration. With an easy to use set of API's and examples, you should be up and running and seeing
 results, before you completely understand all ins and outs of the project. The Workflow Orchestrator enables you to define

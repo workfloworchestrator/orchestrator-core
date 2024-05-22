@@ -41,7 +41,7 @@ If you do not encounter any failures in the test, you should be able to develop 
 
 
 ### Adding to the documentation
-Documentation for the Orchestrator is written by using [Mkdocs](https://www.mkdocs.org/). To contribute to them 
+Documentation for the Orchestrator is written by using [Mkdocs](https://www.mkdocs.org/). To contribute to them
 follow the instructions above to `step 2`, you can then develop them locally by running:
 
 ```bash
