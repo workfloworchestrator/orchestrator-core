@@ -109,6 +109,7 @@ nav:
       - Preparing source folder: getting-started/prepare-source-folder.md
       - Python Virtualenv: getting-started/base.md
     - Docker: getting-started/docker.md
+    - Orchestrator UI: getting-started/orchestration-ui.md
   - Architecture:
     - Architecture; TL;DR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md

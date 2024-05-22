@@ -1,4 +1,4 @@
-# The orchestrator web interface
+# The Orchestrator web interface
 
 As part of the Workflow Orchestrator setup it's possible to run a web interface. An example of how to setup the web interface is provided in the [Example orchestrator UI][1] repository. It works 'out-of-the-box' with a standard Workflow orchestrator engine and can be expanded with extra fields and pages and customized with your branding. It shows an example local development setup.
 
