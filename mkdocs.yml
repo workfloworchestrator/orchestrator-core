@@ -145,7 +145,29 @@ nav:
   - Architecture:
     - Architecture; TL;DR: architecture/tldr.md
     - Orchestration Philosophy: architecture/orchestration/philosophy.md
-    - Product modelling:
+    - Domain Models: architecture/application/domainmodels.md
+    - Internals:
+      - How do Workflows work?: architecture/application/workflow.md
+      - What are tasks?: architecture/application/tasks.md
+    - Orchestrator UI:
+      - Orchestrator UI: architecture/orchestration/orchestrator-ui.md
+      # - Prerequisites:
+        # - NextJS:
+      # - Env variables:
+        # - Dark Theme adjustment / dark theme env setting
+        # - Your own company logo
+      # - Component-lib
+      # - RBAC
+        # - Isallowed wrapper
+        # - OIDC
+        # - Code flow with PKCE
+    - User input forms:
+      - Generic solution: architecture/application/forms-frontend.md
+        # - Form page with all form field:
+      # - Extensibility:
+        # - Extra menu item
+        # - Add a new summary card
+    - Advanced - Product modelling:
       - Introduction: architecture/product_modelling/introduction.md
       - Standards: architecture/product_modelling/standards.md
       - Modelling: architecture/product_modelling/modelling.md
@@ -159,30 +181,6 @@ nav:
         - IP Static: architecture/product_modelling/ip_static.md
       - Product Block Graph: architecture/product_modelling/product_block_graph.md
       - Importing Existing Products: architecture/product_modelling/imports.md
-    - Domain Models: architecture/application/domainmodels.md
-    - Internals:
-      - How do Workflows work?: architecture/application/workflow.md
-      - What are tasks?: architecture/application/tasks.md
-      - Validating input through forms: architecture/application/forms.md
-      - Forms from a frontend perspective: architecture/application/forms-frontend.md
-    - Orchestrator UI:
-      - Orchestrator UI: architecture/orchestration/orchestrator-ui.md
-      # - Prerequisites:
-        # - NextJS:
-      # - Env variables:
-        # - Dark Theme adjustment / dark theme env setting
-        # - Your own company logo
-      # - Component-lib
-      # - RBAC
-        # - Isallowed wrapper
-        # - OIDC
-        # - Code flow with PKCE
-      - User input forms:
-        - Generic solution: architecture/application/forms-frontend.md
-        # - Form page with all form field:
-      # - Extensibility:
-        # - Extra menu item
-        # - Add a new summary card
   - Workshops:
 #    - Beginner:
 #      - Overview: workshops/beginner/overview.md
