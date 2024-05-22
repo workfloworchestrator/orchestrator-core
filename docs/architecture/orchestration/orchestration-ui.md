@@ -64,9 +64,9 @@ For deployments to your own environment it's recommended to copy or fork the cod
 
 The Orchestrator UI allows for a number of customizations
 
-#### Extra pages
+#### Adding extra pages
 
-The Orchestrator UI is based on NextJs and its [pages router][6]. That means files that are added to to `pages` folder are automatically rendered at the url <url>/<filename>. For example a file a the location `pages/cats.tsx` will cause the contents of the file to be rendered at the location http://localhost/cats.
+The Orchestrator UI is based on NextJs and its [pages router][6]. Files that are added to the `pages` folder are automatically rendered at the url <url>/<filename>. For example a file a the location `pages/cats.tsx` will cause the contents of the file to be rendered at the location http://localhost/cats.
 Please note the pages routes is deprecated by NextJS and might be replaced by the newer [app router][7].
 
 #### Adding menu items
