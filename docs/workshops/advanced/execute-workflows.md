@@ -22,23 +22,23 @@ We do this from IPAM >> Prefixes.
 
 ### Deploying the nodes
 
-Now we should be able to deploy our routers using the `create node` workflow. This is going to be a new subscription of the product node - specifically a nokia node -  and we will have to fill an initial form. 
+Now we should be able to deploy our routers using the `create node` workflow. This is going to be a new subscription of the product node - specifically a nokia node -  and we will have to fill an initial form.
 
 !!! note
     Make sure that the node name is the same as the node name in containerlab (clab-orch-demo-ams-pe/clab-orch-demo-lon-pe/clab-orch-demo-par-p)
 
-Once the workflow has successfully ran, we can login into the node just configured and take a look at the config: 
+Once the workflow has successfully ran, we can login into the node just configured and take a look at the config:
 ```
-ssh clab-orch-demo-ams-pe -l admin ##PWD: NokiaSrl1! 
+ssh clab-orch-demo-ams-pe -l admin ##PWD: NokiaSrl1!
 ```
-We can do the same in Netbox, and we will notice that these nodes have no interfaces, to create them in netbox, we can use a workflow. Specifically the "Update Node Interfaces" workflow that will seed the necessary data into Netbox, so we can re-use it later. 
+We can do the same in Netbox, and we will notice that these nodes have no interfaces, to create them in netbox, we can use a workflow. Specifically the "Update Node Interfaces" workflow that will seed the necessary data into Netbox, so we can re-use it later.
 
-We can practice this deployin all the 3 nodes in the topology. 
+We can practice this deployin all the 3 nodes in the topology.
 
 ### Deploying core links
-Once we have 2 nodes configured, we should be able to deploy a core link between them using the "create core link 10G" workflow. 
+Once we have 2 nodes configured, we should be able to deploy a core link between them using the "create core link 10G" workflow.
 
-You can login into the router and check the status of ISIS using: 
+You can login into the router and check the status of ISIS using:
 
 ```
 show network-instance default protocols isis adjacency

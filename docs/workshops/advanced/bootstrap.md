@@ -2,7 +2,7 @@
 The fist step is to clone the Example orchestrator repository using:
 ```
 git clone https://github.com/workfloworchestrator/example-orchestrator.git
-``` 
+```
 At this point, you have a functional environment to start play with. This includes:
 
 * The orchestrator (core and GUI)
@@ -11,7 +11,7 @@ At this point, you have a functional environment to start play with. This includ
 * An example containerlab topology based on Nokia SRlinux.
 * Some examples of Ansible playbooks
 
-The directory structure looks like this: 
+The directory structure looks like this:
 ```
 ~/example-orchestrator# ls -la
 total 144
@@ -25,7 +25,7 @@ drwxr-xr-x  2 root root  4096 May  8 10:35 .pictures
 -rw-r--r--  1 root root   884 May  8 10:35 alembic.ini
 drwxr-xr-x  4 root root  4096 May  9 19:42 ansible <<<< Ansible playbooks
 drwxr-xr-x  3 root root  4096 May 15 10:16 clab <<<< Containerlab topology
-drwxr-xr-x  9 root root  4096 May  8 10:56 docker <<<< Docker folder for config etc.. 
+drwxr-xr-x  9 root root  4096 May  8 10:56 docker <<<< Docker folder for config etc..
 -rw-r--r--  1 root root  4469 May 10 10:29 docker-compose.yml <<<< The docker compoose file to spin up orchestrator stack
 -rw-r--r--  1 root root   920 May  8 10:35 main.py
 drwxr-xr-x  3 root root  4096 May  8 10:35 migrations
@@ -65,7 +65,7 @@ Once you edited the file, you can start the docker environment with:
 ```
 COMPOSE_PROFILES=lso docker compose up
 ```
-This will also enable LSO, so network devices will be actually configured. If you don't want this, just use: 
+This will also enable LSO, so network devices will be actually configured. If you don't want this, just use:
 
 ```
 docker compose up -d
@@ -74,14 +74,14 @@ docker compose up -d
 and you should be able to view the
 applications here:
 
-If you are using your laptop: 
+If you are using your laptop:
 
 1. Orchestrator ui: [Frontend: http://localhost:3000](http://localhost:3000)
 2. Orchestrator backend: [REST api: http://localhost:8080/api/redoc](http://localhost:8080/api/redoc) and  
    [Graphql API: http://localbost:8080/api/graphql](http://localbost:8080/api/graphql)
 3. Netbox (admin|admin): [Netbox: http://localhost:8000](http://localhost:8000)
 
-If you are using a remote machine: 
+If you are using a remote machine:
 
 1. Orchestrator ui: Frontend: http://<$IP_ADDRESS_OF_THE_MACHINE>:3000
 2. Orchestrator backend: REST api: http://<$IP_ADDRESS_OF_THE_MACHINE>:8080/api/redoc
@@ -92,13 +92,13 @@ If you are using a remote machine:
     Take your time to familiarise with the applications and make sure they are working correctly. You can then
     continue with the following steps.
 
-Now that we have our orchestrator stack running, we can spin up the containerlab topology: 
+Now that we have our orchestrator stack running, we can spin up the containerlab topology:
 
 ```
 cd clab
 containerlab deploy
 ```
-At the end of this process we can use `containerlab inspect` to check the status of our topology: 
+At the end of this process we can use `containerlab inspect` to check the status of our topology:
 
 ```
 ~/example-orchestrator/clab# containerlab inspect
@@ -116,7 +116,7 @@ And with the command:
 ```
 containerlab graph
 ```
-we can have a nice rendering of the topology served on port 50080 (for example https://localhost:50080). 
+we can have a nice rendering of the topology served on port 50080 (for example https://localhost:50080).
 
 The topology we are going to use is something like this one:
 
