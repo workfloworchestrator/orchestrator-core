@@ -1,4 +1,23 @@
 # Bootstrapping the environment
+
+
+Here is how you can run the orchestrator-core, orchestrator-ui, and netbox with Docker Compose. We have this all
+setup in our docker-compose.yml file so that you don't have to think about how to start the applications required for this workshop! If you want to read more about how to manually install the Workflow Orchestrator, please refer to [the beginner workshop here](../beginner/debian.md). The following Docker images are used in this workshop:
+
+* [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core/pkgs/container/orchestrator-core): The workflow orchestrator step engine.
+* [orchestrator-ui](https://github.com/workfloworchestrator/orchestrator-ui/pkgs/container/orchestrator-ui): The
+  GUI for the orchestrator-core.
+* [netbox](https://docs.netbox.dev/en/stable/): A free IPAM and SoT system.
+* [postgres](https://hub.docker.com/_/postgres): The PostgreSQL object-relational database system.
+* [redis](https://redis.io/): An open source, in-memory data store used by netbox
+* Optional: [containerlab](https://containerlab.dev/): A free network topology simulator that uses containerized
+  network operating systems.
+
+!!! danger
+    **To run the workshop with container lab, the host architecture must be x86_64 with virtualization
+    enabled**
+
+## Step 1 - Cloning the repo
 The fist step is to clone the Example orchestrator repository using:
 ```
 git clone https://github.com/workfloworchestrator/example-orchestrator.git
@@ -40,6 +59,7 @@ drwxr-xr-x  2 root root  4096 May  8 10:35 utils
 drwxr-xr-x  7 root root  4096 May  8 10:56 workflows
 ```
 
+## Step 2 - Editing the environment
 Before starting up the stacks, we have to check the file:
 
 ```
@@ -60,13 +80,16 @@ NEXTAUTH_SECRET=ToDo
 * if you are running the orchestrator locally, for example on your laptop, use "localhost"
 * if you are running the orchestrator on a remote machine, use the IP of that machine, for example 1.2.3.4
 
+## Step 3 - Starting the environment
 Once you edited the file, you can start the docker environment with:
 
+### Remote lab environment with LSO and Containerlab
 ```
 COMPOSE_PROFILES=lso docker compose up
 ```
 This will also enable LSO, so network devices will be actually configured. If you don't want this, just use:
 
+### Local environment
 ```
 docker compose up -d
 ```
@@ -92,6 +115,7 @@ If you are using a remote machine:
     Take your time to familiarise with the applications and make sure they are working correctly. You can then
     continue with the following steps.
 
+## Optional: Step 4 Containerlab
 Now that we have our orchestrator stack running, we can spin up the containerlab topology:
 
 ```
@@ -130,3 +154,15 @@ The Example orchestrator used in this workshop already has a number of products 
 * L2VPN
 
 We can start feeding initial data into the environment and run some workflows!
+
+## Helpful Items
+
+### Resetting Your Environment
+
+To reset the active state of your environment back to scratch, simply use docker compose to delete volumes, like so:
+
+```bash
+jlpicard@ncc-1701-d:~$ docker compose down -v
+```
+
+You can then restart the containers as described above.

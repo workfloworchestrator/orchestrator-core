@@ -211,7 +211,7 @@ nav:
 #      - Explore: workshops/beginner/explore.md
     - Example Orchestrator Workshop:
       - Overview: workshops/advanced/overview.md
-      - Installation: workshops/advanced/docker-installation.md
+#      - Installation: workshops/advanced/docker-installation.md
       - Bootstrapping:
         - Getting started: workshops/advanced/bootstrap.md
         - Seeding data: workshops/advanced/execute-workflows.md
