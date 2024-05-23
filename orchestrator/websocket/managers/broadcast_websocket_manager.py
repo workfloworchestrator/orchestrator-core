@@ -46,6 +46,8 @@ class BroadcastWebsocketManager:
             )
         except Exception as exc:  # noqa: S110
             log.info("Websocket client loop stopped with an exception", message=str(exc))
+        else:
+            log.debug("Websocket client loop stopped normally")
         self.remove_ws_from_connected_list(websocket)
 
     async def disconnect(
@@ -62,8 +64,14 @@ class BroadcastWebsocketManager:
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         """Read messages from websocket client."""
-        async for message in websocket.iter_text():
-            logger.debug("Received websocket message", client=websocket.client, channel=channel, message=repr(message))
+        log = logger.bind(client=websocket.client, channel=channel)
+        while True:
+            try:
+                message = await websocket.receive_text()
+                log.debug("Received websocket message", message=repr(message))
+            except Exception as exc:
+                log.debug("Exception while reading from websocket client", msg=str(exc))
+                break
             if message == "__ping__":
                 await websocket.send_text("__pong__")
 

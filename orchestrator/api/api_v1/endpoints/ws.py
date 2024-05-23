@@ -27,6 +27,29 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
+
+WEBSOCKET_AUTH_SUBPROTOCOL = "base64.bearer.token"
+
+
+class WebsocketAuthError(ValueError):
+    pass
+
+
+async def get_subprotocol_and_token(sec_websocket_protocol: str | None) -> tuple[str | None, str]:
+    if not sec_websocket_protocol:
+        return None, ""
+
+    try:
+        subprotocol, token = sec_websocket_protocol.split(", ")
+    except ValueError:
+        raise WebsocketAuthError("Sec-Websocket-Protocol should contain subprotocol and token separated by a comma")
+
+    if subprotocol != WEBSOCKET_AUTH_SUBPROTOCOL:
+        raise WebsocketAuthError(f"Sec-Websocket-Protocol subprotocol should be {WEBSOCKET_AUTH_SUBPROTOCOL}")
+
+    return subprotocol, token
+
+
 if app_settings.ENABLE_WEBSOCKETS:
 
     @router.websocket("/events")
@@ -36,11 +59,18 @@ if app_settings.ENABLE_WEBSOCKETS:
         """Emits events for the frontend.
 
         Events are of the form {"name": <name>, "value": <value>}.
-        To authenticate, provide a JWT token in the "Sec-Websocket-Protocol" header.
+        To authenticate, provide an array [<WEBSOCKET_AUTH_SUBPROTOCOL>, <JWT token>] in the "Sec-Websocket-Protocol" header.
         """
-        error = await websocket_manager.authorize(websocket, sec_websocket_protocol or "")
+        try:
+            subprotocol, token = await get_subprotocol_and_token(sec_websocket_protocol)
+        except WebsocketAuthError as exc:
+            logger.info("Reject websocket client with invalid authentication", error=str(exc))
+            await websocket_manager.disconnect(websocket, code=status.WS_1002_PROTOCOL_ERROR)
+            return
 
-        await websocket.accept()
+        error = await websocket_manager.authorize(websocket, token)
+
+        await websocket.accept(subprotocol=subprotocol)
         if error:
             await websocket_manager.disconnect(websocket, reason=error, code=status.WS_1008_POLICY_VIOLATION)
             return
