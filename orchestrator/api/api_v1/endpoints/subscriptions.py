@@ -37,13 +37,10 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.domain import SubscriptionModel
 from orchestrator.schemas import SubscriptionWorkflowListsSchema
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
 from orchestrator.security import authenticate
 from orchestrator.services.subscriptions import (
-    _generate_etag,
-    build_extended_domain_model,
     format_extended_domain_model,
     format_special_types,
     get_subscription,
@@ -52,7 +49,7 @@ from orchestrator.services.subscriptions import (
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.deprecation_logger import deprecated_endpoint
-from orchestrator.utils.redis import from_redis
+from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
 router = APIRouter()
 
@@ -106,7 +103,7 @@ def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
     "/domain-model/{subscription_id}",
     response_model=SubscriptionDomainModelSchema | None,
 )
-def subscription_details_by_id_with_domain_model(
+async def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
 ) -> dict[str, Any] | None:
     def _build_response(model: dict, etag: str) -> dict[str, Any] | None:
@@ -117,14 +114,9 @@ def subscription_details_by_id_with_domain_model(
         filtered = format_extended_domain_model(model, filter_owner_relations=filter_owner_relations)
         return format_special_types(filtered)
 
-    if cache_response := from_redis(subscription_id):
-        return _build_response(*cache_response)
-
     try:
-        subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        extended_model = build_extended_domain_model(subscription_model)
-        etag = _generate_etag(extended_model)
-        return _build_response(extended_model, etag)
+        subscription, etag = await get_subscription_dict(subscription_id)
+        return _build_response(subscription, etag)
     except ValueError as e:
         if str(e) == f"Subscription with id: {subscription_id}, does not exist":
             raise_status(HTTPStatus.NOT_FOUND, f"Subscription with id: {subscription_id}, not found")

@@ -20,6 +20,7 @@ from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import Select, func, select
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
+from nwastdlib.asyncio import gather_nice
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import (
@@ -33,7 +34,6 @@ from orchestrator.db.sorting.subscription import (
     sort_subscriptions,
     subscription_sort_fields,
 )
-from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
@@ -48,7 +48,7 @@ from orchestrator.graphql.utils import (
     is_querying_page_data,
     to_graphql_result_page,
 )
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
 logger = structlog.get_logger(__name__)
 # Note: we can make this more fancy by adding metadata to the field annotation that indicates if a resolver
@@ -65,26 +65,34 @@ _is_subscription_detailed = is_query_detailed(base_sub_props, ("SubscriptionInte
 def get_subscription_graphql_type(info: OrchestratorInfo, subscription_name: str) -> StrawberryTypeFromPydantic:
     subscription_graphql_type = info.context.graphql_models.get(subscription_name)
     if not subscription_graphql_type:
-        raise GraphQLError(message=f"No graphql type found for {subscription_name}")
+        logger.warn(message=f"No graphql type found for {subscription_name}")
+        base_type = info.context.graphql_models.get("subscription")
+        if not base_type:
+            raise GraphQLError("No subscription base type found")
+        return base_type
     return subscription_graphql_type
 
 
-def get_subscription_details(info: OrchestratorInfo, subscription: SubscriptionTable) -> SubscriptionInterface:
+async def get_subscription_details(info: OrchestratorInfo, subscription: SubscriptionTable) -> SubscriptionInterface:
+    from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
     from orchestrator.graphql.autoregistration import graphql_subscription_name
 
-    subscription_details = SubscriptionModel.from_subscription(subscription.subscription_id)
-    base_model = subscription_details.__base_type__ if subscription_details.__base_type__ else subscription_details
-    base_subscription_details = base_model.from_other_lifecycle(  # type: ignore
-        subscription_details, SubscriptionLifecycle.INITIAL, skip_validation=True
-    )
-    base_subscription_details.status = subscription_details.status
-    strawberry_type = get_subscription_graphql_type(info, graphql_subscription_name(base_model.__name__))  # type: ignore
-    return strawberry_type.from_pydantic(base_subscription_details)  # type:ignore
+    subscription_dict_data, _ = await get_subscription_dict(subscription.subscription_id)
+
+    domain_model_type = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]
+    base_model = domain_model_type.__base_type__ if domain_model_type.__base_type__ else domain_model_type
+
+    subscription_name = graphql_subscription_name(base_model.__name__)
+    subscription_details = base_model.model_validate(subscription_dict_data, strict=False)
+    subscription_details._db_model = subscription
+
+    strawberry_type = get_subscription_graphql_type(info, subscription_name)
+    return strawberry_type.from_pydantic(subscription_details)  # type: ignore
 
 
-def format_subscription(info: OrchestratorInfo, subscription: SubscriptionTable) -> SubscriptionInterface:
+async def format_subscription(info: OrchestratorInfo, subscription: SubscriptionTable) -> SubscriptionInterface:
     if _is_subscription_detailed(info):
-        return get_subscription_details(info, subscription)
+        return await get_subscription_details(info, subscription)
 
     strawberry_type = get_subscription_graphql_type(info, "subscription")
     return strawberry_type.from_pydantic(subscription)  # type:ignore
@@ -94,7 +102,7 @@ async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> Subscription
     stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
 
     if subscription := db.session.scalar(stmt):
-        return format_subscription(info, subscription)
+        return await format_subscription(info, subscription)
     return None
 
 
@@ -127,10 +135,10 @@ async def resolve_subscriptions(
     total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
-    graphql_subscriptions = []
+    graphql_subscriptions: list[SubscriptionInterface] = []
     if is_querying_page_data(info):
         subscriptions = db.session.scalars(stmt).all()
-        graphql_subscriptions = [format_subscription(info, p) for p in subscriptions]
+        graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))
     logger.info("Resolve subscriptions", filter_by=filter_by, total=graphql_subscriptions)
 
     return to_graphql_result_page(

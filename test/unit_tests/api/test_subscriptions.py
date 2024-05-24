@@ -737,7 +737,7 @@ def test_subscription_detail_with_in_use_by_ids_filtered_self(test_client, produ
     assert not response.json()["block"]["sub_block"]["in_use_by_ids"]
 
 
-@mock.patch("orchestrator.api.api_v1.endpoints.subscriptions.from_redis")
+@mock.patch("orchestrator.api.api_v1.endpoints.subscriptions.get_subscription_dict")
 def test_subscription_detail_special_fields(mock_from_redis, test_client):
     """Test that a subscription with special field types is correctly serialized by Pydantic.
 
