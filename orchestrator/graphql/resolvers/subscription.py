@@ -65,7 +65,7 @@ _is_subscription_detailed = is_query_detailed(base_sub_props, ("SubscriptionInte
 def get_subscription_graphql_type(info: OrchestratorInfo, subscription_name: str) -> StrawberryTypeFromPydantic:
     subscription_graphql_type = info.context.graphql_models.get(subscription_name)
     if not subscription_graphql_type:
-        logger.warn(message=f"No graphql type found for {subscription_name}")
+        logger.warning(message=f"No graphql type found for {subscription_name}")
         base_type = info.context.graphql_models.get("subscription")
         if not base_type:
             raise GraphQLError("No subscription base type found")
@@ -80,7 +80,7 @@ async def get_subscription_details(info: OrchestratorInfo, subscription: Subscri
     subscription_dict_data, _ = await get_subscription_dict(subscription.subscription_id)
 
     domain_model_type = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]
-    base_model = domain_model_type.__base_type__ if domain_model_type.__base_type__ else domain_model_type
+    base_model = domain_model_type.__base_type__ or domain_model_type
 
     subscription_name = graphql_subscription_name(base_model.__name__)
     subscription_details = base_model.model_validate(subscription_dict_data, strict=False)
