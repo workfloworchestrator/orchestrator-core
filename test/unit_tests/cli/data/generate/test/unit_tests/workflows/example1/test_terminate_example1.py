@@ -1,10 +1,9 @@
-from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
-
 import pytest
 from orchestrator.forms import FormValidationError
 from orchestrator.types import SubscriptionLifecycle
 
 from products.product_types.example1 import Example1
+from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 
 @pytest.mark.workflow()

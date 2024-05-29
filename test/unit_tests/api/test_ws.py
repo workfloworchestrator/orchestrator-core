@@ -53,7 +53,9 @@ async def test_websocket_events_not_authorized(mock_user, mock_security, test_cl
     mock_security.side_effect = AsyncMock(side_effect=HTTPException(status_code=403))
 
     # when: we create a websocket connection and ping it
-    with test_client.websocket_connect("api/ws/events", headers={"sec-websocket-protocol": "my token"}) as websocket:
+    with test_client.websocket_connect(
+        "api/ws/events", headers={"sec-websocket-protocol": "base64.bearer.token, my token"}
+    ) as websocket:
         websocket.send_text("__ping__")
         reply = websocket.receive_text()
 
@@ -73,7 +75,9 @@ async def test_websocket_events_authorized(mock_user, mock_security, test_client
     mock_security.side_effect = AsyncMock(return_value=True)
 
     # when: we create a websocket connection and ping it
-    with test_client.websocket_connect("api/ws/events", headers={"sec-websocket-protocol": "my token"}) as websocket:
+    with test_client.websocket_connect(
+        "api/ws/events", headers={"sec-websocket-protocol": "base64.bearer.token, my token"}
+    ) as websocket:
         websocket.send_text("__ping__")
         reply = websocket.receive_text()
 
