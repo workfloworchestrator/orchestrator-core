@@ -31,22 +31,6 @@ async def websocket_managers(redis_uri):
         await manager.disconnect_redis()
 
 
-class BlockingIterText:
-    def __init__(self, stop_event, timeout_seconds):
-        self.stop_event = stop_event
-        self.timeout_seconds = timeout_seconds
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        # Block for self.seconds or until the stop_event has been set
-        with contextlib.suppress(asyncio.TimeoutError):
-            # Suppress timeout error, if something's wrong this will be seen in the main testcase
-            await asyncio.wait_for(self.stop_event.wait(), self.timeout_seconds)
-        raise StopAsyncIteration  # End the
-
-
 FakeWsClient = namedtuple("FakeWsClient", ["client", "stop_event"])
 
 
@@ -59,8 +43,17 @@ async def websocket_clients(websocket_managers, test_client):
         mock_client = mock.MagicMock(spec_set=WebSocket, name=name)
         stop_event = asyncio.Event()
 
+        block_seconds = 3
+
+        async def blocking_receive_text():
+            # Block for block_seconds or until the stop_event has been set
+            with contextlib.suppress(asyncio.TimeoutError):
+                # Suppress timeout error, if something's wrong this will be seen in the main testcase
+                await asyncio.wait_for(stop_event.wait(), block_seconds)
+            raise StopAsyncIteration  # End the
+
         # Make the BroadcastWebsocketManager.receiver() function block, and thereby the .connect() loop
-        mock_client.iter_text.return_value = BlockingIterText(stop_event, 3)
+        mock_client.receive_text.side_effect = blocking_receive_text
 
         def mock_send_text(*_args):
             stop_event.set()

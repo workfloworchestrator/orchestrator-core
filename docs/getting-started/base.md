@@ -1,11 +1,17 @@
-# Bare application
+# Base application
 
-By following these steps you can start a bare orchestrator-core application that can be used to run workflows.
+By following these steps you can start a bare orchestrator application that can be used to run workflows. This
+app runs as a standalone API with workflows loaded that can be run in the background. Similar to a Framework like FastAPI,
+Flask and Django, you install the core library, initialise it with configuration and run. The orchestrator-core contains:
+
+* API
+* Workflow engine
+* Database
 
 
 !!! note
     The Orchestrator-core is designed to be installed and extended just like a FastAPI or Flask application. For more
-    information about how this works read the Architecture sections.
+    information about how this works read the [Reference documentation](../reference-docs/app/app.md).
 
 
 ### Step 1 - Install the package:

@@ -1,9 +1,8 @@
-from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
-
 import pytest
 from orchestrator.types import SubscriptionLifecycle
 
 from products.product_types.example2 import Example2
+from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 
 @pytest.mark.workflow()

@@ -55,7 +55,7 @@ the database, orchestrator and GUI:
 To start all of this, simply clone the repo:
 
 ```shell
-jlpicard@ncc-1701-d:~$ git clone git@github.com:workfloworchestrator/example-orchestrator-tnc.git
+jlpicard@ncc-1701-d:~$ git clone git@github.com:workfloworchestrator/example-orchestrator.git
 ```
 
 and then start the containers!
