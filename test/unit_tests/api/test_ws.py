@@ -2,7 +2,8 @@ import json
 from unittest import mock
 from unittest.mock import AsyncMock
 
-from fastapi import HTTPException
+from fastapi import HTTPException, WebSocketDisconnect, status
+from pytest import raises
 
 from orchestrator.websocket import broadcast_invalidate_cache, sync_broadcast_invalidate_cache
 
@@ -23,6 +24,21 @@ async def test_websocket_events_invalidate_cache_async(test_client):
     with test_client.websocket_connect("api/ws/events") as websocket:
         await broadcast_invalidate_cache("foo", "bar")
         assert websocket.receive_json() == {"name": "invalidateCache", "value": ["foo", "bar"]}
+
+
+@mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
+@mock.patch("orchestrator.websocket.websocket_manager.authenticate_websocket")
+async def test_websocket_events_invalid_protocol(mock_user, mock_security, test_client):
+    # when: we create a websocket connection with an invalid protocol
+    with raises(WebSocketDisconnect) as error_info:
+        with test_client.websocket_connect(
+            "api/ws/events", headers={"sec-websocket-protocol": "my token"}
+        ) as websocket:
+            websocket.send_text("__ping__")
+            websocket.receive_text()
+
+    # then: it returns an error with code 1002
+    assert error_info.value.code == status.WS_1002_PROTOCOL_ERROR
 
 
 @mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
@@ -53,7 +69,9 @@ async def test_websocket_events_not_authorized(mock_user, mock_security, test_cl
     mock_security.side_effect = AsyncMock(side_effect=HTTPException(status_code=403))
 
     # when: we create a websocket connection and ping it
-    with test_client.websocket_connect("api/ws/events", headers={"sec-websocket-protocol": "my token"}) as websocket:
+    with test_client.websocket_connect(
+        "api/ws/events", headers={"sec-websocket-protocol": "base64.bearer.token, my token"}
+    ) as websocket:
         websocket.send_text("__ping__")
         reply = websocket.receive_text()
 
@@ -73,7 +91,9 @@ async def test_websocket_events_authorized(mock_user, mock_security, test_client
     mock_security.side_effect = AsyncMock(return_value=True)
 
     # when: we create a websocket connection and ping it
-    with test_client.websocket_connect("api/ws/events", headers={"sec-websocket-protocol": "my token"}) as websocket:
+    with test_client.websocket_connect(
+        "api/ws/events", headers={"sec-websocket-protocol": "base64.bearer.token, my token"}
+    ) as websocket:
         websocket.send_text("__ping__")
         reply = websocket.receive_text()
 
