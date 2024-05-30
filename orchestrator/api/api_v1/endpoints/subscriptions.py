@@ -13,12 +13,11 @@
 
 """Module that implements subscription related API endpoints."""
 from http import HTTPStatus
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 import structlog
 from fastapi import Depends
-from fastapi.param_functions import Body
 from fastapi.routing import APIRouter
 from sqlalchemy import delete, select
 from sqlalchemy.orm import contains_eager, defer, joinedload
@@ -28,30 +27,26 @@ from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.helpers import add_response_range, add_subscription_search_query_filter, query_with_filters
+from orchestrator.api.helpers import add_response_range, add_subscription_search_query_filter
 from orchestrator.db import (
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
     ProductTable,
-    SubscriptionInstanceTable,
     SubscriptionMetadataTable,
     SubscriptionTable,
     db,
 )
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.schemas import SubscriptionDomainModelSchema, SubscriptionSchema, SubscriptionWorkflowListsSchema
-from orchestrator.schemas.subscription import SubscriptionWithMetadata
-from orchestrator.security import oidc_user
+from orchestrator.domain import SubscriptionModel
+from orchestrator.schemas import SubscriptionWorkflowListsSchema
+from orchestrator.schemas.subscription import SubscriptionDomainModelSchema, SubscriptionWithMetadata
+from orchestrator.security import authenticate
 from orchestrator.services.subscriptions import (
     _generate_etag,
     build_extended_domain_model,
     format_extended_domain_model,
     format_special_types,
     get_subscription,
-    get_subscription_metadata,
-    query_depends_on_subscriptions,
-    query_in_use_by_subscriptions,
     subscription_workflows,
 )
 from orchestrator.settings import app_settings
@@ -108,24 +103,8 @@ def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
 
 
 @router.get(
-    "/all",
-    response_model=list[SubscriptionSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def subscriptions_all() -> list[SubscriptionTable]:
-    """Return subscriptions with only a join on products."""
-    stmt = select(SubscriptionTable)
-    return list(db.session.scalars(stmt))
-
-
-@router.get(
     "/domain-model/{subscription_id}",
-    response_model=Optional[SubscriptionDomainModelSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
+    response_model=SubscriptionDomainModelSchema | None,
 )
 def subscription_details_by_id_with_domain_model(
     request: Request, subscription_id: UUID, response: Response, filter_owner_relations: bool = True
@@ -153,140 +132,9 @@ def subscription_details_by_id_with_domain_model(
             raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
 
-@router.delete(
-    "/{subscription_id}",
-    response_model=None,
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def delete_subscription(subscription_id: UUID) -> None:
-    stmt = select(ProcessSubscriptionTable).filter_by(subscription_id=subscription_id)
-    all_process_subscriptions = list(db.session.scalars(stmt))
-    if len(all_process_subscriptions) > 0:
-        _delete_process_subscriptions(all_process_subscriptions)
-        return
-
-    subscription = db.session.get(SubscriptionTable, subscription_id)
-    if not subscription:
-        raise_status(HTTPStatus.NOT_FOUND)
-
-    _delete_subscription_tree(subscription)
-    return
-
-
-@router.get(
-    "/in_use_by/{subscription_id}",
-    response_model=list[SubscriptionSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def in_use_by_subscriptions(
-    subscription_id: UUID, filter_statuses: list[str] = Depends(_filter_statuses)
-) -> list[SubscriptionTable]:
-    """Retrieve subscriptions that are in use by this subscription.
-
-    Args:
-        subscription_id: Subscription to query
-        filter_statuses: List of filters
-
-    Returns:
-        list of subscriptions
-
-    """
-    return query_in_use_by_subscriptions(subscription_id, filter_statuses).all()
-
-
-@router.post(
-    "/subscriptions_for_in_used_by_ids",
-    response_model=dict[UUID, SubscriptionSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def subscriptions_by_in_used_by_ids(data: list[UUID] = Body(...)) -> dict[UUID, SubscriptionSchema]:
-    rows = db.session.execute(
-        select(SubscriptionInstanceTable)
-        .join(SubscriptionTable)
-        .filter(SubscriptionInstanceTable.subscription_instance_id.in_(data))
-    ).all()
-    result = {row[0].subscription_instance_id: row[0].subscription for row in rows}
-    if len(rows) != len(data):
-        logger.warning(
-            "Not all subscription_instance_id's could be resolved.",
-            unresolved_ids=list(set(data) - set(result.keys())),
-        )
-    return result
-
-
-@router.get(
-    "/depends_on/{subscription_id}",
-    response_model=list[SubscriptionSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def depends_on_subscriptions(
-    subscription_id: UUID,
-    filter_statuses: list[str] = Depends(_filter_statuses),
-) -> list[SubscriptionTable]:
-    """Retrieve dependant subscriptions.
-
-    Args:
-        subscription_id: The subscription id
-        filter_statuses: the status of dependant subscriptions
-
-    Returns:
-        List of dependant subscriptions.
-
-    """
-    return query_depends_on_subscriptions(subscription_id, filter_statuses).all()
-
-
-@router.get(
-    "/",
-    response_model=list[SubscriptionWithMetadata],
-)
-def subscriptions_filterable(
-    response: Response, range: str | None = None, sort: str | None = None, filter: str | None = None
-) -> list[dict]:
-    """Get subscriptions filtered.
-
-    Args:
-        response: Fastapi Response object
-        range: Range
-        sort: Sort
-        filter: Filter
-
-    Returns:
-        List of subscriptions
-
-    """
-    range_ = list(map(int, range.split(","))) if range else None
-    sort_ = sort.split(",") if sort else None
-    filter_ = filter.split(",") if filter else None
-    logger.info("subscriptions_filterable() called", range=range_, sort=sort_, filter=filter_)
-    stmt = select(SubscriptionTable, SubscriptionMetadataTable.metadata_).join_from(
-        SubscriptionTable, SubscriptionMetadataTable, isouter=True
-    )
-
-    stmt = stmt.join(SubscriptionTable.product).options(
-        contains_eager(SubscriptionTable.product), defer(SubscriptionTable.product_id)
-    )
-    stmt = query_with_filters(stmt, sort_, filter_)
-    stmt = add_response_range(stmt, range_, response, unit="subscriptions")
-
-    sequence = db.session.execute(stmt).all()
-    return [{**s.__dict__, "metadata": md} for s, md in sequence]
-
-
 @router.get(
     "/search",
     response_model=list[SubscriptionWithMetadata],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
 )
 def subscriptions_search(
     response: Response, query: str, range: str | None = None, sort: str | None = None
@@ -342,31 +190,8 @@ def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[s
     return subscription_workflows(subscription)
 
 
-@router.get(
-    "/instance/other_subscriptions/{subscription_instance_id}",
-    response_model=list[UUID],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def subscription_instance_in_use_by(
-    subscription_instance_id: UUID, filter_statuses: list[str] = Depends(_filter_statuses)
-) -> list[UUID]:
-    subscription_instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
-
-    if not subscription_instance:
-        raise_status(HTTPStatus.NOT_FOUND)
-
-    in_use_by_instances = subscription_instance.in_use_by
-    if filter_statuses:
-        in_use_by_instances = [sub for sub in in_use_by_instances if sub.subscription.status in filter_statuses]
-
-    unique_ids = {sub.subscription_id for sub in in_use_by_instances}
-    return [sub_id for sub_id in unique_ids if sub_id != subscription_instance.subscription_id]
-
-
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
-def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(oidc_user)) -> None:
+def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)) -> None:
     def failed_processes() -> list[str]:
         if app_settings.DISABLE_INSYNC_CHECK:
             return []
@@ -401,14 +226,3 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel 
             logger.info("Subscription already in sync")
     except ValueError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
-
-
-@router.get(
-    "/{subscription_id}/metadata",
-    status_code=HTTPStatus.OK,
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def subscription_metadata(subscription_id: UUID) -> dict | None:
-    return get_subscription_metadata(str(subscription_id))

@@ -80,16 +80,7 @@ class AppSettings(BaseSettings):
     TASK_LOG_RETENTION_DAYS: int = 3
 
 
-class Oauth2Settings(BaseSettings):
-    OAUTH2_RESOURCE_SERVER_ID: str = ""
-    OAUTH2_RESOURCE_SERVER_SECRET: str = ""
-    OAUTH2_TOKEN_URL: str = ""
-    OIDC_CONF_WELL_KNOWN_URL: str = ""
-    OPA_URL: str = "http://127.0.0.1:8181/v1/data/automation/authorization/allow"
-
-
 app_settings = AppSettings()
-oauth2_settings = Oauth2Settings()
 
 # Set oauth2lib_settings variables to the same (default) value of settings
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME

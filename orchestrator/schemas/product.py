@@ -18,8 +18,8 @@ from pydantic import ConfigDict
 
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.schemas.fixed_input import FixedInputBaseSchema, FixedInputSchema
-from orchestrator.schemas.product_block import ProductBlockBaseSchema, ProductBlockSchema
+from orchestrator.schemas.fixed_input import FixedInputSchema
+from orchestrator.schemas.product_block import ProductBlockSchema
 from orchestrator.schemas.workflow import WorkflowSchema
 
 
@@ -41,8 +41,3 @@ class ProductSchema(ProductBaseSchema):
     product_blocks: list[ProductBlockSchema]
     fixed_inputs: list[FixedInputSchema]
     workflows: list[WorkflowSchema]
-
-
-class ProductCRUDSchema(ProductBaseSchema):
-    product_blocks: list[ProductBlockBaseSchema] | None = None
-    fixed_inputs: list[FixedInputBaseSchema] | None = None

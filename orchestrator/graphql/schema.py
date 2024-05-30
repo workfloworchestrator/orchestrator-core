@@ -16,7 +16,6 @@ from typing import Any, Coroutine
 
 import strawberry
 import structlog
-from fastapi import Depends
 from fastapi.routing import APIRouter
 from graphql import GraphQLError
 from httpx import HTTPStatusError
@@ -25,6 +24,7 @@ from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
 
+from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
@@ -36,15 +36,16 @@ from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
     resolve_customer,
+    resolve_process,
     resolve_processes,
     resolve_product_blocks,
     resolve_products,
     resolve_resource_types,
     resolve_settings,
+    resolve_subscription,
     resolve_subscriptions,
     resolve_workflows,
 )
-from orchestrator.graphql.resolvers.subscription import resolve_subscription
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.process import ProcessType
@@ -55,7 +56,6 @@ from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, ScalarOverrideType, StrawberryModelType
-from orchestrator.security import get_oidc_user, get_opa_security_graphql
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
 
@@ -66,6 +66,7 @@ logger = structlog.get_logger(__name__)
 
 @strawberry.federation.type(description="Orchestrator queries")
 class OrchestratorQuery:
+    process: ProcessType | None = authenticated_field(resolver=resolve_process, description="Returns a single process")
     processes: Connection[ProcessType] = authenticated_field(
         resolver=resolve_processes, description="Returns list of processes"
     )
@@ -127,28 +128,21 @@ class OrchestratorSchema(strawberry.federation.Schema):
                 StrawberryLogger.error(error, execution_context)
 
 
-def custom_context_dependency(
-    get_current_user: Callable = Depends(get_oidc_user),  # noqa: B008
-    get_opa_decision: Callable = Depends(get_opa_security_graphql),  # noqa: B008
-) -> OrchestratorContext:
-    return OrchestratorContext(get_current_user=get_current_user, get_opa_decision=get_opa_decision)
-
-
 def get_context(
+    auth_manager: AuthManager,
     graphql_models: StrawberryModelType,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
-) -> Callable[[OrchestratorContext], Coroutine[Any, Any, OrchestratorContext]]:
-    async def _get_context(
-        custom_context: OrchestratorContext = Depends(custom_context_dependency),  # noqa: B008
-    ) -> OrchestratorContext:
-        custom_context.broadcast_thread = broadcast_thread
-        custom_context.graphql_models = graphql_models
-        return custom_context
+) -> Callable[[], Coroutine[Any, Any, OrchestratorContext]]:
+    async def _get_context() -> OrchestratorContext:
+        return OrchestratorContext(
+            auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread
+        )
 
     return _get_context
 
 
 def create_graphql_router(
+    auth_manager: AuthManager,
     query: Any = Query,
     mutation: Any = Mutation,
     register_models: bool = True,
@@ -176,5 +170,7 @@ def create_graphql_router(
     )
 
     return OrchestratorGraphqlRouter(
-        schema, context_getter=get_context(models, broadcast_thread), graphiql=app_settings.SERVE_GRAPHQL_UI
+        schema,
+        context_getter=get_context(auth_manager, models, broadcast_thread),
+        graphiql=app_settings.SERVE_GRAPHQL_UI,
     )

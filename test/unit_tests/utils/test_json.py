@@ -21,6 +21,7 @@ import pytest
 import pytz
 from pydantic import BaseModel
 
+from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.json import from_serializable, json_dumps, json_loads, non_none_dict, to_serializable
 
@@ -88,4 +89,31 @@ def test_from_serializable():
         "date": datetime(2021, 7, 28, 1, 1, 1, tzinfo=pytz.UTC),
         "date-to-short": "2021-07-28T01:01:01",
         "int": 1,
+    }
+
+
+def test_orchestrator_base_serializer():
+
+    class Foo(OrchestratorBaseModel):
+        baz: datetime
+        bar: int
+
+    foo = Foo(baz=datetime(2024, 12, 1, 1, 1), bar=1)
+    assert foo.model_dump(mode="json") == {"baz": datetime(2024, 12, 1, 1, 1).timestamp(), "bar": 1}
+
+
+def test_orchestrator_base_serializer_recursive():
+    class Bar(OrchestratorBaseModel):
+        baz: datetime
+
+    class Foo(OrchestratorBaseModel):
+        baz: datetime
+        nested_bar: Bar
+        bing: int
+
+    foo = Foo(baz=datetime(2024, 12, 1, 1, 1), nested_bar=Bar(baz=datetime(2024, 11, 1, 1, 1)), bing=1)
+    assert foo.model_dump(mode="json") == {
+        "baz": datetime(2024, 12, 1, 1, 1).timestamp(),
+        "nested_bar": {"baz": datetime(2024, 11, 1, 1, 1).timestamp()},
+        "bing": 1,
     }

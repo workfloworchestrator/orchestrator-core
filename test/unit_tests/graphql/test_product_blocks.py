@@ -94,7 +94,7 @@ def test_product_blocks_query(test_client, query_args, num_results):
 
 
 def test_product_blocks_payload(test_client):
-    data = get_product_blocks_query(first=2)
+    data = get_product_blocks_query(first=2, sort_by=[{"field": "name", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code

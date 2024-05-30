@@ -28,14 +28,13 @@ from fastapi_etag.dependency import CacheHit
 from more_itertools import chunked
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
-from sqlalchemy.orm import contains_eager, defer, joinedload
+from sqlalchemy.orm import defer, joinedload
 from sqlalchemy.sql.functions import count
 from starlette.responses import Response
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.api.helpers import add_response_range
-from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
@@ -46,11 +45,9 @@ from orchestrator.schemas import (
     ProcessResumeAllSchema,
     ProcessSchema,
     ProcessStatusCounts,
-    ProcessSubscriptionBaseSchema,
-    ProcessSubscriptionSchema,
     Reporter,
 )
-from orchestrator.security import oidc_user
+from orchestrator.security import authenticate
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
     SYSTEM_USER,
@@ -65,7 +62,6 @@ from orchestrator.services.processes import (
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON, State
-from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
@@ -91,13 +87,20 @@ def check_global_lock() -> None:
 
 
 def resolve_user_name(
-    reporter: Reporter | None = None, resolved_user: OIDCUserModel | None = Depends(oidc_user)
+    reporter: Reporter | None = None,
+    resolved_user: OIDCUserModel | None = None,
 ) -> str:
     if reporter:
         return reporter
+
     if resolved_user:
         return resolved_user.name if resolved_user.name else resolved_user.user_name
+
     return SYSTEM_USER
+
+
+def user_name(user: OIDCUserModel | None = Depends(authenticate)) -> str:
+    return resolve_user_name(resolved_user=user)
 
 
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
@@ -125,7 +128,7 @@ def new_process(
     workflow_key: str,
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
-    user: str = Depends(resolve_user_name),
+    user: str = Depends(user_name),
 ) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
     process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
@@ -140,7 +143,7 @@ def new_process(
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
 def resume_process_endpoint(
-    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(resolve_user_name)
+    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(user_name)
 ) -> None:
     process = _get_process(process_id)
 
@@ -185,7 +188,7 @@ def continue_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(resolve_user_name)) -> dict[str, int]:
+async def resume_all_processess_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
@@ -219,7 +222,7 @@ async def resume_all_processess_endpoint(request: Request, user: str = Depends(r
 
 
 @router.put("/{process_id}/abort", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(resolve_user_name)) -> None:
+def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depends(user_name)) -> None:
     process = _get_process(process_id)
 
     broadcast_func = api_broadcast_process_data(request)
@@ -228,46 +231,6 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
-
-
-@router.get(
-    "/process-subscriptions-by-subscription-id/{subscription_id}",
-    response_model=list[ProcessSubscriptionSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def process_subscriptions_by_subscription_id(subscription_id: UUID) -> list[ProcessSubscriptionSchema]:
-    stmt = (
-        select(ProcessSubscriptionTable)
-        .options(contains_eager(ProcessSubscriptionTable.process))
-        .join(ProcessTable)
-        .filter(ProcessSubscriptionTable.subscription_id == subscription_id)
-        .order_by(ProcessTable.started_at.asc())
-    )
-    return list(db.session.scalars(stmt))
-
-
-@router.get(
-    "/process-subscriptions-by-process_id/{process_id}",
-    response_model=list[ProcessSubscriptionBaseSchema],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def process_subscriptions_by_process_process_id(process_id: UUID) -> list[ProcessSubscriptionTable]:
-    return list(db.session.scalars(select(ProcessSubscriptionTable).filter_by(process_id=process_id)))
-
-
-@router.get(
-    "/statuses",
-    response_model=list[ProcessStatus],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def statuses() -> list[str]:
-    return [status.value for status in ProcessStatus]
 
 
 @router.get("/status-counts", response_model=ProcessStatusCounts)
@@ -284,17 +247,6 @@ def status_counts() -> ProcessStatusCounts:
         process_counts={status: num_processes for is_task, status, num_processes in rows if not is_task},
         task_counts={status: num_processes for is_task, status, num_processes in rows if is_task},
     )
-
-
-@router.get(
-    "/assignees",
-    response_model=list[Assignee],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def assignees() -> list[str]:
-    return [assignee.value for assignee in Assignee]
 
 
 @router.get("/{process_id}", response_model=ProcessSchema)

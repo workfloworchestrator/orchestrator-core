@@ -10,41 +10,45 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Annotated
 
 from authlib.integrations.starlette_client import OAuth
+from fastapi import Depends
+from starlette.requests import Request
+from starlette.websockets import WebSocket
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, OIDCUser, opa_decision, opa_graphql_decision
-from orchestrator.settings import oauth2_settings
+from oauth2_lib.fastapi import (
+    HTTPX_SSL_CONTEXT,
+    OIDCUserModel,
+)
+from oauth2_lib.settings import oauth2lib_settings
 
 oauth_client_credentials = OAuth()
 
-well_known_endpoint = URL(oauth2_settings.OIDC_CONF_WELL_KNOWN_URL)
-
 oauth_client_credentials.register(
     "connext",
-    server_metadata_url=well_known_endpoint / ".well-known" / "openid-configuration",
-    client_id=oauth2_settings.OAUTH2_RESOURCE_SERVER_ID,
-    client_secret=oauth2_settings.OAUTH2_RESOURCE_SERVER_SECRET,
+    server_metadata_url=URL(oauth2lib_settings.OIDC_CONF_URL),
+    client_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
+    client_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
     request_token_params={"grant_type": "client_credentials"},
     client_kwargs={"verify": HTTPX_SSL_CONTEXT},
 )
 
-oidc_user = OIDCUser(
-    oauth2_settings.OIDC_CONF_WELL_KNOWN_URL,
-    oauth2_settings.OAUTH2_RESOURCE_SERVER_ID,
-    oauth2_settings.OAUTH2_RESOURCE_SERVER_SECRET,
-)
 
-opa_security_default = opa_decision(oauth2_settings.OPA_URL, oidc_user)
+async def authenticate(request: Request) -> OIDCUserModel | None:
+    return await request.app.auth_manager.authentication.authenticate(request)
 
 
-opa_security_graphql = opa_graphql_decision(oauth2_settings.OPA_URL, oidc_user)
+async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
+    return await request.app.auth_manager.authorization.authorize(request, user)
 
 
-def get_oidc_user() -> OIDCUser:
-    return oidc_user
+async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserModel | None:
+    return await websocket.app.auth_manager.authentication.authenticate(websocket, token)
 
 
-def get_opa_security_graphql():  # type: ignore
-    return opa_security_graphql
+async def authorize_websocket(
+    websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
+) -> bool | None:
+    return await websocket.app.auth_manager.authorization.authorize(websocket, user)

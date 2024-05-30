@@ -2,7 +2,7 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 
 from orchestrator.db import (
     FixedInputTable,
@@ -14,7 +14,6 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.services.fixed_inputs import get_fixed_inputs
 from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
@@ -171,79 +170,3 @@ def test_product_by_id(seed, test_client):
 def test_product_by_id_404(seed, test_client):
     response = test_client.get(f"/api/products/{str(uuid4())}")
     assert HTTPStatus.NOT_FOUND == response.status_code
-
-
-def test_save(seed, test_client):
-    p_id = uuid4()
-    body = {
-        "product_id": p_id,
-        "name": "MSP_2",
-        "description": "MSP",
-        "product_type": "Port",
-        "tag": "Port",
-        "status": "active",
-        "fixed_inputs": [{"name": "help", "value": "val"}],
-        "product_blocks": [
-            {"name": "name", "description": "desc", "status": "active", "resource_types": [{"resource_type": "test"}]}
-        ],
-    }
-
-    fi = get_fixed_inputs()
-    response = test_client.post("/api/products/", json=body)
-    assert HTTPStatus.NO_CONTENT == response.status_code
-    products = test_client.get("/api/products").json()
-    assert 10 == len(products)
-
-    fi2 = get_fixed_inputs()
-    assert len(fi) + 1 == len(fi2)
-
-
-def test_delete(seed, test_client):
-    p_id = uuid4()
-    body = {
-        "product_id": p_id,
-        "name": "DEL",
-        "description": "DEL",
-        "product_type": "Port",
-        "tag": "Port",
-        "status": "active",
-    }
-    test_client.post("/api/products/", json=body)
-
-    response = test_client.delete(f"/api/products/{p_id}")
-    assert HTTPStatus.NO_CONTENT == response.status_code
-
-
-def test_delete_with_subscriptions(seed, test_client):
-    response = test_client.delete(f"/api/products/{PRODUCT_ID}")
-
-    assert HTTPStatus.BAD_REQUEST == response.status_code
-    assert f"Product {PRODUCT_ID} is used in Subscriptions: desc" == response.json()["detail"]
-
-
-def test_tags_all(seed, test_client):
-    response = test_client.get("/api/products/tags/all")
-
-    assert HTTPStatus.OK == response.status_code
-    tags = response.json()
-
-    tags_db = db.session.scalars(select(ProductTable.tag))
-    assert sorted(tags) == sorted(set(tags_db))
-
-
-def test_types_all(seed, test_client):
-    response = test_client.get("/api/products/types/all")
-
-    assert HTTPStatus.OK == response.status_code
-    types = response.json()
-    types_db = db.session.scalars(select(ProductTable.product_type))
-
-    assert sorted(types) == sorted(set(types_db))
-
-
-def test_statuses_all(seed, test_client):
-    response = test_client.get("/api/products/statuses/all")
-
-    assert HTTPStatus.OK == response.status_code
-    statuses = response.json()
-    assert {"active", "phase out", "pre production", "end of life"}.issubset(set(statuses))

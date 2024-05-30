@@ -23,7 +23,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum, WorkerStatus
-from orchestrator.security import oidc_user
+from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
@@ -32,6 +32,7 @@ from orchestrator.websocket import WS_CHANNELS, broadcast_invalidate_cache, webs
 
 router = APIRouter()
 logger = structlog.get_logger()
+
 
 CACHE_FLUSH_OPTIONS: dict[str, str] = {
     "all": "All caches",
@@ -63,7 +64,7 @@ async def reset_search_index() -> None:
 
 @router.put("/status", response_model=EngineSettingsSchema)
 async def set_global_status(
-    body: EngineSettingsBaseSchema, user: OIDCUserModel | None = Depends(oidc_user)
+    body: EngineSettingsBaseSchema, user: OIDCUserModel | None = Depends(authenticate)
 ) -> EngineSettingsSchema:
     """Update the global status of the engine to a new state.
 

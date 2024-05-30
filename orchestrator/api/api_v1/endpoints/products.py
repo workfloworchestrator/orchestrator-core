@@ -14,18 +14,13 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi.params import Body, Depends
 from fastapi.routing import APIRouter
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.api.error_handling import raise_status
-from orchestrator.api.models import delete, save, update
-from orchestrator.db import ProductBlockTable, ProductTable, SubscriptionTable, db
-from orchestrator.domain.lifecycle import ProductLifecycle
-from orchestrator.schemas import ProductCRUDSchema, ProductSchema
-from orchestrator.services.products import get_tags, get_types
-from orchestrator.utils.deprecation_logger import deprecated_endpoint
+from orchestrator.db import ProductBlockTable, ProductTable, db
+from orchestrator.schemas import ProductSchema
 
 router = APIRouter()
 
@@ -66,74 +61,3 @@ def product_by_id(product_id: UUID) -> ProductTable:
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
     return product
-
-
-@router.post(
-    "/",
-    response_model=None,
-    status_code=HTTPStatus.NO_CONTENT,
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def save_product(data: ProductCRUDSchema = Body(...)) -> None:  # type: ignore
-    return save(ProductTable, data)
-
-
-@router.put(
-    "/",
-    response_model=None,
-    status_code=HTTPStatus.NO_CONTENT,
-)
-def update_product(data: ProductCRUDSchema = Body(...)) -> None:  # type: ignore
-    return update(ProductTable, data)
-
-
-@router.delete(
-    "/{product_id}",
-    response_model=None,
-    status_code=HTTPStatus.NO_CONTENT,
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def delete_product(product_id: UUID) -> None:
-    subscriptions_stmt = select(SubscriptionTable).filter(SubscriptionTable.product_id == product_id)
-    subscriptions = db.session.scalars(subscriptions_stmt).all()
-    if len(subscriptions) > 0:
-        error_subscriptions = ", ".join(map(lambda sub: sub.description, subscriptions))
-        raise_status(HTTPStatus.BAD_REQUEST, f"Product {product_id} is used in Subscriptions: {error_subscriptions}")
-    return delete(ProductTable, product_id)
-
-
-@router.get(
-    "/tags/all",
-    response_model=list[str],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def tags() -> list[str]:
-    return get_tags()
-
-
-@router.get(
-    "/types/all",
-    response_model=list[str],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def types() -> list[str]:
-    return get_types()
-
-
-@router.get(
-    "/statuses/all",
-    response_model=list[ProductLifecycle],
-    deprecated=True,
-    description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
-    dependencies=[Depends(deprecated_endpoint)],
-)
-def statuses() -> list[ProductLifecycle]:
-    return ProductLifecycle.values()

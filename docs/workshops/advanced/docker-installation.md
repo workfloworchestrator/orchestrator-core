@@ -1,12 +1,21 @@
-# Docker Compose Installation Instructions
+# Installation Instructions
 
-Here is how you can run the orchestrator-core, orchestrator-core-gui, and netbox with Docker Compose. We have this all setup in our docker-compose.yml file so that you don't have to think about how to start the applications required for this workshop! If you want to read more about how to manually install the Workflow Orchestrator, please refer to [the beginner workshop here](../beginner/debian.md). The following Docker images are used in this workshop:
+Here is how you can run the orchestrator-core, orchestrator-ui, and netbox with Docker Compose. We have this all
+setup in our docker-compose.yml file so that you don't have to think about how to start the applications required for this workshop! If you want to read more about how to manually install the Workflow Orchestrator, please refer to [the beginner workshop here](../beginner/debian.md). The following Docker images are used in this workshop:
 
 * [orchestrator-core](https://github.com/workfloworchestrator/orchestrator-core/pkgs/container/orchestrator-core): The workflow orchestrator step engine.
-* [orchestrator-core-gui](https://github.com/workfloworchestrator/orchestrator-core-gui/pkgs/container/orchestrator-core-gui): The GUI for the orchestrator-core.
+* [orchestrator-ui](https://github.com/workfloworchestrator/orchestrator-ui/pkgs/container/orchestrator-ui): The
+  GUI for the orchestrator-core.
 * [netbox](https://docs.netbox.dev/en/stable/): A free IPAM and SoT system.
 * [postgres](https://hub.docker.com/_/postgres): The PostgreSQL object-relational database system.
 * [redis](https://redis.io/): An open source, in-memory data store used by netbox
+* Optional: [containerlab](https://containerlab.dev/): A free network topology simulator that uses containerized
+  network operating systems.
+
+!!! danger
+    **To run the workshop with container lab, the host architecture must be x86_64 with virtualization
+    enabled**
+
 
 ## Step 1 - Prepare environment
 
@@ -46,7 +55,7 @@ the database, orchestrator and GUI:
 To start all of this, simply clone the repo:
 
 ```shell
-jlpicard@ncc-1701-d:~$ git clone git@github.com:workfloworchestrator/example-orchestrator-tnc.git
+jlpicard@ncc-1701-d:~$ git clone git@github.com:workfloworchestrator/example-orchestrator.git
 ```
 
 and then start the containers!
