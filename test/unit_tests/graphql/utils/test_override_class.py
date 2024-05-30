@@ -42,8 +42,8 @@ def override_class_app_graphql(
     customer_id.name = "customer_id"
 
     override_class(CustomerType, [customer_id])
-    CustomerType.__strawberry_definition__._fields = [
-        field for field in CustomerType.__strawberry_definition__._fields if field.name != "new_field"
+    CustomerType.__strawberry_definition__.fields = [
+        field for field in CustomerType.__strawberry_definition__.fields if field.name != "new_field"
     ]
     fastapi_app_graphql.register_graphql()
 

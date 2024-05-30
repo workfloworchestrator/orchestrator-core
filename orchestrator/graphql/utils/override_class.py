@@ -27,10 +27,10 @@ def override_class(strawberry_class: type, fields: list[StrawberryField]) -> typ
             return field
         return field
 
-    default_class_field_names = [field.name for field in definition._fields]
+    default_class_field_names = [field.name for field in definition.fields]
 
-    new_field_list = [override_fn(field) for field in definition._fields]
+    new_field_list = [override_fn(field) for field in definition.fields]
     new_field_list.extend([field for field in fields if field.name not in default_class_field_names])
 
-    definition._fields = new_field_list
+    definition.fields = new_field_list
     return strawberry_class
