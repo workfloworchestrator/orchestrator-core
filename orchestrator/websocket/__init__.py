@@ -118,7 +118,7 @@ def send_process_data_to_websocket(
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
 
         anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
-        sync_broadcast_invalidate_cache("processes")
+        sync_broadcast_invalidate_cache("processes", str(process_id))
 
 
 async def empty_handler() -> None:
