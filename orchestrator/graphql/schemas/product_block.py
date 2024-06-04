@@ -1,14 +1,13 @@
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Iterable, Literal
 from uuid import UUID
 
 import strawberry
-from sqlalchemy import select
 
-from orchestrator.db import db
-from orchestrator.db.models import SubscriptionTable
+from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.resource_type import ResourceType
-from orchestrator.graphql.types import OrchestratorInfo
+from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo, StrawberryPydanticModel
 from orchestrator.schemas.product_block import ProductBlockSchema
+from pydantic_forms.types import UUIDstr
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
@@ -37,13 +36,41 @@ class ProductBlock:
 async def owner_subscription_resolver(
     root: Any, info: OrchestratorInfo
 ) -> Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None:
-    from orchestrator.graphql.resolvers.subscription import format_subscription
+    from orchestrator.graphql.resolvers.subscription import resolve_subscription
 
-    stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == root.owner_subscription_id)
+    return await resolve_subscription(info, root.owner_subscription_id)
 
-    if subscription := db.session.scalar(stmt):
-        return format_subscription(info, subscription)
-    return None
+
+RelationLiteral = Literal["in_use_by", "depends_on", "subscriptions"]
+
+
+def get_subscription_ids(root: StrawberryPydanticModel, relation: RelationLiteral) -> Iterable[UUIDstr]:
+    values = getattr(root._original_model, relation, [])  # type: ignore[attr-defined]
+    if relation in ("in_use_by", "depends_on"):
+        return map(lambda x: UUIDstr(getattr(x, "subscription_id", "")), values)
+    return map(lambda x: UUIDstr(x), values)
+
+
+def related_subscriptions_resolver(relation: RelationLiteral) -> Callable[[Any], list[UUID]]:
+    async def subscriptions_resolver(
+        root: Any,
+        info: OrchestratorInfo,
+        filter_by: list[GraphqlFilter] | None = None,
+        sort_by: list[GraphqlSort] | None = None,
+        first: int = 10,
+        after: int = 0,
+    ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
+        from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
+
+        subscription_ids = [id for id in get_subscription_ids(root, relation) if id != str(root.owner_subscription_id)]
+        if not subscription_ids:
+            return EMPTY_PAGE
+        filter_by_with_related_subscriptions = (filter_by or []) + [
+            GraphqlFilter(field="subscriptionId", value="|".join(subscription_ids))
+        ]
+        return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)  # type: ignore
+
+    return subscriptions_resolver  # type: ignore
 
 
 @strawberry.interface
@@ -55,4 +82,16 @@ class BaseProductBlockType:
     title: str | None = None
     subscription: Annotated["SubscriptionInterface", strawberry.lazy(".subscription")] | None = strawberry.field(
         description="resolve to subscription of the product block", resolver=owner_subscription_resolver
+    )
+    in_use_by_subscriptions: Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]] = (
+        strawberry.field(  # type: ignore
+            description="resolve to in use by subscriptions of the product block",
+            resolver=related_subscriptions_resolver("in_use_by"),
+        )
+    )
+    depends_on_subscriptions: Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]] = (
+        strawberry.field(  # type: ignore
+            description="resolve to depends on subscriptions of the product block",
+            resolver=related_subscriptions_resolver("depends_on"),
+        )
     )

@@ -23,6 +23,7 @@ logger = structlog.get_logger(__name__)
 
 SUBSCRIPTION_TABLE_COLUMN_CLAUSES = default_inferred_column_clauses(SubscriptionTable) | {
     "product": inferred_filter(ProductTable.name),
+    "product_type": filter_exact(ProductTable.product_type),
     "tag": filter_exact(ProductTable.tag),
 }
 
