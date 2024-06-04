@@ -24,7 +24,7 @@ from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
 from orchestrator.settings import app_settings
-from orchestrator.utils.json import json_dumps, json_loads
+from orchestrator.utils.json import PY_JSON_TYPES, json_dumps, json_loads
 
 logger = get_logger(__name__)
 
@@ -37,17 +37,19 @@ def caching_models_enabled() -> bool:
     return getenv("AIOCACHE_DISABLE", "0") == "0" and app_settings.CACHE_DOMAIN_MODELS
 
 
-def to_redis(subscription: dict[str, Any]) -> None:
+def to_redis(subscription: dict[str, Any]) -> str | None:
     if caching_models_enabled():
         logger.info("Setting cache for subscription", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
         cache.set(f"domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
         cache.set(f"domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
-    else:
-        logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
+        return etag
+
+    logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
+    return None
 
 
-def from_redis(subscription_id: UUID) -> tuple[Any, str] | None:
+def from_redis(subscription_id: UUID) -> tuple[PY_JSON_TYPES, str] | None:
     log = logger.bind(subscription_id=subscription_id)
     if caching_models_enabled():
         log.debug("Try to retrieve subscription from cache")

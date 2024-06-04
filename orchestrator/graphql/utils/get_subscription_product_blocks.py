@@ -7,10 +7,8 @@ import strawberry
 from pydantic.alias_generators import to_camel as to_lower_camel
 from strawberry.scalars import JSON
 
-from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.schemas.product_block import owner_subscription_resolver
-from orchestrator.services.subscriptions import build_extended_domain_model
-from orchestrator.utils.redis import from_redis
+from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
 if TYPE_CHECKING:
     from orchestrator.graphql.schemas.subscription import SubscriptionInterface
@@ -62,19 +60,10 @@ def get_all_product_blocks(subscription: dict[str, Any], _tags: list[str] | None
 pb_instance_property_keys = ("id", "parent", "owner_subscription_id", "subscription_instance_id", "in_use_by_relations")
 
 
-async def get_subscription_dict(subscription_id: UUID) -> dict:
-    if cached_model := from_redis(subscription_id):
-        subscription, _ = cached_model
-    else:
-        subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        subscription = build_extended_domain_model(subscription_model)
-    return subscription
-
-
 async def get_subscription_product_blocks(
     subscription_id: UUID, tags: list[str] | None = None, product_block_instance_values: list[str] | None = None
 ) -> list[ProductBlockInstance]:
-    subscription = await get_subscription_dict(subscription_id)
+    subscription, _ = await get_subscription_dict(subscription_id)
 
     def to_product_block(product_block: dict[str, Any]) -> ProductBlockInstance:
         def is_resource_type(candidate: Any) -> bool:

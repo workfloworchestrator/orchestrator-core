@@ -42,7 +42,7 @@ async def owner_subscription_resolver(
     stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == root.owner_subscription_id)
 
     if subscription := db.session.scalar(stmt):
-        return format_subscription(info, subscription)
+        return await format_subscription(info, subscription)
     return None
 
 
