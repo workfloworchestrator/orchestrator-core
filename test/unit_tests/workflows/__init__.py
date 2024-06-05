@@ -202,7 +202,7 @@ def _sanitize_input(input_data: State | list[State]) -> list[State]:
     return cast(list[State], json_loads(json_dumps(input_data)))
 
 
-def run_workflow(workflow_key: str, input_data: State | list[State]) -> tuple[WFProcess, ProcessStat, list]:
+def run_workflow(workflow_key: str, input_data: State | list[State]) -> tuple[WFProcess, ProcessStat, list[tuple[Step, WFProcess]]]:
     # ATTENTION!! This code needs to be as similar as possible to `server.services.processes.start_process`
     # The main differences are: we use a different step log function, and we don't run in
     # a separate thread
