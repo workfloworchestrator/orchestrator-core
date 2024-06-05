@@ -50,6 +50,7 @@ from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.get_subscription_dict import get_subscription_dict
+from orchestrator.websocket import sync_broadcast_invalidate_cache
 
 router = APIRouter()
 
@@ -209,6 +210,7 @@ def subscription_set_in_sync(subscription_id: UUID, current_user: OIDCUserModel 
                 subscription.insync = True
                 db.session.commit()
                 logger.info("Subscription set in sync", user=current_user)
+                sync_broadcast_invalidate_cache("subscriptions", str(subscription.subscription_id))
             else:
                 raise_status(
                     HTTPStatus.UNPROCESSABLE_ENTITY,
