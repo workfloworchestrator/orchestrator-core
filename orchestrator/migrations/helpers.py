@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from collections.abc import Iterable, Sequence
+from typing import Any
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -1077,3 +1078,33 @@ def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
             sa.text("DELETE FROM subscription_instance_relations WHERE domain_model_attr=:attr"),
             {"attr": domain_model_attr},
         )
+        
+
+def backfill_resource_type_with_default(
+    conn: sa.engine.Connection, resource_type_id: UUID, product_block_name: str, value: Any
+) -> None:
+    conn.execute(
+        sa.text(
+            """
+            INSERT INTO subscription_instance_values (subscription_instance_id, resource_type_id, value)
+            SELECT si.subscription_instance_id AS subscription_instance_id, :resource_type_id AS resource_type_id, :value AS value
+            FROM subscription_instances AS si
+                JOIN product_blocks pb on si.product_block_id = pb.product_block_id
+                WHERE pb.name = :product_block_name;
+            """
+        ),
+        {
+            "resource_type_id": resource_type_id,
+            "product_block_name": product_block_name,
+            "value": value,
+        },
+    )
+
+
+def remove_resource_type_from_subscription_instance(conn: sa.engine.Connection, resource_type_name: str) -> None:
+    resource_type_id = get_resource_type_id_by_name(conn, resource_type_name)
+
+    conn.execute(
+        sa.text("""DELETE FROM subscription_instance_values WHERE resource_type_id=:resource_type_id"""),
+        {"resource_type_id": resource_type_id},
+    )
