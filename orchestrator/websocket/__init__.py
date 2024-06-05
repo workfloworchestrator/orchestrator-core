@@ -23,6 +23,7 @@ from orchestrator.types import BroadcastFunc
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflow import ProcessStat, ProcessStatus
+from pydantic_forms.types import UUIDstr
 
 logger = get_logger(__name__)
 
@@ -102,6 +103,17 @@ async def broadcast_invalidate_cache(*cache_key: str) -> None:
     await _broadcast_event("invalidateCache", list(cache_key))
 
 
+def sync_invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalidate_all: bool = True) -> None:
+    cache_keys = {
+        f"subscription:{subscription_id}",
+    }
+    if invalidate_all:
+        cache_keys = cache_keys | {
+            "subscriptions",
+        }
+    sync_broadcast_invalidate_cache(*cache_keys)
+
+
 def send_process_data_to_websocket(
     process_id: UUID,
     data: dict,
@@ -118,7 +130,7 @@ def send_process_data_to_websocket(
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
 
         anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
-        sync_broadcast_invalidate_cache("processes", str(process_id))
+        sync_broadcast_invalidate_cache("processes", f"process:{process_id}")
 
 
 async def empty_handler() -> None:

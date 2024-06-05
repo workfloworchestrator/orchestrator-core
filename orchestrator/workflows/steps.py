@@ -26,7 +26,7 @@ from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.json import to_serializable
 from orchestrator.utils.redis import delete_from_redis, to_redis
-from orchestrator.websocket import sync_broadcast_invalidate_cache
+from orchestrator.websocket import sync_invalidate_subscription_cache
 from orchestrator.workflow import Step, step
 
 logger = structlog.get_logger(__name__)
@@ -207,12 +207,12 @@ def cache_domain_models(workflow_name: str, subscription: SubscriptionModel | No
     for subscription_id in cached_subscription_ids:
         subscription_model = SubscriptionModel.from_subscription(subscription_id)
         to_redis(build_extended_domain_model(subscription_model))
-        sync_broadcast_invalidate_cache(str(subscription.subscription_id))
+        sync_invalidate_subscription_cache(subscription.subscription_id, invalidate_all=False)
 
     # Cache the main subscription
     to_redis(build_extended_domain_model(subscription))
     cached_subscription_ids.add(subscription.subscription_id)
-    sync_broadcast_invalidate_cache("subscriptions", str(subscription.subscription_id))
+    sync_invalidate_subscription_cache(subscription.subscription_id)
 
     return {"cached_subscription_ids": cached_subscription_ids}
 

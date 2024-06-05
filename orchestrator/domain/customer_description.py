@@ -21,7 +21,7 @@ from sqlalchemy import select
 from orchestrator.api.models import delete
 from orchestrator.db import SubscriptionCustomerDescriptionTable, db
 from orchestrator.utils.redis import delete_subscription_from_redis
-from orchestrator.websocket import sync_broadcast_invalidate_cache
+from orchestrator.websocket import sync_invalidate_subscription_cache
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ def create_subscription_customer_description(
     )
     db.session.add(customer_description)
     db.session.commit()
-    sync_broadcast_invalidate_cache("subscriptions", str(subscription_id))
+    sync_invalidate_subscription_cache(subscription_id)
     return customer_description
 
 
@@ -58,7 +58,7 @@ def update_subscription_customer_description(
     customer_description.description = description
     customer_description.created_at = created_at if created_at else datetime.now(tz=timezone("UTC"))
     db.session.commit()
-    sync_broadcast_invalidate_cache("subscriptions", str(customer_description.subscription_id))
+    sync_invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
 
 
@@ -71,5 +71,5 @@ def delete_subscription_customer_description_by_customer_subscription(
         return None
 
     delete(SubscriptionCustomerDescriptionTable, customer_description.id)
-    sync_broadcast_invalidate_cache("subscriptions", str(customer_description.subscription_id))
+    sync_invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
