@@ -1078,7 +1078,7 @@ def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
             sa.text("DELETE FROM subscription_instance_relations WHERE domain_model_attr=:attr"),
             {"attr": domain_model_attr},
         )
-        
+
 
 def backfill_resource_type_with_default(
     conn: sa.engine.Connection, resource_type_id: UUID, product_block_name: str, value: Any
