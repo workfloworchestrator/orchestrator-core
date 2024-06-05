@@ -17,8 +17,9 @@ from orchestrator.services.processes import (
     _db_log_process_ex,
     _db_log_step,
     _run_process_async,
+    load_process,
     safe_logstep,
-    start_process, load_process,
+    start_process,
 )
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
@@ -36,12 +37,15 @@ from orchestrator.workflow import (
     Success,
     Suspend,
     Waiting,
+    done,
+    init,
     make_step_function,
     make_workflow,
-    step, workflow, init, done,
+    step,
+    workflow,
 )
 from pydantic_forms.exceptions import FormValidationError
-from test.unit_tests.workflows import store_workflow, WorkflowInstanceForTests, run_workflow
+from test.unit_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
 
 def _workflow_test_fn():
@@ -889,7 +893,11 @@ def test_load_process_with_altered_steps(num_steps_finished, step_names):
         process_table = db.session.get(ProcessTable, p_stat.process_id)
 
         for step_fn, wf_process in steps[:num_steps_finished]:
-            process_table.steps.append(ProcessStepTable(process_id=p_stat.process_id, name=step_fn.name, status=wf_process.status, state=wf_process.unwrap()))
+            process_table.steps.append(
+                ProcessStepTable(
+                    process_id=p_stat.process_id, name=step_fn.name, status=wf_process.status, state=wf_process.unwrap()
+                )
+            )
 
         process = load_process(process_table)
         assert get_step_names(process) == step_names[0]
