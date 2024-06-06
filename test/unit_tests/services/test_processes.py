@@ -17,6 +17,7 @@ from orchestrator.services.processes import (
     _db_log_process_ex,
     _db_log_step,
     _run_process_async,
+    load_process,
     safe_logstep,
     start_process,
 )
@@ -36,12 +37,15 @@ from orchestrator.workflow import (
     Success,
     Suspend,
     Waiting,
+    done,
+    init,
     make_step_function,
     make_workflow,
     step,
+    workflow,
 )
 from pydantic_forms.exceptions import FormValidationError
-from test.unit_tests.workflows import store_workflow
+from test.unit_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
 
 def _workflow_test_fn():
@@ -856,3 +860,54 @@ def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process
         },
         [{}],
     )
+
+
+@step("Step 1")
+def step1():
+    return {"value": 1}
+
+
+@step("Step 2")
+def step2():
+    return {"value": 2}
+
+
+def get_step_names(process):
+    return [fn.name for fn in process.log]
+
+
+@pytest.mark.parametrize(
+    "num_steps_finished,step_names",
+    [
+        (0, (["Start", "Step 1", "Done"], ["Start", "Step 1", "Step 2", "Done"], ["Start", "Done"])),
+        (1, (["Step 1", "Done"], ["Step 1", "Step 2", "Done"], ["Done"])),
+        (2, (["Done"], ["Step 2", "Done"], [])),  # WF with step removed is missing last step
+        (3, ([], [], [])),  # WF is complete
+    ],
+)
+def test_load_process_with_altered_steps(num_steps_finished, step_names):
+
+    # Run original workflow with 3 steps
+    with WorkflowInstanceForTests(workflow("Test wf")(lambda: init >> step1 >> done), "test_wf"):
+        _, p_stat, steps = run_workflow("test_wf", [{}])
+        process_table = db.session.get(ProcessTable, p_stat.process_id)
+
+        for step_fn, wf_process in steps[:num_steps_finished]:
+            process_table.steps.append(
+                ProcessStepTable(
+                    process_id=p_stat.process_id, name=step_fn.name, status=wf_process.status, state=wf_process.unwrap()
+                )
+            )
+
+        process = load_process(process_table)
+        assert get_step_names(process) == step_names[0]
+
+    # Load process for workflow with step added at the end
+    with WorkflowInstanceForTests(workflow("Test wf")(lambda: init >> step1 >> step2 >> done), "test_wf"):
+        process = load_process(process_table)
+        assert get_step_names(process) == step_names[1]
+
+    # Load process for workflow with step removed at the end
+    with WorkflowInstanceForTests(workflow("Test wf")(lambda: init >> done), "test_wf"):
+        process = load_process(process_table)
+        assert get_step_names(process) == step_names[2]

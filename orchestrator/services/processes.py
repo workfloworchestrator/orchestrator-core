@@ -669,7 +669,12 @@ def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]
     else:
         state = Success({})
 
-    rest = wf.steps[stepcount:]
+    # Calculate the remaining Step functions that still need to be executed.
+    # If the StepList has changed since the process was started, it is not possible to do this perfectly based on the ProcessSteps log in the database.
+    # It is not advisable to add or remove a step from a workflow other than at the end, or a running workflow may skip or re-execute a step and will probably result in errors.
+    # Adding or removing a step at the end (before the `done` step) is ok, because these steps have not run yet.
+    # A step with status Completed will always be treated as the last step.
+    rest = StepList() if state.iscomplete() else wf.steps[stepcount:]
 
     return state, rest
 
