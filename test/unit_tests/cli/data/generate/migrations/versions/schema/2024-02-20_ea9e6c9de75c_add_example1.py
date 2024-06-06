@@ -5,6 +5,7 @@ Revises: 85be1c80731c
 Create Date: 2024-02-20 21:01:56.190106
 
 """
+
 from uuid import uuid4
 
 from alembic import op
@@ -80,6 +81,7 @@ new_products = {
                 "imported_type": "use imported type",
                 "always_optional_str": "Not required in any lifecycle state",
             },
+            "in_use_by_block_relations": [],
             "depends_on_block_relations": [],
         },
     },

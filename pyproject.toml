@@ -211,7 +211,7 @@ ban-relative-imports = "all"
 "orchestrator/api/*" = ["B008"]
 "orchestrator/cli/*" = ["B008"]
 "orchestrator/devtools/scripts/*" = ["S101", "T201"]
-"test/*" = ["S101", "B033", "N816", "N802"]
+"test/*" = ["S101", "B033", "N816", "N802", "T201"]
 "orchestrator/__init__.py" = ["E402"]
 
 [tool.ruff.lint.pydocstyle]
