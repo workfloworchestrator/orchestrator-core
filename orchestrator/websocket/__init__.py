@@ -95,23 +95,23 @@ async def _broadcast_event(name: str, value: Any) -> None:
     await websocket_manager.broadcast_data([WS_CHANNELS.EVENTS], event)
 
 
-def sync_broadcast_invalidate_cache(*cache_key: str) -> None:
-    anyio.run(broadcast_invalidate_cache, *cache_key)
+def sync_broadcast_invalidate_cache(cache_object: dict[str, str]) -> None:
+    anyio.run(broadcast_invalidate_cache, cache_object)
 
 
-async def broadcast_invalidate_cache(*cache_key: str) -> None:
-    await _broadcast_event("invalidateCache", list(cache_key))
+async def broadcast_invalidate_cache(cache_object: dict[str, str]) -> None:
+    await _broadcast_event("invalidateCache", cache_object)
 
 
 def sync_invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalidate_all: bool = True) -> None:
-    cache_keys = {
-        f"subscription:{subscription_id}",
-    }
+    anyio.run(invalidate_subscription_cache, subscription_id, invalidate_all)
+
+
+async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalidate_all: bool = True) -> None:
     if invalidate_all:
-        cache_keys = cache_keys | {
-            "subscriptions",
-        }
-    sync_broadcast_invalidate_cache(*cache_keys)
+        await broadcast_invalidate_cache({"type": "subscriptions"})
+    await broadcast_invalidate_cache({"type": "subscriptions"})
+    await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
 def send_process_data_to_websocket(
@@ -130,7 +130,8 @@ def send_process_data_to_websocket(
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
 
         anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
-        sync_broadcast_invalidate_cache("processes", f"process:{process_id}")
+        sync_broadcast_invalidate_cache({"type": "processes"})
+        sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
 
 
 async def empty_handler() -> None:

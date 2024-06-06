@@ -86,8 +86,8 @@ def delete_subscription_from_redis(
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def _delete_subscription_from_redis(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
-            data = func(*args, **kwargs)
+        async def wrapper(*args: tuple, **kwargs: dict[str, Any]) -> Any:
+            data = await func(*args, **kwargs)
             key = extract_fn(data)
             delete_from_redis(key)
             return data

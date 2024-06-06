@@ -21,7 +21,7 @@ from sqlalchemy import select
 from orchestrator.api.models import delete
 from orchestrator.db import SubscriptionCustomerDescriptionTable, db
 from orchestrator.utils.redis import delete_subscription_from_redis
-from orchestrator.websocket import sync_invalidate_subscription_cache
+from orchestrator.websocket import invalidate_subscription_cache
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ def get_customer_description_by_customer_subscription(
 
 
 @delete_subscription_from_redis()
-def create_subscription_customer_description(
+async def create_subscription_customer_description(
     customer_id: str, subscription_id: UUID, description: str
 ) -> SubscriptionCustomerDescriptionTable:
     customer_description = SubscriptionCustomerDescriptionTable(
@@ -47,23 +47,23 @@ def create_subscription_customer_description(
     )
     db.session.add(customer_description)
     db.session.commit()
-    sync_invalidate_subscription_cache(subscription_id)
+    await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
 
 
 @delete_subscription_from_redis()
-def update_subscription_customer_description(
+async def update_subscription_customer_description(
     customer_description: SubscriptionCustomerDescriptionTable, description: str, created_at: datetime | None = None
 ) -> SubscriptionCustomerDescriptionTable:
     customer_description.description = description
     customer_description.created_at = created_at if created_at else datetime.now(tz=timezone("UTC"))
     db.session.commit()
-    sync_invalidate_subscription_cache(customer_description.subscription_id)
+    await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description
 
 
 @delete_subscription_from_redis()
-def delete_subscription_customer_description_by_customer_subscription(
+async def delete_subscription_customer_description_by_customer_subscription(
     customer_id: str, subscription_id: UUID
 ) -> SubscriptionCustomerDescriptionTable | None:
     customer_description = get_customer_description_by_customer_subscription(customer_id, subscription_id)
@@ -71,5 +71,5 @@ def delete_subscription_customer_description_by_customer_subscription(
         return None
 
     delete(SubscriptionCustomerDescriptionTable, customer_description.id)
-    sync_invalidate_subscription_cache(customer_description.subscription_id)
+    await invalidate_subscription_cache(customer_description.subscription_id)
     return customer_description

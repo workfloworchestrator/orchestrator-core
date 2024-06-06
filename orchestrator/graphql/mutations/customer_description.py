@@ -29,21 +29,21 @@ from orchestrator.graphql.types import MutationError, NotFoundError
 logger = structlog.get_logger(__name__)
 
 
-def upsert_customer_description(
+async def upsert_customer_description(
     customer_id: str, subscription_id: UUID, description: str
 ) -> SubscriptionCustomerDescriptionTable | NotFoundError:
     current_description = get_customer_description_by_customer_subscription(customer_id, subscription_id)
 
     if current_description:
-        return update_subscription_customer_description(current_description, description)
-    return create_subscription_customer_description(customer_id, subscription_id, description)
+        return await update_subscription_customer_description(current_description, description)
+    return await create_subscription_customer_description(customer_id, subscription_id, description)
 
 
 async def resolve_upsert_customer_description(
     customer_id: str, subscription_id: UUID, description: str
 ) -> CustomerDescription | NotFoundError | MutationError:
     try:
-        customer_description = upsert_customer_description(customer_id, subscription_id, description)
+        customer_description = await upsert_customer_description(customer_id, subscription_id, description)
     except Exception:
         return NotFoundError(message="Subscription not found")
     return CustomerDescription.from_pydantic(customer_description)  # type: ignore
@@ -52,7 +52,7 @@ async def resolve_upsert_customer_description(
 async def resolve_remove_customer_description(
     customer_id: str, subscription_id: UUID
 ) -> CustomerDescription | NotFoundError | MutationError:
-    description = delete_subscription_customer_description_by_customer_subscription(
+    description = await delete_subscription_customer_description_by_customer_subscription(
         customer_id=customer_id, subscription_id=subscription_id
     )
     if not description:

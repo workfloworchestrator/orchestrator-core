@@ -16,14 +16,14 @@ def test_websocket_events_ping_pong(test_client):
 
 def test_websocket_events_invalidate_cache(test_client):
     with test_client.websocket_connect("api/ws/events") as websocket:
-        sync_broadcast_invalidate_cache("foobar")
-        assert websocket.receive_json() == {"name": "invalidateCache", "value": ["foobar"]}
+        sync_broadcast_invalidate_cache({"type": "foobar"})
+        assert websocket.receive_json() == {"name": "invalidateCache", "value": {"type": "foobar"}}
 
 
 async def test_websocket_events_invalidate_cache_async(test_client):
     with test_client.websocket_connect("api/ws/events") as websocket:
-        await broadcast_invalidate_cache("foo", "bar")
-        assert websocket.receive_json() == {"name": "invalidateCache", "value": ["foo", "bar"]}
+        await broadcast_invalidate_cache({"type": "foobar", "id": "bar"})
+        assert websocket.receive_json() == {"name": "invalidateCache", "value": {"type": "foobar", "id": "bar"}}
 
 
 @mock.patch("orchestrator.websocket.websocket_manager.authorize_websocket")
