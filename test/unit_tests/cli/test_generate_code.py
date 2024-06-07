@@ -2,6 +2,7 @@ import re
 import sys
 from difflib import context_diff
 from filecmp import dircmp
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -46,11 +47,19 @@ def actual_folder(tmp_path_factory, monkey_module) -> Path:
     sys.path.append(str(tmp_path))
     create_main()
     runner = CliRunner()
-    runner.invoke(db_app, ["init"])
-    for config_file in (absolute_path("product_config2.yaml"), absolute_path("product_config1.yaml")):
+
+    # Don't catch exceptions because this will cost you grey hair.
+    invoke = partial(runner.invoke, catch_exceptions=False)
+    invoke(db_app, ["init"])
+    for config_file in (
+        absolute_path("product_config2.yaml"),
+        absolute_path("product_config1.yaml"),
+        absolute_path("product_config4.yaml"),
+    ):
         for cmd in ("product-blocks", "product", "workflows", "unit-tests"):
-            runner.invoke(generate_app, [cmd, "--config-file", config_file, "--no-dryrun", "--force"])
-        runner.invoke(generate_app, ["migration", "--config-file", config_file])
+            invoke(generate_app, [cmd, "--config-file", config_file, "--no-dryrun", "--force"])
+
+        invoke(generate_app, ["migration", "--config-file", config_file])
     return tmp_path
 
 

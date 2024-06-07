@@ -2,11 +2,15 @@
     "workflow": {
         "create_example1": "Create example1",
         "create_example2": "Create example2",
+        "create_example4": "Create example4",
         "modify_example1": "Modify example1",
         "modify_example2": "Modify example2",
+        "modify_example4": "Modify example4",
         "terminate_example1": "Terminate example1",
         "terminate_example2": "Terminate example2",
+        "terminate_example4": "Terminate example4",
         "validate_example1": "Validate example1",
-        "validate_example2": "Validate example2"
+        "validate_example2": "Validate example2",
+        "validate_example4": "Validate example4"
     }
 }

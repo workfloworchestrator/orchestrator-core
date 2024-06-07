@@ -15,7 +15,7 @@ export PYTHONPATH=../../../../..
 python main.py db init
 
 # generate code for the two sample products
-for YAML in ../product_config2.yaml ../product_config1.yaml
+for YAML in ../product_config2.yaml ../product_config1.yaml ../product_config4.yaml
 do
     python main.py generate product-blocks --config-file $YAML --no-dryrun --force
     python main.py generate product --config-file $YAML --no-dryrun --force

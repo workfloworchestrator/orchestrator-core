@@ -17,3 +17,10 @@ SUBSCRIPTION_MODEL_REGISTRY.update(
         "example1 1000": Example1,
         },
 )  # fmt:skip
+from products.product_types.example4 import Example4
+
+SUBSCRIPTION_MODEL_REGISTRY.update(
+    {
+        "example4": Example4,
+        },
+)  # fmt:skip
