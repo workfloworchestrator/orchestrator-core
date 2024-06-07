@@ -1,3 +1,4 @@
+# Testcase for a simple product with 1 (root) product block
 config:
   summary_forms: False
 name: example2

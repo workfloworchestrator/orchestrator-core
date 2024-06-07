@@ -26,7 +26,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": ["Example1"],
+            "root_product_block": "Example1",
             "fixed_inputs": {
                 "fixed_input_1": "1",
             },
@@ -37,7 +37,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": ["Example1"],
+            "root_product_block": "Example1",
             "fixed_inputs": {
                 "fixed_input_1": "10",
             },
@@ -48,7 +48,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": ["Example1"],
+            "root_product_block": "Example1",
             "fixed_inputs": {
                 "fixed_input_1": "100",
             },
@@ -59,7 +59,7 @@ new_products = {
             "description": "Product example 1",
             "tag": "EXAMPLE1",
             "status": "active",
-            "product_blocks": ["Example1"],
+            "root_product_block": "Example1",
             "fixed_inputs": {
                 "fixed_input_1": "1000",
             },
@@ -73,16 +73,15 @@ new_products = {
             "status": "active",
             "resources": {
                 "example_str_enum_1": "Example 1 str enum",
-                "example2": "link to root product block of product Example2",
                 "unmodifiable_str": "Unmodifiable resource type",
-                "eight": "Constrained list of root product blocks of product Example2 with length 8",
                 "modifiable_boolean": "Modifiable resource type",
                 "annotated_int": "Annotated integer witch min and max",
                 "imported_type": "use imported type",
                 "always_optional_str": "Not required in any lifecycle state",
             },
-            "in_use_by_block_relations": [],
-            "depends_on_block_relations": [],
+            "depends_on_block_relations": [
+                "Example2",
+            ],
         },
     },
     "workflows": {},

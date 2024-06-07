@@ -11,11 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 import re
-from collections.abc import Generator
-from importlib import import_module
-from os import listdir, path
+from collections import ChainMap
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -24,41 +22,19 @@ import structlog
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
     create_dunder_init_files,
+    find_root_product_block,
     get_all_fields,
     get_constrained_ints,
+    get_existing_product_blocks,
     get_name_spaced_types_to_import,
     get_product_block_file_name,
     get_product_blocks_folder,
     get_product_blocks_module,
     merge_fields,
+    sort_product_blocks_by_dependencies,
 )
-from orchestrator.domain.base import ProductBlockModel
 
 logger = structlog.getLogger(__name__)
-
-
-def get_existing_product_blocks() -> dict[str, Any]:
-    def yield_blocks() -> Generator:
-        def is_product_block(attribute: Any) -> bool:
-            return issubclass(attribute, ProductBlockModel)
-
-        if not path.exists(get_product_blocks_folder()):
-            logger.warning("Product block path does not exist", product_blocks_path=get_product_blocks_folder())
-            return
-
-        for pb_file in listdir(get_product_blocks_folder()):
-            name = pb_file.removesuffix(".py")
-            module_name = f"{get_product_blocks_module()}.{name}"
-
-            module = import_module(module_name)
-
-            classes = [obj for _, obj in inspect.getmembers(module, inspect.isclass) if obj.__module__ == module_name]
-
-            for klass in classes:
-                if is_product_block(klass):
-                    yield klass.__name__, module_name
-
-    return dict(yield_blocks())
 
 
 def get_lists_to_generate(fields: list[dict]) -> list[dict]:
@@ -68,7 +44,7 @@ def get_lists_to_generate(fields: list[dict]) -> list[dict]:
     return [field for field in fields if should_generate(**field)]
 
 
-def get_product_blocks_to_import(label: str, fields: list, existing_product_blocks: dict) -> list[tuple]:
+def get_product_blocks_to_import(label: str, fields: list, existing_product_blocks: Mapping) -> list[tuple]:
     return [
         (module, field[label]) for field in fields if (module := existing_product_blocks.get(f"{field[label]}Block"))
     ]
@@ -81,6 +57,7 @@ def get_product_block_path(product_block: dict) -> Path:
 
 def enrich_product_block(product_block: dict) -> dict:
     def to_block_name() -> str:
+        """Separate block name into words."""
         type = product_block["type"]
         name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
         return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
@@ -104,6 +81,9 @@ def generate_product_blocks(context: dict) -> None:
 
     existing_product_blocks = get_existing_product_blocks()
 
+    generated_product_blocks: dict[str, str] = {}
+    realtime_product_blocks = ChainMap(existing_product_blocks, generated_product_blocks)
+
     def generate_product_block(product_block: dict) -> None:
         types_to_import = get_name_spaced_types_to_import(product_block["fields"])
 
@@ -116,8 +96,8 @@ def generate_product_blocks(context: dict) -> None:
 
         product_blocks_to_import = list(
             set(
-                get_product_blocks_to_import("list_type", lists_to_generate, existing_product_blocks)
-                + get_product_blocks_to_import("type", fields, existing_product_blocks)
+                get_product_blocks_to_import("list_type", lists_to_generate, realtime_product_blocks)
+                + get_product_blocks_to_import("type", fields, realtime_product_blocks)
             )
         )
         product_block_types = [type for module, type in product_blocks_to_import]
@@ -140,7 +120,18 @@ def generate_product_blocks(context: dict) -> None:
 
         writer(path, content)
 
+        # Store generated block so that dependent blocks can import it
+        name = get_product_block_file_name(product_block)
+        module_name = f"{get_product_blocks_module()}.{name}"
+        generated_product_blocks[f'{product_block["type"]}Block'] = module_name
+
     product_blocks = config.get("product_blocks", [])
-    for product_block in product_blocks:
+    sorted_product_blocks = sort_product_blocks_by_dependencies(product_blocks)
+
+    # Validate that there is exactly 1 root product block
+    _ = find_root_product_block(product_blocks)
+
+    for product_block in sorted_product_blocks:
         generate_product_block(product_block)
+
     create_dunder_init_files(get_product_blocks_folder())

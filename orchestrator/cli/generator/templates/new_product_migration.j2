@@ -27,7 +27,7 @@ new_products = {
             "description": "{{ product.description }}",
             "tag": "{{ product.tag }}",
             "status": "active",
-            "product_blocks": [{% for pb in product.product_blocks %} "{{ pb.type }}",{% endfor %}],
+            "root_product_block": "{{ product.root_product_block }}",
             "fixed_inputs": {
             {%- for fixed_input_type, fixed_input_value in variant_fixed_inputs %}
                 "{{ fixed_input_type }}": "{{ fixed_input_value }}",
@@ -44,11 +44,15 @@ new_products = {
             "tag": "{{ pb.tag }}",
             "status": "active",
             "resources": {
-            {%- for field in pb.fields %}
+            {%- for field in pb.resource_types %}
                 "{{ field.name }}": "{{ field.description }}",
             {%- endfor %}
             },
-            "depends_on_block_relations": [],
+            "depends_on_block_relations": [
+            {%- for depends_on_block in pb.depends_on_blocks %}
+                "{{ depends_on_block }}",
+            {%- endfor %}
+            ],
         },
     {% endfor -%}
     },

@@ -16,9 +16,12 @@ from typing import Any
 from uuid import UUID
 
 import sqlalchemy as sa
+import structlog
 
 from orchestrator.settings import app_settings
 from orchestrator.types import UUIDstr
+
+logger = structlog.get_logger(__name__)
 
 
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
@@ -302,16 +305,14 @@ def create_products(conn: sa.engine.Connection, new: dict) -> dict[str, UUIDstr]
             ),
             product,
         )
-        if "product_block_ids" in product:
-            for product_block_uuid in product["product_block_ids"]:
-                # Link many-to-many if product blocks are given.
-                conn.execute(
-                    sa.text("INSERT INTO product_product_blocks VALUES (:product_id, :product_block_id)"),
-                    {
-                        "product_id": current_uuid,
-                        "product_block_id": product_block_uuid,
-                    },
-                )
+        for product_block_uuid in product.get("product_block_ids", []):
+            conn.execute(
+                sa.text("INSERT INTO product_product_blocks VALUES (:product_id, :product_block_id)"),
+                {
+                    "product_id": current_uuid,
+                    "product_block_id": product_block_uuid,
+                },
+            )
         if "fixed_inputs" in product:
             create_fixed_inputs(conn, current_uuid, product["fixed_inputs"])
     return uuids
@@ -562,20 +563,34 @@ def create(conn: sa.engine.Connection, new: dict) -> None:  # noqa: C901
                 del product_block["resources"]
         product_block_uuids = create_product_blocks(conn, new["product_blocks"])
 
+    def get_product_block_id(product_block_name: str) -> str:
+        if product_block_id := product_block_uuids.get(product_block_name):
+            return product_block_id
+
+        try:
+            return str(get_product_block_id_by_name(conn, product_block_name))
+        except Exception:
+            raise ValueError(f"{product_block_name} is not a valid product block.")
+
     # Create defined products
     if "products" in new:
         for _, product in new["products"].items():
+            # The best practice is for a product to have only 1 root product block.
+            # Migrations created through the generator adhere to this practice.
+            product_block_ids = product.get("product_block_ids", [])
+            if root_product_block := product.get("root_product_block"):
+                root_product_block_id = get_product_block_id(root_product_block)
+                if product_block_ids and product_block_ids != [root_product_block_id]:
+                    logger.warning("Overriding hardcoded product_block_ids with root product block id")
+                product["product_block_ids"] = [root_product_block_id]
+                continue
+
+            # To avoid forcing users to re-write old migrations or their products, this function will still
+            # allow inserting multiple root product blocks.
             if "product_blocks" in product:
-                if "product_block_ids" not in product:
-                    product["product_block_ids"] = []
+                product.setdefault("product_block_ids", [])
                 for product_block_name in product["product_blocks"]:
-                    try:
-                        product["product_block_ids"].append(product_block_uuids[product_block_name])
-                    except KeyError:
-                        try:
-                            product["product_block_ids"].append(get_product_block_id_by_name(conn, product_block_name))
-                        except Exception:
-                            raise ValueError(f"{product_block_name} is not a valid product block.")
+                    product["product_block_ids"].append(get_product_block_id(product_block_name))
                 del product["product_blocks"]
         create_products(conn, new["products"])
 
