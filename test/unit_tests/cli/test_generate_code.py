@@ -1,66 +1,31 @@
 import re
-import sys
 from difflib import context_diff
 from filecmp import dircmp
-from functools import partial
 from pathlib import Path
 
 import pytest
 import structlog
 from more_itertools import one
-from typer.testing import CliRunner
 
-from orchestrator.cli.database import app as db_app
 from orchestrator.cli.generate import app as generate_app
+from test.unit_tests.cli.helpers import absolute_path
 
 logger = structlog.get_logger()
 
 
-def absolute_path(path: str) -> str:
-    file = Path(__file__).resolve().parent / "data" / path
-    return str(file)
-
-
-def create_main():
-    with open("main.py", "w") as fp:
-        fp.write(
-            "from orchestrator import OrchestratorCore\n"
-            "from orchestrator.cli.main import app as core_cli\n"
-            "from orchestrator.settings import AppSettings\n"
-            "\n"
-            "app = OrchestratorCore(base_settings=AppSettings())\n"
-            'if __name__ == "__main__":\n'
-            "    core_cli()\n"
-        )
-
-
 @pytest.fixture(scope="module")
-def monkey_module():
-    with pytest.MonkeyPatch.context() as mp:
-        yield mp
-
-
-@pytest.fixture(scope="module")
-def actual_folder(tmp_path_factory, monkey_module) -> Path:
-    tmp_path = tmp_path_factory.mktemp("generate")
-    monkey_module.chdir(tmp_path)
-    sys.path.append(str(tmp_path))
-    create_main()
-    runner = CliRunner()
-
-    # Don't catch exceptions because this will cost you grey hair.
-    invoke = partial(runner.invoke, catch_exceptions=False)
-    invoke(db_app, ["init"])
+def actual_folder(cli_invoke, tmp_generate_path) -> Path:
     for config_file in (
         absolute_path("product_config2.yaml"),
         absolute_path("product_config1.yaml"),
         absolute_path("product_config4.yaml"),
     ):
         for cmd in ("product-blocks", "product", "workflows", "unit-tests"):
-            invoke(generate_app, [cmd, "--config-file", config_file, "--no-dryrun", "--force"])
+            cli_invoke(generate_app, [cmd, "--config-file", config_file, "--no-dryrun", "--force"])
 
-        invoke(generate_app, ["migration", "--config-file", config_file])
-    return tmp_path
+        cli_invoke(generate_app, ["migration", "--config-file", config_file])
+
+    return tmp_generate_path
 
 
 @pytest.fixture(scope="module")
