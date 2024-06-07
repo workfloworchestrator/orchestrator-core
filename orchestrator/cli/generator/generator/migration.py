@@ -23,7 +23,13 @@ import structlog
 from alembic.util import rev_id
 from jinja2 import Environment
 
-from orchestrator.cli.generator.generator.helpers import get_product_types_module
+from orchestrator.cli.generator.generator.helpers import (
+    find_root_product_block,
+    get_product_block_depends_on,
+    get_product_types_module,
+    set_resource_types,
+    sort_product_blocks_by_dependencies,
+)
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
 logger = structlog.getLogger(__name__)
@@ -134,25 +140,39 @@ def generate_product_migration(context: dict) -> None:
     if "data" not in heads:
         create_data_head(context=context, depends_on=heads["schema"])
 
-    if migration_file := create_migration_file(message=f"add {config['name']}", head="data"):
-        if revision_info := get_revision_info(migration_file):
-            if "fixed_inputs" in config and config["fixed_inputs"]:
-                fixed_input_values = [
-                    [(fixed_input["name"], str(value)) for value in fixed_input["values"]]
-                    for fixed_input in config["fixed_inputs"]
-                    if "values" in fixed_input
-                ]
-                fixed_input_combinations = list(itertools.product(*fixed_input_values))
-                product_variants = [
-                    (" ".join([config["name"]] + [value for name, value in combination]), combination)
-                    for combination in fixed_input_combinations
-                ]
-            else:
-                product_variants = [((config["name"]), ())]
-            template = environment.get_template("new_product_migration.j2")
-            content = template.render(product=config, product_variants=product_variants, **revision_info)
-            writer(migration_file, content)
-            update_subscription_model_registry(environment, config, product_variants, writer)
-
-    else:
+    if not (migration_file := create_migration_file(message=f"add {config['name']}", head="data")):
         logger.error("Could not create migration file")
+        return
+
+    if not (revision_info := get_revision_info(migration_file)):
+        logger.error("Could not get revision info from migration file", migration_file=migration_file)
+        return
+
+    if fixed_inputs := config.get("fixed_inputs"):
+        fixed_input_values = [
+            [(fixed_input["name"], str(value)) for value in fixed_input["values"]]
+            for fixed_input in fixed_inputs
+            if "values" in fixed_input
+        ]
+        fixed_input_combinations = list(itertools.product(*fixed_input_values))
+        product_variants = [
+            (" ".join([config["name"]] + [value for name, value in combination]), combination)
+            for combination in fixed_input_combinations
+        ]
+    else:
+        product_variants = [((config["name"]), ())]
+
+    # Add depends_on_block_relations, sort the product blocks, set resource types and the root block
+    product_blocks = sort_product_blocks_by_dependencies(config.get("product_blocks", []))
+    block_depends_on = get_product_block_depends_on(product_blocks, include_existing_blocks=True)
+    config["root_product_block"] = find_root_product_block(product_blocks)
+    product_blocks = set_resource_types(product_blocks, block_depends_on)
+
+    for block in product_blocks:
+        block["depends_on_blocks"] = block_depends_on[block["type"]]
+
+    template = environment.get_template("new_product_migration.j2")
+    config["product_blocks"] = product_blocks
+    content = template.render(product=config, product_variants=product_variants, **revision_info)
+    writer(migration_file, content)
+    update_subscription_model_registry(environment, config, product_variants, writer)

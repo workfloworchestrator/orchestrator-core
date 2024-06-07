@@ -1,3 +1,4 @@
+# Testcase for a more complex product that reuses a product block from product_config2.yaml
 config:
   summary_forms: True
 name: example1

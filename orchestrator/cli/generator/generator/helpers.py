@@ -10,14 +10,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Generator
+import inspect
+from collections.abc import Generator, Iterable
+from importlib import import_module
+from os import listdir, path
 from pathlib import Path
+from typing import Any
 
 import structlog
-from more_itertools import first
+from more_itertools import first, one
 
 from orchestrator.cli.generator.generator.enums import to_dict
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
+from orchestrator.domain.base import ProductBlockModel
 from orchestrator.utils.helpers import camel_to_snake, snake_to_camel
 
 logger = structlog.getLogger(__name__)
@@ -44,10 +49,115 @@ def get_product_block_file_name(product_block: dict) -> str:
     return get_product_block_variable(product_block)
 
 
+def get_existing_product_blocks() -> dict[str, Any]:
+    """Inspect the python code for existing product blocks."""
+
+    def yield_blocks() -> Generator:
+        def is_product_block(attribute: Any) -> bool:
+            return issubclass(attribute, ProductBlockModel)
+
+        if not path.exists(get_product_blocks_folder()):
+            logger.warning("Product block path does not exist", product_blocks_path=get_product_blocks_folder())
+            return
+
+        for pb_file in listdir(get_product_blocks_folder()):
+            name = pb_file.removesuffix(".py")
+            module_name = f"{get_product_blocks_module()}.{name}"
+
+            module = import_module(module_name)
+
+            classes = [obj for _, obj in inspect.getmembers(module, inspect.isclass) if obj.__module__ == module_name]
+
+            yield from ((klass.__name__, module_name) for klass in classes if is_product_block(klass))
+
+    return dict(yield_blocks())
+
+
+def get_product_block_depends_on(
+    product_blocks: list[dict], include_existing_blocks: bool = False
+) -> dict[str, set[str]]:
+    _product_block_types = {block["type"] for block in product_blocks}
+
+    def base_type(block_name: str) -> str:
+        block_type, _lifecycle = block_name.rsplit("Block", maxsplit=1)
+        return block_type
+
+    if include_existing_blocks:
+        existing_blocks = {base_type(block) for block in get_existing_product_blocks()}
+        _product_block_types.update(existing_blocks)
+
+    def dependencies(product_block: dict) -> Iterable[str]:
+        """Find all product blocks which this product block depends on."""
+        for field in product_block.get("fields", []):
+            field_type = field.get("list_type", field["type"])
+            if field_type in _product_block_types:
+                yield field_type
+
+    return {product_block["type"]: set(dependencies(product_block)) for product_block in product_blocks}
+
+
+def find_root_product_block(product_blocks: list[dict]) -> str | None:
+    block_dependencies = get_product_block_depends_on(product_blocks)
+
+    blocks_in_use = set().union(*block_dependencies.values())
+    root_blocks = block_dependencies.keys() - blocks_in_use
+    return one(
+        root_blocks,
+        too_short=ValueError(
+            "There should be exactly 1 root product block, found none. Please ensure there are no cyclic relations"
+        ),
+        too_long=ValueError(f"There should be exactly 1 root product block, found multiple: {root_blocks}"),
+    )
+
+
 def root_product_block(config: dict) -> dict:
     product_blocks = config.get("product_blocks", [])
-    # TODO: multiple product_blocks will need more logic, ok for now
-    return product_blocks[0]
+    root_block_name = find_root_product_block(config.get("product_blocks", []))
+    return one(block for block in product_blocks if block["type"] == root_block_name)
+
+
+def sort_product_blocks_by_dependencies(product_blocks: list[dict]) -> list[dict]:
+    """Perform a 'Topological Sort' on the list of product blocks.
+
+    This ensures that a product's blocks are created bottom-up and that there is no cycle.
+    """
+    block_dependencies = get_product_block_depends_on(product_blocks)
+
+    block_order: dict[str, int] = {}
+    order = 0
+    while block_dependencies:
+        cycle = True
+
+        for block, depends_on_blocks in list(block_dependencies.items()):
+            if depends_on_blocks - block_order.keys():
+                # Not all dependent blocks are resolved yet
+                continue
+            cycle = False
+            block_order[block] = order
+            order += 1
+            del block_dependencies[block]
+
+        if cycle:
+            raise ValueError(f"Cycle detected in product blocks: {block_dependencies}")
+
+    return sorted(product_blocks, key=lambda block: block_order[block["type"]])
+
+
+def set_resource_types(product_blocks: list[dict], block_dependencies: dict[str, set[str]]) -> list[dict]:
+    """Returns product blocks enriched with a list 'resource_types'.
+
+    Args:
+        product_blocks: product blocks to enrich
+        block_dependencies: mapping of product blocks to dependent blocks
+    """
+
+    def resource_type_fields(product_block: dict) -> Iterable[dict]:
+        for field in product_block["fields"]:
+            field_type = field.get("list_type", field["type"])
+            if field_type not in block_dependencies[product_block["type"]]:
+                yield field
+
+    return [(block | {"resource_types": list(resource_type_fields(block))}) for block in product_blocks]
 
 
 def insert_into_imports(content: list[str], new_import: str) -> list[str]:

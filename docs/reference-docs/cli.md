@@ -572,8 +572,10 @@ product_blocks:
       -
 ```
 
-In this section we define the product block(s) that are part of this product. The first
-product block will automatically be the root product block.
+In this section we define the product block(s) that are part of this product.
+
+**A product configuration should contain exactly 1 root product block.** This means there should be 1 product block that is not used by any other product blocks within this product.
+If the configuration does contain multiple root blocks, or none at all due to a cyclic dependency, then the generator will raise a helpful error.
 
 The use of `name`, `type`, `tag` and `description` in the product block definition is equivalent
 to the product definition above. The `fields` describe the product block resource types.

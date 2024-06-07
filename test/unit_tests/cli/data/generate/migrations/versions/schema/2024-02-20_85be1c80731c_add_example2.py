@@ -26,7 +26,7 @@ new_products = {
             "description": "Product example 2",
             "tag": "EXAMPLE2",
             "status": "active",
-            "product_blocks": ["Example2"],
+            "root_product_block": "Example2",
             "fixed_inputs": {},
         },
     },
@@ -39,7 +39,6 @@ new_products = {
             "resources": {
                 "example_int_enum_2": "Example 2 int enum",
             },
-            "in_use_by_block_relations": [],
             "depends_on_block_relations": [],
         },
     },
