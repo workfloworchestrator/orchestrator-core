@@ -323,7 +323,7 @@ def migrate_workflows(
     message: str = typer.Argument(..., help="Migration name"),
     test: bool = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
 ) -> tuple[list[dict], list[dict]] | None:
-    """The `migrate-workflows` commanad creates a migration file based on the difference between workflows in the database and registered WorkflowInstances in your codebase.
+    """The `migrate-workflows` command creates a migration file based on the difference between workflows in the database and registered WorkflowInstances in your codebase.
 
     !!! warning "BACKUP YOUR DATABASE BEFORE USING THE MIGRATION!"
 
