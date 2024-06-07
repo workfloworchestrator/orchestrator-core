@@ -1,0 +1,24 @@
+# Testcase for invalid config: cyclic product blocks
+config:
+  summary_forms: False
+name: invalidexample1
+type: InvalidExample4
+tag: INVALIDEXAMPLE1
+description: "Invalid Product example 1"
+product_blocks:
+  - name: block1
+    type: Block1
+    tag: BLOCK1
+    fields:
+      - name: num_val
+        type: int
+      - name: sub_block
+        type: Block2
+  - name: block2
+    type: Block2
+    tag: BLOCK2
+    fields:
+      - name: str_val
+        type: str
+      - name: sub_block
+        type: Block1
