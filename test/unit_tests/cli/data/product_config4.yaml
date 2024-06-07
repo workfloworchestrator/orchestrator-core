@@ -1,0 +1,32 @@
+# Testcase for multiple product blocks defined in the same file
+config:
+  summary_forms: False
+name: example4
+type: Example4
+tag: EXAMPLE4
+description: "Product example 4"
+product_blocks:
+  - name: example4
+    type: Example4
+    tag: EXAMPLE4
+    description: "Example 4 root product block"
+    fields:
+      - name: num_val
+        type: int
+      - name: sub_block
+        type: Example4Sub
+        description: "example 4 sub product block"
+        required: provisioning
+  - name: example4sub
+    type: Example4Sub
+    tag: EXAMPLE4SUB
+    description: "example 4 sub product block"
+    fields:
+      - name: str_val
+        type: str
+
+
+workflows:
+  - name: terminate
+  - name: validate
+    enabled: false
