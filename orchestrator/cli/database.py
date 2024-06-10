@@ -152,7 +152,7 @@ def merge(
 
 
 @app.command()
-def upgrade(revision: str = typer.Argument(default=None, help="Rev id to upgrade to")) -> None:
+def upgrade(revision: str = typer.Argument(help="Rev id to upgrade to")) -> None:
     """The `upgrade` command will upgrade the database to the specified revision.
 
     Args:
@@ -228,7 +228,7 @@ def revision(
 @app.command()
 def history(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
-    indicate_current: bool = typer.Option(False, "--current", "-c", help="Indicate current revision"),
+    indicate_current: bool = typer.Option(True, "--current", "-c", help="Indicate current revision"),
 ) -> None:
     """The `history` command lists Alembic revision history/changeset scripts in chronological order.
 
