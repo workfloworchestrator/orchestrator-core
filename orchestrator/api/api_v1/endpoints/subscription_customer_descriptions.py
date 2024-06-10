@@ -32,15 +32,15 @@ router = APIRouter()
 
 
 @router.post("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def save_subscription_customer_description_endpoint(data: SubscriptionDescriptionBaseSchema = Body(...)) -> None:
-    create_subscription_customer_description(data.customer_id, data.subscription_id, data.description)
+async def save_subscription_customer_description_endpoint(data: SubscriptionDescriptionBaseSchema = Body(...)) -> None:
+    await create_subscription_customer_description(data.customer_id, data.subscription_id, data.description)
 
 
 @router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-def update_subscription_customer_description_endpoint(data: SubscriptionDescriptionSchema = Body(...)) -> None:
+async def update_subscription_customer_description_endpoint(data: SubscriptionDescriptionSchema = Body(...)) -> None:
     description = get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id)
     if description:
-        update_subscription_customer_description(description, data.description, data.created_at)
+        await update_subscription_customer_description(description, data.description, data.created_at)
 
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)

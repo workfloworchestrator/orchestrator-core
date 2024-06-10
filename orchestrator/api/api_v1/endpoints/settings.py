@@ -96,7 +96,7 @@ async def set_global_status(
             [WS_CHANNELS.ENGINE_SETTINGS],
             {"engine-status": generate_engine_status_response(result)},
         )
-        await broadcast_invalidate_cache("engineStatus")
+        await broadcast_invalidate_cache({"type": "engineStatus"})
     return status_response
 
 
