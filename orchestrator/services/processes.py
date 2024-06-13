@@ -261,7 +261,6 @@ def _db_log_step(
         raise
 
     if broadcast_func:
-        logger.info("Calling broadcast function", process_id=p.process_id)
         broadcast_func(p.process_id)
 
     # Return the state as stored in the database
