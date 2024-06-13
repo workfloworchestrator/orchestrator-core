@@ -110,7 +110,7 @@ def sync_invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalida
 async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalidate_all: bool = True) -> None:
     if invalidate_all:
         await broadcast_invalidate_cache({"type": "subscriptions"})
-    await broadcast_invalidate_cache({"type": "subscriptions"})
+    await broadcast_invalidate_cache({"type": "subscriptions", "id": "LIST"})
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
@@ -130,7 +130,7 @@ def send_process_data_to_websocket(
         logger.debug("Broadcast process data directly to websocket_manager", process_id=str(process_id))
 
         anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
-        sync_broadcast_invalidate_cache({"type": "processes"})
+        sync_broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
         sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
 
 
