@@ -13,6 +13,7 @@
 import asyncio
 import queue
 import threading
+from functools import partial
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -20,7 +21,12 @@ import structlog
 from fastapi import Request
 
 from orchestrator.types import BroadcastFunc
-from orchestrator.websocket import WS_CHANNELS
+from orchestrator.websocket import (
+    WS_CHANNELS,
+    create_process_websocket_data,
+    send_process_data_to_websocket,
+    websocket_manager,
+)
 from orchestrator.websocket.websocket_manager import WebSocketManager
 
 if TYPE_CHECKING:
@@ -66,35 +72,58 @@ class ProcessDataBroadcastThread(threading.Thread):
         self.is_alive()
 
 
-def api_broadcast_process_data(request: Request) -> BroadcastFunc | None:
+def _nop(_process_id: UUID) -> None:
+    pass
+
+
+def _broadcast_ws_fn(process_id: UUID) -> None:
+    # Catch all exceptions as broadcasting failure is noncritical to workflow completion
+    try:
+        websocket_data = create_process_websocket_data(process_id)
+        logger.info("Send process data to ws", data=websocket_data)
+        send_process_data_to_websocket(process_id, websocket_data)
+    except Exception as e:
+        logger.exception(e)
+
+
+def _broadcast_queue_put_fn(broadcast_queue: queue.Queue, process_id: UUID) -> None:
+    # Catch all exceptions as broadcasting failure is noncritical to workflow completion
+    try:
+        websocket_data = create_process_websocket_data(process_id)
+        logger.info("Putting data in queue", data=websocket_data)
+        broadcast_queue.put((str(process_id), websocket_data))
+    except Exception as e:
+        logger.exception(e)
+
+
+def api_broadcast_process_data(request: Request) -> BroadcastFunc:
     """Given a FastAPI request, creates a threadsafe callable for broadcasting process data.
 
     The callable should be created in API endpoints and provided to start_process,
     resume_process, etc. through the `broadcast_func` param.
     """
-    if not request.app.broadcast_thread:
-        return None
+    if request.app.broadcast_thread:
+        return partial(_broadcast_queue_put_fn, request.app.broadcast_thread.queue)
 
-    broadcast_queue: queue.Queue = request.app.broadcast_thread.queue
+    if websocket_manager.enabled:
+        return _broadcast_ws_fn
 
-    def _queue_put(process_id: UUID, data: dict) -> None:
-        broadcast_queue.put((str(process_id), data))
-
-    return _queue_put
+    logger.debug("WebSocketManager is not enabled. Using no-op broadcasting fn")
+    return _nop
 
 
-def graphql_broadcast_process_data(info: "OrchestratorInfo") -> BroadcastFunc | None:
+def graphql_broadcast_process_data(info: "OrchestratorInfo") -> BroadcastFunc:
     """Given a OrchestratorInfo, creates a threadsafe callable for broadcasting process data.
 
     The callable should be created in Graphql resolvers and provided to start_process,
     resume_process, etc. through the `broadcast_func` param.
     """
-    if not info.context.broadcast_thread:
-        return None
+    if info.context.broadcast_thread:
+        broadcast_queue: queue.Queue = info.context.broadcast_thread.queue
+        return partial(_broadcast_queue_put_fn, broadcast_queue)
 
-    broadcast_queue: queue.Queue = info.context.broadcast_thread.queue
+    if websocket_manager.enabled:
+        return _broadcast_ws_fn
 
-    def _queue_put(process_id: UUID, data: dict) -> None:
-        broadcast_queue.put((str(process_id), data))
-
-    return _queue_put
+    logger.debug("WebSocketManager is not enabled. Using no-op broadcasting fn")
+    return _nop
