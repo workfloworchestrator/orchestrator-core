@@ -82,8 +82,8 @@ def _broadcast_ws_fn(process_id: UUID) -> None:
     # Catch all exceptions as broadcasting failure is noncritical to workflow completion
     try:
         broadcast_process_update_to_websocket(process_id)
-    except Exception as e:
-        logger.exception(e)
+    except Exception:
+        logger.exception("Failed to send process data to websocket")
 
 
 def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process_id: UUID) -> None:
