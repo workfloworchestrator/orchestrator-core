@@ -17,13 +17,10 @@ from uuid import UUID
 import anyio
 from structlog import get_logger
 
-from orchestrator.services.processes import _get_process, load_process
 from orchestrator.settings import AppSettings, app_settings
-from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket.websocket_manager import WebSocketManager
-from orchestrator.workflow import ProcessStat, ProcessStatus
-from pydantic_forms.types import UUIDstr
 from orchestrator.workflow import ProcessStatus
+from pydantic_forms.types import UUIDstr
 
 logger = get_logger(__name__)
 
@@ -82,12 +79,6 @@ def init_websocket_manager(settings: AppSettings) -> WebSocketManager:
     return websocket_manager
 
 
-def create_process_websocket_data(process_id: UUID) -> dict:
-    process = _get_process(process_id)
-    p_stat = load_process(process)
-    return {"process": enrich_process(process, p_stat)}
-
-
 def is_process_active(p: dict) -> bool:
     return p["status"] in [ProcessStatus.RUNNING, ProcessStatus.SUSPENDED, ProcessStatus.WAITING]
 
@@ -116,9 +107,10 @@ async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalid
     await broadcast_invalidate_cache({"type": "subscriptions", "id": str(subscription_id)})
 
 
-def send_process_data_to_websocket(
+def broadcast_process_update_to_websocket(
     process_id: UUID,
-    data: dict,
+    *,
+    data: dict | None = None,
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
     if not websocket_manager.enabled:
@@ -127,21 +119,28 @@ def send_process_data_to_websocket(
         )
         return
 
-    logger.debug("Broadcast process data to websocket_manager", process_id=str(process_id))
-    anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
+    if data:
+        logger.debug("Broadcast process data to websocket_manager", process_id=str(process_id))
+        anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
+
     sync_broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
     sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
 
 
-async def empty_handler() -> None:
+async def broadcast_process_update_to_websocket_async(
+    process_id: UUID,
+    *,
+    data: dict | None = None,
+) -> None:
+    broadcast_process_update_to_websocket(process_id, data=data)
     return
 
 
 __all__ = [
     "websocket_manager",
     "init_websocket_manager",
-    "create_process_websocket_data",
     "is_process_active",
-    "send_process_data_to_websocket",
+    "broadcast_process_update_to_websocket",
+    "broadcast_process_update_to_websocket_async",
     "WS_CHANNELS",
 ]
