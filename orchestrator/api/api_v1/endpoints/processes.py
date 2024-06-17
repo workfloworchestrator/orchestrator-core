@@ -111,8 +111,7 @@ def delete(process_id: UUID) -> None:
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    websocket_data = {"process": {"id": process.process_id, "status": ProcessStatus.ABORTED}}
-    broadcast_process_update_to_websocket(process.process_id, data=websocket_data)
+    broadcast_process_update_to_websocket(process.process_id)
 
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()

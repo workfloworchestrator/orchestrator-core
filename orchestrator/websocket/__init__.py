@@ -109,8 +109,6 @@ async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalid
 
 def broadcast_process_update_to_websocket(
     process_id: UUID,
-    *,
-    data: dict | None = None,
 ) -> None:
     """Broadcast data of the current process to connected websocket clients."""
     if not websocket_manager.enabled:
@@ -119,20 +117,14 @@ def broadcast_process_update_to_websocket(
         )
         return
 
-    if data:
-        logger.debug("Broadcast process data to websocket_manager", process_id=str(process_id))
-        anyio.run(websocket_manager.broadcast_data, [WS_CHANNELS.ALL_PROCESSES], data)
-
     sync_broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
     sync_broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
 
 
 async def broadcast_process_update_to_websocket_async(
     process_id: UUID,
-    *,
-    data: dict | None = None,
 ) -> None:
-    broadcast_process_update_to_websocket(process_id, data=data)
+    broadcast_process_update_to_websocket(process_id)
     return
 
 

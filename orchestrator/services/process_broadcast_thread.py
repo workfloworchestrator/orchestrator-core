@@ -55,10 +55,10 @@ class ProcessDataBroadcastThread(threading.Thread):
                 except queue.Empty:
                     continue
                 logger.debug(
-                    "Threadsafe broadcast data through websocket manager",
+                    "Threadsafe broadcast process update through websocket manager",
                     process_id=process_id,
                     where="ProcessDataBroadcastThread",
-                    channels=WS_CHANNELS.ALL_PROCESSES,
+                    channels=WS_CHANNELS.EVENTS,
                 )
                 loop.run_until_complete(broadcast_process_update_to_websocket_async(process_id))
 
