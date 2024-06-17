@@ -91,7 +91,7 @@ def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process_id: UUID) -
     try:
         broadcast_queue.put(process_id)
     except Exception as e:
-        logger.exception(e)
+        logger.exception("An error occurred when putting process_id on broadcast queue")
 
 
 def api_broadcast_process_data(request: Request) -> BroadcastFunc:
