@@ -90,7 +90,7 @@ def _broadcast_queue_put_fn(broadcast_queue: BroadcastQueue, process_id: UUID) -
     # Catch all exceptions as broadcasting failure is noncritical to workflow completion
     try:
         broadcast_queue.put(process_id)
-    except Exception as e:
+    except Exception:
         logger.exception("An error occurred when putting process_id on broadcast queue")
 
 
