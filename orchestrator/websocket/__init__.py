@@ -124,8 +124,14 @@ def broadcast_process_update_to_websocket(
 async def broadcast_process_update_to_websocket_async(
     process_id: UUID,
 ) -> None:
-    broadcast_process_update_to_websocket(process_id)
-    return
+    if not websocket_manager.enabled:
+        logger.debug(
+            "WebSocketManager is not enabled. Skip broadcasting through websocket.", process_id=str(process_id)
+        )
+        return
+
+    await broadcast_invalidate_cache({"type": "processes", "id": "LIST"})
+    await broadcast_invalidate_cache({"type": "processes", "id": str(process_id)})
 
 
 __all__ = [
