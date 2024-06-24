@@ -15,6 +15,7 @@ import json
 from http import HTTPStatus
 
 import pytest
+from more_itertools import one
 from sqlalchemy import select
 
 from orchestrator.db import SubscriptionMetadataTable, db
@@ -721,8 +722,8 @@ def test_subscriptions_filtering_on_status(
 
     result_subscription_ids = {subscription["subscriptionId"] for subscription in subscriptions}
     assert result_subscription_ids == {str(subscription_1.subscription_id), str(subscription_9.subscription_id)}
-    assert subscriptions[0]["status"] == "TERMINATED"
-    assert subscriptions[1]["status"] == "TERMINATED"
+    assert subscriptions[0]["status"] == "terminated"
+    assert subscriptions[1]["status"] == "terminated"
 
 
 def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1_subscriptions_factory):
@@ -819,7 +820,7 @@ def test_subscriptions_filtering_with_invalid_filter(
     }
 
     for subscription in subscriptions:
-        assert subscription["status"] == "TERMINATED"
+        assert subscription["status"] == "terminated"
 
 
 @pytest.mark.parametrize(
@@ -881,7 +882,7 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.ACTIVE.name
+    assert subscriptions[0]["status"] == "active"
     assert subscriptions[0]["customerDescriptions"] == [
         {
             "subscriptionId": subscription_id,
@@ -1360,7 +1361,7 @@ def test_subscriptions_product_generic_one(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.ACTIVE.name
+    assert subscriptions[0]["status"] == "active"
     assert subscriptions[0]["pb1"] == {"rt1": "Value1"}
     assert subscriptions[0]["pb2"] == {"rt2": 42, "rt3": "Value2"}
     assert subscriptions[0]["customerDescriptions"] == [
@@ -1400,9 +1401,10 @@ def test_single_subscription_product_list_union_type(
         "endCursor": 0,
         "totalItems": 1,
     }
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert subscriptions[0]["status"] == SubscriptionLifecycle.ACTIVE.name
-    assert subscriptions[0]["testBlock"] == {
+    subscription = one(subscriptions)
+    assert subscription["subscriptionId"] == subscription_id
+    assert subscription["status"] == "active"
+    assert subscription["testBlock"] == {
         "intField": 1,
         "strField": "blah",
         "listField": [2],

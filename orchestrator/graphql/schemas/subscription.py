@@ -27,7 +27,6 @@ from orchestrator.services.subscriptions import (
     get_subscription_metadata,
 )
 from orchestrator.settings import app_settings
-from orchestrator.types import SubscriptionLifecycle
 
 federation_key_directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
@@ -43,7 +42,7 @@ class SubscriptionInterface:
     description: str
     start_date: datetime | None
     end_date: datetime | None
-    status: SubscriptionLifecycle
+    status: str
     insync: bool
     note: str | None
 

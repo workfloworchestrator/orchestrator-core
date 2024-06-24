@@ -64,7 +64,7 @@ def test_single_simple_subscription(fastapi_app_graphql, test_client, product_su
     test_query = build_simple_query(subscription_id=product_sub_list_union_subscription_1)
     response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {"data": {"subscription": {"insync": True, "status": "ACTIVE"}}}
+    assert response.json() == {"data": {"subscription": {"insync": True, "status": "active"}}}
 
 
 def test_single_complex_subscription(
@@ -79,7 +79,7 @@ def test_single_complex_subscription(
             "subscription": {
                 "__typename": "ProductSubListUnionSubscription",
                 "insync": True,
-                "product": {"status": "ACTIVE"},
+                "product": {"status": "active"},
                 "testBlock": {"intField": 1},
             }
         }

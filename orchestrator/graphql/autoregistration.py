@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from enum import Enum, EnumMeta
 from typing import Any, get_args
 
@@ -25,6 +24,7 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
 from orchestrator.graphql.schemas.product_block import BaseProductBlockType
 from orchestrator.graphql.types import StrawberryModelType
+from orchestrator.graphql.utils.modify_class import strawberry_orchestrator_type
 from orchestrator.types import filter_nonetype, is_of_type, is_optional_type
 from orchestrator.utils.helpers import to_camel
 
@@ -94,14 +94,17 @@ def create_block_strawberry_type(
     )
     return type(strawberry_name, (pydantic_wrapper(base_type),), {})
 
+    # new_type = type(strawberry_name, (), {})
+    # strawberry_wrapper = strawberry_orchestrator_type(model, name=strawberry_name, directives=federation_key_directives)
+    # return strawberry_wrapper(new_type)
+
 
 def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
     base_type = type(strawberry_name, (interface,), {})
     directives = [Key(fields="subscriptionId", resolvable=UNSET)]
 
-    pydantic_wrapper = strawberry.experimental.pydantic.type(
+    pydantic_wrapper = strawberry_orchestrator_type(
         model,
-        all_fields=True,
         directives=directives,
         description=f"{strawberry_name} Type",
         use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
