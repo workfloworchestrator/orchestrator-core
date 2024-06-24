@@ -24,7 +24,7 @@ from kombu.serialization import registry
 from orchestrator.api.error_handling import raise_status
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.processes import _get_process, _run_process_async, safe_logstep, thread_resume_process
-from orchestrator.types import State
+from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import ProcessStat, Success, runwf
 from orchestrator.workflows import get_workflow
@@ -68,6 +68,8 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     register_custom_serializer()
 
+    process_broadcast_fn: BroadcastFunc | None = getattr(celery, "process_broadcast_fn", None)
+
     def start_process(process_id: UUID, workflow_key: str, state: dict[str, Any], user: str) -> UUID | None:
         try:
             workflow = get_workflow(workflow_key)
@@ -83,7 +85,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
                 current_user=user,
             )
 
-            safe_logstep_with_func = partial(safe_logstep, broadcast_func=None)
+            safe_logstep_with_func = partial(safe_logstep, broadcast_func=process_broadcast_fn)
             process_id = _run_process_async(pstat.process_id, lambda: runwf(pstat, safe_logstep_with_func))
 
         except Exception as exc:
@@ -95,7 +97,9 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     def resume_process(process_id: UUID, user_inputs: list[State] | None, user: str) -> UUID | None:
         try:
             process = _get_process(process_id)
-            process_id = thread_resume_process(process, user_inputs=user_inputs, user=user)
+            process_id = thread_resume_process(
+                process, user_inputs=user_inputs, user=user, broadcast_func=process_broadcast_fn
+            )
         except Exception as exc:
             local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
             return None

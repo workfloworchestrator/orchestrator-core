@@ -108,7 +108,7 @@ ErrorState = Union[str, Exception, tuple[str, Union[int, HTTPStatus]]]
 ErrorDict = dict[str, Union[str, int, list[dict[str, Any]], InputForm, None]]
 StateStepFunc = Callable[[State], State]
 StepFunc = Callable[..., Optional[State]]
-BroadcastFunc = Callable[[UUID, dict], None]
+BroadcastFunc = Callable[[UUID], None]
 
 SI = TypeVar("SI")
 

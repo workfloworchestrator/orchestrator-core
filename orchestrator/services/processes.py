@@ -42,11 +42,6 @@ from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.websocket import (
-    create_process_websocket_data,
-    send_process_data_to_websocket,
-    websocket_manager,
-)
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     Failed,
@@ -265,10 +260,8 @@ def _db_log_step(
         db.session.rollback()
         raise
 
-    if websocket_manager.enabled:
-        new_pStat = load_process(p)
-        websocket_data = create_process_websocket_data(p, new_pStat)
-        send_process_data_to_websocket(p.process_id, websocket_data, broadcast_func=broadcast_func)
+    if broadcast_func:
+        broadcast_func(p.process_id)
 
     # Return the state as stored in the database
     return process_state.__class__(current_step.state)
@@ -284,6 +277,8 @@ def safe_logstep(
 
     We need to be robust in failures to write steps to database. If that happens we try again with the failure.
     If that is also failing we give up by raising an exception which should be caught and written by _db_log_process_ex
+
+    If the broadcast_func raises an exception, the process will go to a failed state.
     """
 
     try:

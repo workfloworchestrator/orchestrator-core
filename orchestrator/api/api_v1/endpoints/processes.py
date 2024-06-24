@@ -63,7 +63,7 @@ from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON, State
 from orchestrator.utils.enrich_process import enrich_process
-from orchestrator.websocket import WS_CHANNELS, send_process_data_to_websocket, websocket_manager
+from orchestrator.websocket import WS_CHANNELS, broadcast_process_update_to_websocket, websocket_manager
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -111,8 +111,7 @@ def delete(process_id: UUID) -> None:
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    websocket_data = {"process": {"id": process.process_id, "status": ProcessStatus.ABORTED}}
-    send_process_data_to_websocket(process.process_id, websocket_data)
+    broadcast_process_update_to_websocket(process.process_id)
 
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
