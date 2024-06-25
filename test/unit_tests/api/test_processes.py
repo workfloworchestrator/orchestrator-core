@@ -213,7 +213,13 @@ def test_complete_workflow(test_client, test_workflow):
     response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert response.json()["validation_errors"] == [
-        {"input": 123, "loc": ["generic_select"], "msg": "Input should be a valid string", "type": "string_type"}
+        {
+            "ctx": {"expected": "'A', 'B' or 'C'"},
+            "input": 123,
+            "loc": ["generic_select"],
+            "msg": "Input should be 'A', 'B' or 'C'",
+            "type": "enum",
+        }
         | URL_STR_TYPE
     ]
 
@@ -229,6 +235,7 @@ def test_complete_workflow(test_client, test_workflow):
             "msg": "Input should be 'A', 'B' or 'C'",
             "type": "enum",
         }
+        | URL_STR_TYPE
     ]
 
     response = test_client.get(f"api/processes/{process_id}")
@@ -280,7 +287,13 @@ def test_resume_validations(test_client, started_process):
     response = test_client.put(f"/api/processes/{started_process}/resume", json=[{"generic_select": 123}])
     assert HTTPStatus.BAD_REQUEST == response.status_code
     assert [
-        {"type": "string_type", "loc": ["generic_select"], "msg": "Input should be a valid string", "input": 123}
+        {
+            "ctx": {"expected": "'A', 'B' or 'C'"},
+            "input": 123,
+            "loc": ["generic_select"],
+            "msg": "Input should be 'A', 'B' or 'C'",
+            "type": "enum",
+        }
         | URL_STR_TYPE
     ] == response.json()["validation_errors"]
     process_info_after = test_client.get(f"/api/processes/{started_process}").json()
