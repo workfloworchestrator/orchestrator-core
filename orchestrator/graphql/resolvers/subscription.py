@@ -84,7 +84,7 @@ async def get_subscription_details(info: OrchestratorInfo, subscription: Subscri
 
     subscription_name = graphql_subscription_name(base_model.__name__)
     subscription_details = base_model.model_validate(subscription_dict_data, strict=False)
-    subscription_details._db_model = subscription
+    subscription_details._db_model = subscription  # type: ignore
 
     strawberry_type = get_subscription_graphql_type(info, subscription_name)
     return strawberry_type.from_pydantic(subscription_details)  # type: ignore
