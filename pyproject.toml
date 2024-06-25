@@ -45,7 +45,7 @@ dependencies = [
     "more-itertools~=10.2.0",
     "itsdangerous",
     "Jinja2==3.1.4",
-    "orjson==3.10.3",
+    "orjson==3.10.5",
     "psycopg2-binary==2.9.9",
     "pydantic[email]~=2.5.1",
     "pydantic-settings~=2.3.1",
@@ -63,7 +63,7 @@ dependencies = [
     "nwa-stdlib~=1.7.0",
     "oauth2-lib~=2.0.0",
     "tabulate==0.9.0",
-    "strawberry-graphql==0.210.0",
+    "strawberry-graphql==0.232.1",
     "pydantic-forms~=1.0.3",
     "ruff",
 ]

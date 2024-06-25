@@ -227,6 +227,9 @@ By using scalar types for auto registration, you can seamlessly incorporate spec
 
 To enable federation, set the `FEDERATION_ENABLED` environment variable to `True`.
 
+!!! info
+    The dockerized [example-orchestrator](../getting-started/docker.md) contains a working Federation setup that demonstrates how the below works in practice.
+
 Federation allows you to federate with subscriptions using the `subscriptionId` and with product blocks inside the subscription by utilizing any property that includes `_id` in its name.
 
 Below is an example of a GraphQL app that extends the `SubscriptionInterface`:

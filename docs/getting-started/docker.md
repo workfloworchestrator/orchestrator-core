@@ -15,6 +15,8 @@ This repo contains a `docker-compose` that builds the following applications:
 * Orchestrator-ui
 * Postgres
 * Redis
+* NetBox
+* GraphQL Federation
 
 Furthermore the repository also contains a lot of example code for some of the example products that have been
 implemented. If you would like to quickly get to know the application please follow the [README.md](https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md)
