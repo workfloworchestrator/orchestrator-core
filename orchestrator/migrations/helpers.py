@@ -1021,12 +1021,16 @@ def convert_resource_type_relations_to_instance_relations(
             """
             INSERT INTO subscription_instance_relations (in_use_by_id, depends_on_id, order_id, domain_model_attr)
             WITH dependencies AS (
-                SELECT siv.value as subscription_id, siv.subscription_instance_id as in_use_by_instance_id, si.product_block_id
+                SELECT siv.value AS subscription_id, siv.subscription_instance_id AS in_use_by_instance_id, si.product_block_id
                 FROM subscription_instance_values AS siv
-                left join subscription_instances as si on siv.subscription_instance_id = si.subscription_instance_id
+                LEFT JOIN subscription_instances AS si on siv.subscription_instance_id = si.subscription_instance_id
                 WHERE siv.resource_type_id=:resource_type_id
             )
-            SELECT in_use_by_instance_id AS in_use_by_id, si.subscription_instance_id AS depends_on_id, '0' AS order_id, :domain_model_attr AS domain_model_attr
+            SELECT
+                in_use_by_instance_id AS in_use_by_id,
+                si.subscription_instance_id AS depends_on_id,
+                (row_number() OVER (PARTITION BY in_use_by_id) - 1) AS order_id,
+                :domain_model_attr AS domain_model_attr
             FROM subscription_instances AS si
             INNER JOIN dependencies AS dep ON si.subscription_id=uuid(dep.subscription_id) ON CONFLICT DO NOTHING
             """
