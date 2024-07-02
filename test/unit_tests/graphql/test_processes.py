@@ -413,7 +413,7 @@ def test_processes_filtering_with_invalid_filter(
                 "'subscriptionId', 'tag', 'target', 'traceback', 'workflowId', "
                 "'workflowName'])"
             ),
-            "path": [None, "processes", "Query"],
+            "path": ["processes"],
             "extensions": {"error_type": "internal_error"},
         }
     ]

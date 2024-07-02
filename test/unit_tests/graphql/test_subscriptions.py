@@ -648,7 +648,7 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
                 "'productTag', 'productType', 'startDate', 'status', "
                 "'subscriptionId', 'tag'])"
             ),
-            "path": [None, "subscriptions", "Query"],
+            "path": ["subscriptions"],
             "extensions": {"error_type": "internal_error"},
         }
     ]
@@ -806,7 +806,7 @@ def test_subscriptions_filtering_with_invalid_filter(
                 "valid_filter_keys=['customerId', 'description', 'endDate', 'insync', "
                 "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag'])"
             ),
-            "path": [None, "subscriptions", "Query"],
+            "path": ["subscriptions"],
             "extensions": {"error_type": "internal_error"},
         }
     ]

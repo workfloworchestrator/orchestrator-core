@@ -1029,17 +1029,17 @@ def test_abstract_super_block(test_product_one, test_product_type_one, test_prod
     class AbstractProductTypeOneForTest(AbstractProductTypeOneForTestProvisioning):
         block: AbstractProductBlockOneForTest
 
-    class ProductTypeOneForTestInactive(AbstractProductTypeOneForTestInactive, is_base=True):
+    class ProductTypeOneForTestInactive(AbstractProductTypeOneForTestInactive, is_base=True):  # noqa: F811
         block: ProductBlockOneForTestInactive
 
-    class ProductTypeOneForTestProvisioning(
+    class ProductTypeOneForTestProvisioning(  # noqa: F811
         ProductTypeOneForTestInactive,
         AbstractProductTypeOneForTestProvisioning,
         lifecycle=[SubscriptionLifecycle.PROVISIONING],
     ):
         block: ProductBlockOneForTestProvisioning
 
-    class ProductTypeOneForTest(
+    class ProductTypeOneForTest(  # noqa: F811
         ProductTypeOneForTestProvisioning, AbstractProductTypeOneForTest, lifecycle=[SubscriptionLifecycle.ACTIVE]
     ):
         block: ProductBlockOneForTest

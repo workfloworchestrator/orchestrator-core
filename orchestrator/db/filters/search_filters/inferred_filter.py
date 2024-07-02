@@ -123,15 +123,15 @@ def _filter_bool(field: ColumnClause) -> WhereCondGenerator:
 
 def inferred_filter(field: ColumnClause) -> WhereCondGenerator:
     python_type = field.type.python_type
-    if python_type == str:
+    if python_type is str:
         return _filter_string(field)
-    if python_type == uuid.UUID:
+    if python_type is uuid.UUID:
         return _filter_as_string(field)
-    if python_type == bool:
+    if python_type is bool:
         return _filter_bool(field)
-    if python_type == datetime:
+    if python_type is datetime:
         return _filter_comparable(field, convert_to_datetime)
-    if python_type == int:
+    if python_type is int:
         return _filter_comparable(field, convert_to_int)
 
     raise Exception(f"Unsupported column type for generic filter: {field}")
