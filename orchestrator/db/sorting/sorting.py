@@ -103,7 +103,7 @@ def generic_sort(
 def generic_column_sort(field: Column, base_table: type[DbBaseModel]) -> Callable[[QueryType, SortOrder], QueryType]:
     def sort_function(query: QueryType, order: SortOrder) -> QueryType:
         sa_sort = expression.desc if order == SortOrder.DESC else expression.asc
-        sa_order_by = sa_sort(func.lower(field)) if field.type.python_type == str else sa_sort(field)
+        sa_order_by = sa_sort(func.lower(field)) if field.type.python_type is str else sa_sort(field)
         select_base = (
             select(query.subquery(base_table.__table__.name))  # type: ignore[attr-defined]
             if isinstance(query, CompoundSelect)

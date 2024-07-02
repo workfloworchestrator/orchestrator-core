@@ -12,8 +12,8 @@
 # limitations under the License.
 
 
+from nwastdlib.graphql.extensions.error_handler_extension import register_error
 from orchestrator.db.filters import CallableErrorHandler
-from orchestrator.graphql.extensions.error_handler_extension import register_error
 from orchestrator.graphql.types import OrchestratorInfo
 
 
