@@ -212,7 +212,9 @@ def database(db_uri):
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
             conn.commit()
-            conn.execution_options(isolation_level="AUTOCOMMIT").execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+            conn.execution_options(isolation_level="AUTOCOMMIT").execute(
+                text(f'DROP DATABASE IF EXISTS "{db_to_create}";')
+            )
 
 
 @pytest.fixture(autouse=True)
