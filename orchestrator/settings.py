@@ -14,12 +14,17 @@
 import secrets
 import string
 from pathlib import Path
+import warnings
 
 from pydantic import PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.types import strEnum
+
+
+class OrchestratorDeprecationWarning(DeprecationWarning):
+    pass
 
 
 class ExecutorType(strEnum):
@@ -78,6 +83,21 @@ class AppSettings(BaseSettings):
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
     TASK_LOG_RETENTION_DAYS: int = 3
+
+    def __init__(self):
+        super(AppSettings, self).__init__()
+        self.DATABASE_URI = PostgresDsn(convert_database_uri(str(self.DATABASE_URI)))
+
+
+def convert_database_uri(db_uri: str) -> str:
+    if db_uri.startswith(("postgresql://", "postgresql+psycopg2://")):
+        db_uri = "postgresql+psycopg" + db_uri[db_uri.find("://") :]
+        warnings.filterwarnings("always", category=OrchestratorDeprecationWarning)
+        warnings.warn(
+            "DATABASE_URI converted to postgresql+psycopg:// format, please update your enviroment variable",
+            OrchestratorDeprecationWarning,
+        )
+    return db_uri
 
 
 app_settings = AppSettings()
