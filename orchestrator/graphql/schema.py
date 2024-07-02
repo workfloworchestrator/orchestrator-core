@@ -24,19 +24,14 @@ from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
 
+from nwastdlib.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
+from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
-from orchestrator.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
-from orchestrator.graphql.extensions.error_handler_extension import ErrorHandlerExtension
 from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.graphql.mutations.start_process import ProcessMutation
-from nwastdlib.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
-from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension
-from oauth2_lib.strawberry import authenticated_field
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.graphql.autoregistration import register_domain_models
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.resolvers import (
     SettingsMutation,
