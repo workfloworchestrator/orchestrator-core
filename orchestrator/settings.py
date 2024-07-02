@@ -13,8 +13,8 @@
 
 import secrets
 import string
-from pathlib import Path
 import warnings
+from pathlib import Path
 
 from pydantic import PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
@@ -93,7 +93,7 @@ def convert_database_uri(db_uri: str) -> str:
     if db_uri.startswith(("postgresql://", "postgresql+psycopg2://")):
         db_uri = "postgresql+psycopg" + db_uri[db_uri.find("://") :]
         warnings.filterwarnings("always", category=OrchestratorDeprecationWarning)
-        warnings.warn(
+        warnings.warn(  # noqa: B028
             "DATABASE_URI converted to postgresql+psycopg:// format, please update your enviroment variable",
             OrchestratorDeprecationWarning,
         )
