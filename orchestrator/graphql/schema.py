@@ -25,7 +25,7 @@ from strawberry.types import ExecutionContext
 from strawberry.utils.logging import StrawberryLogger
 
 from nwastdlib.graphql.extensions.deprecation_checker_extension import make_deprecation_checker_extension
-from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension
+from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension, ErrorType
 from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
@@ -118,12 +118,15 @@ class OrchestratorSchema(strawberry.federation.Schema):
         https://strawberry.rocks/docs/types/schema#handling-execution-errors
         """
         for error in errors:
+            error_type = error.extensions.get("error_type") if error.extensions else None
             if (
                 isinstance(error.original_error, HTTPStatusError)
                 and error.original_error.response.status_code == HTTPStatus.NOT_FOUND
             ):
                 message = str(error.original_error).splitlines()[0]  # Strip "For more info"
                 StrawberryLogger.logger.debug(message)
+            elif error_type in (ErrorType.NOT_AUTHORIZED, ErrorType.NOT_AUTHENTICATED):
+                StrawberryLogger.logger.info(error.message)
             else:
                 StrawberryLogger.error(error, execution_context)
 
