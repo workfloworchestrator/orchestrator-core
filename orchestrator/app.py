@@ -50,6 +50,7 @@ from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import Mutation, Query, create_graphql_router
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
+from orchestrator.log_config import LOGGER_OVERRIDES
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
@@ -114,7 +115,7 @@ class OrchestratorCore(FastAPI):
             **kwargs,
         )
 
-        initialise_logging()
+        initialise_logging(LOGGER_OVERRIDES)
 
         self.include_router(api_router, prefix="/api")
 
