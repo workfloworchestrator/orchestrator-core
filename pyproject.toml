@@ -45,7 +45,7 @@ dependencies = [
     "more-itertools~=10.3.0",
     "itsdangerous",
     "Jinja2==3.1.4",
-    "orjson==3.10.5",
+    "orjson==3.10.6",
     "psycopg[binary]==3.2.1",
     "pydantic[email]~=2.7.4",
     "pydantic-settings~=2.3.1",
