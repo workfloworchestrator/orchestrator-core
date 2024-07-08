@@ -13,7 +13,7 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 from orchestrator.app import OrchestratorCore
 from orchestrator.settings import app_settings
