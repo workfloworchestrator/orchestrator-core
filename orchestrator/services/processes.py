@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from deepmerge import Merger
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -115,6 +115,11 @@ def _db_create_process(stat: ProcessStat) -> None:
     db.session.commit()
 
 
+def delete_process(process_id: UUID) -> None:
+    db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
+    db.session.commit()
+
+
 def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> ProcessTable:
     p = db.session.get(ProcessTable, process_id)
     if p is None:
@@ -158,6 +163,14 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
         p.traceback = None
 
     return p
+
+
+def ensure_correct_process_status(process_id: UUID, last_status: str) -> None:
+    p = db.session.get(ProcessTable, process_id)
+    if p is None:
+        raise ValueError(f"Process with id {process_id} does not exist")
+    if p.last_status != last_status:
+        raise AssertionError(f"Process {process_id} has last_status {p.last_status}, expected: {last_status}")
 
 
 def _get_current_step_to_update(

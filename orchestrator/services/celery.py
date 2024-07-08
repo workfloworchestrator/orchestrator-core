@@ -15,15 +15,20 @@ from http import HTTPStatus
 from typing import Any
 from uuid import UUID
 
+import structlog
+from kombu.exceptions import ConnectionError, OperationalError
+
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
-from orchestrator.db import ProcessTable
-from orchestrator.services.processes import create_process
+from orchestrator.db import ProcessTable, db
+from orchestrator.services.processes import create_process, delete_process
 from orchestrator.targets import Target
 from orchestrator.types import State
 from orchestrator.workflows import get_workflow
 
 SYSTEM_USER = "SYSTEM"
+
+logger = structlog.get_logger(__name__)
 
 
 def _celery_start_process(
@@ -39,17 +44,20 @@ def _celery_start_process(
     task_name = NEW_TASK if workflow.target == Target.SYSTEM else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
     pstat = create_process(workflow_key, user_inputs, user)
-
     tasks = pstat.state.s
-    result = trigger_task.delay(pstat.process_id, workflow_key, tasks, user)
-
-    # Enables "Sync celery tasks. This will let the app wait until celery completes"
-    if app_settings.TESTING:
-        process_id = result.get()
-        if not process_id:
-            raise RuntimeError("Celery worker has failed to resume process")
-
-    return pstat.process_id
+    try:
+        result = trigger_task.delay(pstat.process_id, workflow_key, tasks, user)
+        # Enables "Sync celery tasks. This will let the app wait until celery completes"
+        if app_settings.TESTING:
+            process_id = result.get()
+            if not process_id:
+                raise RuntimeError("Celery worker has failed to resume process")
+        return pstat.process_id
+    except (ConnectionError, OperationalError) as e:
+        # If connection to Redis fails and process can't be started, we need to remove the created process
+        logger.warning("Celery worker connection error")
+        delete_process(pstat.process_id)
+        raise e
 
 
 def _celery_resume_process(
@@ -64,21 +72,33 @@ def _celery_resume_process(
     from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
 
     pstat = load_process(process)
+    last_process_status = process.last_status
     workflow = pstat.workflow
 
     task_name = RESUME_TASK if workflow.target == Target.SYSTEM else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
-    result = trigger_task.delay(pstat.process_id, user_inputs, user)
+    try:
+        result = trigger_task.delay(pstat.process_id, user_inputs, user)
 
-    _celery_set_process_status_resumed(process)
+        _celery_set_process_status_resumed(process)
 
-    # Enables "Sync celery tasks. This will let the app wait until celery completes"
-    if app_settings.TESTING:
-        process_id = result.get()
-        if not process_id:
-            raise RuntimeError("Celery worker has failed to resume process")
+        # Enables "Sync celery tasks. This will let the app wait until celery completes"
+        if app_settings.TESTING:
+            process_id = result.get()
+            if not process_id:
+                raise RuntimeError("Celery worker has failed to resume process")
 
-    return pstat.process_id
+        return pstat.process_id
+    except (ConnectionError, OperationalError) as e:
+        logger.warning("Celery worker connection error")
+        _celery_set_process_status(process, last_process_status)
+        raise e
+
+
+def _celery_set_process_status(process: ProcessTable, status: str) -> None:
+    process.last_status = status
+    db.session.add(process)
+    db.session.commit()
 
 
 def _celery_set_process_status_resumed(process: ProcessTable) -> None:
