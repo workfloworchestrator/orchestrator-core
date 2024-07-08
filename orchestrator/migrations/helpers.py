@@ -822,9 +822,9 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
                WHERE resource_types.resource_type_id = product_block_resource_types.resource_type_id
                  AND resource_types.resource_type = ANY(:obsolete)"""
         ),
-        {"obsolete": tuple(delete)},
+        {"obsolete": list(delete)},
     )
-    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type in :obsolete;"), {"obsolete": list(delete)})
+    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type = ANY(:obsolete)"), {"obsolete": list(delete)})
 
 
 def delete_products_by_tag(conn: sa.engine.Connection, name: str) -> None:
