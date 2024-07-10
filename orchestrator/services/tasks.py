@@ -23,10 +23,16 @@ from kombu.serialization import registry
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.schemas.engine_settings import WorkerStatus
-from orchestrator.services.processes import _get_process, _run_process_async, safe_logstep, thread_resume_process
+from orchestrator.services.processes import (
+    _get_process,
+    _run_process_async,
+    ensure_correct_process_status,
+    safe_logstep,
+    thread_resume_process,
+)
 from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.json import json_dumps, json_loads
-from orchestrator.workflow import ProcessStat, Success, runwf
+from orchestrator.workflow import ProcessStat, ProcessStatus, Success, runwf
 from orchestrator.workflows import get_workflow
 
 logger = get_task_logger(__name__)
@@ -85,6 +91,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
                 current_user=user,
             )
 
+            ensure_correct_process_status(process_id, ProcessStatus.CREATED)
             safe_logstep_with_func = partial(safe_logstep, broadcast_func=process_broadcast_fn)
             process_id = _run_process_async(pstat.process_id, lambda: runwf(pstat, safe_logstep_with_func))
 
@@ -97,6 +104,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     def resume_process(process_id: UUID, user_inputs: list[State] | None, user: str) -> UUID | None:
         try:
             process = _get_process(process_id)
+            ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
             process_id = thread_resume_process(
                 process, user_inputs=user_inputs, user=user, broadcast_func=process_broadcast_fn
             )

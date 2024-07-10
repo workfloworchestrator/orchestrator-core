@@ -199,7 +199,7 @@ def revision(
     message: str = typer.Option(None, "--message", "-m", help="The revision message"),
     version_path: str = typer.Option(None, "--version-path", help="Specify specific path from config for version file"),
     autogenerate: bool = typer.Option(False, help="Detect schema changes and add migrations"),
-    head: str = typer.Option(None, help="Determine the head you need to add your migration to."),
+    head: str = typer.Option("data@head", help="Determine the head you need to add your migration to."),
 ) -> None:
     """The `revision` command creates a new Alembic revision file.
 

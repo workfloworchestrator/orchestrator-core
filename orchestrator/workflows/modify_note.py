@@ -17,10 +17,10 @@ from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import UUIDstr
 from orchestrator.utils.json import to_serializable
-from orchestrator.workflow import StepList, conditional, done, init, workflow
+from orchestrator.workflow import StepList, conditional, done, init, step, workflow
 from orchestrator.workflows.steps import cache_domain_models, store_process_subscription
 from orchestrator.workflows.utils import wrap_modify_initial_input_form
-from pydantic_forms.types import FormGenerator
+from pydantic_forms.types import FormGenerator, State
 from pydantic_forms.validators import LongText
 
 
@@ -33,17 +33,33 @@ def initial_input_form(subscription_id: UUIDstr) -> FormGenerator:
         note: LongText = old_note
 
     user_input = yield ModifyNoteForm
-    subscription.note = user_input.note
-    db.session.add(subscription)
+
     return {
         "old_note": old_note,
         "note": user_input.note,
-        "subscription": to_serializable(subscription),
         "__old_subscriptions__": subscription_backup,
+    }
+
+
+@step("Store note")
+def store_subscription_note(subscription_id: UUIDstr, note: str) -> State:
+    subscription = subscriptions.get_subscription(subscription_id)
+
+    subscription.note = note
+    db.session.add(subscription)
+
+    return {
+        "subscription": to_serializable(subscription),
     }
 
 
 @workflow("Modify Note", initial_input_form=wrap_modify_initial_input_form(initial_input_form), target=Target.MODIFY)
 def modify_note() -> StepList:
     push_subscriptions = conditional(lambda _: app_settings.CACHE_DOMAIN_MODELS)
-    return init >> store_process_subscription(Target.MODIFY) >> push_subscriptions(cache_domain_models) >> done
+    return (
+        init
+        >> store_process_subscription(Target.MODIFY)
+        >> store_subscription_note
+        >> push_subscriptions(cache_domain_models)
+        >> done
+    )
