@@ -104,6 +104,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     def resume_process(process_id: UUID, user_inputs: list[State] | None, user: str) -> UUID | None:
         try:
             process = _get_process(process_id)
+            ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
             process_id = thread_resume_process(
                 process, user_inputs=user_inputs, user=user, broadcast_func=process_broadcast_fn
             )
