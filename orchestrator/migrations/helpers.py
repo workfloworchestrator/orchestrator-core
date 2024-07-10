@@ -450,7 +450,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: di
                 WITH resource_type_ids AS (
                     SELECT resource_types.resource_type_id
                     FROM   resource_types
-                    WHERE  resource_types.resource_type = ANY(:new_resource_types)
+                    WHERE  resource_types.resource_type IN :new_resource_types
                 ), service_attach_point AS (
                     SELECT product_blocks.product_block_id
                     FROM   product_blocks
@@ -470,7 +470,7 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: di
             ),
             {
                 "product_block_name": product_block,
-                "new_resource_types": list(resource_types.keys()),
+                "new_resource_types": tuple(resource_types.keys()),
             },
         )
     return resource_type_ids
@@ -795,11 +795,11 @@ def delete_resource_types_from_product_blocks(conn: sa.engine.Connection, delete
                    USING resource_types
                    WHERE product_block_id = (SELECT product_block_id FROM product_blocks WHERE name=:product_block_name) AND
                      resource_types.resource_type_id = product_block_resource_types.resource_type_id AND
-                     resource_types.resource_type = ANY(:obsolete_resource_types)"""
+                     resource_types.resource_type IN :obsolete_resource_types"""
             ),
             {
                 "product_block_name": product_block_name,
-                "obsolete_resource_types": list(resource_types.keys()),
+                "obsolete_resource_types": tuple(resource_types.keys()),
             },
         )
 
@@ -820,11 +820,11 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
             """DELETE FROM product_block_resource_types
                USING resource_types
                WHERE resource_types.resource_type_id = product_block_resource_types.resource_type_id
-                 AND resource_types.resource_type = ANY(:obsolete)"""
+                 AND resource_types.resource_type IN :obsolete"""
         ),
-        {"obsolete": list(delete)},
+        {"obsolete": tuple(delete)},
     )
-    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type = ANY(:obsolete)"), {"obsolete": list(delete)})
+    conn.execute(sa.text("DELETE FROM resource_types WHERE resource_type in :obsolete;"), {"obsolete": tuple(delete)})
 
 
 def delete_products_by_tag(conn: sa.engine.Connection, name: str) -> None:
@@ -1028,11 +1028,11 @@ def convert_resource_type_relations_to_instance_relations(
             )
             SELECT
                 in_use_by_instance_id AS in_use_by_id,
-                sii.subscription_instance_id AS depends_on_id,
-                (row_number() OVER (PARTITION BY in_use_by_instance_id) - 1) AS order_id,
+                si.subscription_instance_id AS depends_on_id,
+                (row_number() OVER (PARTITION BY in_use_by_id) - 1) AS order_id,
                 :domain_model_attr AS domain_model_attr
-            FROM subscription_instances AS sii
-            INNER JOIN dependencies AS dep ON sii.subscription_id=uuid(dep.subscription_id) ON CONFLICT DO NOTHING
+            FROM subscription_instances AS si
+            INNER JOIN dependencies AS dep ON si.subscription_id=uuid(dep.subscription_id) ON CONFLICT DO NOTHING
             """
         ),
         {
