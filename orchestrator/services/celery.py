@@ -16,6 +16,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+from celery.result import AsyncResult
 from kombu.exceptions import ConnectionError, OperationalError
 
 from orchestrator import app_settings
@@ -29,6 +30,14 @@ from orchestrator.workflows import get_workflow
 SYSTEM_USER = "SYSTEM"
 
 logger = structlog.get_logger(__name__)
+
+
+def _block_when_testing(task_result: AsyncResult) -> None:
+    # Enables "Sync celery tasks. This will let the app wait until celery completes"
+    if app_settings.TESTING:
+        process_id = task_result.get()
+        if not process_id:
+            raise RuntimeError("Celery worker has failed to resume process")
 
 
 def _celery_start_process(
@@ -47,15 +56,11 @@ def _celery_start_process(
     tasks = pstat.state.s
     try:
         result = trigger_task.delay(pstat.process_id, workflow_key, tasks, user)
-        # Enables "Sync celery tasks. This will let the app wait until celery completes"
-        if app_settings.TESTING:
-            process_id = result.get()
-            if not process_id:
-                raise RuntimeError("Celery worker has failed to resume process")
+        _block_when_testing(result)
         return pstat.process_id
     except (ConnectionError, OperationalError) as e:
         # If connection to Redis fails and process can't be started, we need to remove the created process
-        logger.warning("Celery worker connection error")
+        logger.warning("Connection error when submitting task to Celery. Delete newly created process from database.")
         delete_process(pstat.process_id)
         raise e
 
@@ -78,19 +83,17 @@ def _celery_resume_process(
     task_name = RESUME_TASK if workflow.target == Target.SYSTEM else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
     try:
-        result = trigger_task.delay(pstat.process_id, user_inputs, user)
-
         _celery_set_process_status_resumed(process)
-
-        # Enables "Sync celery tasks. This will let the app wait until celery completes"
-        if app_settings.TESTING:
-            process_id = result.get()
-            if not process_id:
-                raise RuntimeError("Celery worker has failed to resume process")
+        result = trigger_task.delay(pstat.process_id, user_inputs, user)
+        _block_when_testing(result)
 
         return pstat.process_id
     except (ConnectionError, OperationalError) as e:
-        logger.warning("Celery worker connection error")
+        logger.warning(
+            "Connection error when submitting task to celery. Resetting process status back",
+            current_status=process.last_status,
+            last_status=last_process_status,
+        )
         _celery_set_process_status(process, last_process_status)
         raise e
 
