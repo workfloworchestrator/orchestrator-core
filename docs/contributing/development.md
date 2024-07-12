@@ -49,3 +49,19 @@ mkdocs serve
 ```
 
 This should make the docs available on your local machine here: [http://127.0.0.1:8000/orchestrator-core/](http://127.0.0.1:8000/orchestrator-core/)
+
+### Useful settings
+
+#### SQLAlchemy logging
+
+WFO uses [SQLAlchemy](https://www.sqlalchemy.org/) for its ORM and DB connection management capabilities.
+
+To get information about which DB queries it is performing, adjust it's loglevel through this environment variable:
+
+```bash
+LOG_LEVEL_SQLALCHEMY_ENGINE=INFO
+```
+
+Set it to `DEBUG` for even more information.
+
+**This generates a *lot* of logging! It is not recommended to use this in production.**

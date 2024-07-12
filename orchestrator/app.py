@@ -85,6 +85,8 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        initialise_logging(LOGGER_OVERRIDES)
+
         self.auth_manager = AuthManager()
         self.base_settings = base_settings
         websocket_manager = init_websocket_manager(base_settings)
@@ -114,8 +116,6 @@ class OrchestratorCore(FastAPI):
             on_shutdown=shutdown_functions,
             **kwargs,
         )
-
-        initialise_logging(LOGGER_OVERRIDES)
 
         self.include_router(api_router, prefix="/api")
 
