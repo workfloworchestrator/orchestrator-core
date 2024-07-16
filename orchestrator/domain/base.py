@@ -1166,7 +1166,7 @@ class SubscriptionModel(DomainModel):
             subscription_id,
             options=[
                 selectinload(SubscriptionTable.instances)
-                .selectinload(SubscriptionInstanceTable.product_block)
+                .joinedload(SubscriptionInstanceTable.product_block)
                 .selectinload(ProductBlockTable.resource_types),
                 selectinload(SubscriptionTable.instances).selectinload(
                     SubscriptionInstanceTable.in_use_by_block_relations
@@ -1306,7 +1306,7 @@ class SubscriptionModel(DomainModel):
             self.subscription_id,
             options=[
                 selectinload(SubscriptionTable.instances)
-                .selectinload(SubscriptionInstanceTable.product_block)
+                .joinedload(SubscriptionInstanceTable.product_block)
                 .selectinload(ProductBlockTable.resource_types),
                 selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
             ],
