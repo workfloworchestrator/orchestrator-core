@@ -279,7 +279,7 @@ class TSQueryVisitor:
             )
             return db.session.scalar(stmt) or []
 
-        return TSQueryVisitor._glue_chars.split(term)
+        return [part.strip() for part in TSQueryVisitor._glue_chars.split(term) if part and not part.isspace()]
 
     @staticmethod
     def visit_group(node: Node, acc: list[str]) -> None:
