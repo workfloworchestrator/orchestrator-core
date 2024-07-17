@@ -438,6 +438,9 @@ class Populator:
         while True:
             self.log.info("Submitting user input", data=user_inputs)
             response = self.session.request(method, url, json=user_inputs)
+            if not response.ok and "MigrationSummary" in response.text:
+                user_inputs[-1] = {}
+                continue
             if response.status_code != HTTPStatus.NOT_EXTENDED:
                 return response
             input_fields = response.json()["form"]
