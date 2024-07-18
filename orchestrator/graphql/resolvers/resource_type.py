@@ -17,6 +17,7 @@ from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
+from orchestrator.graphql.utils.get_query_loaders import get_query_loaders
 from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
@@ -37,7 +38,8 @@ async def resolve_resource_types(
     logger.debug(
         "resolve_resource_types() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by
     )
-    select_stmt = select(ResourceTypeTable)
+    query_loaders = get_query_loaders(info, ResourceTypeTable)
+    select_stmt = select(ResourceTypeTable).options(*query_loaders)
     select_stmt = filter_resource_types(select_stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:
@@ -57,7 +59,7 @@ async def resolve_resource_types(
 
     graphql_resource_types = []
     if is_querying_page_data(info):
-        resource_types = rows_from_statement(stmt, ResourceTypeTable)
+        resource_types = rows_from_statement(stmt, ResourceTypeTable, loaders=query_loaders)
         graphql_resource_types = [ResourceType.from_pydantic(p) for p in resource_types]
     return to_graphql_result_page(
         graphql_resource_types, first, after, total, resource_type_sort_fields(), resource_type_filter_fields()

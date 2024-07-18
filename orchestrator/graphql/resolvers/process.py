@@ -15,11 +15,12 @@ from uuid import UUID
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import func, select
-from sqlalchemy.orm import defer, selectinload
+from sqlalchemy.orm import selectinload
 
-from orchestrator.db import ProcessSubscriptionTable, ProcessTable, SubscriptionTable, db
+from orchestrator.db import ProcessTable, db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_CLAUSES, filter_processes, process_filter_fields
+from orchestrator.db.models import ProcessSubscriptionTable, SubscriptionTable
 from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.process import process_sort_fields, sort_processes
@@ -33,6 +34,7 @@ from orchestrator.graphql.utils import (
     is_querying_page_data,
     to_graphql_result_page,
 )
+from orchestrator.graphql.utils.get_query_loaders import get_query_loaders
 from orchestrator.schemas.process import ProcessSchema
 from orchestrator.services.processes import load_process
 from orchestrator.utils.enrich_process import enrich_process
@@ -54,7 +56,8 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
 
 
 async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
-    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id)
+    query_loaders = get_query_loaders(info, ProcessTable)
+    stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
     if process := db.session.scalar(stmt):
         is_detailed = _is_process_detailed(info)
         return ProcessType.from_pydantic(_enrich_process(process, is_detailed))
@@ -74,15 +77,14 @@ async def resolve_processes(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    # the joinedload on ProcessSubscriptionTable.subscription via ProcessBaseSchema.process_subscriptions prevents a query for every subscription later.
-    # tracebacks are not presented in the list of processes and can be really large.
-    select_stmt = select(ProcessTable).options(
+    # Hardcoded loaders required for _enrich_process
+    default_loaders = [
         selectinload(ProcessTable.process_subscriptions)
         .selectinload(ProcessSubscriptionTable.subscription)
-        .selectinload(SubscriptionTable.product),
-        defer(ProcessTable.traceback),
-    )
-
+        .joinedload(SubscriptionTable.product)
+    ]
+    query_loaders = get_query_loaders(info, ProcessTable) or default_loaders
+    select_stmt = select(ProcessTable).options(*query_loaders)
     select_stmt = filter_processes(select_stmt, pydantic_filter_by, _error_handler)
     if query is not None:
         stmt = create_sqlalchemy_select(
@@ -101,7 +103,7 @@ async def resolve_processes(
 
     graphql_processes = []
     if is_querying_page_data(info):
-        processes = rows_from_statement(stmt, ProcessTable)
+        processes = rows_from_statement(stmt, ProcessTable, loaders=query_loaders)
         is_detailed = _is_process_detailed(info)
         graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
     return to_graphql_result_page(

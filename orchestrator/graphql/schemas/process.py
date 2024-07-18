@@ -6,9 +6,10 @@ from strawberry.scalars import JSON
 from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db import ProductTable, db
+from orchestrator.db import ProcessTable, ProductTable, db
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.customer import CustomerType
+from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.process import ProcessSchema, ProcessStepSchema
@@ -44,7 +45,6 @@ class ProcessType:
     workflow_target: strawberry.auto
     assignee: strawberry.auto
     failed_reason: strawberry.auto
-    traceback: strawberry.auto
     last_step: strawberry.auto
     last_status: strawberry.auto
     created_by: strawberry.auto
@@ -54,6 +54,11 @@ class ProcessType:
     steps: strawberry.auto
     form: JSON | None
     current_state: JSON | None
+
+    @strawberry.field(description="Get traceback")  # type: ignore
+    def traceback(self) -> str | None:
+        model = get_original_model(self, ProcessTable)
+        return model.traceback
 
     @authenticated_field(description="Returns the associated product")  # type: ignore
     def product(self) -> ProductType | None:
