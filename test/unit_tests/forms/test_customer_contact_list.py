@@ -53,7 +53,7 @@ def test_customer_contact_list_schema():
         "additionalProperties": False,
         "properties": {
             "customer_contacts": {
-                "customerKey": "customer",
+                "customerKey": "customer_id",
                 "items": {"$ref": "#/$defs/ContactPerson"},
                 "title": "Customer Contacts",
                 "type": "array",

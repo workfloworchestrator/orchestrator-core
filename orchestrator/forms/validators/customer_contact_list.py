@@ -23,7 +23,7 @@ T = TypeVar("T")  # pragma: no mutate
 
 def customer_contact_list(
     customer_id: Optional[UUID] = None,
-    customer_key: Optional[str] = "customer",
+    customer_key: Optional[str] = "customer_id",
     min_items: Optional[int] = None,
     max_items: Optional[int] = None,
 ) -> type[list[T]]:
