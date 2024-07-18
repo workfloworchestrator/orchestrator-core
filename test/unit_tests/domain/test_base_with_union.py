@@ -96,7 +96,7 @@ def test_union_product_block_as_sub(
 
     union_subscription_from_database = UnionProductSub.from_subscription(union_subscription.subscription_id)
 
-    assert type(union_subscription_from_database) == type(union_subscription)
+    assert type(union_subscription_from_database) is type(union_subscription)
     assert union_subscription_from_database.test_block.int_field == union_subscription.test_block.int_field
     assert union_subscription_from_database.test_block.str_field == union_subscription.test_block.str_field
     assert (

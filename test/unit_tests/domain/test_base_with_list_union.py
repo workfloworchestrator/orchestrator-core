@@ -43,7 +43,7 @@ def test_product_model_with_list_union_type_directly_below(
     list_union_subscription.save()
 
     list_union_sub_from_database = ProductListUnion.from_subscription(list_union_subscription.subscription_id)
-    assert type(list_union_sub_from_database) == type(list_union_subscription)
+    assert type(list_union_sub_from_database) is type(list_union_subscription)
 
     sorted_db_list = sorted(
         list_union_sub_from_database.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
@@ -114,7 +114,7 @@ def test_product_model_with_list_union_type_directly_below_with_relation_overlap
     list_union_subscription.save()
 
     list_union_sub_from_database = ProductListUnion.from_subscription(list_union_subscription.subscription_id)
-    assert type(list_union_sub_from_database) == type(list_union_subscription)
+    assert type(list_union_sub_from_database) is type(list_union_subscription)
     assert list_union_sub_from_database.test_block == list_union_subscription.test_block
 
     sorted_db_list_len = len(list_union_sub_from_database.list_union_blocks)
@@ -172,7 +172,7 @@ def test_list_union_product_block_as_sub(
 
     list_union_sub_from_database = ProductSubListUnion.from_subscription(list_union_subscription.subscription_id)
 
-    assert type(list_union_sub_from_database) == type(list_union_subscription)
+    assert type(list_union_sub_from_database) is type(list_union_subscription)
     assert list_union_sub_from_database.test_block.int_field == list_union_subscription.test_block.int_field
     assert list_union_sub_from_database.test_block.str_field == list_union_subscription.test_block.str_field
 
