@@ -115,7 +115,7 @@ def heads() -> None:
         None
 
     """
-    command.heads(alembic_cfg())  # type: ignore[no-untyped-call]
+    command.heads(alembic_cfg())
 
 
 @app.command(help="Merge database revisions.")
