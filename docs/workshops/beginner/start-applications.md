@@ -14,7 +14,7 @@ Visit [the app](http://127.0.0.1:8080/api/docs) to view the API documentation.
 
 ### Start client
 
-From the `orchestrator-core-gui` folder, initialize your shell environment with
+From the `example-orchestrator-ui` folder, initialize your shell environment with
 the variables from `.env.local` and start the client:
 
 ```

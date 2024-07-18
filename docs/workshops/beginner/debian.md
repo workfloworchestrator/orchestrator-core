@@ -109,7 +109,7 @@ example-orchestrator:
 
 ```shell
 cd ..
-git clone https://github.com/workfloworchestrator/orchestrator-core-gui.git
+git clone https://github.com/workfloworchestrator/example-orchestrator-ui.git
 ```
 
 Install the Yarn package manager and use it to install the orchestrator
