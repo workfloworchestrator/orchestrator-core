@@ -44,6 +44,8 @@ from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
 from orchestrator.db.database import DBSessionMiddleware
+from orchestrator.db.listeners import monitor_sqlalchemy_queries
+from orchestrator.db.loaders import init_loaders
 from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import problem_detail_handler
@@ -86,6 +88,9 @@ class OrchestratorCore(FastAPI):
         **kwargs: Any,
     ) -> None:
         initialise_logging(LOGGER_OVERRIDES)
+        init_loaders()
+        if base_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
+            monitor_sqlalchemy_queries()
 
         self.auth_manager = AuthManager()
         self.base_settings = base_settings

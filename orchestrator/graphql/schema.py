@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from http import HTTPStatus
 from typing import Any, Coroutine
 
@@ -19,6 +19,7 @@ import structlog
 from fastapi.routing import APIRouter
 from graphql import GraphQLError
 from httpx import HTTPStatusError
+from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import GraphQLRouter
 from strawberry.tools import merge_types
 from strawberry.types import ExecutionContext
@@ -30,6 +31,7 @@ from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
+from orchestrator.graphql.extensions.stats import StatsExtension
 from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.graphql.mutations.start_process import ProcessMutation
 from orchestrator.graphql.pagination import Connection
@@ -144,6 +146,14 @@ def get_context(
     return _get_context
 
 
+def get_extensions(mutation: Any, query: Any) -> Iterable[type[SchemaExtension]]:
+    yield ErrorHandlerExtension
+    if app_settings.ENABLE_GRAPHQL_DEPRECATION_CHECKER:
+        yield make_deprecation_checker_extension(query=query, mutation=mutation)
+    if app_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
+        yield StatsExtension
+
+
 def create_graphql_router(
     auth_manager: AuthManager,
     query: Any = Query,
@@ -164,8 +174,7 @@ def create_graphql_router(
     if register_models:
         models = register_domain_models(subscription_interface, existing_models=models)
 
-    if not extensions:
-        extensions = [ErrorHandlerExtension, make_deprecation_checker_extension(query=query, mutation=mutation)]
+    extensions = extensions or list(get_extensions(mutation, query))
 
     schema = OrchestratorSchema(
         query=query,
