@@ -10,21 +10,17 @@ From the `example-orchestrator` folder, use Uvicorn to start the orchestrator:
 uvicorn --host 127.0.0.1 --port 8080 main:app
 ```
 
+If you are running without authentication set up, you can set the environment variable to false from the command line:
+```
+OAUTH2_ACTIVE=false uvicorn --host localhost --port 8080 main:app
+```
+
 Visit [the app](http://127.0.0.1:8080/api/docs) to view the API documentation.
 
 ### Start client
 
-From the `example-orchestrator-ui` folder, initialize your shell environment with
-the variables from `.env.local` and start the client:
-
-```
-source .env.local
-# on MacOS make sure node@14 is being used
-export PATH="/usr/local/opt/node@14/bin:$PATH"
-yarn start
-```
-
-Point a web browser to `$REACT_APP_BACKEND_URL`.
+From the `example-orchestrator-ui` folder, run the following command to start the front end.
+`npm run dev`
 
 ## Docker compose
 
