@@ -2,7 +2,7 @@
 
 ## Introduction
 
-First read the [Architecture; TL;DR](/orchestrator-core/architecture/tldr/)
+First read the [Architecture TL;DR](docs/architecture/tldr.md)
 section of the orchestrator core documentation to get an overview of the
 concepts that will be covered.
 
