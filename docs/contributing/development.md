@@ -92,3 +92,18 @@ This will add the following details to the result of the query, as well as loggi
 The following should be noted:
 * this requires monitoring of executed SQLAlchemy cursor events, which may have *some* overhead
 * the number of queries can most likely be skewed by async FastAPI REST calls that take place, so it's recommended to use this in an isolated and controlled environment
+
+
+#### GraphQL query profiling
+
+It is possible to profile GraphQL queries by enabling the [PyInstrument](https://github.com/joerick/pyinstrument) extension:
+
+```bash
+ENABLE_GRAPHQL_PROFILING_EXTENSION=true
+```
+
+This will create a file `pyinstrument.html` in the repository root which shows which parts of the code are taking up most of the execution time.
+
+Note that you need to have the orchestrator-core's test dependencies installed.
+
+**This has a lot of overhead and we advise you to not use this in production.**

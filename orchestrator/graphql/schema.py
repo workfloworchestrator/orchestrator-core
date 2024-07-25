@@ -12,6 +12,7 @@
 # limitations under the License.
 from collections.abc import Callable, Iterable
 from http import HTTPStatus
+from pathlib import Path
 from typing import Any, Coroutine
 
 import strawberry
@@ -152,6 +153,10 @@ def get_extensions(mutation: Any, query: Any) -> Iterable[type[SchemaExtension]]
         yield make_deprecation_checker_extension(query=query, mutation=mutation)
     if app_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
         yield StatsExtension
+    if app_settings.ENABLE_GRAPHQL_PROFILING_EXTENSION:
+        from strawberry.extensions import pyinstrument
+
+        yield pyinstrument.PyInstrument(report_path=Path("pyinstrument.html"))  # type: ignore
 
 
 def create_graphql_router(

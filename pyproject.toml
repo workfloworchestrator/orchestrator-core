@@ -87,6 +87,7 @@ test = [
     "dirty-equals",
     "jsonref",
     "mypy==1.9",
+    "pyinstrument",
     "pytest==8.2.2",
     "pytest-asyncio==0.21.2",
     "pytest-cov",
