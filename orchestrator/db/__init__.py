@@ -14,6 +14,7 @@ from typing import Any, cast
 
 from structlog import get_logger
 
+from orchestrator.db.database import BaseModel as DbBaseModel
 from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
     EngineSettingsTable,
@@ -91,4 +92,21 @@ __all__ = [
     "UtcTimestampError",
     "db",
     "init_database",
+]
+
+ALL_DB_MODELS: list[type[DbBaseModel]] = [
+    FixedInputTable,
+    ProcessStepTable,
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductBlockTable,
+    ProductTable,
+    ResourceTypeTable,
+    SubscriptionCustomerDescriptionTable,
+    SubscriptionInstanceRelationTable,
+    SubscriptionInstanceTable,
+    SubscriptionInstanceValueTable,
+    SubscriptionMetadataTable,
+    SubscriptionTable,
+    WorkflowTable,
 ]

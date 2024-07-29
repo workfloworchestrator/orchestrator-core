@@ -2,6 +2,8 @@ from typing import TYPE_CHECKING, Annotated
 
 import strawberry
 
+from orchestrator.db import ResourceTypeTable
+from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.schemas.resource_type import ResourceTypeSchema
 
 if TYPE_CHECKING:
@@ -14,4 +16,5 @@ class ResourceType:
     async def product_blocks(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
         from orchestrator.graphql.schemas.product_block import ProductBlock
 
-        return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.product_blocks]  # type: ignore
+        model = get_original_model(self, ResourceTypeTable)
+        return [ProductBlock.from_pydantic(product_block) for product_block in model.product_blocks]

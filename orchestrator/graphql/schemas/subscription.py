@@ -15,6 +15,7 @@ from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.customer_description import CustomerDescription
+from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.schemas.process import ProcessType
 from orchestrator.graphql.schemas.product import ProductModelGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -39,13 +40,18 @@ static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "pr
 class SubscriptionInterface:
     subscription_id: UUID
     customer_id: str
-    product: ProductModelGraphql
     description: str
     start_date: datetime | None
     end_date: datetime | None
     status: SubscriptionLifecycle
     insync: bool
     note: str | None
+
+    @strawberry.field(description="Product information")  # type: ignore
+    async def product(self) -> ProductModelGraphql:
+        model = get_original_model(self, SubscriptionTable)
+
+        return ProductModelGraphql.from_pydantic(model.product)
 
     @strawberry.field(name="_schema", description="Return all products block instances of a subscription as JSON Schema")  # type: ignore
     async def schema(self) -> dict:
@@ -69,7 +75,9 @@ class SubscriptionInterface:
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> strawberry.scalars.JSON:
-        fixed_inputs = get_fixed_inputs(filters=[FixedInputTable.product_id == self.product.product_id])  # type: ignore
+        model = get_original_model(self, SubscriptionTable)
+
+        fixed_inputs = get_fixed_inputs(filters=[FixedInputTable.product_id == model.product.product_id])
         return [{"field": fi.name, "value": fi.value} for fi in fixed_inputs]
 
     @authenticated_field(description="Returns list of processes of the subscription")  # type: ignore

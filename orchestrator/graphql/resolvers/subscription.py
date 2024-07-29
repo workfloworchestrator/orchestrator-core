@@ -139,7 +139,7 @@ async def resolve_subscriptions(
     if is_querying_page_data(info):
         subscriptions = db.session.scalars(stmt).all()
         graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))
-    logger.info("Resolve subscriptions", filter_by=filter_by, total=graphql_subscriptions)
+    logger.info("Resolve subscriptions", filter_by=filter_by, total=total)
 
     return to_graphql_result_page(
         graphql_subscriptions, first, after, total, subscription_sort_fields(), subscription_filter_fields()

@@ -4,8 +4,9 @@ from uuid import UUID
 import strawberry
 from sqlalchemy import select
 
-from orchestrator.db import db
+from orchestrator.db import ProductBlockTable, db
 from orchestrator.db.models import SubscriptionTable
+from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.schemas.product_block import ProductBlockSchema
@@ -23,7 +24,6 @@ class ProductBlock:
     status: strawberry.auto
     created_at: strawberry.auto
     end_date: strawberry.auto
-    resource_types: list[ResourceType]
 
     @strawberry.field(description="Return all product blocks that this product block depends on")  # type: ignore
     async def depends_on(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
@@ -32,6 +32,14 @@ class ProductBlock:
     @strawberry.field(description="Return all product blocks that uses this product block")  # type: ignore
     async def in_use_by(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
         return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.in_use_by]  # type: ignore
+
+    @strawberry.field(description="Return workflows")  # type: ignore
+    async def resource_types(self) -> list[Annotated["ResourceType", strawberry.lazy(".resource_type")]]:
+        from orchestrator.graphql.schemas.resource_type import ResourceType
+
+        model = get_original_model(self, ProductBlockTable)
+
+        return [ResourceType.from_pydantic(i) for i in model.resource_types]
 
 
 async def owner_subscription_resolver(

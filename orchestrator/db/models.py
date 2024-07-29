@@ -40,7 +40,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import Mapped, backref, deferred, mapped_column, object_session, relationship
+from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
 from sqlalchemy_utils import TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
@@ -99,13 +99,14 @@ class ProcessTable(BaseModel):
     traceback = mapped_column(Text())
     created_by = mapped_column(String(255), nullable=True)
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
+
     steps = relationship(
         "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
     )
-    process_subscriptions = relationship("ProcessSubscriptionTable", lazy=True, passive_deletes=True)
-    subscriptions = association_proxy("process_subscriptions", "subscription")
-
+    process_subscriptions = relationship("ProcessSubscriptionTable", back_populates="process", passive_deletes=True)
     workflow = relationship("WorkflowTable", back_populates="processes")
+
+    subscriptions = association_proxy("process_subscriptions", "subscription")
 
     @property
     def workflow_name(self) -> Column:
@@ -134,11 +135,12 @@ class ProcessSubscriptionTable(BaseModel):
     process_id = mapped_column(
         "pid", UUIDType, ForeignKey("processes.pid", ondelete="CASCADE"), index=True, nullable=False
     )
-    process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
-    subscription = relationship("SubscriptionTable", lazy=True)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     workflow_target = mapped_column(String(255), nullable=False, server_default=Target.CREATE)
+
+    process = relationship("ProcessTable", back_populates="process_subscriptions")
+    subscription = relationship("SubscriptionTable", back_populates="processes")
 
 
 processes_subscriptions_ix = Index(
@@ -184,6 +186,8 @@ product_workflows_association = Table(
 
 class ProductTable(BaseModel):
     __tablename__ = "products"
+    __table_args__ = {"extend_existing": True}
+
     __allow_unmapped__ = True
 
     product_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
@@ -194,12 +198,11 @@ class ProductTable(BaseModel):
     status = mapped_column(String(STATUS_LENGTH), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     end_date = mapped_column(UtcTimestamp)
+
     product_blocks = relationship(
         "ProductBlockTable",
         secondary=product_product_block_association,
-        lazy="select",
-        backref=backref("products", lazy=True),
-        cascade_backrefs=False,
+        back_populates="products",
         passive_deletes=True,
     )
     workflows = relationship(
@@ -207,15 +210,12 @@ class ProductTable(BaseModel):
         secondary=product_workflows_association,
         secondaryjoin="and_(products_workflows.c.workflow_id == WorkflowTable.workflow_id, "
         "WorkflowTable.deleted_at == None)",
-        lazy="select",
-        cascade_backrefs=False,
+        back_populates="products",
         passive_deletes=True,
     )
     fixed_inputs = relationship(
-        "FixedInputTable", cascade="all, delete-orphan", backref=backref("product", lazy=True), passive_deletes=True
+        "FixedInputTable", cascade="all, delete-orphan", back_populates="product", passive_deletes=True
     )
-
-    __table_args__ = {"extend_existing": True}
 
     def find_block_by_name(self, name: str) -> ProductBlockTable:
         if session := object_session(self):
@@ -253,6 +253,7 @@ class ProductTable(BaseModel):
 
 class FixedInputTable(BaseModel):
     __tablename__ = "fixed_inputs"
+    __table_args__ = (UniqueConstraint("name", "product_id"), {"extend_existing": True})
 
     fixed_input_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False)
@@ -260,7 +261,7 @@ class FixedInputTable(BaseModel):
     created_at = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("current_timestamp()"))
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id", ondelete="CASCADE"), nullable=False)
 
-    __table_args__ = (UniqueConstraint("name", "product_id"), {"extend_existing": True})
+    product = relationship("ProductTable", back_populates="fixed_inputs")
 
 
 class ProductBlockTable(BaseModel):
@@ -275,30 +276,30 @@ class ProductBlockTable(BaseModel):
     status = mapped_column(String(STATUS_LENGTH))
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     end_date = mapped_column(UtcTimestamp)
+
+    products = relationship(
+        "ProductTable", secondary=product_product_block_association, back_populates="product_blocks"
+    )
     resource_types = relationship(
         "ResourceTypeTable",
         secondary=product_block_resource_type_association,
-        lazy="select",
-        backref=backref("product_blocks", lazy=True),
-        cascade_backrefs=False,
+        back_populates="product_blocks",
         passive_deletes=True,
     )
-
     in_use_by_block_relations: Mapped[list[ProductBlockRelationTable]] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        backref=backref("depends_on", lazy=True),
+        back_populates="depends_on",
         foreign_keys="[ProductBlockRelationTable.depends_on_id]",
     )
-
     depends_on_block_relations: Mapped[list[ProductBlockRelationTable]] = relationship(
         "ProductBlockRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        backref=backref("in_use_by", lazy=True),
+        back_populates="in_use_by",
         foreign_keys="[ProductBlockRelationTable.in_use_by_id]",
     )
 
@@ -307,7 +308,6 @@ class ProductBlockTable(BaseModel):
         "in_use_by",
         creator=lambda in_use_by: ProductBlockRelationTable(in_use_by=in_use_by),
     )
-
     depends_on = association_proxy(
         "depends_on_block_relations",
         "depends_on",
@@ -336,16 +336,22 @@ ProductBlockTable.children_relations = ProductBlockTable.depends_on_block_relati
 
 class ProductBlockRelationTable(BaseModel):
     __tablename__ = "product_block_relations"
+
     in_use_by_id = mapped_column(
         UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
     )
-
     depends_on_id = mapped_column(
         UUIDType, ForeignKey("product_blocks.product_block_id", ondelete="CASCADE"), primary_key=True
     )
-
     min = mapped_column(Integer())
     max = mapped_column(Integer())
+
+    depends_on: Mapped[ProductBlockTable] = relationship(
+        "ProductBlockTable", back_populates="in_use_by_block_relations", foreign_keys=[depends_on_id]
+    )
+    in_use_by: Mapped[ProductBlockTable] = relationship(
+        "ProductBlockTable", back_populates="depends_on_block_relations", foreign_keys=[in_use_by_id]
+    )
 
 
 ProductBlockRelationTable.parent_id = ProductBlockRelationTable.in_use_by_id
@@ -361,13 +367,19 @@ product_block_relation_index = Index(
 
 class ResourceTypeTable(BaseModel):
     __tablename__ = "resource_types"
+
     resource_type_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     resource_type = mapped_column(String(510), nullable=False, unique=True)
     description = mapped_column(Text())
 
+    product_blocks = relationship(
+        "ProductBlockTable", secondary=product_block_resource_type_association, back_populates="resource_types"
+    )
+
 
 class WorkflowTable(BaseModel):
     __tablename__ = "workflows"
+
     workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
     target = mapped_column(String(), nullable=False)
@@ -378,15 +390,16 @@ class WorkflowTable(BaseModel):
     products = relationship(
         "ProductTable",
         secondary=product_workflows_association,
-        lazy="select",
         passive_deletes=True,
         back_populates="workflows",
     )
-    processes = relationship("ProcessTable", lazy="select", cascade="all, delete-orphan", back_populates="workflow")
+    processes = relationship("ProcessTable", cascade="all, delete-orphan", back_populates="workflow")
 
     @staticmethod
     def select() -> Select:
-        return select(WorkflowTable).filter(WorkflowTable.deleted_at.is_(None))
+        return (
+            select(WorkflowTable).options(undefer(WorkflowTable.deleted_at)).filter(WorkflowTable.deleted_at.is_(None))
+        )
 
     def delete(self) -> WorkflowTable:
         self.deleted_at = nowtz()
@@ -395,19 +408,25 @@ class WorkflowTable(BaseModel):
 
 class SubscriptionInstanceRelationTable(BaseModel):
     __tablename__ = "subscription_instance_relations"
+
     in_use_by_id = mapped_column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
-
     depends_on_id = mapped_column(
         UUIDType, ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"), primary_key=True
     )
-
     order_id = mapped_column(Integer(), primary_key=True)
 
     # Needed to make sure subscription instance is populated in the right domain model attribute, if more than one
     # attribute uses the same product block model.
     domain_model_attr = Column(Text())
+
+    in_use_by: Mapped[SubscriptionInstanceTable] = relationship(
+        "SubscriptionInstanceTable", back_populates="depends_on_block_relations", foreign_keys=[in_use_by_id]
+    )
+    depends_on: Mapped[SubscriptionInstanceTable] = relationship(
+        "SubscriptionInstanceTable", back_populates="in_use_by_block_relations", foreign_keys=[depends_on_id]
+    )
 
 
 SubscriptionInstanceRelationTable.parent_id = SubscriptionInstanceRelationTable.in_use_by_id
@@ -424,16 +443,19 @@ subscription_relation_index = Index(
 
 class SubscriptionInstanceTable(BaseModel):
     __tablename__ = "subscription_instances"
+
     __allow_unmapped__ = True
 
     subscription_instance_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     subscription_id = mapped_column(
         UUIDType, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True
     )
-    subscription: SubscriptionTable  # From relation backref
     product_block_id = mapped_column(
         UUIDType, ForeignKey("product_blocks.product_block_id"), nullable=False, index=True
     )
+    label = mapped_column(String(255))
+
+    subscription = relationship("SubscriptionTable", back_populates="instances", foreign_keys=[subscription_id])
     product_block = relationship("ProductBlockTable", lazy="subquery")
     values = relationship(
         "SubscriptionInstanceValueTable",
@@ -441,19 +463,16 @@ class SubscriptionInstanceTable(BaseModel):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="asc(SubscriptionInstanceValueTable.value)",
-        backref=backref("subscription_instance", lazy=True),
+        back_populates="subscription_instance",
     )
-    label = mapped_column(String(255))
-
     in_use_by_block_relations: Mapped[list[SubscriptionInstanceRelationTable]] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        backref=backref("depends_on", lazy=True),
+        back_populates="depends_on",
         foreign_keys="[SubscriptionInstanceRelationTable.depends_on_id]",
     )
-
     depends_on_block_relations: Mapped[list[SubscriptionInstanceRelationTable]] = relationship(
         "SubscriptionInstanceRelationTable",
         lazy="subquery",
@@ -461,7 +480,7 @@ class SubscriptionInstanceTable(BaseModel):
         passive_deletes=True,
         order_by=SubscriptionInstanceRelationTable.order_id,
         collection_class=ordering_list("order_id"),
-        backref=backref("in_use_by", lazy=True),
+        back_populates="in_use_by",
         foreign_keys="[SubscriptionInstanceRelationTable.in_use_by_id]",
     )
 
@@ -494,6 +513,7 @@ subscription_instance_s_pb_ix = Index(
 
 class SubscriptionInstanceValueTable(BaseModel):
     __tablename__ = "subscription_instance_values"
+
     subscription_instance_value_id = mapped_column(
         UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True
     )
@@ -505,8 +525,10 @@ class SubscriptionInstanceValueTable(BaseModel):
     resource_type_id = mapped_column(
         UUIDType, ForeignKey("resource_types.resource_type_id"), nullable=False, index=True
     )
-    resource_type = relationship("ResourceTypeTable", lazy="subquery")
     value = mapped_column(Text(), nullable=False)
+
+    resource_type = relationship("ResourceTypeTable", lazy="subquery")
+    subscription_instance = relationship("SubscriptionInstanceTable", back_populates="values")
 
 
 siv_si_rt_ix = Index(
@@ -519,6 +541,10 @@ siv_si_rt_ix = Index(
 
 class SubscriptionCustomerDescriptionTable(BaseModel):
     __tablename__ = "subscription_customer_descriptions"
+    __table_args__ = (
+        UniqueConstraint("customer_id", "subscription_id", name="uniq_customer_subscription_description"),
+    )
+
     id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     subscription_id = mapped_column(
         UUIDType,
@@ -526,14 +552,11 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
         nullable=False,
         index=True,
     )
-    subscription = relationship("SubscriptionTable")
     customer_id = mapped_column(String, nullable=False, index=True)
     description = mapped_column(Text(), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
 
-    __table_args__ = (
-        UniqueConstraint("customer_id", "subscription_id", name="uniq_customer_subscription_description"),
-    )
+    subscription = relationship("SubscriptionTable", back_populates="customer_descriptions")
 
 
 class SubscriptionTable(BaseModel):
@@ -545,31 +568,28 @@ class SubscriptionTable(BaseModel):
     description = mapped_column(Text(), nullable=False)
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
-    product = relationship("ProductTable")
     customer_id = mapped_column(String, index=True, nullable=False)
     insync = mapped_column(Boolean())
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)
     note = mapped_column(Text())
 
+    product = relationship("ProductTable", foreign_keys=[product_id])
     instances = relationship(
         "SubscriptionInstanceTable",
-        lazy="select",
-        bake_queries=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="asc(SubscriptionInstanceTable.subscription_instance_id)",
+        back_populates="subscription",
         foreign_keys="[SubscriptionInstanceTable.subscription_id]",
-        backref=backref("subscription", lazy=True),
     )
     customer_descriptions = relationship(
         "SubscriptionCustomerDescriptionTable",
-        lazy="select",
         cascade="all, delete-orphan",
         passive_deletes=True,
         back_populates="subscription",
     )
-    processes = relationship("ProcessSubscriptionTable", lazy=True, back_populates="subscription")
+    processes = relationship("ProcessSubscriptionTable", back_populates="subscription")
 
     @staticmethod
     def find_by_product_tag(tag: str) -> SearchQuery:

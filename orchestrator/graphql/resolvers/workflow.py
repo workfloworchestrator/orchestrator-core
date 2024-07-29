@@ -1,6 +1,5 @@
 import structlog
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 from orchestrator.db import db
 from orchestrator.db.filters import Filter
@@ -14,6 +13,7 @@ from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
+from orchestrator.graphql.utils.get_query_loaders import get_query_loaders
 from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
@@ -33,7 +33,8 @@ async def resolve_workflows(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_workflows() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    select_stmt = WorkflowTable.select().options(selectinload(WorkflowTable.products))
+    query_loaders = get_query_loaders(info, WorkflowTable)
+    select_stmt = WorkflowTable.select().options(*query_loaders)
     select_stmt = filter_workflows(select_stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:
@@ -54,7 +55,7 @@ async def resolve_workflows(
 
     graphql_workflows = []
     if is_querying_page_data(info):
-        workflows = rows_from_statement(stmt, WorkflowTable, unique=True)
+        workflows = rows_from_statement(stmt, WorkflowTable, unique=True, loaders=query_loaders)
         graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
     return to_graphql_result_page(
         graphql_workflows, first, after, total, workflow_sort_fields(), workflow_filter_fields()
