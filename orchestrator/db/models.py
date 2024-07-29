@@ -85,9 +85,7 @@ class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
     process_id = mapped_column("pid", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, index=True)
-    workflow_id = mapped_column(
-        "workflow_id", UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), nullable=False
-    )
+    workflow_id = mapped_column("workflow_id", UUIDType, ForeignKey("workflows.workflow_id"), nullable=False)
     assignee = mapped_column(String(50), server_default=Assignee.SYSTEM, nullable=False)
     last_status = mapped_column(String(50), nullable=False)
     last_step = mapped_column(String(255), nullable=True)
@@ -521,6 +519,7 @@ class SubscriptionInstanceValueTable(BaseModel):
         UUIDType,
         ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"),
         index=True,
+        nullable=False,
     )
     resource_type_id = mapped_column(
         UUIDType, ForeignKey("resource_types.resource_type_id"), nullable=False, index=True
@@ -569,7 +568,7 @@ class SubscriptionTable(BaseModel):
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     customer_id = mapped_column(String, index=True, nullable=False)
-    insync = mapped_column(Boolean())
+    insync = mapped_column(Boolean(), nullable=False)
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)
     note = mapped_column(Text())
@@ -622,6 +621,7 @@ class SubscriptionMetadataTable(BaseModel):
         UUIDType,
         ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     )
     metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)  # type: ignore
 
