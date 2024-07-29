@@ -66,118 +66,72 @@ def test_product_block_one_nested(test_product_model_nested, test_product_type_o
 
     """
     ProductTypeOneNestedForTestInactive, _, ProductTypeOneNestedForTest = test_product_type_one_nested
-
     customer_id = str(uuid4())
+
+    def create_subscription(*, int_value, sub_block=None):
+        subscription = ProductTypeOneNestedForTestInactive.from_product_id(
+            product_id=test_product_model_nested.product_id, customer_id=customer_id, insync=True
+        )
+        subscription.block = ProductBlockOneNestedForTestInactive.new(
+            subscription_id=subscription.subscription_id, int_field=int_value, sub_block=sub_block
+        )
+        subscription = SubscriptionModel.from_other_lifecycle(subscription, SubscriptionLifecycle.ACTIVE)
+        subscription.save()
+        db.session.commit()
+        return subscription
+
+    def assert_int_values(subscription, *, level1, level2, level3):
+        block = subscription.block
+        actual_values = (block.int_field, block.sub_block.int_field, block.sub_block.sub_block.int_field)
+        assert (level1, level2, level3) == actual_values
+        assert block.sub_block.sub_block.sub_block is None
+
     # Create productblock 30 that will be nested in block 20
-    model30 = ProductTypeOneNestedForTestInactive.from_product_id(
-        product_id=test_product_model_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model30.block = ProductBlockOneNestedForTestInactive.new(
-        subscription_id=model30.subscription_id,
-        int_field=30,
-        sub_block=None,
-    )
-    model30 = SubscriptionModel.from_other_lifecycle(model30, SubscriptionLifecycle.ACTIVE)
-    model30.save()
-    db.session.commit()
+    subscription_30 = create_subscription(int_value=30)
 
     # Create productblock 20 that refers to block 30, and will be nested in block 10
-    model20 = ProductTypeOneNestedForTestInactive.from_product_id(
-        product_id=test_product_model_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model20.block = ProductBlockOneNestedForTestInactive.new(
-        subscription_id=model20.subscription_id,
-        int_field=20,
-        sub_block=model30.block,
-    )
-    model20 = SubscriptionModel.from_other_lifecycle(model20, SubscriptionLifecycle.ACTIVE)
-    model20.save()
-    db.session.commit()
+    subscription_20 = create_subscription(int_value=20, sub_block=subscription_30.block)
 
     # Create productblock 10 that refers to block 20
-    model10 = ProductTypeOneNestedForTestInactive.from_product_id(
-        product_id=test_product_model_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model10.block = ProductBlockOneNestedForTestInactive.new(
-        subscription_id=model10.subscription_id, int_field=10, sub_block=model20.block
-    )
-    model10 = SubscriptionModel.from_other_lifecycle(model10, SubscriptionLifecycle.ACTIVE)
-    model10.save()
-    db.session.commit()
+    subscription_10 = create_subscription(int_value=10, sub_block=subscription_20.block)
 
     # Load block 10 and verify the nested blocks
-    newmodel10 = ProductTypeOneNestedForTest.from_subscription(model10.subscription_id)
-    assert newmodel10.block.int_field == 10
-    assert newmodel10.block.sub_block.int_field == 20
-    assert newmodel10.block.sub_block.sub_block.int_field == 30
-    assert newmodel10.block.sub_block.sub_block.sub_block is None
+    subscription_10 = ProductTypeOneNestedForTest.from_subscription(subscription_10.subscription_id)
+    assert_int_values(subscription_10, level1=10, level2=20, level3=30)
 
     # Load block 20 and verify the nested block
-    newmodel20 = ProductTypeOneNestedForTest.from_subscription(model20.subscription_id)
-    assert newmodel20.block.int_field == 20
-    assert newmodel20.block.sub_block.int_field == 30
-    assert newmodel20.block.sub_block.sub_block is None
+    subscription_20 = ProductTypeOneNestedForTest.from_subscription(subscription_20.subscription_id)
+    assert subscription_20.block.int_field == 20
+    assert subscription_20.block.sub_block.int_field == 30
+    assert subscription_20.block.sub_block.sub_block is None
 
     # Create productblock 11 that also refers to block 20
-    model11 = ProductTypeOneNestedForTestInactive.from_product_id(
-        product_id=test_product_model_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model11.block = ProductBlockOneNestedForTestInactive.new(
-        subscription_id=model11.subscription_id, int_field=11, sub_block=model20.block
-    )
-    model11 = SubscriptionModel.from_other_lifecycle(model11, SubscriptionLifecycle.ACTIVE)
-    model11.save()
-    db.session.commit()
+    subscription_11 = create_subscription(int_value=11, sub_block=subscription_20.block)
 
     # Load block 11 and verify the nested blocks
-    newmodel11 = ProductTypeOneNestedForTest.from_subscription(model11.subscription_id)
-    assert newmodel11.block.int_field == 11
-    assert newmodel11.block.sub_block.int_field == 20
-    assert newmodel11.block.sub_block.sub_block.int_field == 30
-    assert newmodel11.block.sub_block.sub_block.sub_block is None
+    subscription_11 = ProductTypeOneNestedForTest.from_subscription(subscription_11.subscription_id)
+    assert_int_values(subscription_11, level1=11, level2=20, level3=30)
 
     # (again) Load block 10 and verify the nested blocks are same as before
-    newmodel10 = ProductTypeOneNestedForTest.from_subscription(model10.subscription_id)
-    assert newmodel10.block.int_field == 10
-    assert newmodel10.block.sub_block.int_field == 20
-    assert newmodel10.block.sub_block.sub_block.int_field == 30
-    assert newmodel10.block.sub_block.sub_block.sub_block is None
+    subscription_10 = ProductTypeOneNestedForTest.from_subscription(subscription_10.subscription_id)
+    assert_int_values(subscription_10, level1=10, level2=20, level3=30)
 
     # Below part might not be interesting to test, or better off in a separate testcase.
     # I was just curious what happens when we delete things.
 
     # Remove block 20 from block 10
-    model10.block.sub_block = None
-    model10.save()
+    subscription_10.block.sub_block = None
+    subscription_10.save()
     db.session.commit()
 
     # Load block 10 and verify the nested block is removed
-    newmodel10 = ProductTypeOneNestedForTest.from_subscription(model10.subscription_id)
-    assert newmodel10.block.int_field == 10
-    assert newmodel10.block.sub_block is None
+    subscription_10 = ProductTypeOneNestedForTest.from_subscription(subscription_10.subscription_id)
+    assert subscription_10.block.int_field == 10
+    assert subscription_10.block.sub_block is None
 
     # Load block 11 and verify the nested blocks still exist
-    newmodel11 = ProductTypeOneNestedForTest.from_subscription(model11.subscription_id)
-    assert newmodel11.block.int_field == 11
-    assert newmodel11.block.sub_block.int_field == 20
-    assert newmodel11.block.sub_block.sub_block.int_field == 30
-    assert newmodel11.block.sub_block.sub_block.sub_block is None
+    subscription_11 = ProductTypeOneNestedForTest.from_subscription(subscription_11.subscription_id)
+    assert_int_values(subscription_11, level1=11, level2=20, level3=30)
 
 
 def test_product_block_list_nested(test_product_model_list_nested, test_product_type_list_nested):
@@ -190,155 +144,64 @@ def test_product_block_list_nested(test_product_model_list_nested, test_product_
     ProductTypeListNestedForTestInactive, _, ProductTypeListNestedForTest = test_product_type_list_nested
 
     customer_id = str(uuid4())
+
+    def create_subscription(*, int_value, sub_blocks=()):
+        subscription = ProductTypeListNestedForTestInactive.from_product_id(
+            product_id=test_product_model_list_nested.product_id, customer_id=customer_id, insync=True
+        )
+        subscription.block = ProductBlockListNestedForTestInactive.new(
+            subscription_id=subscription.subscription_id, int_field=int_value, sub_block_list=list(sub_blocks)
+        )
+        subscription = SubscriptionModel.from_other_lifecycle(subscription, SubscriptionLifecycle.ACTIVE)
+        subscription.save()
+        db.session.commit()
+        return subscription
+
+    def assert_int_values(subscription, *, level1, level2, level3):
+        block = subscription.block
+        assert level1 == block.int_field
+        assert level2 == sorted(l2.int_field for l2 in block.sub_block_list)
+        assert level3 == sorted(l3.int_field for l2 in block.sub_block_list for l3 in l2.sub_block_list)
+
     # Create productblocks 30 and 31 that will both be nested in block 20 and 21
-    model30 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model30.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model30.subscription_id,
-        int_field=30,
-        sub_block_list=[],
-    )
-    model30 = SubscriptionModel.from_other_lifecycle(model30, SubscriptionLifecycle.ACTIVE)
-    model30.save()
-    model31 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model31.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model31.subscription_id,
-        int_field=31,
-        sub_block_list=[],
-    )
-    model31 = SubscriptionModel.from_other_lifecycle(model31, SubscriptionLifecycle.ACTIVE)
-    model31.save()
-    db.session.commit()
+    subscription_30 = create_subscription(int_value=30)
+    subscription_31 = create_subscription(int_value=31)
 
     # Create productblocks 20 and 21 that both
     # - refer to blocks 30 and 31
     # - will be nested in blocks 10 and 11
-    model20 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model20.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model20.subscription_id,
-        int_field=20,
-        sub_block_list=[model30.block, model31.block],
-    )
-    model20 = SubscriptionModel.from_other_lifecycle(model20, SubscriptionLifecycle.ACTIVE)
-    model20.save()
-    model21 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model21.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model21.subscription_id,
-        int_field=21,
-        sub_block_list=[model30.block, model31.block],
-    )
-    model21 = SubscriptionModel.from_other_lifecycle(model21, SubscriptionLifecycle.ACTIVE)
-    model21.save()
-    db.session.commit()
+    subscription_20 = create_subscription(int_value=20, sub_blocks=(subscription_30.block, subscription_31.block))
+    subscription_21 = create_subscription(int_value=21, sub_blocks=(subscription_30.block, subscription_31.block))
 
     # Create productblocks 10 and 11 that both refer to blocks 20 and 21
-    model10 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model10.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model10.subscription_id,
-        int_field=10,
-        sub_block_list=[model20.block, model21.block],
-    )
-    model10 = SubscriptionModel.from_other_lifecycle(model10, SubscriptionLifecycle.ACTIVE)
-    model10.save()
-    model11 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model11.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model11.subscription_id,
-        int_field=11,
-        sub_block_list=[model20.block, model21.block],
-    )
-    model11 = SubscriptionModel.from_other_lifecycle(model11, SubscriptionLifecycle.ACTIVE)
-    model11.save()
-    db.session.commit()
+    subscription_10 = create_subscription(int_value=10, sub_blocks=(subscription_20.block, subscription_21.block))
+    subscription_11 = create_subscription(int_value=11, sub_blocks=(subscription_20.block, subscription_21.block))
 
     # Load blocks 10 and 11 and verify the nested blocks
-    newmodel10 = ProductTypeListNestedForTest.from_subscription(model10.subscription_id)
-    newmodel11 = ProductTypeListNestedForTest.from_subscription(model11.subscription_id)
-    assert newmodel10.block.int_field == 10
-    assert newmodel11.block.int_field == 11
-    assert newmodel10.block.sub_block_list[0].int_field == 20
-    assert newmodel10.block.sub_block_list[1].int_field == 21
-    assert newmodel11.block.sub_block_list[0].int_field == 20
-    assert newmodel11.block.sub_block_list[1].int_field == 21
-    assert sorted(
-        level3.int_field for level2 in newmodel10.block.sub_block_list for level3 in level2.sub_block_list
-    ) == [30, 30, 31, 31]
-    assert sorted(
-        level3.int_field for level2 in newmodel11.block.sub_block_list for level3 in level2.sub_block_list
-    ) == [30, 30, 31, 31]
-    # Assert a few blocks at deepest level to have an empty list
-    assert newmodel10.block.sub_block_list[0].sub_block_list[0].sub_block_list == []
-    assert newmodel11.block.sub_block_list[1].sub_block_list[1].sub_block_list == []
+    subscription_10 = ProductTypeListNestedForTest.from_subscription(subscription_10.subscription_id)
+    subscription_11 = ProductTypeListNestedForTest.from_subscription(subscription_11.subscription_id)
+    assert_int_values(subscription_10, level1=10, level2=[20, 21], level3=[30, 30, 31, 31])
+    assert_int_values(subscription_11, level1=11, level2=[20, 21], level3=[30, 30, 31, 31])
+
+    # Assert that blocks at deepest level don't refer to any other blocks
+    assert subscription_10.block.sub_block_list[0].sub_block_list[0].sub_block_list == []
+    assert subscription_11.block.sub_block_list[1].sub_block_list[1].sub_block_list == []
 
     # Load block 20 and verify nested blocks
-    newmodel20 = ProductTypeListNestedForTest.from_subscription(model20.subscription_id)
-    assert newmodel20.block.int_field == 20
-    assert newmodel20.block.sub_block_list[0].int_field == 30
-    assert newmodel20.block.sub_block_list[1].int_field == 31
-    assert newmodel20.block.sub_block_list[0].sub_block_list == []
+    subscription_20 = ProductTypeListNestedForTest.from_subscription(subscription_20.subscription_id)
+    assert_int_values(subscription_20, level1=20, level2=[30, 31], level3=[])
 
     # Create productblock 32 and nest it in block 20 (but not 21!)
-    model32 = ProductTypeListNestedForTestInactive.from_product_id(
-        product_id=test_product_model_list_nested.product_id,
-        customer_id=customer_id,
-        insync=True,
-        start_date=None,
-        status=SubscriptionLifecycle.INITIAL,
-    )
-    model32.block = ProductBlockListNestedForTestInactive.new(
-        subscription_id=model30.subscription_id,
-        int_field=32,
-        sub_block_list=[],
-    )
-    model32 = SubscriptionModel.from_other_lifecycle(model32, SubscriptionLifecycle.ACTIVE)
-    model32.save()
-    newmodel20.block.sub_block_list.append(model32.block)
-    newmodel20.save()
+    subscription_32 = create_subscription(int_value=32)
+    subscription_20.block.sub_block_list.append(subscription_32.block)
+    subscription_20.save()
     db.session.commit()
 
     # (again) Load blocks 10 and 11 and verify block 32 is present once
-    newmodel10 = ProductTypeListNestedForTest.from_subscription(model10.subscription_id)
-    newmodel11 = ProductTypeListNestedForTest.from_subscription(model11.subscription_id)
-    assert sorted(
-        level3.int_field for level2 in newmodel10.block.sub_block_list for level3 in level2.sub_block_list
-    ) == [30, 30, 31, 31, 32]
-    assert sorted(
-        level3.int_field for level2 in newmodel11.block.sub_block_list for level3 in level2.sub_block_list
-    ) == [30, 30, 31, 31, 32]
+    subscription_10 = ProductTypeListNestedForTest.from_subscription(subscription_10.subscription_id)
+    subscription_11 = ProductTypeListNestedForTest.from_subscription(subscription_11.subscription_id)
+    assert_int_values(subscription_10, level1=10, level2=[20, 21], level3=[30, 30, 31, 31, 32])
+    assert_int_values(subscription_11, level1=11, level2=[20, 21], level3=[30, 30, 31, 31, 32])
 
 
 def test_lifecycle(test_product_model, test_product_type_one, test_product_block_one):
