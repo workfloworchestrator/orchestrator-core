@@ -249,6 +249,7 @@ class DomainModel(BaseModel):
         db_instances: list[SubscriptionInstanceTable],
         status: SubscriptionLifecycle,
         match_domain_attr: bool = True,
+        in_use_by_id_boundary: UUID | None = None,
     ) -> dict[str, Optional["ProductBlockModel"] | list["ProductBlockModel"]]:
         """Load subscription instances for this domain model.
 
@@ -258,7 +259,10 @@ class DomainModel(BaseModel):
         Args:
             db_instances: list of database models to load from
             status: SubscriptionLifecycle of subscription to check if models match
-            match_domain_attr: Match domain attribute from relation (not wanted when loading product blocks directly related to subscriptions)
+            match_domain_attr: Match domain attribute on relations [1]
+            in_use_by_id_boundary: Match domain attribute on relations with this in_use_by_id [1]
+
+        Note [1]: only use these parameters when loading product blocks that are in use by another product block.
 
         Returns:
             A dict with instances to pass to the new model
@@ -292,13 +296,16 @@ class DomainModel(BaseModel):
                 if not match_domain_attr:
                     return True
 
+                def include_relation(relation: SubscriptionInstanceRelationTable) -> bool:
+                    return bool(relation.domain_model_attr) and (
+                        not in_use_by_id_boundary or relation.in_use_by_id == in_use_by_id_boundary
+                    )
+
                 attr_names = {
-                    relation.domain_model_attr
-                    for relation in instance.in_use_by_block_relations
-                    if relation.domain_model_attr
+                    rel.domain_model_attr for rel in instance.in_use_by_block_relations if include_relation(rel)
                 }
 
-                # We can assume true is no domain_model_attr is set.
+                # We can assume true if no domain_model_attr is set.
                 return not attr_names or field_name in attr_names
 
             return domain_filter
@@ -741,7 +748,12 @@ class ProductBlockModel(DomainModel):
         label = subscription_instance.label
 
         instance_values = cls._load_instances_values(subscription_instance.values)
-        sub_instances = cls._load_instances(subscription_instance.depends_on, status)
+        sub_instances = cls._load_instances(
+            subscription_instance.depends_on,
+            status,
+            match_domain_attr=True,
+            in_use_by_id_boundary=subscription_instance_id,
+        )
 
         cls._fix_pb_data()
         try:
