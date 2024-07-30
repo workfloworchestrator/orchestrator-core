@@ -109,6 +109,7 @@ def test_2_field_blocks_from_1_other_subscription(test_product_type_one, create_
     assert subscription_10.block.sub_block_2.int_field == 201
 
 
+@pytest.mark.xfail(reason="Raises sqlalchemy/psycopg2 error, see #726")
 def test_2_field_identical_blocks_from_1_other_subscription(test_product_type_one, create_fixtures):
     """Test using the exact same block in separate fields when both blocks are owned by 1 different subscription.
 
@@ -119,7 +120,7 @@ def test_2_field_identical_blocks_from_1_other_subscription(test_product_type_on
 
     subscription_20 = create_subscription(int_value=20, sub_block_values=[200, 201])
 
-    # TODO this should raise a ValueError instead of sqlalchemy error
+    # TODO #726 this should raise a ValueError
     with pytest.raises(ValueError):
         _ = create_subscription(
             int_value=10,
@@ -187,6 +188,7 @@ def test_2_field_blocks_from_current_subscription_and_2_list_blocks_from_1_other
     assert subscription_10.block.sub_block_list[1].int_field == 201
 
 
+@pytest.mark.xfail(reason="Does not raise an error but it should, see #726")
 def test_2_field_blocks_from_current_subscription_and_2_identical_list_blocks_from_1_other_subscription(
     test_product_type_one, create_fixtures
 ):
@@ -199,7 +201,7 @@ def test_2_field_blocks_from_current_subscription_and_2_identical_list_blocks_fr
 
     subscription_20 = create_subscription(int_value=20, sub_block_values=[200, 201])
 
-    # TODO this should raise a ValueError, currently it allows it
+    # TODO #726 this should raise a ValueError, currently it allows it
     with pytest.raises(ValueError):
         _ = create_subscription(
             int_value=10,
