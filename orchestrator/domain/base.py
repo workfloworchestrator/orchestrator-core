@@ -12,7 +12,7 @@
 # limitations under the License.
 import itertools
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from inspect import get_annotations
 from itertools import groupby, zip_longest
@@ -30,7 +30,7 @@ from typing import (
 from uuid import UUID, uuid4
 
 import structlog
-from more_itertools import first, flatten, one, only
+from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
 from sqlalchemy import select
@@ -91,12 +91,7 @@ class DomainModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True, validate_default=True)
 
     __base_type__: ClassVar[type["DomainModel"] | None] = None  # pragma: no mutate
-    _product_block_fields_: ClassVar[
-        dict[
-            str,
-            type["ProductBlockModel"] | type["ProductBlockModel"],
-        ]
-    ]
+    _product_block_fields_: ClassVar[dict[str, Any]]
     _non_product_block_fields_: ClassVar[dict[str, type]]
 
     def __init_subclass__(cls, *args: Any, lifecycle: list[SubscriptionLifecycle] | None = None, **kwargs: Any) -> None:
@@ -408,6 +403,9 @@ class DomainModel(BaseModel):
         """
         saved_instances: list[SubscriptionInstanceTable] = []
         depends_on_instances: dict[str, list[SubscriptionInstanceTable]] = {}
+
+        self._check_duplicate_instance_relations()
+
         for product_block_field, product_block_field_type in self._product_block_fields_.items():
             product_block_models = getattr(self, product_block_field)
             if is_list_type(product_block_field_type):
@@ -429,6 +427,34 @@ class DomainModel(BaseModel):
                 saved_instances.extend(saved)
 
         return saved_instances, depends_on_instances
+
+    def _check_duplicate_instance_relations(self) -> None:
+        """Check that there are no product block fields referring to the same instance.
+
+        A ValueError is raised if this is the case.
+        """
+
+        def get_id(product_block: ProductBlockModel) -> UUID:
+            return product_block.subscription_instance_id
+
+        def get_ids(field_name: str) -> Iterable[tuple[str, UUID]]:
+            match getattr(self, field_name):
+                case list() as value_list:
+                    blocks = (value for value in value_list if isinstance(value, ProductBlockModel))
+                    yield from ((f"{field_name}.{index}", get_id(block)) for index, block in enumerate(blocks))
+                case ProductBlockModel() as block:
+                    yield field_name, get_id(block)
+
+        def to_fields(mm: Iterable[tuple[str, UUID]]) -> list[str]:
+            return [x[0] for x in mm]
+
+        field_id_tuples = flatten(get_ids(field_name) for field_name in self._product_block_fields_)
+        id_buckets = bucket(field_id_tuples, lambda x: x[1])
+        id_fields_tuples = ((id_, to_fields(id_buckets[id_])) for id_ in id_buckets)
+        duplicates = [(id_, fields) for id_, fields in id_fields_tuples if len(fields) > 1]
+        if duplicates:
+            details = "; ".join(f"instance {id_} is used in fields {fields}" for id_, fields in duplicates)
+            raise ValueError(f"Cannot link the same subscription instance multiple times: {details}")
 
 
 def get_depends_on_product_block_type_list(
