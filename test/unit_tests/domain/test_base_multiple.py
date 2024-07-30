@@ -109,7 +109,6 @@ def test_2_field_blocks_from_1_other_subscription(test_product_type_one, create_
     assert subscription_10.block.sub_block_2.int_field == 201
 
 
-@pytest.mark.xfail(reason="Raises sqlalchemy/psycopg2 error, see #726")
 def test_2_field_identical_blocks_from_1_other_subscription(test_product_type_one, create_fixtures):
     """Test using the exact same block in separate fields when both blocks are owned by 1 different subscription.
 
@@ -120,8 +119,7 @@ def test_2_field_identical_blocks_from_1_other_subscription(test_product_type_on
 
     subscription_20 = create_subscription(int_value=20, sub_block_values=[200, 201])
 
-    # TODO #726 this should raise a ValueError
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Cannot link the same subscription instance multiple times"):
         _ = create_subscription(
             int_value=10,
             sub_block1=subscription_20.block.sub_block,
@@ -188,7 +186,6 @@ def test_2_field_blocks_from_current_subscription_and_2_list_blocks_from_1_other
     assert subscription_10.block.sub_block_list[1].int_field == 201
 
 
-@pytest.mark.xfail(reason="Does not raise an error but it should, see #726")
 def test_2_field_blocks_from_current_subscription_and_2_identical_list_blocks_from_1_other_subscription(
     test_product_type_one, create_fixtures
 ):
@@ -201,8 +198,7 @@ def test_2_field_blocks_from_current_subscription_and_2_identical_list_blocks_fr
 
     subscription_20 = create_subscription(int_value=20, sub_block_values=[200, 201])
 
-    # TODO #726 this should raise a ValueError, currently it allows it
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Cannot link the same subscription instance multiple times"):
         _ = create_subscription(
             int_value=10,
             sub_block_list=[subscription_20.block.sub_block, subscription_20.block.sub_block],
