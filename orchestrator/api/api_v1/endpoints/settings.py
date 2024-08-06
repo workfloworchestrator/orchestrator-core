@@ -35,7 +35,7 @@ logger = structlog.get_logger()
 
 
 CACHE_FLUSH_OPTIONS: dict[str, str] = {
-    "all": "All caches",
+    "all": "All caches namespaced by `orchestrator:*`",
 }
 
 
@@ -45,7 +45,7 @@ async def clear_cache(name: str) -> int | None:
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
 
-    key_name = "*" if name == "all" else f"{name}:*"
+    key_name = "orchestrator:*" if name == "all" else f"{name}:*"
     return await delete_keys_matching_pattern(cache, key_name)
 
 
