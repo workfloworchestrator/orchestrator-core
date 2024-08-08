@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
     ProcessStepTable,
@@ -16,6 +17,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.security import authenticate
 from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
@@ -503,3 +505,29 @@ def test_resume_all_processes_value_error(test_client, mocked_processes_resumeal
     assert response.json()["count"] == 3  # returns 3 because it's async
     assert "Failed to resume process" in caplog.text  # log should confirm 1 process was not resumed
     assert "Completed resuming processes" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "oidc_user, reporter, expected_user",
+    [
+        (OIDCUserModel({"name": "alice"}), None, "alice"),
+        (OIDCUserModel({"user_name": "alice"}), None, ""),  # without overriding OIDCUserModel, user_name has no effect
+        (OIDCUserModel({"name": "alice"}), "bob", "bob"),  # reporter param has precedence over oidc user
+    ],
+)
+def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, expected_user):
+    # given
+    url_params = {"reporter": reporter} if reporter is not None else {}
+    fastapi_depends = {authenticate: lambda: oidc_user}
+    with (
+        mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,
+        mock.patch.dict(fastapi_app.dependency_overrides, fastapi_depends),
+    ):
+        mock_start_process.return_value = uuid.uuid4()
+        # when
+        response = test_client.post("/api/processes/fake_workflow", json=[], params=url_params)
+
+    # then
+    assert response.status_code == 201, response.text
+    mock_start_process.assert_called()
+    assert mock_start_process.mock_calls[0].kwargs["user"] == expected_user

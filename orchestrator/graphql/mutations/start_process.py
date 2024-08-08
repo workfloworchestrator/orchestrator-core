@@ -28,7 +28,7 @@ async def resolve_start_process(
     current_user = None
     if user_resolver := info.context.get_current_user:
         current_user = await user_resolver
-    user = resolve_user_name(reporter, current_user)
+    user = resolve_user_name(reporter=reporter, resolved_user=current_user)
 
     try:
         process_id = start_process(name, user_inputs=payload.payload, user=user, broadcast_func=broadcast_func)
