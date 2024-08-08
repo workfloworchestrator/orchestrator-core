@@ -87,8 +87,9 @@ def check_global_lock() -> None:
 
 
 def resolve_user_name(
-    reporter: Reporter | None = None,
-    resolved_user: OIDCUserModel | None = None,
+    *,
+    reporter: Reporter | None,
+    resolved_user: OIDCUserModel | None,
 ) -> str:
     if reporter:
         return reporter
@@ -99,8 +100,11 @@ def resolve_user_name(
     return SYSTEM_USER
 
 
-def user_name(user: OIDCUserModel | None = Depends(authenticate)) -> str:
-    return resolve_user_name(resolved_user=user)
+def user_name(
+    reporter: Reporter | None = None,
+    user: OIDCUserModel | None = Depends(authenticate),
+) -> str:
+    return resolve_user_name(reporter=reporter, resolved_user=user)
 
 
 @router.delete("/{process_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)
