@@ -41,8 +41,8 @@ def to_redis(subscription: dict[str, Any]) -> str | None:
     if caching_models_enabled():
         logger.info("Setting cache for subscription", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
-        cache.set(f"domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
-        cache.set(f"domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
+        cache.set(f"orchestrator:domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
+        cache.set(f"orchestrator:domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
         return etag
 
     logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
@@ -53,8 +53,8 @@ def from_redis(subscription_id: UUID) -> tuple[PY_JSON_TYPES, str] | None:
     log = logger.bind(subscription_id=subscription_id)
     if caching_models_enabled():
         log.debug("Try to retrieve subscription from cache")
-        obj = cache.get(f"domain:{subscription_id}")
-        etag = cache.get(f"domain:etag:{subscription_id}")
+        obj = cache.get(f"orchestrator:domain:{subscription_id}")
+        etag = cache.get(f"orchestrator:domain:etag:{subscription_id}")
         if obj and etag:
             log.info("Retrieved subscription from cache")
             return json_loads(obj), etag.decode("utf-8")
@@ -67,8 +67,8 @@ def from_redis(subscription_id: UUID) -> tuple[PY_JSON_TYPES, str] | None:
 def delete_from_redis(subscription_id: UUID) -> None:
     if caching_models_enabled():
         logger.info("Deleting subscription object from cache", subscription_id=subscription_id)
-        cache.delete(f"domain:{subscription_id}")
-        cache.delete(f"domain:etag:{subscription_id}")
+        cache.delete(f"orchestrator:domain:{subscription_id}")
+        cache.delete(f"orchestrator:domain:etag:{subscription_id}")
     else:
         logger.warning("Caching disabled, not deleting subscription", subscription=subscription_id)
 

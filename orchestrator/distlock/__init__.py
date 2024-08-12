@@ -30,7 +30,7 @@ class WrappedDistLockManager:
 
     def update(self, wrappee: DistLockManager) -> None:
         self.wrapped_distlock_manager = wrappee
-        logger.warning("DistLockManager object configured, all methods referencing `distlock_manager` should work.")
+        logger.info("DistLockManager object configured, all methods referencing `distlock_manager` should work.")
 
     def __getattr__(self, attr: str) -> Any:
         if not isinstance(self.wrapped_distlock_manager, DistLockManager):

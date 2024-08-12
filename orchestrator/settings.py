@@ -78,6 +78,9 @@ class AppSettings(BaseSettings):
     DEFAULT_CUSTOMER_SHORTCODE: str = "default-cust"
     DEFAULT_CUSTOMER_IDENTIFIER: str = "59289a57-70fb-4ff5-9c93-10fe67b12434"
     TASK_LOG_RETENTION_DAYS: int = 3
+    ENABLE_GRAPHQL_DEPRECATION_CHECKER: bool = True
+    ENABLE_GRAPHQL_PROFILING_EXTENSION: bool = False
+    ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
 
 
 app_settings = AppSettings()

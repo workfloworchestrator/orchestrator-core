@@ -5,9 +5,11 @@ from strawberry.federation.schema_directives import Key
 from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
+from orchestrator.db import ProductTable
 from orchestrator.domain.base import ProductModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.fixed_input import FixedInput
+from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
@@ -30,9 +32,6 @@ class ProductType:
     tag: strawberry.auto
     created_at: strawberry.auto
     end_date: strawberry.auto
-    product_blocks: list[ProductBlock]
-    fixed_inputs: list[FixedInput]
-    workflows: list[Workflow]
 
     @strawberry.field(description="Returns the product type")  # type: ignore
     async def type(self) -> str:
@@ -51,6 +50,30 @@ class ProductType:
 
         filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+
+    @strawberry.field(description="Return product blocks")  # type: ignore
+    async def product_blocks(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
+        from orchestrator.graphql.schemas.product_block import ProductBlock
+
+        model = get_original_model(self, ProductTable)
+
+        return [ProductBlock.from_pydantic(i) for i in model.product_blocks]
+
+    @strawberry.field(description="Return fixed inputs")  # type: ignore
+    async def fixed_inputs(self) -> list[Annotated["FixedInput", strawberry.lazy(".fixed_input")]]:
+        from orchestrator.graphql.schemas.fixed_input import FixedInput
+
+        model = get_original_model(self, ProductTable)
+
+        return [FixedInput.from_pydantic(i) for i in model.fixed_inputs]
+
+    @strawberry.field(description="Return workflows")  # type: ignore
+    async def workflows(self) -> list[Annotated["Workflow", strawberry.lazy(".workflow")]]:
+        from orchestrator.graphql.schemas.workflow import Workflow
+
+        model = get_original_model(self, ProductTable)
+
+        return [Workflow.from_pydantic(i) for i in model.workflows]
 
 
 @strawberry.experimental.pydantic.type(model=ProductModel, all_fields=True)

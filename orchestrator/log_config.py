@@ -20,11 +20,13 @@ logger = get_logger(__name__)
 def logger_config(name: str, default_level: str = "INFO") -> tuple[str, dict]:
     """Create config for the given logger with the given loglevel.
 
-    Useful for silencing noisy loggers when using LOG_LEVEL: "DEBUG" in development.
+    This is useful to:
+     - force a library's logs through structlog, setting a default level
+     - silence a specific logger when the global LOG_LEVEL is set to DEBUG
 
-    Can be overruled at deploy time by setting an env-var, for example:
-     - Level of logger "httpx" is controlled by LOG_LEVEL_HTTPX
-     - Level of logger "kafka.consumer" is controlled by LOG_LEVEL_KAFKA_CONSUMER
+    A logger's level can be overruled at deploy time by setting an env-var, for example:
+     - Level of logger "foo" is controlled by LOG_LEVEL_FOO
+     - Level of logger "foo.bar" is controlled by LOG_LEVEL_FOO_BAR
     """
     name_upper = name.upper().replace(".", "_")
     env_var_name = f"LOG_LEVEL_{name_upper}"
@@ -39,5 +41,8 @@ LOGGER_OVERRIDES = dict(
     [
         logger_config("asyncio"),
         logger_config("httpcore"),
+        logger_config("orchestrator.graphql.autoregistration"),
+        logger_config("sqlalchemy.engine", default_level="WARNING"),
+        logger_config("uvicorn"),
     ]
 )

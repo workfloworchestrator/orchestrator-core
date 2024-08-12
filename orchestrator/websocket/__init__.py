@@ -45,9 +45,7 @@ class WrappedWebSocketManager:
     def update(self, wrappee: WebSocketManager) -> None:
         self.wrapped_websocket_manager = wrappee
         if self.wrapped_websocket_manager.enabled:
-            logger.warning(
-                "WebSocketManager object configured, all methods referencing `websocket_manager` should work."
-            )
+            logger.info("WebSocketManager object configured, all methods referencing `websocket_manager` should work.")
         else:
             logger.warning("WebSocketManager object not configured, ENABLE_WEBSOCKETS is false.")
 

@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from orchestrator.graphql.schemas.product import ProductModelGraphql
+from orchestrator.graphql.schemas.strawberry_pydantic_patch import (
+    convert_pydantic_model_to_strawberry_class__patched,  # noqa: F401
+)
 from orchestrator.graphql.types import StrawberryModelType
 
 DEFAULT_GRAPHQL_MODELS: StrawberryModelType = {

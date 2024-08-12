@@ -13,6 +13,7 @@ from orchestrator.graphql.resolvers.helpers import rows_from_statement
 from orchestrator.graphql.schemas.product import ProductType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
+from orchestrator.graphql.utils.get_query_loaders import get_query_loaders
 from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
@@ -32,7 +33,8 @@ async def resolve_products(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_products() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    select_stmt = select(ProductTable)
+    query_loaders = get_query_loaders(info, ProductTable)
+    select_stmt = select(ProductTable).options(*query_loaders)
     select_stmt = filter_products(select_stmt, pydantic_filter_by, _error_handler)
 
     if query is not None:
@@ -52,6 +54,6 @@ async def resolve_products(
 
     graphql_products = []
     if is_querying_page_data(info):
-        products = rows_from_statement(stmt, ProductTable, unique=True)
+        products = rows_from_statement(stmt, ProductTable, unique=True, loaders=query_loaders)
         graphql_products = [ProductType.from_pydantic(p) for p in products]
     return to_graphql_result_page(graphql_products, first, after, total, product_sort_fields(), product_filter_fields())
