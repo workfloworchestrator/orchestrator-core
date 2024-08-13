@@ -46,6 +46,12 @@ class BroadcastWebsocketManager:
             )
         except Exception as exc:  # noqa: S110
             log.info("Websocket client loop stopped with an exception", message=str(exc))
+            try:
+                log.info("(experiment) Closing the websocket connection")
+                await websocket.close(code=status.WS_1010_MANDATORY_EXT, reason="Loop stopped with an exception")
+                log.info("(experiment) Closed the websocket connection")
+            except Exception as exc2:
+                log.info("(experiment) Closing the websocket connection failed", exc=exc2)
         else:
             log.debug("Websocket client loop stopped normally")
         self.remove_ws_from_connected_list(websocket)
@@ -65,39 +71,47 @@ class BroadcastWebsocketManager:
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         """Read messages from websocket client."""
         log = logger.bind(client=websocket.client, channel=channel)
-        while True:
-            try:
-                message = await websocket.receive_text()
-                log.debug("Received websocket message", message=repr(message))
-            except Exception as exc:
-                log.debug("Exception while reading from websocket client", msg=str(exc))
-                break
-            if message == "__ping__":
-                await websocket.send_text("__pong__")
+        try:
+            while True:
+                try:
+                    message = await websocket.receive_text()
+                    log.debug("Received websocket message", message=repr(message))
+                except Exception as exc:
+                    log.debug("Exception while reading from websocket client", msg=str(exc))
+                    break
+                if message == "__ping__":
+                    await websocket.send_text("__pong__")
+        except Exception:
+            log.exception("(experiment) Unhandled exception in receiver")
+            return
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
         """Read messages from redis channel and send to websocket client."""
         log = logger.bind(client=websocket.client, channel=channel)
+        try:
 
-        def parse_message(raw_message: Any) -> str | None:
-            match raw_message:
-                case {"type": "message", "data": bytes() as data}:
-                    return data.decode()
-                case None:
-                    return None
-                case _:
-                    log.info("Drop unrecognized message", raw=raw_message)
-                    return None
+            def parse_message(raw_message: Any) -> str | None:
+                match raw_message:
+                    case {"type": "message", "data": bytes() as data}:
+                        return data.decode()
+                    case None:
+                        return None
+                    case _:
+                        log.info("Drop unrecognized message", raw=raw_message)
+                        return None
 
-        async with self.broadcast.subscriber(channel) as subscriber:
-            log.debug("Websocket client subscribed to channel")
-            while True:
-                raw = await subscriber.get_message(timeout=1)
-                if (message := parse_message(raw)) is None:
-                    continue
+            async with self.broadcast.subscriber(channel) as subscriber:
+                log.debug("Websocket client subscribed to channel")
+                while True:
+                    raw = await subscriber.get_message(timeout=1)
+                    if (message := parse_message(raw)) is None:
+                        continue
 
-                log.debug("Send websocket message", message=message)
-                await websocket.send_text(message)
+                    log.debug("Send websocket message", message=message)
+                    await websocket.send_text(message)
+        except Exception:
+            log.exception("(experiment) Unhandled exception in sender")
+            return
 
     async def broadcast_data(self, channels: list[str], data: dict) -> None:
         """Send messages to redis channel.
