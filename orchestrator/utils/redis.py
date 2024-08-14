@@ -17,6 +17,7 @@ from os import getenv
 from typing import Any, Callable
 from uuid import UUID
 
+from anyio import CancelScope, get_cancelled_exc_class
 from redis import Redis
 from redis.asyncio import Redis as AIORedis
 from redis.asyncio.client import Pipeline, PubSub
@@ -132,6 +133,7 @@ class RedisBroadcast:
     client: AIORedis
 
     def __init__(self, redis_url: str):
+        # self.client = AIORedis.from_url(redis_url, socket_keepalive=True, health_check_interval=20)
         self.client = AIORedis.from_url(redis_url)
         self.redis_url = redis_url
 
@@ -152,12 +154,24 @@ class RedisBroadcast:
         Automatically unsubscribes and releases the connection afterwards.
         """
         pubsub = self.client.pubsub(ignore_subscribe_messages=True)
+
+        async def do_teardown() -> None:
+            if not pubsub.subscribed:
+                return
+
+            await pubsub.unsubscribe(*channels)
+            await pubsub.aclose()  # type: ignore[attr-defined]
+
         try:
             await pubsub.subscribe(*channels)
             yield pubsub
+        except get_cancelled_exc_class():
+            # https://anyio.readthedocs.io/en/3.x/cancellation.html#finalization
+            with CancelScope(shield=True):
+                await do_teardown()
+            raise
         finally:
-            await pubsub.unsubscribe(*channels)
-            await pubsub.aclose()  # type: ignore[attr-defined]
+            await do_teardown()
 
     async def connect(self) -> None:
         # Execute a simple command to ensure we can establish a connection
