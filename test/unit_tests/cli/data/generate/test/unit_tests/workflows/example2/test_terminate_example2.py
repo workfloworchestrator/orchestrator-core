@@ -5,7 +5,7 @@ from products.product_types.example2 import Example2
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_happy_flow(responses, example2_subscription):
     # when
 
