@@ -17,9 +17,13 @@ from os import getenv
 from typing import Any, Callable
 from uuid import UUID
 
+import redis.exceptions
+from anyio import CancelScope, get_cancelled_exc_class
 from redis import Redis
 from redis.asyncio import Redis as AIORedis
 from redis.asyncio.client import Pipeline, PubSub
+from redis.asyncio.retry import Retry
+from redis.backoff import EqualJitterBackoff
 from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
@@ -132,7 +136,12 @@ class RedisBroadcast:
     client: AIORedis
 
     def __init__(self, redis_url: str):
-        self.client = AIORedis.from_url(redis_url)
+        self.client = AIORedis.from_url(
+            redis_url,
+            retry_on_error=[redis.exceptions.ConnectionError],
+            retry_on_timeout=True,
+            retry=Retry(EqualJitterBackoff(base=0.05), 2),
+        )
         self.redis_url = redis_url
 
     @asynccontextmanager
@@ -152,12 +161,24 @@ class RedisBroadcast:
         Automatically unsubscribes and releases the connection afterwards.
         """
         pubsub = self.client.pubsub(ignore_subscribe_messages=True)
+
+        async def do_teardown() -> None:
+            if not pubsub.subscribed:
+                return
+
+            await pubsub.unsubscribe(*channels)
+            await pubsub.aclose()  # type: ignore[attr-defined]
+
         try:
             await pubsub.subscribe(*channels)
             yield pubsub
+        except get_cancelled_exc_class():
+            # https://anyio.readthedocs.io/en/3.x/cancellation.html#finalization
+            with CancelScope(shield=True):
+                await do_teardown()
+            raise
         finally:
-            await pubsub.unsubscribe(*channels)
-            await pubsub.aclose()  # type: ignore[attr-defined]
+            await do_teardown()
 
     async def connect(self) -> None:
         # Execute a simple command to ensure we can establish a connection
