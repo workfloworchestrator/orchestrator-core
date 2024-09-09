@@ -6,7 +6,7 @@ from products.product_types.example1 import Example1
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_happy_flow(responses, example1_subscription):
     # when
 
@@ -27,7 +27,7 @@ def test_happy_flow(responses, example1_subscription):
     assert example1.status == SubscriptionLifecycle.TERMINATED
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_can_only_terminate_when_modifiable_boolean_is_true(responses, example1_subscription):
     # given
 
