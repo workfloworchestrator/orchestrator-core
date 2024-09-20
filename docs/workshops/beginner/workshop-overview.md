@@ -90,4 +90,3 @@ The `example-orchestrator-ui` folder will be cloned from GitHub. The
 during this workshop.  Although any layout of the latter folder will work, it
 is encouraged to use the suggested folder layout and filenames during this
 workshop.
-

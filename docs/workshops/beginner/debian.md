@@ -115,7 +115,7 @@ git clone https://github.com/workfloworchestrator/example-orchestrator-ui.git
 Install the npm packages
 `npm i`
 
-Set the environment variables. The defaults from .env.example will work out of the box with the example orchestrator backend. 
+Set the environment variables. The defaults from .env.example will work out of the box with the example orchestrator backend.
 `cp .env.example .env`
 If you are working without authentication, be sure to set `OAUTH2_ACTIVE=true`.
 
