@@ -24,7 +24,7 @@ from orchestrator.graphql.schema import (
     OrchestratorSchema,
     Query,
     create_graphql_router,
-    get_context,
+    default_context_getter,
 )
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
 from orchestrator.graphql.types import SCALAR_OVERRIDES
@@ -38,7 +38,7 @@ __all__ = [
     "Mutation",
     "OrchestratorGraphqlRouter",
     "OrchestratorSchema",
-    "get_context",
+    "default_context_getter",
     "create_graphql_router",
     "EnumDict",
     "add_class_to_strawberry",
