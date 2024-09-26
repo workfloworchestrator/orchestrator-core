@@ -104,11 +104,10 @@ class SubscriptionInterface:
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
-        from orchestrator.services.subscriptions import query_in_use_by_subscriptions
 
-        in_use_by_query = query_in_use_by_subscriptions(self.subscription_id)
-        query_results = in_use_by_query.with_entities(SubscriptionTable.subscription_id).all()
-        subscription_ids = [str(s.subscription_id) for s in query_results]
+        subscriptions = await info.context.core_in_use_by_subs_loader.load((self.subscription_id, None))
+        subscription_ids = [str(subscription.subscription_id) for subscription in subscriptions]
+
         if not subscription_ids:
             return EMPTY_PAGE
         filter_by_with_related_subscriptions = (filter_by or []) + [
@@ -126,11 +125,9 @@ class SubscriptionInterface:
         after: int = 0,
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
-        from orchestrator.services.subscriptions import query_depends_on_subscriptions
 
-        depends_on_query = query_depends_on_subscriptions(self.subscription_id)
-        query_results = depends_on_query.with_entities(SubscriptionTable.subscription_id).all()
-        subscription_ids = [str(s.subscription_id) for s in query_results]
+        subscriptions = await info.context.core_depends_on_subs_loader.load((self.subscription_id, None))
+        subscription_ids = [str(subscription.subscription_id) for subscription in subscriptions]
         if not subscription_ids:
             return EMPTY_PAGE
         filter_by_with_related_subscriptions = (filter_by or []) + [
