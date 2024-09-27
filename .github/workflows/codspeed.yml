@@ -63,4 +63,4 @@ jobs:
           ENVIRONMENT: TESTING
         with:
           token: ${{ secrets.CODSPEED_TOKEN }}
-          run: pytest test/unit_tests -m 'benchmark or benchmark_instrumented' --codspeed
+          run: pytest test/unit_tests -m "benchmark or benchmark_instrumented" --codspeed
