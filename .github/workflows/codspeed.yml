@@ -1,0 +1,68 @@
+name: codspeed-benchmarks
+
+on:
+  push:
+    branches:
+      - "main"
+      - "try-codspeed"
+  pull_request:
+  # `workflow_dispatch` allows CodSpeed to trigger backtest
+  # performance analysis in order to generate initial data.
+  workflow_dispatch:
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14-alpine
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        # Docker Hub image
+        image: redis
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          apt update
+          apt install curl git build-essential libpq-dev libffi-dev -y
+          python -m pip install --upgrade pip
+          pip install flit
+          flit install --deps develop --symlink
+        env:
+          FLIT_ROOT_INSTALL: 1
+
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v3
+        env:
+          CACHE_URI: redis://redis
+          POSTGRES_DB: orchestrator-core-test
+          POSTGRES_USER: nwa
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_HOST: postgres
+          DATABASE_URI: postgresql://nwa:nwa@postgres/nwa
+          ENVIRONMENT: TESTING
+        with:
+          token: ${{ secrets.CODSPEED_TOKEN }}
+          run: pytest tests/unit-tests -m 'benchmark or benchmark_instrumented' --codspeed

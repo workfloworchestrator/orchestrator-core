@@ -14,6 +14,8 @@ import json
 from http import HTTPStatus
 from uuid import uuid4
 
+import pytest
+
 
 def build_simple_query(subscription_id):
 
@@ -60,6 +62,7 @@ def build_complex_query(subscription_id):
     ).encode("utf-8")
 
 
+@pytest.mark.benchmark
 def test_single_simple_subscription(fastapi_app_graphql, test_client, product_sub_list_union_subscription_1):
     test_query = build_simple_query(subscription_id=product_sub_list_union_subscription_1)
     response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
@@ -67,6 +70,7 @@ def test_single_simple_subscription(fastapi_app_graphql, test_client, product_su
     assert response.json() == {"data": {"subscription": {"insync": True, "status": "ACTIVE"}}}
 
 
+@pytest.mark.benchmark
 def test_single_complex_subscription(
     fastapi_app_graphql, test_client, product_sub_list_union_subscription_1, test_product_type_sub_list_union
 ):
