@@ -32,7 +32,6 @@ from orchestrator.workflow import StepList, Workflow, conditional, done, init, m
 from orchestrator.workflows.steps import (
     cache_domain_models,
     refresh_subscription_search_index,
-    remove_domain_model_from_cache,
     resync,
     set_status,
     store_process_subscription,
@@ -248,8 +247,8 @@ def modify_workflow(
         steplist = (
             init
             >> store_process_subscription(Target.MODIFY)
-            >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
+            >> push_domain_models(cache_domain_models)
             >> f()
             >> (additional_steps or StepList())
             >> resync
@@ -286,8 +285,8 @@ def terminate_workflow(
         steplist = (
             init
             >> store_process_subscription(Target.TERMINATE)
-            >> push_domain_models(remove_domain_model_from_cache)
             >> unsync
+            >> push_domain_models(cache_domain_models)
             >> f()
             >> (additional_steps or StepList())
             >> set_status(SubscriptionLifecycle.TERMINATED)
@@ -320,8 +319,8 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
         steplist = (
             init
             >> store_process_subscription(Target.SYSTEM)
-            >> push_subscriptions(remove_domain_model_from_cache)
             >> unsync_unchecked
+            >> push_subscriptions(cache_domain_models)
             >> f()
             >> resync
             >> push_subscriptions(cache_domain_models)
