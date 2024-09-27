@@ -6,7 +6,7 @@ from products.product_types.example1 import Example1
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_happy_flow(responses, example1_subscription):
     # given
 
@@ -34,7 +34,7 @@ def test_happy_flow(responses, example1_subscription):
     assert example1.status == SubscriptionLifecycle.ACTIVE
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_must_be_unused_to_change_mode(responses, example1_subscription):
     # given
 
@@ -52,7 +52,7 @@ def test_must_be_unused_to_change_mode(responses, example1_subscription):
     assert error.value.errors[0]["msg"] == "Mode can only be changed when there are no services attached to it"
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_annotated_int_must_be_unique(responses, example1_subscription):
     # given
 

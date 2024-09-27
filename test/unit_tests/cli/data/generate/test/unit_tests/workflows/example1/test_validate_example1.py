@@ -3,7 +3,7 @@ import pytest
 from test.unit_tests.workflows import assert_complete, extract_state, run_workflow
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_happy_flow(responses, example1_subscription):
     # when
 
@@ -16,7 +16,7 @@ def test_happy_flow(responses, example1_subscription):
     assert state["check_core_db"] is True
 
 
-@pytest.mark.workflow()
+@pytest.mark.workflow
 def test_validate_example_in_some_oss(responses, example1_subscription):
     # given
 

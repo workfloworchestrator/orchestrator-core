@@ -719,16 +719,16 @@ def test_subscription_detail_with_domain_model_cache(test_client, generic_subscr
     response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
 
     cache = Redis.from_url(str(app_settings.CACHE_URI))
-    result = cache.get(f"domain:{generic_subscription_1}")
+    result = cache.get(f"orchestrator:domain:{generic_subscription_1}")
     cached_model = json_dumps(json_loads(result))
-    cached_etag = cache.get(f"domain:etag:{generic_subscription_1}")
+    cached_etag = cache.get(f"orchestrator:domain:etag:{generic_subscription_1}")
     assert cached_model == json_dumps(extended_model)
     assert cached_etag.decode("utf-8") == etag
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()["subscription_id"] == generic_subscription_1
     app_settings.CACHE_DOMAIN_MODELS = False
-    cache.delete(f"domain:{generic_subscription_1}")
+    cache.delete(f"orchestrator:domain:{generic_subscription_1}")
 
 
 def test_subscription_detail_with_in_use_by_ids_filtered_self(test_client, product_one_subscription_1):

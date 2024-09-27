@@ -28,7 +28,9 @@ def test_cache_update_customer_description(
 
     # Add domainmodel to cache
     to_redis(extended_model)
-    cache_fixture.extend([f"domain:{generic_subscription_1}", f"domain:etag:{generic_subscription_1}"])
+    cache_fixture.extend(
+        [f"orchestrator:domain:{generic_subscription_1}", f"orchestrator:domain:etag:{generic_subscription_1}"]
+    )
 
     # Retrieve domain-model, customer description should be as inserted
     response1 = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
@@ -66,7 +68,9 @@ def test_cache_delete_customer_description(
 
     # Add domainmodel to cache
     to_redis(extended_model)
-    cache_fixture.extend([f"domain:{generic_subscription_1}", f"domain:etag:{generic_subscription_1}"])
+    cache_fixture.extend(
+        [f"orchestrator:domain:{generic_subscription_1}", f"orchestrator:domain:etag:{generic_subscription_1}"]
+    )
 
     # Retrieve domain-model, customer description should be as inserted
     response1 = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
@@ -93,7 +97,9 @@ def test_cache_create_customer_description(
 
     # Add domainmodel to cache
     to_redis(extended_model)
-    cache_fixture.extend([f"domain:{generic_subscription_1}", f"domain:etag:{generic_subscription_1}"])
+    cache_fixture.extend(
+        [f"orchestrator:domain:{generic_subscription_1}", f"orchestrator:domain:etag:{generic_subscription_1}"]
+    )
 
     # Retrieve domain-model, customer description should be empty
     response1 = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)

@@ -29,7 +29,9 @@ async def test_get_subscription_dict_cache(generate_etag, generic_subscription_1
 
     # Add domainmodel to cache
     to_redis(extended_model)
-    cache_fixture.extend([f"domain:{generic_subscription_1}", f"domain:etag:{generic_subscription_1}"])
+    cache_fixture.extend(
+        [f"orchestrator:domain:{generic_subscription_1}", f"orchestrator:domain:etag:{generic_subscription_1}"]
+    )
 
     generate_etag.side_effect = Mock(return_value="etag-mock")
     await get_subscription_dict(generic_subscription_1)

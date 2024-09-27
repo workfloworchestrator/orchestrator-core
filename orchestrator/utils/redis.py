@@ -17,9 +17,13 @@ from os import getenv
 from typing import Any, Callable
 from uuid import UUID
 
+import redis.exceptions
+from anyio import CancelScope, get_cancelled_exc_class
 from redis import Redis
 from redis.asyncio import Redis as AIORedis
 from redis.asyncio.client import Pipeline, PubSub
+from redis.asyncio.retry import Retry
+from redis.backoff import EqualJitterBackoff
 from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
@@ -41,8 +45,8 @@ def to_redis(subscription: dict[str, Any]) -> str | None:
     if caching_models_enabled():
         logger.info("Setting cache for subscription", subscription=subscription["subscription_id"])
         etag = _generate_etag(subscription)
-        cache.set(f"domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
-        cache.set(f"domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
+        cache.set(f"orchestrator:domain:{subscription['subscription_id']}", json_dumps(subscription), ex=ONE_WEEK)
+        cache.set(f"orchestrator:domain:etag:{subscription['subscription_id']}", etag, ex=ONE_WEEK)
         return etag
 
     logger.warning("Caching disabled, not caching subscription", subscription=subscription["subscription_id"])
@@ -53,8 +57,8 @@ def from_redis(subscription_id: UUID) -> tuple[PY_JSON_TYPES, str] | None:
     log = logger.bind(subscription_id=subscription_id)
     if caching_models_enabled():
         log.debug("Try to retrieve subscription from cache")
-        obj = cache.get(f"domain:{subscription_id}")
-        etag = cache.get(f"domain:etag:{subscription_id}")
+        obj = cache.get(f"orchestrator:domain:{subscription_id}")
+        etag = cache.get(f"orchestrator:domain:etag:{subscription_id}")
         if obj and etag:
             log.info("Retrieved subscription from cache")
             return json_loads(obj), etag.decode("utf-8")
@@ -67,8 +71,8 @@ def from_redis(subscription_id: UUID) -> tuple[PY_JSON_TYPES, str] | None:
 def delete_from_redis(subscription_id: UUID) -> None:
     if caching_models_enabled():
         logger.info("Deleting subscription object from cache", subscription_id=subscription_id)
-        cache.delete(f"domain:{subscription_id}")
-        cache.delete(f"domain:etag:{subscription_id}")
+        cache.delete(f"orchestrator:domain:{subscription_id}")
+        cache.delete(f"orchestrator:domain:etag:{subscription_id}")
     else:
         logger.warning("Caching disabled, not deleting subscription", subscription=subscription_id)
 
@@ -132,7 +136,12 @@ class RedisBroadcast:
     client: AIORedis
 
     def __init__(self, redis_url: str):
-        self.client = AIORedis.from_url(redis_url)
+        self.client = AIORedis.from_url(
+            redis_url,
+            retry_on_error=[redis.exceptions.ConnectionError],
+            retry_on_timeout=True,
+            retry=Retry(EqualJitterBackoff(base=0.05), 2),
+        )
         self.redis_url = redis_url
 
     @asynccontextmanager
@@ -152,12 +161,24 @@ class RedisBroadcast:
         Automatically unsubscribes and releases the connection afterwards.
         """
         pubsub = self.client.pubsub(ignore_subscribe_messages=True)
+
+        async def do_teardown() -> None:
+            if not pubsub.subscribed:
+                return
+
+            await pubsub.unsubscribe(*channels)
+            await pubsub.aclose()  # type: ignore[attr-defined]
+
         try:
             await pubsub.subscribe(*channels)
             yield pubsub
+        except get_cancelled_exc_class():
+            # https://anyio.readthedocs.io/en/3.x/cancellation.html#finalization
+            with CancelScope(shield=True):
+                await do_teardown()
+            raise
         finally:
-            await pubsub.unsubscribe(*channels)
-            await pubsub.aclose()  # type: ignore[attr-defined]
+            await do_teardown()
 
     async def connect(self) -> None:
         # Execute a simple command to ensure we can establish a connection

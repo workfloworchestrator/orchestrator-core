@@ -14,12 +14,19 @@ from typing import Any
 
 from fastapi import WebSocket, status
 from starlette.concurrency import run_until_first_complete
-from structlog import get_logger
+from starlette.websockets import WebSocketDisconnect
+from structlog.stdlib import BoundLogger, get_logger
 
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import RedisBroadcast
 
 logger = get_logger(__name__)
+
+
+def _make_logger(websocket: WebSocket, channel: str) -> BoundLogger:
+    return logger.bind(
+        client=websocket.client, channel=channel, sec_websocket_key=websocket.headers.get("sec-websocket-key")
+    )
 
 
 class BroadcastWebsocketManager:
@@ -37,7 +44,7 @@ class BroadcastWebsocketManager:
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         """Connect a new websocket client."""
         self.connected.append(websocket)
-        log = logger.bind(client=websocket.client, channel=channel)
+        log = _make_logger(websocket, channel)
         log.debug("Websocket client connected, start loop", total_connections=len(self.connected))
         try:
             await run_until_first_complete(
@@ -64,20 +71,23 @@ class BroadcastWebsocketManager:
 
     async def receiver(self, websocket: WebSocket, channel: str) -> None:
         """Read messages from websocket client."""
-        log = logger.bind(client=websocket.client, channel=channel)
+        log = _make_logger(websocket, channel)
         while True:
             try:
                 message = await websocket.receive_text()
                 log.debug("Received websocket message", message=repr(message))
-            except Exception as exc:
-                log.debug("Exception while reading from websocket client", msg=str(exc))
+                if message == "__ping__":
+                    await websocket.send_text("__pong__")
+            except WebSocketDisconnect as disconnect:
+                log.debug("Websocket connection closed by client", code=disconnect.code, reason=disconnect.reason)
                 break
-            if message == "__ping__":
-                await websocket.send_text("__pong__")
+            except Exception:
+                log.exception("Exception in receiver loop")
+                break
 
     async def sender(self, websocket: WebSocket, channel: str) -> None:
         """Read messages from redis channel and send to websocket client."""
-        log = logger.bind(client=websocket.client, channel=channel)
+        log = _make_logger(websocket, channel)
 
         def parse_message(raw_message: Any) -> str | None:
             match raw_message:
@@ -89,15 +99,18 @@ class BroadcastWebsocketManager:
                     log.info("Drop unrecognized message", raw=raw_message)
                     return None
 
-        async with self.broadcast.subscriber(channel) as subscriber:
-            log.debug("Websocket client subscribed to channel")
-            while True:
-                raw = await subscriber.get_message(timeout=1)
-                if (message := parse_message(raw)) is None:
-                    continue
+        try:
+            async with self.broadcast.subscriber(channel) as subscriber:
+                log.debug("Websocket client subscribed to channel")
+                while True:
+                    raw = await subscriber.get_message(timeout=1)
+                    if (message := parse_message(raw)) is None:
+                        continue
 
-                log.debug("Send websocket message", message=message)
-                await websocket.send_text(message)
+                    log.debug("Send websocket message", message=message)
+                    await websocket.send_text(message)
+        except Exception:
+            log.exception("Exception in sender loop")
 
     async def broadcast_data(self, channels: list[str], data: dict) -> None:
         """Send messages to redis channel.
