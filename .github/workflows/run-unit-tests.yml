@@ -42,8 +42,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt update
-          apt install curl git build-essential libpq-dev libffi-dev -y
           python -m pip install --upgrade pip
           pip install flit
           flit install --deps develop --symlink
