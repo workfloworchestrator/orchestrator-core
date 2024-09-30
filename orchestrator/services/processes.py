@@ -57,6 +57,7 @@ from orchestrator.workflow import (
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
+from orchestrator.websocket import broadcast_invalidate_status_counts
 from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
 
@@ -117,6 +118,7 @@ def _db_create_process(stat: ProcessStat) -> None:
 
 def delete_process(process_id: UUID) -> None:
     db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
+    broadcast_invalidate_status_counts()
     db.session.commit()
 
 
