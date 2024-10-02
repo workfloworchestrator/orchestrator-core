@@ -62,5 +62,5 @@ jobs:
           DATABASE_URI: postgresql://nwa:nwa@postgres/nwa
           ENVIRONMENT: TESTING
         with:
-          token: ${{ secrets.CODSPEED_TOKEN }}
+          # token: ${{ secrets.CODSPEED_TOKEN }}
           run: pytest test/unit_tests -m "benchmark or benchmark_instrumented" --codspeed
