@@ -13,6 +13,7 @@ on:
 jobs:
   benchmarks:
     runs-on: ubuntu-latest
+    container: python:3.12-slim
     services:
       postgres:
         image: postgres:14-alpine
@@ -39,9 +40,9 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v3
-        with:
-          python-version: "3.12"
+          #      - uses: actions/setup-python@v3
+          #        with:
+          #          python-version: "3.12"
 
       - name: Install dependencies
         run: |
