@@ -78,10 +78,11 @@ async def get_subscription_product_blocks(
         def value_parser(value: Any) -> str:
             if isinstance(value, (str, int, float, type(None))):
                 return value
-            elif isinstance(value, list):
+
+            if isinstance(value, list):
                 return [value_parser(v) for v in value if is_resource_type(v)]
-            else:
-                return str(value)
+
+            return str(value)
 
         return ProductBlockInstance(
             id=product_block["id"],
