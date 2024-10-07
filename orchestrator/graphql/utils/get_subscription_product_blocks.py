@@ -75,7 +75,7 @@ async def get_subscription_product_blocks(
         def included(key: str, value: Any) -> bool:
             return is_resource_type(value) and requested_resource_type(key) and key not in pb_instance_property_keys
 
-        def value_parser(value: Any) -> str:
+        def value_parser(value: Any) -> str | int | float | list | None:
             if isinstance(value, (str, int, float, type(None))):
                 return value
 
