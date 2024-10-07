@@ -13,7 +13,7 @@
 from collections.abc import Callable, Iterable
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Coroutine
+from typing import Any, Coroutine, Protocol
 
 import strawberry
 import structlog
@@ -134,17 +134,26 @@ class OrchestratorSchema(strawberry.federation.Schema):
                 StrawberryLogger.error(error, execution_context)
 
 
-def get_context(
+class ContextGetterFactory(Protocol):
+    def __call__(
+        self,
+        auth_manager: AuthManager,
+        graphql_models: StrawberryModelType,
+        broadcast_thread: ProcessDataBroadcastThread | None = None,
+    ) -> Callable[[], Coroutine[Any, Any, OrchestratorContext]]: ...
+
+
+def default_context_getter(
     auth_manager: AuthManager,
     graphql_models: StrawberryModelType,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
 ) -> Callable[[], Coroutine[Any, Any, OrchestratorContext]]:
-    async def _get_context() -> OrchestratorContext:
+    async def context_getter() -> OrchestratorContext:
         return OrchestratorContext(
             auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread
         )
 
-    return _get_context
+    return context_getter
 
 
 def get_extensions(mutation: Any, query: Any) -> Iterable[type[SchemaExtension]]:
@@ -169,6 +178,7 @@ def create_graphql_router(
     graphql_models: StrawberryModelType | None = None,
     scalar_overrides: ScalarOverrideType | None = None,
     extensions: list | None = None,
+    custom_context_getter: ContextGetterFactory | None = None,
 ) -> OrchestratorGraphqlRouter:
     scalar_overrides = scalar_overrides if scalar_overrides else dict(SCALAR_OVERRIDES)
     models = graphql_models if graphql_models else dict(DEFAULT_GRAPHQL_MODELS)
@@ -190,8 +200,9 @@ def create_graphql_router(
         scalar_overrides=scalar_overrides,
     )
 
+    context_getter_factory = custom_context_getter or default_context_getter
     return OrchestratorGraphqlRouter(
         schema,
-        context_getter=get_context(auth_manager, models, broadcast_thread),
+        context_getter=context_getter_factory(auth_manager, models, broadcast_thread),
         graphiql=app_settings.SERVE_GRAPHQL_UI,
     )

@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import cast
 from uuid import UUID
 
@@ -18,6 +17,7 @@ import structlog
 from graphql import GraphQLError
 from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import Select, func, select
+from sqlalchemy.orm import contains_eager
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib.asyncio import gather_nice
@@ -125,7 +125,16 @@ async def resolve_subscriptions(
         filter=pydantic_filter_by,
         query=query,
     )
-    stmt = select(SubscriptionTable).join(ProductTable)
+
+    stmt = (
+        select(SubscriptionTable)
+        .join(ProductTable)
+        .options(
+            # contains_eager() is needed because .join() does not eagerload, unlike options(joinedload())
+            # (and using joinedload() is not possible because of filter_subscriptions())
+            contains_eager(SubscriptionTable.product),
+        )
+    )
 
     stmt = filter_subscriptions(stmt, pydantic_filter_by, _error_handler)
     if query is not None:

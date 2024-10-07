@@ -50,6 +50,7 @@ from orchestrator.distlock import init_distlock_manager
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.exception_handlers import problem_detail_handler
 from orchestrator.graphql import Mutation, Query, create_graphql_router
+from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.log_config import LOGGER_OVERRIDES
@@ -205,6 +206,7 @@ class OrchestratorCore(FastAPI):
         graphql_models: StrawberryModelType | None = None,
         scalar_overrides: ScalarOverrideType | None = None,
         extensions: list | None = None,
+        custom_context_getter: ContextGetterFactory | None = None,
     ) -> None:
         new_router = create_graphql_router(
             self.auth_manager,
@@ -216,6 +218,7 @@ class OrchestratorCore(FastAPI):
             graphql_models,
             scalar_overrides,
             extensions=extensions,
+            custom_context_getter=custom_context_getter,
         )
         if not self.graphql_router:
             self.graphql_router = new_router
