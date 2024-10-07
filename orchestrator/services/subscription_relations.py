@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable, NamedTuple
 from uuid import UUID
 
 import structlog
-from more_itertools import flatten
+from more_itertools import flatten, unique
 from sqlalchemy import Row, select
 from sqlalchemy import Text as SaText
 from sqlalchemy import cast as sa_cast
@@ -37,7 +37,9 @@ def _get_instance_relations(instance_relations_query: Any) -> list[Relation]:
     return [to_relation(row) for row in db.session.execute(instance_relations_query)]
 
 
-async def _get_in_use_by_instance_relations(subscription_ids: list[UUID], filter_statuses: list[str]) -> list[Relation]:
+async def _get_in_use_by_instance_relations(
+    subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
+) -> list[Relation]:
     """Get in_use_by by relations through subscription instance hierarchy."""
     in_use_by_subscriptions = aliased(SubscriptionTable)
     in_use_by_instances = aliased(SubscriptionInstanceTable)
@@ -59,7 +61,7 @@ async def _get_in_use_by_instance_relations(subscription_ids: list[UUID], filter
 
 
 async def _get_depends_on_instance_relations(
-    subscription_ids: list[UUID], filter_statuses: list[str]
+    subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
 ) -> list[Relation]:
     """Get depends_on relations through subscription instance hierarchy."""
     in_use_by_instances = aliased(SubscriptionInstanceTable)
@@ -89,7 +91,7 @@ def _get_resource_type_relations(resource_type_relations_query: Any) -> list[Rel
 
 
 async def _get_in_use_by_resource_type_relations(
-    subscription_ids: list[UUID], filter_statuses: list[str]
+    subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
 ) -> list[Relation]:
     """Get in_use_by relations through resource types."""
     logger.warning("Using legacy RELATION_RESOURCE_TYPES to find in_use_by subs")
@@ -115,7 +117,7 @@ async def _get_in_use_by_resource_type_relations(
 
 
 async def _get_depends_on_resource_type_relations(
-    subscription_ids: list[UUID], filter_statuses: list[str]
+    subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
 ) -> list[Relation]:
     """Get depends_on relations through resource types."""
     logger.warning("Using legacy RELATION_RESOURCE_TYPES to find depends_on subs")
@@ -143,7 +145,7 @@ async def _get_depends_on_resource_type_relations(
     return _get_resource_type_relations(query_get_depends_on_ids)
 
 
-async def _get_in_use_by_relations(subscription_ids: list[UUID], filter_statuses: list[str]) -> list[Relation]:
+async def _get_in_use_by_relations(subscription_ids: list[UUID], filter_statuses: tuple[str, ...]) -> list[Relation]:
     if RELATION_RESOURCE_TYPES:
         # Find relations through resource types
         resource_type_relations = await _get_in_use_by_resource_type_relations(subscription_ids, filter_statuses)
@@ -154,7 +156,7 @@ async def _get_in_use_by_relations(subscription_ids: list[UUID], filter_statuses
     return list(chain(resource_type_relations, instance_relations))
 
 
-async def _get_depends_on_relations(subscription_ids: list[UUID], filter_statuses: list[str]) -> list[Relation]:
+async def _get_depends_on_relations(subscription_ids: list[UUID], filter_statuses: tuple[str, ...]) -> list[Relation]:
     if RELATION_RESOURCE_TYPES:
         # Find relations through resource types
         resource_type_relations = await _get_depends_on_resource_type_relations(subscription_ids, filter_statuses)
@@ -166,10 +168,10 @@ async def _get_depends_on_relations(subscription_ids: list[UUID], filter_statuse
 
 
 async def get_in_use_by_subscriptions(
-    subscription_ids: list[UUID], filter_statuses: list[str]
+    subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
 ) -> list[list[SubscriptionTable]]:
     """Function to efficiently get the in_use_by SubscriptionTables for multiple subscription_ids."""
-    _filter_statuses: list[str] = filter_statuses or SubscriptionLifecycle.values()
+    _filter_statuses: tuple[str, ...] = filter_statuses or tuple(SubscriptionLifecycle.values())
     in_use_by_relations = await _get_in_use_by_relations(subscription_ids, _filter_statuses)
 
     # Retrieve SubscriptionTable for all unique inuseby ids
@@ -194,10 +196,10 @@ async def get_in_use_by_subscriptions(
 
 
 async def get_depends_on_subscriptions(
-    subscription_ids: list[UUID], filter_statuses: list[str]
+    subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
 ) -> list[list[SubscriptionTable]]:
     """Function to efficiently get the depends_on SubscriptionTables for multiple subscription_ids."""
-    _filter_statuses: list[str] = filter_statuses or SubscriptionLifecycle.values()
+    _filter_statuses: tuple[str, ...] = filter_statuses or tuple(SubscriptionLifecycle.values())
     depends_on_relations = await _get_depends_on_relations(subscription_ids, _filter_statuses)
 
     # Retrieve SubscriptionTable for all unique dependson ids
@@ -223,12 +225,12 @@ async def get_depends_on_subscriptions(
 
 async def get_recursive_relations(
     subscription_ids: list[UUID],
-    filter_statuses: list[str],
+    filter_statuses: tuple[str, ...],
     recurse_product_types: list[str],
     recurse_depth_limit: int,
-    relation_fetcher: Callable[[list[UUID], list[str]], Awaitable[list[list[SubscriptionTable]]]],
+    relation_fetcher: Callable[[list[UUID], tuple[str, ...]], Awaitable[list[list[SubscriptionTable]]]],
     current_depth: int = 0,
-    used_subscription_ids: list[UUID] | None = None,
+    used_subscription_ids: set[UUID] | None = None,
 ) -> list[SubscriptionTable]:
     """Recursively fetches subscription relations based on a custom relation-fetching function.
 
@@ -245,26 +247,27 @@ async def get_recursive_relations(
         A flattened list of all fetched relations for the given subscriptions.
     """
 
-    used_subscription_ids = used_subscription_ids or subscription_ids
+    used_subscription_ids = used_subscription_ids or set(subscription_ids)
     relations = await relation_fetcher(subscription_ids, filter_statuses)
     flat_relations_list = list(flatten(relations))
 
-    nested_relations: list[SubscriptionTable] = []
-    if recurse_depth_limit > current_depth:
-        related_subscription_ids = [
+    def get_related_subscription_ids() -> list[UUID]:
+        return [
             r.subscription_id
             for r in flat_relations_list
             if r.product.product_type in recurse_product_types and r.subscription_id not in used_subscription_ids
         ]
-        used_subscription_ids += related_subscription_ids
-        if related_subscription_ids:
-            nested_relations = await get_recursive_relations(
-                related_subscription_ids,
-                filter_statuses,
-                recurse_product_types,
-                recurse_depth_limit,
-                current_depth=current_depth + 1,
-                used_subscription_ids=used_subscription_ids,
-                relation_fetcher=relation_fetcher,
-            )
-    return flat_relations_list + nested_relations
+
+    nested_relations: list[SubscriptionTable] = []
+    if recurse_depth_limit > current_depth and (related_subscription_ids := get_related_subscription_ids()):
+        used_subscription_ids.update(related_subscription_ids)
+        nested_relations = await get_recursive_relations(
+            related_subscription_ids,
+            filter_statuses,
+            recurse_product_types,
+            recurse_depth_limit,
+            current_depth=current_depth + 1,
+            used_subscription_ids=used_subscription_ids,
+            relation_fetcher=relation_fetcher,
+        )
+    return list(unique(flat_relations_list + nested_relations, lambda s: s.subscription_id))
