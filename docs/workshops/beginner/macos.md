@@ -107,7 +107,7 @@ example-orchestrator:
 
 ```shell
 cd ..
-git clone https://github.com/workfloworchestrator/orchestrator-core-gui.git
+git clone https://github.com/workfloworchestrator/example-orchestrator-ui.git
 ```
 
 When multiple version of Node.js are installed, make sure node@14 is being
@@ -115,7 +115,7 @@ used, this can be achieved by explicitly prepending it to the shell PATH.  Use
 the Yarn package manager to install the orchestrator client dependencies:
 
 ```shell
-cd orchestrator-core-gui/
+cd example-orchestrator-ui/
 export PATH="/usr/local/opt/node@14/bin:$PATH"
 yarn install
 ```
