@@ -183,7 +183,8 @@ def continue_awaiting_process_endpoint(
         raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
 
     try:
-        continue_awaiting_process(process, token=token, input_data=json_data)
+        broadcast_func = api_broadcast_process_data(request)
+        continue_awaiting_process(process, token=token, input_data=json_data, broadcast_func=broadcast_func)
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
 
