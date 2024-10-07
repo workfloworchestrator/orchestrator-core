@@ -43,6 +43,7 @@ from test.unit_tests.config import (
     PEER_GROUP_SUBSCRIPTION_ID,
     PORT_SUBSCRIPTION_ID,
 )
+from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
 PORT_A_SUBSCRIPTION_ID = str(uuid4())
@@ -664,6 +665,73 @@ def test_subscriptions_search(query, num_matches, seed, test_client, refresh_sub
     response = test_client.get(f"/api/subscriptions/search?query={query}")
     result = response.json()
     assert len(result) == num_matches
+
+
+@pytest.fixture
+def make_port_subscription():
+
+    def make(subscription_id=None, customer_id=None, product_id=None):
+        product_id = str(product_id or uuid4())
+        subscription_id = str(subscription_id or uuid4())
+        customer_id = str(customer_id or uuid4())
+        product = ProductTable(
+            product_id=product_id,
+            name="ProductTable",
+            description="description",
+            product_type="Port",
+            tag="Port",
+            status="active",
+        )
+        subscription = SubscriptionTable(
+            subscription_id=subscription_id,
+            description="desc",
+            status="active",
+            insync=True,
+            product=product,
+            customer_id=customer_id,
+        )
+
+        db.session.add(product)
+        db.session.add(subscription)
+        db.session.commit()
+        do_refresh_subscriptions_search_view()
+        return subscription_id, customer_id, product_id
+
+    return make
+
+
+@pytest.mark.parametrize(
+    "subscription_id",
+    [
+        "144cd85c-77a9-43bf-a78c-3ef2647c6ff1",
+        "67bb12ae-8dfc-4ddb-9fd2-979392a9f2ad",
+        "85ab4e94-c045-46f3-85c7-a8fbc7411aca",
+        "27e84752-c700-491e-b126-454b5fa06dc0",
+        "191b9852-e689-4dd2-8699-fc9c11c2bcdd",
+        "998e7c12-e4d2-4321-a075-04b13a76ab39",
+        "cfc64927-8f52-4325-87ac-daa1e16794e8",
+        "5846383e-6387-411b-8e6e-bca022e2a86d",
+    ],
+)
+def test_subscriptions_search_uuids2(
+    subscription_id, make_port_subscription, test_client, refresh_subscriptions_search_view
+):
+    make_port_subscription(subscription_id=subscription_id)
+
+    search_queries = {"full": subscription_id} | {
+        f"group{n}": part for n, part in enumerate(subscription_id.split("-"))
+    }
+
+    def search(keyword):
+        response = test_client.get(f"/api/subscriptions/search?query={keyword}")
+        return len(response.json()) == 1
+
+    results = {testcase: search(keyword) for testcase, keyword in search_queries.items()}
+
+    succeeded = [search_queries[testcase] for testcase in results if results[testcase]]
+    failed = [search_queries[testcase] for testcase in results if not results[testcase]]
+
+    assert not failed, f"Could not find '{subscription_id}' by all keywords; {succeeded=} {failed=}"
 
 
 def test_subscription_detail_with_domain_model(test_client, generic_subscription_1):
