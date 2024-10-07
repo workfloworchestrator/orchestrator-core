@@ -79,7 +79,7 @@ async def get_subscription_product_blocks(
             if isinstance(value, (str, int, float, type(None))):
                 return value
             elif isinstance(value, list):
-                return ", ".join([str(v) for v in value if is_resource_type(v)])
+                return [value_parser(v) for v in value if is_resource_type(v)]
             else:
                 return str(value)
 
