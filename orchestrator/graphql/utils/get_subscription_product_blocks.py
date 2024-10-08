@@ -75,13 +75,14 @@ async def get_subscription_product_blocks(
         def included(key: str, value: Any) -> bool:
             return is_resource_type(value) and requested_resource_type(key) and key not in pb_instance_property_keys
 
-        def value_parser(value: Any) -> str:
+        def value_parser(value: Any) -> str | int | float | list | None:
             if isinstance(value, (str, int, float, type(None))):
                 return value
-            elif isinstance(value, list):
+
+            if isinstance(value, list):
                 return [value_parser(v) for v in value if is_resource_type(v)]
-            else:
-                return str(value)
+
+            return str(value)
 
         return ProductBlockInstance(
             id=product_block["id"],
