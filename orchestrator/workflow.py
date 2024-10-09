@@ -77,7 +77,8 @@ class Step(Protocol):
     form: InputFormGenerator | None
     assignee: Assignee | None
 
-    def __call__(self, state: State) -> Process: ...
+    def __call__(self, state: State) -> Process:
+        ...
 
 
 @runtime_checkable
@@ -90,7 +91,8 @@ class Workflow(Protocol):
     target: Target
     steps: StepList
 
-    def __call__(self) -> NoReturn: ...
+    def __call__(self) -> NoReturn:
+        ...
 
 
 def make_step_function(
@@ -129,10 +131,12 @@ class StepList(list[Step]):
         return StepList(map(f, self))
 
     @overload  # type: ignore
-    def __getitem__(self, i: int) -> Step: ...
+    def __getitem__(self, i: int) -> Step:
+        ...
 
     @overload
-    def __getitem__(self, i: slice) -> StepList: ...
+    def __getitem__(self, i: slice) -> StepList:
+        ...
 
     def __getitem__(self, i: int | slice) -> Step | StepList:
         retval: Step | list[Step] = super().__getitem__(i)
@@ -1360,6 +1364,13 @@ def errorlogger(error: ErrorDict) -> None:
     logger.error("Workflow returned an error.", **error)
 
 
+def broadcast_failed_step(error: ErrorDict) -> None:
+    """Broadcast failed step to the websocket."""
+    from orchestrator.websocket import broadcast_invalidate_status_counts
+
+    broadcast_invalidate_status_counts()
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
@@ -1393,6 +1404,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
         # as bare exceptions are not JSON serializable
         result_to_log = step_result_process.on_failed(error_state_to_dict).on_waiting(error_state_to_dict)
         result_to_log.on_success(mutationlogger).on_failed(errorlogger).on_waiting(errorlogger)
+        result_to_log.on_failed(broadcast_failed_step)
         process = dblogstep(step, result_to_log)
         # If database logging failed, the workflow should fail. When it was successful just continue with the
         # result of the executed step.
