@@ -41,7 +41,6 @@ async def _get_in_use_by_instance_relations(
     subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
 ) -> list[Relation]:
     """Get in_use_by by relations through subscription instance hierarchy."""
-    in_use_by_subscriptions = aliased(SubscriptionTable)
     in_use_by_instances = aliased(SubscriptionInstanceTable)
     depends_on_instances = aliased(SubscriptionInstanceTable)
 
@@ -51,10 +50,9 @@ async def _get_in_use_by_instance_relations(
         .join(in_use_by_instances.subscription)
         .join(in_use_by_instances.depends_on_block_relations)
         .join(depends_on_instances, SubscriptionInstanceRelationTable.depends_on)
-        .join(in_use_by_subscriptions, depends_on_instances.subscription)
         .filter(depends_on_instances.subscription_id.in_(set(subscription_ids)))
         .filter(in_use_by_instances.subscription_id != depends_on_instances.subscription_id)
-        .filter(in_use_by_subscriptions.status.in_(filter_statuses))
+        .filter(SubscriptionTable.status.in_(filter_statuses))
     )
 
     return _get_instance_relations(query_get_in_use_by_ids)
@@ -66,7 +64,6 @@ async def _get_depends_on_instance_relations(
     """Get depends_on relations through subscription instance hierarchy."""
     in_use_by_instances = aliased(SubscriptionInstanceTable)
     depends_on_instances = aliased(SubscriptionInstanceTable)
-    depends_on_subscriptions = aliased(SubscriptionTable)
 
     query_get_depends_on_ids = (
         select(depends_on_instances.subscription_id, in_use_by_instances.subscription_id)
@@ -74,10 +71,9 @@ async def _get_depends_on_instance_relations(
         .join(depends_on_instances.subscription)
         .join(depends_on_instances.in_use_by_block_relations)
         .join(in_use_by_instances, SubscriptionInstanceRelationTable.in_use_by)
-        .join(depends_on_subscriptions, in_use_by_instances.subscription)
         .filter(in_use_by_instances.subscription_id.in_(set(subscription_ids)))
         .filter(depends_on_instances.subscription_id != in_use_by_instances.subscription_id)
-        .filter(depends_on_subscriptions.status.in_(filter_statuses))
+        .filter(SubscriptionTable.status.in_(filter_statuses))
     )
 
     return _get_instance_relations(query_get_depends_on_ids)
