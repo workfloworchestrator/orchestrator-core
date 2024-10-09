@@ -34,7 +34,7 @@ async def test_get_in_use_by_subscriptions(
         [product_sub_list_union_subscription_1],
     ]
 
-    assert [[sub.subscription_id for sub in r_list] for r_list in result] == expected_result
+    assert [sorted([sub.subscription_id for sub in r_list]) for r_list in result] == expected_result
 
 
 async def test_get_in_use_by_subscriptions_only_active(
@@ -63,7 +63,7 @@ async def test_get_in_use_by_subscriptions_only_active(
         [],
     ]
 
-    assert [[sub.subscription_id for sub in r_list] for r_list in result] == expected_result
+    assert [sorted([sub.subscription_id for sub in r_list]) for r_list in result] == expected_result
 
 
 async def test_get_in_use_by_subscriptions_only_terminated(
@@ -88,7 +88,7 @@ async def test_get_in_use_by_subscriptions_only_terminated(
         [product_sub_list_union_subscription_1],
     ]
 
-    assert [[sub.subscription_id for sub in r_list] for r_list in result] == expected_result
+    assert [sorted([sub.subscription_id for sub in r_list]) for r_list in result] == expected_result
 
 
 async def test_get_in_use_by_subscriptions_empty():
@@ -122,7 +122,7 @@ async def test_get_depends_on_subscriptions(
         [sub_one_subscription_1.subscription_id],
     ]
 
-    assert [[sub.subscription_id for sub in r_list] for r_list in result] == expected_result
+    assert [sorted([sub.subscription_id for sub in r_list]) for r_list in result] == expected_result
 
 
 async def test_get_depends_on_subscriptions_only_active(
@@ -146,7 +146,7 @@ async def test_get_depends_on_subscriptions_only_active(
         [sub_one_subscription_1.subscription_id],
     ]
 
-    assert [[sub.subscription_id for sub in r_list] for r_list in result] == expected_result
+    assert [sorted([sub.subscription_id for sub in r_list]) for r_list in result] == expected_result
 
 
 async def test_get_depends_on_subscriptions_only_terminated(
@@ -175,7 +175,7 @@ async def test_get_depends_on_subscriptions_only_terminated(
         [],
     ]
 
-    assert [[sub.subscription_id for sub in r_list] for r_list in result] == expected_result
+    assert [sorted([sub.subscription_id for sub in r_list]) for r_list in result] == expected_result
 
 
 async def test_get_depends_on_subscriptions_empty():

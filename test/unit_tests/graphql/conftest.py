@@ -4,6 +4,9 @@ import pytest
 
 from orchestrator import app_settings
 from orchestrator.graphql.autoregistration import register_domain_models
+from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
+    ProductBlockListNestedForTestInactiveGraphql,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +41,7 @@ def fastapi_app_graphql(
 
 @pytest.fixture(scope="session", autouse=True)
 def fix_graphql_model_registration():
-    internal_graphql_models = {}
+    internal_graphql_models = {"ProductBlockListNestedForTestInactive": ProductBlockListNestedForTestInactiveGraphql}
 
     def patched_register_domain_models(*args, **kwargs):
         graphql_models = register_domain_models(*args, **kwargs)
