@@ -10,10 +10,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Annotated
+from typing import Annotated, cast
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends
+from fastapi.security.http import HTTPBearer
 from starlette.requests import Request
 from starlette.websockets import WebSocket
 
@@ -23,6 +24,10 @@ from oauth2_lib.fastapi import (
     OIDCUserModel,
 )
 from oauth2_lib.settings import oauth2lib_settings
+
+from fastapi import HTTPException
+from starlette.status import HTTP_403_FORBIDDEN
+from http import HTTPStatus
 
 oauth_client_credentials = OAuth()
 
@@ -36,8 +41,53 @@ oauth_client_credentials.register(
 )
 
 
-async def authenticate(request: Request) -> OIDCUserModel | None:
-    return await request.app.auth_manager.authentication.authenticate(request)
+class Test(HTTPBearer):
+    def __init__(self, auto_error: bool = True):
+        super().__init__(auto_error=auto_error)
+
+    async def __call__(self, request: Request, token: str | None = None) -> OIDCUserModel | None:
+        print(request)
+        print(token)
+
+        # Handle WebSocket requests separately only to check for token presence.
+        if isinstance(request, WebSocket):
+            if token is None:
+                raise HTTPException(
+                    status_code=HTTPStatus.FORBIDDEN,
+                    detail="Not authenticated",
+                )
+            token_or_extracted_id_token = token
+        else:
+            request = cast(Request, request)
+
+            if await request.app.auth_manager.authentication.is_bypassable_request(request):
+                return None
+
+            if token is None:
+                credentials = await super().__call__(request)
+                if not credentials:
+                    raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authenticated")
+
+                token_or_extracted_id_token = credentials.credentials
+            else:
+                token_or_extracted_id_token = token
+
+
+        # if token is None:
+        #     credentials = await super().__call__(request)
+        #     if not credentials:
+        #         return None
+        #     token_or_credentials = credentials.credentials
+        # else:
+        #     token_or_credentials = token
+
+        print(token_or_extracted_id_token)
+
+        return await request.app.auth_manager.authentication.authenticate(request, token_or_extracted_id_token)
+
+authenticate = Test(auto_error=True)
+# async def authenticate(request: Request) -> OIDCUserModel | None:
+#     return await request.app.auth_manager.authentication.authenticate(request)
 
 
 async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
