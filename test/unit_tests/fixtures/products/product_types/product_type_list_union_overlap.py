@@ -30,9 +30,9 @@ def test_product_type_list_union_overlap(test_product_block_one, test_product_su
         test_block: ProductBlockOneForTest
         list_union_blocks: list_of_ports(ProductBlockOneForTest | SubBlockOneForTest)
 
-    SUBSCRIPTION_MODEL_REGISTRY["ProductListUnion"] = ProductListUnion
+    SUBSCRIPTION_MODEL_REGISTRY["ProductListUnionOverlap"] = ProductListUnion
     yield ProductListUnionInactive, ProductListUnionProvisioning, ProductListUnion
-    del SUBSCRIPTION_MODEL_REGISTRY["ProductListUnion"]
+    del SUBSCRIPTION_MODEL_REGISTRY["ProductListUnionOverlap"]
 
 
 @pytest.fixture

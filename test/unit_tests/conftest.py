@@ -113,6 +113,12 @@ from test.unit_tests.fixtures.products.product_types.product_type_union import (
     test_union_product,
     test_union_type_product,
 )
+from test.unit_tests.fixtures.products.product_types.subscription_relations import (  # noqa: F401
+    factory_subscription_with_nestings_depends_on,
+    factory_subscription_with_nestings_in_use_by,
+    test_product_model_list_nested_product_type_one,
+    test_product_model_list_nested_product_type_two,
+)
 from test.unit_tests.fixtures.products.resource_types import (  # noqa: F401
     resource_type_enum,
     resource_type_int,
