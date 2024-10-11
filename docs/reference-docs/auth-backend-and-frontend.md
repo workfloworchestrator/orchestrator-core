@@ -1,8 +1,10 @@
 # Authentication and authorization
 
-WFO can be run with or without authentication. With authentication turned on authorization logic can be provided that uses - for example - user privileges to allow further access to resources.
+The `Orchestrator-Core` application incorporates a robust security framework, utilizing OpenID Connect (OIDC) for authentication and Open Policy Agent (OPA) for authorization. This flexible system ensures secure access, allowing you to tailor the authorization components to best fit your application's specific requirements.
 
-Authentication is configured using ENV variables. The frontend and backend have their own set of ENV variables and logic to be implemented to run auth(n/z).
+WFO can be run with or without authentication. With authentication turned on authorization logic can be provided that uses - for example - user privileges to allow further access to resources. Authentication is configured using ENV variables. The frontend and backend have their own set of ENV variables and logic to be implemented to run auth(n/z).
+
+Note: With authentication enabled on the backend the frontend has to have authentication enabled as well. When the frontend has authentication enabled it is possible to run a backend without authentication. Please note the limitations of frontend authentication and authorization mentioned in a note under frontend authentication.
 
 ## Definitions
 
@@ -35,7 +37,7 @@ WFO provides authentication based on an OIDC provider. The OIDC provider is pres
 The WFO frontend uses [NextAuth](3) to handle authentication. Authentication configuration can be found in [page/api/auth/[...nextauth].ts](4)
 
 **ENV variables**
-These variables need to be set for authentication to work on the frontend
+These variables need to be set for authentication to work on the frontend.
 
 ```
 # Auth variables
@@ -120,22 +122,22 @@ OIDC_CONF_URL: str = ""
 OPA_URL: str = ""
 ```
 
-With the variables provided requests to endpoints will return 403 errorcodes for users that are not logged in and 401 error codes for users that are not authorized for a call or part of a call
+With the variables provided, requests to endpoints will return 403 error codes for users that are not logged in and 401 error codes for users that are not authorized to do a call.
 
 #### Customization
 
-When initiating the `OrchestratorCore` class it's [`auth_manager`][6] property is set to `AuthManager`. AuthManager is provided by [oauth2_lib][7].
+`AuthManager` serves as the central unit for managing both `authentication` and `authorization` mechanisms.
+While it defaults to using `OIDCAuth` for authentication, `OPAAuthorization` for http authorization and `GraphQLOPAAuthorization` for graphql authorization , it supports customization.
 
-There are 3 methods from `AuthManager` that are used for authentication and authorization. `AuthManager` provides defaults and methods to override
-the set custom fuctions to override the default implementations. The default implementations are:
+When initiating the `OrchestratorCore` class, it's [`auth_manager`][6] property is set to `AuthManager`. AuthManager is provided by [oauth2_lib][7].
 
-`authentication`: Method that implements returning the OIDC user from the OIDC introspection endpoint
+`AuthManager` provides 3 methods that are called for authentication and authorization: `authentication`, `authentication` and `graphql_authorization`.
 
-`authorization`: Method that applies OPA decisions to HTTP requests for authorization. Uses OAUTH2 settings and request information to authorize actions.
-Sends this payload to the opa_url specified in OPA_URL setting to get a decision.
+`authentication`: The default method provided by Oaut2Lib implements returning the OIDC user from the OIDC introspection endpoint.
+
+`authorization`: A method that applies authorization decisions to HTTP requests, the decision is either true (Allowed) or false (Forbidden). Gets this payload to based decisions on. The default method provided by Oaut2Lib uses OPA and sends the payload to the opa_url specified in OPA_URL setting to get a decision.
 
 ```
-        opa_input = {
             "input": {
                 **(self.opa_kwargs or {}),
                 **(user_info or {}),
@@ -143,16 +145,16 @@ Sends this payload to the opa_url specified in OPA_URL setting to get a decision
                 "method": request_method,
                 "arguments": {"path": request.path_params, "query": {**request.query_params}, "json": json},
             }
-        }
 ```
 
 Note:
-During app initialization a **is_bypassable_request** method can be passed into the app that receives the Request object
-and returns a boolean. When this method return true the request is always allowed regardless of opa or other results.
+The default authentication method allows for the passing in of **is_bypassable_request** method that receives the Request object
+and returns a boolean. When this method returns true the request is always allowed regardless of other authorization decisions.
 
-Request can be made 'bypassable', meaning they are always allowed for authenticated users.
+`graphql_authorization`: A method that applies authorization decisions to graphql requests. Specializes OPA authorization for GraphQL operations.
+GraphQl results always return a 200 response when authenticated but can return 403 results for partial results as may occur in federated scenarios.
 
-`graphql_authorization`:
+### Customizing
 
 When initializing the app we have the option to register custom authentication and authorization methods and override the default auth(n|z) logic.
 
@@ -218,6 +220,54 @@ class GraphqlAuthorization(ABC):
 ```
 
 Graphql Authorization decisions can be made based on request properties and user attributes
+
+### Example
+
+Below is an example illustrating how to override the default configurations:
+
+```python
+from orchestrator import OrchestratorCore, app_settings
+from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel, Authorization, RequestPath, GraphqlAuthorization
+from oauth2_lib.settings import oauth2lib_settings
+from httpx import AsyncClient
+from starlette.requests import HTTPConnection
+from typing import Optional
+
+class CustomOIDCAuth(OIDCAuth):
+    async def userinfo(self, async_request: AsyncClient, token: str) -> OIDCUserModel:
+        # Custom implementation to fetch user information
+        return OIDCUserModel(
+            sub="user-sub",
+            email="example-user@company.org",
+            # ...
+        )
+
+class CustomAuthorization(Authorization):
+    async def authorize(self, request: HTTPConnection, user: OIDCUserModel) -> Optional[bool]:
+        # Implement custom authorization logic
+        return True
+
+class CustomGraphqlAuthorization(GraphqlAuthorization):
+    async def authorize(self, request: RequestPath, user: OIDCUserModel) -> Optional[bool]:
+        # Implement custom GraphQL authorization logic
+        return True
+
+oidc_instance = CustomOIDCAuth(
+    openid_url=oauth2lib_settings.OIDC_BASE_URL,
+    openid_config_url=oauth2lib_settings.OIDC_CONF_URL,
+    resource_server_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
+    resource_server_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
+    oidc_user_model_cls=OIDCUserModel,
+)
+
+authorization_instance = CustomAuthorization()
+graphql_authorization_instance = CustomGraphqlAuthorization()
+
+app = OrchestratorCore(base_settings=app_settings)
+app.register_authentication(oidc_instance)
+app.register_authorization(authorization_instance)
+app.register_graphql_authorization(graphql_authorization_instance)
+```
 
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://github.com/workfloworchestrator/example-orchestrator
