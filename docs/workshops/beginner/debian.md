@@ -102,25 +102,22 @@ PYTHONPATH=. python main.py db init
 PYTHONPATH=. python main.py db upgrade heads
 ```
 
-### Step 5 - Install orchestrator client
+### Step 5 - Install orchestrator frontend
 
 Install the orchestrator client in the parent directory of the
 example-orchestrator:
 
 ```shell
 cd ..
-git clone https://github.com/workfloworchestrator/orchestrator-core-gui.git
+git clone https://github.com/workfloworchestrator/example-orchestrator-ui.git
 ```
 
-Install the Yarn package manager and use it to install the orchestrator
-client dependencies:
+Install the npm packages
+`npm i`
 
-```shell
-cd orchestrator-core-gui/
-sudo npm install --global yarn
-sudo npm install --global --save-dev npm-run-all
-yarn install
-```
+Set the environment variables. The defaults from .env.example will work out of the box with the example orchestrator backend.
+`cp .env.example .env`
+If you are working without authentication, be sure to set `OAUTH2_ACTIVE=true`.
 
 ### Step 6 - Init orchestrator client:
 
