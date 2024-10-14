@@ -21,6 +21,7 @@ from nwastdlib.url import URL
 from oauth2_lib.fastapi import (
     HTTPX_SSL_CONTEXT,
     OIDCUserModel,
+    TokenExtractor
 )
 from oauth2_lib.settings import oauth2lib_settings
 
@@ -36,8 +37,10 @@ oauth_client_credentials.register(
 )
 
 
-async def authenticate(request: Request) -> OIDCUserModel | None:
-    return await request.app.auth_manager.authentication.authenticate(request)
+async def authenticate(
+        request: Request, token: Annotated[str | None, Depends(TokenExtractor())] = None
+) -> OIDCUserModel | None:
+    return await request.app.auth_manager.authentication.authenticate(request, token)
 
 
 async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
@@ -49,6 +52,6 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> OIDCUserMo
 
 
 async def authorize_websocket(
-    websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
+        websocket: WebSocket, user: Annotated[OIDCUserModel | None, Depends(authenticate)]
 ) -> bool | None:
     return await websocket.app.auth_manager.authorization.authorize(websocket, user)
