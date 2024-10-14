@@ -15,7 +15,6 @@ from http import HTTPStatus
 
 import pytest
 
-from orchestrator.domain.base import SubscriptionModel
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 
 
@@ -23,7 +22,7 @@ def assert_result_ids_against_expected_ids(result_ids, expected_ids):
     assert sorted(result_ids) == sorted([str(id) for id in expected_ids])
 
 
-def build_subscriptions_query(body: str) -> str:
+def build_subscriptions_relation_query(body: str) -> str:
     return f"""
 query SubscriptionQuery(
     $first: Int!,
@@ -42,19 +41,22 @@ query SubscriptionQuery(
 """
 
 
-def get_subscriptions_query_with_relations(
+def get_subscriptions_query_with_processes(
     first: int = 10,
     after: int = 0,
     filter_by: list[dict[str, str]] | None = None,
     sort_by: list[dict[str, str]] | None = None,
     query_string: str | None = None,
-    depends_on_filter: dict[str, str] | None = None,
-    depends_on_subscription_filter: dict[str, str] | None = None,
-    in_use_by_filter: dict[str, str] | None = None,
-    in_use_by_subscription_filter: dict[str, str] | None = None,
 ) -> bytes:
-    query = build_subscriptions_query(
-        """{
+    query = """
+query SubscriptionQuery(
+    $first: Int!,
+    $after: Int!,
+    $sortBy: [GraphqlSort!],
+    $filterBy: [GraphqlFilter!],
+    $query: String,
+) {
+  subscriptions(first: $first, after: $after, sortBy: $sortBy, filterBy: $filterBy, query: $query) {
     page {
       description
       subscriptionId
@@ -92,6 +94,53 @@ def get_subscriptions_query_with_relations(
           }
         }
       }
+    }
+    pageInfo {
+      startCursor
+      totalItems
+      hasPreviousPage
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "SubscriptionQuery",
+            "query": query,
+            "variables": {
+                "first": first,
+                "after": after,
+                "sortBy": sort_by if sort_by else [],
+                "filterBy": filter_by if filter_by else [],
+                "query": query_string,
+            },
+        }
+    ).encode("utf-8")
+
+
+def get_subscriptions_query_with_relations(
+    first: int = 10,
+    after: int = 0,
+    filter_by: list[dict[str, str]] | None = None,
+    sort_by: list[dict[str, str]] | None = None,
+    query_string: str | None = None,
+    depends_on_filter: dict[str, str] | None = None,
+    depends_on_subscription_filter: dict[str, str] | None = None,
+    in_use_by_filter: dict[str, str] | None = None,
+    in_use_by_subscription_filter: dict[str, str] | None = None,
+) -> bytes:
+    query = build_subscriptions_relation_query(
+        """{
+    page {
+      description
+      subscriptionId
+      status
+      insync
+      note
+      startDate
+      endDate
       dependsOnSubscriptions(dependsOnFilter: $dependsOnFilter, first: 20, filterBy: $dependsOnSubscriptionsFilter) {
         page {
           description
@@ -168,7 +217,7 @@ def test_single_subscription_with_processes(
 
     do_refresh_subscriptions_search_view()
 
-    data = get_subscriptions_query_with_relations(**query_args(subscription_id))
+    data = get_subscriptions_query_with_processes(**query_args(subscription_id))
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
@@ -231,7 +280,6 @@ def test_single_subscription_with_depends_on_subscriptions(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert len(subscriptions[0]["processes"]["page"]) == 0
     depends_on_ids = subscriptions[0]["dependsOnSubscriptions"]["page"]
     result_depends_on_ids = {subscription["subscriptionId"] for subscription in depends_on_ids}
     assert result_depends_on_ids == expected_depends_on_ids
@@ -278,31 +326,118 @@ def test_single_subscription_with_in_use_by_subscriptions(
         "totalItems": 1,
     }
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    assert len(subscriptions[0]["processes"]["page"]) == 0
     assert len(subscriptions[0]["dependsOnSubscriptions"]["page"]) == 0
     result_in_use_by_ids = [
         subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
     ]
     assert result_in_use_by_ids == expected_in_use_by_ids
 
-    list_sub = SubscriptionModel.from_subscription(product_sub_list_union_subscription_1)
-    assert subscriptions[0]["productBlockInstances"] == [
-        {
-            "ownerSubscriptionId": subscription_id,
-            "inUseByRelations": [
-                {
-                    "subscription_id": str(product_sub_list_union_subscription_1),
-                    "subscription_instance_id": str(list_sub.test_block.subscription_instance_id),
-                }
-            ],
-        }
-    ]
+
+in_use_by_recurse_all_ids = [
+    "subscription_20",
+    "subscription_21",
+    "subscription_22",
+    "subscription_30",
+    "subscription_31",
+    "subscription_32",
+    "subscription_33",
+    "subscription_34",
+    "subscription_40",
+    "subscription_41",
+    "subscription_42",
+    "subscription_43",
+    "subscription_44",
+    "subscription_45",
+]
+in_use_by_recurse_all_with_filter_by_ids = [
+    "subscription_22",
+    "subscription_32",
+]
+in_use_by_recurse_status_active_ids = [
+    "subscription_20",
+    "subscription_22",
+    "subscription_30",
+    "subscription_32",
+    "subscription_34",
+    "subscription_40",
+    "subscription_43",
+    "subscription_45",
+]
+in_use_by_recurse_depth_limit_ids = [
+    "subscription_20",
+    "subscription_21",
+    "subscription_22",
+    "subscription_30",
+    "subscription_31",
+    "subscription_32",
+    "subscription_33",
+    "subscription_34",
+]
+in_use_by_recurse_only_product_type_test_ids = [
+    "subscription_20",
+    "subscription_21",
+    "subscription_22",
+    "subscription_30",
+    "subscription_31",
+    "subscription_32",
+    "subscription_33",
+    "subscription_40",
+    "subscription_41",
+    "subscription_42",
+    "subscription_44",
+]
 
 
-def test_single_subscription_with_in_use_by_subscriptions_recurse_all(
+@pytest.mark.parametrize(
+    "in_use_by_filter,in_use_by_subscription_filter,subscription_ids,subscription_statuses",
+    [
+        (
+            {"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+            None,
+            in_use_by_recurse_all_ids,
+            {"ACTIVE", "TERMINATED"},
+        ),
+        (
+            {"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+            [{"field": "product", "value": "TestProductListNestedTypeOne"}],
+            in_use_by_recurse_all_with_filter_by_ids,
+            {"ACTIVE"},
+        ),
+        (
+            {"statuses": ["active"], "recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+            None,
+            in_use_by_recurse_status_active_ids,
+            {"ACTIVE"},
+        ),
+        (
+            {"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"], "recurseDepthLimit": 1},
+            None,
+            in_use_by_recurse_depth_limit_ids,
+            {"ACTIVE", "TERMINATED"},
+        ),
+        (
+            {"recurseProductTypes": ["Test"]},
+            None,
+            in_use_by_recurse_only_product_type_test_ids,
+            {"ACTIVE", "TERMINATED"},
+        ),
+    ],
+    ids=[
+        "recurse_all",
+        "recurse_all_with_filter_by",
+        "recurse_status_active",
+        "recurse_depth_limit",
+        "recurse_only_product_type_test",
+    ],
+)
+def test_single_subscription_with_in_use_by_subscriptions_recurse(
     fastapi_app_graphql,
     test_client,
     factory_subscription_with_nestings_in_use_by,
+    in_use_by_filter,
+    in_use_by_subscription_filter,
+    subscription_ids,
+    subscription_statuses,
 ):
     # when
 
@@ -311,29 +446,15 @@ def test_single_subscription_with_in_use_by_subscriptions_recurse_all(
     subscription_id = str(all_ids["subscription_10"])
     subscription_query = get_subscriptions_query_with_relations(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        in_use_by_filter={"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+        in_use_by_filter=in_use_by_filter,
+        in_use_by_subscription_filter=in_use_by_subscription_filter,
     )
 
     response = test_client.post(
         "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
-    expected_in_use_by_ids = [
-        all_ids["subscription_20"],
-        all_ids["subscription_21"],
-        all_ids["subscription_22"],
-        all_ids["subscription_30"],
-        all_ids["subscription_31"],
-        all_ids["subscription_32"],
-        all_ids["subscription_33"],
-        all_ids["subscription_34"],
-        all_ids["subscription_40"],
-        all_ids["subscription_41"],
-        all_ids["subscription_42"],
-        all_ids["subscription_43"],
-        all_ids["subscription_44"],
-        all_ids["subscription_45"],
-    ]
+    expected_relation_ids = [all_ids[sub_id] for sub_id in subscription_ids]
 
     # then
 
@@ -344,199 +465,121 @@ def test_single_subscription_with_in_use_by_subscriptions_recurse_all(
 
     assert "errors" not in result
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_in_use_by_ids = [
+    result_related_ids = [
         subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
     ]
-    assert_result_ids_against_expected_ids(result_in_use_by_ids, expected_in_use_by_ids)
-
-
-def test_single_subscription_with_in_use_by_subscriptions_recurse_all_with_filter_by(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_in_use_by,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_in_use_by
-
-    subscription_id = str(all_ids["subscription_10"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        in_use_by_filter={"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
-        in_use_by_subscription_filter=[{"field": "product", "value": "TestProductListNestedTypeOne"}],
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_in_use_by_ids = [
-        all_ids["subscription_22"],
-        all_ids["subscription_32"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_in_use_by_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_in_use_by_ids, expected_in_use_by_ids)
-
-
-def test_single_subscription_with_in_use_by_subscriptions_recurse_status_active(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_in_use_by,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_in_use_by
-
-    subscription_id = str(all_ids["subscription_10"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        in_use_by_filter={"statuses": ["active"], "recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_in_use_by_ids = [
-        all_ids["subscription_20"],
-        all_ids["subscription_22"],
-        all_ids["subscription_30"],
-        all_ids["subscription_32"],
-        all_ids["subscription_34"],
-        all_ids["subscription_40"],
-        all_ids["subscription_43"],
-        all_ids["subscription_45"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_in_use_by_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_in_use_by_ids, expected_in_use_by_ids)
-
-    result_in_use_by_statuses = {
+    assert_result_ids_against_expected_ids(result_related_ids, expected_relation_ids)
+    result_related_statuses = {
         subscription["status"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
     }
-    assert result_in_use_by_statuses == {"ACTIVE"}
+    assert result_related_statuses == subscription_statuses
 
 
-def test_single_subscription_with_in_use_by_subscriptions_recurse_one_depth_limit(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_in_use_by,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_in_use_by
-
-    subscription_id = str(all_ids["subscription_10"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        in_use_by_filter={"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"], "recurseDepthLimit": 1},
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_in_use_by_ids = [
-        all_ids["subscription_20"],
-        all_ids["subscription_21"],
-        all_ids["subscription_22"],
-        all_ids["subscription_30"],
-        all_ids["subscription_31"],
-        all_ids["subscription_32"],
-        all_ids["subscription_33"],
-        all_ids["subscription_34"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_in_use_by_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_in_use_by_ids, expected_in_use_by_ids)
-
-
-def test_single_subscription_with_in_use_by_subscriptions_recurse_only_product_type_test(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_in_use_by,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_in_use_by
-
-    subscription_id = str(all_ids["subscription_10"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        in_use_by_filter={"recurseProductTypes": ["Test"]},
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_in_use_by_ids = [
-        all_ids["subscription_20"],
-        all_ids["subscription_21"],
-        all_ids["subscription_22"],
-        all_ids["subscription_30"],
-        all_ids["subscription_31"],
-        all_ids["subscription_32"],
-        all_ids["subscription_33"],
-        all_ids["subscription_40"],
-        all_ids["subscription_41"],
-        all_ids["subscription_42"],
-        all_ids["subscription_44"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_in_use_by_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["inUseBySubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_in_use_by_ids, expected_in_use_by_ids)
+depends_on_recurse_all_ids = [
+    "subscription_10",
+    "subscription_11",
+    "subscription_12",
+    "subscription_13",
+    "subscription_14",
+    "subscription_15",
+    "subscription_20",
+    "subscription_21",
+    "subscription_22",
+    "subscription_23",
+    "subscription_24",
+    "subscription_30",
+    "subscription_31",
+    "subscription_32",
+]
+depends_on_recurse_all_with_filter_by_ids = [
+    "subscription_22",
+    "subscription_32",
+]
+depends_on_recurse_status_active_ids = [
+    "subscription_10",
+    "subscription_13",
+    "subscription_15",
+    "subscription_20",
+    "subscription_22",
+    "subscription_24",
+    "subscription_30",
+    "subscription_32",
+]
+depends_on_recurse_depth_limit_ids = [
+    "subscription_20",
+    "subscription_21",
+    "subscription_22",
+    "subscription_23",
+    "subscription_24",
+    "subscription_30",
+    "subscription_31",
+    "subscription_32",
+]
+depends_on_recurse_only_product_type_test_ids = [
+    "subscription_10",
+    "subscription_11",
+    "subscription_12",
+    "subscription_14",
+    "subscription_20",
+    "subscription_21",
+    "subscription_22",
+    "subscription_23",
+    "subscription_30",
+    "subscription_31",
+    "subscription_32",
+]
 
 
-def test_single_subscription_with_depends_on_subscriptions_recurse_all(
+@pytest.mark.parametrize(
+    "depends_on_filter,depends_on_subscription_filter,subscription_ids,subscription_statuses",
+    [
+        (
+            {"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+            None,
+            depends_on_recurse_all_ids,
+            {"ACTIVE", "TERMINATED"},
+        ),
+        (
+            {"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+            [{"field": "product", "value": "TestProductListNestedTypeOne"}],
+            depends_on_recurse_all_with_filter_by_ids,
+            {"ACTIVE"},
+        ),
+        (
+            {"statuses": ["active"], "recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+            None,
+            depends_on_recurse_status_active_ids,
+            {"ACTIVE"},
+        ),
+        (
+            {"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"], "recurseDepthLimit": 1},
+            None,
+            depends_on_recurse_depth_limit_ids,
+            {"ACTIVE", "TERMINATED"},
+        ),
+        (
+            {"recurseProductTypes": ["Test"]},
+            None,
+            depends_on_recurse_only_product_type_test_ids,
+            {"ACTIVE", "TERMINATED"},
+        ),
+    ],
+    ids=[
+        "recurse_all",
+        "recurse_all_with_filter_by",
+        "recurse_status_active",
+        "recurse_depth_limit",
+        "recurse_only_product_type_test",
+    ],
+)
+def test_single_subscription_with_depends_on_subscriptions_recurse(
     fastapi_app_graphql,
     test_client,
     factory_subscription_with_nestings_depends_on,
+    depends_on_filter,
+    depends_on_subscription_filter,
+    subscription_ids,
+    subscription_statuses,
 ):
     # when
 
@@ -545,29 +588,15 @@ def test_single_subscription_with_depends_on_subscriptions_recurse_all(
     subscription_id = str(all_ids["subscription_40"])
     subscription_query = get_subscriptions_query_with_relations(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        depends_on_filter={"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
+        depends_on_filter=depends_on_filter,
+        depends_on_subscription_filter=depends_on_subscription_filter,
     )
 
     response = test_client.post(
         "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
     )
 
-    expected_depends_on_ids = [
-        all_ids["subscription_10"],
-        all_ids["subscription_11"],
-        all_ids["subscription_12"],
-        all_ids["subscription_13"],
-        all_ids["subscription_14"],
-        all_ids["subscription_15"],
-        all_ids["subscription_20"],
-        all_ids["subscription_21"],
-        all_ids["subscription_22"],
-        all_ids["subscription_23"],
-        all_ids["subscription_24"],
-        all_ids["subscription_30"],
-        all_ids["subscription_31"],
-        all_ids["subscription_32"],
-    ]
+    expected_relation_ids = [all_ids[sub_id] for sub_id in subscription_ids]
 
     # then
 
@@ -578,189 +607,11 @@ def test_single_subscription_with_depends_on_subscriptions_recurse_all(
 
     assert "errors" not in result
     assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_depends_on_ids = [
+    result_related_ids = [
         subscription["subscriptionId"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
     ]
-    assert_result_ids_against_expected_ids(result_depends_on_ids, expected_depends_on_ids)
-
-
-def test_single_subscription_with_depends_on_subscriptions_recurse_all_with_filter_by(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_depends_on,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_depends_on
-
-    subscription_id = str(all_ids["subscription_40"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        depends_on_filter={"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
-        depends_on_subscription_filter=[{"field": "product", "value": "TestProductListNestedTypeOne"}],
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_depends_on_ids = [
-        all_ids["subscription_22"],
-        all_ids["subscription_32"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_depends_on_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_depends_on_ids, expected_depends_on_ids)
-
-
-def test_single_subscription_with_depends_on_subscriptions_recurse_status_active(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_depends_on,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_depends_on
-
-    subscription_id = str(all_ids["subscription_40"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        depends_on_filter={"statuses": ["active"], "recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"]},
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_depends_on_ids = [
-        all_ids["subscription_10"],
-        all_ids["subscription_13"],
-        all_ids["subscription_15"],
-        all_ids["subscription_20"],
-        all_ids["subscription_22"],
-        all_ids["subscription_24"],
-        all_ids["subscription_30"],
-        all_ids["subscription_32"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_depends_on_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_depends_on_ids, expected_depends_on_ids)
-    result_in_use_by_statuses = {
+    assert_result_ids_against_expected_ids(result_related_ids, expected_relation_ids)
+    result_related_statuses = {
         subscription["status"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
     }
-    assert result_in_use_by_statuses == {"ACTIVE"}
-
-
-def test_single_subscription_with_depends_on_subscriptions_recurse_depth_limit(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_depends_on,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_depends_on
-
-    subscription_id = str(all_ids["subscription_40"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        depends_on_filter={"recurseProductTypes": ["Test", "ProductTypeOne", "ProductTypeTwo"], "recurseDepthLimit": 1},
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_depends_on_ids = [
-        all_ids["subscription_20"],
-        all_ids["subscription_21"],
-        all_ids["subscription_22"],
-        all_ids["subscription_23"],
-        all_ids["subscription_24"],
-        all_ids["subscription_30"],
-        all_ids["subscription_31"],
-        all_ids["subscription_32"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_depends_on_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_depends_on_ids, expected_depends_on_ids)
-
-
-def test_single_subscription_with_depends_on_subscriptions_recurse_only_product_type_test(
-    fastapi_app_graphql,
-    test_client,
-    factory_subscription_with_nestings_depends_on,
-):
-    # when
-
-    all_ids = factory_subscription_with_nestings_depends_on
-
-    subscription_id = str(all_ids["subscription_40"])
-    subscription_query = get_subscriptions_query_with_relations(
-        filter_by=[{"field": "subscriptionId", "value": subscription_id}],
-        depends_on_filter={"recurseProductTypes": ["Test"]},
-    )
-
-    response = test_client.post(
-        "/api/graphql", content=subscription_query, headers={"Content-Type": "application/json"}
-    )
-
-    expected_depends_on_ids = [
-        all_ids["subscription_10"],
-        all_ids["subscription_11"],
-        all_ids["subscription_12"],
-        all_ids["subscription_14"],
-        all_ids["subscription_20"],
-        all_ids["subscription_21"],
-        all_ids["subscription_22"],
-        all_ids["subscription_23"],
-        all_ids["subscription_30"],
-        all_ids["subscription_31"],
-        all_ids["subscription_32"],
-    ]
-
-    # then
-
-    assert HTTPStatus.OK == response.status_code
-    result = response.json()
-    subscriptions_data = result["data"]["subscriptions"]
-    subscriptions = subscriptions_data["page"]
-
-    assert "errors" not in result
-    assert subscriptions[0]["subscriptionId"] == subscription_id
-    result_depends_on_ids = [
-        subscription["subscriptionId"] for subscription in subscriptions[0]["dependsOnSubscriptions"]["page"]
-    ]
-    assert_result_ids_against_expected_ids(result_depends_on_ids, expected_depends_on_ids)
+    assert result_related_statuses == subscription_statuses
