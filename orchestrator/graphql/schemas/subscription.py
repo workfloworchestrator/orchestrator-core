@@ -11,6 +11,7 @@ from strawberry.unset import UNSET
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.graphql.loaders.subscriptions import SubsLoaderType
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.resolvers.process import resolve_processes
 from orchestrator.graphql.schemas.customer import CustomerType
@@ -39,10 +40,30 @@ static_metadata_schema = {"title": "SubscriptionMetadata", "type": "object", "pr
 
 @strawberry.input(description="Filter recursion")
 class SubscriptionRelationFilter:
-    statuses: tuple[str, ...] | None = strawberry.field(default=None, description="Search by statusses")
+    statuses: list[str] | None = strawberry.field(default=None, description="Search by statusses")
     recurse_depth_limit: int = strawberry.field(default=10, description="the limited depth to recurse through")
     recurse_product_types: list[str] | None = strawberry.field(
         default=None, description="List of product types to recurse into"
+    )
+
+
+async def _load_recursive_relations(
+    subscription_id: UUID, relation_filter: SubscriptionRelationFilter | None, data_loader: SubsLoaderType
+) -> list[SubscriptionTable]:
+    sub_relation_filter = relation_filter or SubscriptionRelationFilter()
+
+    async def get_subscriptions_from_loader(
+        subscription_ids: list[UUID], filter_statuses: tuple[str, ...]
+    ) -> list[list[SubscriptionTable]]:
+        load_mapping = [(sub_id, filter_statuses) for sub_id in subscription_ids]
+        return await data_loader.load_many(load_mapping)
+
+    return await get_recursive_relations(
+        [subscription_id],
+        tuple(sub_relation_filter.statuses or ()),
+        sub_relation_filter.recurse_product_types or [],
+        sub_relation_filter.recurse_depth_limit,
+        get_subscriptions_from_loader,
     )
 
 
@@ -116,21 +137,8 @@ class SubscriptionInterface:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        _in_use_by_filter = in_use_by_filter if in_use_by_filter else SubscriptionRelationFilter()
-
-        async def get_in_use_by_subscriptions_from_loader(
-            subscription_ids: list[UUID],
-            filter_statuses: tuple[str, ...],
-        ) -> list[list[SubscriptionTable]]:
-            load_mapping = [(sub_id, filter_statuses) for sub_id in subscription_ids]
-            return await info.context.core_in_use_by_subs_loader.load_many(load_mapping)
-
-        subscriptions = await get_recursive_relations(
-            [self.subscription_id],
-            tuple(_in_use_by_filter.statuses or ()),
-            _in_use_by_filter.recurse_product_types or [],
-            _in_use_by_filter.recurse_depth_limit,
-            get_in_use_by_subscriptions_from_loader,
+        subscriptions = await _load_recursive_relations(
+            self.subscription_id, in_use_by_filter, info.context.core_in_use_by_subs_loader
         )
 
         subscription_ids = [str(subscription.subscription_id) for subscription in subscriptions]
@@ -154,21 +162,8 @@ class SubscriptionInterface:
     ) -> Connection[Annotated["SubscriptionInterface", strawberry.lazy(".subscription")]]:
         from orchestrator.graphql.resolvers.subscription import resolve_subscriptions
 
-        _depends_on_filter = depends_on_filter if depends_on_filter else SubscriptionRelationFilter()
-
-        async def get_depends_on_subscriptions_from_loader(
-            subscription_ids: list[UUID],
-            filter_statuses: tuple[str, ...],
-        ) -> list[list[SubscriptionTable]]:
-            load_mapping = [(sub_id, filter_statuses) for sub_id in subscription_ids]
-            return await info.context.core_depends_on_subs_loader.load_many(load_mapping)
-
-        subscriptions = await get_recursive_relations(
-            [self.subscription_id],
-            tuple(_depends_on_filter.statuses or ()),
-            _depends_on_filter.recurse_product_types or [],
-            _depends_on_filter.recurse_depth_limit,
-            get_depends_on_subscriptions_from_loader,
+        subscriptions = await _load_recursive_relations(
+            self.subscription_id, depends_on_filter, info.context.core_depends_on_subs_loader
         )
 
         subscription_ids = [str(subscription.subscription_id) for subscription in subscriptions]

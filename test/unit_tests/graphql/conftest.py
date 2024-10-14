@@ -41,6 +41,9 @@ def fastapi_app_graphql(
 
 @pytest.fixture(scope="session", autouse=True)
 def fix_graphql_model_registration():
+    # This block caches the "ProductBlockListNestedForTestInactive" model to avoid re-instantiation in each test case.
+    # This is necessary because this product block has a self referencing property, which strawberry can't handle correctly,
+    # and lead to an error expecting the `ProductBlockListNestedForTestInactive` strawberry type to already exist.
     internal_graphql_models = {"ProductBlockListNestedForTestInactive": ProductBlockListNestedForTestInactiveGraphql}
 
     def patched_register_domain_models(*args, **kwargs):

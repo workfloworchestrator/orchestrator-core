@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable, NamedTuple
 from uuid import UUID
 
 import structlog
-from more_itertools import flatten, unique
+from more_itertools import flatten, unique_everseen
 from sqlalchemy import Row, select
 from sqlalchemy import Text as SaText
 from sqlalchemy import cast as sa_cast
@@ -244,13 +244,13 @@ async def get_recursive_relations(
     """
 
     used_subscription_ids = used_subscription_ids or set(subscription_ids)
-    relations = await relation_fetcher(subscription_ids, filter_statuses)
-    flat_relations_list = list(flatten(relations))
+    _relations = await relation_fetcher(subscription_ids, filter_statuses)
+    relations = list(unique_everseen(flatten(_relations), key=lambda s: s.subscription_id))
 
     def get_related_subscription_ids() -> list[UUID]:
         return [
             r.subscription_id
-            for r in flat_relations_list
+            for r in relations
             if r.product.product_type in recurse_product_types and r.subscription_id not in used_subscription_ids
         ]
 
@@ -266,4 +266,4 @@ async def get_recursive_relations(
             used_subscription_ids=used_subscription_ids,
             relation_fetcher=relation_fetcher,
         )
-    return list(unique(flat_relations_list + nested_relations, lambda s: s.subscription_id))
+    return list(unique_everseen(relations + nested_relations, key=lambda s: s.subscription_id))
