@@ -63,7 +63,12 @@ from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON, State
 from orchestrator.utils.enrich_process import enrich_process
-from orchestrator.websocket import WS_CHANNELS, broadcast_process_update_to_websocket, websocket_manager
+from orchestrator.websocket import (
+    WS_CHANNELS,
+    broadcast_invalidate_status_counts,
+    broadcast_process_update_to_websocket,
+    websocket_manager,
+)
 from orchestrator.workflow import ProcessStatus
 
 router = APIRouter()
@@ -115,6 +120,7 @@ def delete(process_id: UUID) -> None:
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
+    broadcast_invalidate_status_counts()
     broadcast_process_update_to_websocket(process.process_id)
 
     db.session.delete(db.session.get(ProcessTable, process_id))
@@ -159,7 +165,9 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.RESUMED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
 
+    broadcast_invalidate_status_counts()
     broadcast_func = api_broadcast_process_data(request)
+
     resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
