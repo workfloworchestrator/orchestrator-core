@@ -200,13 +200,14 @@ def test_websocket_process_detail_with_suspend(test_client, test_workflow):
             response = test_client.put(f"/api/processes/{process_id}/resume", json=[user_input])
             assert HTTPStatus.NO_CONTENT == response.status_code
 
-            def get_ws_messages():
-                return [websocket.receive_json(), websocket.receive_json()]
-
             expected_cache_invalidation_messages = [
+                {"name": "invalidateCache", "value": {"type": "processStatusCounts"}},
                 {"name": "invalidateCache", "value": {"type": "processes", "id": "LIST"}},
                 {"name": "invalidateCache", "value": {"type": "processes", "id": str(process_id)}},
             ]
+
+            def get_ws_messages():
+                return [websocket.receive_json() for _ in expected_cache_invalidation_messages]
 
             assert get_ws_messages() == expected_cache_invalidation_messages
 
