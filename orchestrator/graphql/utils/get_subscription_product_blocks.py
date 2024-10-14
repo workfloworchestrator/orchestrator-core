@@ -67,7 +67,7 @@ async def get_subscription_product_blocks(
 
     def to_product_block(product_block: dict[str, Any]) -> ProductBlockInstance:
         def is_resource_type(candidate: Any) -> bool:
-            return not isinstance(candidate, (list, dict))
+            return not isinstance(candidate, dict)
 
         def requested_resource_type(key: str) -> bool:
             return not product_block_instance_values or key in product_block_instance_values
@@ -75,13 +75,22 @@ async def get_subscription_product_blocks(
         def included(key: str, value: Any) -> bool:
             return is_resource_type(value) and requested_resource_type(key) and key not in pb_instance_property_keys
 
+        def value_parser(value: Any) -> str | int | float | list | None:
+            if isinstance(value, (str, int, float, type(None))):
+                return value
+
+            if isinstance(value, list):
+                return [value_parser(v) for v in value if is_resource_type(v)]
+
+            return str(value)
+
         return ProductBlockInstance(
             id=product_block["id"],
             parent=product_block.get("parent"),
             owner_subscription_id=product_block["owner_subscription_id"],
             subscription_instance_id=product_block["subscription_instance_id"],
             product_block_instance_values=[
-                {"field": to_lower_camel(k), "value": v if isinstance(v, (str, int, float, type(None))) else str(v)}
+                {"field": to_lower_camel(k), "value": value_parser(v)}
                 for k, v in product_block.items()
                 if included(k, v)
             ],

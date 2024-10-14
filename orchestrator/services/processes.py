@@ -567,6 +567,7 @@ def continue_awaiting_process(
     *,
     token: str,
     input_data: State,
+    broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     """Continue a process awaiting data from a callback.
 
@@ -574,6 +575,7 @@ def continue_awaiting_process(
         process: Process from database
         token: The token which was generated for the process. This must match.
         input_data: Data posted to the callback
+        broadcast_func: Optional function to broadcast process data
 
     Returns:
         process id
@@ -601,7 +603,7 @@ def continue_awaiting_process(
 
     # Continue the workflow
     resume_func = get_execution_context()["resume"]
-    return resume_func(process)
+    return resume_func(process, broadcast_func=broadcast_func)
 
 
 async def _async_resume_processes(

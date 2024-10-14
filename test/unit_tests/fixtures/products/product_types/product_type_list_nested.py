@@ -5,15 +5,14 @@ from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import ProductModel, SubscriptionModel
 from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.types import SubscriptionLifecycle
-from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (
-    ProductBlockListNestedForTest,
-    ProductBlockListNestedForTestInactive,
-    ProductBlockListNestedForTestProvisioning,
-)
 
 
 @pytest.fixture
-def test_product_type_list_nested():
+def test_product_type_list_nested(test_product_block_list_nested):
+    ProductBlockListNestedForTestInactive, ProductBlockListNestedForTestProvisioning, ProductBlockListNestedForTest = (
+        test_product_block_list_nested
+    )
+
     class ProductTypeListNestedForTestInactive(SubscriptionModel, is_base=True):
         test_fixed_input: bool
         block: ProductBlockListNestedForTestInactive
