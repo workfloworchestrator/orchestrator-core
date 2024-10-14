@@ -1,8 +1,12 @@
+from typing import Annotated
+
 import pytest
+import strawberry
 
 from orchestrator.db import ProductBlockTable, db
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.helpers import safe_delete_product_block_id
 
 
 class ProductBlockListNestedForTestInactive(ProductBlockModel, product_block_name="ProductBlockListNestedForTest"):
@@ -24,15 +28,30 @@ class ProductBlockListNestedForTest(
     int_field: int
 
 
+ProductBlockListNestedForTestType = Annotated[
+    "ProductBlockListNestedForTestInactiveGraphql", strawberry.lazy(".product_block_list_nested")
+]
+
+
+@strawberry.experimental.pydantic.type(model=ProductBlockListNestedForTestInactive)
+class ProductBlockListNestedForTestInactiveGraphql:
+    sub_block_list: list[ProductBlockListNestedForTestType]
+    int_field: int
+
+
 @pytest.fixture
-def test_product_block_list_nested():
+def test_product_block_list_nested(test_product_block_list_nested_db_in_use_by_block):
     # Classes defined at module level, otherwise they remain in local namespace and
     # `get_type_hints()` can't evaluate the ForwardRefs
-    return (
+    yield (
         ProductBlockListNestedForTestInactive,
         ProductBlockListNestedForTestProvisioning,
         ProductBlockListNestedForTest,
     )
+
+    safe_delete_product_block_id(ProductBlockListNestedForTestInactive)
+    safe_delete_product_block_id(ProductBlockListNestedForTestProvisioning)
+    safe_delete_product_block_id(ProductBlockListNestedForTest)
 
 
 @pytest.fixture
