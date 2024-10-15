@@ -81,10 +81,10 @@ Where `name` and `value` are one of the following combinations:
 Notes:
 1. The `LIST` and `<uuid>` combinations currently mean one and the same. The reason to keep them separate is that we may want to implement throttling on the `LIST` event.
 2. The process status count event is triggered when a process:
-   * Transitions from failed state to non-failed state -> count goes down:
-     1. Suspended process is scheduled to be resumed
-     2. Inactive process is deleted from database
-   * Transitions from non-failed state to a failed state -> count goes up:
+   * Transitions to non-failed state -> count may go down:
+     1. Non-running process is scheduled to be resumed
+     2. Non-running process is deleted from database
+   * Transitions to a failed state -> count goes up:
      1. Running process finishes with an error
 
 Example of a complete message:
