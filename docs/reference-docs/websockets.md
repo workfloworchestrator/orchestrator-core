@@ -46,3 +46,62 @@ Backend processes are executed in a threadpool and therefore access the same WSM
 To solve this there is a dedicated `ProcessDataBroadcastThread` (attached to and managed by the `OrchestratorCore` app) to perform the actual `broadcast_data()` call.
 
 The API endpoints which start/resume/abort a process, call `api_broadcast_process_data(request)` to acquire a function that can be used to submit process updates into a `threading.Queue` on which `ProcessDataBroadcastThread` listens.
+
+## Channel overview
+
+As mentioned in Implementation, messages are organized into channels that clients can listen to.
+Each channel has its own usecase and specific message format.
+
+### Events
+
+The `events` channel is designed for the [Orchestrator UI v2](https://github.com/workfloworchestrator/example-orchestrator-ui).
+Events are notifications to the UI/user that something happened in the backend API or workers.
+They only include the bare minimum of information and can be sent at a high volume.
+
+The API endpoint for this channel is `/api/ws/events` .
+
+Messages in this channel are of the format:
+```json
+{"name": name, "value": value}
+```
+
+Where `name` and `value` are one of the following combinations:
+
+| name                 | value                                                     | Notifies that                                         |
+|----------------------|-----------------------------------------------------------|-------------------------------------------------------|
+| `"invalidateCache"`  | `{"type": "processes", "id": "LIST"} `                    | A process was started, updated or finished [1]        |
+| `"invalidateCache"`  | `{"type": "processes", "id": "<process UUID>"}`           | A process was started, updated or finished [1]        |
+| `"invalidateCache"`  | `{"type": "subscriptions", "id": "LIST"} `                | A subscription was created, updated or terminated [1] |
+| `"invalidateCache"`  | `{"type": "subscriptions", "id": "<subscription UUID>"} ` | A subscription was created, updated or terminated [1] |
+| `"invalidateCache"`  | `{"type": "processStatusCounts"} `                        | A process transitioned to/from a failed state [2]     |
+| `"invalidateCache"`  | `{"type": "engineStatus"} `                               | The workflow engine has been enabled or disabled      |
+
+<!-- Hint: an editor like VSCode/PyCharm makes editing markdown tables very easy -->
+
+Notes:
+1. The `LIST` and `<uuid>` combinations currently mean one and the same. The reason to keep them separate is that we may want to implement throttling on the `LIST` event.
+2. The process status count event is triggered when a process:
+   * Transitions from failed state to non-failed state -> count goes down:
+     1. Suspended process is scheduled to be resumed
+     2. Inactive process is deleted from database
+   * Transitions from non-failed state to a failed state -> count goes up:
+     1. Running process finishes with an error
+
+Example of a complete message:
+
+```json
+{"name":"invalidateCache","value":{"type":"engineStatus"}}
+```
+
+### Engine settings (deprecated)
+
+The `engine-settings` channel was designed for the now deprecated [Orchestrator UI v1](https://github.com/workfloworchestrator/orchestrator-core-gui).
+
+The API endpoint for this channel is `/api/settings/ws-status/` .
+
+### Processes (deprecated)
+
+The `processes` channel was designed for the now deprecated [Orchestrator UI v1](https://github.com/workfloworchestrator/orchestrator-core-gui).
+It sent process list/detail data to the client which it would use to directly update the frontend.
+
+The API endpoint for this channel is `/api/processes/all/` .
