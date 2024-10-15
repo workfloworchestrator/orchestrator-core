@@ -106,11 +106,10 @@ async def invalidate_subscription_cache(subscription_id: UUID | UUIDstr, invalid
 
 
 def broadcast_invalidate_status_counts() -> None:
-    """Broadcast data of the current process to connected websocket clients."""
+    """Broadcast message to invalidate the status counts of the connected websocket clients."""
     if not websocket_manager.enabled:
         logger.debug("WebSocketManager is not enabled. Skip broadcasting through websocket.")
         return
-    logger.info("Broadcasting invalidate status counts to websocket.")
 
     sync_broadcast_invalidate_cache({"type": "processStatusCounts"})
 

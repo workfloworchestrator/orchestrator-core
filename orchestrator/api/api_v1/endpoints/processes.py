@@ -120,11 +120,11 @@ def delete(process_id: UUID) -> None:
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    broadcast_invalidate_status_counts()
-    broadcast_process_update_to_websocket(process.process_id)
-
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
+
+    broadcast_invalidate_status_counts()
+    broadcast_process_update_to_websocket(process.process_id)
 
 
 @router.post(
