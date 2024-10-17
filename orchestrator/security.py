@@ -18,7 +18,7 @@ from starlette.requests import Request
 from starlette.websockets import WebSocket
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, OIDCUserModel, HttpBearerExtractor
+from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, HttpBearerExtractor, OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
 
 oauth_client_credentials = OAuth()
