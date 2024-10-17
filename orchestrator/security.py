@@ -14,6 +14,7 @@ from typing import Annotated
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends
+from fastapi.security.http import HTTPAuthorizationCredentials
 from starlette.requests import Request
 from starlette.websockets import WebSocket
 
@@ -34,8 +35,10 @@ oauth_client_credentials.register(
 
 
 async def authenticate(
-    request: Request, token: Annotated[str | None, Depends(HttpBearerExtractor())] = None  # type:ignore
+    request: Request,
+    http_auth_credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(HttpBearerExtractor())] = None,
 ) -> OIDCUserModel | None:
+    token = http_auth_credentials.credentials if http_auth_credentials else None
     return await request.app.auth_manager.authentication.authenticate(request, token)
 
 
