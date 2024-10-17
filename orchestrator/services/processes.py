@@ -42,6 +42,7 @@ from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc, State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
+from orchestrator.websocket import broadcast_invalidate_status_counts
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     Failed,
@@ -117,6 +118,7 @@ def _db_create_process(stat: ProcessStat) -> None:
 
 def delete_process(process_id: UUID) -> None:
     db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
+    broadcast_invalidate_status_counts()
     db.session.commit()
 
 
