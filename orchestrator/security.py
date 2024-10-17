@@ -34,7 +34,7 @@ oauth_client_credentials.register(
 
 
 async def authenticate(
-    request: Request, token: Annotated[str | None, Depends(HttpBearerExtractor())] = None # type:ignore
+    request: Request, token: Annotated[str | None, Depends(HttpBearerExtractor())] = None  # type:ignore
 ) -> OIDCUserModel | None:
     return await request.app.auth_manager.authentication.authenticate(request, token)
 
