@@ -17,9 +17,9 @@ from typing import Any, get_args
 import strawberry
 import structlog
 from more_itertools import one
-from strawberry import UNSET
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.federation.schema_directives import Key
+from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
@@ -76,8 +76,8 @@ def create_block_strawberry_type(
     strawberry_name: str,
     model: type[DomainModel],
 ) -> type[StrawberryTypeFromPydantic[DomainModel]]:
-    from strawberry import UNSET
     from strawberry.federation.schema_directives import Key
+    from strawberry.unset import UNSET
 
     federation_key_directives = [Key(fields="subscriptionInstanceId", resolvable=UNSET)]
 

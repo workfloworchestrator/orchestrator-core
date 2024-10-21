@@ -5,8 +5,8 @@ from uuid import UUID
 import strawberry
 from pydantic import BaseModel
 from sqlalchemy import select
-from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
+from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
