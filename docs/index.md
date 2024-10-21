@@ -15,7 +15,7 @@ hide:
     <a href="https://pypi.org/project/orchestrator-core" target="_blank">
     <img src="https://img.shields.io/pypi/v/orchestrator-core?color=%2334D058&label=pypi%20package" alt="Pypi">
     </a>
-    <a>    
+    <a>  
     <img alt="Discord" src="https://img.shields.io/discord/1295834294270558280?style=flat-square&logo=discord&label=discord">
     </a>
 
