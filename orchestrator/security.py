@@ -33,10 +33,12 @@ oauth_client_credentials.register(
     client_kwargs={"verify": HTTPX_SSL_CONTEXT},
 )
 
+http_bearer_extractor = HttpBearerExtractor(auto_error=False)
+
 
 async def authenticate(
     request: Request,
-    http_auth_credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(HttpBearerExtractor())] = None,
+    http_auth_credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer_extractor)] = None,
 ) -> OIDCUserModel | None:
     token = http_auth_credentials.credentials if http_auth_credentials else None
     return await request.app.auth_manager.authentication.authenticate(request, token)
