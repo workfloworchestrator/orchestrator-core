@@ -501,6 +501,7 @@ def test_subscriptions_has_previous_page(test_client, product_type_1_subscriptio
     }
 
 
+@pytest.mark.benchmark
 def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_factory):
     # when
 
@@ -530,6 +531,7 @@ def test_subscriptions_sorting_asc(test_client, product_type_1_subscriptions_fac
         assert subscriptions[i]["startDate"] < subscriptions[i + 1]["startDate"]
 
 
+@pytest.mark.benchmark
 def test_subscriptions_sorting_desc(test_client, product_type_1_subscriptions_factory):
     # when
 
@@ -1008,6 +1010,7 @@ def test_single_subscription_with_processes(
     assert subscriptions[0]["processes"]["page"][0]["processId"] == str(mocked_processes[0])
 
 
+@pytest.mark.benchmark
 def test_single_subscription_with_depends_on_subscriptions(
     fastapi_app_graphql,
     test_client,
@@ -1054,6 +1057,7 @@ def test_single_subscription_with_depends_on_subscriptions(
     assert len(subscriptions[0]["inUseBySubscriptions"]["page"]) == 0
 
 
+@pytest.mark.benchmark
 def test_single_subscription_with_in_use_by_subscriptions(
     fastapi_app_graphql,
     test_client,
