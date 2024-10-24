@@ -14,14 +14,12 @@ from typing import Annotated
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends
+from fastapi.security.http import HTTPAuthorizationCredentials
 from starlette.requests import Request
 from starlette.websockets import WebSocket
 
 from nwastdlib.url import URL
-from oauth2_lib.fastapi import (
-    HTTPX_SSL_CONTEXT,
-    OIDCUserModel,
-)
+from oauth2_lib.fastapi import HTTPX_SSL_CONTEXT, HttpBearerExtractor, OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
 
 oauth_client_credentials = OAuth()
@@ -35,9 +33,15 @@ oauth_client_credentials.register(
     client_kwargs={"verify": HTTPX_SSL_CONTEXT},
 )
 
+http_bearer_extractor = HttpBearerExtractor(auto_error=False)
 
-async def authenticate(request: Request) -> OIDCUserModel | None:
-    return await request.app.auth_manager.authentication.authenticate(request)
+
+async def authenticate(
+    request: Request,
+    http_auth_credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer_extractor)] = None,
+) -> OIDCUserModel | None:
+    token = http_auth_credentials.credentials if http_auth_credentials else None
+    return await request.app.auth_manager.authentication.authenticate(request, token)
 
 
 async def authorize(request: Request, user: Annotated[OIDCUserModel | None, Depends(authenticate)]) -> bool | None:
