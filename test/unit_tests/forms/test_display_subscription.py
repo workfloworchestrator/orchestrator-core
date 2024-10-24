@@ -36,6 +36,7 @@ def test_display_only_schema():
         summary: Summary
 
     expected = {
+        "$defs": {"MigrationSummaryValue": {"properties": {}, "title": "MigrationSummaryValue", "type": "object"}},
         "additionalProperties": False,
         "properties": {
             "display_sub": {
@@ -52,6 +53,7 @@ def test_display_only_schema():
                 "type": "string",
             },
             "summary": {
+                "allOf": [{"$ref": "#/$defs/MigrationSummaryValue"}],
                 "format": "summary",
                 "default": None,
                 "type": "string",
