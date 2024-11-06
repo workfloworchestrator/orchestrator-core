@@ -18,12 +18,12 @@ from typing import Any, NewType, TypeVar
 
 import strawberry
 from graphql import GraphQLError
+from strawberry.custom_scalar import ScalarDefinition, ScalarWrapper
 from strawberry.dataloader import DataLoader
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.scalars import JSON
 from strawberry.types import Info
 from strawberry.types.info import RootValueType
-from strawberry.types.scalar import ScalarDefinition, ScalarWrapper
 
 from nwastdlib.vlans import VlanRanges
 from oauth2_lib.fastapi import AuthManager
