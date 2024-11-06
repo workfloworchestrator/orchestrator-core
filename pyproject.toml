@@ -60,10 +60,10 @@ dependencies = [
     "structlog",
     "typer==0.12.5",
     "uvicorn[standard]~=0.32.0",
-    "nwa-stdlib~=1.7.3",
+    "nwa-stdlib~=1.8.0",
     "oauth2-lib~=2.3.0",
     "tabulate==0.9.0",
-    "strawberry-graphql~=0.236.0",
+    "strawberry-graphql>=0.246.2",
     "pydantic-forms==1.1.0",
 ]
 
