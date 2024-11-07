@@ -2,7 +2,7 @@ from typing import Any, cast
 
 import strawberry
 from strawberry.experimental.pydantic.conversion import _convert_from_pydantic_to_strawberry_type
-from strawberry.field import StrawberryField
+from strawberry.types.field import StrawberryField
 
 # Vendored convert_pydantic_model_to_strawberry_class from
 # https://github.com/strawberry-graphql/strawberry/blob/d721eb33176cfe22be5e47f5bf2c21a4a022a6d6/strawberry/experimental/pydantic/conversion.py

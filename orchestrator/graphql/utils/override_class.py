@@ -1,4 +1,4 @@
-from strawberry.field import StrawberryField
+from strawberry.types.field import StrawberryField
 
 
 def override_class(strawberry_class: type, fields: list[StrawberryField]) -> type:

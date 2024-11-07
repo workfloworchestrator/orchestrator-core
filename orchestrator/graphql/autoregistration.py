@@ -17,9 +17,9 @@ from typing import Any, get_args
 import strawberry
 import structlog
 from more_itertools import one
+from strawberry import UNSET
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.federation.schema_directives import Key
-from strawberry.unset import UNSET
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import DomainModel, get_depends_on_product_block_type_list
@@ -76,8 +76,8 @@ def create_block_strawberry_type(
     strawberry_name: str,
     model: type[DomainModel],
 ) -> type[StrawberryTypeFromPydantic[DomainModel]]:
+    from strawberry import UNSET
     from strawberry.federation.schema_directives import Key
-    from strawberry.unset import UNSET
 
     federation_key_directives = [Key(fields="subscriptionInstanceId", resolvable=UNSET)]
 
@@ -92,7 +92,7 @@ def create_block_strawberry_type(
         description=f"{strawberry_name} Type",
         use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
-    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
+    return pydantic_wrapper(base_type)
 
 
 def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
@@ -106,7 +106,7 @@ def create_subscription_strawberry_type(strawberry_name: str, model: type[Domain
         description=f"{strawberry_name} Type",
         use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
-    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
+    return pydantic_wrapper(base_type)
 
 
 def add_class_to_strawberry(
@@ -146,6 +146,7 @@ def register_domain_models(
         for product_type in SUBSCRIPTION_MODEL_REGISTRY.values()
         if product_type.__base_type__
     }
+
     for key, product_type in products.items():
         add_class_to_strawberry(
             interface=interface,
