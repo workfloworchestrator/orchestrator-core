@@ -188,9 +188,6 @@ def create_graphql_router(
 
     if register_models:
         models = register_domain_models(subscription_interface, existing_models=models)
-        # TODO: remove log after debugging
-        model_values = list(models.values())
-        logger.info("registered models", are_models_unique=len(model_values) == len(set(model_values)), models=models)
 
     extensions = extensions or list(get_extensions(mutation, query))
 

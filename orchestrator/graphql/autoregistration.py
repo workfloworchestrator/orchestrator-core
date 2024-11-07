@@ -92,7 +92,7 @@ def create_block_strawberry_type(
         description=f"{strawberry_name} Type",
         use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
-    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
+    return pydantic_wrapper(base_type)
 
 
 def create_subscription_strawberry_type(strawberry_name: str, model: type[DomainModel], interface: type) -> type:
@@ -106,10 +106,7 @@ def create_subscription_strawberry_type(strawberry_name: str, model: type[Domain
         description=f"{strawberry_name} Type",
         use_pydantic_alias=USE_PYDANTIC_ALIAS_MODEL_MAPPING.get(strawberry_name, True),
     )
-    return type(strawberry_name, (pydantic_wrapper(base_type),), {})
-
-
-EXISTING_MODELS = set()
+    return pydantic_wrapper(base_type)
 
 
 def add_class_to_strawberry(
@@ -119,7 +116,7 @@ def add_class_to_strawberry(
     strawberry_enums: EnumDict,
     interface: type | None = None,
 ) -> None:
-    if model_name in EXISTING_MODELS:
+    if model_name in strawberry_models:
         logger.debug("Skip already registered strawberry model", model=repr(model), strawberry_name=model_name)
         return
     logger.debug("Registering strawberry model", model=repr(model), strawberry_name=model_name)
@@ -133,11 +130,9 @@ def add_class_to_strawberry(
             add_class_to_strawberry(graphql_field_name, field, strawberry_models, strawberry_enums)
 
     if interface:
-        EXISTING_MODELS.add(model_name)
         strawberry_models[model_name] = create_subscription_strawberry_type(model_name, model, interface)
     else:
-        EXISTING_MODELS.add(model_name)
-        create_block_strawberry_type(model_name, model)
+        strawberry_models[model_name] = create_block_strawberry_type(model_name, model)
     logger.debug("Registered strawberry model", model=repr(model), strawberry_name=model_name)
 
 
@@ -151,8 +146,6 @@ def register_domain_models(
         for product_type in SUBSCRIPTION_MODEL_REGISTRY.values()
         if product_type.__base_type__
     }
-
-    EXISTING_MODELS.update(strawberry_models.keys())
 
     for key, product_type in products.items():
         add_class_to_strawberry(
