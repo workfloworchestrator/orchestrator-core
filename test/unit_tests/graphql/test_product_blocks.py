@@ -220,7 +220,7 @@ def test_product_block_query_with_relations(test_client, query_args):
 
 
 def test_product_blocks_has_previous_page(test_client):
-    data = get_product_blocks_query(after=1)
+    data = get_product_blocks_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
