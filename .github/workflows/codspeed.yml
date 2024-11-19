@@ -1,21 +1,22 @@
-name: Unit tests
+name: codspeed-benchmarks
+
 on:
   push:
-  workflow_call:
+    branches:
+      - "main"
+      - "try-codspeed"
+  pull_request:
+  # `workflow_dispatch` allows CodSpeed to trigger backtest
+  # performance analysis in order to generate initial data.
+  workflow_dispatch:
 
 jobs:
-  container_job:
-    name: Unit tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+  benchmarks:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.11', '3.12']
-        postgres-version: ['14', '15', '16']
-      fail-fast: false
-    container: python:${{ matrix.python-version }}-slim
+    # container: python:3.12-slim
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}-alpine
+        image: postgres:14-alpine
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
@@ -26,6 +27,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 5432:5432
       redis:
         # Docker Hub image
         image: redis
@@ -35,30 +38,34 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 6379:6379
     steps:
-      # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
         uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flit
           flit install --deps develop --symlink
-          echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
         env:
           FLIT_ROOT_INSTALL: 1
-      - name: Run Unit tests
-        run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB  pytest --cov-branch --cov=orchestrator --cov-report=xml --ignore=test --ignore=orchestrator/devtools --ignore=examples --ignore=docs --ignore=orchestrator/vendor
+
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v3
         env:
+          CACHE_URI: redis://localhost:6379
           POSTGRES_DB: orchestrator-core-test
           POSTGRES_USER: nwa
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
+          DATABASE_URI: postgresql://nwa:nwa@localhost:5432/nwa
           ENVIRONMENT: TESTING
-      - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}  # gives error 'Could not find a repository associated with upload token'
-          fail_ci_if_error: true
-          files: ./coverage.xml
+          # token: ${{ secrets.CODSPEED_TOKEN }}
+          run: pytest test/unit_tests -m "benchmark or benchmark_instrumented" --codspeed
