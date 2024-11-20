@@ -21,6 +21,7 @@ from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.schedules.scheduling import scheduler
 from orchestrator.services.processes import get_execution_context
 from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
+from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 
 logger = structlog.get_logger(__name__)
@@ -31,9 +32,12 @@ task_semaphore = BoundedSemaphore(value=2)
 
 @scheduler(name="Subscriptions Validator", time_unit="day", at="00:10")
 def validate_subscriptions() -> None:
-    subscriptions = db.session.scalars(
-        select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(True))
-    )
+    if app_settings.VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS:
+        # Automatically re-validate out-of-sync subscriptions. This is not recommended for production.
+        select_query = select(SubscriptionTable).join(ProductTable)
+    else:
+        select_query = select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(True))
+    subscriptions = db.session.scalars(select_query)
     for subscription in subscriptions:
         validation_workflow = None
 

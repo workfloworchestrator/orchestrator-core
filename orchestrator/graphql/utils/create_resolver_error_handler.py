@@ -12,7 +12,7 @@
 # limitations under the License.
 
 
-from nwastdlib.graphql.extensions.error_handler_extension import register_error
+from nwastdlib.graphql.extensions.error_handler_extension import ErrorType, register_error
 from orchestrator.db.filters import CallableErrorHandler
 from orchestrator.graphql.types import OrchestratorInfo
 
@@ -25,6 +25,6 @@ def _format_context(context: dict) -> str:
 
 def create_resolver_error_handler(info: OrchestratorInfo) -> CallableErrorHandler:
     def handle_error(message: str, **context) -> None:  # type: ignore
-        return register_error(" ".join([message, _format_context(context)]), info)
+        return register_error(" ".join([message, _format_context(context)]), info, error_type=ErrorType.BAD_REQUEST)
 
     return handle_error

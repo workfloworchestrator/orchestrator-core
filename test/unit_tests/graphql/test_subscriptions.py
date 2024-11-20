@@ -649,7 +649,7 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
                 "'subscriptionId', 'tag'])"
             ),
             "path": ["subscriptions"],
-            "extensions": {"error_type": "internal_error"},
+            "extensions": {"error_type": "bad_request"},
         }
     ]
 
@@ -668,7 +668,7 @@ def test_subscriptions_sorting_invalid_order(test_client, product_type_1_subscri
 
     assert not result["data"]
     assert "errors" in result
-    assert "Value 'test' does not exist in 'SortOrder'" in result["errors"][0]["message"]
+    assert "Internal Server Error" in result["errors"][0]["message"]
 
 
 @pytest.mark.parametrize(
@@ -807,7 +807,7 @@ def test_subscriptions_filtering_with_invalid_filter(
                 "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag'])"
             ),
             "path": ["subscriptions"],
-            "extensions": {"error_type": "internal_error"},
+            "extensions": {"error_type": "bad_request"},
         }
     ]
     assert pageinfo == {
