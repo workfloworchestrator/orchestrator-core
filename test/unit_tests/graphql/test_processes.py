@@ -268,6 +268,7 @@ def test_process_has_previous_page(
     }
 
 
+@pytest.mark.benchmark
 def test_processes_sorting_asc(
     test_client,
     mocked_processes,
@@ -301,6 +302,7 @@ def test_processes_sorting_asc(
     assert processes[2]["startedAt"] == "2020-01-15T09:30:00+00:00"
 
 
+@pytest.mark.benchmark
 def test_processes_sorting_desc(
     test_client,
     mocked_processes,
@@ -470,6 +472,7 @@ def test_processes_various_filterings(
     assert len(processes) == num_results
 
 
+@pytest.mark.benchmark
 @pytest.mark.parametrize(
     "query_args",
     [
@@ -549,6 +552,7 @@ def test_single_process_with_form(
     }
 
 
+@pytest.mark.benchmark
 @pytest.mark.parametrize(
     "query_args",
     [
@@ -632,6 +636,7 @@ def test_processes_sorting_product_tag_asc(
     ]
 
 
+@pytest.mark.benchmark
 @pytest.mark.parametrize(
     "query_args",
     [

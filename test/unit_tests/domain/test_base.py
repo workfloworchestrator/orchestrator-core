@@ -766,13 +766,17 @@ def test_update_optional(test_product_one, test_product_block_one):
     assert ip.model_dump() == ip2.model_dump()
 
 
-def test_generic_from_subscription(test_product_one, test_product_type_one):
+@pytest.mark.benchmark_instrumented
+def test_generic_from_subscription(test_product_one, test_product_type_one, benchmark):
     ProductTypeOneForTestInactive, _, _ = test_product_type_one
 
     ip = ProductTypeOneForTestInactive.from_product_id(product_id=test_product_one, customer_id=str(uuid4()))
     ip.save()
 
-    model = SubscriptionModel.from_subscription(ip.subscription_id)
+    def load_subscription():
+        return SubscriptionModel.from_subscription(ip.subscription_id)
+
+    model = benchmark(load_subscription)
 
     assert isinstance(model, ProductTypeOneForTestInactive)
 
