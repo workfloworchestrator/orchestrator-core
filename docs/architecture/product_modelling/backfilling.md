@@ -7,7 +7,7 @@ However, when adding a new resource type to a `ProductBlock`, pre-existing produ
 database are not backfilled. For this, another SQL transaction must be added to the generated migration file.
 
 ## Generating a Database Migration
-After the new resource type is added to the product block, it should contain at least the following two transactions:
+After the new resource type is added to the product block, the generated migration file should already contain at least the following two transactions:
 
 ```python
 conn.execute(sa.text("""
