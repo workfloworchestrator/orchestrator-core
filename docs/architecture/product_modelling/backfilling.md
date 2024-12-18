@@ -1,7 +1,7 @@
 # Backfilling Existing Subscriptions
 When updating a product block that already exists in your orchestrator, it could be the case that new attributes are
-added or removed. When removing resource types from a `ProductBlock`, the database migration generator is able to pick
-up on this change, and generates a migration that removes these resource types from your database completely.
+added or removed. When removing resource types from a `ProductBlock`, the `migrate-domain-models` command is able to
+pick up on this change, and generates a migration that removes these resource types from your database completely.
 
 However, when adding a new resource type to a `ProductBlock`, pre-existing product instances in the subscription
 database are not backfilled. For this, another SQL transaction must be added to the generated migration file.
