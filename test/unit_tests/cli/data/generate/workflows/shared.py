@@ -1,4 +1,5 @@
-from typing import Generator, List, TypeAlias, cast
+from collections.abc import Generator
+from typing import List, TypeAlias, cast
 
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.forms import FormPage

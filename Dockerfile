@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install --yes git
 
 RUN pip install pip --upgrade
 RUN pip install orchestrator-core==${VERSION}
+RUN pip uninstall setup-tools
 
 RUN useradd orchestrator
 USER orchestrator

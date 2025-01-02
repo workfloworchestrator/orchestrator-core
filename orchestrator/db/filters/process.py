@@ -49,7 +49,7 @@ def make_product_clause(filter_generator: WhereCondGenerator) -> WhereCondGenera
 def customer_clause(node: Node) -> BinaryExpression[bool] | ColumnElement[bool]:
     value = node_to_str_val(node)
     try:
-        customer_uuid = UUID(value)
+        customer_uuid = str(UUID(value))
     except (ValueError, AttributeError):
         # Not a valid uuid, skip matching with customer_id
         return false()

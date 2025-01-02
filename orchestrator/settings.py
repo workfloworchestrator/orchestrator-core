@@ -81,6 +81,7 @@ class AppSettings(BaseSettings):
     ENABLE_GRAPHQL_DEPRECATION_CHECKER: bool = True
     ENABLE_GRAPHQL_PROFILING_EXTENSION: bool = False
     ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
+    VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
 
 
 app_settings = AppSettings()

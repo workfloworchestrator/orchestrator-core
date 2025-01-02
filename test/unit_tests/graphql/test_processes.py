@@ -414,7 +414,7 @@ def test_processes_filtering_with_invalid_filter(
                 "'workflowName'])"
             ),
             "path": ["processes"],
-            "extensions": {"error_type": "internal_error"},
+            "extensions": {"error_type": "bad_request"},
         }
     ]
     assert pageinfo == {

@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING, Annotated
 
 import strawberry
+from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
-from strawberry.unset import UNSET
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import ProductTable

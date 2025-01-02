@@ -1360,6 +1360,13 @@ def errorlogger(error: ErrorDict) -> None:
     logger.error("Workflow returned an error.", **error)
 
 
+def invalidate_status_counts() -> None:
+    """Broadcast invalidate status counts to the websocket."""
+    from orchestrator.websocket import broadcast_invalidate_status_counts
+
+    broadcast_invalidate_status_counts()
+
+
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
     """Execute the workflow steps one by one until a Process state other than Success or Skipped is reached."""
     consolelogger = cond_bind(logger, starting_process.unwrap(), "reporter", "created_by")
@@ -1426,7 +1433,10 @@ def runwf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
     # This enables recursive step execution of sub steps with the same StepLogFunc.
     # Should probably be refactored at some point as contextvars is a kind of global state.
     step_log_fn_var.set(_logstep)
-    return _exec_steps(steps, next_state, _logstep)
+    executed_steps = _exec_steps(steps, next_state, _logstep)
+    if executed_steps.overall_status == ProcessStatus.FAILED:
+        invalidate_status_counts()
+    return executed_steps
 
 
 def abort_wf(pstat: ProcessStat, logstep: StepLogFunc) -> Process:
