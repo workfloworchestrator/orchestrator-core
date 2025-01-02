@@ -145,6 +145,7 @@ nav:
                             - IP Static: architecture/product_modelling/ip_static.md
                       - Product Block Graph: architecture/product_modelling/product_block_graph.md
                       - Importing Existing Products: architecture/product_modelling/imports.md
+                      - Backfilling Existing Subscriptions: architecture/product_modelling/backfilling.md
     - Getting Started:
           - Prerequisites: getting-started/versions.md
           - Base Application:
