@@ -66,7 +66,7 @@ extra:
     generator: false
     social:
       - icon: fontawesome/brands/discord
-        link: https://discord.gg/KNgF6gE8
+        link: https://discord.gg/fQkQn5ajFR
         name: WFO on Discord!
 repo_name: workfloworchestrator/orchestrator-core
 repo_url: https://github.com/workfloworchestrator/orchestrator-core

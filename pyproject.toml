@@ -42,11 +42,11 @@ dependencies = [
     "deepmerge==1.1.1",
     "fastapi~=0.115.2",
     "fastapi-etag==0.4.0",
-    "more-itertools~=10.3.0",
+    "more-itertools~=10.5.0",
     "itsdangerous",
-    "Jinja2==3.1.4",
+    "Jinja2==3.1.5",
     "orjson==3.10.9",
-    "psycopg2-binary==2.9.9",
+    "psycopg2-binary==2.9.10",
     "pydantic[email]~=2.7.4",
     "pydantic-settings~=2.5.2",
     "python-dateutil==2.8.2",
@@ -55,7 +55,7 @@ dependencies = [
     "redis==5.0.3",
     "schedule==1.1.0",
     "sentry-sdk[fastapi]~=2.18.0",
-    "SQLAlchemy==2.0.31",
+    "SQLAlchemy==2.0.36",
     "SQLAlchemy-Utils==0.41.2",
     "structlog",
     "typer==0.12.5",
@@ -64,7 +64,7 @@ dependencies = [
     "oauth2-lib~=2.3.0",
     "tabulate==0.9.0",
     "strawberry-graphql>=0.246.2",
-    "pydantic-forms==1.1.0",
+    "pydantic-forms~=1.1.1",
 ]
 
 description-file = "README.md"
