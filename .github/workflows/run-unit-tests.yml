@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12']
-        postgres-version: ['14', '15', '16']
+        python-version: ['3.11', '3.12', '3.13']
+        postgres-version: ['15', '16', '17']
       fail-fast: false
     container: python:${{ matrix.python-version }}-slim
     services:
@@ -62,5 +62,5 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}  # gives error 'Could not find a repository associated with upload token'
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           files: ./coverage.xml

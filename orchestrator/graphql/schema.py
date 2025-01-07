@@ -203,6 +203,6 @@ def create_graphql_router(
     context_getter_factory = custom_context_getter or default_context_getter
     return OrchestratorGraphqlRouter(
         schema,
-        context_getter=context_getter_factory(auth_manager, models, broadcast_thread),
+        context_getter=context_getter_factory(auth_manager, models, broadcast_thread),  # type: ignore
         graphiql=app_settings.SERVE_GRAPHQL_UI,
     )
