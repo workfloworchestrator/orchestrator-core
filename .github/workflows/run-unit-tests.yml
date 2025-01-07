@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12']
-        postgres-version: ['14', '15', '16']
+        python-version: ['3.11', '3.12', '3.13']
+        postgres-version: ['15', '16', '17']
       fail-fast: false
     container: python:${{ matrix.python-version }}-slim
     services:
