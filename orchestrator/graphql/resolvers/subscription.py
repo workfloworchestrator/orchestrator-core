@@ -147,7 +147,7 @@ async def resolve_subscriptions(
     graphql_subscriptions: list[SubscriptionInterface] = []
     if is_querying_page_data(info):
         subscriptions = db.session.scalars(stmt).all()
-        graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))
+        graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))  # type: ignore
     logger.info("Resolve subscriptions", filter_by=filter_by, total=total)
 
     return to_graphql_result_page(
