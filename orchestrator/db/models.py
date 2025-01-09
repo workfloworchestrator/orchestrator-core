@@ -626,7 +626,6 @@ class SubscriptionMetadataTable(BaseModel):
         index=True,
     )
     metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)  # type: ignore
-    version = mapped_column(Integer, nullable=False, server_default="1")
 
     @staticmethod
     def find_by_subscription_id(subscription_id: str) -> SubscriptionMetadataTable | None:
