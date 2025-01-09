@@ -40,7 +40,10 @@ async def save_subscription_customer_description_endpoint(data: SubscriptionDesc
 async def update_subscription_customer_description_endpoint(data: SubscriptionDescriptionSchema = Body(...)) -> None:
     description = get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id)
     if description:
-        await update_subscription_customer_description(description, data.description, data.created_at)
+        try:
+            await update_subscription_customer_description(description, data.description, data.created_at, data.version)
+        except ValueError as error:
+            raise_status(HTTPStatus.BAD_REQUEST, str(error))
 
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)

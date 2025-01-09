@@ -531,3 +531,21 @@ def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, 
     assert response.status_code == 201, response.text
     mock_start_process.assert_called()
     assert mock_start_process.mock_calls[0].kwargs["user"] == expected_user
+
+
+def test_new_process_version_check(test_client, generic_subscription_1):
+    with (mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,):
+        mock_start_process.return_value = uuid.uuid4()
+        response = test_client.post(
+            "/api/processes/terminate_sn8_light_path", json=[{"subscription_id": generic_subscription_1, "version": 1}]
+        )
+        assert HTTPStatus.CREATED == response.status_code
+
+
+def test_new_process_version_check_invalid(test_client, generic_subscription_1):
+    with (mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,):
+        mock_start_process.return_value = uuid.uuid4()
+        response = test_client.post(
+            "/api/processes/terminate_sn8_light_path", json=[{"subscription_id": generic_subscription_1, "version": 0}]
+        )
+        assert HTTPStatus.BAD_REQUEST == response.status_code

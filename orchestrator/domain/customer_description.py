@@ -53,8 +53,16 @@ async def create_subscription_customer_description(
 
 @delete_subscription_from_redis()
 async def update_subscription_customer_description(
-    customer_description: SubscriptionCustomerDescriptionTable, description: str, created_at: datetime | None = None
+    customer_description: SubscriptionCustomerDescriptionTable,
+    description: str,
+    created_at: datetime | None = None,
+    version: int | None = None,
 ) -> SubscriptionCustomerDescriptionTable:
+    if version is not None:
+        if version < customer_description.version:
+            raise ValueError(f"Stale data ({version} < {customer_description.version})")
+        customer_description.version = version
+
     customer_description.description = description
     customer_description.created_at = created_at if created_at else datetime.now(tz=timezone("UTC"))
     db.session.commit()

@@ -27,6 +27,7 @@ def seed():
                 id=SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID, customer_id=CUSTOMER_ID, description="customer other alias"
             )
         ],
+        version=1,
     )
 
     db.session.add(product)
@@ -81,6 +82,43 @@ def test_update(seed, test_client):
 
     customer_description = db.session.query(SubscriptionCustomerDescriptionTable).first()
     assert new_desc == customer_description.description
+
+
+def test_update_with_version(seed, test_client):
+    new_desc = "Updated specific alias"
+    version = 1
+    body = {
+        "id": SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID,
+        "subscription_id": SUBSCRIPTION_ID,
+        "customer_id": CUSTOMER_ID,
+        "description": new_desc,
+        "version": version,
+    }
+    response = test_client.put("/api/subscription_customer_descriptions/", json=body)
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+    count = db.session.query(SubscriptionCustomerDescriptionTable).count()
+    assert 1 == count
+
+    customer_description = db.session.query(SubscriptionCustomerDescriptionTable).first()
+    assert new_desc == customer_description.description
+    assert version + 1 == customer_description.version
+
+
+def test_update_with_incorrect_version(seed, test_client):
+    new_desc = "Updated specific alias"
+    body = {
+        "id": SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID,
+        "subscription_id": SUBSCRIPTION_ID,
+        "customer_id": CUSTOMER_ID,
+        "description": new_desc,
+        "version": 0,
+    }
+    response = test_client.put("/api/subscription_customer_descriptions/", json=body)
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+
+    data = response.json()
+    assert "Stale data (0 < 1)" == data["detail"]
 
 
 def test_delete(seed, test_client):

@@ -646,7 +646,7 @@ def test_subscriptions_sorting_invalid_field(test_client, product_type_1_subscri
                 "'insync', 'note', 'productCreatedAt', 'productDescription', "
                 "'productEndDate', 'productId', 'productName', 'productStatus', "
                 "'productTag', 'productType', 'startDate', 'status', "
-                "'subscriptionId', 'tag'])"
+                "'subscriptionId', 'tag', 'version'])"
             ),
             "path": ["subscriptions"],
             "extensions": {"error_type": "bad_request"},
@@ -804,7 +804,7 @@ def test_subscriptions_filtering_with_invalid_filter(
             "message": (
                 "Invalid filter arguments (invalid_filters=['test'] "
                 "valid_filter_keys=['customerId', 'description', 'endDate', 'insync', "
-                "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag'])"
+                "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag', 'version'])"
             ),
             "path": ["subscriptions"],
             "extensions": {"error_type": "bad_request"},
@@ -1276,6 +1276,11 @@ def test_single_subscription_schema(
             },
             "note": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None, "title": "Note"},
             "test_block": {"anyOf": [{"$ref": "#/$defs/ProductBlockWithListUnionForTestInactive"}, {"type": "null"}]},
+            "version": {
+                "default": 1,
+                "title": "Version",
+                "type": "integer",
+            },
         },
         "required": ["product", "customer_id", "test_block"],
         "title": "ProductSubListUnionInactive",

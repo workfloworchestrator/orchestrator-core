@@ -554,6 +554,7 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
     customer_id = mapped_column(String, nullable=False, index=True)
     description = mapped_column(Text(), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
+    version = mapped_column(Integer, nullable=False, server_default="1")
 
     subscription = relationship("SubscriptionTable", back_populates="customer_descriptions")
 
@@ -572,6 +573,7 @@ class SubscriptionTable(BaseModel):
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)
     note = mapped_column(Text())
+    version = mapped_column(Integer, nullable=False, server_default="1")
 
     product = relationship("ProductTable", foreign_keys=[product_id])
     instances = relationship(
@@ -624,6 +626,7 @@ class SubscriptionMetadataTable(BaseModel):
         index=True,
     )
     metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)  # type: ignore
+    version = mapped_column(Integer, nullable=False, server_default="1")
 
     @staticmethod
     def find_by_subscription_id(subscription_id: str) -> SubscriptionMetadataTable | None:

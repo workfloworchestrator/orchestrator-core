@@ -30,20 +30,22 @@ logger = structlog.get_logger(__name__)
 
 
 async def upsert_customer_description(
-    customer_id: str, subscription_id: UUID, description: str
+    customer_id: str, subscription_id: UUID, description: str, version: int | None
 ) -> SubscriptionCustomerDescriptionTable | NotFoundError:
     current_description = get_customer_description_by_customer_subscription(customer_id, subscription_id)
 
     if current_description:
-        return await update_subscription_customer_description(current_description, description)
+        return await update_subscription_customer_description(current_description, description, version=version)
     return await create_subscription_customer_description(customer_id, subscription_id, description)
 
 
 async def resolve_upsert_customer_description(
-    customer_id: str, subscription_id: UUID, description: str
+    customer_id: str, subscription_id: UUID, description: str, version: int | None = None
 ) -> CustomerDescription | NotFoundError | MutationError:
     try:
-        customer_description = await upsert_customer_description(customer_id, subscription_id, description)
+        customer_description = await upsert_customer_description(customer_id, subscription_id, description, version)
+    except ValueError as error:
+        return MutationError(message=str(error))
     except Exception:
         return NotFoundError(message="Subscription not found")
     return CustomerDescription.from_pydantic(customer_description)  # type: ignore

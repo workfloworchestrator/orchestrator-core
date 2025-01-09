@@ -660,6 +660,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
         "status": SubscriptionLifecycle.INITIAL,
         "subscription_id": IsUUID(),
         "test_fixed_input": False,
+        "version": 1,
     }
 
     # Set first value
