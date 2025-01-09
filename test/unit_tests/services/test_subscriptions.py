@@ -133,7 +133,7 @@ def test_build_extended_domain_model(generic_subscription_1, generic_product_1):
         # "start_date": datetime.datetime(2022, 12, 20, 10, 36, 36, tzinfo=datetime.timezone.utc),
         "status": "active",
         "subscription_id": generic_subscription_1,
-        "version": 1,
+        "version": 2,
     }
 
 

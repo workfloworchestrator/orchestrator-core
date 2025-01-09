@@ -534,12 +534,16 @@ def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, 
 
 
 def test_new_process_version_check(test_client, generic_subscription_1):
+    version = 5
     with (mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,):
         mock_start_process.return_value = uuid.uuid4()
         response = test_client.post(
-            "/api/processes/terminate_sn8_light_path", json=[{"subscription_id": generic_subscription_1, "version": 1}]
+            "/api/processes/terminate_sn8_light_path",
+            json=[{"subscription_id": generic_subscription_1, "version": version}],
         )
         assert HTTPStatus.CREATED == response.status_code
+        new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
+        assert new_version == version + 1
 
 
 def test_new_process_version_check_invalid(test_client, generic_subscription_1):
