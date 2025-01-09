@@ -13,11 +13,11 @@
 
 from collections.abc import Callable
 from inspect import isgeneratorfunction
-from typing import cast
+from typing import Self, cast
 from uuid import UUID
 
 from more_itertools import first_true
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlalchemy import select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
@@ -116,6 +116,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         # We use UUID instead of SubscriptionId here because we don't want the allowed_status check and
         # we do our own validation here.
         subscription_id: UUID
+        version: int | None = None
 
         @field_validator("subscription_id")
         @classmethod
@@ -140,6 +141,15 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
             return subscription_id
 
+        @model_validator(mode="after")
+        def version_validator(self) -> Self:
+            if self.version is not None:
+                subscription = db.session.get(SubscriptionTable, self.subscription_id)
+                current_version = subscription.version  # type: ignore
+                if current_version > self.version:
+                    raise ValueError(f"Stale data ({current_version} < {self.version})")
+            return self
+
     return ModifySubscriptionPage
 
 
@@ -157,6 +167,9 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
         subscription = SubscriptionTable.query.get(user_input.subscription_id)
+        if user_input.version:
+            subscription.version = user_input.version
+            db.session.commit()
 
         begin_state = {
             "subscription_id": str(subscription.subscription_id),

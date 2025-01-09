@@ -4,6 +4,7 @@
             "note": "Notes",
             "note_info": "Notes, reminders and feedback about this description.",
             "subscription_id": "Subscription",
+            "version": "Version",
             "subscription_id_info": "The subscription for this action"
         }
     },

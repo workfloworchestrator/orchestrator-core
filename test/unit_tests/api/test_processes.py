@@ -533,23 +533,34 @@ def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, 
     assert mock_start_process.mock_calls[0].kwargs["user"] == expected_user
 
 
+def test_new_process_without_version(test_client, generic_subscription_1):
+
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1}, {"note": "test note"}],
+    )
+    assert HTTPStatus.CREATED == response.status_code
+    new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
+    assert new_version == 3
+
+
 def test_new_process_version_check(test_client, generic_subscription_1):
     version = 5
-    with (mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,):
-        mock_start_process.return_value = uuid.uuid4()
-        response = test_client.post(
-            "/api/processes/terminate_sn8_light_path",
-            json=[{"subscription_id": generic_subscription_1, "version": version}],
-        )
-        assert HTTPStatus.CREATED == response.status_code
-        new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
-        assert new_version == version + 1
+
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1, "version": version}, {"note": "test note"}],
+    )
+    assert HTTPStatus.CREATED == response.status_code
+    new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
+    assert new_version == version + 2
 
 
 def test_new_process_version_check_invalid(test_client, generic_subscription_1):
-    with (mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,):
-        mock_start_process.return_value = uuid.uuid4()
-        response = test_client.post(
-            "/api/processes/terminate_sn8_light_path", json=[{"subscription_id": generic_subscription_1, "version": 0}]
-        )
-        assert HTTPStatus.BAD_REQUEST == response.status_code
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1, "version": 0}, {"note": "test note"}],
+    )
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    payload = response.json()
+    assert payload["validation_errors"][0]["msg"] == "Stale data (2 < 0)"

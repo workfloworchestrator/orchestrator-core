@@ -33,7 +33,7 @@ import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from orchestrator.db import (
@@ -1463,13 +1463,3 @@ def validate_lifecycle_change(
         subscription_description=other.description,
         status=status,
     )
-
-
-def update_subscription_version(subscription_id: UUID, new_version: int) -> None:
-    stmt = (
-        update(SubscriptionTable)
-        .where(SubscriptionTable.subscription_id == str(subscription_id))
-        .values(version=new_version)
-    )
-    db.session.execute(stmt)
-    db.session.commit()

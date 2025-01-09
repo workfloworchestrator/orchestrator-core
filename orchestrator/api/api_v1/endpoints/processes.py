@@ -25,7 +25,7 @@ from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked, first
+from more_itertools import chunked
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.orm import defer, joinedload
@@ -40,7 +40,6 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
-from orchestrator.domain.base import update_subscription_version
 from orchestrator.schemas import (
     ProcessIdSchema,
     ProcessResumeAllSchema,
@@ -64,7 +63,6 @@ from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.types import JSON, State
 from orchestrator.utils.enrich_process import enrich_process
-from orchestrator.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.websocket import (
     WS_CHANNELS,
     broadcast_invalidate_status_counts,
@@ -129,18 +127,6 @@ def delete(process_id: UUID) -> None:
     broadcast_process_update_to_websocket(process.process_id)
 
 
-async def validate_subscription_version(workflow_data: dict[str, Any]) -> None:
-    subscription_id = workflow_data.get("subscription_id")
-    new_version = workflow_data.get("version")
-
-    if new_version is not None and subscription_id:
-        subscription, _ = await get_subscription_dict(subscription_id)
-        current_version = subscription.get("version")
-        if current_version > new_version:
-            raise_status(HTTPStatus.BAD_REQUEST, f"Stale data ({current_version} < {new_version})")
-        update_subscription_version(subscription_id, new_version)
-
-
 @router.post(
     "/{workflow_key}",
     response_model=ProcessIdSchema,
@@ -154,8 +140,6 @@ async def new_process(
     user: str = Depends(user_name),
 ) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
-    if json_data and (first_wf_data := first(json_data, None)):
-        await validate_subscription_version(first_wf_data)
     process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
 
     return {"id": process_id}
