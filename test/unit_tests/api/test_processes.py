@@ -563,4 +563,6 @@ def test_new_process_version_check_invalid(test_client, generic_subscription_1):
     )
     assert HTTPStatus.BAD_REQUEST == response.status_code
     payload = response.json()
-    assert payload["validation_errors"][0]["msg"] == "Stale data (2 < 0)"
+    assert (
+        payload["validation_errors"][0]["msg"] == "Stale data: given version (0) is lower than the current version (2)"
+    )

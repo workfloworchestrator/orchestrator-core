@@ -60,7 +60,9 @@ async def update_subscription_customer_description(
 ) -> SubscriptionCustomerDescriptionTable:
     if version is not None:
         if version < customer_description.version:
-            raise ValueError(f"Stale data ({version} < {customer_description.version})")
+            raise ValueError(
+                f"Stale data: given version ({version}) is lower than the current version ({customer_description.version})"
+            )
         customer_description.version = version
 
     customer_description.description = description

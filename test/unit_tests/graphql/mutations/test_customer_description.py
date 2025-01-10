@@ -231,7 +231,7 @@ def test_customer_description_update_with_incorrect_version(
     assert response.json() == {
         "data": {
             "upsertCustomerDescription": {
-                "message": "Stale data (0 < 1)",
+                "message": "Stale data: given version (0) is lower than the current version (1)",
             },
         },
     }

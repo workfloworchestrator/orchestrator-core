@@ -147,7 +147,9 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
                 subscription = db.session.get(SubscriptionTable, self.subscription_id)
                 current_version = subscription.version  # type: ignore
                 if current_version > self.version:
-                    raise ValueError(f"Stale data ({current_version} < {self.version})")
+                    raise ValueError(
+                        f"Stale data: given version ({self.version}) is lower than the current version ({current_version})"
+                    )
             return self
 
     return ModifySubscriptionPage

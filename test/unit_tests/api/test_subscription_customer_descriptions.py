@@ -118,7 +118,7 @@ def test_update_with_incorrect_version(seed, test_client):
     assert HTTPStatus.BAD_REQUEST == response.status_code
 
     data = response.json()
-    assert "Stale data (0 < 1)" == data["detail"]
+    assert "Stale data: given version (0) is lower than the current version (1)" == data["detail"]
 
 
 def test_delete(seed, test_client):
