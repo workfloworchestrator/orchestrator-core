@@ -33,6 +33,7 @@ def format_subscription(subscription: SubscriptionTable) -> dict:
         "note": subscription.note,
         "start_date": subscription.start_date if subscription.start_date else None,
         "end_date": subscription.end_date if subscription.end_date else None,
+        "version": subscription.version,
         "product": {
             "product_id": prod.product_id,
             "description": prod.description,

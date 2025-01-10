@@ -817,6 +817,7 @@ def test_subscription_detail_special_fields(mock_from_redis, test_client):
         "status": "active",
         "customer_id": "f711c6fe-6de3-40bd-a4e7-9ac9d183a788",
         "insync": True,
+        "version": 1,
         "product": {
             "name": "fake name",
             "description": "fake description",
@@ -854,6 +855,7 @@ def test_subscription_detail_special_fields(mock_from_redis, test_client):
         },
         "customer_descriptions": [],
         "tag": None,
+        "version": 1,
         "ip_address": "127.0.0.1",
     }
 

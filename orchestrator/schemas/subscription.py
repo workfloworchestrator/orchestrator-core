@@ -84,6 +84,7 @@ class SubscriptionSchema(SubscriptionBaseSchema):
     product: ProductBaseSchema | None = None
     customer_descriptions: list[SubscriptionDescriptionSchema] | None = None
     tag: str | None = None
+    version: int = 1
     model_config = ConfigDict(from_attributes=True)
 
 
