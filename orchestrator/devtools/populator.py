@@ -435,16 +435,26 @@ class Populator:
         self.log.info("Providing user input.")
 
         user_inputs: list[State] = [self.get_form_data(form)] if form else []
+        # Keep submitting the form until it has been successfully submitted
         while True:
             self.log.info("Submitting user input", data=user_inputs)
             response = self.session.request(method, url, json=user_inputs)
-            if not response.ok and "MigrationSummary" in response.text:
-                user_inputs.append({})
-                continue
+            self.log.debug("Response", response=response.content)
+
+            # Return the reponse if the form has been successfully submitted
             if response.status_code != HTTPStatus.NOT_EXTENDED:
                 return response
-            input_fields = response.json()["form"]
-            user_inputs.append(self.get_form_data(input_fields))
+
+            meta = response.json().get("meta") or {}
+
+            # If there are no next pages then simply append an empty form/dict for the SummaryForm
+            if meta.get("hasNext") is False:
+                self.log.info("Append empty form", response=response.json())
+                user_inputs.append({})
+            # Otherwise resolve the values for the input fields on the form
+            else:
+                input_fields = response.json()["form"]
+                user_inputs.append(self.get_form_data(input_fields))
 
     def reset(self) -> None:
         """Reset internal state."""
