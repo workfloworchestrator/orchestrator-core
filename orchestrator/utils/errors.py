@@ -74,6 +74,14 @@ class InconsistentDataError(ProcessFailureError):
     pass
 
 
+class StaleDataError(ValueError):
+    """The version of the update payload is older than the version in the database."""
+
+    def __init__(self, current_version: int, new_version: int | None = None) -> None:
+        message = f"Stale data: given version ({new_version}) does not match the current version ({current_version})"
+        super().__init__(message)
+
+
 def is_api_exception(ex: Exception) -> bool:
     """Test for swagger-codegen ApiException.
 

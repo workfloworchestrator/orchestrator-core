@@ -26,8 +26,10 @@ from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle
+from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
+from orchestrator.utils.validate_data_version import validate_data_version
 from orchestrator.workflow import StepList, Workflow, conditional, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
     cache_domain_models,
@@ -143,13 +145,11 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
         @model_validator(mode="after")
         def version_validator(self) -> Self:
-            if self.version is not None:
-                subscription = db.session.get(SubscriptionTable, self.subscription_id)
-                current_version = subscription.version  # type: ignore
-                if current_version > self.version:
-                    raise ValueError(
-                        f"Stale data: given version ({self.version}) is lower than the current version ({current_version})"
-                    )
+            current_version = db.session.scalars(
+                select(SubscriptionTable.version).where(SubscriptionTable.subscription_id == self.subscription_id)
+            ).one()
+            if not validate_data_version(current_version, self.version):
+                raise StaleDataError(current_version, self.version)
             return self
 
     return ModifySubscriptionPage
@@ -169,10 +169,6 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
         subscription = SubscriptionTable.query.get(user_input.subscription_id)
-        if user_input.version:
-            subscription.version = user_input.version
-            db.session.commit()
-
         begin_state = {
             "subscription_id": str(subscription.subscription_id),
             "product": str(subscription.product_id),

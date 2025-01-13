@@ -545,7 +545,7 @@ def test_new_process_without_version(test_client, generic_subscription_1):
 
 
 def test_new_process_version_check(test_client, generic_subscription_1):
-    version = 5
+    version = 2
 
     response = test_client.post(
         "/api/processes/modify_note",
@@ -553,10 +553,10 @@ def test_new_process_version_check(test_client, generic_subscription_1):
     )
     assert HTTPStatus.CREATED == response.status_code
     new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
-    assert new_version == version + 2
+    assert new_version == version + 1
 
 
-def test_new_process_version_check_invalid(test_client, generic_subscription_1):
+def test_new_process_lower_version_invalid(test_client, generic_subscription_1):
     response = test_client.post(
         "/api/processes/modify_note",
         json=[{"subscription_id": generic_subscription_1, "version": 0}, {"note": "test note"}],
@@ -564,5 +564,18 @@ def test_new_process_version_check_invalid(test_client, generic_subscription_1):
     assert HTTPStatus.BAD_REQUEST == response.status_code
     payload = response.json()
     assert (
-        payload["validation_errors"][0]["msg"] == "Stale data: given version (0) is lower than the current version (2)"
+        payload["validation_errors"][0]["msg"] == "Stale data: given version (0) does not match the current version (2)"
+    )
+
+
+def test_new_process_higher_version_invalid(test_client, generic_subscription_1):
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1, "version": 10}, {"note": "test note"}],
+    )
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    payload = response.json()
+    assert (
+        payload["validation_errors"][0]["msg"]
+        == "Stale data: given version (10) does not match the current version (2)"
     )

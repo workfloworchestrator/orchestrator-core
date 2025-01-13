@@ -105,7 +105,7 @@ def test_update_with_version(seed, test_client):
     assert version + 1 == customer_description.version
 
 
-def test_update_with_incorrect_version(seed, test_client):
+def test_update_with_lower_version_invalid(seed, test_client):
     new_desc = "Updated specific alias"
     body = {
         "id": SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID,
@@ -118,7 +118,23 @@ def test_update_with_incorrect_version(seed, test_client):
     assert HTTPStatus.BAD_REQUEST == response.status_code
 
     data = response.json()
-    assert "Stale data: given version (0) is lower than the current version (1)" == data["detail"]
+    assert "Stale data: given version (0) does not match the current version (1)" == data["detail"]
+
+
+def test_update_with_higher_version_invalid(seed, test_client):
+    new_desc = "Updated specific alias"
+    body = {
+        "id": SUBSCRIPTION_CUSTOMER_DESCRIPTION_ID,
+        "subscription_id": SUBSCRIPTION_ID,
+        "customer_id": CUSTOMER_ID,
+        "description": new_desc,
+        "version": 10,
+    }
+    response = test_client.put("/api/subscription_customer_descriptions/", json=body)
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+
+    data = response.json()
+    assert "Stale data: given version (10) does not match the current version (1)" == data["detail"]
 
 
 def test_delete(seed, test_client):

@@ -28,5 +28,12 @@ class SubscriptionDescriptionBaseSchema(OrchestratorBaseModel):
 class SubscriptionDescriptionSchema(SubscriptionDescriptionBaseSchema):
     id: UUID
     created_at: datetime | None = None
-    version: int = 1
+    version: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateSubscriptionDescriptionSchema(SubscriptionDescriptionBaseSchema):
+    id: UUID
+    created_at: datetime | None = None
+    version: int | None = None
     model_config = ConfigDict(from_attributes=True)

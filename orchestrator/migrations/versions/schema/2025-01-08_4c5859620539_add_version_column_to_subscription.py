@@ -29,7 +29,7 @@ def upgrade() -> None:
 CREATE OR REPLACE FUNCTION increment_version()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.version := COALESCE(NEW.version, OLD.version) + 1;
+    NEW.version := OLD.version + 1;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

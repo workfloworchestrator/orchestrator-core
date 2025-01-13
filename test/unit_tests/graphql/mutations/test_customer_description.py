@@ -170,13 +170,13 @@ def test_customer_description_update_with_version(httpx_mock, test_client, produ
     subscription_id = str(product_sub_list_union_subscription_1)
     customer_id = "0c43b714-0a11-e511-80d0-005056956c1a"
     description = "update description"
-    version = 5
+    version = 1
 
     customer_description = SubscriptionCustomerDescriptionTable(
         customer_id=customer_id,
         subscription_id=subscription_id,
         description="create description",
-        version=1,
+        version=version,
     )
     db.session.add(customer_description)
     db.session.commit()
@@ -195,7 +195,7 @@ def test_customer_description_update_with_version(httpx_mock, test_client, produ
                 "customerId": "0c43b714-0a11-e511-80d0-005056956c1a",
                 "subscriptionId": subscription_id,
                 "description": "update description",
-                "version": 6,
+                "version": version + 1,
             }
         }
     }
@@ -231,7 +231,7 @@ def test_customer_description_update_with_incorrect_version(
     assert response.json() == {
         "data": {
             "upsertCustomerDescription": {
-                "message": "Stale data: given version (0) is lower than the current version (1)",
+                "message": "Stale data: given version (0) does not match the current version (1)",
             },
         },
     }
