@@ -82,6 +82,7 @@ def test_update(seed, test_client):
 
     customer_description = db.session.query(SubscriptionCustomerDescriptionTable).first()
     assert new_desc == customer_description.description
+    assert 2 == customer_description.version
 
 
 def test_update_with_version(seed, test_client):
