@@ -173,7 +173,7 @@ def test_autouse_fixture_rolls_back_bbb():
 def test_str_method():
     assert (
         str(SubscriptionTable())
-        == "SubscriptionTable(subscription_id=None, description=None, status=None, product_id=None, customer_id=None, insync=None, start_date=None, end_date=None, note=None)"
+        == "SubscriptionTable(subscription_id=None, description=None, status=None, product_id=None, customer_id=None, insync=None, start_date=None, end_date=None, note=None, version=None)"
     )
 
 

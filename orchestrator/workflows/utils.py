@@ -13,11 +13,11 @@
 
 from collections.abc import Callable
 from inspect import isgeneratorfunction
-from typing import cast
+from typing import Self, cast
 from uuid import UUID
 
 from more_itertools import first_true
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlalchemy import select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
@@ -26,8 +26,10 @@ from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import State, SubscriptionLifecycle
+from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
+from orchestrator.utils.validate_data_version import validate_data_version
 from orchestrator.workflow import StepList, Workflow, conditional, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
     cache_domain_models,
@@ -116,6 +118,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
         # We use UUID instead of SubscriptionId here because we don't want the allowed_status check and
         # we do our own validation here.
         subscription_id: UUID
+        version: int | None = None
 
         @field_validator("subscription_id")
         @classmethod
@@ -140,6 +143,15 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
             return subscription_id
 
+        @model_validator(mode="after")
+        def version_validator(self) -> Self:
+            current_version = db.session.scalars(
+                select(SubscriptionTable.version).where(SubscriptionTable.subscription_id == self.subscription_id)
+            ).one()
+            if not validate_data_version(current_version, self.version):
+                raise StaleDataError(current_version, self.version)
+            return self
+
     return ModifySubscriptionPage
 
 
@@ -157,11 +169,11 @@ def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> 
         user_input = yield _generate_modify_form(workflow_target, workflow_name)
 
         subscription = SubscriptionTable.query.get(user_input.subscription_id)
-
         begin_state = {
             "subscription_id": str(subscription.subscription_id),
             "product": str(subscription.product_id),
             "customer_id": subscription.customer_id,
+            "version": subscription.version,
         }
 
         if initial_input_form is None:

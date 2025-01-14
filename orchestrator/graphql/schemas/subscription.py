@@ -77,6 +77,7 @@ class SubscriptionInterface:
     status: SubscriptionLifecycle
     insync: bool
     note: str | None
+    version: int
 
     @strawberry.field(description="Product information")  # type: ignore
     async def product(self) -> ProductModelGraphql:

@@ -1017,6 +1017,7 @@ class SubscriptionModel(DomainModel):
     start_date: datetime | None = None  # pragma: no mutate
     end_date: datetime | None = None  # pragma: no mutate
     note: str | None = None  # pragma: no mutate
+    version: int = 1  # pragma: no mutate
 
     def __new__(cls, *args: Any, status: SubscriptionLifecycle | None = None, **kwargs: Any) -> "SubscriptionModel":
         # status can be none if created during change_lifecycle
@@ -1108,6 +1109,7 @@ class SubscriptionModel(DomainModel):
         start_date: datetime | None = None,
         end_date: datetime | None = None,
         note: str | None = None,
+        version: int = 1,
     ) -> S:
         """Use product_id (and customer_id) to return required fields of a new empty subscription."""
         # Caller wants a new instance and provided a product_id and customer_id
@@ -1140,6 +1142,7 @@ class SubscriptionModel(DomainModel):
             start_date=start_date,
             end_date=end_date,
             note=note,
+            version=version,
         )
         db.session.add(subscription)
 
@@ -1156,6 +1159,7 @@ class SubscriptionModel(DomainModel):
             start_date=start_date,
             end_date=end_date,
             note=note,
+            version=version,
             **fixed_inputs,
             **instances,
         )
@@ -1270,6 +1274,7 @@ class SubscriptionModel(DomainModel):
                 start_date=subscription.start_date,
                 end_date=subscription.end_date,
                 note=subscription.note,
+                version=subscription.version,
                 **fixed_inputs,
                 **instances,
             )
@@ -1320,6 +1325,7 @@ class SubscriptionModel(DomainModel):
                 start_date=subscription.start_date,
                 end_date=subscription.end_date,
                 note=subscription.note,
+                version=subscription.version,
                 **fixed_inputs,
                 **instances,
             )

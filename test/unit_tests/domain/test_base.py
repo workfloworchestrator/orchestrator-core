@@ -660,6 +660,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
         "status": SubscriptionLifecycle.INITIAL,
         "subscription_id": IsUUID(),
         "test_fixed_input": False,
+        "version": 1,
     }
 
     # Set first value
@@ -679,7 +680,7 @@ def test_save_load(test_product_model, test_product_type_one, test_product_block
     db.session.commit()
 
     new_model = ProductTypeOneForTest.from_subscription(model.subscription_id)
-    assert model.model_dump() == new_model.model_dump()
+    assert model.model_dump() | {"version": model.version + 1} == new_model.model_dump()
 
     # Second save also works as expected
     new_model.save()

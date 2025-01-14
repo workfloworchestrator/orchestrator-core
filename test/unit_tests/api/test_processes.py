@@ -531,3 +531,51 @@ def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, 
     assert response.status_code == 201, response.text
     mock_start_process.assert_called()
     assert mock_start_process.mock_calls[0].kwargs["user"] == expected_user
+
+
+def test_new_process_without_version(test_client, generic_subscription_1):
+
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1}, {"note": "test note"}],
+    )
+    assert HTTPStatus.CREATED == response.status_code
+    new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
+    assert new_version == 3
+
+
+def test_new_process_version_check(test_client, generic_subscription_1):
+    version = 2
+
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1, "version": version}, {"note": "test note"}],
+    )
+    assert HTTPStatus.CREATED == response.status_code
+    new_version = db.session.get(SubscriptionTable, generic_subscription_1).version
+    assert new_version == version + 1
+
+
+def test_new_process_lower_version_invalid(test_client, generic_subscription_1):
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1, "version": 0}, {"note": "test note"}],
+    )
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    payload = response.json()
+    assert (
+        payload["validation_errors"][0]["msg"] == "Stale data: given version (0) does not match the current version (2)"
+    )
+
+
+def test_new_process_higher_version_invalid(test_client, generic_subscription_1):
+    response = test_client.post(
+        "/api/processes/modify_note",
+        json=[{"subscription_id": generic_subscription_1, "version": 10}, {"note": "test note"}],
+    )
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    payload = response.json()
+    assert (
+        payload["validation_errors"][0]["msg"]
+        == "Stale data: given version (10) does not match the current version (2)"
+    )

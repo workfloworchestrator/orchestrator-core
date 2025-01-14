@@ -26,6 +26,8 @@ from orchestrator.domain.customer_description import (
     update_subscription_customer_description,
 )
 from orchestrator.schemas import SubscriptionDescriptionBaseSchema, SubscriptionDescriptionSchema
+from orchestrator.schemas.subscription_descriptions import UpdateSubscriptionDescriptionSchema
+from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.redis import delete_from_redis
 
 router = APIRouter()
@@ -37,10 +39,15 @@ async def save_subscription_customer_description_endpoint(data: SubscriptionDesc
 
 
 @router.put("/", response_model=None, status_code=HTTPStatus.NO_CONTENT)
-async def update_subscription_customer_description_endpoint(data: SubscriptionDescriptionSchema = Body(...)) -> None:
+async def update_subscription_customer_description_endpoint(
+    data: UpdateSubscriptionDescriptionSchema = Body(...),
+) -> None:
     description = get_customer_description_by_customer_subscription(data.customer_id, data.subscription_id)
     if description:
-        await update_subscription_customer_description(description, data.description, data.created_at)
+        try:
+            await update_subscription_customer_description(description, data.description, data.created_at, data.version)
+        except StaleDataError as error:
+            raise_status(HTTPStatus.BAD_REQUEST, str(error))
 
 
 @router.delete("/{_id}", response_model=None, status_code=HTTPStatus.NO_CONTENT)

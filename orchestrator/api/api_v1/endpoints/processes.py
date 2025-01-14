@@ -133,7 +133,7 @@ def delete(process_id: UUID) -> None:
     status_code=HTTPStatus.CREATED,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def new_process(
+async def new_process(
     workflow_key: str,
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
