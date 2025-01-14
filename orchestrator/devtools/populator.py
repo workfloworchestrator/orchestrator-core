@@ -441,7 +441,7 @@ class Populator:
             response = self.session.request(method, url, json=user_inputs)
             self.log.debug("Response", response=response.content)
 
-            # Return the reponse if the form has been successfully submitted
+            # Return the response if the form has been successfully submitted
             if response.status_code != HTTPStatus.NOT_EXTENDED:
                 return response
 
