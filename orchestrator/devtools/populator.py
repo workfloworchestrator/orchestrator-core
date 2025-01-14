@@ -445,15 +445,18 @@ class Populator:
             if response.status_code != HTTPStatus.NOT_EXTENDED:
                 return response
 
-            meta = response.json().get("meta") or {}
+            response_json = response.json()
+            meta = response_json.get("meta", {}) or {}
+            no_next = meta.get("hasNext") is False
+            is_summary_form = response_json.get("form", {}).get("title", "").endswith("Summary")
 
-            # If there are no next pages then simply append an empty form/dict for the SummaryForm
-            if meta.get("hasNext") is False:
-                self.log.info("Append empty form", response=response.json())
+            # If there are no next pages and a summary form is expected then append an empty form/dict
+            if no_next and is_summary_form:
+                self.log.info("Append empty form", response=response_json)
                 user_inputs.append({})
             # Otherwise resolve the values for the input fields on the form
             else:
-                input_fields = response.json()["form"]
+                input_fields = response_json["form"]
                 user_inputs.append(self.get_form_data(input_fields))
 
     def reset(self) -> None:
