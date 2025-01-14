@@ -25,6 +25,7 @@ from orchestrator.domain.customer_description import (
 )
 from orchestrator.graphql.schemas.customer_description import CustomerDescription
 from orchestrator.graphql.types import MutationError, NotFoundError
+from orchestrator.utils.errors import StaleDataError
 
 logger = structlog.get_logger(__name__)
 
@@ -44,7 +45,7 @@ async def resolve_upsert_customer_description(
 ) -> CustomerDescription | NotFoundError | MutationError:
     try:
         customer_description = await upsert_customer_description(customer_id, subscription_id, description, version)
-    except ValueError as error:
+    except StaleDataError as error:
         return MutationError(message=str(error))
     except Exception:
         return NotFoundError(message="Subscription not found")

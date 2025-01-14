@@ -75,7 +75,7 @@ class InconsistentDataError(ProcessFailureError):
 
 
 class StaleDataError(ValueError):
-    """The version of the update payload is older than the version in the database."""
+    """The version of the update payload does not match the version in the database."""
 
     def __init__(self, current_version: int, new_version: int | None = None) -> None:
         message = f"Stale data: given version ({new_version}) does not match the current version ({current_version})"
