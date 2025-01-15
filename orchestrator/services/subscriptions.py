@@ -46,6 +46,7 @@ from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.helpers import is_ipaddress_type
+from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -670,3 +671,13 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
         filter_instance_ids_on_subscription()
 
     return subscription
+
+
+def get_subscriptions_on_product_table_in_sync(in_sync: bool = True) -> list[SubscriptionTable]:
+    if app_settings.VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS:
+        # Automatically re-validate out-of-sync subscriptions. This is not recommended for production.
+        select_query = select(SubscriptionTable).join(ProductTable)
+    else:
+        select_query = select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(in_sync))
+
+    return list(db.session.scalars(select_query))

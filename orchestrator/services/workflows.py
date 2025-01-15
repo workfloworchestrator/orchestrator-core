@@ -2,9 +2,16 @@ from collections.abc import Iterable
 
 from sqlalchemy import Select, select
 
-from orchestrator.db import WorkflowTable, db
+from orchestrator.db import (
+    WorkflowTable,
+    SubscriptionTable,
+    db,
+)
 from orchestrator.schemas import StepSchema, WorkflowSchema
 from orchestrator.workflows import get_workflow
+from orchestrator.targets import Target
+from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
+from orchestrator.services.processes import get_execution_context
 
 
 def _get_steps(workflow: WorkflowTable) -> list[StepSchema]:
@@ -42,3 +49,36 @@ def get_workflows(
 
 def get_workflow_by_name(workflow_name: str) -> WorkflowTable | None:
     return db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == workflow_name))
+
+
+def get_system_product_workflows_for_subscription(subscription: SubscriptionTable) -> list:
+    return [
+        workflow
+        for workflow in subscription.product.workflows
+        if workflow.target == Target.SYSTEM
+    ]
+
+
+def start_validation_workflow_for_workflows(
+        subscription: SubscriptionTable,
+        workflows: list,
+        product_type_filter: str | None = None
+) -> int:
+    """Start validation workflows for a subscription."""
+    total_started_validation_workflows = 0
+
+    for workflow in workflows:
+        default = TARGET_DEFAULT_USABLE_MAP[Target.SYSTEM]
+        usable_when = WF_USABLE_MAP.get(workflow, default)
+
+        if subscription.status in usable_when and (
+            product_type_filter is None or subscription.product.product_type == product_type_filter
+        ):
+            json = [{"subscription_id": str(subscription.subscription_id)}]
+
+            validate_func = get_execution_context()["validate"]
+            validate_func(workflow, json=json)
+
+            total_started_validation_workflows += 1
+
+    return total_started_validation_workflows
