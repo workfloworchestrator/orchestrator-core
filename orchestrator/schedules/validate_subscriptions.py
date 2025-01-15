@@ -17,11 +17,10 @@ from threading import BoundedSemaphore
 import structlog
 
 from orchestrator.schedules.scheduling import scheduler
-
 from orchestrator.services.subscriptions import get_subscriptions_on_product_table_in_sync
 from orchestrator.services.workflows import (
     get_system_product_workflows_for_subscription,
-    start_validation_workflow_for_workflows
+    start_validation_workflow_for_workflows,
 )
 
 logger = structlog.get_logger(__name__)
@@ -45,7 +44,4 @@ def validate_subscriptions() -> None:
             )
             break
 
-        start_validation_workflow_for_workflows(
-            subscription=subscription,
-            workflows=system_product_workflows
-        )
+        start_validation_workflow_for_workflows(subscription=subscription, workflows=system_product_workflows)

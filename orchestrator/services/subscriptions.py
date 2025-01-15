@@ -42,11 +42,11 @@ from orchestrator.db.models import (
     SubscriptionMetadataTable,
 )
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle, UUIDstr
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.helpers import is_ipaddress_type
-from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
