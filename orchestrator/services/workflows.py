@@ -71,6 +71,7 @@ def start_validation_workflow_for_workflows(
 
             # against circular import
             from orchestrator.services.processes import get_execution_context
+
             validate_func = get_execution_context()["validate"]
             validate_func(workflow, json=json)
 
