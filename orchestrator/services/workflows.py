@@ -50,19 +50,23 @@ def get_workflow_by_name(workflow_name: str) -> WorkflowTable | None:
     return db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == workflow_name))
 
 
-def get_system_product_workflows_for_subscription(subscription: SubscriptionTable) -> list:
-    return [workflow for workflow in subscription.product.workflows if workflow.target == Target.SYSTEM]
+def get_system_product_workflows_for_subscription(
+    subscription: SubscriptionTable,
+) -> list:
+    return [workflow.name for workflow in subscription.product.workflows if workflow.target == Target.SYSTEM]
 
 
 def start_validation_workflow_for_workflows(
-    subscription: SubscriptionTable, workflows: list, product_type_filter: str | None = None
-) -> int:
+    subscription: SubscriptionTable,
+    workflows: list,
+    product_type_filter: str | None = None,
+) -> list:
     """Start validation workflows for a subscription."""
-    total_started_validation_workflows = 0
+    result = []
 
-    for workflow in workflows:
+    for workflow_name in workflows:
         default = TARGET_DEFAULT_USABLE_MAP[Target.SYSTEM]
-        usable_when = WF_USABLE_MAP.get(workflow, default)
+        usable_when = WF_USABLE_MAP.get(workflow_name, default)
 
         if subscription.status in usable_when and (
             product_type_filter is None or subscription.product.product_type == product_type_filter
@@ -73,8 +77,14 @@ def start_validation_workflow_for_workflows(
             from orchestrator.services.processes import get_execution_context
 
             validate_func = get_execution_context()["validate"]
-            validate_func(workflow, json=json)
+            validate_func(workflow_name, json=json)
 
-            total_started_validation_workflows += 1
+            result.append(
+                {
+                    "workflow_name": workflow_name,
+                    "subscription_id": subscription.subscription_id,
+                    "product_type": subscription.product.product_type,
+                }
+            )
 
-    return total_started_validation_workflows
+    return result
