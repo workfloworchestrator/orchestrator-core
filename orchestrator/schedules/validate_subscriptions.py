@@ -17,15 +17,15 @@ from threading import BoundedSemaphore
 import structlog
 
 from orchestrator.schedules.scheduling import scheduler
-from orchestrator.settings import app_settings
 from orchestrator.services.subscriptions import (
     get_subscriptions_on_product_table,
-    get_subscriptions_on_product_table_in_sync
+    get_subscriptions_on_product_table_in_sync,
 )
 from orchestrator.services.workflows import (
     get_system_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
 )
+from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
