@@ -1,4 +1,3 @@
-
 import pytest
 
 from orchestrator.db import SubscriptionTable, db
