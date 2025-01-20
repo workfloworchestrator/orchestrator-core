@@ -114,7 +114,7 @@ def test_workflows_has_previous_page(test_client):
         "task_clean_up_tasks",
         "task_resume_workflows",
         "task_validate_product_type",
-        "task_validate_products"
+        "task_validate_products",
     ]
 
 
@@ -142,7 +142,12 @@ def test_workflows_filter_by_name(test_client, query_args):
         "startCursor": 0,
         "totalItems": 4,
     }
-    expected_workflows = ["task_clean_up_tasks", "task_resume_workflows", "task_validate_product_type", "task_validate_products"]
+    expected_workflows = [
+        "task_clean_up_tasks",
+        "task_resume_workflows",
+        "task_validate_product_type",
+        "task_validate_products",
+    ]
     assert [rt["name"] for rt in workflows] == expected_workflows
 
 
@@ -213,5 +218,11 @@ def test_workflows_sort_by_resource_type_desc(test_client):
         "endCursor": 4,
         "totalItems": 5,
     }
-    expected_workflows = ["task_validate_products", "task_validate_product_type", "task_resume_workflows", "task_clean_up_tasks", "modify_note"]
+    expected_workflows = [
+        "task_validate_products",
+        "task_validate_product_type",
+        "task_resume_workflows",
+        "task_clean_up_tasks",
+        "modify_note",
+    ]
     assert [rt["name"] for rt in workflows] == expected_workflows
