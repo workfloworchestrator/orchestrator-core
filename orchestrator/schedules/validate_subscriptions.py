@@ -17,7 +17,11 @@ from threading import BoundedSemaphore
 import structlog
 
 from orchestrator.schedules.scheduling import scheduler
-from orchestrator.services.subscriptions import get_subscriptions_on_product_table_in_sync
+from orchestrator.settings import app_settings
+from orchestrator.services.subscriptions import (
+    get_subscriptions_on_product_table,
+    get_subscriptions_on_product_table_in_sync
+)
 from orchestrator.services.workflows import (
     get_system_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
@@ -31,7 +35,11 @@ task_semaphore = BoundedSemaphore(value=2)
 
 @scheduler(name="Subscriptions Validator", time_unit="day", at="00:10")
 def validate_subscriptions() -> None:
-    subscriptions = get_subscriptions_on_product_table_in_sync()
+    if app_settings.VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS:
+        # Automatically re-validate out-of-sync subscriptions. This is not recommended for production.
+        subscriptions = get_subscriptions_on_product_table()
+    else:
+        subscriptions = get_subscriptions_on_product_table_in_sync()
 
     for subscription in subscriptions:
         system_product_workflows = get_system_product_workflows_for_subscription(subscription)
