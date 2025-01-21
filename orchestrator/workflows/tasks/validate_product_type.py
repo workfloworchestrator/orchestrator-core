@@ -72,7 +72,7 @@ def validate_product_type(product_type: str) -> State:
                 subscription=subscription,
                 product=subscription.product.name,
             )
-            break
+            continue
 
         validation_result = start_validation_workflow_for_workflows(
             subscription=subscription,
