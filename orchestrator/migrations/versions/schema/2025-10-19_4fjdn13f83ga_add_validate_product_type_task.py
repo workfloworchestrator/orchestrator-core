@@ -18,28 +18,24 @@ branch_labels = None
 depends_on = None
 
 
-workflows = [
-    {
-        "name": "task_validate_product_type",
-        "target": "SYSTEM",
-        "description": "Validate all subscriptions of Product Type",
-        "workflow_id": uuid4(),
-    }
-]
+workflow = {
+    "name": "task_validate_product_type",
+    "target": "SYSTEM",
+    "description": "Validate all subscriptions of Product Type",
+    "workflow_id": uuid4(),
+}
 
 
 def upgrade() -> None:
     conn = op.get_bind()
-    for workflow in workflows:
-        conn.execute(
-            sa.text(
-                "INSERT INTO workflows VALUES (:workflow_id, :name, :target, :description, now()) ON CONFLICT DO NOTHING"
-            ),
-            workflow,
-        )
+    conn.execute(
+        sa.text(
+            "INSERT INTO workflows VALUES (:workflow_id, :name, :target, :description, now()) ON CONFLICT DO NOTHING"
+        ),
+        workflow,
+    )
 
 
 def downgrade() -> None:
     conn = op.get_bind()
-    for workflow in workflows:
-        conn.execute(sa.text("DELETE FROM workflows WHERE name = :name"), {"name": workflow["name"]})
+    conn.execute(sa.text("DELETE FROM workflows WHERE name = :name"), {"name": workflow["name"]})
