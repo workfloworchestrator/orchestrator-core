@@ -767,6 +767,35 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
         assert higher_than_date <= subscription["startDate"] <= lower_than_date
 
 
+def test_subscriptions_range_filtering_on_type(test_client, product_type_1_subscriptions_factory):
+    # when
+
+    product_type_1_subscriptions_factory(15)
+
+    data = get_subscriptions_query(filter_by=[{"field": "type", "value": "Test"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert "errors" not in result
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 2,
+        "totalItems": 3,
+    }
+
+    for subscription in subscriptions:
+        assert subscription["product"]["productType"] == "Test"
+
+
 def test_subscriptions_filtering_with_invalid_filter(
     test_client, product_type_1_subscriptions_factory, generic_product_type_1
 ):
@@ -804,7 +833,7 @@ def test_subscriptions_filtering_with_invalid_filter(
             "message": (
                 "Invalid filter arguments (invalid_filters=['test'] "
                 "valid_filter_keys=['customerId', 'description', 'endDate', 'insync', "
-                "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag', 'version'])"
+                "'note', 'product', 'productId', 'startDate', 'status', 'subscriptionId', 'tag', 'type', 'version'])"
             ),
             "path": ["subscriptions"],
             "extensions": {"error_type": "bad_request"},
