@@ -5,7 +5,8 @@
             "note_info": "Notes, reminders and feedback about this description.",
             "subscription_id": "Subscription",
             "version": "Version",
-            "subscription_id_info": "The subscription for this action"
+            "subscription_id_info": "The subscription for this action",
+            "product_type": "Product Type"
         }
     },
     "workflow": {
@@ -13,6 +14,7 @@
         "task_clean_up_tasks": "Clean up old tasks",
         "task_resume_workflows": "Resume all workflows that are stuck on tasks with the status 'waiting'",
         "task_validate_products": "Validate Products and Subscriptions",
+        "task_validate_product_type": "Validate all subscriptions of Product Type",
         "reset_subscription_description": "Reset description of a subscription to default"
     }
 }

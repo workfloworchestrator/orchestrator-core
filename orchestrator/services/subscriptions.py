@@ -670,3 +670,13 @@ def format_extended_domain_model(subscription: dict, filter_owner_relations: boo
         filter_instance_ids_on_subscription()
 
     return subscription
+
+
+def get_subscriptions_on_product_table() -> list[SubscriptionTable]:
+    select_query = select(SubscriptionTable).join(ProductTable)
+    return list(db.session.scalars(select_query))
+
+
+def get_subscriptions_on_product_table_in_sync(in_sync: bool = True) -> list[SubscriptionTable]:
+    select_query = select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(in_sync))
+    return list(db.session.scalars(select_query))

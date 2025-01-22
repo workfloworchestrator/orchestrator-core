@@ -86,7 +86,7 @@ def test_workflows_query(test_client):
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": 4,
+        "totalItems": 5,
     }
 
 
@@ -105,14 +105,15 @@ def test_workflows_has_previous_page(test_client):
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "endCursor": 3,
-        "totalItems": 4,
+        "endCursor": 4,
+        "totalItems": 5,
     }
 
-    assert len(workflows) == 3
+    assert len(workflows) == 4
     assert [workflow["name"] for workflow in workflows] == [
         "task_clean_up_tasks",
         "task_resume_workflows",
+        "task_validate_product_type",
         "task_validate_products",
     ]
 
@@ -135,13 +136,18 @@ def test_workflows_filter_by_name(test_client, query_args):
 
     assert "errors" not in result
     assert pageinfo == {
-        "endCursor": 2,
+        "endCursor": 3,
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": 3,
+        "totalItems": 4,
     }
-    expected_workflows = ["task_clean_up_tasks", "task_resume_workflows", "task_validate_products"]
+    expected_workflows = [
+        "task_clean_up_tasks",
+        "task_resume_workflows",
+        "task_validate_product_type",
+        "task_validate_products",
+    ]
     assert [rt["name"] for rt in workflows] == expected_workflows
 
 
@@ -209,8 +215,14 @@ def test_workflows_sort_by_resource_type_desc(test_client):
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "endCursor": 3,
-        "totalItems": 4,
+        "endCursor": 4,
+        "totalItems": 5,
     }
-    expected_workflows = ["task_validate_products", "task_resume_workflows", "task_clean_up_tasks", "modify_note"]
+    expected_workflows = [
+        "task_validate_products",
+        "task_validate_product_type",
+        "task_resume_workflows",
+        "task_clean_up_tasks",
+        "modify_note",
+    ]
     assert [rt["name"] for rt in workflows] == expected_workflows

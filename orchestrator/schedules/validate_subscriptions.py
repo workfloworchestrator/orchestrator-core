@@ -15,14 +15,17 @@
 from threading import BoundedSemaphore
 
 import structlog
-from sqlalchemy import select
 
-from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.schedules.scheduling import scheduler
-from orchestrator.services.processes import get_execution_context
-from orchestrator.services.subscriptions import TARGET_DEFAULT_USABLE_MAP, WF_USABLE_MAP
+from orchestrator.services.subscriptions import (
+    get_subscriptions_on_product_table,
+    get_subscriptions_on_product_table_in_sync,
+)
+from orchestrator.services.workflows import (
+    get_system_product_workflows_for_subscription,
+    start_validation_workflow_for_workflows,
+)
 from orchestrator.settings import app_settings
-from orchestrator.targets import Target
 
 logger = structlog.get_logger(__name__)
 
@@ -34,29 +37,19 @@ task_semaphore = BoundedSemaphore(value=2)
 def validate_subscriptions() -> None:
     if app_settings.VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS:
         # Automatically re-validate out-of-sync subscriptions. This is not recommended for production.
-        select_query = select(SubscriptionTable).join(ProductTable)
+        subscriptions = get_subscriptions_on_product_table()
     else:
-        select_query = select(SubscriptionTable).join(ProductTable).filter(SubscriptionTable.insync.is_(True))
-    subscriptions = db.session.scalars(select_query)
+        subscriptions = get_subscriptions_on_product_table_in_sync()
+
     for subscription in subscriptions:
-        validation_workflow = None
+        system_product_workflows = get_system_product_workflows_for_subscription(subscription)
 
-        for workflow in subscription.product.workflows:
-            if workflow.target == Target.SYSTEM:
-                validation_workflow = workflow.name
-
-        if validation_workflow:
-            default = TARGET_DEFAULT_USABLE_MAP[Target.SYSTEM]
-            usable_when = WF_USABLE_MAP.get(validation_workflow, default)
-
-            if subscription.status in usable_when:
-                json = [{"subscription_id": str(subscription.subscription_id)}]
-
-                validate_func = get_execution_context()["validate"]
-                validate_func(validation_workflow, json=json)
-        else:
+        if not system_product_workflows:
             logger.warning(
                 "SubscriptionTable has no validation workflow",
                 subscription=subscription,
                 product=subscription.product.name,
             )
+            break
+
+        start_validation_workflow_for_workflows(subscription=subscription, workflows=system_product_workflows)
