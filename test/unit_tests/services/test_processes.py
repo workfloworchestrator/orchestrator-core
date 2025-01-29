@@ -6,6 +6,8 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from pydantic_forms.core.translations import translations
+from pydantic_i18n import PydanticI18n
 from sqlalchemy import select
 
 from orchestrator.config.assignee import Assignee
@@ -846,7 +848,8 @@ def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process
         def errors(self):
             return []
 
-    mock_post_form.side_effect = FormValidationError("", MockEmptyValidationError())
+    tr = PydanticI18n(translations)
+    mock_post_form.side_effect = FormValidationError("", MockEmptyValidationError(), tr=tr)
 
     with pytest.raises(FormValidationError):
         start_process(mock.sentinel.wf_name, None, mock.sentinel.user)
