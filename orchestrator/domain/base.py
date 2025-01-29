@@ -458,7 +458,7 @@ class DomainModel(BaseModel):
 
 
 def get_depends_on_product_block_type_list(
-    product_block_types: dict[str, type["ProductBlockModel"] | tuple[type["ProductBlockModel"]]]
+    product_block_types: dict[str, type["ProductBlockModel"] | tuple[type["ProductBlockModel"]]],
 ) -> list[type["ProductBlockModel"]]:
     product_blocks_types_in_model = []
     for product_block_type in product_block_types.values():
