@@ -6,7 +6,6 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
-from pydantic_forms.core.translations import translations
 from pydantic_i18n import PydanticI18n
 from sqlalchemy import select
 
@@ -46,6 +45,7 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
+from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
 from test.unit_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
