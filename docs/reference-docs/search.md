@@ -47,6 +47,7 @@ Some search query examples for Subscriptions:
 | `test*`                                                  | any field starting with `test` (Prefix search)                       |
 
 Note that:
+
 * For other objects the query syntax is the same
 * Searching is case-insensitive
 * Ordering of words does not matter (unless it is a Phrase)
@@ -87,6 +88,7 @@ Postgres _Full Text Search_ (TS) has extensive [documentation](https://www.postg
 The query behind `subscriptions_search` retrieves Subscriptions joined with several other tables (as shown in the previous diagram), forming a "document" of keywords that in some way relate to the subscription.
 
 Each document is turned into a _tsvector_ with Postgres function `to_tsvector()` which consists of these phases:
+
 * Parse document into _tokens_: split text into _tokens_ using special characters as delimiters
 * Convert tokens into _lexemes_: a lexeme is a normalized token, i.e. this folds upper-case to lower-case. This step can also normalize based on language, but we disable that by using the `'simple'` dictionary (shown in diagram above)
 * Create vector optimized for search: store array of _lexemes_ along with positional information
