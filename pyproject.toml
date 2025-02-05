@@ -49,7 +49,7 @@ dependencies = [
     "orjson==3.10.15",
     "psycopg2-binary==2.9.10",
     "pydantic[email]~=2.8.2",
-    "pydantic-settings~=2.5.2",
+    "pydantic-settings~=2.7.1",
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.18,<1.21",
     "pytz==2024.1",
