@@ -59,7 +59,7 @@ dependencies = [
     "SQLAlchemy==2.0.38",
     "SQLAlchemy-Utils==0.41.2",
     "structlog",
-    "typer==0.12.5",
+    "typer==0.15.1",
     "uvicorn[standard]~=0.32.0",
     "nwa-stdlib~=1.9.0",
     "oauth2-lib~=2.4.0",
