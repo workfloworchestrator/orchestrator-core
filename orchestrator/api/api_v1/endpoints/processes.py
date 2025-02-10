@@ -240,6 +240,7 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
     broadcast_func = api_broadcast_process_data(request)
     try:
         abort_process(process, user, broadcast_func=broadcast_func)
+        broadcast_invalidate_status_counts()
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
