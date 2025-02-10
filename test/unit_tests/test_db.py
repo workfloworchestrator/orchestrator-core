@@ -180,4 +180,4 @@ def test_str_method():
 def test_get_postgres_version():
     pg_version = get_postgres_version()
     assert isinstance(pg_version, int)
-    assert 0 < pg_version < 20
+    assert 13 < pg_version < 20
