@@ -43,7 +43,7 @@ dependencies = [
     "deepmerge==1.1.1",
     "fastapi~=0.115.2",
     "fastapi-etag==0.4.0",
-    "more-itertools~=10.5.0",
+    "more-itertools~=10.6.0",
     "itsdangerous",
     "Jinja2==3.1.5",
     "orjson==3.10.15",
