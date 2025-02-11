@@ -1,20 +1,11 @@
-import strawberry
-from pydantic import Field
+
 from structlog import get_logger
 
-from orchestrator import __version__
+from orchestrator.graphql.schemas.version import VersionType
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler
 
 logger = get_logger(__name__)
-
-
-VERSIONS = [f"orchestrator-core: {__version__}"]
-
-
-@strawberry.type
-class VersionType:
-    application_versions: list[str] = Field(default=VERSIONS)
 
 
 def resolve_version(info: OrchestratorInfo) -> VersionType:
