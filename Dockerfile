@@ -1,14 +1,16 @@
 FROM python:3.11-slim
 
-ARG VERSION
-
 ENV PIP_ROOT_USER_ACTION=ignore
 
 RUN apt-get update && apt-get install --yes git
 
-RUN pip install pip --upgrade
-RUN pip install orchestrator-core==${VERSION}
-RUN pip uninstall setup-tools
+RUN pip install --upgrade pip
+
+WORKDIR /tmp/orchestrator-core
+COPY . .
+RUN pip install .
+RUN pip uninstall setup-tools -y
+RUN rm -rf /tmp/*
 
 RUN useradd orchestrator
 USER orchestrator
