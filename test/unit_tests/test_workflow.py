@@ -607,8 +607,8 @@ def test_step_group_with_failure():
 
 def test_list_any_arg_type_error():
 
-    @step("Improper list arg type")
-    def add_state(list_any: list[Any]):
+    @step("Add list data to state")
+    def add_state():
         return {"list_any": ["string", 42]}
 
     @step("Improper list arg type")
