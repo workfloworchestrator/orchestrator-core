@@ -156,7 +156,7 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
             registered_wf_instances.items(),
         )
     )
-    unregistered_tasks = [task.name for task in database_tasks.values() if task.name not in registered_tasks.keys()]
+    unregistered_tasks = [task for task in database_tasks.values() if task.name not in registered_tasks.keys()]
 
     # Main menu loop
     state = {"tasks_to_add": [], "tasks_to_delete": [], "done": False}
