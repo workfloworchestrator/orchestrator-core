@@ -605,7 +605,7 @@ def test_step_group_with_failure():
             assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"
 
 
-def test_list_any_arg_type_error():
+def test_list_any_arg_type_error() -> None:
 
     @step("Add list data to state")
     def add_state():
@@ -621,7 +621,7 @@ def test_list_any_arg_type_error():
 
     with mock.patch.object(db.session, "rollback"):
         with WorkflowInstanceForTests(test_wf, "test_list_any_arg_step"):
-            init_state = {}
+            init_state: dict = {}
 
             result, _, _ = run_workflow("test_list_any_arg_step", init_state)
             assert_failed(result)
