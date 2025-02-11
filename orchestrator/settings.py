@@ -20,7 +20,7 @@ from pydantic import PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
-from orchestrator.types import strEnum
+from pydantic_forms.types import strEnum
 
 
 class ExecutorType(strEnum):

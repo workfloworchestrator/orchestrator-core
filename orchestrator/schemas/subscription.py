@@ -22,7 +22,8 @@ from orchestrator.schemas.product import ProductBaseSchema
 from orchestrator.schemas.product_block import ProductBlockSchema
 from orchestrator.schemas.resource_type import ResourceTypeSchema
 from orchestrator.schemas.subscription_descriptions import SubscriptionDescriptionSchema
-from orchestrator.types import SubscriptionLifecycle, strEnum
+from orchestrator.types import SubscriptionLifecycle
+from pydantic_forms.types import strEnum
 
 
 class PortMode(strEnum):

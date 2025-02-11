@@ -17,7 +17,7 @@ from ipaddress import IPv4Address, IPv6Address
 import structlog
 
 from orchestrator.devtools.populator import Populator
-from orchestrator.types import UUIDstr
+from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)
 

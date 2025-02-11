@@ -39,7 +39,7 @@ from orchestrator.services.settings import get_engine_settings_for_update
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
-from orchestrator.types import BroadcastFunc, State
+from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.websocket import broadcast_invalidate_status_counts
@@ -60,6 +60,7 @@ from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
+from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
 
