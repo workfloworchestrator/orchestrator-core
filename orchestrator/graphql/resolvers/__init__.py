@@ -19,4 +19,5 @@ __all__ = [
     "resolve_customer",
     "resolve_resource_types",
     "resolve_workflows",
+    "resolve_version"
 ]
