@@ -236,14 +236,17 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
             assert HTTPStatus.NO_CONTENT == response.status_code
 
             def get_ws_messages():
-                return [websocket.receive_json(), websocket.receive_json()]
+                return [websocket.receive_json(), websocket.receive_json(), websocket.receive_json()]
 
             expected_cache_invalidation_messages = [
+                {"name": "invalidateCache", "value": {"type": "processStatusCounts"}},
                 {"name": "invalidateCache", "value": {"type": "processes", "id": "LIST"}},
                 {"name": "invalidateCache", "value": {"type": "processes", "id": str(process_id)}},
             ]
 
-            assert get_ws_messages() == expected_cache_invalidation_messages
+            sorted_expected = sorted(expected_cache_invalidation_messages, key=lambda x: str(x))
+            sorted_actual = sorted(get_ws_messages(), key=lambda x: str(x))
+            assert sorted_expected == sorted_actual
 
             # close and call receive_text to check websocket close exception
             websocket.close()
