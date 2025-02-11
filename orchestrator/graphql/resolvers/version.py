@@ -1,16 +1,20 @@
 import strawberry
+from pydantic import Field
+from structlog import get_logger
+
+from orchestrator import __version__
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler
-from structlog import get_logger
-from importlib.metadata import version, PackageNotFoundError
-
 
 logger = get_logger(__name__)
 
 
+VERSIONS = [f"orchestrator-core: {__version__}"]
+
+
 @strawberry.type
 class VersionType:
-    orchestrator_core: str
+    application_versions: list[str] = Field(default=VERSIONS)
 
 
 def resolve_version(info: OrchestratorInfo) -> VersionType:
@@ -19,11 +23,9 @@ def resolve_version(info: OrchestratorInfo) -> VersionType:
 
     ver = None
     try:
-        ver = version("orchestrator-core")
-    except PackageNotFoundError:
-        logger.error("orchestrator-core package not found")
+        ver = VersionType()
     except Exception as e:
-        logger.error(f"Error getting orchestrator-core version: {str(e)}")
+        logger.error(f"Error getting version: {str(e)}")
 
     if not ver:
         _error_handler("Failed to retrieve orchestrator_core version", extensions={"code": "PACKAGE_VERSION_ERROR"})
