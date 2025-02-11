@@ -81,6 +81,17 @@ class UtcTimestamp(TypeDecorator):
         return value.astimezone(timezone.utc) if value else value
 
 
+class UserInputTable(BaseModel):
+    __tablename__ = "user_input"
+    user_input_id = mapped_column(UUIDType, primary_key=True, server_default=text("uuid_generate_v4()"), index=True)
+    process_id = mapped_column("pid", UUIDType,ForeignKey("processes.pid"), nullable=False)
+    step_name = mapped_column("step_name", String, nullable=False)
+    user_input = mapped_column(pg.JSONB(), nullable=False)
+    input_time = mapped_column(
+        UtcTimestamp, server_default=text("current_timestamp()"), nullable=False
+    )
+
+
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
@@ -100,6 +111,9 @@ class ProcessTable(BaseModel):
 
     steps = relationship(
         "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
+    )
+    user_inputs = relationship(
+        "UserInputTable", cascade="delete", order_by="desc(UserInputTable.input_time)"
     )
     process_subscriptions = relationship("ProcessSubscriptionTable", back_populates="process", passive_deletes=True)
     workflow = relationship("WorkflowTable", back_populates="processes")
