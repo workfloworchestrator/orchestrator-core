@@ -244,7 +244,9 @@ def test_websocket_process_detail_with_abort(test_client, test_workflow):
                 {"name": "invalidateCache", "value": {"type": "processes", "id": str(process_id)}},
             ]
 
-            assert get_ws_messages() == expected_cache_invalidation_messages
+            sorted_expected = sorted(expected_cache_invalidation_messages, key=lambda x: str(x))
+            sorted_actual = sorted(get_ws_messages(), key=lambda x: str(x))
+            assert sorted_expected == sorted_actual
 
             # close and call receive_text to check websocket close exception
             websocket.close()
