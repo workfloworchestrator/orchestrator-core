@@ -10,6 +10,7 @@ WORKDIR /tmp/orchestrator-core
 COPY . .
 RUN pip install .
 RUN pip uninstall setup-tools -y
+RUN rm -rf /tmp/*
 
 RUN useradd orchestrator
 USER orchestrator
