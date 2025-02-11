@@ -6,11 +6,12 @@ from typing import Annotated
 
 import structlog
 from pydantic import AfterValidator, ConfigDict, model_validator
+from pydantic_forms.types import FormGenerator, State, SubscriptionLifecycle
 from pydantic_forms.validators import ReadOnlyField
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
