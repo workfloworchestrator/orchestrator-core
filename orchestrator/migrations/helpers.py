@@ -164,6 +164,36 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
     )
 
 
+def create_task(conn: sa.engine.Connection, task: dict) -> None:
+    """Create a new task.
+
+    Args:
+        conn: DB connection as available in migration main file.
+        task: Dict with data for a new workflow.
+            name: Name of the task.
+            description: Description of the workflow.
+
+    Usage:
+        >>> task = {
+            "name": "task_name",
+            "description": "task description",
+        }
+        >>> create_workflow(conn, task)
+    """
+
+    conn.execute(
+        sa.text(
+            """
+                INSERT INTO workflows(name, target, description)
+                    VALUES (:name, 'SYSTEM', :description)
+                    ON CONFLICT DO NOTHING
+                    RETURNING workflow_id
+            """
+        ),
+        task,
+    )
+
+
 def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
     """Create new workflows.
 
@@ -894,7 +924,7 @@ def delete_product_block(conn: sa.engine.Connection, name: str) -> None:
 
 
 def delete_workflow(conn: sa.engine.Connection, name: str) -> None:
-    """Delete a workflow and it's occurrences in products.
+    """Delete a workflow and its occurrences in products.
 
     Note: the cascading delete rules in postgres will also ensure removal from `products_workflows`.
 
