@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import reduce
-from typing import NoReturn
+from typing import Any, NoReturn
 from unittest import mock
 from uuid import UUID, uuid4
 
@@ -603,3 +603,29 @@ def test_step_group_with_failure():
             resume_result, step_log = resume_workflow(process, step_log, {})
             assert_failed(resume_result)
             assert 2 == len(side_effect_counter), "Side effect in sub step has been called again"
+
+
+def test_list_any_arg_type_error():
+
+    @step("Improper list arg type")
+    def add_state(list_any: list[Any]):
+        return {"list_any": ["string", 42]}
+
+    @step("Improper list arg type")
+    def test_list_any_arg_step(list_any: list[Any]):
+        return {}
+
+    @workflow("Workflow error due to arg type", target=Target.CREATE, initial_input_form=const(FormPage))
+    def test_wf():
+        return init >> add_state >> test_list_any_arg_step >> done
+
+    with mock.patch.object(db.session, "rollback"):
+        with WorkflowInstanceForTests(test_wf, "test_list_any_arg_step"):
+            init_state = {}
+
+            result, _, _ = run_workflow("test_list_any_arg_step", init_state)
+            assert_failed(result)
+            assert (
+                extract_error(result)
+                == "Step function argument 'list_any' cannot be serialized from database with type 'Any'"
+            )
