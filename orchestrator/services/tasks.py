@@ -30,10 +30,11 @@ from orchestrator.services.processes import (
     safe_logstep,
     thread_resume_process,
 )
-from orchestrator.types import BroadcastFunc, State
+from orchestrator.types import BroadcastFunc
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import ProcessStat, ProcessStatus, Success, runwf
 from orchestrator.workflows import get_workflow
+from pydantic_forms.types import State
 
 logger = get_task_logger(__name__)
 

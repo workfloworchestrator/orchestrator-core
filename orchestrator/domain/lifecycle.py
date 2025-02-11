@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, TypeVar
 import strawberry
 import structlog
 
-from orchestrator.types import SubscriptionLifecycle, strEnum
+from orchestrator.types import SubscriptionLifecycle
+from pydantic_forms.types import strEnum
 
 if TYPE_CHECKING:
     from orchestrator.domain.base import DomainModel

@@ -26,8 +26,8 @@ from orchestrator.services.workflows import (
     start_validation_workflow_for_workflows,
 )
 from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State
 from orchestrator.workflow import StepList, done, init, step, workflow
+from pydantic_forms.types import FormGenerator, State
 
 logger = structlog.get_logger(__name__)
 

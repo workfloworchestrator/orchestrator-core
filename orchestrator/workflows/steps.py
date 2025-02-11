@@ -23,11 +23,12 @@ from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.services.settings import reset_search_index
 from orchestrator.services.subscriptions import build_extended_domain_model, get_subscription
 from orchestrator.targets import Target
-from orchestrator.types import State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import to_serializable
 from orchestrator.utils.redis import delete_from_redis, to_redis
 from orchestrator.websocket import sync_invalidate_subscription_cache
 from orchestrator.workflow import Step, step
+from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 

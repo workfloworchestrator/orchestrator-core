@@ -43,7 +43,7 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import db, transactional
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.targets import Target
-from orchestrator.types import ErrorDict, State, StepFunc, strEnum
+from orchestrator.types import ErrorDict, StepFunc
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
@@ -52,9 +52,11 @@ from pydantic_forms.types import (
     FormGenerator,
     InputFormGenerator,
     InputStepFunc,
+    State,
     StateInputFormGenerator,
     StateInputStepFunc,
     StateSimpleInputFormGenerator,
+    strEnum,
 )
 
 logger = structlog.get_logger(__name__)

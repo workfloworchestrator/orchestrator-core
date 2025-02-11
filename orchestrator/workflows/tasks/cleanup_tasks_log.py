@@ -19,9 +19,9 @@ from sqlalchemy import select
 from orchestrator.db import ProcessTable, db
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import State
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
+from pydantic_forms.types import State
 
 
 @step("Clean up completed tasks older than TASK_LOG_RETENTION_DAYS")
