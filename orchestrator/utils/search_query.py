@@ -5,12 +5,10 @@ from itertools import chain
 from typing import Any, Union, cast
 
 import structlog
-from sqlalchemy import BinaryExpression, ColumnElement, CompoundSelect, Select, column, false, func, not_, or_, select
+from sqlalchemy import BinaryExpression, ColumnElement, CompoundSelect, Select, false, not_, or_
 from sqlalchemy.orm import InstrumentedAttribute, MappedColumn
 
-from orchestrator.db import db
 from orchestrator.db.database import BaseModel
-from orchestrator.db.helpers import get_postgres_version
 from orchestrator.utils.helpers import camel_to_snake
 
 logger = structlog.getLogger(__name__)
@@ -257,28 +255,10 @@ class Parser:
 
 
 class TSQueryVisitor:
-
     _glue_chars = re.compile(r"[-_@#$%^&]")
 
     @staticmethod
     def _split_term(term: str) -> list[str]:
-        """Workaround for the way Postgres <14 parses text with to_tsquery.
-
-        For Postgres <14, we issue a database query to parse the text for us in a way that is compatible with to_tsvector. This is the same behavior as Postgres >=14.
-        """
-
-        # TODO: Remove this workaround when support for Postgres <14 is dropped
-        # https://github.com/workfloworchestrator/orchestrator-core/issues/621
-
-        if get_postgres_version() < 14:
-            # tokid 12 is the space separator token
-            stmt = (
-                select(func.array_agg(column("token")))
-                .select_from(func.ts_parse("default", func.replace(term, "-", "_")))
-                .where(column("tokid") != 12)
-            )
-            return db.session.scalar(stmt) or []
-
         return [part.strip() for part in TSQueryVisitor._glue_chars.split(term) if part and not part.isspace()]
 
     @staticmethod
