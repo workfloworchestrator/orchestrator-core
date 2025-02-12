@@ -36,6 +36,7 @@ from orchestrator.db import (
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.settings import get_engine_settings_for_update
+from orchestrator.services.user_inputs import _store_user_input
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
@@ -449,7 +450,7 @@ def create_process(
     )
 
     _db_create_process(pstat)
-
+    _store_user_input(process_id, user_inputs)
     return pstat
 
 
@@ -528,8 +529,8 @@ def thread_validate_workflow(validation_workflow: str, json: list[State] | None)
 
 
 THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs),
-    "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs),
+    "start": thread_start_process,
+    "resume": thread_resume_process,
     "validate": thread_validate_workflow,
 }
 

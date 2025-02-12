@@ -193,7 +193,7 @@ bumpversion patch --new-version 0.4.1-rc3
 ```
 
 ### Changing the Core database schema
-When you would like to change the core database schema, execute the following steps. 
+When you would like to change the core database schema, execute the following steps.
 
 - Create the new model `orchestrator/database/models.py`
 - `cd orchestrator/migrations`
