@@ -1,10 +1,14 @@
 from structlog import get_logger
 
-from orchestrator.graphql.schemas.version import VERSIONS, VersionType
+from orchestrator import __version__
+from orchestrator.graphql.schemas.version import VersionType
 from orchestrator.graphql.types import OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler
 
 logger = get_logger(__name__)
+
+
+VERSIONS = [f"orchestrator-core: {__version__}"]
 
 
 def resolve_version(info: OrchestratorInfo) -> VersionType | None:
