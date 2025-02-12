@@ -25,6 +25,7 @@ import orchestrator.workflows
 from orchestrator.cli.domain_gen_helpers.types import ModelUpdates
 from orchestrator.cli.helpers.print_helpers import COLOR, str_fmt
 from orchestrator.cli.migrate_domain_models import create_domain_models_migration_sql
+from orchestrator.cli.migrate_tasks import create_tasks_migration_wizard
 from orchestrator.cli.migrate_workflows import create_workflows_migration_wizard
 from orchestrator.cli.migration_helpers import create_migration_file
 from orchestrator.db import init_database
@@ -394,6 +395,83 @@ def migrate_workflows(
 
     if test:
         return workflows_to_add, workflows_to_delete
+
+    create_migration_file(alembic_cfg(), sql_upgrade_str, sql_downgrade_str, message, preamble=preamble)
+    return None
+
+
+@app.command(help="Create migration file based on diff tasks in db")
+def migrate_tasks(
+    message: str = typer.Argument(..., help="Migration name"),
+    test: bool = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
+) -> tuple[list[dict], list[dict]] | None:
+    """The `migrate-tasks` command creates a migration file based on the difference between tasks in the database and registered TaskInstances in your codebase.
+
+    !!! warning "BACKUP YOUR DATABASE BEFORE USING THE MIGRATION!"
+
+    You will be prompted with inputs for new models and resource type updates.
+    Resource type updates are only handled when it's renamed in all product blocks.
+
+    Args:
+        message: Message/description of the generated migration.
+        test: Optional boolean if you don't want to generate a migration file.
+
+    Returns None unless `--test` is used, in which case it returns:
+        - tuple:
+            - list of upgrade SQL statements in string format.
+            - list of downgrade SQL statements in string format.
+
+    CLI Arguments:
+        ```sh
+        Arguments:
+            MESSAGE  Migration name  [required]
+
+        Options:
+            --test / --no-test  Optional boolean if you don't want to generate a migration
+            file  [default: no-test]
+        ```
+    """
+    if not app_settings.TESTING:
+        init_database(app_settings)
+
+    if test:
+        print(  # noqa: T001, T201
+            f"{str_fmt('NOTE:', flags=[COLOR.BOLD, COLOR.CYAN])} Running in test mode. No migration file will be generated.\n"
+        )
+
+    tasks_to_add, tasks_to_delete = create_tasks_migration_wizard()
+
+    # String 'template' arguments
+    import_str = "from orchestrator.migrations.helpers import create_task, delete_workflow\n"
+    tpl_preamble_lines = []
+    tpl_upgrade_lines = []
+    tpl_downgrade_lines = []
+
+    if tasks_to_add:
+        tpl_preamble_lines.append(f"new_tasks = {json.dumps(tasks_to_add, indent=4)}\n")
+        tpl_upgrade_lines.extend([(" " * 4) + "for task in new_tasks:", (" " * 8) + "create_task(conn, task)"])
+        tpl_downgrade_lines.extend(
+            [(" " * 4) + "for task in new_tasks:", (" " * 8) + 'delete_workflow(conn, task["name"])']
+        )
+
+    if tasks_to_delete:
+        tpl_preamble_lines.append(f"old_tasks = {json.dumps(tasks_to_delete, indent=4)}\n")
+        tpl_upgrade_lines.extend(
+            [(" " * 4) + "for task in old_tasks:", (" " * 8) + 'delete_workflow(conn, task["name"])']
+        )
+        tpl_downgrade_lines.extend([(" " * 4) + "for task in old_tasks:", (" " * 8) + "create_task(conn, task)"])
+
+    preamble = "\n".join(
+        [
+            import_str,
+            *tpl_preamble_lines,
+        ]
+    )
+    sql_upgrade_str = "\n".join(tpl_upgrade_lines)
+    sql_downgrade_str = "\n".join(tpl_downgrade_lines)
+
+    if test:
+        return tasks_to_add, tasks_to_delete
 
     create_migration_file(alembic_cfg(), sql_upgrade_str, sql_downgrade_str, message, preamble=preamble)
     return None
