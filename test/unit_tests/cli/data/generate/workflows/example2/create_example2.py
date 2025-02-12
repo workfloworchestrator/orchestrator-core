@@ -1,6 +1,3 @@
-from pydantic_forms.types import UUIDstr
-from pydantic_forms.types import State
-from pydantic_forms.types import FormGenerator
 import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
@@ -11,6 +8,7 @@ from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 from pydantic import ConfigDict
+from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from products.product_blocks.example2 import ExampleIntEnum2
 from products.product_types.example2 import Example2Inactive, Example2Provisioning
