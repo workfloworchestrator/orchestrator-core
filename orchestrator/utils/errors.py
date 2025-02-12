@@ -18,7 +18,8 @@ from typing import Any, cast
 import structlog
 
 from nwastdlib.ex import show_ex
-from orchestrator.types import JSON, ErrorDict
+from orchestrator.types import ErrorDict
+from pydantic_forms.types import JSON
 
 logger = structlog.get_logger(__name__)
 

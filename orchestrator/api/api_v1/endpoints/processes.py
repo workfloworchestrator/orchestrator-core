@@ -61,7 +61,6 @@ from orchestrator.services.processes import (
 )
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
-from orchestrator.types import JSON, State
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import (
     WS_CHANNELS,
@@ -70,6 +69,7 @@ from orchestrator.websocket import (
     websocket_manager,
 )
 from orchestrator.workflow import ProcessStatus
+from pydantic_forms.types import JSON, State
 
 router = APIRouter()
 

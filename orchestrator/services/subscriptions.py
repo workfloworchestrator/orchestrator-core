@@ -43,9 +43,10 @@ from orchestrator.db.models import (
 )
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.targets import Target
-from orchestrator.types import SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.helpers import is_ipaddress_type
+from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)
 

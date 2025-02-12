@@ -25,7 +25,7 @@ from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.types import State, SubscriptionLifecycle
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
@@ -41,7 +41,7 @@ from orchestrator.workflows.steps import (
     unsync_unchecked,
 )
 from pydantic_forms.core import FormPage
-from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, StateInputStepFunc
+from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
 
 
 def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:

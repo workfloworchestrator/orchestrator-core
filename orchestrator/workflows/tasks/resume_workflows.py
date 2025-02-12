@@ -18,8 +18,8 @@ from sqlalchemy import select
 from orchestrator.db import ProcessTable, db
 from orchestrator.services import processes
 from orchestrator.targets import Target
-from orchestrator.types import State, UUIDstr
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
+from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 

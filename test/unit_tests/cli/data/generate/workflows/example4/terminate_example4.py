@@ -1,7 +1,7 @@
+from pydantic_forms.types import InputForm, State, UUIDstr
 import structlog
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import DisplaySubscription
-from orchestrator.types import InputForm, State, UUIDstr
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import terminate_workflow
 

@@ -1,10 +1,11 @@
+from pydantic_forms.types import FormGenerator, State, UUIDstr
 from typing import Annotated
 
 import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
