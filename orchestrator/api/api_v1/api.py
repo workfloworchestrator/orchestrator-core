@@ -25,6 +25,7 @@ from orchestrator.api.api_v1.endpoints import (
     subscriptions,
     translations,
     user,
+    workflows,
     ws,
 )
 from orchestrator.security import authorize
@@ -42,6 +43,12 @@ api_router.include_router(
     subscriptions.router,
     prefix="/subscriptions",
     tags=["Core", "Subscriptions"],
+    dependencies=[Depends(authorize)],
+)
+api_router.include_router(
+    workflows.router,
+    prefix="/workflows",
+    tags=["Core", "Workflows"],
     dependencies=[Depends(authorize)],
 )
 api_router.include_router(

@@ -59,3 +59,6 @@ class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
     modify: list[WorkflowListItemSchema]
     terminate: list[WorkflowListItemSchema]
     system: list[WorkflowListItemSchema]
+
+class WorkflowPatchSchema(OrchestratorBaseModel):
+    description: str | None = None
