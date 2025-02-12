@@ -1,21 +1,23 @@
-# syntax=docker/dockerfile:1
-
-# Build stage: build the wheel using an isolated build environment
-FROM python:3.11-slim AS builder
+# Build stage
+FROM python:3.11-slim AS build
 WORKDIR /app
-RUN apt-get update && apt-get install -y git build-essential
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git build-essential \
+    && rm -rf /var/lib/apt/lists/*
 COPY . .
-RUN pip install --upgrade pip
-RUN pip install build
+RUN pip install --upgrade pip --no-cache-dir
+RUN pip install build --no-cache-dir
 RUN python -m build --wheel --outdir dist
 
-# Final stage: set up a lean runtime environment and install the built wheel
+# Final stage
 FROM python:3.11-slim
 ENV PIP_ROOT_USER_ACTION=ignore
-RUN apt-get update && apt-get install -y git
-RUN pip install --upgrade pip
-COPY --from=builder /app/dist/*.whl /tmp/
-RUN pip install /tmp/*.whl
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --upgrade pip --no-cache-dir
+COPY --from=build /app/dist/*.whl /tmp/
+RUN pip install /tmp/*.whl --no-cache-dir
 RUN useradd orchestrator
 USER orchestrator
 WORKDIR /home/orchestrator
