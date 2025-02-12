@@ -5,9 +5,8 @@ from orchestrator.graphql.resolvers.product_block import resolve_product_blocks
 from orchestrator.graphql.resolvers.resource_type import resolve_resource_types
 from orchestrator.graphql.resolvers.settings import SettingsMutation, resolve_settings
 from orchestrator.graphql.resolvers.subscription import resolve_subscription, resolve_subscriptions
-from orchestrator.graphql.resolvers.workflow import resolve_workflows
 from orchestrator.graphql.resolvers.version import resolve_version
-
+from orchestrator.graphql.resolvers.workflow import resolve_workflows
 
 __all__ = [
     "resolve_process",
@@ -21,5 +20,5 @@ __all__ = [
     "resolve_customer",
     "resolve_resource_types",
     "resolve_workflows",
-    "resolve_version"
+    "resolve_version",
 ]
