@@ -53,13 +53,6 @@ Note that:
 * Ordering of words does not matter (unless it is a Phrase)
 * Search words cannot contain the characters `|-*():"` as they are part of the search query grammar
 
-### Config
-By default, string matching is configured for exact matches, i.e a search for `10` will return ONLY `10`
-and won't include `10G` or `100G`.
-Searching can also be configured for partial matching as well, where a search for `10` would include `10G` and `100G`.
-
-This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a value of `exact` or `partial` as needed.
-
 ## Implementation 1: Filter on DB Table
 
 This implementation translates the user's search query to `WHERE` clauses on DB columns of the object's DB table. For some objects this extends to related DB tables.

@@ -677,3 +677,10 @@ customer_field.name = "customer"
 override_class(ProcessType, [customer_field])
 custom_subscription_interface = override_class(SubscriptionInterface, [customer_field])
 ```
+
+### Behavior of filterBy
+By default, string matching is configured for exact matches, i.e a search for `10` will return ONLY `10`
+and won't include `10G` or `100G`.
+Searching can also be configured for partial matching as well, where a search for `10` would include `10G` and `100G`.
+
+This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a value of `exact` or `partial` as needed.
