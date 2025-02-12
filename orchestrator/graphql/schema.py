@@ -47,6 +47,7 @@ from orchestrator.graphql.resolvers import (
     resolve_settings,
     resolve_subscription,
     resolve_subscriptions,
+    resolve_version,
     resolve_workflows,
 )
 from orchestrator.graphql.schemas import DEFAULT_GRAPHQL_MODELS
@@ -57,6 +58,7 @@ from orchestrator.graphql.schemas.product_block import ProductBlock
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
+from orchestrator.graphql.schemas.version import VersionType
 from orchestrator.graphql.schemas.workflow import Workflow
 from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, ScalarOverrideType, StrawberryModelType
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
@@ -95,6 +97,7 @@ class OrchestratorQuery:
         resolver=resolve_settings,
         description="Returns information about cache, workers, and global engine settings",
     )
+    version: VersionType = authenticated_field(resolver=resolve_version, description="Returns version information")
 
 
 @strawberry.federation.type(description="Orchestrator customer Query")

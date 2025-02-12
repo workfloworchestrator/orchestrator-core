@@ -13,10 +13,12 @@
 import datetime
 import json
 from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
 
+from orchestrator import app_settings
 from orchestrator.db import SubscriptionMetadataTable, db
 from orchestrator.db.models import SubscriptionCustomerDescriptionTable, SubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
@@ -730,9 +732,10 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
 
     product_type_1_subscriptions_factory(30)
 
-    data = get_subscriptions_query(first=1, filter_by=[{"field": "startDate", "value": "2023-05-24"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
-    first_subscription = response.json()["data"]["subscriptions"]["page"][0]
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_subscriptions_query(first=1, filter_by=[{"field": "startDate", "value": "2023-05-24"}])
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        first_subscription = response.json()["data"]["subscriptions"]["page"][0]
 
     first_subscription_date = datetime.datetime.fromisoformat(first_subscription["startDate"])
     higher_than_date = first_subscription_date.isoformat()
@@ -887,8 +890,9 @@ def test_single_subscription(test_client, product_type_1_subscriptions_factory, 
     do_refresh_subscriptions_search_view()
 
     # when
-    data = get_subscriptions_query(**query_args(subscription_id))
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_subscriptions_query(**query_args(subscription_id))
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     subscription = GenericProductOne.from_subscription(subscription_id)
 
