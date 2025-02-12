@@ -198,8 +198,8 @@ def _get_current_step_to_update(
     # Core internal: __replace_last_state
     if step_state.pop("__replace_last_state", None):
         current_step = last_db_step
-        current_step.status = process_state.status  # type: ignore
-        current_step.state = step_state  # type: ignore
+        current_step.status = process_state.status
+        current_step.state = step_state
 
     # Core internal: __remove_keys
     try:

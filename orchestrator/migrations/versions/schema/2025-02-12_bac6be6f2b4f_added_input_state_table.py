@@ -11,7 +11,7 @@ import sqlalchemy_utils
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-from orchestrator.db import db
+from orchestrator import db
 
 # revision identifiers, used by Alembic.
 revision = "bac6be6f2b4f"
@@ -31,11 +31,11 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("pid", sqlalchemy_utils.types.uuid.UUIDType(), nullable=False),
-        sa.Column("input_state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("input_state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),  # type: ignore
         sa.Column(
             "input_time",
             db.models.UtcTimestamp(timezone=True),
-            server_default=sa.text("current_timestamp()"),
+            server_default=sa.text("current_timestamp"),
             nullable=False,
         ),
         sa.Column("input_type", sa.Enum("user_input", "initial_state", name="inputtype"), nullable=False),
