@@ -170,3 +170,33 @@ def test_product_by_id(seed, test_client):
 def test_product_by_id_404(seed, test_client):
     response = test_client.get(f"/api/products/{str(uuid4())}")
     assert HTTPStatus.NOT_FOUND == response.status_code
+
+
+def test_update_description(seed, test_client):
+    body = {
+        "description": "BLABLA",
+    }
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert response.json()["description"] == "BLABLA"
+
+
+def test_update_description_with_empty_body(seed, test_client):
+    get_before = test_client.get(f"/api/products/{PRODUCT_ID}")
+    body = {}
+    response = test_client.patch(f"/api/products/{PRODUCT_ID}", json=body)
+
+    assert HTTPStatus.CREATED == response.status_code
+    get_after = test_client.get(f"/api/products/{PRODUCT_ID}")
+
+    assert get_before.json()["description"] == get_after.json()["description"]
+
+
+def test_update_description_nonexistent_product(seed, test_client):
+    random_uuid = uuid4()
+    body = {
+        "description": "BLABLA",
+    }
+    response = test_client.patch(f"/api/products/{random_uuid}", json=body)
+
+    assert HTTPStatus.NOT_FOUND == response.status_code

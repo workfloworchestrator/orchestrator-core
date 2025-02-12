@@ -15,6 +15,8 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi.routing import APIRouter
+from fastapi.param_functions import Body
+from orchestrator.schemas.product import ProductPatchSchema
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -48,6 +50,12 @@ def fetch(tag: str | None = None, product_type: str | None = None) -> list[Produ
     response_model=ProductSchema,
 )
 def product_by_id(product_id: UUID) -> ProductTable:
+    product = _product_by_id(product_id)
+    if not product:
+        raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
+    return product
+
+def _product_by_id(product_id):
     stmt = (
         select(ProductTable)
         .options(
@@ -58,6 +66,27 @@ def product_by_id(product_id: UUID) -> ProductTable:
         .filter(ProductTable.product_id == product_id)
     )
     product = db.session.scalars(stmt).unique().one_or_none()
+    return product
+
+
+@router.patch("/{product_id}", status_code=HTTPStatus.CREATED, response_model=ProductSchema)
+async def patch_product_by_id(
+    product_id: UUID,
+    data: ProductPatchSchema = Body(...)
+) -> ProductTable:
+    product = _product_by_id(product_id)
     if not product:
         raise_status(HTTPStatus.NOT_FOUND, f"Product id {product_id} not found")
+
+    return await _patch_product_description(data, product)
+
+async def _patch_product_description(
+    data: ProductPatchSchema,
+    product: ProductTable,
+) -> ProductTable:
+
+    updated_properties = data.model_dump(exclude_unset=True)
+    description = updated_properties.get("description", product.description)
+    product.description = description
+    db.session.commit()
     return product
