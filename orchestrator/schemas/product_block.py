@@ -37,3 +37,7 @@ class ProductBlockSchema(ProductBlockBaseSchema):
     end_date: datetime | None = None
     resource_types: list[ResourceTypeSchema] | None = None  # type: ignore
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductBlockPatchSchema(OrchestratorBaseModel):
+    description: str | None = None

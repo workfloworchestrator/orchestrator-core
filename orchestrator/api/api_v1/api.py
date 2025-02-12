@@ -19,6 +19,7 @@ from fastapi.routing import APIRouter
 from orchestrator.api.api_v1.endpoints import (
     health,
     processes,
+    product_blocks,
     products,
     settings,
     subscription_customer_descriptions,
@@ -49,6 +50,12 @@ api_router.include_router(
     workflows.router,
     prefix="/workflows",
     tags=["Core", "Workflows"],
+    dependencies=[Depends(authorize)],
+)
+api_router.include_router(
+    product_blocks.router,
+    prefix="/product_blocks",
+    tags=["Core", "Product Blocks"],
     dependencies=[Depends(authorize)],
 )
 api_router.include_router(
