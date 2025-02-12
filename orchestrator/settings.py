@@ -14,6 +14,7 @@
 import secrets
 import string
 from pathlib import Path
+from typing import Literal
 
 from pydantic import PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
@@ -82,6 +83,7 @@ class AppSettings(BaseSettings):
     ENABLE_GRAPHQL_PROFILING_EXTENSION: bool = False
     ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
+    FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
 
 
 app_settings = AppSettings()

@@ -1,8 +1,10 @@
 import json
 from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 
+from orchestrator import app_settings
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 
@@ -126,8 +128,10 @@ def test_workflows_has_previous_page(test_client):
     ],
 )
 def test_workflows_filter_by_name(test_client, query_args):
-    data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]
@@ -182,8 +186,10 @@ def test_workflows_filter_by_product(test_client, query_args):
     [{"query_string": "tag:gen1"}, {"query_string": "tag:gen2"}, {"query_string": "product:Product"}],
 )
 def test_workflows_filter_by_tag(test_client, query_args):
-    data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_workflows_query(**query_args, sort_by=[{"field": "name", "order": "ASC"}])
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     workflows_data = result["data"]["workflows"]

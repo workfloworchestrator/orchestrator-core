@@ -1,9 +1,11 @@
 import json
 from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 from fastapi import Response
 
+from orchestrator import app_settings
 from test.unit_tests.helpers import assert_no_diff
 
 
@@ -154,8 +156,11 @@ def test_product_blocks_payload(test_client):
     ],
 )
 def test_product_block_query_with_relations(test_client, query_args):
-    data = get_product_blocks_query(**query_args)
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_product_blocks_query(**query_args)
+        response: Response = test_client.post(
+            "/api/graphql", content=data, headers={"Content-Type": "application/json"}
+        )
 
     assert HTTPStatus.OK == response.status_code
     result = response.json()
