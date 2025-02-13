@@ -200,12 +200,7 @@ def make_workflow(
 
     wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
     wrapping_function.description = description
-    if authorize_callback is None:
-        logger.error("#### NONE", cback=str(authorize_callback))
-    else:
-        logger.error("#### CALLBACK EXISTS:", cback=str(authorize_callback.__name__))
     wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback  # type: ignore # mypy thinks it's builtin.function
-    logger.error("** WRAPPING", dct=wrapping_function.__dict__, callback_res=wrapping_function.authorize_callback(None))
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.

@@ -463,14 +463,6 @@ def thread_start_process(
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
-    logger.error(
-        "#### START",
-        wflow=pstat.workflow.__dict__,
-        user_model=user_model,
-        callback=pstat.workflow.authorize_callback.__name__,
-        typ=type(pstat.workflow.authorize_callback),
-        res=pstat.workflow.authorize_callback(user_model),
-    )
     if not pstat.workflow.authorize_callback(user_model):
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
 
@@ -518,7 +510,6 @@ def thread_resume_process(
         user_inputs = [{}]
 
     pstat = load_process(process)
-    logger.error("### HELLLO THERE", wflow=pstat.workflow.__dict__)
     if not pstat.workflow.authorize_callback(user_model):
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to run '{pstat.workflow.name}' workflow")
 
