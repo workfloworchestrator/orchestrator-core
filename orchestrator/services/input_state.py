@@ -44,6 +44,17 @@ def _retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
 
 
 def _store_input_state(process_id: UUID, input_state: dict[str, Any] | list[dict[str, Any]], input_type: str) -> None:
+    """Store user input state.
+
+    Args:
+        process_id: Process ID
+        input_state: Dictionary of user input state
+        input_type: The type of the input.
+
+    Returns:
+        None
+
+    """
     db.session.add(
         InputStateTable(
             process_id=process_id,
