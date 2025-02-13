@@ -269,7 +269,7 @@ def resume_workflow(
 
     user_input = post_form(remaining_steps[0].form, current_state.unwrap(), user_data)
     state = current_state.map(lambda state: StateMerger.merge(deepcopy(state), user_input))
-    _store_input_state(process.process_id, process.state.unwrap(), "initial_state")
+    _store_input_state(process.process_id, user_input, "user_input")
 
     updated_process = process.update(log=remaining_steps, state=state)
     result = runwf(updated_process, _store_step(step_log))

@@ -820,6 +820,14 @@ def test_start_process(
 
     result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
+    initial_state = {
+        "a": 1,
+        "process_id": mock.ANY,
+        "reporter": mock.sentinel.user,
+        "workflow_name": mock.sentinel.wf_name,
+        "workflow_target": Target.SYSTEM,
+    }
+    mock_store_input_state.assert_called_once_with(mock.ANY, initial_state, "initial_state")
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.process_id
     assert pstat.current_user == mock.sentinel.user

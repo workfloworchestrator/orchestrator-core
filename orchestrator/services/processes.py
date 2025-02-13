@@ -515,7 +515,7 @@ def thread_resume_process(
 
     if user_input:
         pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, user_input)))
-    _store_input_state(pstat.process_id, pstat.state.unwrap(), "initial_state")
+    _store_input_state(pstat.process_id, user_input, "user_input")
     # enforce an update to the process status to properly show the process
     process.last_status = ProcessStatus.RUNNING
     db.session.add(process)
