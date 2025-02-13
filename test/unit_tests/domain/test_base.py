@@ -67,7 +67,7 @@ def test_subscription_model_registry():
         "If this field was meant to be a Product Block, inherit from <class 'orchestrator.domain.base.ProductBlockModel'> instead."
     )
 
-    with (pytest.raises(TypeError, match=error_text)):
+    with pytest.raises(TypeError, match=error_text):
         SUBSCRIPTION_MODEL_REGISTRY.update({"BadSubscription": BadSubscription})
 
 
