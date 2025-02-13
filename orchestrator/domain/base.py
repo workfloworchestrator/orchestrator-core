@@ -1409,11 +1409,11 @@ class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
         for key, value in (m | kwargs).items():
             if type(value):
                 for field_name, field_type in value._non_product_block_fields_.items():
-                    if field_type is BaseModel:
+                    if field_type is BaseModel or field_type.__mro__[1] is BaseModel:
                         bad_field_names.add(field_name)
         if bad_field_names:
             raise TypeError(
-                f"SubscriptionModel fields {bad_field_names} should use type {BaseModel} directly. "
+                f"SubscriptionModel fields {bad_field_names} should not have type {BaseModel} or inherit directly from {BaseModel}. "
                 f"If this field was meant to be a Product Block, inherit from {ProductBlockModel} instead."
             )
         super().update(m, **kwargs)
