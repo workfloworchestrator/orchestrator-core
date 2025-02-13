@@ -42,5 +42,6 @@ class ProductSchema(ProductBaseSchema):
     fixed_inputs: list[FixedInputSchema]
     workflows: list[WorkflowSchema]
 
+
 class ProductPatchSchema(OrchestratorBaseModel):
     description: str | None = None

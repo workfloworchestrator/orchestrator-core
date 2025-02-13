@@ -19,11 +19,11 @@ from fastapi.routing import APIRouter
 
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import db
-from orchestrator.db.models import ResourceTypeTable, ResourceTypeTable
+from orchestrator.db.models import ResourceTypeTable
 from orchestrator.schemas.resource_type import ResourceTypePatchSchema, ResourceTypeSchema
 
-
 router = APIRouter()
+
 
 @router.get("/{resource_type_id}", response_model=ResourceTypeSchema)
 def get_resource_type_description(resource_type_id: UUID) -> str:
@@ -35,14 +35,14 @@ def get_resource_type_description(resource_type_id: UUID) -> str:
 
 @router.patch("/{resource_type_id}", status_code=HTTPStatus.CREATED, response_model=ResourceTypeSchema)
 async def patch_resource_type_by_id(
-    resource_type_id: UUID,
-    data: ResourceTypePatchSchema = Body(...)
+    resource_type_id: UUID, data: ResourceTypePatchSchema = Body(...)
 ) -> ResourceTypeTable:
     resource_type = db.session.get(ResourceTypeTable, resource_type_id)
     if not resource_type:
         raise_status(HTTPStatus.NOT_FOUND, f"ResourceType id {resource_type_id} not found")
 
     return await _patch_resource_type_description(data, resource_type)
+
 
 async def _patch_resource_type_description(
     data: ResourceTypePatchSchema,

@@ -8,14 +8,15 @@ from orchestrator.db import WorkflowTable, db
 
 WORKFLOW_ID = uuid4()
 
+
 @pytest.fixture
 def seed():
     db.session.execute(delete(WorkflowTable))
     workflow = WorkflowTable(
-        name = "workflow123",
-        target= "CREATE",
-        description= "Original description of the workflow",
-        workflow_id= WORKFLOW_ID,
+        name="workflow123",
+        target="CREATE",
+        description="Original description of the workflow",
+        workflow_id=WORKFLOW_ID,
     )
     db.session.add(workflow)
     db.session.commit()

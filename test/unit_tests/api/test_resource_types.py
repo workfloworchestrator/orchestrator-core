@@ -8,14 +8,15 @@ from orchestrator.db import ResourceTypeTable, db
 
 RESOURCE_TYPE_ID = uuid4()
 
+
 @pytest.fixture
 def seed():
     db.session.execute(delete(ResourceTypeTable))
     resource_type = ResourceTypeTable(
-        resource_type= "Resource type 123",
-        description= "Original description of the resource type",
-        resource_type_id= RESOURCE_TYPE_ID,
-        )
+        resource_type="Resource type 123",
+        description="Original description of the resource type",
+        resource_type_id=RESOURCE_TYPE_ID,
+    )
     db.session.add(resource_type)
     db.session.commit()
 

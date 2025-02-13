@@ -8,15 +8,16 @@ from orchestrator.db import ProductBlockTable, db
 
 PRODUCT_BLOCK_ID = uuid4()
 
+
 @pytest.fixture
 def seed():
     db.session.execute(delete(ProductBlockTable))
     product_block = ProductBlockTable(
-    product_block_id= PRODUCT_BLOCK_ID,
-    name= "Product block 123",
-    description= "Original description of the product block",
-    tag= "tag123",
-    status= "active",
+        product_block_id=PRODUCT_BLOCK_ID,
+        name="Product block 123",
+        description="Original description of the product block",
+        tag="tag123",
+        status="active",
     )
     db.session.add(product_block)
     db.session.commit()

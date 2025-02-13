@@ -20,11 +20,10 @@ from fastapi.routing import APIRouter
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import db
 from orchestrator.db.models import ProductBlockTable
-from orchestrator.schemas.product_block import ProductBlockPatchSchema
-from orchestrator.schemas.product_block import ProductBlockSchema
-
+from orchestrator.schemas.product_block import ProductBlockPatchSchema, ProductBlockSchema
 
 router = APIRouter()
+
 
 @router.get("/{product_block_id}", response_model=ProductBlockSchema)
 def get_product_block_description(product_block_id: UUID) -> str:
@@ -36,14 +35,14 @@ def get_product_block_description(product_block_id: UUID) -> str:
 
 @router.patch("/{product_block_id}", status_code=HTTPStatus.CREATED, response_model=ProductBlockSchema)
 async def patch_product_block_by_id(
-    product_block_id: UUID,
-    data: ProductBlockPatchSchema = Body(...)
+    product_block_id: UUID, data: ProductBlockPatchSchema = Body(...)
 ) -> ProductBlockTable:
     product_block = db.session.get(ProductBlockTable, product_block_id)
     if not product_block:
         raise_status(HTTPStatus.NOT_FOUND, f"Product_block id {product_block_id} not found")
 
     return await _patch_product_block_description(data, product_block)
+
 
 async def _patch_product_block_description(
     data: ProductBlockPatchSchema,
