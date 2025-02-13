@@ -5,8 +5,7 @@ from uuid import uuid4
 import pytest
 import pytz
 from dirty_equals import IsUUID
-from pydantic import Field, ValidationError, computed_field, conlist
-from pydantic.main import BaseModel
+from pydantic import BaseModel, Field, ValidationError, computed_field, conlist
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 
