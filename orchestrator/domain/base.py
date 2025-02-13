@@ -1418,6 +1418,7 @@ class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
             )
         super().update(m, **kwargs)
 
+
 def _validate_lifecycle_change_for_product_block(
     used_by: SubscriptionInstanceTable,
     product_block_model: ProductBlockModel,
