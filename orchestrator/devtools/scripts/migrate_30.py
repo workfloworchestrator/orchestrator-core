@@ -8,7 +8,7 @@ implementations.
 import sys
 from pathlib import Path
 
-from shared import migrate, move_import
+from orchestrator.devtools.scripts.shared import migrate, move_import
 
 
 def migrate_file(f: Path) -> bool:

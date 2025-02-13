@@ -84,7 +84,7 @@ def migrate(target_dir: Path, migrate_file: Callable[[Path], bool]) -> bool:
     abs_path = str(target_dir.resolve())
 
     def run_tools() -> bool:
-        return run_tool("ruff", "--fix", abs_path) and run_tool("black", "--quiet", abs_path)
+        return run_tool("ruff", "check", "--fix", abs_path) and run_tool("black", "--quiet", abs_path)
 
     print(f"\n### Verifying files in {abs_path}... ", end="")
     if not run_tools():

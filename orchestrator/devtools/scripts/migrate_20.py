@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-from shared import (
+from orchestrator.devtools.scripts.shared import (
     find_and_remove_aliases,
     has_word,
     insert_import,
