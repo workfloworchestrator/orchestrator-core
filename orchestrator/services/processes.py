@@ -426,7 +426,7 @@ def create_process(
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     if not workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.UNAUTHORIZED, "User does not have permission to run this workflow")
+        raise_status(HTTPStatus.FORBIDDEN, "User does not have permission to run this workflow")
 
     initial_state = {
         "process_id": process_id,
@@ -472,7 +472,7 @@ def thread_start_process(
         res=pstat.workflow.authorize_callback(user_model),
     )
     if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.UNAUTHORIZED, f"User is not authorized to execute '{workflow_key}' workflow")
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
@@ -520,7 +520,7 @@ def thread_resume_process(
     pstat = load_process(process)
     logger.error("### HELLLO THERE", wflow=pstat.workflow.__dict__)
     if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.UNAUTHORIZED, f"User is not authorized to run '{pstat.workflow.name}' workflow")
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to run '{pstat.workflow.name}' workflow")
 
     if pstat.workflow == removed_workflow:
         raise ValueError("This workflow cannot be resumed")
@@ -578,7 +578,7 @@ def resume_process(
     """
     pstat = load_process(process)
     if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.UNAUTHORIZED, "User does not have permission to resume process")
+        raise_status(HTTPStatus.FORBIDDEN, "User does not have permission to resume process")
 
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])

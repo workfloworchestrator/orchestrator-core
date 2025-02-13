@@ -202,6 +202,8 @@ def make_workflow(
     wrapping_function.description = description
     if authorize_callback is None:
         logger.error("#### NONE", cback=str(authorize_callback))
+    else:
+        logger.error("#### CALLBACK EXISTS:", cback=str(authorize_callback.__name__))
     wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback  # type: ignore # mypy thinks it's builtin.function
     logger.error("** WRAPPING", dct=wrapping_function.__dict__, callback_res=wrapping_function.authorize_callback(None))
 
