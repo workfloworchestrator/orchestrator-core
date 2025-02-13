@@ -18,7 +18,7 @@ provides the ability to run the CLI.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Callable
-from typing import Any, Type
+from typing import Any
 
 import sentry_sdk
 import structlog
@@ -199,8 +199,8 @@ class OrchestratorCore(FastAPI):
 
     def register_graphql(
         self: "OrchestratorCore",
-        query: Type[Any] = Query,
-        mutation: Type[Any] = Mutation,
+        query: type = Query,
+        mutation: type = Mutation,
         register_models: bool = True,
         subscription_interface: Any = SubscriptionInterface,
         graphql_models: StrawberryModelType | None = None,
