@@ -13,9 +13,9 @@ def seed():
     db.session.execute(delete(ProductBlockTable))
     product_block = ProductBlockTable(
     product_block_id= PRODUCT_BLOCK_ID,
-    name= "Direct Cloud Connectivity",
-    description= "No way!!!",
-    tag= "DCC",
+    name= "Product block 123",
+    description= "Original description of the product block",
+    tag= "tag123",
     status= "active",
     )
     db.session.add(product_block)

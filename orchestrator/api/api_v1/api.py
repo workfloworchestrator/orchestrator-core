@@ -21,6 +21,7 @@ from orchestrator.api.api_v1.endpoints import (
     processes,
     product_blocks,
     products,
+    resource_types,
     settings,
     subscription_customer_descriptions,
     subscriptions,
@@ -36,26 +37,32 @@ api_router = APIRouter()
 api_router.include_router(
     processes.router, prefix="/processes", tags=["Core", "Processes"], dependencies=[Depends(authorize)]
 )
-api_router.include_router(processes.ws_router, prefix="/processes", tags=["Core", "Processes"])
-api_router.include_router(
-    products.router, prefix="/products", tags=["Core", "Product"], dependencies=[Depends(authorize)]
-)
 api_router.include_router(
     subscriptions.router,
     prefix="/subscriptions",
     tags=["Core", "Subscriptions"],
     dependencies=[Depends(authorize)],
 )
+api_router.include_router(processes.ws_router, prefix="/processes", tags=["Core", "Processes"])
 api_router.include_router(
-    workflows.router,
-    prefix="/workflows",
-    tags=["Core", "Workflows"],
-    dependencies=[Depends(authorize)],
+    products.router, prefix="/products", tags=["Core", "Product"], dependencies=[Depends(authorize)]
 )
 api_router.include_router(
     product_blocks.router,
     prefix="/product_blocks",
     tags=["Core", "Product Blocks"],
+    dependencies=[Depends(authorize)],
+)
+api_router.include_router(
+    resource_types.router,
+    prefix="/resource_types",
+    tags=["Core", "Resource Types"],
+    dependencies=[Depends(authorize)],
+)
+api_router.include_router(
+    workflows.router,
+    prefix="/workflows",
+    tags=["Core", "Workflows"],
     dependencies=[Depends(authorize)],
 )
 api_router.include_router(

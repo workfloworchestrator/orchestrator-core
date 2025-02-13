@@ -26,9 +26,9 @@ from orchestrator.schemas.product_block import ProductBlockSchema
 
 router = APIRouter()
 
-@router.get("/{_id}", response_model=ProductBlockSchema)
-def get_product_block_description(_id: UUID) -> str:
-    product_block = db.session.get(ProductBlockTable, _id)
+@router.get("/{product_block_id}", response_model=ProductBlockSchema)
+def get_product_block_description(product_block_id: UUID) -> str:
+    product_block = db.session.get(ProductBlockTable, product_block_id)
     if product_block is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return product_block

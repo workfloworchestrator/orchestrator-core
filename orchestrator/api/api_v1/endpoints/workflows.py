@@ -25,9 +25,9 @@ from orchestrator.schemas.workflow import WorkflowPatchSchema, WorkflowSchema
 
 router = APIRouter()
 
-@router.get("/{_id}", response_model=WorkflowSchema)
-def get_workflow_description(_id: UUID) -> str:
-    workflow = db.session.get(WorkflowTable, _id)
+@router.get("/{workflow_id}", response_model=WorkflowSchema)
+def get_workflow_description(workflow_id: UUID) -> str:
+    workflow = db.session.get(WorkflowTable, workflow_id)
     if workflow is None:
         raise_status(HTTPStatus.NOT_FOUND)
     return workflow

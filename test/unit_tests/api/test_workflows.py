@@ -5,7 +5,6 @@ import pytest
 from sqlalchemy import delete
 
 from orchestrator.db import WorkflowTable, db
-from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 WORKFLOW_ID = uuid4()
 
@@ -13,7 +12,7 @@ WORKFLOW_ID = uuid4()
 def seed():
     db.session.execute(delete(WorkflowTable))
     workflow = WorkflowTable(
-        name = "create_core_link",
+        name = "workflow123",
         target= "CREATE",
         description= "Original description of the workflow",
         workflow_id= WORKFLOW_ID,
