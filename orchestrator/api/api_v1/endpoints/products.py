@@ -56,7 +56,7 @@ def product_by_id(product_id: UUID) -> ProductTable:
     return product
 
 
-def _product_by_id(product_id):
+def _product_by_id(product_id: UUID) -> ProductTable | None:
     stmt = (
         select(ProductTable)
         .options(
