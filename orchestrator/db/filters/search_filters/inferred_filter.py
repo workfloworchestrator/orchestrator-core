@@ -21,6 +21,7 @@ from sqlalchemy import BinaryExpression, Cast, ColumnClause, ColumnElement, Stri
 from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.sql.operators import eq
 
+from orchestrator.settings import app_settings
 from orchestrator.utils.search_query import Node, WhereCondGenerator
 
 
@@ -67,7 +68,7 @@ def _filter_string(field: ColumnElement) -> WhereCondGenerator:
         if node[0] == "ValueGroup":
             vals = [w[1] for w in node[1] if w[0] in ["Word", "PrefixWord"]]  # Only works for (Prefix)Words atm
             return field.in_(vals)
-        return field.ilike(f"%{node[1]}%")
+        return field.ilike(f"{node[1]}") if app_settings.FILTER_BY_MODE == "exact" else field.ilike(f"%{node[1]}%")
 
     return _clause_gen
 

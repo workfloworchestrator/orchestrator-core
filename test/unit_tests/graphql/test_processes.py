@@ -12,9 +12,11 @@
 # limitations under the License.
 import json
 from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 
+from orchestrator import app_settings
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 
@@ -457,9 +459,9 @@ def test_processes_various_filterings(
     num_results,
 ):
     # when
-
-    data = get_processes_query(**query_args)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_processes_query(**query_args)
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 

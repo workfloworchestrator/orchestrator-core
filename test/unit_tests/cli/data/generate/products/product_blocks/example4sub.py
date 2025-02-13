@@ -3,7 +3,7 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
 
 
-class Example4SubBlockInactive(ProductBlockModel, product_block_name="Example4 Sub"):
+class Example4SubBlockInactive(ProductBlockModel, product_block_name="Example4Sub"):
     str_val: str | None = None
 
 

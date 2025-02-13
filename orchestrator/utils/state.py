@@ -183,11 +183,12 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
                     raise KeyError(f"Could not find key '{name}' in state.")
             elif is_list_type(param.annotation, SubscriptionModel):
                 subscription_ids = map(_get_sub_id, state.get(name, []))
-                subscriptions = [
-                    # Actual type is first argument from list type
-                    get_args(param.annotation)[0].from_subscription(subscription_id)
-                    for subscription_id in subscription_ids
-                ]
+                # Actual type is first argument from list type
+                if (actual_type := get_args(param.annotation)[0]) == Any:
+                    raise ValueError(
+                        f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'"
+                    )
+                subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
                 arguments.append(subscriptions)
             elif is_optional_type(param.annotation, SubscriptionModel):
                 subscription_id = _get_sub_id(state.get(name))
