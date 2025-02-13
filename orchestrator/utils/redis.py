@@ -86,7 +86,7 @@ def default_get_subscription_id(data: Any) -> UUID:
 
 
 def delete_subscription_from_redis(
-    extract_fn: Callable[..., UUID] = default_get_subscription_id
+    extract_fn: Callable[..., UUID] = default_get_subscription_id,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def _delete_subscription_from_redis(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
