@@ -1403,6 +1403,21 @@ class SubscriptionModel(DomainModel):
         return self._db_model
 
 
+class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
+    def update(self, m, /, **kwargs):
+        bad_field_names = set()
+        for key, value in (m | kwargs).items():
+            if type(value):
+                for field_name, field_type in value._non_product_block_fields_.items():
+                    if field_type is BaseModel:
+                        bad_field_names.add(field_name)
+        if bad_field_names:
+            raise TypeError(
+                f"SubscriptionModel fields {bad_field_names} should use type {BaseModel} directly. "
+                f"If this field was meant to be a Product Block, inherit from {ProductBlockModel} instead."
+            )
+        super().update(m, **kwargs)
+
 def _validate_lifecycle_change_for_product_block(
     used_by: SubscriptionInstanceTable,
     product_block_model: ProductBlockModel,

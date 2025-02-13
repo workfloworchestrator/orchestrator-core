@@ -57,6 +57,20 @@ def test_product_block_metadata(test_product_block_one, test_product_one, test_p
     assert ProductBlockOneForTestInactive.tag == "TEST"
 
 
+def test_subscription_model_registry():
+    class BadSubscription(SubscriptionModel):
+        bad_field: BaseModel
+        good_field: ProductBlockModel
+
+    error_text = (
+        "SubscriptionModel fields {'bad_field'} should use type <class 'pydantic.main.BaseModel'> directly. "
+        "If this field was meant to be a Product Block, inherit from <class 'orchestrator.domain.base.ProductBlockModel'> instead."
+    )
+
+    with (pytest.raises(TypeError, match=error_text)):
+        SUBSCRIPTION_MODEL_REGISTRY.update({"BadSubscription": BadSubscription})
+
+
 def test_product_block_one_nested(test_product_model_nested, test_product_type_one_nested):
     """Test the behavior of nesting (self-referencing) product blocks.
 
