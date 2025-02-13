@@ -1,8 +1,11 @@
 import json
 from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 from fastapi import Response
+
+from orchestrator import app_settings
 
 
 def get_resource_types_query(
@@ -68,7 +71,7 @@ def test_resource_types_query(test_client):
 
 
 def test_resource_types_has_previous_page(test_client):
-    data = get_resource_types_query(after=1)
+    data = get_resource_types_query(after=3, sort_by=[{"field": "resourceType", "order": "ASC"}])
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     assert HTTPStatus.OK == response.status_code
@@ -82,13 +85,12 @@ def test_resource_types_has_previous_page(test_client):
         "endCursor": 6,
         "hasNextPage": False,
         "hasPreviousPage": True,
-        "startCursor": 1,
+        "startCursor": 3,
         "totalItems": 7,
     }
-
-    assert len(resource_types) == 6
-    assert resource_types[0]["resourceType"] == "rt_2"
-    assert resource_types[1]["resourceType"] == "rt_3"
+    assert len(resource_types) == 4
+    assert resource_types[0]["resourceType"] == "rt_1"
+    assert resource_types[1]["resourceType"] == "rt_2"
 
 
 @pytest.mark.parametrize(
@@ -100,8 +102,12 @@ def test_resource_types_has_previous_page(test_client):
     ],
 )
 def test_resource_types_filter_by_resource_type(test_client, query_args):
-    data = get_resource_types_query(**query_args, sort_by=[{"field": "resourceType", "order": "ASC"}])
-    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with patch.object(app_settings, "FILTER_BY_MODE", "partial"):
+        data = get_resource_types_query(**query_args, sort_by=[{"field": "resourceType", "order": "ASC"}])
+        response: Response = test_client.post(
+            "/api/graphql", content=data, headers={"Content-Type": "application/json"}
+        )
+
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     resource_types_data = result["data"]["resourceTypes"]

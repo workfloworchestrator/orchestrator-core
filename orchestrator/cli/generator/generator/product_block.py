@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from collections import ChainMap
 from collections.abc import Mapping
 from pathlib import Path
@@ -56,15 +55,8 @@ def get_product_block_path(product_block: dict) -> Path:
 
 
 def enrich_product_block(product_block: dict) -> dict:
-    def to_block_name() -> str:
-        """Separate block name into words."""
-        type = product_block["type"]
-        name = re.sub("(.)([A-Z][a-z]+)", r"\1 \2", type)
-        return re.sub("([a-z0-9])([A-Z])", r"\1 \2", name)
-
     fields = get_all_fields(product_block)
-    block_name = product_block.get("block_name", to_block_name())
-
+    block_name = product_block.get("block_name", product_block.get("type"))
     return product_block | {
         "fields": fields,
         "block_name": block_name,

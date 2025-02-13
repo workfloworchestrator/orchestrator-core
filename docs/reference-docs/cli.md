@@ -26,21 +26,16 @@ Interact with the application database. By default, does nothing, specify `main.
       show_symbol_type_toc: false
       show_symbol_type_heading: false
       members:
-        - init
-        - revision
-        - upgrade
         - downgrade
         - heads
         - history
-        - merge
-        - migrate_workflows
-        - heads
-        - history
         - init
         - merge
         - migrate_workflows
+        - migrate_tasks
         - revision
         - upgrade
+
       heading_level: 3
 
 ### migrate-domain-models
