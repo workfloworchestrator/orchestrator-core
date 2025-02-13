@@ -65,7 +65,6 @@ repos:
         require_serial: true
         verbose: true
         args:
-          - --version
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
         exclude: (test/.*|migrations/.*)
