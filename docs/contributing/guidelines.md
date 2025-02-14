@@ -6,6 +6,20 @@ free to raise an issue in the project. We will strive to reply to your enquiry A
 ## Documentation
 We use [**MKDOCS**](https://www.mkdocs.org) as a documentation tool. Please create a PR if you have any additions or contributions to make. All docs can be written in MD or html. Full guidelines on how to set this up can be found [here](development.md).
 
+## Pre-commit hooks
+We use pre-commit hooks to ensure that the code is formatted correctly and that the tests pass. To install the
+pre-commit hooks, run the following command:
+
+```shell
+pre-commit install
+```
+
+To run the pre-commit hooks manually, run the following command:
+
+```shell
+pre-commit run --all-files
+```
+
 ## Orchestrator release
 The `orchestrator-core` has no release schedule but is actively used and maintained by the workflow orchestrator group.
 Creating a new release is done by the developers of the project and the procedure is as follows.
