@@ -16,7 +16,7 @@ import strawberry
 from pydantic import ConfigDict
 
 from orchestrator.schemas.base import OrchestratorBaseModel
-from orchestrator.types import strEnum
+from pydantic_forms.types import strEnum
 
 
 @strawberry.enum

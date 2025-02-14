@@ -19,7 +19,7 @@ import sqlalchemy as sa
 import structlog
 
 from orchestrator.settings import app_settings
-from orchestrator.types import UUIDstr
+from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)
 

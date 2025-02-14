@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from orchestrator.db import ProductTable, db
-from orchestrator.types import UUIDstr
+from pydantic_forms.types import UUIDstr
 
 
 def get_products(*, filters: list | None = None) -> list[ProductTable]:

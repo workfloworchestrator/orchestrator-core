@@ -26,8 +26,8 @@ import structlog
 from more_itertools import first, first_true
 
 from nwastdlib.url import URL
-from orchestrator.types import State
 from pydantic_forms.types import InputForm as LegacyInputForm
+from pydantic_forms.types import State
 
 
 class JSONSubSchema(TypedDict, total=False):
