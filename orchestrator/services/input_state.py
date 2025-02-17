@@ -43,7 +43,7 @@ def _retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
     raise ValueError(f"No input state for pid: {process_id}")
 
 
-def _store_input_state(process_id: UUID, input_state: dict[str, Any] | list[dict[str, Any]], input_type: str) -> None:
+def store_input_state(process_id: UUID, input_state: dict[str, Any] | list[dict[str, Any]], input_type: Literal["input_state", "user_input"]) -> None:
     """Store user input state.
 
     Args:
