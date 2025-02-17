@@ -52,7 +52,7 @@ dependencies = [
     "pydantic-settings~=2.7.1",
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.18,<1.21",
-    "pytz==2024.1",
+    "pytz==2025.1",
     "redis==5.0.3",
     "schedule==1.1.0",
     "sentry-sdk[fastapi]~=2.18.0",
