@@ -18,7 +18,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
-from deepmerge import Merger
+from deepmerge.merger import Merger
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
