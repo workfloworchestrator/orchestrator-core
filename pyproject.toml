@@ -40,7 +40,7 @@ dependencies = [
     "anyio>=3.7.0",
     "click==8.*",
     "deprecated",
-    "deepmerge==1.1.1",
+    "deepmerge==2.0",
     "fastapi~=0.115.2",
     "fastapi-etag==0.4.0",
     "more-itertools~=10.6.0",
