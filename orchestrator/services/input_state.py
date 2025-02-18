@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -19,7 +19,7 @@ from orchestrator.db import db
 from orchestrator.db.models import InputStateTable
 
 
-def _retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
+def retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
     """Get user input.
 
     Args:
@@ -43,7 +43,11 @@ def _retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
     raise ValueError(f"No input state for pid: {process_id}")
 
 
-def store_input_state(process_id: UUID, input_state: dict[str, Any] | list[dict[str, Any]], input_type: Literal["input_state", "user_input"]) -> None:
+def store_input_state(
+    process_id: UUID,
+    input_state: dict[str, Any] | list[dict[str, Any]],
+    input_type: Literal["initial_state", "user_input"],
+) -> None:
     """Store user input state.
 
     Args:

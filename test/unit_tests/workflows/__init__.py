@@ -10,7 +10,7 @@ from uuid import uuid4
 import structlog
 
 from orchestrator.db import ProcessTable, WorkflowTable, db
-from orchestrator.services.input_state import _store_input_state
+from orchestrator.services.input_state import store_input_state
 from orchestrator.services.processes import StateMerger, _db_create_process
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
@@ -235,7 +235,7 @@ def run_workflow(
     )
 
     _db_create_process(pstat)
-    _store_input_state(process_id, state | initial_state, "initial_state")
+    store_input_state(process_id, state | initial_state, "initial_state")
 
     result = runwf(pstat, _store_step(step_log))
 
@@ -269,7 +269,7 @@ def resume_workflow(
 
     user_input = post_form(remaining_steps[0].form, current_state.unwrap(), user_data)
     state = current_state.map(lambda state: StateMerger.merge(deepcopy(state), user_input))
-    _store_input_state(process.process_id, user_input, "user_input")
+    store_input_state(process.process_id, user_input, "user_input")
 
     updated_process = process.update(log=remaining_steps, state=state)
     result = runwf(updated_process, _store_step(step_log))

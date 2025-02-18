@@ -84,7 +84,7 @@ class UtcTimestamp(TypeDecorator):
 
 
 class InputStateTable(BaseModel):
-    __tablename__ = "input_state"
+    __tablename__ = "input_states"
 
     class InputType(enum.Enum):
         user_input = "user_input"

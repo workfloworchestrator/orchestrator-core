@@ -4,7 +4,7 @@ import pytest
 
 from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.db.models import InputStateTable
-from orchestrator.services.input_state import _retrieve_input_state, _store_input_state
+from orchestrator.services.input_state import retrieve_input_state, store_input_state
 from orchestrator.workflow import ProcessStatus, StepStatus
 
 
@@ -51,13 +51,13 @@ def completed_process(test_workflow, generic_subscription_1):
 
 def test_retrieve_input_state(completed_process):
     process_id, input_state = completed_process
-    retrieved_state = _retrieve_input_state(process_id, "initial_state")
+    retrieved_state = retrieve_input_state(process_id, "initial_state")
     assert retrieved_state == input_state
 
 
 def test_store_input_state(completed_process):
     process_id, input_state = completed_process
-    _store_input_state(process_id, input_state.input_state, "user_input")
+    store_input_state(process_id, input_state.input_state, "user_input")
 
     states = InputStateTable.query.all()
     assert len(states) == 2
