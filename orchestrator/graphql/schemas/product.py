@@ -5,7 +5,7 @@ from strawberry import UNSET
 from strawberry.federation.schema_directives import Key
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.db import ProductTable
+from orchestrator.db import ProductBlockTable, ProductTable
 from orchestrator.domain.base import ProductModel
 from orchestrator.graphql.pagination import Connection
 from orchestrator.graphql.schemas.fixed_input import FixedInput
@@ -50,6 +50,29 @@ class ProductType:
 
         filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
+
+    @strawberry.field(description="Returns list of all nested productblock names")
+    async def all_pb_names(self) -> list[str]:
+
+        model = get_original_model(self, ProductTable)
+        product_blocks: list[ProductBlockTable] = model.product_blocks
+        names: list[str] = [model.name]
+
+        def get_all_pb_names(product_blocks: list[ProductBlockTable]) -> list[str]:
+            result: list[str] = []
+
+            for product_block in product_blocks:
+                result.append(product_block.name)
+
+                if product_block.depends_on:
+                    result.extend(get_all_pb_names(product_block.depends_on))
+
+            return result
+
+        if product_blocks:
+            names.extend(get_all_pb_names(product_blocks))
+
+        return names
 
     @strawberry.field(description="Return product blocks")  # type: ignore
     async def product_blocks(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
