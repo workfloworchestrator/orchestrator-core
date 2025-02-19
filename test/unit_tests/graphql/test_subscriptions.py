@@ -770,6 +770,34 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
         assert higher_than_date <= subscription["startDate"] <= lower_than_date
 
 
+def test_subscriptions_with_exact_filter_by(test_client, product_type_1_subscriptions_factory):
+    # when
+
+    product_type_1_subscriptions_factory(20)
+
+    with patch.object(app_settings, "FILTER_BY_MODE", "exact"):
+        data = get_subscriptions_query(filter_by=[{"field": "description", "value": "Subscription 1"}])
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert len(subscriptions) == 1
+    assert "errors" not in result
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": 1,
+    }
+
+
 def test_subscriptions_range_filtering_on_type(test_client, product_type_1_subscriptions_factory):
     # when
 
