@@ -13,13 +13,18 @@
 from typing import Any, Literal
 from uuid import UUID
 
+import structlog
 from sqlalchemy import select
 
 from orchestrator.db import db
 from orchestrator.db.models import InputStateTable
 
+logger = structlog.get_logger(__name__)
 
-def retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
+InputType = Literal["initial_state", "user_input"]
+
+
+def retrieve_input_state(process_id: UUID, input_type: InputType) -> InputStateTable:
     """Get user input.
 
     Args:
@@ -39,6 +44,7 @@ def retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
     ).first()
 
     if res:
+        logger.debug("Retrieved input state", process_id=process_id, input_state=res, input_type=input_type)
         return res
     raise ValueError(f"No input state for pid: {process_id}")
 
@@ -46,7 +52,7 @@ def retrieve_input_state(process_id: UUID, input_type: str) -> InputStateTable:
 def store_input_state(
     process_id: UUID,
     input_state: dict[str, Any] | list[dict[str, Any]],
-    input_type: Literal["initial_state", "user_input"],
+    input_type: InputType,
 ) -> None:
     """Store user input state.
 
@@ -59,6 +65,7 @@ def store_input_state(
         None
 
     """
+    logger.debug("Store input state", process_id=process_id, input_state=input_state, input_type=input_type)
     db.session.add(
         InputStateTable(
             process_id=process_id,
