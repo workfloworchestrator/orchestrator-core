@@ -51,7 +51,7 @@ class ProductType:
         filter_by_with_related_subscriptions = (filter_by or []) + [GraphqlFilter(field="product", value=self.name)]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
-    @strawberry.field(description="Returns list of all nested productblock names")
+    @strawberry.field(description="Returns list of all nested productblock names")  # type: ignore
     async def all_pb_names(self) -> list[str]:
 
         model = get_original_model(self, ProductTable)
