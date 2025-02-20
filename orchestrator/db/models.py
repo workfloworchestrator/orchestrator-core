@@ -400,7 +400,7 @@ class WorkflowTable(BaseModel):
     workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
     target = mapped_column(String(), nullable=False)
-    description = mapped_column(Text(), nullable=True)
+    description = mapped_column(Text(), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     deleted_at = mapped_column(UtcTimestamp, deferred=True)
 
