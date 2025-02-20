@@ -19,7 +19,9 @@ def task():
 
     generic_step = ProcessStepTable(name="generic-step", status="success", state=state)
 
-    wf_old = WorkflowTable(workflow_id=uuid4(), name="nice and old task", description="nice and old task", target=Target.SYSTEM)
+    wf_old = WorkflowTable(
+        workflow_id=uuid4(), name="nice and old task", description="nice and old task", target=Target.SYSTEM
+    )
     task_old = ProcessTable(
         workflow_id=wf_old.workflow_id,
         last_status=ProcessStatus.COMPLETED,
@@ -29,7 +31,9 @@ def task():
         steps=[generic_step],
         is_task=True,
     )
-    wf_new = WorkflowTable(workflow_id=uuid4(), name="nice and new task", description="nice and new task", target=Target.SYSTEM)
+    wf_new = WorkflowTable(
+        workflow_id=uuid4(), name="nice and new task", description="nice and new task", target=Target.SYSTEM
+    )
 
     task_new = ProcessTable(
         workflow_id=wf_new.workflow_id,
