@@ -613,7 +613,7 @@ def test_set_in_sync(seed, test_client):
 
 
 def _create_failed_process(subscription_id):
-    wf = WorkflowTable(workflow_id=uuid4(), name="validate_ip_prefix", description="validate_ip_prefix" target=Target.SYSTEM)
+    wf = WorkflowTable(workflow_id=uuid4(), name="validate_ip_prefix", description="validate_ip_prefix", target=Target.SYSTEM)
     process_id = uuid4()
     process = ProcessTable(
         process_id=process_id,
