@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Iterable
 
 import strawberry
 from strawberry import UNSET
@@ -55,22 +55,17 @@ class ProductType:
     async def all_pb_names(self) -> list[str]:
 
         model = get_original_model(self, ProductTable)
-        product_blocks: list[ProductBlockTable] = model.product_blocks
         names: list[str] = [model.name]
 
-        def get_all_pb_names(product_blocks: list[ProductBlockTable]) -> list[str]:
-            result: list[str] = []
-
+        def get_all_pb_names(product_blocks: list[ProductBlockTable]) -> Iterable[str]:
             for product_block in product_blocks:
-                result.append(product_block.name)
+                yield product_block.name
 
                 if product_block.depends_on:
-                    result.extend(get_all_pb_names(product_block.depends_on))
+                    yield from get_all_pb_names(product_block.depends_on)
 
-            return result
-
-        if product_blocks:
-            names.extend(get_all_pb_names(product_blocks))
+        names.extend(get_all_pb_names(model.product_blocks))
+        names.sort()
 
         return names
 
