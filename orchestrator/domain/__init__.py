@@ -11,11 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from orchestrator.domain.base import SubscriptionModel
+from orchestrator.domain.base import SubscriptionModel, SubscriptionModelRegistry
 from orchestrator.utils.docs import make_product_type_index_doc
 
-SUBSCRIPTION_MODEL_REGISTRY: dict[str, type[SubscriptionModel]] = {}
+SUBSCRIPTION_MODEL_REGISTRY: SubscriptionModelRegistry = SubscriptionModelRegistry()
 
 __doc__ = make_product_type_index_doc(SUBSCRIPTION_MODEL_REGISTRY)
 

@@ -596,7 +596,9 @@ class ProductBlockModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(
+            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
+        )  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1051,7 +1053,9 @@ class SubscriptionModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(
+            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
+        )  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1400,6 +1404,44 @@ class SubscriptionModel(DomainModel):
     @property
     def db_model(self) -> SubscriptionTable:
         return self._db_model
+
+
+class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
+    """A registry for all subscription models."""
+
+    def __setitem__(self, __key: str, __value: type[SubscriptionModel]) -> None:
+        """Set the value for the key in the registry while disallowing Pydantic's BaseModel or any class that inherits directly from Pydantic's BaseModel.
+
+        Args:
+            __key: The key to set the value for.
+            __value: The value to set for the key.
+
+        Returns:
+            None
+        """
+
+        def validate_product_block_types(m: type[ProductBlockModel]) -> bool:
+            """Test that a Product Block type's descendant Product Blocks are not rejected types.
+
+            Args:
+                m (ProductBlockModel): The Product Block to check.
+
+            Returns:
+                bool: True if the Product Block's descendant Product Blocks are not typed to Pydantic's BaseModel or any class that inherits directly from Pydantic's BaseModel.
+            """
+            for value in m._product_block_fields_.values():
+                return validate_product_block_types(value)
+            return issubclass(m, ProductBlockModel)
+
+        for field_type in __value._product_block_fields_.values():
+            validate_product_block_types(field_type)
+        for field_name, field_type in __value._non_product_block_fields_.items():
+            if field_type.__mro__[:2] is BaseModel:
+                raise TypeError(
+                    f"SubscriptionModel field {field_name} should not have type {BaseModel} or inherit directly from {BaseModel}. "
+                    f"If this field was intended to be a Product Block, inherit from {ProductBlockModel} instead."
+                )
+        super().__setitem__(__key, __value)
 
 
 def _validate_lifecycle_change_for_product_block(
