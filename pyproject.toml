@@ -55,7 +55,7 @@ dependencies = [
     "pytz==2025.1",
     "redis==5.0.3",
     "schedule==1.1.0",
-    "sentry-sdk[fastapi]~=2.18.0",
+    "sentry-sdk[fastapi]~=2.22.0",
     "SQLAlchemy==2.0.38",
     "SQLAlchemy-Utils==0.41.2",
     "structlog",
