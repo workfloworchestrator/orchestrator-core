@@ -91,6 +91,7 @@ test = [
     "pyinstrument",
     "pytest==8.3.4",
     "pytest-asyncio==0.21.2",
+    "pytest-codspeed",
     "pytest-cov",
     "pytest-httpx",
     "pytest-xdist",
