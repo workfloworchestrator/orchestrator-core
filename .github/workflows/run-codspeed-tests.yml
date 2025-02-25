@@ -10,7 +10,9 @@ jobs:
   codspeed:
     name: Run benchmarks
     runs-on: ubuntu-latest
-    container: python:3.11-slim
+    container:
+      image: python:3.11
+      options: --privileged
     services:
       postgres:
         image: postgres:15-alpine
@@ -48,6 +50,14 @@ jobs:
           echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
         env:
           FLIT_ROOT_INSTALL: 1
+
+      # Prevent error "repository path is not owned by the current user"
+      - name: Fix git owner
+        run: git config --global --add safe.directory "*"
+
+      # Speculatively add the cargo binary directory to the PATH because codspeed's installer script somehow doesn't
+      - name: Add $HOME/.cargo/bin to PATH
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - uses: CodSpeedHQ/action@v3
         with:
