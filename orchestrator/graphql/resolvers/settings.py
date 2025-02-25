@@ -21,6 +21,7 @@ from orchestrator.services.processes import SYSTEM_USER, ThreadPoolWorkerStatus,
 from orchestrator.services.settings import get_engine_settings, get_engine_settings_for_update, post_update_to_slack
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.redis import delete_keys_matching_pattern
+from orchestrator.utils.redis_client import create_redis_asyncio_client
 
 logger = structlog.get_logger(__name__)
 
@@ -57,7 +58,7 @@ def resolve_settings(info: OrchestratorInfo) -> StatusType:
 
 # Mutations
 async def clear_cache(info: OrchestratorInfo, name: str) -> CacheClearSuccess | Error:
-    cache: AIORedis = AIORedis.from_url(str(app_settings.CACHE_URI))
+    cache: AIORedis = create_redis_asyncio_client(app_settings.CACHE_URI)
     if name not in CACHE_FLUSH_OPTIONS:
         return Error(message="Invalid cache name")
 
