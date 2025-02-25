@@ -55,7 +55,6 @@ class ProductType:
     async def all_pb_names(self) -> list[str]:
 
         model = get_original_model(self, ProductTable)
-        names: list[str] = [model.name]
 
         def get_all_pb_names(product_blocks: list[ProductBlockTable]) -> Iterable[str]:
             for product_block in product_blocks:
@@ -64,7 +63,7 @@ class ProductType:
                 if product_block.depends_on:
                     yield from get_all_pb_names(product_block.depends_on)
 
-        names.extend(get_all_pb_names(model.product_blocks))
+        names: list[str] = list(get_all_pb_names(model.product_blocks))
         names.sort()
 
         return names

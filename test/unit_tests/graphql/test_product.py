@@ -237,7 +237,7 @@ def test_all_product_block_names(test_client, generic_product_4):
     products = products_data["page"]
     names = products[0]["allPbNames"]
 
-    assert len(names) == 3
+    assert len(names) == 2
 
 
 def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
