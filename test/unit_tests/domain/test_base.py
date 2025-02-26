@@ -29,9 +29,6 @@ from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested 
     ProductBlockListNestedForTestInactive,
 )
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
-from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (
-    ProductBlockOneNestedForTestInactive,
-)
 
 
 def get_one_relation(depends_on_id):
@@ -58,7 +55,9 @@ def test_product_block_metadata(test_product_block_one, test_product_one, test_p
     assert ProductBlockOneForTestInactive.tag == "TEST"
 
 
-def test_product_block_one_nested(test_product_model_nested, test_product_type_one_nested):
+def test_product_block_one_nested(
+    test_product_model_nested, test_product_type_one_nested, test_product_block_one_nested
+):
     """Test the behavior of nesting (self-referencing) product blocks.
 
     Notes:
@@ -66,6 +65,7 @@ def test_product_block_one_nested(test_product_model_nested, test_product_type_o
 
     """
     ProductTypeOneNestedForTestInactive, _, ProductTypeOneNestedForTest = test_product_type_one_nested
+    ProductBlockOneNestedForTestInactive, _, _ = test_product_block_one_nested
     customer_id = str(uuid4())
 
     def create_subscription(*, int_value, sub_block=None):

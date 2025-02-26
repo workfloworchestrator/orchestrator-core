@@ -9,12 +9,11 @@ from test.unit_tests.fixtures.products.product_blocks.product_block_one import D
 
 
 @pytest.fixture
-def create_vertical_subscription(test_product_model_nested, test_product_type_one_nested):
-    from test.unit_tests.fixtures.products.product_blocks.product_block_one_nested import (
-        ProductBlockOneNestedForTestInactive,
-    )
-
-    ProductTypeOneNestedForTestInactive, _, ProductTypeOneNestedForTest = test_product_type_one_nested
+def create_vertical_subscription(
+    test_product_model_nested, test_product_type_one_nested, test_product_block_one_nested
+):
+    ProductTypeOneNestedForTestInactive, _, _ = test_product_type_one_nested
+    ProductBlockOneNestedForTestInactive, _, _ = test_product_block_one_nested
 
     customer_id = str(uuid4())
 
