@@ -1,0 +1,71 @@
+name: CodSpeed
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  codspeed:
+    name: Run benchmarks
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11
+      options: --privileged
+    services:
+      postgres:
+        image: postgres:15-alpine
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        # Docker Hub image
+        image: redis
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          apt update
+          apt install curl git build-essential libpq-dev libffi-dev -y
+          python -m pip install --upgrade pip
+          pip install flit
+          flit install --deps develop --symlink
+          echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
+        env:
+          FLIT_ROOT_INSTALL: 1
+
+      # Prevent error "repository path is not owned by the current user"
+      - name: Fix git owner
+        run: git config --global --add safe.directory "*"
+
+      # Speculatively add the cargo binary directory to the PATH because codspeed's installer script somehow doesn't
+      - name: Add $HOME/.cargo/bin to PATH
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - uses: CodSpeedHQ/action@v3
+        with:
+          run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB pytest test/unit_tests --codspeed
+          token: ${{ secrets.CODSPEED_TOKEN }}
+        env:
+          POSTGRES_DB: orchestrator-core-test
+          POSTGRES_USER: nwa
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING

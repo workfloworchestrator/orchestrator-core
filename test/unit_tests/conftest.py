@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import os
 import typing
@@ -665,3 +666,39 @@ def do_refresh_subscriptions_search_view():
 @pytest.fixture
 def refresh_subscriptions_search_view():
     do_refresh_subscriptions_search_view()
+
+
+@pytest.fixture
+def monitor_sqlalchemy():
+    """Can be used to inspect the number of sqlalchemy queries made by part of the code.
+
+    Usage: include as fixture, wrap code to measure in context manager, run pytest with option `-s` for stdout
+
+    Example:
+        def mytest(monitor_sqlalchemy):
+            # given
+            ... some setup
+
+            # when
+            with monitor_sqlalchemy():
+                ... something that does db queries
+    """
+    from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
+
+    monitor_sqlalchemy_queries()
+
+    @contextlib.contextmanager
+    def context():
+        before = db.session.connection().info.copy()
+
+        yield
+
+        after = db.session.connection().info.copy()
+
+        estimated_queries = after["queries_completed"] - before.get("queries_completed", 0)
+        estimated_query_time = after["query_time_spent"] - before.get("query_time_spent", 0.0)
+        print(f"{estimated_queries:3d} sqlalchemy queries in {estimated_query_time:.2f}s")
+
+    yield context
+
+    disable_listeners()
