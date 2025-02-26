@@ -55,9 +55,7 @@ from orchestrator.domain.lifecycle import (
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
     SAFE_USED_BY_TRANSITIONS_FOR_STATUS,
-    State,
     SubscriptionLifecycle,
-    UUIDstr,
     filter_nonetype,
     get_origin_and_args,
     get_possible_product_block_types,
@@ -69,6 +67,7 @@ from orchestrator.types import (
 )
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
+from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
 

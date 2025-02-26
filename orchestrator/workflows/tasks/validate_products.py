@@ -27,10 +27,10 @@ from orchestrator.services.products import get_products
 from orchestrator.services.translations import generate_translations
 from orchestrator.services.workflows import get_workflow_by_name, get_workflows
 from orchestrator.targets import Target
-from orchestrator.types import State
 from orchestrator.utils.errors import ProcessFailureError
 from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflow import StepList, done, init, step, workflow
+from pydantic_forms.types import State
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
 

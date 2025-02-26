@@ -13,7 +13,7 @@
 
 import strawberry
 
-from orchestrator.types import strEnum
+from pydantic_forms.types import strEnum
 
 
 @strawberry.enum

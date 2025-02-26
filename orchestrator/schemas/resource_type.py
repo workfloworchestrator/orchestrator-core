@@ -27,3 +27,7 @@ class ResourceTypeBaseSchema(OrchestratorBaseModel):
 class ResourceTypeSchema(ResourceTypeBaseSchema):
     resource_type_id: UUID
     model_config = ConfigDict(from_attributes=True)
+
+
+class ResourceTypePatchSchema(OrchestratorBaseModel):
+    description: str | None = None

@@ -800,11 +800,14 @@ def test_run_process_async_exception(mock_db_log_process_ex):
     app_settings.TESTING = True
 
 
+@mock.patch("orchestrator.services.processes.store_input_state")
 @mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.process_id))
 @mock.patch("orchestrator.services.processes._db_create_process")
 @mock.patch("orchestrator.services.processes.post_form")
 @mock.patch("orchestrator.services.processes.get_workflow")
-def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process, mock_run_process_async):
+def test_start_process(
+    mock_get_workflow, mock_post_form, mock_db_create_process, mock_run_process_async, mock_store_input_state
+):
     @step("test step")
     def test_step():
         pass
@@ -817,6 +820,14 @@ def test_start_process(mock_get_workflow, mock_post_form, mock_db_create_process
 
     result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
+    initial_state = {
+        "a": 1,
+        "process_id": mock.ANY,
+        "reporter": mock.sentinel.user,
+        "workflow_name": mock.sentinel.wf_name,
+        "workflow_target": Target.SYSTEM,
+    }
+    mock_store_input_state.assert_called_once_with(mock.ANY, initial_state, "initial_state")
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.process_id
     assert pstat.current_user == mock.sentinel.user

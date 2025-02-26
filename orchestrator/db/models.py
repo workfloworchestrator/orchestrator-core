@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import enum
 from datetime import datetime, timezone
 
 import sqlalchemy
@@ -23,6 +24,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -81,6 +83,20 @@ class UtcTimestamp(TypeDecorator):
         return value.astimezone(timezone.utc) if value else value
 
 
+class InputStateTable(BaseModel):
+    __tablename__ = "input_states"
+
+    class InputType(enum.Enum):
+        user_input = "user_input"
+        initial_state = "initial_state"
+
+    input_state_id = mapped_column(UUIDType, primary_key=True, server_default=text("uuid_generate_v4()"), index=True)
+    process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid"), nullable=False)
+    input_state = mapped_column(pg.JSONB(), nullable=False)  # type: ignore
+    input_time = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+    input_type = mapped_column(Enum(InputType), nullable=False)
+
+
 class ProcessTable(BaseModel):
     __tablename__ = "processes"
 
@@ -101,6 +117,7 @@ class ProcessTable(BaseModel):
     steps = relationship(
         "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
     )
+    input_states = relationship("InputStateTable", cascade="delete", order_by="desc(InputStateTable.input_time)")
     process_subscriptions = relationship("ProcessSubscriptionTable", back_populates="process", passive_deletes=True)
     workflow = relationship("WorkflowTable", back_populates="processes")
 

@@ -2,10 +2,11 @@ import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
+from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from products.product_blocks.example2 import ExampleIntEnum2
 from products.product_types.example2 import Example2, Example2Provisioning

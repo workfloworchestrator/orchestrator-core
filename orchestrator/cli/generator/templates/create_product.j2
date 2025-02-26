@@ -7,11 +7,12 @@ from typing import Annotated
 
 import structlog
 from pydantic import AfterValidator, ConfigDict, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Divider, Label, CustomerId, MigrationSummary
 from orchestrator.targets import Target
-from orchestrator.types import FormGenerator, State, SubscriptionLifecycle, UUIDstr
+from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow

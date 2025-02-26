@@ -189,7 +189,9 @@ nav:
                 # - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
                 - Callbacks: reference-docs/workflows/callbacks.md
           - Websockets: reference-docs/websockets.md
-          - Migration guide: migration-guide/2.0.md
+          - Migration guides:
+                - 2.0: migration-guide/2.0.md
+                - 3.0: migration-guide/3.0.md
 
     - Workshops:
           #    - Beginner:

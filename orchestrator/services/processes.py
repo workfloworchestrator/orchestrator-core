@@ -18,7 +18,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
-from deepmerge import Merger
+from deepmerge.merger import Merger
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
@@ -30,11 +30,12 @@ from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
+from orchestrator.services.input_state import store_input_state
 from orchestrator.services.settings import get_engine_settings_for_update
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.targets import Target
-from orchestrator.types import BroadcastFunc, State
+from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.websocket import broadcast_invalidate_status_counts
@@ -55,6 +56,7 @@ from orchestrator.workflows import get_workflow
 from orchestrator.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core import post_form
 from pydantic_forms.exceptions import FormValidationError
+from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
 
@@ -449,7 +451,7 @@ def create_process(
     )
 
     _db_create_process(pstat)
-
+    store_input_state(process_id, state | initial_state, "initial_state")
     return pstat
 
 
@@ -523,7 +525,7 @@ def thread_resume_process(
 
     if user_input:
         pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, user_input)))
-
+    store_input_state(pstat.process_id, user_input, "user_input")
     # enforce an update to the process status to properly show the process
     process.last_status = ProcessStatus.RUNNING
     db.session.add(process)
@@ -538,8 +540,8 @@ def thread_validate_workflow(validation_workflow: str, json: list[State] | None)
 
 
 THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": lambda *args, **kwargs: thread_start_process(*args, **kwargs),
-    "resume": lambda *args, **kwargs: thread_resume_process(*args, **kwargs),
+    "start": thread_start_process,
+    "resume": thread_resume_process,
     "validate": thread_validate_workflow,
 }
 

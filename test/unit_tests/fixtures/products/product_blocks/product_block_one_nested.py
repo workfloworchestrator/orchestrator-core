@@ -5,8 +5,10 @@ import pytest
 from orchestrator.db import ProductBlockTable, db
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
+from test.unit_tests.helpers import safe_delete_product_block_id
 
 
+# Note: don't use these classes directly. Use the `test_product_block_one_nested` fixture to ensure proper teardown.
 class ProductBlockOneNestedForTestInactive(ProductBlockModel, product_block_name="ProductBlockOneNestedForTest"):
     sub_block: Optional["ProductBlockOneNestedForTestInactive"] = None
     int_field: int | None = None
@@ -28,7 +30,16 @@ class ProductBlockOneNestedForTest(ProductBlockOneNestedForTestProvisioning, lif
 def test_product_block_one_nested():
     # Classes defined at module level, otherwise they remain in local namespace and
     # `get_type_hints()` can't evaluate the ForwardRefs
-    return ProductBlockOneNestedForTestInactive, ProductBlockOneNestedForTestProvisioning, ProductBlockOneNestedForTest
+    blocks = (
+        ProductBlockOneNestedForTestInactive,
+        ProductBlockOneNestedForTestProvisioning,
+        ProductBlockOneNestedForTest,
+    )
+
+    yield blocks
+
+    for block in blocks:
+        safe_delete_product_block_id(block)
 
 
 @pytest.fixture
