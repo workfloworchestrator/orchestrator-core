@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import os
 import typing
@@ -10,7 +11,6 @@ import structlog
 from alembic import command
 from alembic.config import Config
 from pydantic import BaseModel as PydanticBaseModel
-from redis import Redis
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
@@ -35,6 +35,7 @@ from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
+from orchestrator.utils.redis_client import create_redis_client
 from pydantic_forms.core import FormPage
 from test.unit_tests.fixtures.processes import mocked_processes, mocked_processes_resumeall, test_workflow  # noqa: F401
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (  # noqa: F401
@@ -718,7 +719,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(str(app_settings.CACHE_URI))
+        cache = create_redis_client(app_settings.CACHE_URI)
         # Clear cache before using this fixture
         cache.flushdb()
 
@@ -740,3 +741,39 @@ def do_refresh_subscriptions_search_view():
 @pytest.fixture
 def refresh_subscriptions_search_view():
     do_refresh_subscriptions_search_view()
+
+
+@pytest.fixture
+def monitor_sqlalchemy():
+    """Can be used to inspect the number of sqlalchemy queries made by part of the code.
+
+    Usage: include as fixture, wrap code to measure in context manager, run pytest with option `-s` for stdout
+
+    Example:
+        def mytest(monitor_sqlalchemy):
+            # given
+            ... some setup
+
+            # when
+            with monitor_sqlalchemy():
+                ... something that does db queries
+    """
+    from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
+
+    monitor_sqlalchemy_queries()
+
+    @contextlib.contextmanager
+    def context():
+        before = db.session.connection().info.copy()
+
+        yield
+
+        after = db.session.connection().info.copy()
+
+        estimated_queries = after["queries_completed"] - before.get("queries_completed", 0)
+        estimated_query_time = after["query_time_spent"] - before.get("query_time_spent", 0.0)
+        print(f"{estimated_queries:3d} sqlalchemy queries in {estimated_query_time:.2f}s")
+
+    yield context
+
+    disable_listeners()
