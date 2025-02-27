@@ -78,6 +78,36 @@ query ProductQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $sor
     ).encode("utf-8")
 
 
+def get_all_product_names_query(
+    filter_by: list[str] | None = None,
+) -> bytes:
+    query = """
+query ProductQuery($filterBy: [GraphqlFilter!]) {
+  products(filterBy: $filterBy) {
+    page {
+      allPbNames
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      totalItems
+    }
+  }
+}
+    """
+    return json.dumps(
+        {
+            "operationName": "ProductQuery",
+            "query": query,
+            "variables": {
+                "filterBy": filter_by if filter_by else [],
+            },
+        }
+    ).encode("utf-8")
+
+
 def get_products_with_related_subscriptions_query(
     first: int = 10,
     after: int = 0,
@@ -194,6 +224,20 @@ def test_product_query(
         "endCursor": num_results - 1,
         "totalItems": total,
     }
+
+
+def test_all_product_block_names(test_client, generic_product_4):
+    filter_by = {"filter_by": {"field": "name", "value": "Product 4"}}
+    data = get_all_product_names_query(**filter_by)
+    response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    products_data = result["data"]["products"]
+    products = products_data["page"]
+    names = products[0]["allPbNames"]
+
+    assert len(names) == 2
 
 
 def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
