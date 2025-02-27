@@ -2,10 +2,9 @@ import json
 from hashlib import md5
 from http import HTTPStatus
 
-from redis import Redis
-
 from orchestrator import app_settings
 from orchestrator.utils.redis import ONE_WEEK
+from orchestrator.utils.redis_client import create_redis_client
 from test.unit_tests.config import GRAPHQL_ENDPOINT, GRAPHQL_HEADERS
 
 
@@ -106,7 +105,7 @@ def test_clear_cache_mutation_fails_auth(test_client, monkeypatch):
 
 
 def test_success_clear_cache(test_client, cache_fixture):
-    cache = Redis.from_url(str(app_settings.CACHE_URI))
+    cache = create_redis_client(app_settings.CACHE_URI)
     key = "some_model_uuid"
     test_data = {key: {"data": [1, 2, 3]}}
 

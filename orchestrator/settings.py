@@ -16,7 +16,7 @@ import string
 from pathlib import Path
 from typing import Literal
 
-from pydantic import PostgresDsn, RedisDsn
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
@@ -57,6 +57,9 @@ class AppSettings(BaseSettings):
     CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_DOMAIN_MODELS: bool = False
     CACHE_HMAC_SECRET: str | None = None  # HMAC signing key, used when pickling results in the cache
+    REDIS_RETRY_COUNT: NonNegativeInt = Field(
+        2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
+    )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
