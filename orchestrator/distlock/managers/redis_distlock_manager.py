@@ -20,6 +20,7 @@ from redis.lock import Lock as SyncLock
 from structlog import get_logger
 
 from orchestrator.settings import app_settings
+from orchestrator.utils.redis_client import create_redis_asyncio_client, create_redis_client
 
 logger = get_logger(__name__)
 
@@ -37,7 +38,7 @@ class RedisDistLockManager:
         self.redis_address = redis_address
 
     async def connect_redis(self) -> None:
-        self.redis_conn = AIORedis.from_url(str(self.redis_address))
+        self.redis_conn = create_redis_asyncio_client(self.redis_address)
 
     async def disconnect_redis(self) -> None:
         if self.redis_conn:
@@ -78,7 +79,7 @@ class RedisDistLockManager:
     def release_sync(self, lock: Lock) -> None:
         redis_conn: Redis | None = None
         try:
-            redis_conn = Redis.from_url(str(app_settings.CACHE_URI))
+            redis_conn = create_redis_client(app_settings.CACHE_URI)
             sync_lock: SyncLock = SyncLock(
                 redis=redis_conn,
                 name=lock.name,  # type: ignore

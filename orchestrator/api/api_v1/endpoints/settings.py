@@ -28,6 +28,7 @@ from orchestrator.services import processes, settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
+from orchestrator.utils.redis_client import create_redis_asyncio_client
 from orchestrator.websocket import WS_CHANNELS, broadcast_invalidate_cache, websocket_manager
 
 router = APIRouter()
@@ -41,7 +42,7 @@ CACHE_FLUSH_OPTIONS: dict[str, str] = {
 
 @router.delete("/cache/{name}")
 async def clear_cache(name: str) -> int | None:
-    cache: AIORedis = AIORedis.from_url(str(app_settings.CACHE_URI))
+    cache: AIORedis = create_redis_asyncio_client(app_settings.CACHE_URI)
     if name not in CACHE_FLUSH_OPTIONS:
         raise_status(HTTPStatus.BAD_REQUEST, "Invalid cache name")
 

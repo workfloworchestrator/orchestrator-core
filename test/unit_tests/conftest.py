@@ -11,7 +11,6 @@ import structlog
 from alembic import command
 from alembic.config import Config
 from pydantic import BaseModel as PydanticBaseModel
-from redis import Redis
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
@@ -36,6 +35,7 @@ from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
+from orchestrator.utils.redis_client import create_redis_client
 from pydantic_forms.core import FormPage
 from test.unit_tests.fixtures.processes import mocked_processes, mocked_processes_resumeall, test_workflow  # noqa: F401
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (  # noqa: F401
@@ -431,6 +431,65 @@ def generic_product_block_3(generic_resource_type_2):
 
 
 @pytest.fixture
+def generic_referencing_product_block_1(generic_resource_type_1, generic_root_product_block_1):
+    pb = ProductBlockTable(
+        name="PB_1",
+        description="Generic Referencing Product Block 1",
+        tag="PB1",
+        status="active",
+        resource_types=[generic_resource_type_1],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+        depends_on_block_relations=[generic_root_product_block_1],
+        in_use_by_block_relations=[],
+    )
+    db.session.add(pb)
+    db.session.commit()
+    return pb
+
+
+@pytest.fixture
+def generic_root_product_block_1(generic_resource_type_3):
+    pb = ProductBlockTable(
+        name="PB_Root_1",
+        description="Generic Root Product Block 1",
+        tag="PBR1",
+        status="active",
+        resource_types=[generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+        in_use_by_block_relations=[],
+        depends_on_block_relations=[],
+    )
+    db.session.add(pb)
+    db.session.commit()
+    return pb
+
+
+@pytest.fixture
+def generic_product_block_chain(generic_resource_type_3):
+
+    pb_2 = ProductBlockTable(
+        name="PB_Chained_2",
+        description="Generic Product Block 2",
+        tag="PB2",
+        status="active",
+        resource_types=[generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+    )
+    pb_1 = ProductBlockTable(
+        name="PB_Chained_1",
+        description="Generic Product Block 1",
+        tag="PB1",
+        status="active",
+        resource_types=[generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+        depends_on=[pb_2],
+    )
+    db.session.add_all([pb_1, pb_2])
+    db.session.commit()
+    return pb_1, pb_2
+
+
+@pytest.fixture
 def generic_product_1(generic_product_block_1, generic_product_block_2):
     workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
     p = ProductTable(
@@ -474,6 +533,22 @@ def generic_product_3(generic_product_block_2):
         status="active",
         tag="GEN3",
         product_blocks=[generic_product_block_2],
+    )
+    db.session.add(p)
+    db.session.commit()
+    return p
+
+
+@pytest.fixture
+def generic_product_4(generic_product_block_chain):
+    pb_1, pb_2 = generic_product_block_chain
+    p = ProductTable(
+        name="Product 4",
+        description="Generic Product Four",
+        product_type="Generic",
+        status="active",
+        tag="GEN3",
+        product_blocks=[pb_1],
     )
     db.session.add(p)
     db.session.commit()
@@ -644,7 +719,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(str(app_settings.CACHE_URI))
+        cache = create_redis_client(app_settings.CACHE_URI)
         # Clear cache before using this fixture
         cache.flushdb()
 

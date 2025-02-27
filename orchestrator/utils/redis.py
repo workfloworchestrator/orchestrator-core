@@ -17,22 +17,22 @@ from os import getenv
 from typing import Any, Callable
 from uuid import UUID
 
-import redis.exceptions
 from anyio import CancelScope, get_cancelled_exc_class
-from redis import Redis
 from redis.asyncio import Redis as AIORedis
 from redis.asyncio.client import Pipeline, PubSub
-from redis.asyncio.retry import Retry
-from redis.backoff import EqualJitterBackoff
 from structlog import get_logger
 
 from orchestrator.services.subscriptions import _generate_etag
 from orchestrator.settings import app_settings
 from orchestrator.utils.json import PY_JSON_TYPES, json_dumps, json_loads
+from orchestrator.utils.redis_client import (
+    create_redis_asyncio_client,
+    create_redis_client,
+)
 
 logger = get_logger(__name__)
 
-cache = Redis.from_url(str(app_settings.CACHE_URI))
+cache = create_redis_client(app_settings.CACHE_URI)
 
 ONE_WEEK = 3600 * 24 * 7
 
@@ -136,12 +136,7 @@ class RedisBroadcast:
     client: AIORedis
 
     def __init__(self, redis_url: str):
-        self.client = AIORedis.from_url(
-            redis_url,
-            retry_on_error=[redis.exceptions.ConnectionError],
-            retry_on_timeout=True,
-            retry=Retry(EqualJitterBackoff(base=0.05), 2),
-        )
+        self.client = create_redis_asyncio_client(redis_url)
         self.redis_url = redis_url
 
     @asynccontextmanager
