@@ -1,0 +1,77 @@
+from uuid import UUID
+
+from sqlalchemy import distinct, literal, select
+
+from orchestrator.db import (
+    SubscriptionInstanceRelationTable,
+    SubscriptionInstanceTable,
+    db,
+)
+from pydantic_forms.types import UUIDstr
+
+
+def get_all_subscription_instance_ids(subscription_id: UUID) -> list[UUID]:
+    # TODO remove, just a proof of concept for the recursive cte
+    instance_ids_cte = (
+        select(
+            literal(UUID("00000000-0000-0000-0000-000000000000")).label("in_use_by_id"),
+            SubscriptionInstanceTable.subscription_instance_id.label("depends_on_id"),
+        )
+        .where(SubscriptionInstanceTable.subscription_id == subscription_id)
+        .cte(recursive=True)
+    )
+
+    cte_alias = instance_ids_cte.alias()
+    rel_alias = select(SubscriptionInstanceRelationTable).alias()
+
+    instance_ids = instance_ids_cte.union_all(
+        select(rel_alias.c.in_use_by_id, rel_alias.c.depends_on_id).where(
+            rel_alias.c.in_use_by_id == cte_alias.c.depends_on_id
+        )
+    )
+
+    statement = select(distinct(instance_ids.c.depends_on_id))
+
+    return db.session.scalars(statement).all()  # type: ignore
+
+
+def load_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
+    from orchestrator.db.path_loaders import get_query_loaders_for_query_paths
+
+    instance_ids_cte = (
+        select(
+            literal(UUID("00000000-0000-0000-0000-000000000000")).label("in_use_by_id"),
+            SubscriptionInstanceTable.subscription_instance_id.label("depends_on_id"),
+        )
+        .where(SubscriptionInstanceTable.subscription_id == subscription_id)
+        .cte(name="recursive_instance_ids", recursive=True)
+    )
+
+    cte_alias = instance_ids_cte.alias()
+    rel_alias = select(SubscriptionInstanceRelationTable).alias()
+
+    instance_ids = instance_ids_cte.union_all(
+        select(rel_alias.c.in_use_by_id, rel_alias.c.depends_on_id).where(
+            rel_alias.c.in_use_by_id == cte_alias.c.depends_on_id
+        )
+    )
+
+    select_all_instance_ids = select(distinct(instance_ids.c.depends_on_id)).subquery()
+
+    query_paths = [
+        "subscription.product",
+        "product_block.name",
+        "product_block.resource_types",
+        "values.resource_type",
+        "depends_on",
+        "in_use_by",
+    ]
+
+    query_loaders = get_query_loaders_for_query_paths(query_paths, SubscriptionInstanceTable)
+    stmt = (
+        select(SubscriptionInstanceTable)
+        .where(SubscriptionInstanceTable.subscription_instance_id.in_(select(select_all_instance_ids)))
+        .options(*query_loaders)
+    )
+
+    db.session.execute(stmt).all()
