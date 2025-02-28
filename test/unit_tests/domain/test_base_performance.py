@@ -79,7 +79,9 @@ def subscription_with_100_horizontal_blocks(create_horizontal_subscription):
 
 
 @pytest.mark.benchmark
-def test_subscription_model_horizontal_references(subscription_with_100_horizontal_blocks, test_product_type_one):
+def test_subscription_model_horizontal_references(
+    subscription_with_100_horizontal_blocks, test_product_type_one, monitor_sqlalchemy
+):
     # Note: fixtures only execute once per benchmark and are excluded from the measurement
 
     # given
@@ -90,8 +92,8 @@ def test_subscription_model_horizontal_references(subscription_with_100_horizont
 
     # when
 
-    # Include the `monitor_sqlalchemy` fixture and use it as a context manager to see the number of real queries
-    subscription = ProductTypeOneForTest.from_subscription(subscription_id)
+    with monitor_sqlalchemy():  # Context does nothing unless you set CLI_OPT_MONITOR_SQLALCHEMY
+        subscription = ProductTypeOneForTest.from_subscription(subscription_id)
 
     # then
     assert len(subscription.block.sub_block_list) == 100
@@ -103,7 +105,9 @@ def subscription_with_10_vertical_blocks(create_vertical_subscription):
 
 
 @pytest.mark.benchmark
-def test_subscription_model_vertical_references(subscription_with_10_vertical_blocks, test_product_type_one_nested):
+def test_subscription_model_vertical_references(
+    subscription_with_10_vertical_blocks, test_product_type_one_nested, monitor_sqlalchemy
+):
     # Note: fixtures only execute once per benchmark and are excluded from the measurement
 
     # given
@@ -114,8 +118,8 @@ def test_subscription_model_vertical_references(subscription_with_10_vertical_bl
 
     # when
 
-    # Include the `monitor_sqlalchemy` fixture and use it as a context manager to see the number of real queries
-    subscription = ProductTypeOneNestedForTest.from_subscription(subscription_id)
+    with monitor_sqlalchemy():  # Context does nothing unless you set CLI_OPT_MONITOR_SQLALCHEMY
+        subscription = ProductTypeOneNestedForTest.from_subscription(subscription_id)
 
     # then
     assert subscription.block is not None
