@@ -29,6 +29,7 @@ from typing import (
 )
 from uuid import UUID, uuid4
 
+import sqlalchemy
 import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -45,6 +46,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.db.perf_utils import load_all_subscription_instances
 from orchestrator.domain.helpers import _to_product_block_field_type_iterable
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
@@ -1201,20 +1203,11 @@ class SubscriptionModel(DomainModel):
 
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
-    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
-        return db.session.get(
-            SubscriptionTable,
-            subscription_id,
-            options=[
-                selectinload(SubscriptionTable.instances)
-                .joinedload(SubscriptionInstanceTable.product_block)
-                .selectinload(ProductBlockTable.resource_types),
-                selectinload(SubscriptionTable.instances).selectinload(
-                    SubscriptionInstanceTable.in_use_by_block_relations
-                ),
-                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-            ],
-        )
+    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable:
+        query = select(SubscriptionTable).where(SubscriptionTable.subscription_id == subscription_id)
+        subscription = db.session.scalars(query).one()
+        load_all_subscription_instances(subscription_id)
+        return subscription
 
     @classmethod
     def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
@@ -1288,8 +1281,9 @@ class SubscriptionModel(DomainModel):
     @classmethod
     def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
-        subscription = cls._get_subscription(subscription_id)
-        if subscription is None:
+        try:
+            subscription = cls._get_subscription(subscription_id)
+        except sqlalchemy.exc.NoResultFound:
             raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
         product = cls._to_product_model(subscription.product)
 
