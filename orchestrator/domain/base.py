@@ -1203,11 +1203,29 @@ class SubscriptionModel(DomainModel):
 
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
-    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable:
+    def _get_subscription_new(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable:
         query = select(SubscriptionTable).where(SubscriptionTable.subscription_id == subscription_id)
         subscription = db.session.scalars(query).one()
         load_all_subscription_instances(subscription_id)
         return subscription
+
+    @classmethod
+    def _get_subscription_old(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
+        return db.session.get(
+            SubscriptionTable,
+            subscription_id,
+            options=[
+                selectinload(SubscriptionTable.instances)
+                .joinedload(SubscriptionInstanceTable.product_block)
+                .selectinload(ProductBlockTable.resource_types),
+                selectinload(SubscriptionTable.instances).selectinload(
+                    SubscriptionInstanceTable.in_use_by_block_relations
+                ),
+                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+            ],
+        )
+
+    _get_subscription = _get_subscription_new
 
     @classmethod
     def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
@@ -1233,7 +1251,7 @@ class SubscriptionModel(DomainModel):
         if not db_product:
             raise KeyError("Could not find a product for the given product_id")
 
-        subscription = cls._get_subscription(old_instantiation.subscription_id)
+        subscription = cls._get_subscription(old_instantiation.subscription_id)  # type: ignore
         product = cls._to_product_model(db_product)
 
         status = SubscriptionLifecycle(subscription.status)
@@ -1282,7 +1300,7 @@ class SubscriptionModel(DomainModel):
     def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
         try:
-            subscription = cls._get_subscription(subscription_id)
+            subscription = cls._get_subscription(subscription_id)  # type: ignore
         except sqlalchemy.exc.NoResultFound:
             raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
         product = cls._to_product_model(subscription.product)
