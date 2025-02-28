@@ -38,6 +38,7 @@ def get_all_subscription_instance_ids(subscription_id: UUID) -> list[UUID]:
 def load_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
     from orchestrator.db.path_loaders import get_query_loaders_for_query_paths
 
+    # CTE to recursively get all subscription instance ids the subscription depends on
     instance_ids_cte = (
         select(
             literal(UUID("00000000-0000-0000-0000-000000000000")).label("in_use_by_id"),
@@ -58,10 +59,15 @@ def load_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
 
     select_all_instance_ids = select(distinct(instance_ids.c.depends_on_id)).subquery()
 
+    # Relationship attributes accessed on subscription instances during DomainModel instantiation.
+    # For these we set eagerloading options to avoid ad-hoc lazy loading, thereby keeping the number of queries
+    # constant regardless of how many 'layers' of instances a subscription has.
+    #
+    # The disadvantage is that for subscriptions with a relatively small product type, the performance becomes
+    # slightly worse as it performs more queries than the old SubscriptionModel._get_subscription method
     query_paths = [
         "subscription.product",
-        "product_block.name",
-        "product_block.resource_types",
+        "product_block",
         "values.resource_type",
         "depends_on",
         "in_use_by",
