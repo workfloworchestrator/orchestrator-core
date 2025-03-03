@@ -134,6 +134,21 @@ logger = structlog.getLogger(__name__)
 
 CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
+CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
+
+
+def pytest_addoption(parser):
+    """Define custom pytest commandline options."""
+    parser.addoption(
+        CLI_OPT_MONITOR_SQLALCHEMY,
+        action="store_true",
+        default=False,
+        help=(
+            "When set, activate query monitoring for tests instrumented with monitor_sqlalchemy. "
+            "Note that this has a certain overhead on execution time."
+        ),
+    )
+
 
 def run_migrations(db_uri: str) -> None:
     """Configure the alembic context and run the migrations.
@@ -744,10 +759,12 @@ def refresh_subscriptions_search_view():
 
 
 @pytest.fixture
-def monitor_sqlalchemy():
+def monitor_sqlalchemy(pytestconfig, request, capsys):
     """Can be used to inspect the number of sqlalchemy queries made by part of the code.
 
-    Usage: include as fixture, wrap code to measure in context manager, run pytest with option `-s` for stdout
+    Usage: include this fixture, it returns a context manager. Wrap this around the code you want to inspect.
+    The inspection is disabled unless you explicitly enable it.
+    To enable it pass the cli option --monitor-sqlalchemy (see CLI_OPT_MONITOR_SQLALCHEMY).
 
     Example:
         def mytest(monitor_sqlalchemy):
@@ -760,20 +777,27 @@ def monitor_sqlalchemy():
     """
     from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
 
-    monitor_sqlalchemy_queries()
-
     @contextlib.contextmanager
-    def context():
+    def monitor_queries():
+        monitor_sqlalchemy_queries()
         before = db.session.connection().info.copy()
 
         yield
 
         after = db.session.connection().info.copy()
+        disable_listeners()
 
         estimated_queries = after["queries_completed"] - before.get("queries_completed", 0)
         estimated_query_time = after["query_time_spent"] - before.get("query_time_spent", 0.0)
-        print(f"{estimated_queries:3d} sqlalchemy queries in {estimated_query_time:.2f}s")
 
-    yield context
+        with capsys.disabled():
+            print(f"\n{request.node.nodeid} performed {estimated_queries} queries in {estimated_query_time:.2f}s\n")
 
-    disable_listeners()
+    @contextlib.contextmanager
+    def noop():
+        yield
+
+    if pytestconfig.getoption(CLI_OPT_MONITOR_SQLALCHEMY):
+        yield monitor_queries
+    else:
+        yield noop
