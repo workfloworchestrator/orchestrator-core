@@ -734,17 +734,23 @@ def test_subscriptions_search_uuids2(
     assert not failed, f"Could not find '{subscription_id}' by all keywords; {succeeded=} {failed=}"
 
 
-def test_subscription_detail_with_domain_model(test_client, generic_subscription_1):
+def test_subscription_detail_with_domain_model(test_client, generic_subscription_1, benchmark):
     # test with a subscription that has domain model and without
-    response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+    @benchmark
+    def response():
+        return test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+
     assert response.status_code == HTTPStatus.OK
     # Check hierarchy
     assert response.json()["pb_1"]["rt_1"] == "Value1"
 
 
-def test_subscription_detail_with_domain_model_does_not_exist(test_client, generic_subscription_1):
+def test_subscription_detail_with_domain_model_does_not_exist(test_client, generic_subscription_1, benchmark):
     # test with a subscription that has domain model and without
-    response = test_client.get(URL("api/subscriptions/domain-model") / uuid4())
+    @benchmark
+    def response():
+        return test_client.get(URL("api/subscriptions/domain-model") / uuid4())
+
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -774,7 +780,7 @@ def test_subscription_detail_with_domain_model_if_none_match(test_client, generi
 @pytest.mark.skipif(
     not getenv("AIOCACHE_DISABLE", "0") == "0", reason="AIOCACHE must be enabled for this test to do anything"
 )
-def test_subscription_detail_with_domain_model_cache(test_client, generic_subscription_1):
+def test_subscription_detail_with_domain_model_cache(test_client, generic_subscription_1, benchmark):
     # test with a subscription that has domain model and without
     subscription = SubscriptionModel.from_subscription(generic_subscription_1)
     extended_model = build_extended_domain_model(subscription)
@@ -784,7 +790,9 @@ def test_subscription_detail_with_domain_model_cache(test_client, generic_subscr
 
     to_redis(extended_model)
 
-    response = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+    @benchmark
+    def response():
+        return test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
 
     cache = create_redis_client(app_settings.CACHE_URI)
     result = cache.get(f"orchestrator:domain:{generic_subscription_1}")
