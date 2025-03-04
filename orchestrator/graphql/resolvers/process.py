@@ -34,7 +34,7 @@ from orchestrator.graphql.utils import (
     is_querying_page_data,
     to_graphql_result_page,
 )
-from orchestrator.graphql.utils.get_query_loaders import get_query_loaders
+from orchestrator.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
 from orchestrator.schemas.process import ProcessSchema
 from orchestrator.services.processes import load_process
 from orchestrator.utils.enrich_process import enrich_process
@@ -56,7 +56,7 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
 
 
 async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
-    query_loaders = get_query_loaders(info, ProcessTable)
+    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info)
     stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
     if process := db.session.scalar(stmt):
         is_detailed = _is_process_detailed(info)
@@ -83,7 +83,7 @@ async def resolve_processes(
         .selectinload(ProcessSubscriptionTable.subscription)
         .joinedload(SubscriptionTable.product)
     ]
-    query_loaders = get_query_loaders(info, ProcessTable) or default_loaders
+    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or default_loaders
     select_stmt = select(ProcessTable).options(*query_loaders)
     select_stmt = filter_processes(select_stmt, pydantic_filter_by, _error_handler)
     if query is not None:

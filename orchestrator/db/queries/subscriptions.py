@@ -1,47 +1,25 @@
 from uuid import UUID
 
-from sqlalchemy import distinct, literal, select
+from sqlalchemy import UUID as SA_UUID
+from sqlalchemy import cast as sa_cast
+from sqlalchemy import distinct, select
 
-from orchestrator.db import (
-    SubscriptionInstanceRelationTable,
-    SubscriptionInstanceTable,
-    db,
-)
+from orchestrator.db import SubscriptionInstanceRelationTable, SubscriptionInstanceTable, db
 from pydantic_forms.types import UUIDstr
 
 
-def get_all_subscription_instance_ids(subscription_id: UUID) -> list[UUID]:
-    # TODO remove, just a proof of concept for the recursive cte
-    instance_ids_cte = (
-        select(
-            literal(UUID("00000000-0000-0000-0000-000000000000")).label("in_use_by_id"),
-            SubscriptionInstanceTable.subscription_instance_id.label("depends_on_id"),
-        )
-        .where(SubscriptionInstanceTable.subscription_id == subscription_id)
-        .cte(recursive=True)
-    )
+def eagerload_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
+    """Given a subscription id, recursively query all depends_on subscription instances with all relationships.
 
-    cte_alias = instance_ids_cte.alias()
-    rel_alias = select(SubscriptionInstanceRelationTable).alias()
-
-    instance_ids = instance_ids_cte.union_all(
-        select(rel_alias.c.in_use_by_id, rel_alias.c.depends_on_id).where(
-            rel_alias.c.in_use_by_id == cte_alias.c.depends_on_id
-        )
-    )
-
-    statement = select(distinct(instance_ids.c.depends_on_id))
-
-    return db.session.scalars(statement).all()  # type: ignore
-
-
-def load_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
-    from orchestrator.db.path_loaders import get_query_loaders_for_query_paths
+    This function was designed to use in SubscriptionModel.from_subscription() for reducing
+    the number of lazyload queries that occurred from loading subscription instances.
+    """
+    from orchestrator.db.loaders import get_query_loaders_for_model_paths
 
     # CTE to recursively get all subscription instance ids the subscription depends on
     instance_ids_cte = (
         select(
-            literal(UUID("00000000-0000-0000-0000-000000000000")).label("in_use_by_id"),
+            sa_cast(None, SA_UUID(as_uuid=True)).label("in_use_by_id"),
             SubscriptionInstanceTable.subscription_instance_id.label("depends_on_id"),
         )
         .where(SubscriptionInstanceTable.subscription_id == subscription_id)
@@ -65,7 +43,7 @@ def load_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
     #
     # The disadvantage is that for subscriptions with a relatively small product type, the performance becomes
     # slightly worse as it performs more queries than the old SubscriptionModel._get_subscription method
-    query_paths = [
+    model_paths = [
         "subscription.product",
         "product_block",
         "values.resource_type",
@@ -73,7 +51,7 @@ def load_all_subscription_instances(subscription_id: UUID | UUIDstr) -> None:
         "in_use_by",
     ]
 
-    query_loaders = get_query_loaders_for_query_paths(query_paths, SubscriptionInstanceTable)
+    query_loaders = get_query_loaders_for_model_paths(SubscriptionInstanceTable, model_paths)
     stmt = (
         select(SubscriptionInstanceTable)
         .where(SubscriptionInstanceTable.subscription_instance_id.in_(select(select_all_instance_ids)))

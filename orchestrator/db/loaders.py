@@ -1,5 +1,5 @@
 from functools import reduce
-from typing import Any, Callable, Iterator, NamedTuple, cast
+from typing import Any, Callable, Iterable, Iterator, NamedTuple, cast
 
 import structlog
 from sqlalchemy import inspect
@@ -131,12 +131,12 @@ def init_model_loaders() -> None:
         _MODEL_LOADERS[model] = dict(_inspect_model(model))
 
 
-def lookup_attr_loaders(model: type[DbBaseModel], attr: str) -> list[AttrLoader]:
+def _lookup_attr_loaders(model: type[DbBaseModel], attr: str) -> list[AttrLoader]:
     """Return loader(s) for an attribute on the given model."""
     return _MODEL_LOADERS.get(model, {}).get(attr, [])
 
 
-def join_attr_loaders(loaders: list[AttrLoader]) -> Load | None:
+def _join_attr_loaders(loaders: list[AttrLoader]) -> Load | None:
     """Given 1 or more attribute loaders, instantiate and chain them together."""
     if not loaders:
         return None
@@ -151,3 +151,48 @@ def join_attr_loaders(loaders: list[AttrLoader]) -> Load | None:
         return getattr(final_loader, next.loader_fn.__name__)(next.attr)
 
     return reduce(chain_loader_func, other_loaders, loader_fn)
+
+
+def _split_path(query_path: str) -> Iterable[str]:
+    yield from (field for field in query_path.split("."))
+
+
+def get_query_loaders_for_model_paths(root_model: type[DbBaseModel], model_paths: list[str]) -> list[Load]:
+    """Get sqlalchemy query loaders to use for the model based on the paths."""
+    # Sort by length to find the longest match first
+    model_paths.sort(key=lambda x: x.count("."), reverse=True)
+
+    def get_loader_for_path(model_path: str) -> tuple[str, Load | None]:
+        next_model = root_model
+
+        matched_fields: list[str] = []
+        path_loaders: list[AttrLoader] = []
+
+        for field in _split_path(model_path):
+            if not (attr_loaders := _lookup_attr_loaders(next_model, field)):
+                break
+
+            matched_fields.append(field)
+            path_loaders.extend(attr_loaders)
+            next_model = attr_loaders[-1].next_model
+
+        return ".".join(matched_fields), _join_attr_loaders(path_loaders)
+
+    query_loaders: dict[str, Load] = {}
+
+    for path in model_paths:
+        matched_path, loader = get_loader_for_path(path)
+        if not matched_path or not loader or matched_path in query_loaders:
+            continue
+        if any(known_path.startswith(f"{matched_path}.") for known_path in query_loaders):
+            continue
+        query_loaders[matched_path] = loader
+
+    loaders = list(query_loaders.values())
+    logger.debug(
+        "Generated query loaders for paths",
+        root_model=root_model,
+        model_paths=model_paths,
+        query_loaders=[str(i.path) for i in loaders],
+    )
+    return loaders
