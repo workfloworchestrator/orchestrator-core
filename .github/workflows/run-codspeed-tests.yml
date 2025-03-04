@@ -11,7 +11,7 @@ jobs:
     name: Run benchmarks
     runs-on: ubuntu-latest
     container:
-      image: python:3.11
+      image: python:3.13
       options: --privileged
     services:
       postgres:
