@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import UUID as SA_UUID
 from sqlalchemy import cast as sa_cast
-from sqlalchemy import distinct, select
+from sqlalchemy import select
 
 from orchestrator.db import SubscriptionInstanceRelationTable, SubscriptionInstanceTable, db
 from pydantic_forms.types import UUIDstr
@@ -29,13 +29,13 @@ def eagerload_all_subscription_instances(subscription_id: UUID | UUIDstr) -> Non
     cte_alias = instance_ids_cte.alias()
     rel_alias = select(SubscriptionInstanceRelationTable).alias()
 
-    instance_ids = instance_ids_cte.union_all(
+    instance_ids = instance_ids_cte.union(
         select(rel_alias.c.in_use_by_id, rel_alias.c.depends_on_id).where(
             rel_alias.c.in_use_by_id == cte_alias.c.depends_on_id
         )
     )
 
-    select_all_instance_ids = select(distinct(instance_ids.c.depends_on_id)).subquery()
+    select_all_instance_ids = select(instance_ids.c.depends_on_id).subquery()
 
     # Relationship attributes accessed on subscription instances during DomainModel instantiation.
     # For these we set eagerloading options to avoid ad-hoc lazy loading, thereby keeping the number of queries
