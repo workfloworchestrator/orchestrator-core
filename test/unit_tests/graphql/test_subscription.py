@@ -60,19 +60,27 @@ def build_complex_query(subscription_id):
     ).encode("utf-8")
 
 
-def test_single_simple_subscription(fastapi_app_graphql, test_client, product_sub_list_union_subscription_1):
+def test_single_simple_subscription(fastapi_app_graphql, test_client, product_sub_list_union_subscription_1, benchmark):
     test_query = build_simple_query(subscription_id=product_sub_list_union_subscription_1)
-    response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"data": {"subscription": {"insync": True, "status": "ACTIVE"}}}
 
 
 def test_single_complex_subscription(
-    fastapi_app_graphql, test_client, product_sub_list_union_subscription_1, test_product_type_sub_list_union
+    fastapi_app_graphql, test_client, product_sub_list_union_subscription_1, test_product_type_sub_list_union, benchmark
 ):
     _, _, ProductSubListUnion = test_product_type_sub_list_union
     test_query = build_complex_query(subscription_id=product_sub_list_union_subscription_1)
-    response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
         "data": {
@@ -86,8 +94,12 @@ def test_single_complex_subscription(
     }
 
 
-def test_subscription_does_not_exist(fastapi_app_graphql, test_client):
+def test_subscription_does_not_exist(fastapi_app_graphql, test_client, benchmark):
     test_query = build_simple_query(uuid4())
-    response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"data": {"subscription": None}}
