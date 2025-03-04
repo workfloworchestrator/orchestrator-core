@@ -1,8 +1,9 @@
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import func, select
 
-from orchestrator.db import db
+from orchestrator.db import SubscriptionTable, db
 from orchestrator.domain import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
@@ -127,3 +128,33 @@ def test_subscription_model_vertical_references(
     assert subscription.block.sub_block.sub_block is not None
     assert subscription.block.sub_block.sub_block.sub_block is not None
     # no need to check all x levels
+
+
+@pytest.mark.benchmark
+def test_subscription_model_vertical_references_save(create_vertical_subscription, monitor_sqlalchemy):
+    # when
+    with monitor_sqlalchemy():
+        subscription_id = create_vertical_subscription(size=5)
+
+    # then
+
+    # Checks that the subscription was created, without too much overhead
+    query_check_created = (
+        select(func.count()).select_from(SubscriptionTable).where(SubscriptionTable.subscription_id == subscription_id)
+    )
+    assert db.session.scalar(query_check_created) == 1
+
+
+@pytest.mark.benchmark
+def test_subscription_model_horizontal_references_save(create_horizontal_subscription, monitor_sqlalchemy):
+    # when
+    with monitor_sqlalchemy():
+        subscription_id = create_horizontal_subscription(size=10)
+
+    # then
+
+    # Checks that the subscription was created, without too much overhead
+    query_check_created = (
+        select(func.count()).select_from(SubscriptionTable).where(SubscriptionTable.subscription_id == subscription_id)
+    )
+    assert db.session.scalar(query_check_created) == 1
