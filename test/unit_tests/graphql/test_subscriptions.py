@@ -413,12 +413,15 @@ def get_subscriptions_with_metadata_and_schema_query(
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory):
+def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory, benchmark):
     # when
 
     product_type_1_subscriptions_factory(4)
     data = get_subscriptions_query()
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
@@ -770,6 +773,34 @@ def test_subscriptions_range_filtering_on_start_date(test_client, product_type_1
         assert higher_than_date <= subscription["startDate"] <= lower_than_date
 
 
+def test_subscriptions_with_exact_filter_by(test_client, product_type_1_subscriptions_factory):
+    # when
+
+    product_type_1_subscriptions_factory(20)
+
+    with patch.object(app_settings, "FILTER_BY_MODE", "exact"):
+        data = get_subscriptions_query(filter_by=[{"field": "description", "value": "Subscription 1"}])
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    # then
+
+    assert HTTPStatus.OK == response.status_code
+    result = response.json()
+    subscriptions_data = result["data"]["subscriptions"]
+    subscriptions = subscriptions_data["page"]
+    pageinfo = subscriptions_data["pageInfo"]
+
+    assert len(subscriptions) == 1
+    assert "errors" not in result
+    assert pageinfo == {
+        "hasPreviousPage": False,
+        "hasNextPage": False,
+        "startCursor": 0,
+        "endCursor": 0,
+        "totalItems": 1,
+    }
+
+
 def test_subscriptions_range_filtering_on_type(test_client, product_type_1_subscriptions_factory):
     # when
 
@@ -1048,6 +1079,7 @@ def test_single_subscription_with_depends_on_subscriptions(
     sub_one_subscription_1,
     sub_two_subscription_1,
     product_sub_list_union_subscription_1,
+    benchmark,
 ):
     # when
 
@@ -1057,7 +1089,10 @@ def test_single_subscription_with_depends_on_subscriptions(
 
     subscription_id = str(product_sub_list_union_subscription_1)
     data = get_subscriptions_query_with_relations(query_string=subscription_id)
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     expected_depends_on_ids = {
         str(subscription.subscription_id) for subscription in [sub_one_subscription_1, sub_two_subscription_1]
@@ -1155,6 +1190,7 @@ def test_single_subscription_schema(
     sub_one_subscription_1,
     sub_two_subscription_1,
     product_sub_list_union_subscription_1,
+    benchmark,
 ):
     # when
 
@@ -1163,7 +1199,11 @@ def test_single_subscription_schema(
     data = get_subscriptions_product_block_json_schema_query(
         filter_by=[{"field": "subscriptionId", "value": subscription_id}]
     )
-    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
     # then
 
     assert HTTPStatus.OK == response.status_code
@@ -1295,7 +1335,7 @@ def test_single_subscription_schema(
             "customer_id": {"title": "Customer Id", "type": "string"},
             "subscription_id": {"format": "uuid", "title": "Subscription Id", "type": "string"},
             "description": {"default": "Initial subscription", "title": "Description", "type": "string"},
-            "status": {"allOf": [{"$ref": "#/$defs/SubscriptionLifecycle"}], "default": "initial"},
+            "status": {"$ref": "#/$defs/SubscriptionLifecycle", "default": "initial"},
             "insync": {"default": False, "title": "Insync", "type": "boolean"},
             "start_date": {
                 "anyOf": [{"format": "date-time", "type": "string"}, {"type": "null"}],

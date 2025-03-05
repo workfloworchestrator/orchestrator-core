@@ -13,14 +13,19 @@
 
 import secrets
 import string
+import warnings
 from pathlib import Path
 from typing import Literal
 
-from pydantic import PostgresDsn, RedisDsn
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
 from pydantic_forms.types import strEnum
+
+
+class OrchestratorDeprecationWarning(DeprecationWarning):
+    pass
 
 
 class ExecutorType(strEnum):
@@ -49,7 +54,7 @@ class AppSettings(BaseSettings):
     EXECUTOR: str = ExecutorType.THREADPOOL
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
-    DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
+    DATABASE_URI: PostgresDsn = "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
@@ -57,6 +62,9 @@ class AppSettings(BaseSettings):
     CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
     CACHE_DOMAIN_MODELS: bool = False
     CACHE_HMAC_SECRET: str | None = None  # HMAC signing key, used when pickling results in the cache
+    REDIS_RETRY_COUNT: NonNegativeInt = Field(
+        2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
+    )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html
     ENABLE_DISTLOCK_MANAGER: bool = True
     DISTLOCK_BACKEND: str = "memory"
     CC_NOC: int = 0
@@ -84,6 +92,22 @@ class AppSettings(BaseSettings):
     ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
+
+    def __init__(self) -> None:
+        super(AppSettings, self).__init__()
+        self.DATABASE_URI = PostgresDsn(convert_database_uri(str(self.DATABASE_URI)))
+
+
+def convert_database_uri(db_uri: str) -> str:
+    if db_uri.startswith(("postgresql://", "postgresql+psycopg2://")):
+        db_uri = "postgresql+psycopg" + db_uri[db_uri.find("://") :]
+        warnings.filterwarnings("always", category=OrchestratorDeprecationWarning)
+        warnings.warn(
+            "DATABASE_URI converted to postgresql+psycopg:// format, please update your enviroment variable",
+            OrchestratorDeprecationWarning,
+            stacklevel=2,
+        )
+    return db_uri
 
 
 app_settings = AppSettings()

@@ -190,8 +190,8 @@ nav:
                 - Callbacks: reference-docs/workflows/callbacks.md
           - Websockets: reference-docs/websockets.md
           - Migration guides:
-                - 2.0: migration-guide/2.0.md
-                - 3.0: migration-guide/3.0.md
+                - 2.x: migration-guide/2.0.md
+                - 3.x: migration-guide/3.0.md
 
     - Workshops:
           #    - Beginner:

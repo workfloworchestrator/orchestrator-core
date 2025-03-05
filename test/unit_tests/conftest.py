@@ -11,7 +11,6 @@ import structlog
 from alembic import command
 from alembic.config import Config
 from pydantic import BaseModel as PydanticBaseModel
-from redis import Redis
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
@@ -36,6 +35,7 @@ from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
+from orchestrator.utils.redis_client import create_redis_client
 from pydantic_forms.core import FormPage
 from test.unit_tests.fixtures.processes import mocked_processes, mocked_processes_resumeall, test_workflow  # noqa: F401
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (  # noqa: F401
@@ -134,6 +134,21 @@ logger = structlog.getLogger(__name__)
 
 CUSTOMER_ID: str = "2f47f65a-0911-e511-80d0-005056956c1a"
 
+CLI_OPT_MONITOR_SQLALCHEMY = "--monitor-sqlalchemy"
+
+
+def pytest_addoption(parser):
+    """Define custom pytest commandline options."""
+    parser.addoption(
+        CLI_OPT_MONITOR_SQLALCHEMY,
+        action="store_true",
+        default=False,
+        help=(
+            "When set, activate query monitoring for tests instrumented with monitor_sqlalchemy. "
+            "Note that this has a certain overhead on execution time."
+        ),
+    )
+
 
 def run_migrations(db_uri: str) -> None:
     """Configure the alembic context and run the migrations.
@@ -174,7 +189,7 @@ def db_uri(worker_id):
         Database uri to be used in the test thread
 
     """
-    database_uri = os.environ.get("DATABASE_URI", "postgresql://nwa:nwa@localhost/orchestrator-core-test")
+    database_uri = os.environ.get("DATABASE_URI", "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core-test")
     if worker_id == "master":
         # pytest is being run without any workers
         return database_uri
@@ -205,9 +220,9 @@ def database(db_uri):
         url.database = "postgres"
     engine = create_engine(url)
     with closing(engine.connect()) as conn:
-        conn.execute(text("COMMIT;"))
-        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
-        conn.execute(text("COMMIT;"))
+        conn.commit()
+        conn.execution_options(isolation_level="AUTOCOMMIT").execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+        conn.commit()
         conn.execute(text(f'CREATE DATABASE "{db_to_create}";'))
 
     run_migrations(db_uri)
@@ -218,8 +233,10 @@ def database(db_uri):
     finally:
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
-            conn.execute(text("COMMIT;"))
-            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+            conn.commit()
+            conn.execution_options(isolation_level="AUTOCOMMIT").execute(
+                text(f'DROP DATABASE IF EXISTS "{db_to_create}";')
+            )
 
 
 @pytest.fixture(autouse=True)
@@ -431,6 +448,65 @@ def generic_product_block_3(generic_resource_type_2):
 
 
 @pytest.fixture
+def generic_referencing_product_block_1(generic_resource_type_1, generic_root_product_block_1):
+    pb = ProductBlockTable(
+        name="PB_1",
+        description="Generic Referencing Product Block 1",
+        tag="PB1",
+        status="active",
+        resource_types=[generic_resource_type_1],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+        depends_on_block_relations=[generic_root_product_block_1],
+        in_use_by_block_relations=[],
+    )
+    db.session.add(pb)
+    db.session.commit()
+    return pb
+
+
+@pytest.fixture
+def generic_root_product_block_1(generic_resource_type_3):
+    pb = ProductBlockTable(
+        name="PB_Root_1",
+        description="Generic Root Product Block 1",
+        tag="PBR1",
+        status="active",
+        resource_types=[generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+        in_use_by_block_relations=[],
+        depends_on_block_relations=[],
+    )
+    db.session.add(pb)
+    db.session.commit()
+    return pb
+
+
+@pytest.fixture
+def generic_product_block_chain(generic_resource_type_3):
+
+    pb_2 = ProductBlockTable(
+        name="PB_Chained_2",
+        description="Generic Product Block 2",
+        tag="PB2",
+        status="active",
+        resource_types=[generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+    )
+    pb_1 = ProductBlockTable(
+        name="PB_Chained_1",
+        description="Generic Product Block 1",
+        tag="PB1",
+        status="active",
+        resource_types=[generic_resource_type_3],
+        created_at=datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00"),
+        depends_on=[pb_2],
+    )
+    db.session.add_all([pb_1, pb_2])
+    db.session.commit()
+    return pb_1, pb_2
+
+
+@pytest.fixture
 def generic_product_1(generic_product_block_1, generic_product_block_2):
     workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
     p = ProductTable(
@@ -474,6 +550,22 @@ def generic_product_3(generic_product_block_2):
         status="active",
         tag="GEN3",
         product_blocks=[generic_product_block_2],
+    )
+    db.session.add(p)
+    db.session.commit()
+    return p
+
+
+@pytest.fixture
+def generic_product_4(generic_product_block_chain):
+    pb_1, pb_2 = generic_product_block_chain
+    p = ProductTable(
+        name="Product 4",
+        description="Generic Product Four",
+        product_type="Generic",
+        status="active",
+        tag="GEN3",
+        product_blocks=[pb_1],
     )
     db.session.add(p)
     db.session.commit()
@@ -644,7 +736,7 @@ def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context() as m:
         m.setattr(app_settings, "CACHE_DOMAIN_MODELS", True)
-        cache = Redis.from_url(str(app_settings.CACHE_URI))
+        cache = create_redis_client(app_settings.CACHE_URI)
         # Clear cache before using this fixture
         cache.flushdb()
 
@@ -669,10 +761,12 @@ def refresh_subscriptions_search_view():
 
 
 @pytest.fixture
-def monitor_sqlalchemy():
+def monitor_sqlalchemy(pytestconfig, request, capsys):
     """Can be used to inspect the number of sqlalchemy queries made by part of the code.
 
-    Usage: include as fixture, wrap code to measure in context manager, run pytest with option `-s` for stdout
+    Usage: include this fixture, it returns a context manager. Wrap this around the code you want to inspect.
+    The inspection is disabled unless you explicitly enable it.
+    To enable it pass the cli option --monitor-sqlalchemy (see CLI_OPT_MONITOR_SQLALCHEMY).
 
     Example:
         def mytest(monitor_sqlalchemy):
@@ -685,20 +779,27 @@ def monitor_sqlalchemy():
     """
     from orchestrator.db.listeners import disable_listeners, monitor_sqlalchemy_queries
 
-    monitor_sqlalchemy_queries()
-
     @contextlib.contextmanager
-    def context():
+    def monitor_queries():
+        monitor_sqlalchemy_queries()
         before = db.session.connection().info.copy()
 
         yield
 
         after = db.session.connection().info.copy()
+        disable_listeners()
 
         estimated_queries = after["queries_completed"] - before.get("queries_completed", 0)
         estimated_query_time = after["query_time_spent"] - before.get("query_time_spent", 0.0)
-        print(f"{estimated_queries:3d} sqlalchemy queries in {estimated_query_time:.2f}s")
 
-    yield context
+        with capsys.disabled():
+            print(f"\n{request.node.nodeid} performed {estimated_queries} queries in {estimated_query_time:.2f}s\n")
 
-    disable_listeners()
+    @contextlib.contextmanager
+    def noop():
+        yield
+
+    if pytestconfig.getoption(CLI_OPT_MONITOR_SQLALCHEMY):
+        yield monitor_queries
+    else:
+        yield noop
