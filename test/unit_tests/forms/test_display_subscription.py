@@ -59,11 +59,7 @@ def test_display_only_schema():
                 "type": "string",
             },
             "summary": {
-                "allOf": [
-                    {
-                        "$ref": "#/$defs/MigrationSummaryValue",
-                    },
-                ],
+                "$ref": "#/$defs/MigrationSummaryValue",
                 "format": "summary",
                 "default": None,
                 "type": "string",
