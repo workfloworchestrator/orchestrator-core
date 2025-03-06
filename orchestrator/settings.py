@@ -92,6 +92,8 @@ class AppSettings(BaseSettings):
     ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
+    # SUBSCRIPTION_MODEL_LOADING_MODE: Literal["eager", "lazy"] = "eager"  # TODO revert
+    SUBSCRIPTION_MODEL_LOADING_MODE: Literal["eager", "lazy"] = "lazy"
 
     def __init__(self) -> None:
         super(AppSettings, self).__init__()
