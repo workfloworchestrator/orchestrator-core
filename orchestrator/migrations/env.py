@@ -41,6 +41,14 @@ target_metadata = BaseModel.metadata
 # ... etc.
 
 
+def include_object(object, name, type_, reflected, compare_to):  # type: ignore
+    """Exclude tables with the 'materialized_view' flag in their info."""
+
+    if type_ == "table" and object.info.get("materialized_view", False):
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -55,7 +63,11 @@ def run_migrations_offline() -> None:
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"}
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -90,6 +102,7 @@ def run_migrations_online() -> None:
         target_metadata=target_metadata,
         process_revision_directives=process_revision_directives,
         compare_type=True,
+        include_object=include_object,
     )
 
     try:
