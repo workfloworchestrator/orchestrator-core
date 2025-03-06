@@ -1,7 +1,7 @@
 import json
 from unittest import mock
 
-from deepdiff import DeepDiff  # type: ignore
+from deepdiff import DeepDiff
 
 
 def assert_no_diff(expected, actual, exclude_paths=None):
