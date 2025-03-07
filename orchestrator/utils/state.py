@@ -150,8 +150,14 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
 
     Raises:
          KeyError: if requested argument is not in the state, or cannot be reconstructed as an initial domain model.
+         ValueError: if requested argument cannot be converted to the expected type.
 
     """
+
+    def _convert_to_uuid(v: Any) -> UUID:
+        """Converts the value to a UUID instance if it is not already one."""
+        return v if isinstance(v, UUID) else UUID(v)
+
     sig = inspect.signature(func)
     arguments: list[Any] = []
     if sig.parameters:
@@ -203,12 +209,24 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
                 arguments.append(state.get(name, param.default))
             else:
                 try:
-                    arguments.append(state[name])
+                    value = state[name]
+                    if param.annotation == UUID:
+                        arguments.append(_convert_to_uuid(value))
+                    elif is_list_type(param.annotation, UUID):
+                        arguments.append([_convert_to_uuid(item) for item in value])
+                    elif is_optional_type(param.annotation, UUID):
+                        arguments.append(None if value is None else _convert_to_uuid(value))
+                    else:
+                        arguments.append(value)
                 except KeyError as key_error:
                     logger.error("Could not find key in state.", key=name, state=state)
                     raise KeyError(
                         f"Could not find key '{name}' in state. for function {func.__module__}.{func.__qualname__}"
                     ) from key_error
+                except ValueError as value_error:
+                    logger.error("Could not convert value to expected type.", key=name, state=state, value=state[name])
+                    raise ValueError(f"Could not convert value '{state[name]}' to {param.annotation}") from value_error
+
     return arguments
 
 
