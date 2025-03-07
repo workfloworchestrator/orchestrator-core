@@ -13,6 +13,7 @@
 import itertools
 from collections import defaultdict
 from datetime import datetime
+from functools import partial
 from inspect import get_annotations, isclass
 from itertools import groupby, zip_longest
 from operator import attrgetter
@@ -35,8 +36,8 @@ import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import func, select
+from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.db import (
     ProductBlockTable,
@@ -522,7 +523,7 @@ class ProductBlockModel(DomainModel):
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
     tag: ClassVar[str]
-    _db_model: SubscriptionInstanceTable = PrivateAttr()
+    _db_model: SubscriptionInstanceTable | None = PrivateAttr(default=None)
 
     # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
     # Is actually optional since abstract classes don't have it.
@@ -952,17 +953,23 @@ class ProductBlockModel(DomainModel):
 
     @property
     def db_model(self) -> SubscriptionInstanceTable:
+        if not self._db_model:
+            self._db_model = db.session.scalar(
+                select(SubscriptionInstanceTable).where(
+                    SubscriptionInstanceTable.subscription_instance_id == self.subscription_instance_id
+                )
+            )
         return self._db_model
 
     @property
-    def in_use_by(self) -> list[SubscriptionInstanceTable]:
+    def in_use_by(self) -> list[SubscriptionInstanceTable]:  # TODO check where used, might need eagerloading
         """This provides a list of product blocks that depend on this product block."""
-        return self._db_model.in_use_by
+        return self.db_model.in_use_by
 
     @property
-    def depends_on(self) -> list[SubscriptionInstanceTable]:
+    def depends_on(self) -> list[SubscriptionInstanceTable]:  # TODO check where used, might need eagerloading
         """This provides a list of product blocks that this product block depends on."""
-        return self._db_model.depends_on
+        return self.db_model.depends_on
 
 
 class ProductModel(BaseModel):
@@ -1208,17 +1215,18 @@ class SubscriptionModel(DomainModel):
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
     def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
+        # TODO rewrite to select() style + check sqlalchemy queries
         return db.session.get(
             SubscriptionTable,
             subscription_id,
             options=[
-                selectinload(SubscriptionTable.instances)
-                .joinedload(SubscriptionInstanceTable.product_block)
-                .selectinload(ProductBlockTable.resource_types),
-                selectinload(SubscriptionTable.instances).selectinload(
-                    SubscriptionInstanceTable.in_use_by_block_relations
-                ),
-                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
+                joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
+                selectinload(SubscriptionTable.instances).joinedload(SubscriptionInstanceTable.product_block),
+                # .selectinload(ProductBlockTable.resource_types),
+                # selectinload(SubscriptionTable.instances).selectinload(
+                #     SubscriptionInstanceTable.in_use_by_block_relations
+                # ),
+                # selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
             ],
         )
 
@@ -1317,7 +1325,40 @@ class SubscriptionModel(DomainModel):
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
 
-        instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
+        # "feature toggle"
+        # new_method = False
+        new_method = True
+
+        if new_method:
+            # Map top-level PB names to subscription instance ids. There is usually only 1 root PB, but just in case.
+            pb_instance_ids = {
+                inst.product_block.name: inst.subscription_instance_id for inst in subscription.instances
+            }
+
+            def get_instance_json(instance_id):
+                # where the magic happens
+                return db.session.execute(select(func.get_subscription_instance(instance_id))).scalar_one()
+
+            # For each root PB retrieve it's entire JSON structure
+            instances_json = {
+                pb_name: get_instance_json(instance_id) for pb_name, instance_id in pb_instance_ids.items()
+            }
+
+            # Map fields on the product type to the corresponding JSON
+            instances = {field_name: instances_json[pb.name] for field_name, pb in cls._product_block_fields_.items()}
+
+            logger.warning("INSTANCES BEFORE", instances=instances)
+
+            # Rewrite some of the JSON data (list[dict] vs dict, add None as default, etc)
+            # This part is quite hairy and most likely going to be done in another way
+            for d in instances.values():
+                rewrite_pb_data(d)
+
+            logger.warning("INSTANCES AFTER", instances=instances)
+        else:
+            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
+
+            logger.warning("INSTANCES", instances=instances)
 
         try:
             model = cls(
@@ -1531,3 +1572,75 @@ def validate_lifecycle_change(
         subscription_description=other.description,
         status=status,
     )
+
+
+# TODO probably remove everything below
+
+
+def ensure_list(value_list: Any):
+    if value_list is None:
+        return []
+    return value_list
+
+
+def list_to_dict(product_block_field_type: type, instance_list: Any):
+    match instance_list:
+        case list():
+            if instance := only(instance_list):
+                return instance
+
+            if not is_optional_type(product_block_field_type):
+                raise ValueError("Required subscription instance is missing in database")
+
+            return None
+        case _:
+            return instance_list
+            # raise ValueError(f"Expected list, found {type(instance_list)}")#
+
+
+def ensure_optional_required(value: Any):
+    return None if value is None else value
+
+
+def get_pb_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
+
+    def create():
+        for field_name in klass._product_block_fields_:
+            product_block_field_type = klass.model_fields[field_name].annotation
+            if is_list_type(product_block_field_type):
+                yield field_name, ensure_list
+            else:
+                yield field_name, partial(list_to_dict, product_block_field_type)
+
+        for field_name, field_type in klass._non_product_block_fields_.items():
+            # Ensure that empty lists are handled OK
+            if is_list_type(field_type):
+                yield field_name, ensure_list
+            elif is_optional_type(field_type):
+                # Initialize "optional required" fields
+                yield field_name, ensure_optional_required
+
+    return dict(create())
+
+
+_RULES = None
+
+
+def rewrite_pb_data(pb_data: Any) -> dict:
+    global _RULES
+    if not _RULES:
+        _RULES = {klass.name: get_pb_rules(klass) for klass in ProductBlockModel.registry.values()}
+
+    rules = _RULES[pb_data["name"]]
+
+    for field_name, func in rules.items():
+        pb_data[field_name] = func(pb_data.get(field_name))
+
+    for field_name, field_value in pb_data.items():
+        if isinstance(
+            field_value, dict
+        ):  # TODO this could be optimized based on ProductBlockModel._product_block_fields_
+            rewrite_pb_data(field_value)
+        if isinstance(field_value, list):
+            for d in field_value:
+                rewrite_pb_data(d)
