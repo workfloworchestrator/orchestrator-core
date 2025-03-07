@@ -42,7 +42,7 @@ target_metadata = BaseModel.metadata
 
 
 def include_object(object, name, type_, reflected, compare_to):  # type: ignore
-    """Exclude tables with the 'materialized_view' flag in their info."""
+    """Determines if an object should be included."""
 
     if type_ == "table" and object.info.get("materialized_view", False):
         return False
