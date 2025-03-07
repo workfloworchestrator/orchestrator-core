@@ -651,6 +651,8 @@ class SubscriptionMetadataTable(BaseModel):
 
 class SubscriptionSearchView(BaseModel):
     __tablename__ = "subscriptions_search"
+    __table_args__ = {"info": {"materialized_view": True}}
+
     subscription_id = mapped_column(
         UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True, primary_key=True
     )
