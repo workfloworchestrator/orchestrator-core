@@ -79,9 +79,8 @@ def subscription_with_100_horizontal_blocks(create_horizontal_subscription):
     return create_horizontal_subscription(size=100)
 
 
-@pytest.mark.benchmark
 def test_subscription_model_horizontal_references(
-    subscription_with_100_horizontal_blocks, test_product_type_one, monitor_sqlalchemy
+    subscription_with_100_horizontal_blocks, test_product_type_one, monitor_sqlalchemy, benchmark
 ):
     # Note: fixtures only execute once per benchmark and are excluded from the measurement
 
@@ -89,12 +88,15 @@ def test_subscription_model_horizontal_references(
     _, _, ProductTypeOneForTest = test_product_type_one
 
     subscription_id = subscription_with_100_horizontal_blocks
-    db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
 
     # when
 
     with monitor_sqlalchemy():  # Context does nothing unless you set CLI_OPT_MONITOR_SQLALCHEMY
-        subscription = ProductTypeOneForTest.from_subscription(subscription_id)
+        db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
+
+        @benchmark
+        def subscription():
+            return ProductTypeOneForTest.from_subscription(subscription_id)
 
     # then
     assert len(subscription.block.sub_block_list) == 100
@@ -105,9 +107,8 @@ def subscription_with_10_vertical_blocks(create_vertical_subscription):
     return create_vertical_subscription(size=10)
 
 
-@pytest.mark.benchmark
 def test_subscription_model_vertical_references(
-    subscription_with_10_vertical_blocks, test_product_type_one_nested, monitor_sqlalchemy
+    subscription_with_10_vertical_blocks, test_product_type_one_nested, monitor_sqlalchemy, benchmark
 ):
     # Note: fixtures only execute once per benchmark and are excluded from the measurement
 
@@ -115,12 +116,14 @@ def test_subscription_model_vertical_references(
     _, _, ProductTypeOneNestedForTest = test_product_type_one_nested
 
     subscription_id = subscription_with_10_vertical_blocks
-    db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
 
     # when
-
     with monitor_sqlalchemy():  # Context does nothing unless you set CLI_OPT_MONITOR_SQLALCHEMY
-        subscription = ProductTypeOneNestedForTest.from_subscription(subscription_id)
+        db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
+
+        @benchmark
+        def subscription():
+            return ProductTypeOneNestedForTest.from_subscription(subscription_id)
 
     # then
     assert subscription.block is not None
@@ -130,11 +133,13 @@ def test_subscription_model_vertical_references(
     # no need to check all x levels
 
 
-@pytest.mark.benchmark
-def test_subscription_model_vertical_references_save(create_vertical_subscription, monitor_sqlalchemy):
+def test_subscription_model_vertical_references_save(create_vertical_subscription, monitor_sqlalchemy, benchmark):
     # when
     with monitor_sqlalchemy():
-        subscription_id = create_vertical_subscription(size=5)
+
+        @benchmark
+        def subscription_id():
+            return create_vertical_subscription(size=5)
 
     # then
 
@@ -145,11 +150,13 @@ def test_subscription_model_vertical_references_save(create_vertical_subscriptio
     assert db.session.scalar(query_check_created) == 1
 
 
-@pytest.mark.benchmark
-def test_subscription_model_horizontal_references_save(create_horizontal_subscription, monitor_sqlalchemy):
+def test_subscription_model_horizontal_references_save(create_horizontal_subscription, monitor_sqlalchemy, benchmark):
     # when
     with monitor_sqlalchemy():
-        subscription_id = create_horizontal_subscription(size=10)
+
+        @benchmark
+        def subscription_id():
+            return create_horizontal_subscription(size=10)
 
     # then
 
