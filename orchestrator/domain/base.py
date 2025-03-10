@@ -48,7 +48,6 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.domain.get_subscription_instance_utils import get_block_arrays
 from orchestrator.domain.helpers import _to_product_block_field_type_iterable
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
@@ -312,12 +311,7 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             filter_func = match_domain_model_attr_if_possible(product_block_field_name)
 
-            product_block_model: Any = product_block_field_type
-            if is_list_type(product_block_field_type):
-                _origin, args = get_origin_and_args(product_block_field_type)
-                product_block_model = one(args)
-
-            possible_product_block_types = get_possible_product_block_types(product_block_model)
+            possible_product_block_types = flatten_product_block_types(product_block_field_type)
             field_type_names = list(possible_product_block_types.keys())
             filtered_instances = flatten([grouped_instances.get(name, []) for name in field_type_names])
             instance_list = list(filter(filter_func, filtered_instances))
@@ -458,6 +452,14 @@ class DomainModel(BaseModel):
         if duplicates:
             details = "; ".join(f"instance {id_} is used in fields {fields}" for id_, fields in duplicates)
             raise ValueError(f"Cannot link the same subscription instance multiple times: {details}")
+
+
+def flatten_product_block_types(product_block_field_type: Any):
+    product_block_model: Any = product_block_field_type
+    if is_list_type(product_block_field_type):
+        _origin, args = get_origin_and_args(product_block_field_type)
+        product_block_model = one(args)
+    return get_possible_product_block_types(product_block_model)
 
 
 def get_depends_on_product_block_type_list(
@@ -1332,7 +1334,6 @@ class SubscriptionModel(DomainModel):
 
         if new_method:
 
-            mapping = get_block_arrays()
             rules = {klass.name: get_pb_rules(klass) for klass in ProductBlockModel.registry.values()}
 
             # Map top-level PB names to subscription instance ids. There is usually only 1 root PB, but just in case.
@@ -1342,7 +1343,7 @@ class SubscriptionModel(DomainModel):
 
             def get_instance_json(instance_id):
                 # where the magic happens
-                return db.session.execute(select(func.get_subscription_instance(instance_id, mapping))).scalar_one()
+                return db.session.execute(select(func.get_subscription_instance(instance_id))).scalar_one()
 
             # For each root PB retrieve it's entire JSON structure
             instances_json = {
@@ -1350,20 +1351,25 @@ class SubscriptionModel(DomainModel):
             }
 
             # Map fields on the product type to the corresponding JSON
-            instances = {field_name: instances_json[pb.name] for field_name, pb in cls._product_block_fields_.items()}
 
-            logger.warning("INSTANCES BEFORE", instances=instances)
+            # TODO this does not yet work for the theoretical usecase of a list of root product blocks
+            # instances = {field_name: instances_json[pb.name] for field_name, pb in cls._product_block_fields_.items()}
+            instances = {
+                field_name: instances_json[first(flatten_product_block_types(pb))]
+                for field_name, pb in cls._product_block_fields_.items()
+            }
 
             # Rewrite some of the JSON data (list[dict] vs dict, add None as default, etc)
             # This part is quite hairy and most likely going to be done in another way
             for d in instances.values():
                 rewrite_pb_data(rules, d)
 
-            logger.warning("INSTANCES AFTER", instances=instances)
+            # logger.warning("INSTANCES AFTER", instances=instances)
+
         else:
             instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
-            logger.warning("INSTANCES", instances=instances)
+            # logger.warning("INSTANCES", instances=instances)
 
         try:
             model = cls(
@@ -1579,16 +1585,15 @@ def validate_lifecycle_change(
     )
 
 
-# TODO probably remove everything below
-
-
-def ensure_list(value_list: Any):
-    if value_list is None:
+def ensure_list(instance_or_value_list: Any):
+    if instance_or_value_list is None:
         return []
-    return value_list
+    return instance_or_value_list
 
 
-def list_to_dict(product_block_field_type: type, instance_list: Any):
+def instance_list_to_dict(product_block_field_type: type, instance_list: Any):
+    if instance_list is None:
+        return None
     match instance_list:
         case list():
             if instance := only(instance_list):
@@ -1597,39 +1602,71 @@ def list_to_dict(product_block_field_type: type, instance_list: Any):
             if not is_optional_type(product_block_field_type):
                 raise ValueError("Required subscription instance is missing in database")
 
-            return None
+            return None  # Set the optional product block field to None
         case _:
-            return instance_list
-            # raise ValueError(f"Expected list, found {type(instance_list)}")#
+            raise ValueError(f"All subscription instances should be returned as list, found {type(instance_list)}")  #
+
+
+def value_list_to_value(field_type: type, value_list: Any):
+    if value_list is None:
+        return None
+    match value_list:
+        case list():
+            if value := only(value_list):
+                return value
+
+            if not is_optional_type(field_type):
+                raise ValueError("Required subscription value is missing in database")
+
+            return None  # Set the optional resource type field to None
+        case _:
+            raise ValueError(f"All instance values should be returned as list, found {type(value_list)}")
 
 
 def get_pb_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
 
     def create():
         for field_name in klass._product_block_fields_:
-            product_block_field_type = klass.model_fields[field_name].annotation
+            product_block_field_type = klass.model_fields[field_name].annotation  # TODO see if value of dict is same
             if is_list_type(product_block_field_type):
                 yield field_name, ensure_list
             else:
-                yield field_name, partial(list_to_dict, product_block_field_type)
+                yield field_name, partial(instance_list_to_dict, product_block_field_type)
+
+        for field_name, field_type in klass._non_product_block_fields_.items():
+            if is_list_type(field_type):
+                yield field_name, ensure_list
+            else:
+                yield field_name, partial(value_list_to_value, field_type)
 
     return dict(create())
 
 
-def rewrite_pb_data(all_rules, pb_data: Any) -> dict:
+def rewrite_pb_data(all_rules: dict[str, dict[str, Callable]], pb_data: Any) -> None:
+    if not pb_data or not isinstance(pb_data, dict):
+        return
 
-    pb_rules = all_rules[pb_data["name"]]
+    field_rules = all_rules[pb_data["name"]]
 
     klass = ProductBlockModel.registry[pb_data["name"]]
 
     klass._fix_pb_data()
 
-    for field_name, func in pb_rules.items():
-        pb_data[field_name] = func(pb_data.get(field_name))
+    # Apply rewrite rules to all fields in this subscription instance
+    try:
+        # logger.debug("Rewriting pb", pb_data=pb_data)
+        for field_name, rewrite_func in field_rules.items():
+            # TODO wondering how much overhead will show for this in profiling
+            field_value = pb_data.get(field_name)
+            # logger.debug(
+            #     "Rewriting pb field", field_name=field_name, field_value=field_value, rewrite_func=rewrite_func
+            # )
+            pb_data[field_name] = rewrite_func(field_value)
+    except ValueError as e:
+        raise ValueError(f"Invalid subscription instance data {pb_data}") from e
 
+    # Recurse into subscription instances
     for field_name, field_value in pb_data.items():
-        if field_name not in klass._product_block_fields_:
-            continue
         if isinstance(field_value, dict):
             rewrite_pb_data(all_rules, field_value)
         if isinstance(field_value, list):
