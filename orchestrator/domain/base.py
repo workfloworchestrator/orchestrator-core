@@ -29,6 +29,7 @@ from typing import (
 )
 from uuid import UUID, uuid4
 
+import sqlalchemy
 import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -45,6 +46,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.db.queries.subscriptions import eagerload_all_subscription_instances
 from orchestrator.domain.helpers import _to_product_block_field_type_iterable
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
@@ -1201,8 +1203,21 @@ class SubscriptionModel(DomainModel):
 
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
-    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
-        return db.session.get(
+    def _get_subscription_eager(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable:
+        logger.debug("Eager load subscription", subscription_id=subscription_id)
+        query = select(SubscriptionTable).where(SubscriptionTable.subscription_id == subscription_id)
+        try:
+            subscription = db.session.scalars(query).one()
+        except sqlalchemy.exc.NoResultFound:
+            raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
+
+        eagerload_all_subscription_instances(subscription_id)
+        return subscription
+
+    @classmethod
+    def _get_subscription_lazy(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable:
+        logger.debug("Lazy load subscription", subscription_id=subscription_id)
+        subscription = db.session.get(
             SubscriptionTable,
             subscription_id,
             options=[
@@ -1215,6 +1230,19 @@ class SubscriptionModel(DomainModel):
                 selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
             ],
         )
+        if not subscription:
+            raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
+        return subscription
+
+    @classmethod
+    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable:
+        from orchestrator.settings import app_settings
+
+        match app_settings.SUBSCRIPTION_MODEL_LOADING_MODE:
+            case "eager":
+                return cls._get_subscription_eager(subscription_id)
+            case "lazy":
+                return cls._get_subscription_lazy(subscription_id)
 
     @classmethod
     def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
@@ -1289,8 +1317,6 @@ class SubscriptionModel(DomainModel):
     def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
         subscription = cls._get_subscription(subscription_id)
-        if subscription is None:
-            raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
         product = cls._to_product_model(subscription.product)
 
         status = SubscriptionLifecycle(subscription.status)
