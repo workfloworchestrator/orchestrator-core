@@ -48,6 +48,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.domain.get_subscription_instance_utils import get_block_arrays
 from orchestrator.domain.helpers import _to_product_block_field_type_iterable
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
@@ -1330,6 +1331,10 @@ class SubscriptionModel(DomainModel):
         new_method = True
 
         if new_method:
+
+            mapping = get_block_arrays()
+            rules = {klass.name: get_pb_rules(klass) for klass in ProductBlockModel.registry.values()}
+
             # Map top-level PB names to subscription instance ids. There is usually only 1 root PB, but just in case.
             pb_instance_ids = {
                 inst.product_block.name: inst.subscription_instance_id for inst in subscription.instances
@@ -1337,7 +1342,7 @@ class SubscriptionModel(DomainModel):
 
             def get_instance_json(instance_id):
                 # where the magic happens
-                return db.session.execute(select(func.get_subscription_instance(instance_id))).scalar_one()
+                return db.session.execute(select(func.get_subscription_instance(instance_id, mapping))).scalar_one()
 
             # For each root PB retrieve it's entire JSON structure
             instances_json = {
@@ -1352,7 +1357,7 @@ class SubscriptionModel(DomainModel):
             # Rewrite some of the JSON data (list[dict] vs dict, add None as default, etc)
             # This part is quite hairy and most likely going to be done in another way
             for d in instances.values():
-                rewrite_pb_data(d)
+                rewrite_pb_data(rules, d)
 
             logger.warning("INSTANCES AFTER", instances=instances)
         else:
@@ -1598,10 +1603,6 @@ def list_to_dict(product_block_field_type: type, instance_list: Any):
             # raise ValueError(f"Expected list, found {type(instance_list)}")#
 
 
-def ensure_optional_required(value: Any):
-    return None if value is None else value
-
-
 def get_pb_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
 
     def create():
@@ -1612,35 +1613,25 @@ def get_pb_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
             else:
                 yield field_name, partial(list_to_dict, product_block_field_type)
 
-        for field_name, field_type in klass._non_product_block_fields_.items():
-            # Ensure that empty lists are handled OK
-            if is_list_type(field_type):
-                yield field_name, ensure_list
-            elif is_optional_type(field_type):
-                # Initialize "optional required" fields
-                yield field_name, ensure_optional_required
-
     return dict(create())
 
 
-_RULES = None
+def rewrite_pb_data(all_rules, pb_data: Any) -> dict:
 
+    pb_rules = all_rules[pb_data["name"]]
 
-def rewrite_pb_data(pb_data: Any) -> dict:
-    global _RULES
-    if not _RULES:
-        _RULES = {klass.name: get_pb_rules(klass) for klass in ProductBlockModel.registry.values()}
+    klass = ProductBlockModel.registry[pb_data["name"]]
 
-    rules = _RULES[pb_data["name"]]
+    klass._fix_pb_data()
 
-    for field_name, func in rules.items():
+    for field_name, func in pb_rules.items():
         pb_data[field_name] = func(pb_data.get(field_name))
 
     for field_name, field_value in pb_data.items():
-        if isinstance(
-            field_value, dict
-        ):  # TODO this could be optimized based on ProductBlockModel._product_block_fields_
-            rewrite_pb_data(field_value)
+        if field_name not in klass._product_block_fields_:
+            continue
+        if isinstance(field_value, dict):
+            rewrite_pb_data(all_rules, field_value)
         if isinstance(field_value, list):
             for d in field_value:
-                rewrite_pb_data(d)
+                rewrite_pb_data(all_rules, d)

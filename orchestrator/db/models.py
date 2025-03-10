@@ -38,6 +38,7 @@ from sqlalchemy import (
     select,
     text,
 )
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
@@ -671,7 +672,11 @@ class EngineSettingsTable(BaseModel):
     __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
 
 
-class get_subscription_instance(GenericFunction[uuid.UUID]):
+class get_subscription_instance(GenericFunction):
     # TODO think of a better name
     type = pg.JSONB()
     # inherit_cache = True # TODO test this, read up on what it means. Setting to false disables the cli warning.
+
+    def __init__(self, sub_inst_id: uuid.UUID, mapping: dict):
+        mapping_jsonb = sa_cast(mapping, pg.JSONB)
+        super().__init__(sub_inst_id, mapping_jsonb)
