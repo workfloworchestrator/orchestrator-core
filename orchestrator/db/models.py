@@ -38,7 +38,6 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy import cast as sa_cast
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
@@ -677,6 +676,5 @@ class get_subscription_instance(GenericFunction):
     type = pg.JSONB()
     # inherit_cache = True # TODO test this, read up on what it means. Setting to false disables the cli warning.
 
-    def __init__(self, sub_inst_id: uuid.UUID, mapping: dict):
-        mapping_jsonb = sa_cast(mapping, pg.JSONB)
-        super().__init__(sub_inst_id, mapping_jsonb)
+    def __init__(self, sub_inst_id: uuid.UUID):
+        super().__init__(sub_inst_id)
