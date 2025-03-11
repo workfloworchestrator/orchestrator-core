@@ -413,15 +413,17 @@ def get_subscriptions_with_metadata_and_schema_query(
     ).encode("utf-8")
 
 
-def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory, benchmark):
+def test_subscriptions_single_page(test_client, product_type_1_subscriptions_factory, benchmark, monitor_sqlalchemy):
     # when
 
     product_type_1_subscriptions_factory(4)
     data = get_subscriptions_query()
 
-    @benchmark
-    def response():
-        return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+    with monitor_sqlalchemy():
+
+        @benchmark
+        def response():
+            return test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
     # then
 
