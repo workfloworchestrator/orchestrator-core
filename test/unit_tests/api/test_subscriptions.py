@@ -734,11 +734,13 @@ def test_subscriptions_search_uuids2(
     assert not failed, f"Could not find '{subscription_id}' by all keywords; {succeeded=} {failed=}"
 
 
-def test_subscription_detail_with_domain_model(test_client, generic_subscription_1, benchmark):
+def test_subscription_detail_with_domain_model(test_client, generic_subscription_1, benchmark, monitor_sqlalchemy):
     # test with a subscription that has domain model and without
-    @benchmark
-    def response():
-        return test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+    with monitor_sqlalchemy():
+
+        @benchmark
+        def response():
+            return test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
 
     assert response.status_code == HTTPStatus.OK
     # Check hierarchy
