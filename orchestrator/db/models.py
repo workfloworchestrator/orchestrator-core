@@ -673,8 +673,8 @@ class EngineSettingsTable(BaseModel):
 
 class get_subscription_instance(GenericFunction):
     # TODO think of a better name
-    type = pg.JSONB()
-    # inherit_cache = True # TODO test this, read up on what it means. Setting to false disables the cli warning.
+    type = pg.JSONB()  # type: ignore[no-untyped-call]
+    inherit_cache = True
 
     def __init__(self, sub_inst_id: uuid.UUID):
         super().__init__(sub_inst_id)
