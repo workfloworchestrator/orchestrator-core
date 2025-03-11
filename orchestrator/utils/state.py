@@ -154,78 +154,80 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
 
     """
 
+    sig = inspect.signature(func)
+    if not sig.parameters:
+        return []
+
     def _convert_to_uuid(v: Any) -> UUID:
         """Converts the value to a UUID instance if it is not already one."""
         return v if isinstance(v, UUID) else UUID(v)
 
-    sig = inspect.signature(func)
     arguments: list[Any] = []
-    if sig.parameters:
-        for name, param in sig.parameters.items():
-            # Ignore dynamic arguments. Mostly need to deal with `const`
-            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
-                logger.warning("*args and **kwargs are not supported as step params")
-                continue
+    for name, param in sig.parameters.items():
+        # Ignore dynamic arguments. Mostly need to deal with `const`
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            logger.warning("*args and **kwargs are not supported as step params")
+            continue
 
-            # If we find an argument named "state" we use the whole state as argument to
-            # This is mainly to be backward compatible with code that needs the whole state...
-            # TODO: Remove this construction
-            if name == "state":
-                arguments.append(state)
-                continue
+        # If we find an argument named "state" we use the whole state as argument to
+        # This is mainly to be backward compatible with code that needs the whole state...
+        # TODO: Remove this construction
+        if name == "state":
+            arguments.append(state)
+            continue
 
-            # Workaround for the fact that you can't call issubclass on typing types
-            try:
-                is_subscription_model_type = issubclass(param.annotation, SubscriptionModel)
-            except Exception:
-                is_subscription_model_type = False
+        # Workaround for the fact that you can't call issubclass on typing types
+        try:
+            is_subscription_model_type = issubclass(param.annotation, SubscriptionModel)
+        except Exception:
+            is_subscription_model_type = False
 
-            if is_subscription_model_type:
-                subscription_id = _get_sub_id(state.get(name))
-                if subscription_id:
-                    sub_mod = param.annotation.from_subscription(subscription_id)
-                    arguments.append(sub_mod)
-                else:
-                    logger.error("Could not find key in state.", key=name, state=state)
-                    raise KeyError(f"Could not find key '{name}' in state.")
-            elif is_list_type(param.annotation, SubscriptionModel):
-                subscription_ids = map(_get_sub_id, state.get(name, []))
-                # Actual type is first argument from list type
-                if (actual_type := get_args(param.annotation)[0]) == Any:
-                    raise ValueError(
-                        f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'"
-                    )
-                subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
-                arguments.append(subscriptions)
-            elif is_optional_type(param.annotation, SubscriptionModel):
-                subscription_id = _get_sub_id(state.get(name))
-                if subscription_id:
-                    # Actual type is first argument from optional type
-                    sub_mod = get_args(param.annotation)[0].from_subscription(subscription_id)
-                    arguments.append(sub_mod)
-                else:
-                    arguments.append(None)
-            elif param.default is not inspect.Parameter.empty:
-                arguments.append(state.get(name, param.default))
+        if is_subscription_model_type:
+            subscription_id = _get_sub_id(state.get(name))
+            if subscription_id:
+                sub_mod = param.annotation.from_subscription(subscription_id)
+                arguments.append(sub_mod)
             else:
-                try:
-                    value = state[name]
-                    if param.annotation == UUID:
-                        arguments.append(_convert_to_uuid(value))
-                    elif is_list_type(param.annotation, UUID):
-                        arguments.append([_convert_to_uuid(item) for item in value])
-                    elif is_optional_type(param.annotation, UUID):
-                        arguments.append(None if value is None else _convert_to_uuid(value))
-                    else:
-                        arguments.append(value)
-                except KeyError as key_error:
-                    logger.error("Could not find key in state.", key=name, state=state)
-                    raise KeyError(
-                        f"Could not find key '{name}' in state. for function {func.__module__}.{func.__qualname__}"
-                    ) from key_error
-                except ValueError as value_error:
-                    logger.error("Could not convert value to expected type.", key=name, state=state, value=state[name])
-                    raise ValueError(f"Could not convert value '{state[name]}' to {param.annotation}") from value_error
+                logger.error("Could not find key in state.", key=name, state=state)
+                raise KeyError(f"Could not find key '{name}' in state.")
+        elif is_list_type(param.annotation, SubscriptionModel):
+            subscription_ids = map(_get_sub_id, state.get(name, []))
+            # Actual type is first argument from list type
+            if (actual_type := get_args(param.annotation)[0]) == Any:
+                raise ValueError(
+                    f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'"
+                )
+            subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
+            arguments.append(subscriptions)
+        elif is_optional_type(param.annotation, SubscriptionModel):
+            subscription_id = _get_sub_id(state.get(name))
+            if subscription_id:
+                # Actual type is first argument from optional type
+                sub_mod = get_args(param.annotation)[0].from_subscription(subscription_id)
+                arguments.append(sub_mod)
+            else:
+                arguments.append(None)
+        elif param.default is not inspect.Parameter.empty:
+            arguments.append(state.get(name, param.default))
+        else:
+            try:
+                value = state[name]
+                if param.annotation == UUID:
+                    arguments.append(_convert_to_uuid(value))
+                elif is_list_type(param.annotation, UUID):
+                    arguments.append([_convert_to_uuid(item) for item in value])
+                elif is_optional_type(param.annotation, UUID):
+                    arguments.append(None if value is None else _convert_to_uuid(value))
+                else:
+                    arguments.append(value)
+            except KeyError as key_error:
+                logger.error("Could not find key in state.", key=name, state=state)
+                raise KeyError(
+                    f"Could not find key '{name}' in state. for function {func.__module__}.{func.__qualname__}"
+                ) from key_error
+            except ValueError as value_error:
+                logger.error("Could not convert value to expected type.", key=name, state=state, value=state[name])
+                raise ValueError(f"Could not convert value '{state[name]}' to {param.annotation}") from value_error
 
     return arguments
 
