@@ -191,7 +191,7 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
                 logger.error("Could not find key in state.", key=name, state=state)
                 raise KeyError(f"Could not find key '{name}' in state.")
         elif is_list_type(param.annotation, SubscriptionModel):
-            subscription_ids = map(_get_sub_id, state.get(name, []))
+            subscription_ids = [_get_sub_id(item) for item in state.get(name, [])]
             # Actual type is first argument from list type
             if (actual_type := get_args(param.annotation)[0]) == Any:
                 raise ValueError(
