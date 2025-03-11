@@ -968,8 +968,7 @@ def test_domain_model_attrs_saving_loading(test_product_one, test_product_type_o
     assert relation.domain_model_attr == "sub_block_list"
 
     test_model_2 = ProductTypeOneForTestInactive.from_subscription(test_model.subscription_id)
-    # assert test_model == test_model_2 # TODO why doesn't this work anymore while the content is identical
-    assert test_model.model_dump() == test_model_2.model_dump()
+    assert test_model == test_model_2
 
 
 def test_removal_of_domain_attrs(test_product_one, test_product_type_one, test_product_sub_block_one):
