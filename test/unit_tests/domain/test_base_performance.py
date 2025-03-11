@@ -92,10 +92,11 @@ def test_subscription_model_horizontal_references(
     # when
 
     with monitor_sqlalchemy():  # Context does nothing unless you set CLI_OPT_MONITOR_SQLALCHEMY
-        db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
 
         @benchmark
         def subscription():
+            db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
+
             return ProductTypeOneForTest.from_subscription(subscription_id)
 
     # then
@@ -119,10 +120,11 @@ def test_subscription_model_vertical_references(
 
     # when
     with monitor_sqlalchemy():  # Context does nothing unless you set CLI_OPT_MONITOR_SQLALCHEMY
-        db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
 
         @benchmark
         def subscription():
+            db.session.expunge_all()  # otherwise sqlalchemy will just serve everything from cache
+
             return ProductTypeOneNestedForTest.from_subscription(subscription_id)
 
     # then
