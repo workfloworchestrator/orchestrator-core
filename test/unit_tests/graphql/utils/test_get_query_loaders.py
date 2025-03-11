@@ -3,7 +3,7 @@ from unittest import mock
 from sqlalchemy.orm import Relationship
 
 from orchestrator.db.models import WorkflowTable
-from orchestrator.graphql.utils.get_query_loaders import get_query_loaders
+from orchestrator.graphql.utils.get_query_loaders import get_query_loaders_for_gql_fields
 from test.unit_tests.graphql.utils.fixtures import LARGE_QUERY_SELECTED_FIELDS, SMALL_QUERY_SELECTED_FIELDS
 
 
@@ -18,7 +18,7 @@ def test_get_query_loaders():
     mock_info.selected_fields = LARGE_QUERY_SELECTED_FIELDS
 
     # when
-    query_loaders = get_query_loaders(mock_info, WorkflowTable)
+    query_loaders = get_query_loaders_for_gql_fields(WorkflowTable, mock_info)
 
     # then
     actual_loaders = [to_string(loader) for loader in query_loaders]
@@ -46,7 +46,7 @@ def test_get_query_loaders_noop():
     mock_info.selected_fields = SMALL_QUERY_SELECTED_FIELDS
 
     # when
-    query_loaders = get_query_loaders(mock_info, WorkflowTable)
+    query_loaders = get_query_loaders_for_gql_fields(WorkflowTable, mock_info)
 
     # then
     actual_loaders = [to_string(loader) for loader in query_loaders]
