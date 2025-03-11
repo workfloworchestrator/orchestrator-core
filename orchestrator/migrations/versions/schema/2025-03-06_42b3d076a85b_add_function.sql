@@ -16,7 +16,7 @@ from (select attr.key,
                  ('name', to_jsonb(pb.name))
           ) as attr(key, val)
       where si.subscription_instance_id = sub_inst_id
-      union
+      union all
       select rt.resource_type     key,
              jsonb_agg(siv.value) val
       from subscription_instance_values siv
