@@ -36,7 +36,7 @@ import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.db import (
@@ -48,6 +48,7 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
+from orchestrator.db.models import SubscriptionInstanceAsJsonFunction
 from orchestrator.domain.helpers import _to_product_block_field_type_iterable
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
@@ -1357,7 +1358,7 @@ class SubscriptionModel(DomainModel):
 
             def get_instance_json(instance_id: UUID) -> dict:
                 # where the magic happens
-                return db.session.execute(select(func.get_subscription_instance(instance_id))).scalar_one()
+                return db.session.execute(select(SubscriptionInstanceAsJsonFunction(instance_id))).scalar_one()
 
             # For each root PB retrieve it's entire JSON structure
             instances = {block_name: get_instance_json(instance_id) for block_name, instance_id in instance_ids.items()}

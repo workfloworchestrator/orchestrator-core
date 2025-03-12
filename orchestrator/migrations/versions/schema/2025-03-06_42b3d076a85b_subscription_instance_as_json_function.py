@@ -1,6 +1,4 @@
-"""add_function.
-
-TODO rename migration to something better
+"""Add postgres function subscription_instance_as_json.
 
 Revision ID: 42b3d076a85b
 Revises: bac6be6f2b4f
@@ -31,5 +29,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     conn = op.get_bind()
 
-    conn.execute(text("DROP FUNCTION IF EXISTS get_subscription_instance;"))
-    conn.execute(text("DROP FUNCTION IF EXISTS get_subscription_instance_fields;"))
+    conn.execute(text("DROP FUNCTION IF EXISTS subscription_instance_as_json;"))
+    conn.execute(text("DROP FUNCTION IF EXISTS subscription_instance_fields_as_json;"))

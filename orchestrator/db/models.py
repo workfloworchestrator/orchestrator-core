@@ -671,8 +671,9 @@ class EngineSettingsTable(BaseModel):
     __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
 
 
-class get_subscription_instance(GenericFunction):
-    # TODO think of a better name
+class SubscriptionInstanceAsJsonFunction(GenericFunction):
+    name = "subscription_instance_as_json"
+
     type = pg.JSONB()  # type: ignore[no-untyped-call]
     inherit_cache = True
 
