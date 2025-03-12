@@ -68,7 +68,7 @@ from orchestrator.websocket import (
     broadcast_process_update_to_websocket,
     websocket_manager,
 )
-from orchestrator.workflow import ProcessStatus
+from orchestrator.workflow import ProcessStatus, DEFAULT_CALLBACK_PROGRESS_KEY, CALLBACK_TOKEN_KEY
 from pydantic_forms.types import JSON, State
 
 router = APIRouter()
@@ -195,6 +195,41 @@ def continue_awaiting_process_endpoint(
         continue_awaiting_process(process, token=token, input_data=json_data, broadcast_func=broadcast_func)
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
+
+
+@router.post(
+    "/{process_id}/callback/{token}/progress",
+    response_model=None,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
+def update_progress_on_awaiting_process_endpoint(
+    process_id: UUID,
+    token: str,
+    json_data: State = Body(...),
+) -> None:
+    process = _get_process(process_id)
+
+    if process.last_status != ProcessStatus.AWAITING_CALLBACK:
+        raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
+
+    pstat = load_process(process)
+    state = pstat.state.unwrap()
+
+    # Check if the token matches
+    token_from_state = state.get(CALLBACK_TOKEN_KEY)
+    if token != token_from_state:
+        raise_status(HTTPStatus.NOT_FOUND, "Invalid token")
+
+    progress_key = state.get(DEFAULT_CALLBACK_PROGRESS_KEY, "callback_progress")
+    state = {**state, progress_key: json_data} | {"__remove_keys": [progress_key]}
+
+    current_step = process.steps[-1]
+    current_step.state = state
+    db.session.add(current_step)
+    db.session.commit()
+
+    broadcast_process_update_to_websocket(process.process_id)
 
 
 @router.put(
