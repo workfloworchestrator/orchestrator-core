@@ -229,7 +229,7 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         assert response_data["last_status"] == "awaiting_callback"
         state = response_data["current_state"]
 
-        # Update progress 1
+        # Update progress 1 using dict
         callback_route1 = state["callback_route"]
         response = test_client.post(f"{callback_route1}/progress", json={"update": "123"})
         assert response.status_code == 200
@@ -254,9 +254,11 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         assert state["dr_ext_data"] == "12345"
         assert DEFAULT_CALLBACK_PROGRESS_KEY not in state
 
-        # Update progress 2
+        # Update progress 2 using string
         callback_route2 = state["callback_route"]
-        response = test_client.post(f"{callback_route2}/progress", json={"update": "567"})
+        response = test_client.post(
+            f"{callback_route2}/progress", data="update 567", headers={"Content-Type": "text/plain; charset=utf-8"}
+        )
         assert response.status_code == 200
         response_data = response.json()
 
@@ -264,7 +266,7 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
         state = response_data["current_state"]
-        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == {"update": "567"}
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == "update 567"
 
         # Continue workflow 2
         response = test_client.post(callback_route2, json={"ext_data": "56789"})

@@ -206,7 +206,7 @@ def continue_awaiting_process_endpoint(
 def update_progress_on_awaiting_process_endpoint(
     process_id: UUID,
     token: str,
-    json_data: State = Body(...),
+    data: str | State = Body(...),
 ) -> None:
     process = _get_process(process_id)
 
@@ -222,7 +222,7 @@ def update_progress_on_awaiting_process_endpoint(
         raise_status(HTTPStatus.NOT_FOUND, "Invalid token")
 
     progress_key = state.get(DEFAULT_CALLBACK_PROGRESS_KEY, "callback_progress")
-    state = {**state, progress_key: json_data} | {"__remove_keys": [progress_key]}
+    state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
 
     current_step = process.steps[-1]
     current_step.state = state
