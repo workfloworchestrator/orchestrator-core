@@ -1,6 +1,5 @@
--- TODO rename functions to something better
 
-CREATE OR REPLACE FUNCTION get_subscription_instance_fields(sub_inst_id uuid)
+CREATE OR REPLACE FUNCTION subscription_instance_fields_as_json(sub_inst_id uuid)
     RETURNS jsonb
     LANGUAGE sql
     STABLE PARALLEL SAFE AS
@@ -26,16 +25,15 @@ from (select attr.key,
 $func$;
 
 
-
-CREATE OR REPLACE FUNCTION get_subscription_instance(sub_inst_id uuid)
+CREATE OR REPLACE FUNCTION subscription_instance_as_json(sub_inst_id uuid)
     RETURNS jsonb
     LANGUAGE sql
     STABLE PARALLEL SAFE AS
 $func$
-select get_subscription_instance_fields(sub_inst_id) ||
+select subscription_instance_fields_as_json(sub_inst_id) ||
        coalesce(jsonb_object_agg(depends_on.block_name, depends_on.block_instances), '{}'::jsonb)
 from (select sir.domain_model_attr                                      block_name,
-             jsonb_agg(get_subscription_instance(sir.depends_on_id)) as block_instances
+             jsonb_agg(subscription_instance_as_json(sir.depends_on_id)) as block_instances
       from subscription_instance_relations sir
       where sir.in_use_by_id = sub_inst_id
       group by block_name) as depends_on
