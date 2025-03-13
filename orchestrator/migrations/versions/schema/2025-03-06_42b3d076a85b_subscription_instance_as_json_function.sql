@@ -17,7 +17,7 @@ from (select attr.key,
       where si.subscription_instance_id = sub_inst_id
       union all
       select rt.resource_type     key,
-             jsonb_agg(siv.value) val
+             jsonb_agg(siv.value ORDER BY siv.value ASC) val
       from subscription_instance_values siv
                join resource_types rt on siv.resource_type_id = rt.resource_type_id
       where siv.subscription_instance_id = sub_inst_id
