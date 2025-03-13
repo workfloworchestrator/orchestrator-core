@@ -71,6 +71,7 @@ from orchestrator.types import (
 )
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_product_block_docstring, make_subscription_model_docstring
+from orchestrator.utils.functional import group_by_key
 from pydantic_forms.types import State, UUIDstr
 
 logger = structlog.get_logger(__name__)
@@ -456,6 +457,7 @@ class DomainModel(BaseModel):
 
 
 def flatten_product_block_types(product_block_field_type: Any) -> dict[str, type["ProductBlockModel"]]:
+    """Extract product block types and return mapping of product block names to product block class."""
     product_block_model: Any = product_block_field_type
     if is_list_type(product_block_field_type):
         _origin, args = get_origin_and_args(product_block_field_type)
@@ -1115,6 +1117,75 @@ class SubscriptionModel(DomainModel):
         return missing_data
 
     @classmethod
+    def _load_root_instances(
+        cls,
+        subscription_id: UUID | UUIDstr,
+    ) -> dict[str, Optional[dict] | list[dict]]:
+        """Load root subscription instance(s) for this subscription model.
+
+        When a new subscription model is loaded from an existing subscription, this function loads the entire root
+        subscription instance(s) from database using an optimized postgres function. The result of that function
+        is used to instantiate the root product block(s).
+
+        The "old" method DomainModel._load_instances() would recursively load subscription instances from the
+        database and individually instantiate nested blocks, more or less "manually" reconstructing the subscription.
+
+        The "new" method SubscriptionModel._load_root_instances() takes a different approach; since it has all
+        data for the root subscription instance, it can rely on Pydantic to instantiate the root block and all
+        nested blocks in one go. This is also why it does not have the params `status` and `match_domain_attr` because
+        this information is already encoded in the domain model of a product.
+        """
+        rules = {
+            klass.name: field_transformation_rules(klass) for klass in ProductBlockModel.registry.values() if klass.name
+        }  # TODO persist this somewhere?
+
+        # Map root PB names to subscription instance ids. There is usually only 1 root PB, but just in case.
+
+        # Use single query to map product block names to subscription instance ids.
+        block_name_to_instance_id_rows = db.session.execute(
+            select(ProductBlockTable.name, SubscriptionInstanceTable.subscription_instance_id)
+            .select_from(SubscriptionInstanceTable)
+            .join(ProductBlockTable)
+            .where(SubscriptionInstanceTable.subscription_id == subscription_id)
+            .order_by(ProductBlockTable.name)
+        ).all()
+        block_name_to_instance_ids: dict[str, list[UUID]] = group_by_key(block_name_to_instance_id_rows)  # type: ignore[arg-type]
+
+        def get_instance_json(instance_id: UUID) -> dict:
+            # where the magic happens
+            return db.session.execute(select(SubscriptionInstanceAsJsonFunction(instance_id))).scalar_one()
+
+        # TODO for products with a union on the root product block this will not work.
+        #   If we have a test for that: support it
+        #   If we do not have a test for it: add a todo here if someone ever finds it necessary
+        root_product_blocks = {
+            field_name: first(flatten_product_block_types(pb)) for field_name, pb in cls._product_block_fields_.items()
+        }
+
+        # Map product block fields on the product type to retrieved subscription instance(s)
+        instances = {
+            field_name: [get_instance_json(instance_id) for instance_id in block_name_to_instance_ids[block_name]]
+            for field_name, block_name in root_product_blocks.items()
+        }
+
+        # Rewrite some of the JSON data (list[dict] vs dict, add None as default, etc)
+        for instance_list in instances.values():
+            for instance in instance_list:
+                transform_instance_fields(rules, instance)
+
+        # Check if instance lists need to be unpacked, to support the (theoretical?) usecase of a list of root product blocks
+        def unpack_instance_list(field_name: str, instance_list: list[dict]) -> list[dict] | dict | None:
+            field_type = cls._product_block_fields_[field_name]
+            if is_list_type(field_type):
+                return instance_list
+            return only(instance_list)
+
+        return {
+            field_name: unpack_instance_list(field_name, instance_list)
+            for field_name, instance_list in instances.items()
+        }
+
+    @classmethod
     def from_product_id(
         cls: type[S],
         product_id: UUID | UUIDstr,
@@ -1219,7 +1290,6 @@ class SubscriptionModel(DomainModel):
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
     def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
-        # TODO rewrite to select() style + check sqlalchemy queries
         from orchestrator.settings import app_settings
 
         if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
@@ -1284,6 +1354,7 @@ class SubscriptionModel(DomainModel):
             name, product_block = new_root
             instances = {name: product_block}
         else:
+            # TODO test using cls._load_root_instances() here as well
             instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type:ignore
 
         try:
@@ -1340,45 +1411,9 @@ class SubscriptionModel(DomainModel):
         instances: dict[str, Any]
         if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
             logger.info(f"SubscriptionModel.from_subscription({subscription_id}) (new optimized method)")
-            rules = {
-                klass.name: get_rewrite_rules(klass) for klass in ProductBlockModel.registry.values() if klass.name
-            }  # TODO persist
-
-            # Map root PB names to subscription instance ids. There is usually only 1 root PB, but just in case.
-
-            # Use single query to only get what we need
-            query_instances = (
-                select(SubscriptionInstanceTable.subscription_instance_id, ProductBlockTable.name)
-                .join(ProductBlockTable)
-                .where(SubscriptionInstanceTable.subscription_id == subscription_id)
-            )
-            instance_ids = {
-                block_name: instance_id for (instance_id, block_name) in db.session.execute(query_instances)
-            }
-
-            def get_instance_json(instance_id: UUID) -> dict:
-                # where the magic happens
-                return db.session.execute(select(SubscriptionInstanceAsJsonFunction(instance_id))).scalar_one()
-
-            # For each root PB retrieve it's entire JSON structure
-            instances = {block_name: get_instance_json(instance_id) for block_name, instance_id in instance_ids.items()}
-
-            # Map fields on the product type to the corresponding JSON
-
-            # TODO this does not yet work for the theoretical usecase of a list of root product blocks
-            # instances = {field_name: instances[pb.name] for field_name, pb in cls._product_block_fields_.items()}
-            instances = {
-                field_name: instances[first(flatten_product_block_types(pb))]
-                for field_name, pb in cls._product_block_fields_.items()
-            }
-
-            # Rewrite some of the JSON data (list[dict] vs dict, add None as default, etc)
-            for instance in instances.values():
-                rewrite_instance(rules, instance)
-
+            instances = cls._load_root_instances(subscription_id)
         else:
             logger.info(f"SubscriptionModel.from_subscription({subscription_id}) (old method)")
-
             instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
         try:
@@ -1634,11 +1669,12 @@ def value_list_to_value(field_type: type, value_list: Any) -> Any:
             raise ValueError(f"All instance values should be returned as list, found {type(value_list)}")
 
 
-def get_rewrite_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
+def field_transformation_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
 
     def create() -> Iterable[tuple[str, Callable]]:
         for field_name in klass._product_block_fields_:
-            product_block_field_type = klass.model_fields[field_name].annotation  # TODO see if value of dict is same
+            # TODO test using field_type value in dict, should be the same?
+            product_block_field_type = klass.model_fields[field_name].annotation
             if is_list_type(product_block_field_type):
                 yield field_name, ensure_list
             else:
@@ -1653,7 +1689,7 @@ def get_rewrite_rules(klass: type[ProductBlockModel]) -> dict[str, Callable]:
     return dict(create())
 
 
-def rewrite_instance(all_rules: dict[str, dict[str, Callable]], instance: Any) -> None:
+def transform_instance_fields(all_rules: dict[str, dict[str, Callable]], instance: Any) -> None:
     field_rules = all_rules[instance["name"]]
 
     klass = ProductBlockModel.registry[instance["name"]]
@@ -1663,7 +1699,6 @@ def rewrite_instance(all_rules: dict[str, dict[str, Callable]], instance: Any) -
     # Apply rewrite rules to all fields in this subscription instance
     try:
         for field_name, rewrite_func in field_rules.items():
-            # TODO wondering how much overhead will show for this in profiling
             field_value = instance.get(field_name)
             instance[field_name] = rewrite_func(field_value)
     except ValueError as e:
@@ -1672,7 +1707,7 @@ def rewrite_instance(all_rules: dict[str, dict[str, Callable]], instance: Any) -
     # Recurse into subscription instances
     for field_value in instance.values():
         if isinstance(field_value, dict):
-            rewrite_instance(all_rules, field_value)
+            transform_instance_fields(all_rules, field_value)
         if isinstance(field_value, list) and isinstance(first(field_value, None), dict):
             for d in field_value:
-                rewrite_instance(all_rules, d)
+                transform_instance_fields(all_rules, d)
