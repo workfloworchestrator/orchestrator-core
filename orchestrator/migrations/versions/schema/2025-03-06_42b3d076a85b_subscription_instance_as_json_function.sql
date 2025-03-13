@@ -1,4 +1,3 @@
-
 CREATE OR REPLACE FUNCTION subscription_instance_fields_as_json(sub_inst_id uuid)
     RETURNS jsonb
     LANGUAGE sql
@@ -16,8 +15,8 @@ from (select attr.key,
           ) as attr(key, val)
       where si.subscription_instance_id = sub_inst_id
       union all
-      select rt.resource_type     key,
-             jsonb_agg(siv.value) val
+      select rt.resource_type                            key,
+             jsonb_agg(siv.value ORDER BY siv.value ASC) val
       from subscription_instance_values siv
                join resource_types rt on siv.resource_type_id = rt.resource_type_id
       where siv.subscription_instance_id = sub_inst_id
@@ -32,8 +31,8 @@ CREATE OR REPLACE FUNCTION subscription_instance_as_json(sub_inst_id uuid)
 $func$
 select subscription_instance_fields_as_json(sub_inst_id) ||
        coalesce(jsonb_object_agg(depends_on.block_name, depends_on.block_instances), '{}'::jsonb)
-from (select sir.domain_model_attr                                      block_name,
-             jsonb_agg(subscription_instance_as_json(sir.depends_on_id)) as block_instances
+from (select sir.domain_model_attr                                                                    block_name,
+             jsonb_agg(subscription_instance_as_json(sir.depends_on_id) ORDER BY sir.order_id ASC) as block_instances
       from subscription_instance_relations sir
       where sir.in_use_by_id = sub_inst_id
       group by block_name) as depends_on
