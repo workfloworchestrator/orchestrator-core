@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime, timezone
 
 import sqlalchemy
@@ -43,6 +44,7 @@ from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
+from sqlalchemy.sql.functions import GenericFunction
 from sqlalchemy_utils import TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
@@ -667,3 +669,13 @@ class EngineSettingsTable(BaseModel):
     global_lock = mapped_column(Boolean(), default=False, nullable=False, primary_key=True)
     running_processes = mapped_column(Integer(), default=0, nullable=False)
     __table_args__: tuple = (CheckConstraint(running_processes >= 0, name="check_running_processes_positive"), {})
+
+
+class SubscriptionInstanceAsJsonFunction(GenericFunction):
+    name = "subscription_instance_as_json"
+
+    type = pg.JSONB()  # type: ignore[no-untyped-call]
+    inherit_cache = True
+
+    def __init__(self, sub_inst_id: uuid.UUID):
+        super().__init__(sub_inst_id)
