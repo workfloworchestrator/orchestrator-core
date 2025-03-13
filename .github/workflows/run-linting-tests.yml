@@ -5,9 +5,9 @@ name: Linting tests
 
 on:
   push:
-  pull_request:
-    branches: [master]
   workflow_call:
+  pull_request_target:
+  pull_request:
 
 jobs:
   build:
