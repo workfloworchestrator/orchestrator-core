@@ -68,7 +68,7 @@ from orchestrator.websocket import (
     broadcast_process_update_to_websocket,
     websocket_manager,
 )
-from orchestrator.workflow import ProcessStatus, DEFAULT_CALLBACK_PROGRESS_KEY, CALLBACK_TOKEN_KEY
+from orchestrator.workflow import CALLBACK_TOKEN_KEY, DEFAULT_CALLBACK_PROGRESS_KEY, ProcessStatus
 from pydantic_forms.types import JSON, State
 
 router = APIRouter()

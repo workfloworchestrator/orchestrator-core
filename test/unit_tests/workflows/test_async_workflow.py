@@ -1,7 +1,7 @@
 from orchestrator.targets import Target
 from orchestrator.workflow import (
-    DEFAULT_CALLBACK_ROUTE_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
+    DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
     begin,
     callback_step,
