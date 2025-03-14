@@ -223,7 +223,9 @@ def database(db_uri):
         conn.commit()
         conn.execution_options(isolation_level="AUTOCOMMIT").execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
         conn.commit()
-        conn.execute(text(f'CREATE DATABASE "{db_to_create}";'))
+        conn.execute(
+            text(f'CREATE DATABASE "{db_to_create}" LOCALE_PROVIDER icu ICU_LOCALE "en-US" TEMPLATE template0;')
+        )
 
     run_migrations(db_uri)
     db.wrapped_database.engine = create_engine(db_uri, **ENGINE_ARGUMENTS)
