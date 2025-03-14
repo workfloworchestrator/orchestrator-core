@@ -4,6 +4,7 @@ By default the Orchestrator is capable to handle a reasonable amount of workflow
 distributed workload we introduced the [Celery library](https://docs.celeryq.dev/en/stable/).
 
 This document describes the two modes in which an Orchestrator instance can run and what you need to configure:
+
 1. running tasks an workflows in a threadpool (default)
 2. running the Orchestrator with a number of workflow workers
 
@@ -33,7 +34,6 @@ When using Celery, the Orchestrator is split into two parts: the orchestrator-ap
 The orchestrator-api functionality is now limited to handling REST requests and delegating them (via one or more
 queues) to the orchestrator-worker. The workflows are executed in the orchestrator-worker.
 
-
 ### Queues
 
 Tasks and workflows are submitted on different queues. This allows for independent scaling of
@@ -45,7 +45,6 @@ to different queues. Currently, there are two queues defined:
 
 By default, [Redis](https://redis.io/) is used for the Celery Broker and Backend. See the next chapter
 about implementing on how to change this behaviour.
-
 
 ### Implementing the worker
 
@@ -82,14 +81,13 @@ celery.conf.update(result_expires=3600)
 As you can see in the code above we are using Redis as broker. You can of course replace this by RabbitMQ or
 another broker of your choice. See the Celery documentation for more details.
 
-`"orchestrator.services.tasks" ` is the namespace in orchestrator-core where the Celery tasks can be found. At the
+`"orchestrator.services.tasks"` is the namespace in orchestrator-core where the Celery tasks can be found. At the
 moment 4 tasks are defined:
 
 1. `tasks.new_task`: start a new task (delivered on the Task queue)
 2. `tasks.new_workflow`: start a new workflow (delivered on the Workflow queue)
 3. `tasks.resume_task`: resume an existing task (delivered on the Task queue)
 4. `tasks.resume_workflow`: resume an existing workflow (delivered on the Workflow queue)
-
 
 Finally, we initialise the orchestrator core:
 
@@ -132,9 +130,9 @@ The application flow looks like this when "celery" is the executor (and websocke
 - FastAPI application grabs this information and publishes it to the client websocket connection.
 
 A celery worker container will start by calling this module instead of `main.py` like so:
-```sh
+
 celery -A esnetorch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
-```
+
 
 * `-A` points to this module where the worker class is defined
 * `-E` sends task-related events (capturable and monitorable)
