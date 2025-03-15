@@ -1438,22 +1438,9 @@ class SubscriptionModel(DomainModel):
 
 
 def validate_base_model(
-    name: str,
-    cls: type[Any],
-    base_model: type[BaseModel] = DomainModel,
-    errors: list[str] | None = None
+    name: str, cls: type[Any], base_model: type[BaseModel] = DomainModel, errors: list[str] | None = None
 ) -> None:
-    """Validates that the given class is not Pydantic BaseModel or its direct subclass.
-
-    Args:
-        name: The name of the field to be validated.
-        cls: The class to be validated.
-        base_model: The base model to validate against, default is DomainModel.
-        errors: A list to store error messages, if any. Defaults to None.
-
-    Returns: None
-
-    """
+    """Validates that the given class is not Pydantic BaseModel or its direct subclass."""
     # Instantiate errors list if not provided and avoid mutating default
     if errors is None:
         errors = []
@@ -1489,12 +1476,7 @@ class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
     """A registry for all subscription models."""
 
     def __setitem__(self, __key: str, __value: type[SubscriptionModel]) -> None:
-        """Set the value for the given key in the registry while validating against Pydantic BaseModel.
-
-        Args:
-            __key: The key to be set in the registry.
-            __value: The value to be set in the registry, which must be a subclass of SubscriptionModel.
-        """
+        """Set the value for the given key in the registry while validating against Pydantic BaseModel."""
         validate_base_model(__key, __value)
         super().__setitem__(__key, __value)
 
