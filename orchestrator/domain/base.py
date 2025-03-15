@@ -14,12 +14,13 @@ import itertools
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from datetime import datetime
-from inspect import get_annotations
+from inspect import get_annotations, isclass
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from typing import (
     Any,
     ClassVar,
+    Literal,
     Optional,
     TypeVar,
     Union,
@@ -33,6 +34,7 @@ import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
+from pydantic.main import IncEx
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -86,6 +88,35 @@ class DomainModel(BaseModel):
 
     Contains all common Product block/Subscription instance code
     """
+
+    def model_dump_json(
+        self,
+        *,
+        indent: int | None = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: Any | None = None,
+        by_alias: bool = False,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        serialize_as_any: bool = False,
+    ) -> str:
+        return super().model_dump_json(
+            indent=indent,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            serialize_as_any=serialize_as_any,
+        )
 
     model_config = ConfigDict(validate_assignment=True, validate_default=True)
 
@@ -596,7 +627,9 @@ class ProductBlockModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(
+            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
+        )  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1051,7 +1084,9 @@ class SubscriptionModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(
+            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
+        )  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1400,6 +1435,68 @@ class SubscriptionModel(DomainModel):
     @property
     def db_model(self) -> SubscriptionTable:
         return self._db_model
+
+
+def validate_base_model(
+    name: str,
+    cls: type[Any],
+    base_model: type[BaseModel] = DomainModel,
+    errors: list[str] | None = None
+) -> None:
+    """Validates that the given class is not Pydantic BaseModel or its direct subclass.
+
+    Args:
+        name: The name of the field to be validated.
+        cls: The class to be validated.
+        base_model: The base model to validate against, default is DomainModel.
+        errors: A list to store error messages, if any. Defaults to None.
+
+    Returns: None
+
+    """
+    # Instantiate errors list if not provided and avoid mutating default
+    if errors is None:
+        errors = []
+    # Return early when the node is not a class as there is nothing to be done
+    if not isclass(cls):
+        return
+    # Validate each field in the ProductBlockModel's field dictionaries
+    if issubclass(cls, ProductBlockModel):
+        for name, clz in cls._product_block_fields_.items():
+            validate_base_model(name, clz, ProductBlockModel, errors)
+        for name, clz in cls._non_product_block_fields_.items():
+            validate_base_model(name, clz, SubscriptionModel, errors)
+    # Generate error if node is Pydantic BaseModel or direct subclass
+    if issubclass(cls, BaseModel):
+        err_msg: str = (
+            f"If this field was intended to be a {base_model.__name__}, "
+            f"define {name}:{cls.__name__} with {base_model.__name__} as its "
+            f"superclass instead. "
+            f"e.g., class {cls.__name__}({base_model.__name__}):"
+        )
+        if cls is BaseModel:
+            errors.append(f"Field {name}: {cls.__name__} can not be {BaseModel.__name__}. " + err_msg)
+        if len(cls.__mro__) > 1 and cls.__mro__[1] is BaseModel:
+            errors.append(
+                f"Field {name}: {cls.__name__} can not be a direct subclass of {BaseModel.__name__}. " + err_msg
+            )
+    # Format all errors as one per line and raise a TypeError when they exist
+    if errors:
+        raise TypeError("\n".join(errors))
+
+
+class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
+    """A registry for all subscription models."""
+
+    def __setitem__(self, __key: str, __value: type[SubscriptionModel]) -> None:
+        """Set the value for the given key in the registry while validating against Pydantic BaseModel.
+
+        Args:
+            __key: The key to be set in the registry.
+            __value: The value to be set in the registry, which must be a subclass of SubscriptionModel.
+        """
+        validate_base_model(__key, __value)
+        super().__setitem__(__key, __value)
 
 
 def _validate_lifecycle_change_for_product_block(

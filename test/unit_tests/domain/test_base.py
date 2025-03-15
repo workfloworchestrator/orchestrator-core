@@ -5,8 +5,7 @@ from uuid import uuid4
 import pytest
 import pytz
 from dirty_equals import IsUUID
-from pydantic import Field, ValidationError, computed_field, conlist
-from pydantic.main import BaseModel
+from pydantic import BaseModel, Field, ValidationError, computed_field, conlist
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 
@@ -53,6 +52,69 @@ def test_product_block_metadata(test_product_block_one, test_product_one, test_p
     assert ProductBlockOneForTestInactive.description == "Test Block"
     assert ProductBlockOneForTestInactive.product_block_id == product_block.product_block_id
     assert ProductBlockOneForTestInactive.tag == "TEST"
+
+
+def test_subscription_model_registry():
+    class ForbiddenProductBlock(ProductBlockModel):
+        """This is a product block that should not be registered because it has a field that is itself a Pydantic BaseModel."""
+
+        ordinary_str: str
+        ordinary_int: list[int]
+        pydantic_block: BaseModel
+
+    class ToxicProductBlock(BaseModel):
+        """This is a product block that should not be registered because it inherits from the Pydantic BaseModel."""
+
+        ordinary_str: str
+        ordinary_int: list[int]
+
+    class PoisonedProductBlock(ProductBlockModel):
+        """This is a product block that should not be registered because it has at least one field that is a direct descendant of Pydantic BaseModel."""
+
+        ordinary_str: str
+        ordinary_int_list: list[int]
+        toxic_block: ToxicProductBlock
+
+    class CursedProductBlock(ProductBlockModel):
+        """This is a product block that should not be registered because it has at least one product block that with a field that is a direct descendant of Pydantic BaseModel."""
+
+        ordinary_str: str
+        ordinary_int_list: list[int]
+        poisoned_block: PoisonedProductBlock
+
+    class CommonProductBlock(ProductBlockModel):
+        """This is a product block that should be registered because it is unrestricted by having only ordinary fields."""
+
+        ordinary_str: str
+        ordinary_int_list: list[int]
+
+    class UncommonProductBlock(ProductBlockModel):
+        """This is a product block that should be registered because it is unrestricted by having product blocks that are also unrestricted.."""
+
+        ordinary_str: str
+        ordinary_int_list: list[int]
+        common_block: CommonProductBlock
+
+    class HauntedSubscription(SubscriptionModel):
+        """This is a subscription model that should not be registered because it has fields and product block that are constructed in a way that makes them invalid for registration."""
+
+        ordinary_str: str
+        ordinary_int_list: list[int]
+        forbidden_field: BaseModel
+        forbidden_block: ForbiddenProductBlock
+        toxic_block: ToxicProductBlock
+        poisoned_block: PoisonedProductBlock
+        cursed_block: CursedProductBlock
+        common_block: CommonProductBlock
+        uncommon_block: UncommonProductBlock
+
+    error_text = (
+        r"SubscriptionModel fields \['bad_field_a', 'bad_field_b'\] should not have type <class 'pydantic.main.BaseModel'> or inherit directly from <class 'pydantic.main.BaseModel'>. "
+        "If this field was meant to be a Product Block, inherit from <class 'orchestrator.domain.base.ProductBlockModel'> instead."
+    )
+
+    with pytest.raises(TypeError, match=error_text):
+        SUBSCRIPTION_MODEL_REGISTRY.update({"haunted_subscription": HauntedSubscription})
 
 
 def test_product_block_one_nested(
