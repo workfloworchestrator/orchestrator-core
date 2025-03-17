@@ -21,7 +21,6 @@ from typing import (
     Callable,
     ClassVar,
     Iterable,
-    Literal,
     Mapping,
     Optional,
     TypeVar,
@@ -36,7 +35,6 @@ import structlog
 from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
-from pydantic.main import IncEx
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -90,35 +88,6 @@ class DomainModel(BaseModel):
 
     Contains all common Product block/Subscription instance code
     """
-
-    def model_dump_json(
-        self,
-        *,
-        indent: int | None = None,
-        include: IncEx | None = None,
-        exclude: IncEx | None = None,
-        context: Any | None = None,
-        by_alias: bool = False,
-        exclude_unset: bool = False,
-        exclude_defaults: bool = False,
-        exclude_none: bool = False,
-        round_trip: bool = False,
-        warnings: bool | Literal["none", "warn", "error"] = True,
-        serialize_as_any: bool = False,
-    ) -> str:
-        return super().model_dump_json(
-            indent=indent,
-            include=include,
-            exclude=exclude,
-            context=context,
-            by_alias=by_alias,
-            exclude_unset=exclude_unset,
-            exclude_defaults=exclude_defaults,
-            exclude_none=exclude_none,
-            round_trip=round_trip,
-            warnings=warnings,
-            serialize_as_any=serialize_as_any,
-        )
 
     model_config = ConfigDict(validate_assignment=True, validate_default=True)
 
