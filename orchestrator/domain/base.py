@@ -12,15 +12,17 @@
 # limitations under the License.
 import itertools
 from collections import defaultdict
-from collections.abc import Callable, Iterable
 from datetime import datetime
 from inspect import get_annotations, isclass
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from typing import (
     Any,
+    Callable,
     ClassVar,
+    Iterable,
     Literal,
+    Mapping,
     Optional,
     TypeVar,
     Union,
@@ -1448,7 +1450,7 @@ def validate_base_model(
     if not isclass(cls):
         return
     # Validate each field in the ProductBlockModel's field dictionaries
-    if issubclass(cls, ProductBlockModel):
+    if issubclass(cls, ProductBlockModel) or issubclass(cls, SubscriptionModel):
         for name, clz in cls._product_block_fields_.items():
             validate_base_model(name, clz, ProductBlockModel, errors)
         for name, clz in cls._non_product_block_fields_.items():
@@ -1456,10 +1458,8 @@ def validate_base_model(
     # Generate error if node is Pydantic BaseModel or direct subclass
     if issubclass(cls, BaseModel):
         err_msg: str = (
-            f"If this field was intended to be a {base_model.__name__}, "
-            f"define {name}:{cls.__name__} with {base_model.__name__} as its "
-            f"superclass instead. "
-            f"e.g., class {cls.__name__}({base_model.__name__}):"
+            f"If this field was intended to be a {base_model.__name__}, define {name}:{cls.__name__} with "
+            f"{base_model.__name__} as its superclass instead. e.g., class {cls.__name__}({base_model.__name__}):"
         )
         if cls is BaseModel:
             errors.append(f"Field {name}: {cls.__name__} can not be {BaseModel.__name__}. " + err_msg)
@@ -1476,9 +1476,32 @@ class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
     """A registry for all subscription models."""
 
     def __setitem__(self, __key: str, __value: type[SubscriptionModel]) -> None:
-        """Set the value for the given key in the registry while validating against Pydantic BaseModel."""
+        """Set value for key in while validating against Pydantic BaseModel."""
         validate_base_model(__key, __value)
         super().__setitem__(__key, __value)
+
+    def update(
+        self,
+        m: Any = None,
+        /,
+        **kwargs: type[SubscriptionModel],
+    ) -> None:
+        """Update dictionary and/or keyword arguments using `__setitem__`."""
+        if m:
+            if isinstance(m, Mapping):
+                for key, value in m.items():
+                    self[key] = value
+            elif isinstance(m, Iterable):
+                for index, item in enumerate(m):
+                    if not isinstance(item, tuple):
+                        raise TypeError(f"cannot convert dictionary update sequence " f"element #{index} to a sequence")
+                    if length := len(item) != 2:
+                        raise TypeError(
+                            f"dictionary update sequence element #{index} has " f"length {length}; 2 is required"
+                        )
+                    self[item[0]] = item[1]
+        for key, value in kwargs.items():
+            self[key] = value
 
 
 def _validate_lifecycle_change_for_product_block(

@@ -55,51 +55,82 @@ def test_product_block_metadata(test_product_block_one, test_product_one, test_p
 
 
 def test_subscription_model_registry():
-    class ForbiddenProductBlock(ProductBlockModel):
-        """This is a product block that should not be registered because it has a field that is itself a Pydantic BaseModel."""
+    """Test the behavior of the subscription model registry."""
 
+    # This is a Product Block model that should not be registered
+    # reason: it has a field that is itself Pydantic BaseModel
+    class ForbiddenProductBlock(ProductBlockModel, product_block_name="ForbiddenProductBlock"):
         ordinary_str: str
         ordinary_int: list[int]
         pydantic_block: BaseModel
 
-    class ToxicProductBlock(BaseModel):
-        """This is a product block that should not be registered because it inherits from the Pydantic BaseModel."""
+    # This is a Subscription model that should not be registered
+    # reason: it has an invalid Product Block model
+    class ForbiddenSubscription(SubscriptionModel, is_base=True):
+        forbidden_block: ForbiddenProductBlock
 
+    # This is a Product Block model that should not be registered
+    # reason: it is a direct subclass of Pydantic BaseModel
+    # note: subclassing BaseModel won't allow `product_block_name` to be passed
+    class ToxicProductBlock(BaseModel):
         ordinary_str: str
         ordinary_int: list[int]
 
-    class PoisonedProductBlock(ProductBlockModel):
-        """This is a product block that should not be registered because it has at least one field that is a direct descendant of Pydantic BaseModel."""
+    # This is a Subscription model that should not be registered
+    # reason: it has an invalid Product Block model
+    class ToxicSubscription(SubscriptionModel, is_base=True):
+        toxic_block: ToxicProductBlock
 
+    # This is a Product Block model that should not be registered
+    # reason: it contains a direct subclass of Pydantic BaseModel
+    class PoisonedProductBlock(ProductBlockModel, product_block_name="PoisonedProductBlock"):
         ordinary_str: str
         ordinary_int_list: list[int]
         toxic_block: ToxicProductBlock
 
-    class CursedProductBlock(ProductBlockModel):
-        """This is a product block that should not be registered because it has at least one product block that with a field that is a direct descendant of Pydantic BaseModel."""
+    # This is a Subscription model that should not be registered
+    # reason: because it has an invalid Product Block model
+    class PoisonedSubscription(SubscriptionModel, is_base=True):
+        poisoned_block: PoisonedProductBlock
 
+    # This is a Product Block model that should not be registered
+    # reason: it has an invalid Product Block model
+    class CursedProductBlock(ProductBlockModel, product_block_name="CursedProductBlock"):
         ordinary_str: str
         ordinary_int_list: list[int]
         poisoned_block: PoisonedProductBlock
 
-    class CommonProductBlock(ProductBlockModel):
-        """This is a product block that should be registered because it is unrestricted by having only ordinary fields."""
+    # This is a Subscription model that should not be registered
+    # reason: it has an invalid Product Block model
+    class CursedSubscription(SubscriptionModel, is_base=True):
+        cursed_block: CursedProductBlock
 
+    # This is a Product Block model that should be registered
+    # reason: it only uses ordinary fields
+    class CommonProductBlock(ProductBlockModel, product_block_name="CommonProductBlock"):
         ordinary_str: str
         ordinary_int_list: list[int]
 
-    class UncommonProductBlock(ProductBlockModel):
-        """This is a product block that should be registered because it is unrestricted by having product blocks that are also unrestricted.."""
+    # This is a Subscription model that should be registered
+    # reason: it has a valid Product Block model
+    class CommonSubscription(SubscriptionModel, is_base=True):
+        common_block: CommonProductBlock
 
+    # This is a Product Block model that should be registered
+    # reason: it contains a valid Product Block model
+    class UncommonProductBlock(ProductBlockModel, product_block_name="UncommonProductBlock"):
         ordinary_str: str
         ordinary_int_list: list[int]
         common_block: CommonProductBlock
 
-    class HauntedSubscription(SubscriptionModel):
-        """This is a subscription model that should not be registered because it has fields and product block that are constructed in a way that makes them invalid for registration."""
+    # This is a Subscription model that should be registered
+    # reason: it contains a valid Product Block model
+    class UncommonSubscription(SubscriptionModel, is_base=True):
+        uncommon_block: UncommonProductBlock
 
-        ordinary_str: str
-        ordinary_int_list: list[int]
+    # This is a Subscription model that should not be registered
+    # reason: it has multiple invalid Product Block models
+    class HauntedSubscription(SubscriptionModel, is_base=True):
         forbidden_field: BaseModel
         forbidden_block: ForbiddenProductBlock
         toxic_block: ToxicProductBlock
@@ -108,13 +139,33 @@ def test_subscription_model_registry():
         common_block: CommonProductBlock
         uncommon_block: UncommonProductBlock
 
-    error_text = (
-        r"SubscriptionModel fields \['bad_field_a', 'bad_field_b'\] should not have type <class 'pydantic.main.BaseModel'> or inherit directly from <class 'pydantic.main.BaseModel'>. "
-        "If this field was meant to be a Product Block, inherit from <class 'orchestrator.domain.base.ProductBlockModel'> instead."
-    )
+    # List of invalid Subscription models that should raise TypeError
+    invalid_subscriptions = {
+        "forbidden_subscription": ForbiddenSubscription,
+        "toxic_subscription": ToxicSubscription,
+        "poisoned_subscription": PoisonedSubscription,
+        "cursed_subscription": CursedSubscription,
+        "haunted_subscription": HauntedSubscription,
+    }
 
-    with pytest.raises(TypeError, match=error_text):
-        SUBSCRIPTION_MODEL_REGISTRY.update({"haunted_subscription": HauntedSubscription})
+    # Error will mention that the model can't be BaseModel or a direct subclass
+    for name, model in invalid_subscriptions.items():
+        err = r"(not be BaseModel|not be a direct subclass of BaseModel)"
+        with pytest.raises(TypeError, match=err):
+            SUBSCRIPTION_MODEL_REGISTRY.update({name: model})
+
+    # List of valid Subscription models that should register successfully
+    valid_subscriptions = {
+        "common_subscription": CommonSubscription,
+        "uncommon_subscription": UncommonSubscription,
+    }
+
+    # These should register successfully
+    for name, model in valid_subscriptions.items():
+        try:
+            SUBSCRIPTION_MODEL_REGISTRY.update({name: model})
+        except TypeError:
+            pytest.fail(f"Subscription {model.__name__} registered as " f"{name} should be valid but raised TypeError.")
 
 
 def test_product_block_one_nested(
