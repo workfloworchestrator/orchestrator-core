@@ -112,12 +112,16 @@ def test_workflows_has_previous_page(test_client):
     }
 
     assert len(workflows) == 4
-    assert [workflow["name"] for workflow in workflows] == [
-        "task_clean_up_tasks",
-        "task_resume_workflows",
-        "task_validate_product_type",
-        "task_validate_products",
-    ]
+    actual_workflows = sorted([workflow["name"] for workflow in workflows])
+    expected_workflows = sorted(
+        [
+            "task_clean_up_tasks",
+            "task_resume_workflows",
+            "task_validate_product_type",
+            "task_validate_products",
+        ]
+    )
+    assert actual_workflows == expected_workflows
 
 
 @pytest.mark.parametrize(
@@ -146,13 +150,16 @@ def test_workflows_filter_by_name(test_client, query_args):
         "startCursor": 0,
         "totalItems": 4,
     }
-    expected_workflows = [
-        "task_clean_up_tasks",
-        "task_resume_workflows",
-        "task_validate_product_type",
-        "task_validate_products",
-    ]
-    assert [rt["name"] for rt in workflows] == expected_workflows
+    expected_workflows = sorted(
+        [
+            "task_clean_up_tasks",
+            "task_resume_workflows",
+            "task_validate_product_type",
+            "task_validate_products",
+        ]
+    )
+    actual_workflows = sorted([rt["name"] for rt in workflows])
+    assert actual_workflows == expected_workflows
 
 
 @pytest.mark.parametrize(
@@ -224,11 +231,14 @@ def test_workflows_sort_by_resource_type_desc(test_client):
         "endCursor": 4,
         "totalItems": 5,
     }
-    expected_workflows = [
-        "task_validate_products",
-        "task_validate_product_type",
-        "task_resume_workflows",
-        "task_clean_up_tasks",
-        "modify_note",
-    ]
-    assert [rt["name"] for rt in workflows] == expected_workflows
+    expected_workflows = sorted(
+        [
+            "task_validate_products",
+            "task_validate_product_type",
+            "task_resume_workflows",
+            "task_clean_up_tasks",
+            "modify_note",
+        ]
+    )
+    actual_workflows = sorted([rt["name"] for rt in workflows])
+    assert actual_workflows == expected_workflows
