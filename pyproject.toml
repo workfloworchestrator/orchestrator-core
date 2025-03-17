@@ -47,7 +47,7 @@ dependencies = [
     "itsdangerous",
     "Jinja2==3.1.6",
     "orjson==3.10.15",
-    "psycopg[binary]==3.2.5",
+    "psycopg[binary]==3.2.6",
     "pydantic[email]~=2.10.6",
     "pydantic-settings~=2.8.0",
     "python-dateutil==2.8.2",
