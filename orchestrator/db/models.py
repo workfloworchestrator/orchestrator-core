@@ -92,7 +92,7 @@ class InputStateTable(BaseModel):
 
     input_state_id = mapped_column(UUIDType, primary_key=True, server_default=text("uuid_generate_v4()"), index=True)
     process_id = mapped_column("pid", UUIDType, ForeignKey("processes.pid"), nullable=False)
-    input_state = mapped_column(pg.JSONB(), nullable=False)  # type: ignore
+    input_state = mapped_column(pg.JSONB(), nullable=False)
     input_time = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
     input_type = mapped_column(Enum(InputType), nullable=False)
 
@@ -137,7 +137,7 @@ class ProcessStepTable(BaseModel):
     )
     name = mapped_column(String(), nullable=False)
     status = mapped_column(String(50), nullable=False)
-    state = mapped_column(pg.JSONB(), nullable=False)  # type: ignore
+    state = mapped_column(pg.JSONB(), nullable=False)
     created_by = mapped_column(String(255), nullable=True)
     executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
@@ -642,7 +642,7 @@ class SubscriptionMetadataTable(BaseModel):
         primary_key=True,
         index=True,
     )
-    metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)  # type: ignore
+    metadata_ = mapped_column("metadata", pg.JSONB(), nullable=False)
 
     @staticmethod
     def find_by_subscription_id(subscription_id: str) -> SubscriptionMetadataTable | None:
