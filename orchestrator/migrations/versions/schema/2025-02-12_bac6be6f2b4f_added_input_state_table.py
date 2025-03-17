@@ -31,7 +31,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("pid", sqlalchemy_utils.types.uuid.UUIDType(), nullable=False),
-        sa.Column("input_state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),  # type: ignore
+        sa.Column("input_state", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
             "input_time",
             db.models.UtcTimestamp(timezone=True),
