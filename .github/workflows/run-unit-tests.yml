@@ -1,8 +1,8 @@
 name: Unit tests
 on:
   push:
+    branches: [ main ]
   workflow_call:
-  pull_request_target:
   pull_request:
 
 jobs:
