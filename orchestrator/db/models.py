@@ -672,9 +672,10 @@ class EngineSettingsTable(BaseModel):
 
 
 class SubscriptionInstanceAsJsonFunction(GenericFunction):
+    # Added in migration 42b3d076a85b
     name = "subscription_instance_as_json"
 
-    type = pg.JSONB()  # type: ignore[no-untyped-call]
+    type = pg.JSONB()
     inherit_cache = True
 
     def __init__(self, sub_inst_id: uuid.UUID):
