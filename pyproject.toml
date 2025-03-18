@@ -71,6 +71,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 license-files = [ "LICENSE" ]
+description-file = "README.md"
 
 [project.urls]
 documentation = "https://workfloworchestrator.org/orchestrator-core/"
