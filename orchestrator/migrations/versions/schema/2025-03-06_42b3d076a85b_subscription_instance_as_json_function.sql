@@ -35,5 +35,6 @@ from (select sir.domain_model_attr                                              
              jsonb_agg(subscription_instance_as_json(sir.depends_on_id) ORDER BY sir.order_id ASC) as block_instances
       from subscription_instance_relations sir
       where sir.in_use_by_id = sub_inst_id
+        and sir.domain_model_attr is not null
       group by block_name) as depends_on
 $func$;
