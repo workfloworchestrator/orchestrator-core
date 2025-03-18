@@ -42,7 +42,7 @@ from orchestrator.db.models import (
     SubscriptionInstanceRelationTable,
     SubscriptionMetadataTable,
 )
-from orchestrator.db.queries.subscriptions import (
+from orchestrator.db.queries.subscription import (
     eagerload_all_subscription_instances_only_inuseby,
 )
 from orchestrator.domain.base import SubscriptionModel
