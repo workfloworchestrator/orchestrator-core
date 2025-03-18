@@ -623,10 +623,7 @@ def continue_awaiting_process(
     pstat = load_process(process)
     state = pstat.state.unwrap()
 
-    # Check if the token matches
-    token_from_state = state.get(CALLBACK_TOKEN_KEY)
-    if token != token_from_state:
-        raise AssertionError("Invalid token")
+    ensure_correct_callback_token(pstat, token=token)
 
     # We need to pass the callback data to the worker executor. Currently, this is not supported.
     # Therefore, we update the step state in the db and kick-off resume_workflow
@@ -634,10 +631,7 @@ def continue_awaiting_process(
     result_key = state.get("__callback_result_key", "callback_result")
     state = {**state, result_key: input_data}
 
-    current_step = process.steps[-1]
-    current_step.state = state
-    db.session.add(current_step)
-    db.session.commit()
+    replace_current_step_state(process, new_state=state)
 
     # Continue the workflow
     resume_func = get_execution_context()["resume"]
