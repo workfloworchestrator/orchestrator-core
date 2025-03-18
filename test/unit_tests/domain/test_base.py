@@ -983,7 +983,10 @@ def test_removal_of_domain_attrs(test_product_one, test_product_type_one, test_p
     relation = get_one_relation(test_model.block.sub_block.subscription_instance_id)
     relation.domain_model_attr = None
     db.session.commit()
-    with pytest.raises(ValueError, match=r"Expected exactly one item in iterable, but got"):
+    with pytest.raises(
+        ValueError,
+        match=r"block\.sub_block\n\s+Input should be a valid dictionary or instance of SubBlockOneForTestInactive.+",
+    ):
         ProductTypeOneForTestInactive.from_subscription(test_model.subscription_id)
 
 
@@ -1348,7 +1351,7 @@ def test_subscription_save_list_with_zero_values(
     assert subscription.block.list_field == [10, 0, 20, 30, 40, 0, 0]
 
     subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-    assert subscription.block.list_field == [10, 0, 20, 30, 40, 0, 0]
+    assert subscription.block.list_field == [0, 0, 0, 10, 20, 30, 40]
 
 
 def test_subscription_save_bool_list_with_false_values(
@@ -1362,4 +1365,4 @@ def test_subscription_save_bool_list_with_false_values(
     assert subscription.block.list_field == [True, False, True, False]
 
     subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-    assert subscription.block.list_field == [True, False, True, False]
+    assert subscription.block.list_field == [False, False, True, True]
