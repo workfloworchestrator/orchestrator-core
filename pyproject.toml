@@ -68,12 +68,15 @@ dependencies = [
     "pydantic-forms~=1.4.0",
 ]
 
-description-file = "README.md"
+readme = "README.md"
 requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+license-files = [ "LICENSE" ]
 
 [project.urls]
-Documentation = "https://workfloworchestrator.org/orchestrator-core/"
-Source = "https://github.com/workfloworchestrator/orchestrator-core"
+documentation = "https://workfloworchestrator.org/orchestrator-core/"
+source = "https://github.com/workfloworchestrator/orchestrator-core"
+releasenotes = "https://github.com/workfloworchestrator/orchestrator-core/releases"
 
 [project.optional-dependencies]
 celery = [
