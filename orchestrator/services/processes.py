@@ -43,9 +43,10 @@ from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.websocket import broadcast_invalidate_status_counts
+from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
+    DEFAULT_CALLBACK_PROGRESS_KEY,
     Failed,
     ProcessStat,
     ProcessStatus,
@@ -566,6 +567,39 @@ def resume_process(
     return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
+def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:
+    """Ensure that a callback token matches the expected value in state.
+
+    Args:
+        pstat: ProcessStat of process.
+        token: The token which was generated for the process.
+
+    Raises:
+        AssertionError: if the supplied token does not match the generated process token.
+
+    """
+    state = pstat.state.unwrap()
+
+    # Check if the token matches
+    token_from_state = state.get(CALLBACK_TOKEN_KEY)
+    if token != token_from_state:
+        raise AssertionError("Invalid token")
+
+
+def replace_current_step_state(process: ProcessTable, *, new_state: State) -> None:
+    """Replace the state of the current step in a process.
+
+    Args:
+        process: Process from database
+        new_state: The new state
+
+    """
+    current_step = process.steps[-1]
+    current_step.state = new_state
+    db.session.add(current_step)
+    db.session.commit()
+
+
 def continue_awaiting_process(
     process: ProcessTable,
     *,
@@ -608,6 +642,40 @@ def continue_awaiting_process(
     # Continue the workflow
     resume_func = get_execution_context()["resume"]
     return resume_func(process, broadcast_func=broadcast_func)
+
+
+def update_awaiting_process_progress(
+    process: ProcessTable,
+    *,
+    token: str,
+    data: str | State,
+) -> UUID:
+    """Update progress for a process awaiting data from a callback.
+
+    Args:
+        process: Process from database
+        token: The token which was generated for the process. This must match.
+        data: Progress data posted to the callback
+
+    Returns:
+        process id
+
+    Raises:
+        AssertionError: if the supplied token does not match the generated process token.
+
+    """
+    pstat = load_process(process)
+
+    ensure_correct_callback_token(pstat, token=token)
+
+    state = pstat.state.unwrap()
+    progress_key = state.get(DEFAULT_CALLBACK_PROGRESS_KEY, "callback_progress")
+    state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
+
+    replace_current_step_state(process, new_state=state)
+    broadcast_process_update_to_websocket(process.process_id)
+
+    return process.process_id
 
 
 async def _async_resume_processes(
