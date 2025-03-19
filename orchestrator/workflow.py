@@ -179,8 +179,8 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
     return form_generator
 
 
-def allow(model: OIDCUserModel | None = None) -> bool:
-    logger.error("### MODEL:", model=model)
+def allow(_: OIDCUserModel | None = None) -> bool:
+    """Default function to return True in absence of user-defined authorize function."""
     return True
 
 
