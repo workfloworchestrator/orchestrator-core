@@ -39,6 +39,7 @@ from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
 from nwastdlib import const, identity
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import db, transactional
 from orchestrator.services.settings import get_engine_settings
@@ -88,6 +89,7 @@ class Workflow(Protocol):
     __qualname__: str
     name: str
     description: str
+    authorize_callback: Callable[[OIDCUserModel | None], bool]
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
@@ -177,12 +179,18 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
     return form_generator
 
 
+def allow(_: OIDCUserModel | None = None) -> bool:
+    """Default function to return True in absence of user-defined authorize function."""
+    return True
+
+
 def make_workflow(
     f: Callable,
     description: str,
     initial_input_form: InputStepFunc | None,
     target: Target,
     steps: StepList,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -192,6 +200,7 @@ def make_workflow(
 
     wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
     wrapping_function.description = description
+    wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback  # type: ignore # mypy thinks it's builtin.function
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.
@@ -490,13 +499,14 @@ class ProcessStat:
     state: Process
     log: StepList
     current_user: str
+    user_model: OIDCUserModel | None = None
 
     def update(self, **vs: Any) -> ProcessStat:
         """Update ProcessStat.
 
         >>> pstat = ProcessStat('', None, {}, [], "")
         >>> pstat.update(state={"a": "b"})
-        ProcessStat(process_id='', workflow=None, state={'a': 'b'}, log=[], current_user='')
+        ProcessStat(process_id='', workflow=None, state={'a': 'b'}, log=[], current_user='', user_model=None)
         """
         return ProcessStat(**{**asdict(self), **vs})
 
