@@ -506,7 +506,7 @@ class ProcessStat:
 
         >>> pstat = ProcessStat('', None, {}, [], "")
         >>> pstat.update(state={"a": "b"})
-        ProcessStat(process_id='', workflow=None, state={'a': 'b'}, log=[], current_user='')
+        ProcessStat(process_id='', workflow=None, state={'a': 'b'}, log=[], current_user='', user_model=None)
         """
         return ProcessStat(**{**asdict(self), **vs})
 

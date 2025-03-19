@@ -8,7 +8,7 @@ from pydantic import ConfigDict
 
 
 def summary_form(product_name: str, summary_data: dict) -> Generator:
-    ProductSummary: TypeAlias = cast("type[MigrationSummary]", migration_summary(summary_data))
+    ProductSummary: TypeAlias = cast(type[MigrationSummary], migration_summary(summary_data))
 
     class SummaryForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} summary")
