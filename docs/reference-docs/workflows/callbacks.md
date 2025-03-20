@@ -168,3 +168,11 @@ def create_l2vpn() -> StepList:
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )
 ```
+
+## Callback progress during execution
+
+For long-running jobs, such as executing Terraform or Ansible playbooks, the Orchestrator allows callback jobs to send real-time progress updates which can be used to provide operators with feedback on the progress of the running task.
+
+Progress updates should be delivered to `{callback_route}/progress`, where `"/progress"` is a fixed endpoint appended to the callback URL.
+
+The remote service should send a JSON or plain string payload with each progress callback, this replaces the previous progress update and refreshes the UI. Once the final callback is triggered and the job completes, progress updates are removed, leaving only the callback result. Therefore, all troubleshooting or diagnostic information must be included in the final callback payload, as progress updates are not retained for debugging.
