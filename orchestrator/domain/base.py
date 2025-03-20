@@ -1455,7 +1455,7 @@ class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
         /,
         **kwargs: type[SubscriptionModel],
     ) -> None:
-        """Update dictionary and/or keyword arguments using `__setitem__`."""
+        """Update dictionary with mapping and/or kwargs using `__setitem__`."""
         if m:
             if isinstance(m, Mapping):
                 for key, value in m.items():

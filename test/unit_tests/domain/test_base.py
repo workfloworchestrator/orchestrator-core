@@ -166,12 +166,45 @@ def test_subscription_model_registry(clean_registry):
         "uncommon_subscription": UncommonSubscription,
     }
 
-    # These should register successfully
+    # These must register successfully when done individually
     for name, model in valid_subscriptions.items():
         try:
             SUBSCRIPTION_MODEL_REGISTRY.update({name: model})
         except TypeError:
             pytest.fail(f"Subscription {model.__name__} registered as " f"{name} should be valid but raised TypeError.")
+
+    # Test every signature the update method takes and reset using clear
+    try:
+        SUBSCRIPTION_MODEL_REGISTRY.update(valid_subscriptions)
+        SUBSCRIPTION_MODEL_REGISTRY.clear()
+    except TypeError:
+        pytest.fail(f"{valid_subscriptions} failed to register using the mapping signature of the update method.")
+    try:
+        SUBSCRIPTION_MODEL_REGISTRY.update(valid_subscriptions.items())
+        SUBSCRIPTION_MODEL_REGISTRY.clear()
+    except TypeError:
+        pytest.fail(f"{valid_subscriptions} failed to register using the iterable of tuples signature.")
+    try:
+        SUBSCRIPTION_MODEL_REGISTRY.update(**{name: model})
+        SUBSCRIPTION_MODEL_REGISTRY.clear()
+    except TypeError:
+        pytest.fail(f"{valid_subscriptions} failed to register using the keyword arguments signature.")
+    try:
+        SUBSCRIPTION_MODEL_REGISTRY.update(
+            {"common_subscription": CommonSubscription}, uncommon_subscription=UncommonSubscription
+        )
+        SUBSCRIPTION_MODEL_REGISTRY.clear()
+    except TypeError:
+        pytest.fail(f"{valid_subscriptions} failed to register using the mixed mapping and kwargs signature.")
+    try:
+        SUBSCRIPTION_MODEL_REGISTRY.update(
+            [("common_subscription", CommonSubscription)], uncommon_subscription=UncommonSubscription
+        )
+        SUBSCRIPTION_MODEL_REGISTRY.clear()
+    except TypeError:
+        pytest.fail(
+            f"{valid_subscriptions} failed to register using the mixed iterable of tuples and kwargs signature."
+        )
 
 
 def test_product_block_one_nested(
