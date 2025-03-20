@@ -1462,13 +1462,11 @@ class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
                     self[key] = value
             elif isinstance(m, Iterable):
                 for index, item in enumerate(m):
-                    if not isinstance(item, tuple):
-                        raise TypeError(f"cannot convert dictionary update sequence " f"element #{index} to a sequence")
-                    if length := len(item) != 2:
-                        raise TypeError(
-                            f"dictionary update sequence element #{index} has " f"length {length}; 2 is required"
-                        )
-                    self[item[0]] = item[1]
+                    try:
+                        key, value = item
+                    except ValueError:
+                        raise TypeError(f"dictionary update sequence element #{index} is not an iterable of length 2")
+                    self[key] = value
         for key, value in kwargs.items():
             self[key] = value
 
