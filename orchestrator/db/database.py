@@ -169,6 +169,7 @@ ENGINE_ARGUMENTS = {
     "pool_size": 60,
     "json_serializer": json_dumps,
     "json_deserializer": json_loads,
+    "isolation_level": "READ COMMITTED",
 }
 SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush": True, "query_cls": SearchQuery}
 
@@ -188,7 +189,11 @@ class Database:
         self.request_context: ContextVar[str] = ContextVar("request_context", default="")
         self.engine = create_engine(db_url, **ENGINE_ARGUMENTS)
         self.session_factory = sessionmaker(
-            bind=self.engine, class_=WrappedSession, autocommit=False, autoflush=True, query_cls=SearchQuery
+            bind=self.engine,
+            class_=WrappedSession,
+            autocommit=False,
+            autoflush=True,
+            query_cls=SearchQuery,
         )
 
         self.scoped_session = scoped_session(self.session_factory, self._scopefunc)
