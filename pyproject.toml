@@ -6,9 +6,9 @@ requires = ["flit_core >=3.2,<4"]
 [project]
 name = "orchestrator-core"
 dynamic = ['version', 'description']
-authors = [
-    {name = "SURF", email = "automation-beheer@surf.nl"},
-]
+author = "SURF"
+author-email = "automation-beheer@surf.nl"
+home-page = "https://github.com/workfloworchestrator/orchestrator-core"
 classifiers = [
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
@@ -27,6 +27,7 @@ classifiers = [
     "Framework :: FastAPI",
     "Intended Audience :: Developers",
     "Intended Audience :: Telecommunications Industry",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.12",
@@ -47,7 +48,7 @@ dependencies = [
     "Jinja2==3.1.6",
     "orjson==3.10.15",
     "psycopg[binary]==3.2.6",
-    "pydantic[email]~=2.10.6",
+    "pydantic[email]~=2.8.2",
     "pydantic-settings~=2.8.0",
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.18,<1.21",
@@ -67,16 +68,12 @@ dependencies = [
     "pydantic-forms~=1.4.0",
 ]
 
-readme = "README.md"
-requires-python = ">=3.11,<3.14"
-license = "Apache-2.0"
-license-files = [ "LICENSE" ]
 description-file = "README.md"
+requires-python = ">=3.11,<3.14"
 
 [project.urls]
-documentation = "https://workfloworchestrator.org/orchestrator-core/"
-source = "https://github.com/workfloworchestrator/orchestrator-core"
-releasenotes = "https://github.com/workfloworchestrator/orchestrator-core/releases"
+Documentation = "https://workfloworchestrator.org/orchestrator-core/"
+Source = "https://github.com/workfloworchestrator/orchestrator-core"
 
 [project.optional-dependencies]
 celery = [
