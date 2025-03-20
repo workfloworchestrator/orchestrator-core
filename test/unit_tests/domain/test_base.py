@@ -54,7 +54,13 @@ def test_product_block_metadata(test_product_block_one, test_product_one, test_p
     assert ProductBlockOneForTestInactive.tag == "TEST"
 
 
-def test_subscription_model_registry():
+@pytest.fixture
+def clean_registry():
+    with mock.patch.dict(SUBSCRIPTION_MODEL_REGISTRY):
+        yield
+
+
+def test_subscription_model_registry(clean_registry):
     """Test the behavior of the subscription model registry."""
 
     # This is a Product Block model that should not be registered
