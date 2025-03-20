@@ -12,14 +12,16 @@
 # limitations under the License.
 import itertools
 from collections import defaultdict
-from collections.abc import Callable, Iterable
 from datetime import datetime
-from inspect import get_annotations
+from inspect import get_annotations, isclass
 from itertools import groupby, zip_longest
 from operator import attrgetter
 from typing import (
     Any,
+    Callable,
     ClassVar,
+    Iterable,
+    Mapping,
     Optional,
     TypeVar,
     Union,
@@ -596,7 +598,9 @@ class ProductBlockModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(
+            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
+        )  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1051,7 +1055,9 @@ class SubscriptionModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
+        product_blocks_in_model = set(
+            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
+        )  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1400,6 +1406,69 @@ class SubscriptionModel(DomainModel):
     @property
     def db_model(self) -> SubscriptionTable:
         return self._db_model
+
+
+def validate_base_model(
+    name: str, cls: type[Any], base_model: type[BaseModel] = DomainModel, errors: list[str] | None = None
+) -> None:
+    """Validates that the given class is not Pydantic BaseModel or its direct subclass."""
+    # Instantiate errors list if not provided and avoid mutating default
+    if errors is None:
+        errors = []
+    # Return early when the node is not a class as there is nothing to be done
+    if not isclass(cls):
+        return
+    # Validate each field in the ProductBlockModel's field dictionaries
+    if issubclass(cls, ProductBlockModel) or issubclass(cls, SubscriptionModel):
+        for name, clz in cls._product_block_fields_.items():
+            validate_base_model(name, clz, ProductBlockModel, errors)
+        for name, clz in cls._non_product_block_fields_.items():
+            validate_base_model(name, clz, SubscriptionModel, errors)
+    # Generate error if node is Pydantic BaseModel or direct subclass
+    if issubclass(cls, BaseModel):
+        err_msg: str = (
+            f"If this field was intended to be a {base_model.__name__}, define {name}:{cls.__name__} with "
+            f"{base_model.__name__} as its superclass instead. e.g., class {cls.__name__}({base_model.__name__}):"
+        )
+        if cls is BaseModel:
+            errors.append(f"Field {name}: {cls.__name__} can not be {BaseModel.__name__}. " + err_msg)
+        if len(cls.__mro__) > 1 and cls.__mro__[1] is BaseModel:
+            errors.append(
+                f"Field {name}: {cls.__name__} can not be a direct subclass of {BaseModel.__name__}. " + err_msg
+            )
+    # Format all errors as one per line and raise a TypeError when they exist
+    if errors:
+        raise TypeError("\n".join(errors))
+
+
+class SubscriptionModelRegistry(dict[str, type[SubscriptionModel]]):
+    """A registry for all subscription models."""
+
+    def __setitem__(self, __key: str, __value: type[SubscriptionModel]) -> None:
+        """Set value for key in while validating against Pydantic BaseModel."""
+        validate_base_model(__key, __value)
+        super().__setitem__(__key, __value)
+
+    def update(
+        self,
+        m: Any = None,
+        /,
+        **kwargs: type[SubscriptionModel],
+    ) -> None:
+        """Update dictionary with mapping and/or kwargs using `__setitem__`."""
+        if m:
+            if isinstance(m, Mapping):
+                for key, value in m.items():
+                    self[key] = value
+            elif isinstance(m, Iterable):
+                for index, item in enumerate(m):
+                    try:
+                        key, value = item
+                    except ValueError:
+                        raise TypeError(f"dictionary update sequence element #{index} is not an iterable of length 2")
+                    self[key] = value
+        for key, value in kwargs.items():
+            self[key] = value
 
 
 def _validate_lifecycle_change_for_product_block(
