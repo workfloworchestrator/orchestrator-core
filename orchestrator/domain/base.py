@@ -34,7 +34,7 @@ from more_itertools import bucket, first, flatten, one, only
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.fields import PrivateAttr
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from orchestrator.db import (
     ProductBlockTable,
@@ -45,13 +45,19 @@ from orchestrator.db import (
     SubscriptionTable,
     db,
 )
-from orchestrator.domain.helpers import _to_product_block_field_type_iterable
+from orchestrator.db.queries.subscription_instance import get_subscription_instance_dict
+from orchestrator.domain.helpers import (
+    _to_product_block_field_type_iterable,
+    get_root_blocks_to_instance_ids,
+    no_private_attrs,
+)
 from orchestrator.domain.lifecycle import (
     ProductLifecycle,
     lookup_specialized_type,
     register_specialized_type,
     validate_lifecycle_status,
 )
+from orchestrator.domain.subscription_instance_transform import field_transformation_rules, transform_instance_fields
 from orchestrator.services.products import get_product_by_id
 from orchestrator.types import (
     SAFE_USED_BY_TRANSITIONS_FOR_STATUS,
@@ -95,6 +101,10 @@ class DomainModel(BaseModel):
 
     def __init_subclass__(cls, *args: Any, lifecycle: list[SubscriptionLifecycle] | None = None, **kwargs: Any) -> None:
         pass
+
+    def __eq__(self, other: Any) -> bool:
+        with no_private_attrs(self), no_private_attrs(other):
+            return super().__eq__(other)
 
     @classmethod
     def __pydantic_init_subclass__(
@@ -308,12 +318,7 @@ class DomainModel(BaseModel):
         for product_block_field_name, product_block_field_type in cls._product_block_fields_.items():
             filter_func = match_domain_model_attr_if_possible(product_block_field_name)
 
-            product_block_model: Any = product_block_field_type
-            if is_list_type(product_block_field_type):
-                _origin, args = get_origin_and_args(product_block_field_type)
-                product_block_model = one(args)
-
-            possible_product_block_types = get_possible_product_block_types(product_block_model)
+            possible_product_block_types = flatten_product_block_types(product_block_field_type)
             field_type_names = list(possible_product_block_types.keys())
             filtered_instances = flatten([grouped_instances.get(name, []) for name in field_type_names])
             instance_list = list(filter(filter_func, filtered_instances))
@@ -456,6 +461,15 @@ class DomainModel(BaseModel):
             raise ValueError(f"Cannot link the same subscription instance multiple times: {details}")
 
 
+def flatten_product_block_types(product_block_field_type: Any) -> dict[str, type["ProductBlockModel"]]:
+    """Extract product block types and return mapping of product block names to product block classes."""
+    product_block_model: Any = product_block_field_type
+    if is_list_type(product_block_field_type):
+        _origin, args = get_origin_and_args(product_block_field_type)
+        product_block_model = one(args)
+    return get_possible_product_block_types(product_block_model)
+
+
 def get_depends_on_product_block_type_list(
     product_block_types: dict[str, type["ProductBlockModel"] | tuple[type["ProductBlockModel"]]],
 ) -> list[type["ProductBlockModel"]]:
@@ -520,7 +534,7 @@ class ProductBlockModel(DomainModel):
     product_block_id: ClassVar[UUID]
     description: ClassVar[str]
     tag: ClassVar[str]
-    _db_model: SubscriptionInstanceTable = PrivateAttr()
+    _db_model: SubscriptionInstanceTable | None = PrivateAttr(default=None)
 
     # Product block name. This needs to be an instance var because its part of the API (we expose it to the frontend)
     # Is actually optional since abstract classes don't have it.
@@ -677,7 +691,7 @@ class ProductBlockModel(DomainModel):
             **sub_instances,
             **kwargs,
         )
-        model._db_model = db_model
+        model.db_model = db_model
         return model
 
     @classmethod
@@ -733,7 +747,7 @@ class ProductBlockModel(DomainModel):
 
         cls._fix_pb_data()
         model = cls(**data)
-        model._db_model = other._db_model
+        model.db_model = other.db_model
         return model
 
     @classmethod
@@ -791,7 +805,7 @@ class ProductBlockModel(DomainModel):
                 **instance_values,  # type: ignore
                 **sub_instances,
             )
-            model._db_model = subscription_instance
+            model.db_model = subscription_instance
 
             return model
         except ValidationError:
@@ -909,14 +923,15 @@ class ProductBlockModel(DomainModel):
 
             # If this is a "foreign" instance we just stop saving and return it so only its relation is saved
             # We should not touch these themselves
-            if self.subscription and subscription_instance.subscription_id != subscription_id:
+            if self.owner_subscription_id != subscription_id:
                 return [], subscription_instance
 
-            self._db_model = subscription_instance
-        else:
-            subscription_instance = self._db_model
+            self.db_model = subscription_instance
+        elif subscription_instance := self.db_model:
             # We only need to add to the session if the subscription_instance does not exist.
             db.session.add(subscription_instance)
+        else:
+            raise ValueError("Cannot save ProductBlockModel without a db_model")
 
         subscription_instance.subscription_id = subscription_id
 
@@ -943,22 +958,32 @@ class ProductBlockModel(DomainModel):
         return sub_instances + [subscription_instance], subscription_instance
 
     @property
-    def subscription(self) -> SubscriptionTable:
-        return self.db_model.subscription
+    def subscription(self) -> SubscriptionTable | None:
+        return self.db_model.subscription if self.db_model else None
 
     @property
-    def db_model(self) -> SubscriptionInstanceTable:
+    def db_model(self) -> SubscriptionInstanceTable | None:
+        if not self._db_model:
+            self._db_model = db.session.execute(
+                select(SubscriptionInstanceTable).where(
+                    SubscriptionInstanceTable.subscription_instance_id == self.subscription_instance_id
+                )
+            ).scalar_one_or_none()
         return self._db_model
 
-    @property
-    def in_use_by(self) -> list[SubscriptionInstanceTable]:
-        """This provides a list of product blocks that depend on this product block."""
-        return self._db_model.in_use_by
+    @db_model.setter
+    def db_model(self, value: SubscriptionInstanceTable) -> None:
+        self._db_model = value
 
     @property
-    def depends_on(self) -> list[SubscriptionInstanceTable]:
+    def in_use_by(self) -> list[SubscriptionInstanceTable]:  # TODO check where used, might need eagerloading
+        """This provides a list of product blocks that depend on this product block."""
+        return self.db_model.in_use_by if self.db_model else []
+
+    @property
+    def depends_on(self) -> list[SubscriptionInstanceTable]:  # TODO check where used, might need eagerloading
         """This provides a list of product blocks that this product block depends on."""
-        return self._db_model.depends_on
+        return self.db_model.depends_on if self.db_model else []
 
 
 class ProductModel(BaseModel):
@@ -1008,7 +1033,7 @@ class SubscriptionModel(DomainModel):
 
     product: ProductModel
     customer_id: str
-    _db_model: SubscriptionTable = PrivateAttr()
+    _db_model: SubscriptionTable | None = PrivateAttr(default=None)
     subscription_id: UUID = Field(default_factory=uuid4)  # pragma: no mutate
     description: str = "Initial subscription"  # pragma: no mutate
     status: SubscriptionLifecycle = SubscriptionLifecycle.INITIAL  # pragma: no mutate
@@ -1098,6 +1123,63 @@ class SubscriptionModel(DomainModel):
         return missing_data
 
     @classmethod
+    def _load_root_instances(
+        cls,
+        subscription_id: UUID | UUIDstr,
+    ) -> dict[str, Optional[dict] | list[dict]]:
+        """Load root subscription instance(s) for this subscription model.
+
+        When a new subscription model is loaded from an existing subscription, this function loads the entire root
+        subscription instance(s) from database using an optimized postgres function. The result of that function
+        is used to instantiate the root product block(s).
+
+        The "old" method DomainModel._load_instances() would recursively load subscription instances from the
+        database and individually instantiate nested blocks, more or less "manually" reconstructing the subscription.
+
+        The "new" method SubscriptionModel._load_root_instances() takes a different approach; since it has all
+        data for the root subscription instance, it can rely on Pydantic to instantiate the root block and all
+        nested blocks in one go. This is also why it does not have the params `status` and `match_domain_attr` because
+        this information is already encoded in the domain model of a product.
+        """
+        root_block_instance_ids = get_root_blocks_to_instance_ids(subscription_id)
+
+        root_block_types = {
+            field_name: list(flatten_product_block_types(product_block_type).keys())
+            for field_name, product_block_type in cls._product_block_fields_.items()
+        }
+
+        def get_instances_by_block_names(block_names: list[str]) -> Iterable[dict]:
+            for block_name in block_names:
+                for instance_id in root_block_instance_ids.get(block_name, []):
+                    yield get_subscription_instance_dict(instance_id)
+
+        # Map root product block fields to subscription instance(s) dicts
+        instances = {
+            field_name: list(get_instances_by_block_names(block_names))
+            for field_name, block_names in root_block_types.items()
+        }
+
+        # Transform values according to domain models (list[dict] -> dict, add None as default for optionals)
+        rules = {
+            klass.name: field_transformation_rules(klass) for klass in ProductBlockModel.registry.values() if klass.name
+        }
+        for instance_list in instances.values():
+            for instance in instance_list:
+                transform_instance_fields(rules, instance)
+
+        # Support the (theoretical?) usecase of a list of root product blocks
+        def unpack_instance_list(field_name: str, instance_list: list[dict]) -> list[dict] | dict | None:
+            field_type = cls._product_block_fields_[field_name]
+            if is_list_type(field_type):
+                return instance_list
+            return only(instance_list)
+
+        return {
+            field_name: unpack_instance_list(field_name, instance_list)
+            for field_name, instance_list in instances.items()
+        }
+
+    @classmethod
     def from_product_id(
         cls: type[S],
         product_id: UUID | UUIDstr,
@@ -1162,7 +1244,7 @@ class SubscriptionModel(DomainModel):
             **fixed_inputs,
             **instances,
         )
-        model._db_model = subscription
+        model.db_model = subscription
         return model
 
     @classmethod
@@ -1195,17 +1277,22 @@ class SubscriptionModel(DomainModel):
             data["end_date"] = nowtz()
 
         model = cls(**data)
-        model._db_model = other._db_model
+        model.db_model = other._db_model
 
         return model
 
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
-    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> Any:
-        return db.session.get(
-            SubscriptionTable,
-            subscription_id,
-            options=[
+    def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable | None:
+        from orchestrator.settings import app_settings
+
+        if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
+            loaders = [
+                joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
+            ]
+
+        else:
+            loaders = [
                 selectinload(SubscriptionTable.instances)
                 .joinedload(SubscriptionInstanceTable.product_block)
                 .selectinload(ProductBlockTable.resource_types),
@@ -1213,8 +1300,9 @@ class SubscriptionModel(DomainModel):
                     SubscriptionInstanceTable.in_use_by_block_relations
                 ),
                 selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-            ],
-        )
+            ]
+
+        return db.session.get(SubscriptionTable, subscription_id, options=loaders)
 
     @classmethod
     def _to_product_model(cls: type[S], product: ProductTable) -> ProductModel:
@@ -1240,7 +1328,9 @@ class SubscriptionModel(DomainModel):
         if not db_product:
             raise KeyError("Could not find a product for the given product_id")
 
-        subscription = cls._get_subscription(old_instantiation.subscription_id)
+        old_subscription_id = old_instantiation.subscription_id
+        if not (subscription := cls._get_subscription(old_subscription_id)):
+            raise ValueError(f"Subscription with id: {old_subscription_id}, does not exist")
         product = cls._to_product_model(db_product)
 
         status = SubscriptionLifecycle(subscription.status)
@@ -1260,6 +1350,7 @@ class SubscriptionModel(DomainModel):
             name, product_block = new_root
             instances = {name: product_block}
         else:
+            # TODO test using cls._load_root_instances() here as well
             instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)  # type:ignore
 
         try:
@@ -1277,7 +1368,7 @@ class SubscriptionModel(DomainModel):
                 **fixed_inputs,
                 **instances,
             )
-            model._db_model = subscription
+            model.db_model = subscription
             return model
         except ValidationError:
             logger.exception(
@@ -1288,8 +1379,9 @@ class SubscriptionModel(DomainModel):
     @classmethod
     def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
-        subscription = cls._get_subscription(subscription_id)
-        if subscription is None:
+        from orchestrator.settings import app_settings
+
+        if not (subscription := cls._get_subscription(subscription_id)):
             raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
         product = cls._to_product_model(subscription.product)
 
@@ -1311,7 +1403,13 @@ class SubscriptionModel(DomainModel):
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
 
-        instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
+        instances: dict[str, Any]
+        if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
+            logger.info(f"SubscriptionModel.from_subscription({subscription_id}) (new optimized method)")
+            instances = cls._load_root_instances(subscription_id)
+        else:
+            logger.info(f"SubscriptionModel.from_subscription({subscription_id}) (old method)")
+            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
         try:
             model = cls(
@@ -1328,7 +1426,7 @@ class SubscriptionModel(DomainModel):
                 **fixed_inputs,
                 **instances,
             )
-            model._db_model = subscription
+            model.db_model = subscription
             return model
         except ValidationError:
             logger.exception(
@@ -1344,7 +1442,7 @@ class SubscriptionModel(DomainModel):
                 f"Lifecycle status {self.status.value} requires specialized type {specialized_type!r}, was: {type(self)!r}"
             )
 
-        sub = db.session.get(
+        existing_sub = db.session.get(
             SubscriptionTable,
             self.subscription_id,
             options=[
@@ -1354,13 +1452,13 @@ class SubscriptionModel(DomainModel):
                 selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
             ],
         )
-        if not sub:
-            sub = self._db_model
+        if not (sub := (existing_sub or self.db_model)):
+            raise ValueError("Cannot save SubscriptionModel without a db_model")
 
         # Make sure we refresh the object and not use an already mapped object
         db.session.refresh(sub)
 
-        self._db_model = sub
+        self.db_model = sub
         sub.product_id = self.product.product_id
         sub.customer_id = self.customer_id
         sub.description = self.description
@@ -1398,8 +1496,14 @@ class SubscriptionModel(DomainModel):
         db.session.flush()
 
     @property
-    def db_model(self) -> SubscriptionTable:
+    def db_model(self) -> SubscriptionTable | None:
+        if not self._db_model:
+            self._db_model = self._get_subscription(self.subscription_id)
         return self._db_model
+
+    @db_model.setter
+    def db_model(self, value: SubscriptionTable) -> None:
+        self._db_model = value
 
 
 def _validate_lifecycle_change_for_product_block(
