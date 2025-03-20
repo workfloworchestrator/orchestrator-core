@@ -5,7 +5,7 @@ The orchestrator backend has the following requirements
 For the backend you need the following packages:
 
 * Python >= 3.11
-* Postgres >= 14
+* Postgres >= 15
 
 ### Optional dependencies
 * Redis
