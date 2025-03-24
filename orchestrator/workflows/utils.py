@@ -31,6 +31,7 @@ from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
 from orchestrator.utils.validate_data_version import validate_data_version
 from orchestrator.workflow import StepList, Workflow, conditional, done, init, make_workflow, step
+from orchestrator.workflow import Step, begin
 from orchestrator.workflows.steps import (
     cache_domain_models,
     refresh_subscription_search_index,
@@ -342,6 +343,11 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
         return make_workflow(f, description, validate_initial_input_form_generator, Target.SYSTEM, steplist)
 
     return _validate_workflow
+
+
+def ensure_provisioning_status(workflow_step: Step | StepList) -> StepList:
+    """Decorator to ensure steps are executed only during Provisioning status."""
+    return begin >> set_status(SubscriptionLifecycle.PROVISIONING) >> workflow_step >> set_status(SubscriptionLifecycle.ACTIVE)
 
 
 @step("Equalize workflow step count")
