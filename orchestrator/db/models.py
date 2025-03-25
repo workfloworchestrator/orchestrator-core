@@ -14,8 +14,8 @@
 from __future__ import annotations
 
 import enum
-import uuid
 from datetime import datetime, timezone
+from uuid import UUID
 
 import sqlalchemy
 import structlog
@@ -678,5 +678,5 @@ class SubscriptionInstanceAsJsonFunction(GenericFunction):
     type = pg.JSONB()
     inherit_cache = True
 
-    def __init__(self, sub_inst_id: uuid.UUID):
+    def __init__(self, sub_inst_id: UUID):
         super().__init__(sub_inst_id)
