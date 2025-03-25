@@ -2,6 +2,7 @@ from http import HTTPStatus
 from ipaddress import IPv4Address
 from os import getenv
 from unittest import mock
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -745,6 +746,27 @@ def test_subscription_detail_with_domain_model(test_client, generic_subscription
     assert response.status_code == HTTPStatus.OK
     # Check hierarchy
     assert response.json()["pb_1"]["rt_1"] == "Value1"
+
+
+def test_subscription_detail_domain_model_optimizations(test_client, generic_subscription_1):
+    """This test can be removed once ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS is obsolete."""
+
+    with patch.object(app_settings, "ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS", False):
+        before = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+
+    with patch.object(app_settings, "ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS", True):
+        after = test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
+
+    data_before = before.json()
+    data_after = after.json()
+
+    # fix known differences
+    del data_after["pb_1"]["in_use_by_ids"]
+    del data_after["pb_1"]["in_use_by_relations"]
+    del data_after["pb_2"]["in_use_by_ids"]
+    del data_after["pb_2"]["in_use_by_relations"]
+
+    assert data_before == data_after
 
 
 def test_subscription_detail_with_domain_model_does_not_exist(test_client, generic_subscription_1, benchmark):
