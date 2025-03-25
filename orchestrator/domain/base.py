@@ -1292,6 +1292,9 @@ class SubscriptionModel(DomainModel):
     def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable | None:
         from orchestrator.settings import app_settings
 
+        if not isinstance(subscription_id, UUID | UUIDstr):
+            raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
+
         if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
             loaders = [
                 joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
