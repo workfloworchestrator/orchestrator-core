@@ -189,7 +189,7 @@ def db_uri(worker_id):
         Database uri to be used in the test thread
 
     """
-    database_uri = os.environ.get("DATABASE_URI", "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core-test")
+    database_uri = os.environ.get("DATABASE_URI", "postgresql://nwa:nwa@localhost/orchestrator-core-test")
     if worker_id == "master":
         # pytest is being run without any workers
         return database_uri
@@ -220,9 +220,9 @@ def database(db_uri):
         url.database = "postgres"
     engine = create_engine(url)
     with closing(engine.connect()) as conn:
-        conn.commit()
-        conn.execution_options(isolation_level="AUTOCOMMIT").execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
-        conn.commit()
+        conn.execute(text("COMMIT;"))
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+        conn.execute(text("COMMIT;"))
         conn.execute(
             text(f'CREATE DATABASE "{db_to_create}" LOCALE_PROVIDER icu ICU_LOCALE "en-US" TEMPLATE template0;')
         )
@@ -235,10 +235,8 @@ def database(db_uri):
     finally:
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
-            conn.commit()
-            conn.execution_options(isolation_level="AUTOCOMMIT").execute(
-                text(f'DROP DATABASE IF EXISTS "{db_to_create}";')
-            )
+            conn.execute(text("COMMIT;"))
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
 @pytest.fixture(autouse=True)
