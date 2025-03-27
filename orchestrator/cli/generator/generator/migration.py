@@ -31,16 +31,13 @@ from orchestrator.cli.generator.generator.helpers import (
     sort_product_blocks_by_dependencies,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
-from orchestrator.settings import convert_database_uri
 
 logger = structlog.getLogger(__name__)
 
 
 def create_migration_file(message: str, head: str) -> Path | None:
-    if environ.get("DATABASE_URI"):
-        environ.update({"DATABASE_URI": convert_database_uri(environ["DATABASE_URI"])})
-    else:
-        environ.update({"DATABASE_URI": "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core"})
+    if not environ.get("DATABASE_URI"):
+        environ.update({"DATABASE_URI": "postgresql://nwa:nwa@localhost/orchestrator-core"})
     if not environ.get("PYTHONPATH"):
         environ.update({"PYTHONPATH": "."})
     logger.info(

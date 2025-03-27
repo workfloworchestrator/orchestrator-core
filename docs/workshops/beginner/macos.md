@@ -10,14 +10,14 @@ This installation instruction assumes the use of [Homebrew](https://brew.sh/).
 The following software dependencies need to be installed:
 
 * Python 3.11
-* PostgreSQL (version >=11)
+* Postgres >= 15
 * virtualenvwrapper (or use any other tool to create virtual Python
   environments)
 * Node.js (version 14)
 * yarn
 
 ``` shell
-brew install python@3.11 postgresql@13 virtualenvwrapper node@14 yarn
+brew install python@3.11 postgresql@15 virtualenvwrapper node@14 yarn
 ```
 
 ### Step 2 - Database setup
@@ -26,7 +26,7 @@ Start the database server and create the database with the following commands,
 use `nwa` as password:
 
 ``` shell
-brew services start postgresql@13
+brew services start postgresql@15
 createuser -sP nwa
 createdb orchestrator-core -O nwa
 ```

@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -70,6 +70,7 @@ step_log_fn_var: contextvars.ContextVar[StepLogFuncInternal] = contextvars.Conte
 
 DEFAULT_CALLBACK_ROUTE_KEY = "callback_route"
 CALLBACK_TOKEN_KEY = "__callback_token"  # noqa: S105
+DEFAULT_CALLBACK_PROGRESS_KEY = "callback_progress"  # noqa: S105
 
 
 @runtime_checkable

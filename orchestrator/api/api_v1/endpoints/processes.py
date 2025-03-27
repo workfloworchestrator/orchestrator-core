@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -52,6 +52,7 @@ from orchestrator.services.processes import (
     load_process,
     resume_process,
     start_process,
+    update_awaiting_process_progress,
 )
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
@@ -192,6 +193,28 @@ def continue_awaiting_process_endpoint(
         continue_awaiting_process(process, token=token, input_data=json_data, broadcast_func=broadcast_func)
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
+
+
+@router.post(
+    "/{process_id}/callback/{token}/progress",
+    response_model=None,
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(check_global_lock, use_cache=False)],
+)
+def update_progress_on_awaiting_process_endpoint(
+    process_id: UUID,
+    token: str,
+    data: str | State = Body(...),
+) -> None:
+    process = _get_process(process_id)
+
+    if process.last_status != ProcessStatus.AWAITING_CALLBACK:
+        raise_status(HTTPStatus.CONFLICT, "This process is not in an awaiting state.")
+
+    try:
+        update_awaiting_process_progress(process, token=token, data=data)
+    except AssertionError as exc:
+        raise_status(HTTPStatus.NOT_FOUND, str(exc))
 
 
 @router.put(

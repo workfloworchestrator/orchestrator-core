@@ -1,5 +1,6 @@
 from orchestrator.targets import Target
 from orchestrator.workflow import (
+    DEFAULT_CALLBACK_PROGRESS_KEY,
     DEFAULT_CALLBACK_ROUTE_KEY,
     AwaitingCallback,
     begin,
@@ -165,3 +166,118 @@ def test_wf_with_multiple_callback_steps(test_client):
         assert state["ext_data"] == "56789"
 
         assert state["phase"] is None
+
+
+def test_wf_callback_progress_on_completed_process(test_client):
+    # given
+    @workflow("Test wf", target=Target.CREATE)
+    def test_wf():
+        return begin >> step1 >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf"):
+        response = test_client.post("/api/processes/test_wf", json=[{}])
+        assert response.status_code == 201
+        process_id = response.json()["id"]
+
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        assert response_data["last_status"] == "completed"
+
+        # when
+        response = test_client.post(f"api/processes/{process_id}/callback/token123/progress", json={})
+        response_data = response.json()
+
+        # then
+        assert response.status_code == 409
+        assert response_data["detail"] == "This process is not in an awaiting state."
+
+
+def test_wf_callback_progress_with_incorrect_token(test_client):
+    # given
+    @workflow("Test wf", target=Target.CREATE)
+    def test_wf():
+        return begin >> cb1 >> done
+
+    with WorkflowInstanceForTests(test_wf, "test_wf"):
+        response = test_client.post("/api/processes/test_wf", json=[{}])
+        assert response.status_code == 201
+        process_id = response.json()["id"]
+
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        assert response_data["last_status"] == "awaiting_callback"
+
+        # when
+        response = test_client.post(f"api/processes/{process_id}/callback/incorrectoken/progress", json={})
+        response_data = response.json()
+
+        # then
+        assert response.status_code == 404
+        assert response_data["detail"] == "Invalid token"
+
+
+def test_wf_callback_progress_with_multiple_callback_steps(test_client):
+    with WorkflowInstanceForTests(multiple_callback_wf, "multiple_callback_wf"):
+        # Start workflow
+        response = test_client.post("/api/processes/multiple_callback_wf", json=[{}])
+        assert response.status_code == 201
+        process_id = response.json()["id"]
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        assert response_data["last_status"] == "awaiting_callback"
+        state = response_data["current_state"]
+
+        # Update progress 1 using dict
+        callback_route1 = state["callback_route"]
+        response = test_client.post(f"{callback_route1}/progress", json={"update": "123"})
+        assert response.status_code == 200
+        response_data = response.json()
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        state = response_data["current_state"]
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == {"update": "123"}
+
+        # Continue workflow 1
+        callback_route1 = state["callback_route"]
+        response = test_client.post(callback_route1, json={"ext_data": "12345"})
+        assert response.status_code == 200
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        assert response_data["last_status"] == "awaiting_callback"
+        state = response_data["current_state"]
+        assert state["dr_ext_data"] == "12345"
+        assert DEFAULT_CALLBACK_PROGRESS_KEY not in state
+
+        # Update progress 2 using string
+        callback_route2 = state["callback_route"]
+        response = test_client.post(
+            f"{callback_route2}/progress", data="update 567", headers={"Content-Type": "text/plain; charset=utf-8"}
+        )
+        assert response.status_code == 200
+        response_data = response.json()
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        state = response_data["current_state"]
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == "update 567"
+
+        # Continue workflow 2
+        response = test_client.post(callback_route2, json={"ext_data": "56789"})
+        assert response.status_code == 200
+
+        # Final check
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+
+        assert response_data["last_status"] == "completed"
+
+        state = response_data["current_state"]
+        assert state["ext_data"] == "56789"
+        assert DEFAULT_CALLBACK_PROGRESS_KEY not in state

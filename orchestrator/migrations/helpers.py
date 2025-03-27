@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2020 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -880,10 +880,10 @@ def delete_product(conn: sa.engine.Connection, name: str) -> None:
                 RETURNING  product_id
             ),
             deleted_p_pb AS (
-                DELETE FROM product_product_blocks WHERE product_id = ANY(SELECT product_id FROM deleted_p)
+                DELETE FROM product_product_blocks WHERE product_id IN (SELECT product_id FROM deleted_p)
             ),
             deleted_pb_rt AS (
-                DELETE FROM products_workflows WHERE product_id = ANY(SELECT product_id FROM deleted_p)
+                DELETE FROM products_workflows WHERE product_id IN (SELECT product_id FROM deleted_p)
             )
             SELECT * from deleted_p;
             """
@@ -911,10 +911,10 @@ def delete_product_block(conn: sa.engine.Connection, name: str) -> None:
                 RETURNING  product_block_id
             ),
             deleted_p_pb AS (
-                DELETE FROM product_product_blocks WHERE product_block_id =ANY(SELECT product_block_id FROM deleted_pb)
+                DELETE FROM product_product_blocks WHERE product_block_id IN (SELECT product_block_id FROM deleted_pb)
             ),
             deleted_pb_rt AS (
-                DELETE FROM product_block_resource_types WHERE product_block_id =ANY(SELECT product_block_id FROM deleted_pb)
+                DELETE FROM product_block_resource_types WHERE product_block_id IN (SELECT product_block_id FROM deleted_pb)
             )
             SELECT * from deleted_pb;
             """
@@ -968,7 +968,7 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
                 RETURNING  resource_type_id
             ),
             deleted_pb_rt AS (
-                DELETE FROM product_block_resource_types WHERE resource_type_id =ANY(SELECT resource_type_id FROM deleted_pb)
+                DELETE FROM product_block_resource_types WHERE resource_type_id IN (SELECT resource_type_id FROM deleted_pb)
             )
             SELECT * from deleted_pb;
             """
