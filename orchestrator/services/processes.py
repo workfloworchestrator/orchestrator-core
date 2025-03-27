@@ -24,15 +24,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from nwastdlib.ex import show_ex
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
-from orchestrator.db import (
-    EngineSettingsTable,
-    ProcessStepTable,
-    ProcessSubscriptionTable,
-    ProcessTable,
-    db,
-)
+from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.input_state import store_input_state
@@ -418,6 +413,7 @@ def create_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
     user: str = SYSTEM_USER,
+    user_model: OIDCUserModel | None = None,
 ) -> ProcessStat:
     # ATTENTION!! When modifying this function make sure you make similar changes to `run_workflow` in the test code
 
@@ -429,6 +425,9 @@ def create_process(
 
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    if not workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, "User does not have permission to run this workflow")
 
     initial_state = {
         "process_id": process_id,
@@ -449,6 +448,7 @@ def create_process(
         state=Success(state | initial_state),
         log=workflow.steps,
         current_user=user,
+        user_model=user_model,
     )
 
     _db_create_process(pstat)
@@ -460,9 +460,12 @@ def thread_start_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
     user: str = SYSTEM_USER,
+    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
+    if not pstat.workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
@@ -472,6 +475,7 @@ def start_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
     user: str = SYSTEM_USER,
+    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     """Start a process for workflow.
@@ -480,6 +484,7 @@ def start_process(
         workflow_key: name of workflow
         user_inputs: List of form inputs from frontend
         user: User who starts this process
+        user_model: Full OIDCUserModel with claims, etc
         broadcast_func: Optional function to broadcast process data
 
     Returns:
@@ -487,7 +492,9 @@ def start_process(
 
     """
     start_func = get_execution_context()["start"]
-    return start_func(workflow_key, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+    return start_func(
+        workflow_key, user_inputs=user_inputs, user=user, user_model=user_model, broadcast_func=broadcast_func
+    )
 
 
 def thread_resume_process(
@@ -495,6 +502,7 @@ def thread_resume_process(
     *,
     user_inputs: list[State] | None = None,
     user: str | None = None,
+    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
@@ -503,6 +511,8 @@ def thread_resume_process(
         user_inputs = [{}]
 
     pstat = load_process(process)
+    if not pstat.workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to run '{pstat.workflow.name}' workflow")
 
     if pstat.workflow == removed_workflow:
         raise ValueError("This workflow cannot be resumed")
@@ -542,6 +552,7 @@ def resume_process(
     *,
     user_inputs: list[State] | None = None,
     user: str | None = None,
+    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     """Resume a failed or suspended process.
@@ -550,6 +561,7 @@ def resume_process(
         process: Process from database
         user_inputs: Optional user input from forms
         user: user who resumed this process
+        user_model: OIDCUserModel of user who resumed this process
         broadcast_func: Optional function to broadcast process data
 
     Returns:
@@ -557,6 +569,9 @@ def resume_process(
 
     """
     pstat = load_process(process)
+    if not pstat.workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, "User does not have permission to resume process")
+
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
     except FormValidationError:
