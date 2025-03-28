@@ -22,6 +22,7 @@ from uuid import UUID
 
 import more_itertools
 import structlog
+from more_itertools import first
 from sqlalchemy import Text, cast, not_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
@@ -41,7 +42,11 @@ from orchestrator.db.models import (
     SubscriptionInstanceRelationTable,
     SubscriptionMetadataTable,
 )
+from orchestrator.db.queries.subscription import (
+    eagerload_all_subscription_instances_only_inuseby,
+)
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.domain.context_cache import cache_subscription_models
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.datetime import nowtz
@@ -594,13 +599,15 @@ def convert_to_in_use_by_relation(obj: Any) -> dict[str, str]:
 
 def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     """Create a subscription dict from the SubscriptionModel with additional keys."""
-    stmt = select(SubscriptionCustomerDescriptionTable).filter(
+    from orchestrator.settings import app_settings
+
+    stmt = select(SubscriptionCustomerDescriptionTable).where(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
     )
     customer_descriptions = list(db.session.scalars(stmt))
 
-    subscription = subscription_model.model_dump()
-    paths = product_block_paths(subscription)
+    with cache_subscription_models():
+        subscription = subscription_model.model_dump()
 
     def inject_in_use_by_ids(path_to_block: str) -> None:
         if not (in_use_by_subs := getattr_in(subscription_model, f"{path_to_block}.in_use_by")):
@@ -611,13 +618,36 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
         update_in(subscription, f"{path_to_block}.in_use_by_ids", in_use_by_ids)
         update_in(subscription, f"{path_to_block}.in_use_by_relations", in_use_by_relations)
 
-    # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
-    for path in paths:
-        inject_in_use_by_ids(path)
+    if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
+        # TODO #900 remove toggle and make this path the default
+        # query all subscription instances and inject the in_use_by_ids/in_use_by_relations into the subscription dict.
+        instance_to_in_use_by = {
+            instance.subscription_instance_id: instance.in_use_by
+            for instance in eagerload_all_subscription_instances_only_inuseby(subscription_model.subscription_id)
+        }
+        inject_in_use_by_ids_v2(subscription, instance_to_in_use_by)
+    else:
+        # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
+        for path in product_block_paths(subscription):
+            inject_in_use_by_ids(path)
 
     subscription["customer_descriptions"] = customer_descriptions
 
     return subscription
+
+
+def inject_in_use_by_ids_v2(dikt: dict, instance_to_in_use_by: dict[UUID, Sequence[SubscriptionInstanceTable]]) -> None:
+    for value in dikt.values():
+        if isinstance(value, dict):
+            inject_in_use_by_ids_v2(value, instance_to_in_use_by)
+        elif isinstance(value, list) and isinstance(first(value, None), dict):
+            for item in value:
+                inject_in_use_by_ids_v2(item, instance_to_in_use_by)
+
+    if subscription_instance_id := dikt.get("subscription_instance_id"):
+        in_use_by_subs = instance_to_in_use_by[subscription_instance_id]
+        dikt["in_use_by_ids"] = [i.subscription_instance_id for i in in_use_by_subs]
+        dikt["in_use_by_relations"] = [convert_to_in_use_by_relation(instance) for instance in in_use_by_subs]
 
 
 def format_special_types(subscription: dict) -> dict:

@@ -4,8 +4,16 @@ import pytest
 from pydantic import ValidationError
 
 from orchestrator.db import db
+from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 from test.unit_tests.fixtures.products.product_blocks.product_block_one import DummyEnum
+
+
+def blocks_sorted(blocks):
+    def sort_key(block: ProductBlockModel) -> tuple:
+        return (block.owner_subscription_id, block.subscription_instance_id)
+
+    return sorted(blocks, key=sort_key, reverse=True)
 
 
 def test_product_model_with_list_union_type_directly_below(
@@ -45,12 +53,8 @@ def test_product_model_with_list_union_type_directly_below(
     list_union_sub_from_database = ProductListUnion.from_subscription(list_union_subscription.subscription_id)
     assert type(list_union_sub_from_database) is type(list_union_subscription)
 
-    sorted_db_list = sorted(
-        list_union_sub_from_database.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
-    )
-    sorted_sub_list = sorted(
-        list_union_subscription.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
-    )
+    sorted_db_list = blocks_sorted(list_union_sub_from_database.list_union_blocks)
+    sorted_sub_list = blocks_sorted(list_union_subscription.list_union_blocks)
     assert sorted_db_list == sorted_sub_list
 
     list_union_subscription.list_union_blocks = [sub_two_subscription_1.test_block]
@@ -176,14 +180,8 @@ def test_list_union_product_block_as_sub(
     assert list_union_sub_from_database.test_block.int_field == list_union_subscription.test_block.int_field
     assert list_union_sub_from_database.test_block.str_field == list_union_subscription.test_block.str_field
 
-    sorted_db_list = sorted(
-        list_union_sub_from_database.test_block.list_union_blocks, key=lambda x: x.owner_subscription_id, reverse=True
-    )
-    sorted_sub_list = sorted(
-        list_union_subscription_inactive.test_block.list_union_blocks,
-        key=lambda x: x.owner_subscription_id,
-        reverse=True,
-    )
+    sorted_db_list = blocks_sorted(list_union_sub_from_database.test_block.list_union_blocks)
+    sorted_sub_list = blocks_sorted(list_union_subscription_inactive.test_block.list_union_blocks)
     assert sorted_db_list == sorted_sub_list
 
     # Do not allow subscriptions that are in use by other subscriptions make an unsafe transition.
