@@ -4,6 +4,7 @@ from pydantic import computed_field
 
 from orchestrator.domain import SubscriptionModel
 from orchestrator.domain.base import DomainModel
+from orchestrator.domain.context_cache import cache_subscription_models
 
 
 def test_serializable_property():
@@ -52,6 +53,16 @@ def test_inherited_serializable_property():
     assert block.model_dump() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
 
 
+def spy_get_subscription():
+    # Spy on the _get_subscription method to observe the number of queries
+    return mock.patch.object(
+        SubscriptionModel,
+        "_get_subscription",
+        spec=SubscriptionModel._get_subscription,
+        side_effect=SubscriptionModel._get_subscription,
+    )
+
+
 def test_nested_serializable_property():
     """Ensure that nested serializable property's are included in the serialized model."""
 
@@ -72,8 +83,8 @@ def test_nested_serializable_property():
     assert model.model_dump() == {"derived": {"int_field": 13, "double_int_field": 26}}
 
 
-def test_subscription_model_in_serializable_property(
-    generic_subscription_1, generic_subscription_2, generic_product_type_1, generic_product_type_2, monitor_sqlalchemy
+def test_serializable_property_with_cache_subscription_models(
+    generic_subscription_1, generic_subscription_2, generic_product_type_1, generic_product_type_2, test_product_model
 ):
     """Ensure that serializable properties can retrieve other SubscriptionModels without duplicate queries.
 
@@ -103,50 +114,57 @@ def test_subscription_model_in_serializable_property(
 
     # given
 
-    class DerivedDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
+    class TestProduct(SubscriptionModel):
+        @computed_field  # type: ignore
         @property
-        def title(self) -> int:
+        def title(self) -> str:
             subscription1 = GenericProductOne.from_subscription(generic_subscription_1)
             subscription2 = GenericProductTwo.from_subscription(generic_subscription_2)
             return f"{subscription1.description} {subscription1.pb_2.rt_2} - {subscription2.description} {subscription2.pb_3.rt_2}"
 
-        @computed_field
+        @computed_field  # type: ignore
         @property
-        def foobar(self) -> int:
+        def foobar(self) -> str:
             subscription1 = GenericProductOne.from_subscription(generic_subscription_1)
             return f"{subscription1.description} {subscription1.pb_2.rt_2}"
 
-        int_field: int
-
-    model = DerivedDomainModel(int_field=123)
+    model = TestProduct(int_field=123, product=test_product_model, customer_id="")
 
     # when
 
-    # Spy on the _get_subscription method to observe the number of queries
-    with mock.patch.object(
-        SubscriptionModel,
-        "_get_subscription",
-        spec=SubscriptionModel._get_subscription,
-        side_effect=SubscriptionModel._get_subscription,
-    ) as mock_get_subscription:
-        actual_result = model.model_dump()
+    with spy_get_subscription() as mock_get_subscription_no_cache:
+        actual_result_no_cache = model.model_dump(include=["title", "foobar"])
+
+    with (
+        spy_get_subscription() as mock_get_subscription_with_cache,
+        cache_subscription_models(),  # <- cache enabled this time
+    ):
+        actual_result_with_cache = model.model_dump(include=["title", "foobar"])
 
     # then
 
     expected_result = {
-        "int_field": 123,
         "title": "Generic Subscription One 42 - Generic Subscription Two 42",
         "foobar": "Generic Subscription One 42",
     }
-    assert actual_result == expected_result
+    assert actual_result_no_cache == expected_result
+    assert actual_result_with_cache == expected_result
 
-    actual_calls = sorted(mock_get_subscription.mock_calls)
-    expected_calls = sorted(
+    actual_calls_no_cache = sorted(mock_get_subscription_no_cache.mock_calls)
+    expected_calls_no_cache = sorted(
         [
             mock.call(generic_subscription_1),
             mock.call(generic_subscription_1),
             mock.call(generic_subscription_2),
         ]
     )
-    assert actual_calls == expected_calls
+    assert actual_calls_no_cache == expected_calls_no_cache
+
+    actual_calls_with_cache = sorted(mock_get_subscription_with_cache.mock_calls)
+    expected_calls_with_cache = sorted(
+        [
+            mock.call(generic_subscription_1),  # Queried once instead of twice
+            mock.call(generic_subscription_2),
+        ]
+    )
+    assert actual_calls_with_cache == expected_calls_with_cache
