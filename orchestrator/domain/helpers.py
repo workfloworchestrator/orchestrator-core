@@ -34,7 +34,7 @@ def _to_product_block_field_type_iterable(product_block_field_type: type | tuple
 
 @contextlib.contextmanager
 def no_private_attrs(model: Any) -> Iterator:
-    """PrivateAttrs from the given pydantic BaseModel are removed inside this context."""
+    """PrivateAttrs from the given pydantic BaseModel are removed for the duration of this context."""
     if not isinstance(model, BaseModel):
         yield
         return

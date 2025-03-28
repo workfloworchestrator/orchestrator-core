@@ -105,6 +105,8 @@ class DomainModel(BaseModel):
         pass
 
     def __eq__(self, other: Any) -> bool:
+        # PrivateAttr fields are excluded from both objects during the equality check.
+        # Added for #652 primarily because ProductBlockModel._db_model is now lazy loaded.
         with no_private_attrs(self), no_private_attrs(other):
             return super().__eq__(other)
 
