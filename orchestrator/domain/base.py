@@ -1035,6 +1035,8 @@ class SubscriptionModel(DomainModel):
         >>> SubscriptionInactive.from_subscription(subscription_id)  # doctest:+SKIP
     """
 
+    __model_dump_cache__: ClassVar[dict[UUID, "SubscriptionModel"] | None] = None
+
     product: ProductModel
     customer_id: str
     _db_model: SubscriptionTable | None = PrivateAttr(default=None)
@@ -1389,7 +1391,11 @@ class SubscriptionModel(DomainModel):
     @classmethod
     def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
+        from orchestrator.domain.context_cache import get_from_cache, store_in_cache
         from orchestrator.settings import app_settings
+
+        if cached_model := get_from_cache(subscription_id):
+            return cast(S, cached_model)
 
         if not (subscription := cls._get_subscription(subscription_id)):
             raise ValueError(f"Subscription with id: {subscription_id}, does not exist")
@@ -1436,6 +1442,9 @@ class SubscriptionModel(DomainModel):
                 **instances,
             )
             model.db_model = subscription
+
+            store_in_cache(model)
+
             return model
         except ValidationError:
             logger.exception(

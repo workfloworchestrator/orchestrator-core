@@ -46,6 +46,7 @@ from orchestrator.db.queries.subscription import (
     eagerload_all_subscription_instances_only_inuseby,
 )
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.domain.context_cache import cache_subscription_models
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.datetime import nowtz
@@ -605,7 +606,8 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     )
     customer_descriptions = list(db.session.scalars(stmt))
 
-    subscription = subscription_model.model_dump()
+    with cache_subscription_models():
+        subscription = subscription_model.model_dump()
 
     def inject_in_use_by_ids(path_to_block: str) -> None:
         if not (in_use_by_subs := getattr_in(subscription_model, f"{path_to_block}.in_use_by")):
