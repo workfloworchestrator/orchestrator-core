@@ -1296,6 +1296,7 @@ class SubscriptionModel(DomainModel):
             raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
 
         if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
+            # TODO #900 remove toggle and make this path the default
             loaders = [
                 joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
             ]
@@ -1414,10 +1415,9 @@ class SubscriptionModel(DomainModel):
 
         instances: dict[str, Any]
         if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
-            logger.info(f"SubscriptionModel.from_subscription({subscription_id}) (new optimized method)")
+            # TODO #900 remove toggle and make this path the default
             instances = cls._load_root_instances(subscription_id)
         else:
-            logger.info(f"SubscriptionModel.from_subscription({subscription_id}) (old method)")
             instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
 
         try:

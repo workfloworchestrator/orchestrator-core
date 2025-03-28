@@ -617,8 +617,7 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
         update_in(subscription, f"{path_to_block}.in_use_by_relations", in_use_by_relations)
 
     if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
-        logger.info("build_extended_domain_model: inject in_use_by relations from instances (new optimized method)")
-
+        # TODO #900 remove toggle and make this path the default
         # query all subscription instances and inject the in_use_by_ids/in_use_by_relations into the subscription dict.
         instance_to_in_use_by = {
             instance.subscription_instance_id: instance.in_use_by
@@ -626,7 +625,6 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
         }
         inject_in_use_by_ids_v2(subscription, instance_to_in_use_by)
     else:
-        logger.info("build_extended_domain_model: inject in_use_by relations from product block paths (old method)")
         # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
         for path in product_block_paths(subscription):
             inject_in_use_by_ids(path)
