@@ -468,7 +468,10 @@ def focussteps(key: str) -> Callable[[Step | StepList], StepList]:
 
 
 def workflow(
-    description: str, initial_input_form: InputStepFunc | None = None, target: Target = Target.SYSTEM
+    description: str,
+    initial_input_form: InputStepFunc | None = None,
+    target: Target = Target.SYSTEM,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -488,7 +491,7 @@ def workflow(
         initial_input_form_in_form_inject_args = form_inject_args(initial_input_form)
 
     def _workflow(f: Callable[[], StepList]) -> Workflow:
-        return make_workflow(f, description, initial_input_form_in_form_inject_args, target, f())
+        return make_workflow(f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback)
 
     return _workflow
 
