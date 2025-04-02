@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -191,7 +191,7 @@ def make_workflow(
     initial_input_form: InputStepFunc | None,
     target: Target,
     steps: StepList,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = allow,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -201,7 +201,6 @@ def make_workflow(
 
     wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
     wrapping_function.description = description
-    wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback  # type: ignore # mypy thinks it's builtin.function
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.
@@ -471,7 +470,7 @@ def workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     target: Target = Target.SYSTEM,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = allow,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -491,7 +490,9 @@ def workflow(
         initial_input_form_in_form_inject_args = form_inject_args(initial_input_form)
 
     def _workflow(f: Callable[[], StepList]) -> Workflow:
-        return make_workflow(f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback)
+        return make_workflow(
+            f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback=authorize_callback
+        )
 
     return _workflow
 

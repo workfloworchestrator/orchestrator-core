@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -409,6 +409,10 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
     return process_id
 
 
+def error_message_unauthorized(workflow_key: str) -> str:
+    return f"User is not authorized to execute '{workflow_key}' workflow"
+
+
 def create_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
@@ -427,7 +431,7 @@ def create_process(
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
     if not workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, "User does not have permission to run this workflow")
+        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(workflow_key))
 
     initial_state = {
         "process_id": process_id,
@@ -465,7 +469,7 @@ def thread_start_process(
 ) -> UUID:
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
     if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
+        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(workflow_key))
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
@@ -512,7 +516,7 @@ def thread_resume_process(
 
     pstat = load_process(process)
     if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to run '{pstat.workflow.name}' workflow")
+        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(str(process.workflow_name)))
 
     if pstat.workflow == removed_workflow:
         raise ValueError("This workflow cannot be resumed")
@@ -570,7 +574,7 @@ def resume_process(
     """
     pstat = load_process(process)
     if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, "User does not have permission to resume process")
+        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(str(process.workflow_name)))
 
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])

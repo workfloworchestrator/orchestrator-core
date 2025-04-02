@@ -1,4 +1,3 @@
-import os
 import re
 from difflib import context_diff
 from filecmp import dircmp
@@ -120,7 +119,6 @@ def get_expected_to_actual_migration_rev_ids(actual_folder, expected_folder):
     return dict(zip(expected_revision_ids, actual_revision_ids))
 
 
-@pytest.mark.skipif(os.getenv("LOCAL") in ("t", "true", "1", "True"), reason="Double quotes cause failure locally")
 def test_differences_in_generated_code(expected_folder, actual_folder):
     _expected_to_actual_rev_id = get_expected_to_actual_migration_rev_ids(actual_folder, expected_folder)
 
