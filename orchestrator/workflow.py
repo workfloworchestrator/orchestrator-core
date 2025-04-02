@@ -180,7 +180,7 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
     return form_generator
 
 
-def allow(_: OIDCUserModel | None = None) -> bool:
+def allow(_: OIDCUserModel | None) -> bool:
     """Default function to return True in absence of user-defined authorize function."""
     return True
 
@@ -191,7 +191,7 @@ def make_workflow(
     initial_input_form: InputStepFunc | None,
     target: Target,
     steps: StepList,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = allow,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] = allow,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -201,6 +201,7 @@ def make_workflow(
 
     wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
     wrapping_function.description = description
+    wrapping_function.authorize_callback = authorize_callback
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.
@@ -470,7 +471,7 @@ def workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     target: Target = Target.SYSTEM,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = allow,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] = allow,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
