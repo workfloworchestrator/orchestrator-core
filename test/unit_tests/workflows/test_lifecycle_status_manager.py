@@ -46,11 +46,7 @@ def state(generic_subscription_1):
 def test_ensure_provisioning_status_with_decorator(state: dict):
     """Test ensure_provisioning_status with annotation."""
     # Build the workflow with steps
-    steps = (
-            begin
-            >> test_step_success
-            >> dummy_step_success
-    )
+    steps = begin >> test_step_success >> dummy_step_success
 
     # Verify the workflow structure
     assert isinstance(steps, StepList)
@@ -63,8 +59,8 @@ def test_ensure_provisioning_status_with_decorator(state: dict):
     try:
         for step_func in steps:
             step_func(state)
-    except ValueError as e:
-        pass  
+    except ValueError:
+        pass
 
     # Assert final state values after workflow execution
     assert state["test_step"] == "success"  # Ensure test step succeeded
