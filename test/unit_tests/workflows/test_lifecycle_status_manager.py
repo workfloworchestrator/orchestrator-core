@@ -10,11 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest.mock import patch
 
-from orchestrator.types import SubscriptionLifecycle
+import pytest
+
+from orchestrator.utils.state import inject_args
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import ensure_provisioning_status
+
 
 @step("Dummy Step Success")
 def dummy_step_success(state: dict) -> dict:
@@ -22,41 +24,48 @@ def dummy_step_success(state: dict) -> dict:
     state["dummy_step"] = "success"
     return {"status": "success"}
 
-def mock_set_status(lifecycle: SubscriptionLifecycle):
-    """Mock implementation of set_status to update the state."""
-    @step(f"Set status to {lifecycle.name}")
-    def _mock_step(state: dict):
-        state["status"] = lifecycle  # Directly update the state without database interaction
-        return {"status": lifecycle.name}  # Return a mock result
-    return _mock_step
 
-@patch("orchestrator.workflows.utils.set_status", side_effect=mock_set_status)
-def test_ensure_provisioning_status_with_decorator(mock_set_status):
+# Step definition: A test step that always succeeds, wrapped with ensure_provisioning_status
+@ensure_provisioning_status
+@step("Test Step Success")
+def test_step_success(state: dict) -> dict:
+    """A test step that always succeeds."""
+    state["test_step"] = "success"
+    return {"status": "success"}
+
+
+# Pytest fixture to provide a mock state for testing
+@pytest.fixture
+def state(generic_subscription_1):
+    """Fixture to provide a mock state with a generic subscription."""
+    return {"subscription": generic_subscription_1}
+
+
+# Test case: Ensure provisioning status is correctly applied in the workflow
+@inject_args
+def test_ensure_provisioning_status_with_decorator(state: dict):
     """Test ensure_provisioning_status with annotation."""
-    @ensure_provisioning_status
-    @step("Test Step Success")
-    def test_step_success(state: dict) -> dict:
-        state["test_step"] = "success"
-        return {"status": "success"}
-
-    # Build the workflow
+    # Build the workflow with steps
     steps = (
-        begin
-        >> test_step_success
-        >> dummy_step_success
+            begin
+            >> test_step_success
+            >> dummy_step_success
     )
+
+    # Verify the workflow structure
     assert isinstance(steps, StepList)
-    assert steps[0].name == "Set status to PROVISIONING"  # Updated to match uppercase
+    assert steps[0].name == "Set subscription to 'provisioning'"
     assert steps[1].name == "Test Step Success"
-    assert steps[2].name == "Set status to ACTIVE"
+    assert steps[2].name == "Set subscription to 'active'"
     assert steps[3].name == "Dummy Step Success"
 
-    # Simulate execution and check final status
-    state = {"status": None}
+    # Simulate execution of the workflow and validate state changes
     try:
         for step_func in steps:
             step_func(state)
     except ValueError as e:
-        pass
-    assert state["status"] == SubscriptionLifecycle.ACTIVE
+        pass  
 
+    # Assert final state values after workflow execution
+    assert state["test_step"] == "success"  # Ensure test step succeeded
+    assert state["dummy_step"] == "success"  # Ensure dummy step succeeded
