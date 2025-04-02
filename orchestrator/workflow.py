@@ -90,7 +90,7 @@ class Workflow(Protocol):
     __qualname__: str
     name: str
     description: str
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None
+    authorize_callback: Callable[[OIDCUserModel | None], bool]
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
