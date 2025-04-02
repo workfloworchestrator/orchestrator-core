@@ -35,9 +35,7 @@ def downgrade() -> None:
     # ### end Alembic commands ###
 
 
-def backfill_wf_description_with_empty_string(
-    conn: sa.engine.Connection
-) -> None:
+def backfill_wf_description_with_empty_string(conn: sa.engine.Connection) -> None:
     conn.execute(
         sa.text(
             """
