@@ -90,7 +90,7 @@ class Workflow(Protocol):
     __qualname__: str
     name: str
     description: str
-    authorize_callback: Callable[[OIDCUserModel | None], bool]
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
@@ -191,7 +191,7 @@ def make_workflow(
     initial_input_form: InputStepFunc | None,
     target: Target,
     steps: StepList,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] = allow,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -201,7 +201,7 @@ def make_workflow(
 
     wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
     wrapping_function.description = description
-    wrapping_function.authorize_callback = authorize_callback
+    wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.
@@ -471,7 +471,7 @@ def workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     target: Target = Target.SYSTEM,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] = allow,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
