@@ -133,6 +133,9 @@ def init_model_loaders() -> None:
 
 def _lookup_attr_loaders(model: type[DbBaseModel], attr: str) -> list[AttrLoader]:
     """Return loader(s) for an attribute on the given model."""
+    if not _MODEL_LOADERS:
+        # Ensure loaders are always initialized
+        init_model_loaders()
     return _MODEL_LOADERS.get(model, {}).get(attr, [])
 
 
