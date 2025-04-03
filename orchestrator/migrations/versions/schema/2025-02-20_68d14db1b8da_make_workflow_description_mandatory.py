@@ -8,7 +8,7 @@ Create Date: 2025-02-20 16:39:34.889953
 
 import sqlalchemy as sa
 from alembic import op
-from struclog import get_logger
+from structlog import get_logger
 
 logger = get_logger(__name__)
 
