@@ -55,6 +55,12 @@ def to_redis(subscription: dict[str, Any]) -> str | None:
 
 def from_redis(subscription_id: UUID) -> tuple[PY_JSON_TYPES, str] | None:
     log = logger.bind(subscription_id=subscription_id)
+
+    if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
+        # TODO #900 remove toggle and remove usage of this function in get_subscription_dict
+        log.warning("Using SubscriptionModel optimization, not loading subscription from cache")
+        return None
+
     if caching_models_enabled():
         log.debug("Try to retrieve subscription from cache")
         obj = cache.get(f"orchestrator:domain:{subscription_id}")

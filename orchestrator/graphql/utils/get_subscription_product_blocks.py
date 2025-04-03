@@ -70,7 +70,14 @@ def get_all_product_blocks(subscription: dict[str, Any], _tags: list[str] | None
     return list(locate_product_block(subscription))
 
 
-pb_instance_property_keys = ("id", "parent", "owner_subscription_id", "subscription_instance_id", "in_use_by_relations")
+pb_instance_property_keys = (
+    "id",
+    "parent",
+    "owner_subscription_id",
+    "subscription_instance_id",
+    "in_use_by_relations",
+    "in_use_by_ids",
+)
 
 
 async def get_subscription_product_blocks(

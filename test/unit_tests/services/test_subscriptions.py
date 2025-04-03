@@ -106,6 +106,8 @@ def test_build_extended_domain_model(generic_subscription_1, generic_product_1):
         "insync": True,
         "note": None,
         "pb_1": {
+            "in_use_by_ids": [],
+            "in_use_by_relations": [],
             "label": None,
             "name": "PB_1",
             "owner_subscription_id": generic_subscription_1,
@@ -113,6 +115,8 @@ def test_build_extended_domain_model(generic_subscription_1, generic_product_1):
             "subscription_instance_id": str(subscription.pb_1.subscription_instance_id),
         },
         "pb_2": {
+            "in_use_by_ids": [],
+            "in_use_by_relations": [],
             "label": None,
             "name": "PB_2",
             "owner_subscription_id": generic_subscription_1,
