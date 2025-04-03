@@ -48,19 +48,16 @@ def test_ensure_provisioning_status_with_decorator(state: dict):
     # Build the workflow with steps
     steps = begin >> test_step_success >> dummy_step_success
 
-    # Verify the workflow structure
+    # Verify the workflow structure and sequence of the steps taken
     assert isinstance(steps, StepList)
     assert steps[0].name == "Set subscription to 'provisioning'"
     assert steps[1].name == "Test Step Success"
     assert steps[2].name == "Set subscription to 'active'"
     assert steps[3].name == "Dummy Step Success"
 
-    # Simulate execution of the workflow and validate state changes
-    try:
-        for step_func in steps:
-            step_func(state)
-    except ValueError:
-        pass
+    # Simulate execution of the workflow
+    for step_func in steps:
+        step_func(state)
 
     # Assert final state values after workflow execution
     assert state["test_step"] == "success"  # Ensure test step succeeded

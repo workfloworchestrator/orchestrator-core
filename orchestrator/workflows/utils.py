@@ -344,12 +344,12 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
     return _validate_workflow
 
 
-def ensure_provisioning_status(workflow_step: Step | StepList) -> StepList:
-    """Decorator to ensure steps are executed only during Provisioning status."""
+def ensure_provisioning_status(modify_steps: Step | StepList) -> StepList:
+    """Decorator to ensure subscription modifications are executed only during Provisioning status."""
     return (
         begin
         >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> workflow_step
+        >> modify_steps
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )
 
