@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from orchestrator.config.assignee import Assignee
-from orchestrator.db.models import InputStateTable
+from orchestrator.db import InputStateTable
 from orchestrator.utils.functional import orig
 from orchestrator.workflow import begin, done, inputstep, step, workflow
 from orchestrator.workflows.steps import unsync
