@@ -19,6 +19,7 @@ from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
     EngineSettingsTable,
     FixedInputTable,
+    InputStateTable,
     ProcessStepTable,
     ProcessSubscriptionTable,
     ProcessTable,
@@ -85,6 +86,7 @@ __all__ = [
     "SubscriptionMetadataTable",
     "ResourceTypeTable",
     "FixedInputTable",
+    "InputStateTable",
     "EngineSettingsTable",
     "WorkflowTable",
     "SubscriptionCustomerDescriptionTable",
