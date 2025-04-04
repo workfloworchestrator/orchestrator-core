@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,6 +20,7 @@ from more_itertools import first_true
 from pydantic import field_validator, model_validator
 from sqlalchemy import select
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
@@ -205,6 +206,7 @@ def create_workflow(
     initial_input_form: InputStepFunc | None = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
     additional_steps: StepList | None = None,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
@@ -231,7 +233,14 @@ def create_workflow(
             >> done
         )
 
-        return make_workflow(f, description, create_initial_input_form_generator, Target.CREATE, steplist)
+        return make_workflow(
+            f,
+            description,
+            create_initial_input_form_generator,
+            Target.CREATE,
+            steplist,
+            authorize_callback=authorize_callback,
+        )
 
     return _create_workflow
 
@@ -240,6 +249,7 @@ def modify_workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -269,7 +279,14 @@ def modify_workflow(
             >> done
         )
 
-        return make_workflow(f, description, wrapped_modify_initial_input_form_generator, Target.MODIFY, steplist)
+        return make_workflow(
+            f,
+            description,
+            wrapped_modify_initial_input_form_generator,
+            Target.MODIFY,
+            steplist,
+            authorize_callback=authorize_callback,
+        )
 
     return _modify_workflow
 
@@ -278,6 +295,7 @@ def terminate_workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
+    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -308,7 +326,14 @@ def terminate_workflow(
             >> done
         )
 
-        return make_workflow(f, description, wrapped_terminate_initial_input_form_generator, Target.TERMINATE, steplist)
+        return make_workflow(
+            f,
+            description,
+            wrapped_terminate_initial_input_form_generator,
+            Target.TERMINATE,
+            steplist,
+            authorize_callback=authorize_callback,
+        )
 
     return _terminate_workflow
 
