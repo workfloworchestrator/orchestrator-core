@@ -2,8 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
-from orchestrator.db.models import InputStateTable
+from orchestrator.db import InputStateTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
 from orchestrator.services.input_state import retrieve_input_state, store_input_state
 from orchestrator.workflow import ProcessStatus, StepStatus
 
