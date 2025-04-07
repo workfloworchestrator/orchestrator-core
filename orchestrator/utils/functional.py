@@ -241,3 +241,12 @@ def to_ranges(i: Iterable[int]) -> Iterable[range]:
     for _, g in itertools.groupby(enumerate(i), lambda t: t[1] - t[0]):
         group = list(g)
         yield range(group[0][1], group[-1][1] + 1)
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+def group_by_key(items: Iterable[tuple[K, V]]) -> dict[K, list[V]]:
+    groups = itertools.groupby(items, key=lambda item: item[0])
+    return {key: [item[1] for item in group] for key, group in groups}

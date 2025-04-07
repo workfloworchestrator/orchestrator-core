@@ -705,7 +705,7 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
     )
     gen_subscription.pb_3.rt_2 = 42
     gen_subscription = SubscriptionModel.from_other_lifecycle(gen_subscription, SubscriptionLifecycle.ACTIVE)
-    gen_subscription.description = "Generic Subscription One"
+    gen_subscription.description = "Generic Subscription Two"
     gen_subscription.save()
     db.session.commit()
 
