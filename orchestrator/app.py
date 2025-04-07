@@ -25,6 +25,7 @@ import structlog
 import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
+from prometheus_client import make_asgi_app, Gauge
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -142,6 +143,21 @@ class OrchestratorCore(FastAPI):
         self.add_exception_handler(FormException, form_error_handler)  # type: ignore[arg-type]
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)  # type: ignore[arg-type]
         add_exception_handler(self)
+
+        # Add metrics endpoint
+        metrics_app = make_asgi_app()
+        self.mount("/api/metrics", metrics_app)
+
+        # TODO: just an example, move to correct location!
+        def count_active_subscriptions():
+            from orchestrator.db import db
+            from sqlalchemy import func, select
+
+            from orchestrator.db import SubscriptionTable
+            return db.session.scalar(select(func.count()).select_from(SubscriptionTable))
+
+        nr_of_active_subscriptions = Gauge("nr_of_active_subscriptions", "Number of subscriptions")
+        nr_of_active_subscriptions.set_function(count_active_subscriptions)
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
