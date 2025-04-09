@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -40,13 +40,7 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import filter_processes
 from orchestrator.db.sorting import Sort, SortOrder
 from orchestrator.db.sorting.process import sort_processes
-from orchestrator.schemas import (
-    ProcessIdSchema,
-    ProcessResumeAllSchema,
-    ProcessSchema,
-    ProcessStatusCounts,
-    Reporter,
-)
+from orchestrator.schemas import ProcessIdSchema, ProcessResumeAllSchema, ProcessSchema, ProcessStatusCounts, Reporter
 from orchestrator.security import authenticate
 from orchestrator.services.process_broadcast_thread import api_broadcast_process_data
 from orchestrator.services.processes import (
@@ -139,9 +133,12 @@ async def new_process(
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
     user: str = Depends(user_name),
+    user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
-    process_id = start_process(workflow_key, user_inputs=json_data, user=user, broadcast_func=broadcast_func)
+    process_id = start_process(
+        workflow_key, user_inputs=json_data, user_model=user_model, user=user, broadcast_func=broadcast_func
+    )
 
     return {"id": process_id}
 

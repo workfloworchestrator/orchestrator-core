@@ -21,6 +21,7 @@ from orchestrator.security import authenticate
 from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
+from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, step, workflow
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -579,3 +580,16 @@ def test_new_process_higher_version_invalid(test_client, generic_subscription_1)
         payload["validation_errors"][0]["msg"]
         == "Stale data: given version (10) does not match the current version (2)"
     )
+
+
+def test_unauthorized_to_run_process(test_client):
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    @workflow("unauthorized_workflow", target=Target.CREATE, authorize_callback=disallow)
+    def unauthorized_workflow():
+        return init >> done
+
+    with WorkflowInstanceForTests(unauthorized_workflow, "unauthorized_workflow"):
+        response = test_client.post("/api/processes/unauthorized_workflow", json=[{}])
+        assert HTTPStatus.FORBIDDEN == response.status_code
