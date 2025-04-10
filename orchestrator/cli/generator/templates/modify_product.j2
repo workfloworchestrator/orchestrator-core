@@ -57,11 +57,11 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         divider_1: Divider
 
         {% for field in fields if not field.modifiable is defined -%}
-        {% if use_updated_readonly_field is true  %}
+        {% if use_updated_readonly_field is true  -%}
         {{ field.name }}: read_only_field({{ product_block.name }}.{{ field.name }})
-        {% else %}
+        {% else -%}
         {{ field.name }}: ReadOnlyField({{ product_block.name }}.{{ field.name }})
-        {% endif %}
+        {% endif -%}
         {% endfor -%}
 
         {% for field in fields if field.modifiable is defined -%}
