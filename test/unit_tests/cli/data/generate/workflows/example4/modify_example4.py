@@ -7,7 +7,7 @@ from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import ReadOnlyField
+from pydantic_forms.validators import read_only_field
 
 from products.product_types.example4 import Example4, Example4Provisioning
 
@@ -33,7 +33,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
         divider_1: Divider
 
-        num_val: ReadOnlyField(example4.num_val)
+        num_val: read_only_field(example4.num_val)
 
     user_input = yield ModifyExample4Form
     user_input_dict = user_input.dict()

@@ -10,7 +10,7 @@ from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
 from pydantic import AfterValidator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import ReadOnlyField
+from pydantic_forms.validators import read_only_field
 
 from products.product_blocks.example1 import ExampleStrEnum1
 from products.product_types.example1 import Example1, Example1Provisioning
@@ -41,8 +41,8 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
         divider_1: Divider
 
-        unmodifiable_str: ReadOnlyField(example1.unmodifiable_str)
-        annotated_int: ReadOnlyField(example1.annotated_int)
+        unmodifiable_str: read_only_field(example1.unmodifiable_str)
+        annotated_int: read_only_field(example1.annotated_int)
         example_str_enum_1: validated_example_str_enum_1 = example1.example_str_enum_1
         modifiable_boolean: bool = example1.modifiable_boolean
         always_optional_str: str | None = example1.always_optional_str
