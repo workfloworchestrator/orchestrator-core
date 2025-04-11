@@ -252,7 +252,11 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
     def decorator(func: StepFunc) -> Step:
         @functools.wraps(func)
         def wrapper(state: State) -> Process:
-            with bound_contextvars(func=func.__qualname__):
+            with bound_contextvars(
+                func=func.__qualname__,
+                workflow_name=state.get("workflow_name"),
+                process_id=state.get("process_id"),
+            ):
                 step_in_inject_args = inject_args(func)
                 try:
                     with transactional(db, logger):
