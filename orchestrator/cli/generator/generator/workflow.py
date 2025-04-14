@@ -10,12 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from collections.abc import Callable
 from functools import partial, wraps
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
+import semver
 import structlog
 from jinja2 import Environment
 
@@ -123,7 +124,17 @@ def get_product_workflow_path(config: dict, workflow_type: str) -> Path:
     return product_workflow_folder(config) / Path(f"{workflow_type}_{file_name}").with_suffix(".py")
 
 
+def eval_pydantic_forms_version() -> bool:
+    updated_version = semver.Version.parse("2.0.0")
+
+    installed_version = metadata.version("pydantic-forms")
+    installed_semver = semver.Version.parse(installed_version)
+
+    return installed_semver >= updated_version
+
+
 def render_template(environment: Environment, config: dict, template: str, workflow: str = "") -> str:
+    use_updated_readonly_field = eval_pydantic_forms_version()
     product_block = root_product_block(config)
     types_to_import = get_name_spaced_types_to_import(product_block["fields"])
     fields = get_input_fields(product_block)
@@ -152,6 +163,7 @@ def render_template(environment: Environment, config: dict, template: str, workf
         product_types_module=get_product_types_module(),
         workflows_module=get_workflows_module(),
         workflow_validations=workflow_validations if workflow else [],
+        use_updated_readonly_field=use_updated_readonly_field,
     )
 
 

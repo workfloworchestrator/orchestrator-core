@@ -7,7 +7,12 @@ from typing import Annotated
 import structlog
 from pydantic import AfterValidator, ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+
+{%- if use_updated_readonly_field is true  %}
+from pydantic_forms.validators import read_only_field
+{%- else %}
 from pydantic_forms.validators import ReadOnlyField
+{%- endif %}
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
@@ -52,7 +57,11 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         divider_1: Divider
 
         {% for field in fields if not field.modifiable is defined -%}
+        {% if use_updated_readonly_field is true  -%}
+        {{ field.name }}: read_only_field({{ product_block.name }}.{{ field.name }})
+        {% else -%}
         {{ field.name }}: ReadOnlyField({{ product_block.name }}.{{ field.name }})
+        {% endif -%}
         {% endfor -%}
 
         {% for field in fields if field.modifiable is defined -%}
