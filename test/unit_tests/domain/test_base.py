@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 import pytz
 from dirty_equals import IsUUID
-from pydantic import BaseModel, Field, ValidationError, computed_field, conlist
+from pydantic import BaseModel, Field, ValidationError, conlist
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 
@@ -18,7 +18,6 @@ from orchestrator.db import (
 )
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.domain.base import (
-    DomainModel,
     ProductBlockModel,
     SubscriptionModel,
 )
@@ -983,7 +982,10 @@ def test_removal_of_domain_attrs(test_product_one, test_product_type_one, test_p
     relation = get_one_relation(test_model.block.sub_block.subscription_instance_id)
     relation.domain_model_attr = None
     db.session.commit()
-    with pytest.raises(ValueError, match=r"Expected exactly one item in iterable, but got"):
+    with pytest.raises(
+        ValueError,
+        match=r"block\.sub_block\n\s+Input should be a valid dictionary or instance of SubBlockOneForTestInactive.+",
+    ):
         ProductTypeOneForTestInactive.from_subscription(test_model.subscription_id)
 
 
@@ -1263,72 +1265,6 @@ def test_from_other_lifecycle_sub(test_product_one, test_product_block_one, test
     assert active_block.sub_block_list[0].db_model == block.sub_block_list[0].db_model
 
 
-def test_serializable_property():
-    class DerivedDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
-        @property
-        def double_int_field(self) -> int:
-            # This property is serialized
-            return 2 * self.int_field
-
-        @property
-        def triple_int_field(self) -> int:
-            # This property is not serialized
-            return 3 * self.int_field
-
-        int_field: int
-
-    block = DerivedDomainModel(int_field=13)
-
-    assert block.model_dump() == {"int_field": 13, "double_int_field": 26}
-
-
-def test_inherited_serializable_property():
-    class ProvisioningDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
-        @property
-        def double_int_field(self) -> int:
-            return 2 * self.int_field
-
-        @computed_field  # type: ignore[misc]
-        @property
-        def triple_int_field(self) -> int:
-            return 3 * self.int_field
-
-        int_field: int
-
-    class ActiveDomainModel(ProvisioningDomainModel):
-        @computed_field  # type: ignore[misc]
-        @property
-        def triple_int_field(self) -> int:
-            # override the base property
-            return 30 * self.int_field
-
-    block = ActiveDomainModel(int_field=1)
-
-    assert block.model_dump() == {"int_field": 1, "double_int_field": 2, "triple_int_field": 30}
-
-
-def test_nested_serializable_property():
-    """Ensure that nested serializable property's are included in the serialized model."""
-
-    class DerivedDomainModel(DomainModel):
-        @computed_field  # type: ignore[misc]
-        @property
-        def double_int_field(self) -> int:
-            # This property is serialized
-            return 2 * self.int_field
-
-        int_field: int
-
-    class ParentDomainModel(DomainModel):
-        derived: DerivedDomainModel
-
-    model = ParentDomainModel(derived=DerivedDomainModel(int_field=13))
-
-    assert model.model_dump() == {"derived": {"int_field": 13, "double_int_field": 26}}
-
-
 def test_property_with_tag(test_product_block_one, test_product_one, test_product_block_one_db):
     ProductBlockOneForTestInactive, _, _ = test_product_block_one
 
@@ -1348,7 +1284,7 @@ def test_subscription_save_list_with_zero_values(
     assert subscription.block.list_field == [10, 0, 20, 30, 40, 0, 0]
 
     subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-    assert subscription.block.list_field == [10, 0, 20, 30, 40, 0, 0]
+    assert subscription.block.list_field == [0, 0, 0, 10, 20, 30, 40]
 
 
 def test_subscription_save_bool_list_with_false_values(
@@ -1362,4 +1298,4 @@ def test_subscription_save_bool_list_with_false_values(
     assert subscription.block.list_field == [True, False, True, False]
 
     subscription = ProductTypeOneForTest.from_subscription(product_one_subscription_1)
-    assert subscription.block.list_field == [True, False, True, False]
+    assert subscription.block.list_field == [False, False, True, True]

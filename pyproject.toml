@@ -56,7 +56,8 @@ dependencies = [
     "pytz==2025.2",
     "redis==5.1.1",
     "schedule==1.1.0",
-    "sentry-sdk[fastapi]~=2.24.0",
+    "semver==3.0.4",
+    "sentry-sdk[fastapi]~=2.25.1",
     "SQLAlchemy==2.0.40",
     "SQLAlchemy-Utils==0.41.2",
     "structlog",
@@ -66,7 +67,7 @@ dependencies = [
     "oauth2-lib~=2.4.0",
     "tabulate==0.9.0",
     "strawberry-graphql>=0.246.2",
-    "pydantic-forms~=1.4.0",
+    "pydantic-forms>=1.4.0, <=2.0.0",
 ]
 
 description-file = "README.md"
@@ -78,7 +79,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 
 [project.optional-dependencies]
 celery = [
-    "celery~=5.4.0"
+    "celery~=5.5.1"
 ]
 
 test = [
