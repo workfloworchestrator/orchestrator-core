@@ -22,10 +22,7 @@ def create_input_state():
 
     def _create_input_state(process_id, input_state, input_type, **kwargs):
         input_state_entry = InputStateTable(
-            process_id=process_id,
-            input_state=input_state,
-            input_type=input_type,
-            **kwargs
+            process_id=process_id, input_state=input_state, input_type=input_type, **kwargs
         )
         db.session.add(input_state_entry)
         db.session.commit()
@@ -40,8 +37,8 @@ def test_cascade_delete(mocked_processes, test_client, create_input_state):
     # Create an input state for the first process
     create_input_state(
         process_id=processes[0]["process_id"],
-        input_state={"key": "value"},  # Example JSON state
-        input_type="initial_state"
+        input_state={"key": "value"},
+        input_type="initial_state",
     )
 
     # Verify both records exist
@@ -49,8 +46,7 @@ def test_cascade_delete(mocked_processes, test_client, create_input_state):
     assert db.session.query(InputStateTable).count() == 1
 
     # Delete one of the process so that the input state is deleted as well
-    process = db.session.query(ProcessTable).filter_by(
-        process_id=processes[0]["process_id"]).one()
+    process = db.session.query(ProcessTable).filter_by(process_id=processes[0]["process_id"]).one()
     db.session.delete(process)
     db.session.commit()
 
