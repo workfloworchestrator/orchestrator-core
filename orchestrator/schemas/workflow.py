@@ -62,4 +62,4 @@ class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
 
 
 class WorkflowPatchSchema(OrchestratorBaseModel):
-    description: str
+    description: str | None = None
