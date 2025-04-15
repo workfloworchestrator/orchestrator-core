@@ -26,8 +26,7 @@ def upgrade() -> None:
         logger.error(
             "Unable to execute migrations due to missing descriptions in workflow table, please create a migration to backfill this column."
         )
-        raise Exception("Unable to execute migrations due to missing descriptions in workflow table, please create a migration to backfill this column.")
-
+        raise
 
 
 def downgrade() -> None:
