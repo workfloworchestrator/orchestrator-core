@@ -25,7 +25,7 @@ import structlog
 import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
-from prometheus_client import make_asgi_app, Gauge
+from prometheus_client import make_asgi_app
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -55,6 +55,7 @@ from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.log_config import LOGGER_OVERRIDES
+from orchestrator.metrics.default_metrics import initialize_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
@@ -147,17 +148,7 @@ class OrchestratorCore(FastAPI):
         # Add metrics endpoint
         metrics_app = make_asgi_app()
         self.mount("/api/metrics", metrics_app)
-
-        # TODO: just an example, move to correct location!
-        def count_active_subscriptions():
-            from orchestrator.db import db
-            from sqlalchemy import func, select
-
-            from orchestrator.db import SubscriptionTable
-            return db.session.scalar(select(func.count()).select_from(SubscriptionTable))
-
-        nr_of_active_subscriptions = Gauge("nr_of_active_subscriptions", "Number of subscriptions")
-        nr_of_active_subscriptions.set_function(count_active_subscriptions)
+        initialize_metrics()
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
