@@ -8,7 +8,6 @@ from orchestrator.db import db, SubscriptionTable, ProductTable
 
 @functools.cache
 def _get_active_subscriptions():
-    print("Execute query!")
     subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
     query = (
         db.session.query(
@@ -25,14 +24,12 @@ def _get_active_subscriptions():
 
 
 def count_active_subscriptions(product_type: str, first: bool) -> float:
-    print(f"***** {product_type} {first}")
     if first:
         _get_active_subscriptions.cache_clear()
 
     results = _get_active_subscriptions()
 
     total = sum(result[3] for result in results if result[2] == product_type)
-    print(total)
 
     return float(total)
 
