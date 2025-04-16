@@ -41,7 +41,7 @@ def _get_active_tasks():
     """
     task_count = func.count(ProcessTable.process_id).label("task_count")
     query = (
-        db.session.query(WorkflowTable.workflow_id, WorkflowTable.name, task_count)
+        db.session.query(WorkflowTable.name, task_count)
         .join(WorkflowTable)
         .where(ProcessTable.is_task == True)
         .group_by(WorkflowTable.name)
