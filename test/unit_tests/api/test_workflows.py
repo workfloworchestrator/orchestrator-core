@@ -41,7 +41,7 @@ def test_update_description_with_empty_body(seed, test_client):
     body = {}
     response = test_client.patch(f"/api/workflows/{WORKFLOW_ID}", json=body)
 
-    assert HTTPStatus.CREATED == response.status_code
+    assert HTTPStatus.UNPROCESSABLE_ENTITY == response.status_code
     get_after = test_client.get(f"/api/workflows/{WORKFLOW_ID}")
 
     assert get_before.json()["description"] == get_after.json()["description"]
