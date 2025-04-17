@@ -29,8 +29,6 @@ def count_active_subscriptions(product_type: str, first: bool) -> float:
 
     return float(total)
 
-    # return db.session.scalar(select(func.count()).select_from(SubscriptionTable))
-
 
 @functools.cache
 def _get_active_tasks():
@@ -64,19 +62,19 @@ def count_active_tasks(task_name: str, first: bool) -> float:
 def initialize_product_count_metrics():
     query = select(ProductTable.product_type).distinct()
     results = db.session.execute(query).all()
+
+    active_subscriptions = Gauge(
+        "active_subscriptions_count",
+        namespace="wfo",
+        labelnames=["product_type"],
+        unit="count",
+        documentation=f"Number of subscriptions per product",
+    )
+
     for index, result in enumerate(results):
         (product_type,) = result
-        name = f"active_{product_type.lower()}_subscriptions_count"
-        active_subscriptions = Gauge(
-            name,
-            namespace="wfo",
-            # labelnames=[product_type],
-            documentation=f"Number of {product_type} subscriptions",
-        )
         first = index == 0  # Trigger to re-execute query
-        active_subscriptions.set_function(partial(count_active_subscriptions, product_type=product_type, first=first))
-
-    print(results)
+        active_subscriptions.labels(product_type=product_type).set_function(partial(count_active_subscriptions, product_type=product_type, first=first))
 
 
 def initialize_task_count_metrics():
@@ -96,4 +94,4 @@ def initialize_task_count_metrics():
 
 def initialize_metrics():
     initialize_product_count_metrics()
-    initialize_task_count_metrics()
+    # initialize_task_count_metrics()
