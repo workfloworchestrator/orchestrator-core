@@ -38,6 +38,13 @@ def cache_subscription_models() -> Iterator:
         with cache_subscription_models():
            subscription_dict = subscription.model_dump()
     """
+    if __subscription_model_cache.get() is not None:
+        # If it's already active in the current context, we do nothing.
+        # This makes the contextmanager reentrant.
+        # The outermost contextmanager will eventually reset the context.
+        yield
+        return
+
     before = __subscription_model_cache.set({})
     try:
         yield
