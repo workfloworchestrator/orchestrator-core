@@ -101,9 +101,9 @@ class SubscriptionInterface:
 
     @strawberry.field(description="Return all products block instances of a subscription")  # type: ignore
     async def product_block_instances(
-        self, tags: list[str] | None = None, resource_types: list[str] | None = None
+        self, info: OrchestratorInfo, tags: list[str] | None = None, resource_types: list[str] | None = None
     ) -> list[ProductBlockInstance]:
-        return await get_subscription_product_blocks(self.subscription_id, tags, resource_types)
+        return await get_subscription_product_blocks(info, self.subscription_id, tags, resource_types)
 
     @strawberry.field(description="Return fixed inputs")  # type: ignore
     async def fixed_inputs(self) -> strawberry.scalars.JSON:

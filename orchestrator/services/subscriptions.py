@@ -597,6 +597,12 @@ def convert_to_in_use_by_relation(obj: Any) -> dict[str, str]:
     return {"subscription_instance_id": str(obj.subscription_instance_id), "subscription_id": str(obj.subscription_id)}
 
 
+def build_domain_model(subscription_model: SubscriptionModel) -> dict:
+    """Create a subscription dict from the SubscriptionModel."""
+    with cache_subscription_models():
+        return subscription_model.model_dump()
+
+
 def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     """Create a subscription dict from the SubscriptionModel with additional keys."""
     from orchestrator.settings import app_settings
