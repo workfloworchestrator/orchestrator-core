@@ -21,6 +21,8 @@ from pydantic.alias_generators import to_camel as to_lower_camel
 from strawberry.scalars import JSON
 
 from orchestrator.graphql.schemas.product_block import owner_subscription_resolver
+from orchestrator.graphql.types import OrchestratorInfo
+from orchestrator.graphql.utils.get_selected_paths import get_selected_paths
 from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
 if TYPE_CHECKING:
@@ -81,9 +83,13 @@ pb_instance_property_keys = (
 
 
 async def get_subscription_product_blocks(
-    subscription_id: UUID, tags: list[str] | None = None, product_block_instance_values: list[str] | None = None
+    info: OrchestratorInfo,
+    subscription_id: UUID,
+    tags: list[str] | None = None,
+    product_block_instance_values: list[str] | None = None,
 ) -> list[ProductBlockInstance]:
-    subscription, _ = await get_subscription_dict(subscription_id)
+    inject_inuseby = "in_use_by_relations" in get_selected_paths(info)
+    subscription, _ = await get_subscription_dict(subscription_id, inject_inuseby=inject_inuseby)
 
     def to_product_block(product_block: dict[str, Any]) -> ProductBlockInstance:
         def is_resource_type(candidate: Any) -> bool:
