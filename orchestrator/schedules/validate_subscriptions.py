@@ -26,6 +26,7 @@ from orchestrator.services.workflows import (
     start_validation_workflow_for_workflows,
 )
 from orchestrator.settings import app_settings
+from orchestrator.targets import Target
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +36,10 @@ task_semaphore = BoundedSemaphore(value=2)
 
 @scheduler(name="Subscriptions Validator", time_unit="day", at="00:10")
 def validate_subscriptions() -> None:
+    if app_settings.TARGET != Target.VALIDATE:
+        logger.info("Skipping subscription validation as the target is not VALIDATE.")
+        return
+
     if app_settings.VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS:
         # Automatically re-validate out-of-sync subscriptions. This is not recommended for production.
         subscriptions = get_subscriptions_on_product_table()

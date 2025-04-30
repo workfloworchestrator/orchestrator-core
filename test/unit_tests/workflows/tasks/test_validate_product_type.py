@@ -28,7 +28,7 @@ def test_check_subscriptions(generic_subscription_1, validation_workflow_instanc
 
     assert state["product_type"] == "Generic"
     assert state["workflow_name"] == "task_validate_product_type"
-    assert state["workflow_target"] == Target.SYSTEM
+    assert state["workflow_target"] == Target.VALIDATE
 
     result = state["result"]
 
