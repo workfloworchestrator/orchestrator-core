@@ -4,30 +4,8 @@ from functools import partial
 from prometheus_client import Gauge
 from sqlalchemy import desc, func, select
 
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
-
-
-@functools.cache
-def _get_active_subscriptions() -> list[dict]:
-    subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
-    query = (
-        db.session.query(ProductTable.product_id, ProductTable.name, ProductTable.product_type, subscription_count)
-        .outerjoin(SubscriptionTable, ProductTable.product_id == SubscriptionTable.product_id)
-        .group_by(ProductTable.product_id)
-        .order_by(desc(subscription_count))
-    )
-    return query.all()
-
-
-def count_active_subscriptions(product_type: str, first: bool) -> float:
-    if first:
-        _get_active_subscriptions.cache_clear()
-
-    results = _get_active_subscriptions()
-
-    total = sum(result[3] for result in results if result[2] == product_type)
-
-    return float(total)
+from orchestrator.db import ProcessTable, WorkflowTable, db
+from orchestrator.metrics.subscriptions import initialize_subscription_count_metrics
 
 
 @functools.cache
@@ -61,26 +39,6 @@ def count_active_tasks(task_name: str, first: bool) -> float:
     return float(total)
 
 
-def initialize_product_count_metrics() -> None:
-    query = select(ProductTable.product_type).distinct()
-    results = db.session.execute(query).all()
-
-    active_subscriptions = Gauge(
-        "active_subscriptions_count",
-        namespace="wfo",
-        labelnames=["product_type"],
-        unit="count",
-        documentation="Number of subscriptions per product",
-    )
-
-    for index, result in enumerate(results):
-        (product_type,) = result
-        first = index == 0  # Trigger to re-execute query
-        active_subscriptions.labels(product_type=product_type).set_function(
-            partial(count_active_subscriptions, product_type=product_type, first=first)
-        )
-
-
 def initialize_task_count_metrics() -> None:
     query = select(WorkflowTable.name).where(WorkflowTable.target == "SYSTEM").distinct()
     all_tasks = db.session.execute(query).all()
@@ -95,5 +53,5 @@ def initialize_task_count_metrics() -> None:
 
 
 def initialize_default_metrics() -> None:
-    initialize_product_count_metrics()
+    initialize_subscription_count_metrics()
     initialize_task_count_metrics()
