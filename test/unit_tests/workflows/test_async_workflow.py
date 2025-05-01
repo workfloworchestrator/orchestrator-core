@@ -229,7 +229,7 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         assert response_data["last_status"] == "awaiting_callback"
         state = response_data["current_state"]
 
-        # Update real step progress with dict - update 1
+        # Update dry step progress with dict - update 1
         callback_route1 = state["callback_route"]
         response = test_client.post(
             f"{callback_route1}/progress",
@@ -244,7 +244,7 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         state = response_data["current_state"]
         assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == {"update": 1}
 
-        # Update real step progress with dict - update 2
+        # Update dry step progress with dict - update 2
         callback_route1 = state["callback_route"]
         response = test_client.post(
             f"{callback_route1}/progress",
