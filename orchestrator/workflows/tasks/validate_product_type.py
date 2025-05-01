@@ -86,7 +86,9 @@ def validate_product_type(product_type: str) -> State:
 
 
 @workflow(
-    "Validate all subscriptions of Product Type", target=Target.VALIDATE, initial_input_form=initial_input_form_generator
+    "Validate all subscriptions of Product Type",
+    target=Target.VALIDATE,
+    initial_input_form=initial_input_form_generator,
 )
 def task_validate_product_type() -> StepList:
     return init >> validate_product_type >> done

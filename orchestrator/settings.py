@@ -90,6 +90,7 @@ class AppSettings(BaseSettings):
     ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS: bool = (
         True  # True=ignore cache + optimized DB queries; False=use cache + unoptimized DB queries. Remove in #900
     )
+    TARGET: str = "VALIDATE"
 
 
 app_settings = AppSettings()

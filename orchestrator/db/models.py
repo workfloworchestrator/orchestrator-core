@@ -418,9 +418,8 @@ class WorkflowTable(BaseModel):
             select(WorkflowTable).options(undefer(WorkflowTable.deleted_at)).filter(WorkflowTable.deleted_at.is_(None))
         )
 
-    def isTask(self) -> bool:
+    def is_task(self) -> bool:
         return self.target == Target.VALIDATE
-
 
     def delete(self) -> WorkflowTable:
         self.deleted_at = nowtz()
