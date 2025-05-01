@@ -204,14 +204,14 @@ Validate workflows run integrity checks on an existing subscription. Checking th
 ```python
     params = dict(
         name="validate_node_enrollment",
-        target="SYSTEM",
+        target="VALIDATE",
         description="Validate Node Enrollment before production",
         tag="NodeEnrollment",
         search_phrase="Node Enrollment%",
     )
 ```
 
-It uses a `target` of `SYSTEM` - similar to how tasks are defined. That target is more of a free form sort of thing. Same thing with the `name` - that's the name of the actual workflow, and the `tag` is shared by of this set of workflows.
+It uses a `target` of `VALIDATE` - similar to how tasks are defined. That target is more of a free form sort of thing. Same thing with the `name` - that's the name of the actual workflow, and the `tag` is shared by of this set of workflows.
 
 Generally the steps raise assertions if a check fails, otherwise return OK to the state:
 
