@@ -8,7 +8,7 @@ from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, Workf
 
 
 @functools.cache
-def _get_active_subscriptions():
+def _get_active_subscriptions() -> list[dict]:
     subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
     query = (
         db.session.query(ProductTable.product_id, ProductTable.name, ProductTable.product_type, subscription_count)
@@ -31,8 +31,10 @@ def count_active_subscriptions(product_type: str, first: bool) -> float:
 
 
 @functools.cache
-def _get_active_tasks():
-    """SELECT w.name, COUNT(*) FROM processes p
+def _get_active_tasks() -> list[dict]:
+    """Get all active tasks.
+
+    SELECT w.name, COUNT(*) FROM processes p
     JOIN workflows w ON p.workflow_id = w.workflow_id
     WHERE p.is_task = true
     GROUP BY w.name
@@ -41,7 +43,7 @@ def _get_active_tasks():
     query = (
         db.session.query(WorkflowTable.name, task_count)
         .join(WorkflowTable)
-        .where(ProcessTable.is_task == True)
+        .where(ProcessTable.is_task)
         .group_by(WorkflowTable.name)
         .order_by(desc(task_count))
     )
@@ -59,7 +61,7 @@ def count_active_tasks(task_name: str, first: bool) -> float:
     return float(total)
 
 
-def initialize_product_count_metrics():
+def initialize_product_count_metrics() -> None:
     query = select(ProductTable.product_type).distinct()
     results = db.session.execute(query).all()
 
@@ -68,16 +70,18 @@ def initialize_product_count_metrics():
         namespace="wfo",
         labelnames=["product_type"],
         unit="count",
-        documentation=f"Number of subscriptions per product",
+        documentation="Number of subscriptions per product",
     )
 
     for index, result in enumerate(results):
         (product_type,) = result
         first = index == 0  # Trigger to re-execute query
-        active_subscriptions.labels(product_type=product_type).set_function(partial(count_active_subscriptions, product_type=product_type, first=first))
+        active_subscriptions.labels(product_type=product_type).set_function(
+            partial(count_active_subscriptions, product_type=product_type, first=first)
+        )
 
 
-def initialize_task_count_metrics():
+def initialize_task_count_metrics() -> None:
     query = select(WorkflowTable.name).where(WorkflowTable.target == "SYSTEM").distinct()
     all_tasks = db.session.execute(query).all()
     for index, result in enumerate(all_tasks):
@@ -89,9 +93,7 @@ def initialize_task_count_metrics():
         first = index == 0
         active_tasks.set_function(partial(count_active_tasks, task_name=task_name, first=first))
 
-    print(all_tasks)
 
-
-def initialize_metrics():
+def initialize_default_metrics() -> None:
     initialize_product_count_metrics()
-    # initialize_task_count_metrics()
+    initialize_task_count_metrics()

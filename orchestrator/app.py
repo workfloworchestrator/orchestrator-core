@@ -55,7 +55,7 @@ from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.log_config import LOGGER_OVERRIDES
-from orchestrator.metrics.default_metrics import initialize_metrics
+from orchestrator.metrics import initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
@@ -145,10 +145,10 @@ class OrchestratorCore(FastAPI):
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)  # type: ignore[arg-type]
         add_exception_handler(self)
 
-        # Add metrics endpoint
-        metrics_app = make_asgi_app()
-        self.mount("/api/metrics", metrics_app)
-        initialize_metrics()
+        if base_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT:
+            metrics_app = make_asgi_app()
+            self.mount("/api/metrics", metrics_app)
+            initialize_default_metrics()
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
