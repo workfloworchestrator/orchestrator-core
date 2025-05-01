@@ -38,7 +38,7 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
     ```
     """
     subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
-    query = (
+    return (
         db.session.query(
             SubscriptionTable.status.label("lifecycle_state"),
             SubscriptionTable.customer_id,
@@ -54,8 +54,7 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
             ProductTable.name,
         )
         .order_by(desc(subscription_count))
-    )
-    return query.all()
+    ).all()
 
 
 def initialize_subscription_count_metrics() -> None:
