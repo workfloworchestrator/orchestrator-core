@@ -66,7 +66,7 @@ new_workflows = [
     },
     {
         "name": "validate_example2",
-        "target": Target.SYSTEM,
+        "target": Target.VALIDATE,
         "description": "Validate example2",
         "product_type": "Example2",
     },

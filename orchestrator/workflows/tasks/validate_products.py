@@ -190,7 +190,7 @@ def check_subscription_models() -> State:
     return {"check_subscription_models": True}
 
 
-@workflow("Validate products", target=Target.VALIDATE)
+@workflow("Validate products", target=Target.SYSTEM)
 def task_validate_products() -> StepList:
     return (
         init
