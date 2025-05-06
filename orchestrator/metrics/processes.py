@@ -91,7 +91,7 @@ def _get_processes() -> list[ProcessTableQueryResult]:
 
 
 def initialize_process_metrics() -> None:
-    """Initialize a Prometheus gauge with process counts and total runtime.
+    """Initialize two Prometheus gauges with process counts and total runtime.
 
     This gauge contains the amount of processes, and the total runtime in seconds, per every combination of the labels
     that are defined:

@@ -17,12 +17,13 @@ from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from redis.asyncio import Redis as AIORedis
+from services.settings import generate_engine_global_status
 from sqlalchemy.exc import SQLAlchemyError
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
-from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, GlobalStatusEnum, WorkerStatus
+from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, WorkerStatus
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
 from orchestrator.settings import ExecutorType, app_settings
@@ -165,17 +166,6 @@ def generate_engine_status_response(
         Engine StatusEnum
 
     """
-
-    if engine_settings.global_lock and engine_settings.running_processes > 0:
-        result = EngineSettingsSchema.model_validate(engine_settings)
-        result.global_status = GlobalStatusEnum.PAUSING
-        return result
-
-    if engine_settings.global_lock and engine_settings.running_processes == 0:
-        result = EngineSettingsSchema.model_validate(engine_settings)
-        result.global_status = GlobalStatusEnum.PAUSED
-        return result
-
     result = EngineSettingsSchema.model_validate(engine_settings)
-    result.global_status = GlobalStatusEnum.RUNNING
+    result.global_status = generate_engine_global_status(engine_settings)
     return result
