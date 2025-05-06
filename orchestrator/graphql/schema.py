@@ -1,4 +1,4 @@
-# Copyright 2022-2023 SURF, GÉANT.
+# Copyright 2022-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -32,6 +32,7 @@ from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
+from orchestrator.graphql.extensions.model_cache import ModelCacheExtension
 from orchestrator.graphql.extensions.stats import StatsExtension
 from orchestrator.graphql.mutations.customer_description import CustomerSubscriptionDescriptionMutation
 from orchestrator.graphql.mutations.start_process import ProcessMutation
@@ -160,6 +161,7 @@ def default_context_getter(
 
 
 def get_extensions(mutation: Any, query: Any) -> Iterable[type[SchemaExtension]]:
+    yield ModelCacheExtension
     yield ErrorHandlerExtension
     if app_settings.ENABLE_GRAPHQL_DEPRECATION_CHECKER:
         yield make_deprecation_checker_extension(query=query, mutation=mutation)
