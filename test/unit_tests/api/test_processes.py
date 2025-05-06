@@ -6,6 +6,8 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import State
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
@@ -22,7 +24,7 @@ from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus, done, init, step, workflow
+from orchestrator.workflow import ProcessStatus, done, init, inputstep, step, workflow
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
@@ -593,3 +595,50 @@ def test_unauthorized_to_run_process(test_client):
     with WorkflowInstanceForTests(unauthorized_workflow, "unauthorized_workflow"):
         response = test_client.post("/api/processes/unauthorized_workflow", json=[{}])
         assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+def test_inputstep_authorization(test_client):
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+    
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    class ConfirmForm(FormPage):
+        confirm: bool
+
+    @inputstep("unauthorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=disallow)
+    def unauthorized_resume(state: State) -> State:
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @inputstep("authorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=allow)
+    def authorized_resume(state: State) -> State:
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @inputstep("noauth_resume", assignee=Assignee.SYSTEM)
+    def noauth_resume(state: State) -> State:
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @workflow("test_auth_workflow", target=Target.CREATE)
+    def test_auth_workflow():
+        return init >> noauth_resume >> authorized_resume >> unauthorized_resume >> done
+
+    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
+        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
+        assert HTTPStatus.CREATED == response.status_code
+        process_id = response.json()["id"]
+        # No auth succeeds
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+        # Authorized succeeds
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+        # Unauthorized fails
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.FORBIDDEN == response.status_code
+
+    #TODO test how this interacts with passing a different callback to @authorize_workflow
+    # These should be as functionally independent as possible.

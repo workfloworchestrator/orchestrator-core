@@ -13,19 +13,21 @@
 
 
 from __future__ import annotations
-
 import contextvars
 import functools
 import inspect
 import secrets
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import update_wrapper
+from http import HTTPStatus
 from itertools import dropwhile
 from typing import (
     Any,
     Generic,
     NoReturn,
     Protocol,
+    TypeAlias,
     TypeVar,
     cast,
     overload,
@@ -40,11 +42,13 @@ from structlog.stdlib import BoundLogger
 
 from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import db, transactional
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.targets import Target
 from orchestrator.types import ErrorDict, StepFunc
+from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
@@ -80,6 +84,8 @@ class Step(Protocol):
     name: str
     form: InputFormGenerator | None
     assignee: Assignee | None
+    resume_auth_callback: Authorizer | None = None
+    retry_auth_callback: Authorizer | None = None
 
     def __call__(self, state: State) -> Process: ...
 
@@ -90,7 +96,8 @@ class Workflow(Protocol):
     __qualname__: str
     name: str
     description: str
-    authorize_callback: Callable[[OIDCUserModel | None], bool]
+    authorize_callback: Authorizer
+    retry_auth_callback: Authorizer
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
@@ -99,13 +106,20 @@ class Workflow(Protocol):
 
 
 def make_step_function(
-    f: Callable, name: str, form: InputFormGenerator | None = None, assignee: Assignee | None = Assignee.SYSTEM
+    f: Callable,
+    name: str,
+    form: InputFormGenerator | None = None,
+    assignee: Assignee | None = Assignee.SYSTEM,
+    resume_auth_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
 ) -> Step:
     step_func = cast(Step, f)
 
     step_func.name = name
     step_func.form = form
     step_func.assignee = assignee
+    step_func.resume_auth_callback = resume_auth_callback
+    step_func.retry_auth_callback = retry_auth_callback
     return step_func
 
 
@@ -167,6 +181,7 @@ class StepList(list[Step]):
 
 
 def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputFormGenerator:
+    """Processes f into a form generator and injects a pre-hook for user authorization"""
     if inspect.isgeneratorfunction(f):
         return cast(StateInputFormGenerator, f)
     if inspect.isgenerator(f):
@@ -191,7 +206,8 @@ def make_workflow(
     initial_input_form: InputStepFunc | None,
     target: Target,
     steps: StepList,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
 ) -> Workflow:
     @functools.wraps(f)
     def wrapping_function() -> NoReturn:
@@ -202,6 +218,8 @@ def make_workflow(
     wrapping_function.name = f.__name__  # default, will be changed by LazyWorkflowInstance
     wrapping_function.description = description
     wrapping_function.authorize_callback = allow if authorize_callback is None else authorize_callback
+    # If no retry auth policy is given, defer to policy for process creation.
+    wrapping_function.retry_auth_callback = wrapping_function.authorize_callback if retry_auth_callback is None else retry_auth_callback
 
     if initial_input_form is None:
         # We always need a form to prevent starting a workflow when no input is needed.
@@ -270,7 +288,7 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
     return decorator
 
 
-def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
+def inputstep(name: str, assignee: Assignee, resume_auth_callback: Authorizer | None = None, retry_auth_callback: Authorizer | None = None) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
     IMPORTANT: In contrast to other workflow steps, the `@inputstep` wrapped function will not run in the
@@ -299,7 +317,7 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
         def suspend(state: State) -> Process:
             return Suspend(state)
 
-        return make_step_function(suspend, name, wrapper, assignee)
+        return make_step_function(suspend, name, wrapper, assignee, resume_auth_callback=resume_auth_callback, retry_auth_callback=retry_auth_callback)
 
     return decorator
 
@@ -479,7 +497,8 @@ def workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     target: Target = Target.SYSTEM,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Authorizer| None = None,
+    retry_auth_callback: Authorizer| None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -500,7 +519,7 @@ def workflow(
 
     def _workflow(f: Callable[[], StepList]) -> Workflow:
         return make_workflow(
-            f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback=authorize_callback
+            f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback=authorize_callback, retry_auth_callback=retry_auth_callback
         )
 
     return _workflow

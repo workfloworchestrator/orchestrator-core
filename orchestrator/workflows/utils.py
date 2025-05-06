@@ -27,6 +27,7 @@ from orchestrator.services import subscriptions
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
+from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.errors import StaleDataError
 from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
@@ -206,7 +207,8 @@ def create_workflow(
     initial_input_form: InputStepFunc | None = None,
     status: SubscriptionLifecycle = SubscriptionLifecycle.ACTIVE,
     additional_steps: StepList | None = None,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow with a target=Target.CREATE.
 
@@ -240,6 +242,7 @@ def create_workflow(
             Target.CREATE,
             steplist,
             authorize_callback=authorize_callback,
+            retry_auth_callback=retry_auth_callback
         )
 
     return _create_workflow
@@ -249,7 +252,8 @@ def modify_workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -286,6 +290,7 @@ def modify_workflow(
             Target.MODIFY,
             steplist,
             authorize_callback=authorize_callback,
+            retry_auth_callback=retry_auth_callback,
         )
 
     return _modify_workflow
@@ -295,7 +300,8 @@ def terminate_workflow(
     description: str,
     initial_input_form: InputStepFunc | None = None,
     additional_steps: StepList | None = None,
-    authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
     """Transform an initial_input_form and a step list into a workflow.
 
@@ -333,6 +339,7 @@ def terminate_workflow(
             Target.TERMINATE,
             steplist,
             authorize_callback=authorize_callback,
+            retry_auth_callback=retry_auth_callback,
         )
 
     return _terminate_workflow
