@@ -56,6 +56,7 @@ from orchestrator.services.processes import (
 )
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
+from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import (
     WS_CHANNELS,
@@ -63,7 +64,7 @@ from orchestrator.websocket import (
     broadcast_process_update_to_websocket,
     websocket_manager,
 )
-from orchestrator.workflow import ProcessStatus
+from orchestrator.workflow import ProcessStat, ProcessStatus
 from pydantic_forms.types import JSON, State
 
 router = APIRouter()
@@ -84,6 +85,44 @@ def check_global_lock() -> None:
         raise_status(
             HTTPStatus.SERVICE_UNAVAILABLE, detail="Engine is locked cannot accept changes on processes at this time"
         )
+
+
+def get_auth_callbacks(pstat: ProcessStat) -> tuple[Authorizer | None, Authorizer | None]:
+    """Iterate over workflow and prior steps to determine correct authorization callbacks for the current step.
+
+    It's safest to always iterate through the steps. We could track these callbacks statefully
+    as we progress through the workflow, but if we fail a step and the system restarts, the previous
+    callbacks will be lost if they're only available in the process state.
+
+    Priority:
+    - RESUME callback is explicit RESUME callback, else previous START/RESUME callback
+    - RETRY callback is explicit RETRY, else explicit RESUME, else previous RETRY
+    """
+    # Default to workflow start callbacks
+    auth_resume = pstat.workflow.authorize_callback
+    # Retry defaults to the workflow start callback if not otherwise specified
+    auth_retry = pstat.workflow.retry_auth_callback if pstat.workflow.retry_auth_callback else auth_resume
+    # Iterate over previous steps to look for policy changes
+    remaining_steps = pstat.log
+    past_steps = pstat.workflow.steps[:-len(remaining_steps)]
+    # Review last steps and current step
+    for step in past_steps + [pstat.log[0]]:
+        if step.resume_auth_callback and step.retry_auth_callback is None:
+            # Set both to authorize_callback
+            auth_resume = step.resume_auth_callback
+            auth_retry = step.resume_auth_callback
+            continue
+        elif step.resume_auth_callback and step.retry_auth_callback:
+            auth_resume = step.resume_auth_callback
+            auth_retry = step.retry_auth_callback
+            continue
+        elif step.resume_auth_callback is None and step.retry_auth_callback:
+            # Only update retry
+            auth_retry = step.retry_auth_callback
+            continue
+        else: # Both None
+            continue
+    return auth_resume, auth_retry
 
 
 def resolve_user_name(
@@ -150,7 +189,11 @@ def new_process(
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
 def resume_process_endpoint(
-    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(user_name)
+    process_id: UUID,
+    request: Request,
+    json_data: JSON = Body(...),
+    user: str = Depends(user_name),
+    user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> None:
     process = _get_process(process_id)
 
@@ -162,6 +205,16 @@ def resume_process_endpoint(
 
     if process.last_status == ProcessStatus.RESUMED:
         raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
+
+    pstat = load_process(process)
+    auth_resume, auth_retry = get_auth_callbacks(pstat)
+    if process.last_status == ProcessStatus.SUSPENDED:
+        if not auth_resume(user_model):
+            raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
+    elif process.last_status == ProcessStatus.FAILED:
+        if not auth_retry(user_model):
+            raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
+
 
     broadcast_invalidate_status_counts()
     broadcast_func = api_broadcast_process_data(request)
