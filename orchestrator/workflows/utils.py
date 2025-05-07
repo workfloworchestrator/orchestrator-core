@@ -24,16 +24,13 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
-from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.errors import StaleDataError
-from orchestrator.utils.redis import caching_models_enabled
 from orchestrator.utils.state import form_inject_args
 from orchestrator.utils.validate_data_version import validate_data_version
-from orchestrator.workflow import Step, StepList, Workflow, begin, conditional, done, init, make_workflow, step
+from orchestrator.workflow import Step, StepList, Workflow, begin, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
-    cache_domain_models,
     refresh_subscription_search_index,
     resync,
     set_status,
@@ -198,8 +195,6 @@ modify_initial_input_form_generator = None
 
 validate_initial_input_form_generator = wrap_modify_initial_input_form(modify_initial_input_form_generator)
 
-push_domain_models = conditional(lambda _: caching_models_enabled())
-
 
 def create_workflow(
     description: str,
@@ -228,7 +223,6 @@ def create_workflow(
             >> (additional_steps or StepList())
             >> set_status(status)
             >> resync
-            >> push_domain_models(cache_domain_models)
             >> refresh_subscription_search_index
             >> done
         )
@@ -270,11 +264,9 @@ def modify_workflow(
             init
             >> store_process_subscription(Target.MODIFY)
             >> unsync
-            >> push_domain_models(cache_domain_models)
             >> f()
             >> (additional_steps or StepList())
             >> resync
-            >> push_domain_models(cache_domain_models)
             >> refresh_subscription_search_index
             >> done
         )
@@ -316,12 +308,10 @@ def terminate_workflow(
             init
             >> store_process_subscription(Target.TERMINATE)
             >> unsync
-            >> push_domain_models(cache_domain_models)
             >> f()
             >> (additional_steps or StepList())
             >> set_status(SubscriptionLifecycle.TERMINATED)
             >> resync
-            >> push_domain_models(cache_domain_models)
             >> refresh_subscription_search_index
             >> done
         )
@@ -352,17 +342,7 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
     """
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
-        push_subscriptions = conditional(lambda _: app_settings.CACHE_DOMAIN_MODELS)
-        steplist = (
-            init
-            >> store_process_subscription(Target.SYSTEM)
-            >> unsync_unchecked
-            >> push_subscriptions(cache_domain_models)
-            >> f()
-            >> resync
-            >> push_subscriptions(cache_domain_models)
-            >> done
-        )
+        steplist = init >> store_process_subscription(Target.SYSTEM) >> unsync_unchecked >> f() >> resync >> done
 
         return make_workflow(f, description, validate_initial_input_form_generator, Target.SYSTEM, steplist)
 
