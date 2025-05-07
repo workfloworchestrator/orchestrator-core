@@ -28,7 +28,6 @@ from orchestrator.domain.customer_description import (
 from orchestrator.schemas import SubscriptionDescriptionBaseSchema, SubscriptionDescriptionSchema
 from orchestrator.schemas.subscription_descriptions import UpdateSubscriptionDescriptionSchema
 from orchestrator.utils.errors import StaleDataError
-from orchestrator.utils.redis import delete_from_redis
 
 router = APIRouter()
 
@@ -55,7 +54,6 @@ def delete_subscription_customer_descriptions(_id: UUID) -> None:
     description = db.session.get(SubscriptionCustomerDescriptionTable, _id)
     if description:
         delete(SubscriptionCustomerDescriptionTable, _id)
-        delete_from_redis(description.subscription_id)
 
 
 @router.get("/{_id}", response_model=SubscriptionDescriptionSchema)

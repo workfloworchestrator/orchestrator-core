@@ -1,6 +1,5 @@
 from http import HTTPStatus
 from ipaddress import IPv4Address
-from os import getenv
 from unittest import mock
 from unittest.mock import patch
 from uuid import uuid4
@@ -32,9 +31,6 @@ from orchestrator.services.subscriptions import (
     unsync,
 )
 from orchestrator.targets import Target
-from orchestrator.utils.json import json_dumps, json_loads
-from orchestrator.utils.redis import to_redis
-from orchestrator.utils.redis_client import create_redis_client
 from orchestrator.workflow import ProcessStatus
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
@@ -801,36 +797,6 @@ def test_subscription_detail_with_domain_model_if_none_match(test_client, generi
         URL("api/subscriptions/domain-model") / generic_subscription_1, headers={"If-None-Match": etag}
     )
     assert response.status_code == HTTPStatus.NOT_MODIFIED
-
-
-@pytest.mark.skipif(
-    not getenv("AIOCACHE_DISABLE", "0") == "0", reason="AIOCACHE must be enabled for this test to do anything"
-)
-def test_subscription_detail_with_domain_model_cache(test_client, generic_subscription_1, benchmark):
-    # test with a subscription that has domain model and without
-    subscription = SubscriptionModel.from_subscription(generic_subscription_1)
-    extended_model = build_extended_domain_model(subscription)
-    etag = _generate_etag(extended_model)
-
-    app_settings.CACHE_DOMAIN_MODELS = True
-
-    to_redis(extended_model)
-
-    @benchmark
-    def response():
-        return test_client.get(URL("api/subscriptions/domain-model") / generic_subscription_1)
-
-    cache = create_redis_client(app_settings.CACHE_URI)
-    result = cache.get(f"orchestrator:domain:{generic_subscription_1}")
-    cached_model = json_dumps(json_loads(result))
-    cached_etag = cache.get(f"orchestrator:domain:etag:{generic_subscription_1}")
-    assert cached_model == json_dumps(extended_model)
-    assert cached_etag.decode("utf-8") == etag
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()["subscription_id"] == generic_subscription_1
-    app_settings.CACHE_DOMAIN_MODELS = False
-    cache.delete(f"orchestrator:domain:{generic_subscription_1}")
 
 
 def test_subscription_detail_with_in_use_by_ids_filtered_self(test_client, product_one_subscription_1):

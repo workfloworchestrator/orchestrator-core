@@ -60,7 +60,7 @@ async def resolve_remove_customer_description(
     )
     if not description:
         return NotFoundError(message="Customer description not found")
-    return CustomerDescription.from_pydantic(description)
+    return CustomerDescription.from_pydantic(description)  # type: ignore
 
 
 @strawberry.type(description="Customer subscription description mutations")
