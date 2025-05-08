@@ -49,24 +49,28 @@ new_workflows = [
     {
         "name": "create_example2",
         "target": Target.CREATE,
+        "is_task": False,
         "description": "Create example2",
         "product_type": "Example2",
     },
     {
         "name": "modify_example2",
         "target": Target.MODIFY,
+        "is_task": False,
         "description": "Modify example2",
         "product_type": "Example2",
     },
     {
         "name": "terminate_example2",
         "target": Target.TERMINATE,
+        "is_task": False,
         "description": "Terminate example2",
         "product_type": "Example2",
     },
     {
         "name": "validate_example2",
         "target": Target.VALIDATE,
+        "is_task": True,
         "description": "Validate example2",
         "product_type": "Example2",
     },

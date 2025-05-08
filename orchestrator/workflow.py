@@ -94,6 +94,7 @@ class Workflow(Protocol):
     initial_input_form: InputFormGenerator | None = None
     target: Target
     steps: StepList
+    is_task: bool
 
     def __call__(self) -> NoReturn: ...
 
@@ -211,6 +212,10 @@ def make_workflow(
     wrapping_function.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wrapping_function.target = target
     wrapping_function.steps = steps
+
+    # Because this make_workflow is used in many places, we define the is_task here just once
+    is_task = True if target in (Target.VALIDATE, Target.SYSTEM) else False
+    wrapping_function.is_task = is_task
 
     wrapping_function.__doc__ = make_workflow_doc(wrapping_function)
 
@@ -500,7 +505,12 @@ def workflow(
 
     def _workflow(f: Callable[[], StepList]) -> Workflow:
         return make_workflow(
-            f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback=authorize_callback
+            f,
+            description,
+            initial_input_form_in_form_inject_args,
+            target,
+            f(),
+            authorize_callback=authorize_callback
         )
 
     return _workflow

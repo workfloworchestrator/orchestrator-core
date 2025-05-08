@@ -51,7 +51,7 @@ def _celery_start_process(
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
-    task_name = NEW_TASK if workflow.target == Target.SYSTEM else NEW_WORKFLOW
+    task_name = NEW_TASK if workflow.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
     pstat = create_process(workflow_key, user_inputs, user)
     try:
@@ -80,7 +80,7 @@ def _celery_resume_process(
     last_process_status = process.last_status
     workflow = pstat.workflow
 
-    task_name = RESUME_TASK if workflow.target == Target.SYSTEM else RESUME_WORKFLOW
+    task_name = RESUME_TASK if workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
     user_inputs = user_inputs or [{}]

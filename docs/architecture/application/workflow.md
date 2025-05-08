@@ -205,13 +205,19 @@ Validate workflows run integrity checks on an existing subscription. Checking th
     params = dict(
         name="validate_node_enrollment",
         target="VALIDATE",
+        is_task=True,
         description="Validate Node Enrollment before production",
         tag="NodeEnrollment",
         search_phrase="Node Enrollment%",
     )
 ```
 
-It uses a `target` of `VALIDATE` - similar to how tasks are defined. That target is more of a free form sort of thing. Same thing with the `name` - that's the name of the actual workflow, and the `tag` is shared by of this set of workflows.
+It uses a `target` of `VALIDATE`. Unlike system tasks, which use the `target` of `SYSTEM` designation, validate
+workflows explicitly use `target="VALIDATE"` to distinguish themselves. This distinction reflects their different
+purposes.
+The `is_task` parameter is set to `True` to indicate that this workflow is a task. Tasks are workflows that are not
+directly associated with a subscription and are typically used for background processing or system maintenance.
+Both `SYSTEM` and `VALIDATE` workflows are considered tasks, but they serve different purposes.
 
 Generally the steps raise assertions if a check fails, otherwise return OK to the state:
 

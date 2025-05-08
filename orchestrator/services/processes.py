@@ -108,7 +108,7 @@ def _db_create_process(stat: ProcessStat) -> None:
         workflow_id=wf_table.workflow_id,
         last_status=ProcessStatus.CREATED,
         created_by=stat.current_user,
-        is_task=stat.workflow.target == Target.SYSTEM,
+        is_task=stat.workflow.is_task,
     )
     db.session.add(p)
     db.session.commit()

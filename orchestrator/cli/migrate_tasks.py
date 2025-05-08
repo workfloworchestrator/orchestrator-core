@@ -151,7 +151,7 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
         - list of task items to delete in the migration
     """
     database_tasks = {
-        task.name: task for task in list(db.session.scalars(select(WorkflowTable))) if task.target == Target.SYSTEM
+        task.name: task for task in list(db.session.scalars(select(WorkflowTable))) if task.is_task
     }
     registered_wf_instances = {
         task: cast(Workflow, get_workflow(task)) for task in orchestrator.workflows.ALL_WORKFLOWS.keys()
@@ -159,13 +159,13 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
 
     registered_tasks = dict(
         filter(
-            lambda task: task[1].target == Target.SYSTEM and task[0] in database_tasks.keys(),
+            lambda task: task[1].is_task and task[0] in database_tasks.keys(),
             registered_wf_instances.items(),
         )
     )
     available_tasks = dict(
         filter(
-            lambda task: task[1].target == Target.SYSTEM and task[0] not in database_tasks.keys(),
+            lambda task: task[1].is_task and task[0] not in database_tasks.keys(),
             registered_wf_instances.items(),
         )
     )
