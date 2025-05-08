@@ -171,25 +171,17 @@ class StepList(list[Step]):
 def _handle_simple_input_form_generator(f: StateInputStepFunc, authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None) -> StateInputFormGenerator:
     """Processes f into a form generator and injects a pre-hook for user authorization"""
     def authorize_user_from_state(state: State) -> None:
-        logger.error("authorize_user_from_state: called")
         user_model = state.pop("__process_user", None)
         if user_model is not None:
             user_model = cast(OIDCUserModel, user_model)
-        else:
-            logger.error("authorize_user_from_state: no user model")
 
         if authorize_callback is not None:
-            logger.error("authorize_user_from_state: callback found")
             authorize_callback(user_model)
             if not authorize_callback(user_model):
-                logger.error("authorize_user_from_state: FORBIDDEN")
-                #TODO not sure that step name is available here, but could put it on state?
                 raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to execute step")
-        else:
-            logger.error("authorize_user_from_state: no callback!")
 
     if inspect.isgeneratorfunction(f):
-        def generator_wrapper(state: State):
+        def generator_wrapper(state: State) -> Any:
             authorize_user_from_state(state)
             return f(state)
 
