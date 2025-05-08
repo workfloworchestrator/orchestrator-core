@@ -229,9 +229,12 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         assert response_data["last_status"] == "awaiting_callback"
         state = response_data["current_state"]
 
-        # Update progress 1 using dict
+        # Update dry step progress with dict - update 1
         callback_route1 = state["callback_route"]
-        response = test_client.post(f"{callback_route1}/progress", json={"update": "123"})
+        response = test_client.post(
+            f"{callback_route1}/progress",
+            json={"update": 1},
+        )
         assert response.status_code == 200
         response_data = response.json()
 
@@ -239,9 +242,24 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
         state = response_data["current_state"]
-        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == {"update": "123"}
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == {"update": 1}
 
-        # Continue workflow 1
+        # Update dry step progress with dict - update 2
+        callback_route1 = state["callback_route"]
+        response = test_client.post(
+            f"{callback_route1}/progress",
+            json={"update": 2},
+        )
+        assert response.status_code == 200
+        response_data = response.json()
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        state = response_data["current_state"]
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == {"update": 2}
+
+        # Continue workflow dry step
         callback_route1 = state["callback_route"]
         response = test_client.post(callback_route1, json={"ext_data": "12345"})
         assert response.status_code == 200
@@ -254,10 +272,10 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         assert state["dr_ext_data"] == "12345"
         assert DEFAULT_CALLBACK_PROGRESS_KEY not in state
 
-        # Update progress 2 using string
+        # Update real step progress with string - update 1
         callback_route2 = state["callback_route"]
         response = test_client.post(
-            f"{callback_route2}/progress", data="update 567", headers={"Content-Type": "text/plain; charset=utf-8"}
+            f"{callback_route2}/progress", data="update 1", headers={"Content-Type": "text/plain; charset=utf-8"}
         )
         assert response.status_code == 200
         response_data = response.json()
@@ -266,17 +284,47 @@ def test_wf_callback_progress_with_multiple_callback_steps(test_client):
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
         state = response_data["current_state"]
-        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == "update 567"
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == "update 1"
 
-        # Continue workflow 2
+        # Update real step progress with string - update 2
+        callback_route2 = state["callback_route"]
+        response = test_client.post(
+            f"{callback_route2}/progress", data="update 2", headers={"Content-Type": "text/plain; charset=utf-8"}
+        )
+        assert response.status_code == 200
+        response_data = response.json()
+
+        # Check process status
+        response = test_client.get(f"api/processes/{process_id}")
+        response_data = response.json()
+        state = response_data["current_state"]
+        assert state[DEFAULT_CALLBACK_PROGRESS_KEY] == "update 2"
+
+        # Continue workflow real step
         response = test_client.post(callback_route2, json={"ext_data": "56789"})
         assert response.status_code == 200
 
         # Final check
         response = test_client.get(f"api/processes/{process_id}")
         response_data = response.json()
+        state = response_data["current_state"]
 
         assert response_data["last_status"] == "completed"
+
+        assert all(
+            key in state.keys()
+            for key in [
+                "phase",
+                "ext_data",
+                "reporter",
+                "process_id",
+                "dr_ext_data",
+                "workflow_name",
+                "callback_route",
+                "callback_result",
+                "workflow_target",
+            ]
+        )
 
         state = response_data["current_state"]
         assert state["ext_data"] == "56789"

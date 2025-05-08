@@ -682,7 +682,7 @@ def update_awaiting_process_progress(
     ensure_correct_callback_token(pstat, token=token)
 
     state = pstat.state.unwrap()
-    progress_key = state.get(DEFAULT_CALLBACK_PROGRESS_KEY, "callback_progress")
+    progress_key = DEFAULT_CALLBACK_PROGRESS_KEY
     state = {**state, progress_key: data} | {"__remove_keys": [progress_key]}
 
     replace_current_step_state(process, new_state=state)
