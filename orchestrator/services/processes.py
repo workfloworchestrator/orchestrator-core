@@ -523,7 +523,11 @@ def thread_resume_process(
 
     form = pstat.log[0].form
 
-    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
+    # Add OIDC user to state to be processed by form for authorization
+    state = pstat.state.unwrap()
+    state["__process_user"] = user_model
+
+    user_input = post_form(form, state, user_inputs)
 
     if user:
         pstat.update(current_user=user)

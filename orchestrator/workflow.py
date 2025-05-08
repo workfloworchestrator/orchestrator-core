@@ -13,13 +13,14 @@
 
 
 from __future__ import annotations
-
 import contextvars
 import functools
 import inspect
 import secrets
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import update_wrapper
+from http import HTTPStatus
 from itertools import dropwhile
 from typing import (
     Any,
@@ -40,6 +41,7 @@ from structlog.stdlib import BoundLogger
 
 from nwastdlib import const, identity
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import db, transactional
 from orchestrator.services.settings import get_engine_settings
@@ -99,7 +101,7 @@ class Workflow(Protocol):
 
 
 def make_step_function(
-    f: Callable, name: str, form: InputFormGenerator | None = None, assignee: Assignee | None = Assignee.SYSTEM
+    f: Callable, name: str, form: InputFormGenerator | None = None, assignee: Assignee | None = Assignee.SYSTEM, authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None
 ) -> Step:
     step_func = cast(Step, f)
 
@@ -166,14 +168,39 @@ class StepList(list[Step]):
         return f"StepList [{', '.join(repr(x) for x in self)}]"
 
 
-def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputFormGenerator:
+def _handle_simple_input_form_generator(f: StateInputStepFunc, authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None) -> StateInputFormGenerator:
+    """Processes f into a form generator and injects a pre-hook for user authorization"""
+    def authorize_user_from_state(state: State) -> None:
+        logger.error("authorize_user_from_state: called")
+        user_model = state.pop("__process_user", None)
+        if user_model is not None:
+            user_model = cast(OIDCUserModel, user_model)
+        else:
+            logger.error("authorize_user_from_state: no user model")
+
+        if authorize_callback is not None:
+            logger.error("authorize_user_from_state: callback found")
+            authorize_callback(user_model)
+            if not authorize_callback(user_model):
+                logger.error("authorize_user_from_state: FORBIDDEN")
+                #TODO not sure that step name is available here, but could put it on state?
+                raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to execute step")
+        else:
+            logger.error("authorize_user_from_state: no callback!")
+
     if inspect.isgeneratorfunction(f):
-        return cast(StateInputFormGenerator, f)
+        def generator_wrapper(state: State):
+            authorize_user_from_state(state)
+            return f(state)
+
+        update_wrapper(generator_wrapper, f)
+        return cast(StateInputFormGenerator, generator_wrapper)
     if inspect.isgenerator(f):
         raise ValueError("Got a generator object instead of function, this is not correct")
 
     # If f is a SimpleInputFormGenerator convert to new style generator function
     def form_generator(state: State) -> FormGenerator:
+        authorize_user_from_state(state)
         user_input: FormPage = yield cast(StateSimpleInputFormGenerator, f)(state)
         return user_input.model_dump()
 
@@ -270,7 +297,7 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
     return decorator
 
 
-def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
+def inputstep(name: str, assignee: Assignee, authorize_callback: Callable[[OIDCUserModel | None], bool] | None = None) -> Callable[[InputStepFunc], Step]:
     """Add user input step to workflow.
 
     IMPORTANT: In contrast to other workflow steps, the `@inputstep` wrapped function will not run in the
@@ -291,7 +318,7 @@ def inputstep(name: str, assignee: Assignee) -> Callable[[InputStepFunc], Step]:
         def wrapper(state: State) -> FormGenerator:
             form_generator_in_form_inject_args = form_inject_args(func)
 
-            form_generator = _handle_simple_input_form_generator(form_generator_in_form_inject_args)
+            form_generator = _handle_simple_input_form_generator(form_generator_in_form_inject_args, authorize_callback=authorize_callback)
 
             return form_generator(state)
 
