@@ -150,7 +150,11 @@ def new_process(
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
 def resume_process_endpoint(
-    process_id: UUID, request: Request, json_data: JSON = Body(...), user: str = Depends(user_name)
+    process_id: UUID,
+    request: Request,
+    json_data: JSON = Body(...),
+    user: str = Depends(user_name),
+    user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> None:
     process = _get_process(process_id)
 
@@ -166,7 +170,7 @@ def resume_process_endpoint(
     broadcast_invalidate_status_counts()
     broadcast_func = api_broadcast_process_data(request)
 
-    resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
+    resume_process(process, user=user, user_inputs=json_data, user_model=user_model, broadcast_func=broadcast_func)
 
 
 @router.post(
