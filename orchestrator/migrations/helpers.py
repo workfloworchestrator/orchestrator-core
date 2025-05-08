@@ -141,6 +141,8 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
         }
         >>> create_workflow(conn, workflow)
     """
+    if not workflow.get("is_task", False):
+        workflow["is_task"] = False
 
     conn.execute(
         sa.text(
@@ -216,6 +218,10 @@ def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
     """
     for name, workflow in new.items():
         workflow["name"] = name
+
+        if not workflow.get("is_task", False):
+            workflow["is_task"] = False
+
         conn.execute(
             sa.text(
                 """
