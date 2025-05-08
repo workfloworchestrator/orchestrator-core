@@ -22,3 +22,4 @@ class Target(strEnum):
     MODIFY = "MODIFY"
     TERMINATE = "TERMINATE"
     SYSTEM = "SYSTEM"
+    VALIDATE = "VALIDATE"

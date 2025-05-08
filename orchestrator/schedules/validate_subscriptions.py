@@ -22,7 +22,7 @@ from orchestrator.services.subscriptions import (
     get_subscriptions_on_product_table_in_sync,
 )
 from orchestrator.services.workflows import (
-    get_system_product_workflows_for_subscription,
+    get_validation_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
 )
 from orchestrator.settings import app_settings
@@ -42,9 +42,9 @@ def validate_subscriptions() -> None:
         subscriptions = get_subscriptions_on_product_table_in_sync()
 
     for subscription in subscriptions:
-        system_product_workflows = get_system_product_workflows_for_subscription(subscription)
+        validation_product_workflows = get_validation_product_workflows_for_subscription(subscription)
 
-        if not system_product_workflows:
+        if not validation_product_workflows:
             logger.warning(
                 "SubscriptionTable has no validation workflow",
                 subscription=subscription,
@@ -52,4 +52,4 @@ def validate_subscriptions() -> None:
             )
             break
 
-        start_validation_workflow_for_workflows(subscription=subscription, workflows=system_product_workflows)
+        start_validation_workflow_for_workflows(subscription=subscription, workflows=validation_product_workflows)

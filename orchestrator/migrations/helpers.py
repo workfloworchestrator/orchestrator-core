@@ -135,18 +135,21 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
         >>> workflow = {
             "name": "workflow_name",
             "target": "SYSTEM",
+            "is_task": False,
             "description": "workflow description",
             "product_type": "product_type",
         }
         >>> create_workflow(conn, workflow)
     """
+    if not workflow.get("is_task", False):
+        workflow["is_task"] = False
 
     conn.execute(
         sa.text(
             """
                 WITH new_workflow AS (
-                INSERT INTO workflows(name, target, description)
-                    VALUES (:name, :target, :description)
+                INSERT INTO workflows(name, target, is_task, description)
+                    VALUES (:name, :target, :is_task, :description)
                     ON CONFLICT DO NOTHING
                     RETURNING workflow_id)
                 INSERT
@@ -184,8 +187,8 @@ def create_task(conn: sa.engine.Connection, task: dict) -> None:
     conn.execute(
         sa.text(
             """
-                INSERT INTO workflows(name, target, description)
-                    VALUES (:name, 'SYSTEM', :description)
+                INSERT INTO workflows(name, target, is_task, description)
+                    VALUES (:name, 'SYSTEM', TRUE, :description)
                     ON CONFLICT DO NOTHING
                     RETURNING workflow_id
             """
@@ -206,6 +209,7 @@ def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
                 "workflow_name": {
                     "workflow_id": "f2702074-3203-454c-b298-6dfa7675423d",
                     "target": "CREATE",
+                    "is_task": False,
                     "description": "Workflow description",
                     "tag": "ProductBlockName1",
                     "search_phrase": "Search Phrase%",
@@ -214,12 +218,16 @@ def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
     """
     for name, workflow in new.items():
         workflow["name"] = name
+
+        if not workflow.get("is_task", False):
+            workflow["is_task"] = False
+
         conn.execute(
             sa.text(
                 """
                 WITH new_workflow AS (
-                    INSERT INTO workflows(workflow_id, name, target, description)
-                    VALUES (:workflow_id, :name, :target, :description)
+                    INSERT INTO workflows(workflow_id, name, target, is_task, description)
+                    VALUES (:workflow_id, :name, :target, :is_task, :description)
                     RETURNING workflow_id)
                 INSERT
                 INTO products_workflows (product_id, workflow_id)

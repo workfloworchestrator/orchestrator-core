@@ -24,7 +24,7 @@ logger = structlog.get_logger(__name__)
 
 
 def store_workflow(wf: Workflow, name: str | None = None) -> WorkflowTable:
-    wf_table = WorkflowTable(name=name or wf.name, target=wf.target, description=wf.description)
+    wf_table = WorkflowTable(name=name or wf.name, target=wf.target, is_task=wf.is_task, description=wf.description)
     db.session.add(wf_table)
     db.session.commit()
     return wf_table

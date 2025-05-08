@@ -412,6 +412,8 @@ class WorkflowTable(BaseModel):
     )
     processes = relationship("ProcessTable", cascade="all, delete-orphan", back_populates="workflow")
 
+    is_task = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
     @staticmethod
     def select() -> Select:
         return (

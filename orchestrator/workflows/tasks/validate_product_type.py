@@ -22,7 +22,7 @@ from orchestrator.services.subscriptions import (
     get_subscriptions_on_product_table_in_sync,
 )
 from orchestrator.services.workflows import (
-    get_system_product_workflows_for_subscription,
+    get_validation_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
 )
 from orchestrator.targets import Target
@@ -62,7 +62,7 @@ def validate_product_type(product_type: str) -> State:
     subscriptions = get_subscriptions_on_product_table_in_sync()
 
     for subscription in subscriptions:
-        system_product_workflows = get_system_product_workflows_for_subscription(
+        system_product_workflows = get_validation_product_workflows_for_subscription(
             subscription=subscription,
         )
 

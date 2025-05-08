@@ -24,6 +24,7 @@ from orchestrator.targets import Target
 class WorkflowBaseSchema(OrchestratorBaseModel):
     name: str
     target: Target
+    is_task: bool = False
     description: str | None = None
     created_at: datetime | None = None
 

@@ -39,6 +39,7 @@ def _to_workflow_schema(workflow: WorkflowTable, include_steps: bool = False) ->
         workflow_id=workflow.workflow_id,
         name=workflow.name,
         target=workflow.target,
+        is_task=workflow.is_task,
         description=workflow.description,
         created_at=workflow.created_at,
         **extra_kwargs,
@@ -63,10 +64,10 @@ def get_workflow_by_name(workflow_name: str) -> WorkflowTable | None:
     return db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == workflow_name))
 
 
-def get_system_product_workflows_for_subscription(
+def get_validation_product_workflows_for_subscription(
     subscription: SubscriptionTable,
 ) -> list:
-    return [workflow.name for workflow in subscription.product.workflows if workflow.target == Target.SYSTEM]
+    return [workflow.name for workflow in subscription.product.workflows if workflow.target == Target.VALIDATE]
 
 
 def start_validation_workflow_for_workflows(
@@ -78,9 +79,12 @@ def start_validation_workflow_for_workflows(
     result = []
 
     for workflow_name in workflows:
-        default = TARGET_DEFAULT_USABLE_MAP[Target.SYSTEM]
-        usable_when = WF_USABLE_MAP.get(workflow_name, default)
+        target_system = TARGET_DEFAULT_USABLE_MAP[Target.SYSTEM]
+        system_usable_when = WF_USABLE_MAP.get(workflow_name, target_system)
+        target_validate = TARGET_DEFAULT_USABLE_MAP[Target.VALIDATE]
+        validate_usable_when = WF_USABLE_MAP.get(workflow_name, target_validate)
 
+        usable_when = system_usable_when + validate_usable_when
         if subscription.status in usable_when and (
             product_type_filter is None or subscription.product.product_type == product_type_filter
         ):

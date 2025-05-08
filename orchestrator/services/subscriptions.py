@@ -505,6 +505,7 @@ TARGET_DEFAULT_USABLE_MAP: dict[Target, list[str]] = {
     Target.MODIFY: ["active"],
     Target.TERMINATE: ["active", "provisioning"],
     Target.SYSTEM: ["active"],
+    Target.VALIDATE: ["active"],
 }
 
 WF_USABLE_MAP: dict[str, list[str]] = {}
@@ -530,6 +531,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         ...     "modify": [],
         ...     "terminate": [],
         ...     "system": [],
+        ...     "validate": [],
         ... }
 
     """
@@ -549,9 +551,10 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         "modify": [],
         "terminate": [],
         "system": [],
+        "validate": [],
     }
     for workflow in subscription.product.workflows:
-        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.target == Target.SYSTEM:
+        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task:
             # validations and modify note are also possible with: not in sync or locked relations
             workflow_json = {"name": workflow.name, "description": workflow.description}
         else:

@@ -109,7 +109,7 @@ def check_that_products_have_create_modify_and_terminate_workflows() -> State:
         workflows = {
             c.target
             for c in product.workflows
-            if c.target in ["CREATE", "TERMINATE", "MODIFY", "SYSTEM"] and c.name != "modify_note"
+            if c.target in ["CREATE", "TERMINATE", "MODIFY", "SYSTEM", "VALIDATE"] and c.name != "modify_note"
         }
         if len(workflows) < 4:
             workflows_not_complete.append(product.name)
