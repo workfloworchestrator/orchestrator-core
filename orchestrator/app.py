@@ -25,6 +25,7 @@ import structlog
 import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
+from prometheus_client import make_asgi_app
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -54,6 +55,7 @@ from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.log_config import LOGGER_OVERRIDES
+from orchestrator.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import AppSettings, ExecutorType, app_settings
 from orchestrator.version import GIT_COMMIT_HASH
@@ -142,6 +144,11 @@ class OrchestratorCore(FastAPI):
         self.add_exception_handler(FormException, form_error_handler)  # type: ignore[arg-type]
         self.add_exception_handler(ProblemDetailException, problem_detail_handler)  # type: ignore[arg-type]
         add_exception_handler(self)
+
+        if base_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT:
+            initialize_default_metrics()
+            metrics_app = make_asgi_app(registry=ORCHESTRATOR_METRICS_REGISTRY)
+            self.mount("/api/metrics", metrics_app)
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
