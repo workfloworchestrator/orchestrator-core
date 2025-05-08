@@ -17,7 +17,6 @@ from fastapi import Query, WebSocket
 from fastapi.param_functions import Depends
 from fastapi.routing import APIRouter
 from redis.asyncio import Redis as AIORedis
-from services.settings import generate_engine_global_status
 from sqlalchemy.exc import SQLAlchemyError
 
 from oauth2_lib.fastapi import OIDCUserModel
@@ -26,6 +25,7 @@ from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, WorkerStatus
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
+from orchestrator.services.settings import generate_engine_global_status
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern

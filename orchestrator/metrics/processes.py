@@ -1,4 +1,7 @@
-from prometheus_client import Gauge
+from typing import Iterable
+
+from prometheus_client.metrics_core import GaugeMetricFamily, Metric
+from prometheus_client.registry import Collector
 from pydantic import BaseModel
 from sqlalchemy import desc, func
 
@@ -90,60 +93,68 @@ def _get_processes() -> list[ProcessTableQueryResult]:
     ).all()
 
 
-def initialize_process_metrics() -> None:
-    """Initialize two Prometheus gauges with process counts and total runtime.
+class ProcessCollector(Collector):
+    """Collector that contains two Prometheus gauges with process counts and total runtime.
 
-    This gauge contains the amount of processes, and the total runtime in seconds, per every combination of the labels
+    These gauges contain the amount of processes, and the total runtime in seconds, per every combination of the labels
     that are defined:
-    - Process last status
-    - Process created by
-    - Process is task
-    - Product name
-    - Workflow name
-    - Customer ID
-    - Workflow target
+        - Process last status
+        - Process created by
+        - Process is task
+        - Product name
+        - Workflow name
+        - Customer ID
+        - Workflow target
     """
-    label_names = [
-        "last_status",
-        "created_by",
-        "is_task",
-        "product_name",
-        "workflow_name",
-        "customer_id",
-        "workflow_target",
-    ]
-    process_counts = Gauge(
-        "process_count",
-        namespace="wfo",
-        labelnames=label_names,
-        unit="count",
-        documentation="Number of processes per status, creator, task, product, workflow, customer, and target.",
-    )
-    process_seconds_total = Gauge(
-        "process_seconds_total",
-        namespace="wfo",
-        labelnames=label_names,
-        unit="count",
-        documentation="Total time spent on processes in seconds.",
-    )
 
-    for row in _get_processes():
-        process_counts.labels(
-            last_status=row.last_status,
-            created_by=row.created_by,
-            is_task=row.is_task,
-            product_name=row.product_name,
-            workflow_name=row.workflow_name,
-            customer_id=row.customer_id,
-            workflow_target=row.workflow_target,
-        ).set(row.process_count)
+    def collect(self) -> Iterable[Metric]:
+        label_names = [
+            "last_status",
+            "created_by",
+            "is_task",
+            "product_name",
+            "workflow_name",
+            "customer_id",
+            "workflow_target",
+        ]
+        process_counts = GaugeMetricFamily(
+            "wfo_process_count",
+            labels=label_names,
+            unit="count",
+            documentation="Number of processes per status, creator, task, product, workflow, customer, and target.",
+        )
+        process_seconds_total = GaugeMetricFamily(
+            "wfo_process_seconds_total",
+            labels=label_names,
+            unit="count",
+            documentation="Total time spent on processes in seconds.",
+        )
 
-        process_seconds_total.labels(
-            last_status=row.last_status,
-            created_by=row.created_by,
-            is_task=row.is_task,
-            product_name=row.product_name,
-            workflow_name=row.workflow_name,
-            customer_id=row.customer_id,
-            workflow_target=row.workflow_target,
-        ).set(row.total_runtime)
+        for row in _get_processes():
+            process_counts.add_metric(
+                [
+                    row.last_status,
+                    row.created_by,
+                    str(row.is_task),
+                    row.product_name,
+                    row.workflow_name,
+                    row.customer_id,
+                    row.workflow_target,
+                ],
+                row.process_count,
+            )
+
+            process_seconds_total.add_metric(
+                [
+                    row.last_status,
+                    row.created_by,
+                    str(row.is_task),
+                    row.product_name,
+                    row.workflow_name,
+                    row.customer_id,
+                    row.workflow_target,
+                ],
+                row.total_runtime,
+            )
+
+        return [process_counts, process_seconds_total]

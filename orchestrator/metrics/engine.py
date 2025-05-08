@@ -1,4 +1,8 @@
-from prometheus_client import Enum, Gauge
+from typing import Iterable
+
+from prometheus_client import Metric
+from prometheus_client.metrics_core import GaugeMetricFamily, StateSetMetricFamily
+from prometheus_client.registry import Collector
 
 from orchestrator.schemas.engine_settings import GlobalStatusEnum
 from orchestrator.services import settings
@@ -15,7 +19,7 @@ def _get_engine_status() -> tuple[GlobalStatusEnum, int]:
     return engine_status, int(engine_settings.running_processes)
 
 
-def initialize_engine_status_metrics() -> None:
+class WorkflowEngineCollector(Collector):
     """Initialize a Prometheus enum and a gauge.
 
     The enum of the current workflow engine status takes three values:
@@ -25,20 +29,21 @@ def initialize_engine_status_metrics() -> None:
 
     This metric also exports the amount of currently running processes.
     """
-    engine_status = Enum(
-        "engine_status",
-        namespace="wfo",
-        states=GlobalStatusEnum.values(),
-        documentation="Current workflow engine status.",
-    )
 
-    engine_process_count = Gauge(
-        "active_process_count",
-        namespace="wfo",
-        unit="count",
-        documentation="Number of currently running processes in the workflow engine.",
-    )
+    def collect(self) -> Iterable[Metric]:
+        current_engine_status, running_process_count = _get_engine_status()
 
-    current_engine_status, running_process_count = _get_engine_status()
-    engine_status.state(current_engine_status)
-    engine_process_count.set(running_process_count)
+        engine_status = StateSetMetricFamily(
+            "wfo_engine_status",
+            documentation="Current workflow engine status.",
+            value={status: status == current_engine_status for status in GlobalStatusEnum.values()},
+        )
+
+        engine_process_count = GaugeMetricFamily(
+            "wfo_active_process_count",
+            unit="count",
+            value=running_process_count,
+            documentation="Number of currently running processes in the workflow engine.",
+        )
+
+        return [engine_status, engine_process_count]

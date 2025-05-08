@@ -1,3 +1,3 @@
-from orchestrator.metrics.default_metrics import initialize_default_metrics
+from orchestrator.metrics.init import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 
-__all__ = ["initialize_default_metrics"]
+__all__ = ["initialize_default_metrics", "ORCHESTRATOR_METRICS_REGISTRY"]

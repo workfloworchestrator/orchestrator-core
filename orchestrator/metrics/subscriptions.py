@@ -1,4 +1,8 @@
-from prometheus_client import Gauge
+from typing import Iterable
+
+from prometheus_client import Metric
+from prometheus_client.metrics_core import GaugeMetricFamily
+from prometheus_client.registry import Collector
 from pydantic import BaseModel
 from sqlalchemy import desc, func
 
@@ -57,32 +61,33 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
     ).all()
 
 
-def initialize_subscription_count_metrics() -> None:
-    """Initialize a Prometheus gauge with subscription counts.
+class SubscriptionCollector(Collector):
+    """Collector for Subscriptions stored in the subscription database.
 
-    This gauge contains the amount of subscriptions, per every combination of the labels that are defined:
-    - Product name
-    - Subscription lifecycle
-    - Customer ID
-    - `insync` state
+    This collector contains one gauge that contains the amount of subscriptions, per every combination of the labels
+    that are defined:
+        - Product name
+        - Subscription lifecycle
+        - Customer ID
+        - `insync` state
     """
-    subscriptions = Gauge(
-        "subscriptions_count",
-        namespace="wfo",
-        labelnames=[
-            "product_name",
-            "lifecycle_state",
-            "customer_id",
-            "insync",
-        ],
-        unit="count",
-        documentation="Number of subscriptions per product, lifecycle state, customer, and in sync state.",
-    )
 
-    for row in _get_subscriptions():
-        subscriptions.labels(
-            product_name=row.product_name,
-            lifecycle_state=row.lifecycle_state,
-            customer_id=row.customer_id,
-            insync=row.insync,
-        ).set(row.subscription_count)
+    def collect(self) -> Iterable[Metric]:
+        subscriptions = GaugeMetricFamily(
+            name="wfo_subscriptions_count",
+            labels=[
+                "product_name",
+                "lifecycle_state",
+                "customer_id",
+                "insync",
+            ],
+            unit="count",
+            documentation="Number of subscriptions per product, lifecycle state, customer, and in sync state.",
+        )
+
+        for row in _get_subscriptions():
+            subscriptions.add_metric(
+                [row.product_name, row.lifecycle_state, row.customer_id, str(row.insync)], row.subscription_count
+            )
+
+        return [subscriptions]
