@@ -505,12 +505,7 @@ def workflow(
 
     def _workflow(f: Callable[[], StepList]) -> Workflow:
         return make_workflow(
-            f,
-            description,
-            initial_input_form_in_form_inject_args,
-            target,
-            f(),
-            authorize_callback=authorize_callback
+            f, description, initial_input_form_in_form_inject_args, target, f(), authorize_callback=authorize_callback
         )
 
     return _workflow

@@ -26,7 +26,6 @@ from orchestrator.services.workflows import (
     start_validation_workflow_for_workflows,
 )
 from orchestrator.settings import app_settings
-from orchestrator.targets import Target
 
 logger = structlog.get_logger(__name__)
 

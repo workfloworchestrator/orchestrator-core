@@ -11,7 +11,6 @@ import orchestrator.workflows
 from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import ProductTable, WorkflowTable, db
-from orchestrator.targets import Target
 from orchestrator.workflows import LazyWorkflowInstance, get_workflow
 
 # Workflows are registered via migrations with product type. For every product with the given product_type, there will be an entry in products_workflows.

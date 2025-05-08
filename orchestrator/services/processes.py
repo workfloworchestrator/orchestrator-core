@@ -34,7 +34,6 @@ from orchestrator.services.input_state import store_input_state
 from orchestrator.services.settings import get_engine_settings_for_update
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import ExecutorType, app_settings
-from orchestrator.targets import Target
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
