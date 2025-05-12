@@ -213,10 +213,6 @@ def make_workflow(
     wrapping_function.target = target
     wrapping_function.steps = steps
 
-    # Because this make_workflow is used in many places, we define the is_task here just once
-    is_task = True if target in (Target.VALIDATE, Target.SYSTEM) else False
-    wrapping_function.is_task = is_task
-
     wrapping_function.__doc__ = make_workflow_doc(wrapping_function)
 
     return wrapping_function
