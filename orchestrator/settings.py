@@ -86,9 +86,6 @@ class AppSettings(BaseSettings):
     ENABLE_GRAPHQL_STATS_EXTENSION: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
-    ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS: bool = (
-        True  # True=ignore cache + optimized DB queries; False=use cache + unoptimized DB queries. Remove in #900
-    )
 
 
 app_settings = AppSettings()
