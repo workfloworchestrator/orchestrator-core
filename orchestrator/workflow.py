@@ -35,6 +35,7 @@ from uuid import UUID
 
 import strawberry
 import structlog
+from services.workflows import get_workflow_by_name
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -212,6 +213,11 @@ def make_workflow(
     wrapping_function.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wrapping_function.target = target
     wrapping_function.steps = steps
+
+    wf_table = get_workflow_by_name(wrapping_function.name)
+    if not wf_table:
+        raise AssertionError(f"No workflow found with name: {wrapping_function.name}")
+    wrapping_function.is_task = wf_table.is_task
 
     wrapping_function.__doc__ = make_workflow_doc(wrapping_function)
 
