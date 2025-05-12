@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import structlog
 
+from orchestrator.targets import Target
 from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.input_state import store_input_state
 from orchestrator.services.processes import StateMerger, _db_create_process
@@ -24,7 +25,8 @@ logger = structlog.get_logger(__name__)
 
 
 def store_workflow(wf: Workflow, name: str | None = None) -> WorkflowTable:
-    wf_table = WorkflowTable(name=name or wf.name, target=wf.target, is_task=wf.is_task, description=wf.description)
+    is_task = True if wf.target in (Target.VALIDATE or Target.SYSTEM) else False
+    wf_table = WorkflowTable(name=name or wf.name, target=wf.target, is_task=is_task, description=wf.description)
     db.session.add(wf_table)
     db.session.commit()
     return wf_table
