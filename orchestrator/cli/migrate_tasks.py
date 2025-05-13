@@ -24,6 +24,7 @@ import orchestrator.workflows
 from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt
 from orchestrator.db import WorkflowTable, db
+from orchestrator.targets import Target
 from orchestrator.workflow import Workflow
 from orchestrator.workflows import get_workflow
 
@@ -154,15 +155,17 @@ def create_tasks_migration_wizard() -> tuple[list[dict], list[dict]]:
         task: cast(Workflow, get_workflow(task)) for task in orchestrator.workflows.ALL_WORKFLOWS.keys()
     }
 
+    is_task = [Target.SYSTEM, Target.VALIDATE]
+
     registered_tasks = dict(
         filter(
-            lambda task: task[1].is_task and task[0] in database_tasks.keys(),
+            lambda task: task[1].target in is_task and task[0] in database_tasks.keys(),
             registered_wf_instances.items(),
         )
     )
     available_tasks = dict(
         filter(
-            lambda task: task[1].is_task and task[0] not in database_tasks.keys(),
+            lambda task: task[1].target in is_task and task[0] not in database_tasks.keys(),
             registered_wf_instances.items(),
         )
     )

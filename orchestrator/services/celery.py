@@ -48,9 +48,12 @@ def _celery_start_process(
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
     workflow = get_workflow(workflow_key)
-    wf_table = get_workflow_by_name(workflow.name)
-    if not workflow or not wf_table:
+    if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    wf_table = get_workflow_by_name(workflow.name)
+    if not wf_table:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow in Database does not exist")
 
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
