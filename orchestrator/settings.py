@@ -55,7 +55,6 @@ class AppSettings(BaseSettings):
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
     CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
-    CACHE_DOMAIN_MODELS: bool = False
     CACHE_HMAC_SECRET: str | None = None  # HMAC signing key, used when pickling results in the cache
     REDIS_RETRY_COUNT: NonNegativeInt = Field(
         2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
@@ -88,9 +87,6 @@ class AppSettings(BaseSettings):
     ENABLE_PROMETHEUS_METRICS_ENDPOINT: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
-    ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS: bool = (
-        True  # True=ignore cache + optimized DB queries; False=use cache + unoptimized DB queries. Remove in #900
-    )
 
 
 app_settings = AppSettings()

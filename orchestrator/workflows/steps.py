@@ -11,22 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Any
-from uuid import UUID
 
 import structlog
 from pydantic import ValidationError
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
-from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.services.settings import reset_search_index
-from orchestrator.services.subscriptions import build_extended_domain_model, get_subscription
+from orchestrator.services.subscriptions import get_subscription
 from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import to_serializable
-from orchestrator.utils.redis import delete_from_redis, to_redis
-from orchestrator.websocket import sync_invalidate_subscription_cache
 from orchestrator.workflow import Step, step
 from pydantic_forms.types import State, UUIDstr
 
@@ -136,86 +132,6 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
     _set_status.__doc__ = f"Set subscription to '{status}'."
     return _set_status
-
-
-@step("Remove domain model from cache")
-def remove_domain_model_from_cache(
-    workflow_name: str, subscription: SubscriptionModel | None = None, subscription_id: UUID | None = None
-) -> State:
-    """Remove the domain model from the cache if it exists.
-
-    Args:
-        workflow_name: The workflow name
-        subscription: Subscription Model
-        subscription_id: The subscription id
-
-    Returns:
-        State
-
-    """
-
-    if not (subscription or subscription_id):
-        logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
-        return {"deleted_subscription_id": None}
-    if subscription:
-        delete_from_redis(subscription.subscription_id)
-    elif subscription_id:
-        delete_from_redis(subscription_id)
-
-    return {"deleted_subscription_id": subscription_id or subscription.subscription_id}  # type: ignore[union-attr]
-
-
-@step("Cache Subscription and related subscriptions")
-def cache_domain_models(workflow_name: str, subscription: SubscriptionModel | None = None) -> State:  # noqa: C901
-    """Attempt to cache all Subscriptions once they have been touched once.
-
-    Args:
-        workflow_name: The Workflow Name
-        subscription:  The Subscription if it exists.
-
-    Returns:
-        Returns State.
-
-    """
-    cached_subscription_ids: set[UUID] = set()
-    if not subscription:
-        logger.warning("No subscription found in this workflow", workflow_name=workflow_name)
-        return {"cached_subscription_ids": cached_subscription_ids}
-
-    def _cache_other_subscriptions(product_block: ProductBlockModel) -> None:
-        for field in product_block.model_fields:
-            # subscription_instance is a ProductBlockModel or an arbitrary type
-            subscription_instance: ProductBlockModel | Any = getattr(product_block, field)
-            # If subscription_instance is a list, we need to step into it and loop.
-            if isinstance(subscription_instance, list):
-                for item in subscription_instance:
-                    if isinstance(item, ProductBlockModel):
-                        _cache_other_subscriptions(item)
-
-            # If subscription_instance is a ProductBlockModel check the owner_subscription_id to decide the cache
-            elif isinstance(subscription_instance, ProductBlockModel):
-                _cache_other_subscriptions(subscription_instance)
-                if not subscription_instance.owner_subscription_id == subscription.subscription_id:
-                    cached_subscription_ids.add(subscription_instance.owner_subscription_id)
-
-    for field in subscription.model_fields:
-        # There always is a single Root Product Block, it cannot be a list, so no need to check.
-        instance: ProductBlockModel | Any = getattr(subscription, field)
-        if isinstance(instance, ProductBlockModel):
-            _cache_other_subscriptions(instance)
-
-    # Cache all the sub subscriptions
-    for subscription_id in cached_subscription_ids:
-        subscription_model = SubscriptionModel.from_subscription(subscription_id)
-        to_redis(build_extended_domain_model(subscription_model))
-        sync_invalidate_subscription_cache(subscription.subscription_id, invalidate_all=False)
-
-    # Cache the main subscription
-    to_redis(build_extended_domain_model(subscription))
-    cached_subscription_ids.add(subscription.subscription_id)
-    sync_invalidate_subscription_cache(subscription.subscription_id)
-
-    return {"cached_subscription_ids": cached_subscription_ids}
 
 
 @step("Refresh subscription search index")

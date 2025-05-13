@@ -21,7 +21,6 @@ from sqlalchemy import select
 from orchestrator.api.models import delete
 from orchestrator.db import SubscriptionCustomerDescriptionTable, db
 from orchestrator.utils.errors import StaleDataError
-from orchestrator.utils.redis import delete_subscription_from_redis
 from orchestrator.utils.validate_data_version import validate_data_version
 from orchestrator.websocket import invalidate_subscription_cache
 
@@ -38,7 +37,6 @@ def get_customer_description_by_customer_subscription(
     return db.session.scalars(stmt).one_or_none()
 
 
-@delete_subscription_from_redis()
 async def create_subscription_customer_description(
     customer_id: str, subscription_id: UUID, description: str
 ) -> SubscriptionCustomerDescriptionTable:
@@ -53,7 +51,6 @@ async def create_subscription_customer_description(
     return customer_description
 
 
-@delete_subscription_from_redis()
 async def update_subscription_customer_description(
     customer_description: SubscriptionCustomerDescriptionTable,
     description: str,
@@ -70,7 +67,6 @@ async def update_subscription_customer_description(
     return customer_description
 
 
-@delete_subscription_from_redis()
 async def delete_subscription_customer_description_by_customer_subscription(
     customer_id: str, subscription_id: UUID
 ) -> SubscriptionCustomerDescriptionTable | None:
