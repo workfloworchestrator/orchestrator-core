@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 
 
 def store_workflow(wf: Workflow, name: str | None = None) -> WorkflowTable:
-    is_task = True if wf.target in (Target.VALIDATE or Target.SYSTEM) else False
+    is_task = True if wf.target in [Target.VALIDATE, Target.SYSTEM] else False
     wf_table = WorkflowTable(name=name or wf.name, target=wf.target, is_task=is_task, description=wf.description)
     db.session.add(wf_table)
     db.session.commit()
