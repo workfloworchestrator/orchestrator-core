@@ -70,7 +70,6 @@ def simple_workflow():
 
 def test_db_create_process(simple_workflow):
     process_id = uuid4()
-    print(simple_workflow)
     pstat = ProcessStat(process_id, simple_workflow, None, None, current_user="user")
 
     _db_create_process(pstat)
