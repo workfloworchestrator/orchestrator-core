@@ -105,13 +105,14 @@ def check_that_products_have_create_modify_and_terminate_workflows() -> State:
     product_data = get_products(filters=[ProductTable.status == "active"])
 
     workflows_not_complete: list = []
+    targets = ["CREATE", "TERMINATE", "MODIFY", "VALIDATE"]
     for product in product_data:
         workflows = {
             c.target
             for c in product.workflows
-            if c.target in ["CREATE", "TERMINATE", "MODIFY", "SYSTEM", "VALIDATE"] and c.name != "modify_note"
+            if c.target in targets and c.name != "modify_note"
         }
-        if len(workflows) < 4:
+        if len(workflows) < len(targets):
             workflows_not_complete.append(product.name)
 
     # Do not raise an error but only report it in the `State` to allow exceptions.
