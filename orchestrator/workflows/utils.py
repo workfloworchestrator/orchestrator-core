@@ -344,7 +344,7 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = init >> store_process_subscription(Target.SYSTEM) >> unsync_unchecked >> f() >> resync >> done
 
-        return make_workflow(f, description, validate_initial_input_form_generator, Target.SYSTEM, steplist)
+        return make_workflow(f, description, validate_initial_input_form_generator, Target.VALIDATE, steplist)
 
     return _validate_workflow
 
