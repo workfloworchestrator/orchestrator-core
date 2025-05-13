@@ -134,7 +134,7 @@ class ProcessCollector(Collector):
             process_counts.add_metric(
                 [
                     row.last_status,
-                    row.created_by,
+                    str(row.created_by),
                     str(row.is_task),
                     row.product_name,
                     row.workflow_name,
@@ -147,7 +147,7 @@ class ProcessCollector(Collector):
             process_seconds_total.add_metric(
                 [
                     row.last_status,
-                    row.created_by,
+                    str(row.created_by),
                     str(row.is_task),
                     row.product_name,
                     row.workflow_name,
