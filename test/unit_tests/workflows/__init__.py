@@ -9,10 +9,10 @@ from uuid import uuid4
 
 import structlog
 
-from orchestrator.targets import Target
 from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.input_state import store_input_state
 from orchestrator.services.processes import StateMerger, _db_create_process
+from orchestrator.targets import Target
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
