@@ -440,6 +440,7 @@ def create_process(
     }
 
     try:
+
         state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
