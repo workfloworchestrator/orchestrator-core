@@ -1294,27 +1294,13 @@ class SubscriptionModel(DomainModel):
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
     def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable | None:
-        from orchestrator.settings import app_settings
 
         if not isinstance(subscription_id, UUID | UUIDstr):
             raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
 
-        if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
-            # TODO #900 remove toggle and make this path the default
-            loaders = [
-                joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
-            ]
-
-        else:
-            loaders = [
-                selectinload(SubscriptionTable.instances)
-                .joinedload(SubscriptionInstanceTable.product_block)
-                .selectinload(ProductBlockTable.resource_types),
-                selectinload(SubscriptionTable.instances).selectinload(
-                    SubscriptionInstanceTable.in_use_by_block_relations
-                ),
-                selectinload(SubscriptionTable.instances).selectinload(SubscriptionInstanceTable.values),
-            ]
+        loaders = [
+            joinedload(SubscriptionTable.product).selectinload(ProductTable.fixed_inputs),
+        ]
 
         return db.session.get(SubscriptionTable, subscription_id, options=loaders)
 
@@ -1394,7 +1380,6 @@ class SubscriptionModel(DomainModel):
     def from_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> S:
         """Use a subscription_id to return required fields of an existing subscription."""
         from orchestrator.domain.context_cache import get_from_cache, store_in_cache
-        from orchestrator.settings import app_settings
 
         if cached_model := get_from_cache(subscription_id):
             return cast(S, cached_model)
@@ -1421,12 +1406,7 @@ class SubscriptionModel(DomainModel):
 
         fixed_inputs = {fi.name: fi.value for fi in subscription.product.fixed_inputs}
 
-        instances: dict[str, Any]
-        if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
-            # TODO #900 remove toggle and make this path the default
-            instances = cls._load_root_instances(subscription_id)
-        else:
-            instances = cls._load_instances(subscription.instances, status, match_domain_attr=False)
+        instances = cls._load_root_instances(subscription_id)
 
         try:
             model = cls(

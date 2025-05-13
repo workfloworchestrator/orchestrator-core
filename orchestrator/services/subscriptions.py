@@ -605,7 +605,6 @@ def build_domain_model(subscription_model: SubscriptionModel) -> dict:
 
 def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     """Create a subscription dict from the SubscriptionModel with additional keys."""
-    from orchestrator.settings import app_settings
 
     stmt = select(SubscriptionCustomerDescriptionTable).where(
         SubscriptionCustomerDescriptionTable.subscription_id == subscription_model.subscription_id
@@ -615,27 +614,12 @@ def build_extended_domain_model(subscription_model: SubscriptionModel) -> dict:
     with cache_subscription_models():
         subscription = subscription_model.model_dump()
 
-    def inject_in_use_by_ids(path_to_block: str) -> None:
-        if not (in_use_by_subs := getattr_in(subscription_model, f"{path_to_block}.in_use_by")):
-            return
-
-        in_use_by_ids = [obj.in_use_by_id for obj in in_use_by_subs.col]
-        in_use_by_relations = [convert_to_in_use_by_relation(instance) for instance in in_use_by_subs]
-        update_in(subscription, f"{path_to_block}.in_use_by_ids", in_use_by_ids)
-        update_in(subscription, f"{path_to_block}.in_use_by_relations", in_use_by_relations)
-
-    if app_settings.ENABLE_SUBSCRIPTION_MODEL_OPTIMIZATIONS:
-        # TODO #900 remove toggle and make this path the default
-        # query all subscription instances and inject the in_use_by_ids/in_use_by_relations into the subscription dict.
-        instance_to_in_use_by = {
-            instance.subscription_instance_id: instance.in_use_by
-            for instance in eagerload_all_subscription_instances_only_inuseby(subscription_model.subscription_id)
-        }
-        inject_in_use_by_ids_v2(subscription, instance_to_in_use_by)
-    else:
-        # find all product blocks, check if they have in_use_by and inject the in_use_by_ids into the subscription dict.
-        for path in product_block_paths(subscription):
-            inject_in_use_by_ids(path)
+    # query all subscription instances and inject the in_use_by_ids/in_use_by_relations into the subscription dict.
+    instance_to_in_use_by = {
+        instance.subscription_instance_id: instance.in_use_by
+        for instance in eagerload_all_subscription_instances_only_inuseby(subscription_model.subscription_id)
+    }
+    inject_in_use_by_ids_v2(subscription, instance_to_in_use_by)
 
     subscription["customer_descriptions"] = customer_descriptions
 
