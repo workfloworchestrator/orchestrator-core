@@ -131,30 +131,17 @@ class ProcessCollector(Collector):
         )
 
         for row in _get_processes():
-            process_counts.add_metric(
-                [
-                    row.last_status,
-                    str(row.created_by),
-                    str(row.is_task),
-                    row.product_name,
-                    row.workflow_name,
-                    row.customer_id,
-                    row.workflow_target,
-                ],
-                row.process_count,
-            )
+            label_values = [
+                row.last_status,
+                str(row.created_by),
+                str(row.is_task),
+                row.product_name,
+                row.workflow_name,
+                row.customer_id,
+                row.workflow_target,
+            ]
 
-            process_seconds_total.add_metric(
-                [
-                    row.last_status,
-                    str(row.created_by),
-                    str(row.is_task),
-                    row.product_name,
-                    row.workflow_name,
-                    row.customer_id,
-                    row.workflow_target,
-                ],
-                row.total_runtime,
-            )
+            process_counts.add_metric(label_values, row.process_count)
+            process_seconds_total.add_metric(label_values, row.total_runtime)
 
         return [process_counts, process_seconds_total]
