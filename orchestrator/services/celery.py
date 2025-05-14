@@ -24,7 +24,7 @@ from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
 from orchestrator.services.input_state import store_input_state
 from orchestrator.services.processes import create_process, delete_process
-from orchestrator.targets import Target
+from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.workflows import get_workflow
 from pydantic_forms.types import State
 
@@ -51,7 +51,11 @@ def _celery_start_process(
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
 
-    task_name = NEW_TASK if workflow.target == Target.SYSTEM else NEW_WORKFLOW
+    wf_table = get_workflow_by_name(workflow.name)
+    if not wf_table:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow in Database does not exist")
+
+    task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
     pstat = create_process(workflow_key, user_inputs, user)
     try:
@@ -80,7 +84,11 @@ def _celery_resume_process(
     last_process_status = process.last_status
     workflow = pstat.workflow
 
-    task_name = RESUME_TASK if workflow.target == Target.SYSTEM else RESUME_WORKFLOW
+    wf_table = get_workflow_by_name(workflow.name)
+    if not workflow or not wf_table:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    task_name = RESUME_TASK if wf_table.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
     user_inputs = user_inputs or [{}]

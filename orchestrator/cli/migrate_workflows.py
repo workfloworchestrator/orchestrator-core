@@ -11,7 +11,6 @@ import orchestrator.workflows
 from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import ProductTable, WorkflowTable, db
-from orchestrator.targets import Target
 from orchestrator.workflows import LazyWorkflowInstance, get_workflow
 
 # Workflows are registered via migrations with product type. For every product with the given product_type, there will be an entry in products_workflows.
@@ -183,7 +182,7 @@ def create_workflows_migration_wizard() -> tuple[list[dict], list[dict]]:
     """
     database_workflows = list(db.session.scalars(select(WorkflowTable)))
     registered_workflows = orchestrator.workflows.ALL_WORKFLOWS
-    system_workflow_names = {wf.name for wf in database_workflows if wf.target == Target.SYSTEM}
+    system_workflow_names = {wf.name for wf in database_workflows if wf.is_task}
     registered_non_system_workflows = {k: v for k, v in registered_workflows.items() if k not in system_workflow_names}
 
     unregistered_workflows = [wf for wf in database_workflows if wf.name not in registered_workflows.keys()]
