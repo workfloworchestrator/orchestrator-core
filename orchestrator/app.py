@@ -152,7 +152,7 @@ class OrchestratorCore(FastAPI):
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
-            return "Orchestrator orchestrator"
+            return "Orchestrator Core"
 
     def add_sentry(
         self,
@@ -161,6 +161,7 @@ class OrchestratorCore(FastAPI):
         server_name: str,
         environment: str,
         release: str | None = GIT_COMMIT_HASH,
+        **sentry_kwargs: Any,
     ) -> None:
         logger.info("Adding Sentry middleware to app", app=self.title)
         if self.base_settings.EXECUTOR == ExecutorType.WORKER:
@@ -180,6 +181,7 @@ class OrchestratorCore(FastAPI):
             integrations=sentry_integrations,
             propagate_traces=True,
             profiles_sample_rate=trace_sample_rate,
+            **sentry_kwargs,
         )
 
     @staticmethod
