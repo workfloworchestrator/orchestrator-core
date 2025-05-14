@@ -19,7 +19,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import EngineSettingsTable, db
-from orchestrator.schemas.engine_settings import EngineSettingsSchema
+from orchestrator.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
@@ -33,6 +33,15 @@ def get_engine_settings() -> EngineSettingsTable:
 def get_engine_settings_for_update() -> EngineSettingsTable:
     """Same as get_engine_settings but blocks until transactions on engine_settings table are committed."""
     return db.session.execute(select(EngineSettingsTable).with_for_update()).scalar_one()
+
+
+def generate_engine_global_status(engine_settings: EngineSettingsTable) -> GlobalStatusEnum:
+    """Returns the global status of the engine."""
+    if engine_settings.global_lock and engine_settings.running_processes > 0:
+        return GlobalStatusEnum.PAUSING
+    if engine_settings.global_lock and engine_settings.running_processes == 0:
+        return GlobalStatusEnum.PAUSED
+    return GlobalStatusEnum.RUNNING
 
 
 def post_update_to_slack(engine_status: EngineSettingsSchema, user: str) -> None:

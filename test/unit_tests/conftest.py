@@ -274,6 +274,7 @@ def fastapi_app(database, db_uri):
     oauth2lib_settings.OAUTH2_ACTIVE = False
     oauth2lib_settings.ENVIRONMENT_IGNORE_MUTATION_DISABLED = ["local", "TESTING"]
     app_settings.DATABASE_URI = db_uri
+    app_settings.ENABLE_PROMETHEUS_METRICS_ENDPOINT = True
     app = OrchestratorCore(base_settings=app_settings)
     # Start ProcessDataBroadcastThread to test websocket_manager with memory backend
     app.broadcast_thread.start()
