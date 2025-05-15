@@ -60,6 +60,7 @@ class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
     modify: list[WorkflowListItemSchema]
     terminate: list[WorkflowListItemSchema]
     system: list[WorkflowListItemSchema]
+    validate: list[WorkflowListItemSchema]
 
 
 class WorkflowPatchSchema(OrchestratorBaseModel):
