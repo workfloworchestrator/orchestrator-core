@@ -150,7 +150,7 @@ nav:
           - Prerequisites: getting-started/versions.md
           - Base Application:
                 - Preparing source folder: getting-started/prepare-source-folder.md
-                - Python Virtualenv: getting-started/base.md
+                - Base application: getting-started/base.md
           - Docker: getting-started/docker.md
           - Orchestrator UI: getting-started/orchestration-ui.md
     - Reference Documentation:

@@ -6,8 +6,7 @@ file_template = %%(year)d-%%(month).2d-%%(day).2d_%%(rev)s_%%(slug)s
 
 # set to 'true' to run the environment during
 # the 'revision' command, regardless of autogenerate
-# revision_environment = false
-script_location = {{ migrations_dir }}
+script_location = %(here)s/{{ migrations_dir }}
 version_locations = %(here)s/{{ migrations_dir }}/versions/schema
 # Logging configuration
 [loggers]

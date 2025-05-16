@@ -18,15 +18,34 @@ Before running an installation of the Workflow Orchestrator UI make sure to have
 
 ### Installation
 
--   Clone the example ui repository
-    `git clone https://github.com/workfloworchestrator/example-orchestrator-ui`
--   Install the npm packages
-    `npm i`
--   Set the correct env variables. The defaults from .env.example will work out of the box with the example orchestrator backend
-    `cp .env.example .env`
--   Run the application
-    `npm run dev`
--   The orchestrator ui now runs on http://localhost:3000
+Clone the example UI repository:
+
+```
+mkdir orchestrator-ui
+cd orchestrator-ui
+git clone https://github.com/workfloworchestrator/example-orchestrator-ui .
+```
+
+Install the npm packages:
+
+```
+npm i
+```
+
+Set the correct env variables.
+To run the UI against the dockerized example orchestrator setup, it's recommended to use the `orchestrator-ui.env` env-file.
+
+```
+wget -O .env https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator/refs/heads/master/docker/orchestrator-ui/orchestrator-ui.env
+```
+
+Run the application:
+
+```
+npm run dev
+```
+
+The Orchestrator UI now runs on http://localhost:3000
 
 
 

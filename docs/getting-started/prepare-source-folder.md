@@ -22,11 +22,10 @@ valid Git repository.
 
 ### Migrations folder and local Alembic head
 
-The `migrations` folder is created when running `python main.py db ini`.  This
-folder is used to store the local Alembic database migrations. The
-orchestrator-core package also contains Alembic database migrations, the Alembic
-head in the core is labeled `schema`.  The local Alembic head should be labeled
-`data`.
+The `migrations` folder is created when running `python main.py db init`.
+This folder is used to store the local Alembic database migrations.
+The orchestrator-core package also contains Alembic database migrations, the Alembic head in the core is labeled `schema`.
+The local Alembic head should be labeled `data`.
 
 When you already have product(s), workflow(s) or product template(s) defined,
 the local Alembic head can be created by running either `python main.py db
