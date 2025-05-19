@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from orchestrator.schemas.base import OrchestratorBaseModel
 from orchestrator.targets import Target
@@ -60,6 +60,7 @@ class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
     modify: list[WorkflowListItemSchema]
     terminate: list[WorkflowListItemSchema]
     system: list[WorkflowListItemSchema]
+    validate_: list[WorkflowListItemSchema] = Field(default_factory=list, alias="validate")
 
 
 class WorkflowPatchSchema(OrchestratorBaseModel):
