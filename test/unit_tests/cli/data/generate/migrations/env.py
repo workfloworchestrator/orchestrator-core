@@ -1,9 +1,7 @@
-import logging
-import os
+import structlog
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-import orchestrator
 from orchestrator.db.database import BaseModel
 from orchestrator.settings import app_settings
 
@@ -11,11 +9,10 @@ from orchestrator.settings import app_settings
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-logger = logging.getLogger("alembic.env")
+# Setup logging
+logger = structlog.get_logger()
 
-config.set_main_option("sqlalchemy.url", app_settings.DATABASE_URI)
+config.set_main_option("sqlalchemy.url", str(app_settings.DATABASE_URI))
 
 # add your model's MetaData object here
 # for 'autogenerate' support
