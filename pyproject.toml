@@ -54,7 +54,7 @@ dependencies = [
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.18,<1.21",
     "pytz==2025.2",
-    "redis==5.1.1",
+    "redis==6.1.0",
     "schedule==1.1.0",
     "semver==3.0.4",
     "sentry-sdk[fastapi]~=2.28.0",
