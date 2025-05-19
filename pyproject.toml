@@ -57,7 +57,7 @@ dependencies = [
     "redis==5.1.1",
     "schedule==1.1.0",
     "semver==3.0.4",
-    "sentry-sdk[fastapi]~=2.27.0",
+    "sentry-sdk[fastapi]~=2.28.0",
     "SQLAlchemy==2.0.41",
     "SQLAlchemy-Utils==0.41.2",
     "structlog",
