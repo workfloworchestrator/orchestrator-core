@@ -163,6 +163,7 @@ def subscriptions_search(
 @router.get(
     "/workflows/{subscription_id}",
     response_model=SubscriptionWorkflowListsSchema,
+    response_model_by_alias=True,
     response_model_exclude_none=True,
     deprecated=True,
     description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
