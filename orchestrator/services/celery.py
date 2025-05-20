@@ -18,6 +18,7 @@ from uuid import UUID
 import structlog
 from celery.result import AsyncResult
 from kombu.exceptions import ConnectionError, OperationalError
+from oauth2_lib.fastapi import OIDCUserModel
 
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
@@ -42,7 +43,11 @@ def _block_when_testing(task_result: AsyncResult) -> None:
 
 
 def _celery_start_process(
-    workflow_key: str, user_inputs: list[State] | None, user: str = SYSTEM_USER, **kwargs: Any
+    workflow_key: str,
+    user_inputs: list[State] | None,
+    user: str = SYSTEM_USER,
+    user_model: OIDCUserModel | None = None,
+    **kwargs: Any
 ) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
@@ -57,7 +62,7 @@ def _celery_start_process(
 
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
-    pstat = create_process(workflow_key, user_inputs, user)
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
     try:
         result = trigger_task.delay(pstat.process_id, workflow_key, user)
         _block_when_testing(result)

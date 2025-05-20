@@ -412,6 +412,7 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
 def error_message_unauthorized(workflow_key: str) -> str:
     return f"User is not authorized to execute '{workflow_key}' workflow"
 
+
 def create_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
@@ -574,7 +575,7 @@ def resume_process(
         raise
 
     resume_func = get_execution_context()["resume"]
-    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+    return resume_func(process, user_inputs=user_inputs, user=user, user_model=user_model, broadcast_func=broadcast_func)
 
 
 def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:
