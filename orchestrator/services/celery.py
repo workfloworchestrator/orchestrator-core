@@ -72,8 +72,8 @@ def _celery_start_process(
 def _celery_resume_process(
     process: ProcessTable,
     *,
-    user_inputs: list[State] | None,
-    user: str | None,
+    user_inputs: list[State] | None = None,
+    user: str | None = None,
     **kwargs: Any,
 ) -> UUID:
     """Client side call of Celery."""
