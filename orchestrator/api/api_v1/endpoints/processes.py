@@ -101,10 +101,10 @@ def get_auth_callbacks(pstat: ProcessStat) -> tuple[Authorizer | None, Authorize
     # Default to workflow start callbacks
     auth_resume = pstat.workflow.authorize_callback
     # Retry defaults to the workflow start callback if not otherwise specified
-    auth_retry = pstat.workflow.retry_auth_callback if pstat.workflow.retry_auth_callback else auth_resume
+    auth_retry = pstat.workflow.retry_auth_callback if pstat.workflow.retry_auth_callback is not None else auth_resume
     # Iterate over previous steps to look for policy changes
     remaining_steps = pstat.log
-    past_steps = pstat.workflow.steps[:-len(remaining_steps)]
+    past_steps = pstat.workflow.steps[: -len(remaining_steps)]
     # Review last steps and current step
     for step in past_steps + [pstat.log[0]]:
         if step.resume_auth_callback and step.retry_auth_callback is None:
@@ -112,16 +112,16 @@ def get_auth_callbacks(pstat: ProcessStat) -> tuple[Authorizer | None, Authorize
             auth_resume = step.resume_auth_callback
             auth_retry = step.resume_auth_callback
             continue
-        elif step.resume_auth_callback and step.retry_auth_callback:
+        if step.resume_auth_callback and step.retry_auth_callback:
             auth_resume = step.resume_auth_callback
             auth_retry = step.retry_auth_callback
             continue
-        elif step.resume_auth_callback is None and step.retry_auth_callback:
+        if step.resume_auth_callback is None and step.retry_auth_callback:
             # Only update retry
             auth_retry = step.retry_auth_callback
             continue
-        else: # Both None
-            continue
+        # Both None
+        continue
     return auth_resume, auth_retry
 
 
@@ -209,12 +209,11 @@ def resume_process_endpoint(
     pstat = load_process(process)
     auth_resume, auth_retry = get_auth_callbacks(pstat)
     if process.last_status == ProcessStatus.SUSPENDED:
-        if not auth_resume(user_model):
+        if auth_resume is not None and not auth_resume(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
     elif process.last_status == ProcessStatus.FAILED:
-        if not auth_retry(user_model):
+        if auth_retry is not None and not auth_retry(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
-
 
     broadcast_invalidate_status_counts()
     broadcast_func = api_broadcast_process_data(request)
