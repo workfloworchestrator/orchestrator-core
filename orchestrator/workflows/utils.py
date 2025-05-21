@@ -20,7 +20,6 @@ from more_itertools import first_true
 from pydantic import field_validator, model_validator
 from sqlalchemy import select
 
-from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.forms.validators import ProductId
 from orchestrator.services import subscriptions
@@ -236,7 +235,7 @@ def create_workflow(
             Target.CREATE,
             steplist,
             authorize_callback=authorize_callback,
-            retry_auth_callback=retry_auth_callback
+            retry_auth_callback=retry_auth_callback,
         )
 
     return _create_workflow

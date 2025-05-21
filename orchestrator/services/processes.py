@@ -41,7 +41,6 @@ from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
-    Authorizer,
     Failed,
     ProcessStat,
     ProcessStatus,
@@ -575,7 +574,7 @@ def resume_process(
         raise
 
     resume_func = get_execution_context()["resume"]
-    return resume_func(process, user_inputs=user_inputs, user=user, user_model=user_model, broadcast_func=broadcast_func)
+    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
 
 
 def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:

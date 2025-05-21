@@ -18,8 +18,8 @@ from uuid import UUID
 import structlog
 from celery.result import AsyncResult
 from kombu.exceptions import ConnectionError, OperationalError
-from oauth2_lib.fastapi import OIDCUserModel
 
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
@@ -47,7 +47,7 @@ def _celery_start_process(
     user_inputs: list[State] | None,
     user: str = SYSTEM_USER,
     user_model: OIDCUserModel | None = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
