@@ -1337,7 +1337,8 @@ def test_single_subscription_schema(
             "customer_id": {"title": "Customer Id", "type": "string"},
             "subscription_id": {"format": "uuid", "title": "Subscription Id", "type": "string"},
             "description": {"default": "Initial subscription", "title": "Description", "type": "string"},
-            "status": {"allOf": [{"$ref": "#/$defs/SubscriptionLifecycle"}], "default": "initial"},
+            # "status": {"allOf": [{"$ref": "#/$defs/SubscriptionLifecycle"}], "default": "initial"},
+            "status": {"$ref": "#/$defs/SubscriptionLifecycle", "default": "initial"},
             "insync": {"default": False, "title": "Insync", "type": "boolean"},
             "start_date": {
                 "anyOf": [{"format": "date-time", "type": "string"}, {"type": "null"}],
