@@ -25,8 +25,7 @@ logger = structlog.get_logger(__name__)
 
 
 def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connection) -> bool:
-    """
-    Checks if the specified column exists in a given table.
+    """Checks if the specified column exists in a given table.
 
     :param table_name: Name of the database table
     :param column_name: Name of the column to check
@@ -687,7 +686,7 @@ def create(conn: sa.engine.Connection, new: dict) -> None:  # noqa: C901
 
 
 def add_products_to_workflow_by_product_tag(
-        conn: sa.engine.Connection, workflow_name: str, product_tag: str, product_name_like: str = "%%"
+    conn: sa.engine.Connection, workflow_name: str, product_tag: str, product_name_like: str = "%%"
 ) -> None:
     """Add products to a workflow by product tag.
 
@@ -730,7 +729,7 @@ def add_products_to_workflow_by_product_tag(
 
 
 def remove_products_from_workflow_by_product_tag(
-        conn: sa.engine.Connection, workflow_name: str, product_tag: str, product_name_like: str = "%%"
+    conn: sa.engine.Connection, workflow_name: str, product_tag: str, product_name_like: str = "%%"
 ) -> None:
     """Delete products from a workflow by product tag.
 
@@ -771,7 +770,7 @@ def remove_products_from_workflow_by_product_tag(
 
 
 def add_product_block_relation_between_products_by_id(
-        conn: sa.engine.Connection, in_use_by_id: UUID | UUIDstr, depends_on_id: UUID | UUIDstr
+    conn: sa.engine.Connection, in_use_by_id: UUID | UUIDstr, depends_on_id: UUID | UUIDstr
 ) -> None:
     """Add product block relation by product block id.
 
@@ -803,7 +802,7 @@ def add_product_block_relation_between_products_by_id(
 
 
 def remove_product_block_relation_between_products_by_id(
-        conn: sa.engine.Connection, in_use_by_id: UUID | UUIDstr, depends_on_id: UUID | UUIDstr
+    conn: sa.engine.Connection, in_use_by_id: UUID | UUIDstr, depends_on_id: UUID | UUIDstr
 ) -> None:
     """Remove product block relation by id.
 
@@ -916,9 +915,14 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
 
 
 def delete_products_by_tag(conn: sa.engine.Connection, name: str) -> None:
-    conn.execute(sa.text("""DELETE
+    conn.execute(
+        sa.text(
+            """DELETE
                             FROM products p
-                            WHERE p.name = :name"""), {"name": name})
+                            WHERE p.name = :name"""
+        ),
+        {"name": name},
+    )
 
 
 def delete_product(conn: sa.engine.Connection, name: str) -> None:
@@ -1082,7 +1086,7 @@ def delete(conn: sa.engine.Connection, obsolete: dict) -> None:
 
 
 def convert_resource_type_relations_to_instance_relations(
-        conn: sa.engine.Connection, resource_type_id: UUID | UUIDstr, domain_model_attr: str, cleanup: bool = True
+    conn: sa.engine.Connection, resource_type_id: UUID | UUIDstr, domain_model_attr: str, cleanup: bool = True
 ) -> None:
     """Move resouce type relations to instance type relations using resource type id.
 
@@ -1141,7 +1145,7 @@ def convert_resource_type_relations_to_instance_relations(
 
 
 def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
-        conn: sa.engine.Connection, domain_model_attr: str, resource_type_id: UUID | UUIDstr, cleanup: bool = True
+    conn: sa.engine.Connection, domain_model_attr: str, resource_type_id: UUID | UUIDstr, cleanup: bool = True
 ) -> None:
     """Move instance type relations to resouce type relations by domain model attribute.
 
@@ -1188,7 +1192,7 @@ def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
 
 
 def backfill_resource_type_with_default(
-        conn: sa.engine.Connection, resource_type_id: UUID, product_block_name: str, value: Any
+    conn: sa.engine.Connection, resource_type_id: UUID, product_block_name: str, value: Any
 ) -> None:
     conn.execute(
         sa.text(
@@ -1214,8 +1218,10 @@ def remove_resource_type_from_subscription_instance(conn: sa.engine.Connection, 
     resource_type_id = get_resource_type_id_by_name(conn, resource_type_name)
 
     conn.execute(
-        sa.text("""DELETE
+        sa.text(
+            """DELETE
                    FROM subscription_instance_values
-                   WHERE resource_type_id = :resource_type_id"""),
+                   WHERE resource_type_id = :resource_type_id"""
+        ),
         {"resource_type_id": resource_type_id},
     )
