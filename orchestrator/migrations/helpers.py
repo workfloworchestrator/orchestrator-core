@@ -30,15 +30,15 @@ def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connecti
     :param table_name: Name of the database table
     :param column_name: Name of the column to check
     :param conn: SQLAlchemy database Connection
-    :return: True if column exists, False otherwise
+    :return: True if the column exists, False otherwise
     """
     inspector = sa.inspect(conn.engine)
     try:
         columns = inspector.get_columns(table_name)
         return any(col["name"] == column_name for col in columns)
     except sa.exc.NoSuchTableError:
+        # On some migrations the table might not exist yet, so we catch the exception
         logger.warning(f"Table {table_name} does not exist.")
-        print(inspector.get_table_names())
         return False
 
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
