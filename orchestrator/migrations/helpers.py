@@ -172,7 +172,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
                 FROM products AS p
                          CROSS JOIN new_workflow AS nw
                 WHERE p.product_type = :product_type
-                ON CONFLICT DO NOTHING \
+                ON CONFLICT DO NOTHING
                 """
     else:
         # Remove is_task from workflow dict and insert SQL
@@ -189,7 +189,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
                 FROM products AS p
                          CROSS JOIN new_workflow AS nw
                 WHERE p.product_type = :product_type
-                ON CONFLICT DO NOTHING \
+                ON CONFLICT DO NOTHING
                 """
 
     conn.execute(sa.text(query), workflow)
@@ -216,7 +216,7 @@ def create_task(conn: sa.engine.Connection, task: dict) -> None:
                 INSERT INTO workflows(name, target, is_task, description)
                 VALUES (:name, 'SYSTEM', TRUE, :description)
                 ON CONFLICT DO NOTHING
-                RETURNING workflow_id \
+                RETURNING workflow_id
                 """
     else:
         query = """
