@@ -41,6 +41,7 @@ def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connecti
         logger.warning(f"Table {table_name} does not exist.")
         return False
 
+
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     result = conn.execute(
         sa.text("SELECT resource_type_id FROM resource_types WHERE resource_types.resource_type=:name"), {"name": name}
