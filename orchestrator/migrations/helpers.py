@@ -33,9 +33,13 @@ def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connecti
     :return: True if column exists, False otherwise
     """
     inspector = sa.inspect(conn.engine)
-    columns = inspector.get_columns(table_name)
-    return any(col["name"] == column_name for col in columns)
-
+    try:
+        columns = inspector.get_columns(table_name)
+        return any(col["name"] == column_name for col in columns)
+    except sa.exc.NoSuchTableError:
+        logger.warning(f"Table {table_name} does not exist.")
+        print(inspector.get_table_names())
+        return False
 
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     result = conn.execute(
