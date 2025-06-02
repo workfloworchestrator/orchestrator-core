@@ -46,9 +46,9 @@ def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connecti
         {
             "table_name": table_name,
             "column_name": column_name,
-        }
+        },
     )
-    return result.rowcount() > 0
+    return result.first() is not None
 
 
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
