@@ -27,6 +27,9 @@ logger = structlog.get_logger(__name__)
 def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connection) -> bool:
     """Checks if the specified column exists in a given table.
 
+    inspector.get_columns raises an exception if the table does not exist, so we catch that exception and return False.
+    This is useful for migrations where you want to ensure that a column exists before performing operations on it.
+
     :param table_name: Name of the database table
     :param column_name: Name of the column to check
     :param conn: SQLAlchemy database Connection
