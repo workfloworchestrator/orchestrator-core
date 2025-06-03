@@ -24,6 +24,33 @@ from pydantic_forms.types import UUIDstr
 logger = structlog.get_logger(__name__)
 
 
+def has_table_column(table_name: str, column_name: str, conn: sa.engine.Connection) -> bool:
+    """Checks if the specified column exists in a given table.
+
+    inspector.get_columns raises an exception if the table does not exist, so we catch that exception and return False.
+    This is useful for migrations where you want to ensure that a column exists before performing operations on it.
+
+    :param table_name: Name of the database table
+    :param column_name: Name of the column to check
+    :param conn: SQLAlchemy database Connection
+    :return: True if the column exists, False otherwise
+    """
+    result = conn.execute(
+        sa.text(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = :table_name and column_name = :column_name
+            """
+        ),
+        {
+            "table_name": table_name,
+            "column_name": column_name,
+        },
+    )
+    return result.first() is not None
+
+
 def get_resource_type_id_by_name(conn: sa.engine.Connection, name: str) -> UUID:
     result = conn.execute(
         sa.text("SELECT resource_type_id FROM resource_types WHERE resource_types.resource_type=:name"), {"name": name}
@@ -79,8 +106,9 @@ def insert_resource_type(conn: sa.engine.Connection, resource_type: str, descrip
     """Create a new resource types."""
     conn.execute(
         sa.text(
-            """INSERT INTO resource_types (resource_type, description) VALUES
-    (:resource_type, :description) ON CONFLICT DO NOTHING;"""
+            """INSERT INTO resource_types (resource_type, description)
+               VALUES (:resource_type, :description)
+               ON CONFLICT DO NOTHING;"""
         ),
         {
             "resource_type": resource_type,
@@ -144,27 +172,41 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
     if not workflow.get("is_task", False):
         workflow["is_task"] = False
 
-    conn.execute(
-        sa.text(
-            """
+    if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
+        query = """
                 WITH new_workflow AS (
-                INSERT INTO workflows(name, target, is_task, description)
-                    VALUES (:name, :target, :is_task, :description)
-                    ON CONFLICT DO NOTHING
-                    RETURNING workflow_id)
+                    INSERT INTO workflows (name, target, is_task, description)
+                        VALUES (:name, :target, :is_task, :description)
+                        ON CONFLICT DO NOTHING
+                        RETURNING workflow_id)
                 INSERT
                 INTO products_workflows (product_id, workflow_id)
-                SELECT
-                p.product_id,
-                nw.workflow_id
+                SELECT p.product_id,
+                       nw.workflow_id
                 FROM products AS p
-                    CROSS JOIN new_workflow AS nw
-                                WHERE p.product_type = :product_type
+                         CROSS JOIN new_workflow AS nw
+                WHERE p.product_type = :product_type
                 ON CONFLICT DO NOTHING
-            """
-        ),
-        workflow,
-    )
+                """
+    else:
+        # Remove is_task from workflow dict and insert SQL
+        workflow = {k: v for k, v in workflow.items() if k != "is_task"}
+        query = """
+                WITH new_workflow AS (
+                    INSERT INTO workflows (name, target, description)
+                        VALUES (:name, :target, :description)
+                        ON CONFLICT DO NOTHING
+                        RETURNING workflow_id)
+                INSERT
+                INTO products_workflows (product_id, workflow_id)
+                SELECT p.product_id, nw.workflow_id
+                FROM products AS p
+                         CROSS JOIN new_workflow AS nw
+                WHERE p.product_type = :product_type
+                ON CONFLICT DO NOTHING
+                """
+
+    conn.execute(sa.text(query), workflow)
 
 
 def create_task(conn: sa.engine.Connection, task: dict) -> None:
@@ -183,18 +225,22 @@ def create_task(conn: sa.engine.Connection, task: dict) -> None:
         }
         >>> create_workflow(conn, task)
     """
-
-    conn.execute(
-        sa.text(
-            """
+    if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
+        query = """
                 INSERT INTO workflows(name, target, is_task, description)
-                    VALUES (:name, 'SYSTEM', TRUE, :description)
-                    ON CONFLICT DO NOTHING
-                    RETURNING workflow_id
-            """
-        ),
-        task,
-    )
+                VALUES (:name, 'SYSTEM', TRUE, :description)
+                ON CONFLICT DO NOTHING
+                RETURNING workflow_id
+                """
+    else:
+        query = """
+                INSERT INTO workflows(name, target, description)
+                VALUES (:name, 'SYSTEM', :description)
+                ON CONFLICT DO NOTHING
+                RETURNING workflow_id
+                """
+
+    conn.execute(sa.text(query), task)
 
 
 def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
@@ -222,26 +268,40 @@ def create_workflows(conn: sa.engine.Connection, new: dict) -> None:
         if not workflow.get("is_task", False):
             workflow["is_task"] = False
 
-        conn.execute(
-            sa.text(
-                """
-                WITH new_workflow AS (
-                    INSERT INTO workflows(workflow_id, name, target, is_task, description)
-                    VALUES (:workflow_id, :name, :target, :is_task, :description)
-                    RETURNING workflow_id)
-                INSERT
-                INTO products_workflows (product_id, workflow_id)
-                SELECT
-                p.product_id,
-                nw.workflow_id
-                FROM products AS p
-                    CROSS JOIN new_workflow AS nw
-                        WHERE p.tag = :tag
-                        AND p.name LIKE :search_phrase
-            """
-            ),
-            workflow,
-        )
+        if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
+            query = """
+                    WITH new_workflow AS (
+                        INSERT INTO workflows (workflow_id, name, target, is_task, description)
+                            VALUES (:workflow_id, :name, :target, :is_task, :description)
+                            RETURNING workflow_id)
+                    INSERT
+                    INTO products_workflows (product_id, workflow_id)
+                    SELECT p.product_id,
+                           nw.workflow_id
+                    FROM products AS p
+                             CROSS JOIN new_workflow AS nw
+                    WHERE p.tag = :tag
+                      AND p.name LIKE :search_phrase
+                    """
+        else:
+            # Remove is_task from workflow dict and insert SQL
+            workflow = {k: v for k, v in workflow.items() if k != "is_task"}
+            query = """
+                    WITH new_workflow AS (
+                        INSERT INTO workflows (workflow_id, name, target, description)
+                            VALUES (:workflow_id, :name, :target, :description)
+                            RETURNING workflow_id)
+                    INSERT
+                    INTO products_workflows (product_id, workflow_id)
+                    SELECT p.product_id,
+                           nw.workflow_id
+                    FROM products AS p
+                             CROSS JOIN new_workflow AS nw
+                    WHERE p.tag = :tag
+                      AND p.name LIKE :search_phrase
+                    """
+
+        conn.execute(sa.text(query), workflow)
 
 
 def create_fixed_inputs(conn: sa.engine.Connection, product_id: UUID | UUIDstr, new: dict) -> dict[str, str]:
@@ -272,13 +332,13 @@ def create_fixed_inputs(conn: sa.engine.Connection, product_id: UUID | UUIDstr, 
     """
     insert_fixed_input_with_id = sa.text(
         """INSERT INTO fixed_inputs (fixed_input_id, name, value, created_at, product_id)
-        VALUES (:fixed_input_id, :key, :value, now(), :product_id)
-        ON CONFLICT DO NOTHING;"""
+           VALUES (:fixed_input_id, :key, :value, now(), :product_id)
+           ON CONFLICT DO NOTHING;"""
     )
     insert_fixed_input_without_id = sa.text(
         """INSERT INTO fixed_inputs (name, value, created_at, product_id)
-        VALUES (:key, :value, now(), :product_id)
-        ON CONFLICT DO NOTHING;"""
+           VALUES (:key, :value, now(), :product_id)
+           ON CONFLICT DO NOTHING;"""
     )
 
     uuids = {}
@@ -339,7 +399,7 @@ def create_products(conn: sa.engine.Connection, new: dict) -> dict[str, UUIDstr]
                 INSERT INTO products (product_id, name, description, product_type, tag, status, created_at)
                 VALUES (:product_id, :name, :description, :product_type, :tag, :status, now())
                 ON CONFLICT DO NOTHING;
-            """
+                """
             ),
             product,
         )
@@ -390,7 +450,7 @@ def create_product_blocks(conn: sa.engine.Connection, new: dict) -> dict[str, UU
                 INSERT INTO product_blocks (product_block_id, name, description, tag, status, created_at)
                 VALUES (:product_block_id, :name, :description, :tag, :status, now())
                 ON CONFLICT DO NOTHING;
-            """
+                """
             ),
             product_block,
         )
@@ -455,13 +515,13 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: di
     """
     insert_resource_type_with_id = sa.text(
         """INSERT INTO resource_types (resource_type_id, resource_type, description)
-        VALUES (:resource_type_id, :resource_type, :description)
-        ON CONFLICT DO NOTHING;"""
+           VALUES (:resource_type_id, :resource_type, :description)
+           ON CONFLICT DO NOTHING;"""
     )
     insert_resource_type_without_id = sa.text(
         """INSERT INTO resource_types (resource_type, description)
-        VALUES (:resource_type, :description)
-        ON CONFLICT DO NOTHING;"""
+           VALUES (:resource_type, :description)
+           ON CONFLICT DO NOTHING;"""
     )
 
     resource_type_ids = []
@@ -485,25 +545,20 @@ def create_resource_types_for_product_blocks(conn: sa.engine.Connection, new: di
         conn.execute(
             sa.text(
                 """
-                WITH resource_type_ids AS (
-                    SELECT resource_types.resource_type_id
-                    FROM   resource_types
-                    WHERE  resource_types.resource_type = ANY(:new_resource_types)
-                ), service_attach_point AS (
-                    SELECT product_blocks.product_block_id
-                    FROM   product_blocks
-                    WHERE  product_blocks.name = :product_block_name
-                )
+                WITH resource_type_ids AS (SELECT resource_types.resource_type_id
+                                           FROM resource_types
+                                           WHERE resource_types.resource_type = ANY (:new_resource_types)),
+                     service_attach_point AS (SELECT product_blocks.product_block_id
+                                              FROM product_blocks
+                                              WHERE product_blocks.name = :product_block_name)
 
-                INSERT INTO
-                    product_block_resource_types (product_block_id, resource_type_id)
-                SELECT
-                    service_attach_point.product_block_id,
-                    resource_type_ids.resource_type_id
-                FROM
-                    service_attach_point
-                CROSS JOIN
-                    resource_type_ids
+                INSERT
+                INTO product_block_resource_types (product_block_id, resource_type_id)
+                SELECT service_attach_point.product_block_id,
+                       resource_type_ids.resource_type_id
+                FROM service_attach_point
+                         CROSS JOIN
+                     resource_type_ids
                 """
             ),
             {
@@ -666,16 +721,17 @@ def add_products_to_workflow_by_product_tag(
     conn.execute(
         sa.text(
             """
-                WITH workflow AS (
-                    SELECT workflow_id FROM workflows WHERE name=:workflow_name
-                )
-                INSERT INTO products_workflows (product_id, workflow_id)
-                SELECT
-                    p.product_id,
-                    nw.workflow_id
-                FROM products AS p
-                    CROSS JOIN workflow AS nw
-                    WHERE p.tag=:product_tag AND name LIKE :product_name_like
+            WITH workflow AS (SELECT workflow_id
+                              FROM workflows
+                              WHERE name = :workflow_name)
+            INSERT
+            INTO products_workflows (product_id, workflow_id)
+            SELECT p.product_id,
+                   nw.workflow_id
+            FROM products AS p
+                     CROSS JOIN workflow AS nw
+            WHERE p.tag = :product_tag
+              AND name LIKE :product_name_like
             """
         ),
         {
@@ -708,13 +764,15 @@ def remove_products_from_workflow_by_product_tag(
     conn.execute(
         sa.text(
             """
-                DELETE FROM products_workflows
-                WHERE workflow_id = (
-                    SELECT workflow_id FROM workflows where name=:workflow_name
-                ) AND product_id IN (
-                    SELECT product_id FROM products
-                    WHERE tag=:product_tag AND name LIKE :product_name_like
-                )
+            DELETE
+            FROM products_workflows
+            WHERE workflow_id = (SELECT workflow_id
+                                 FROM workflows
+                                 where name = :workflow_name)
+              AND product_id IN (SELECT product_id
+                                 FROM products
+                                 WHERE tag = :product_tag
+                                   AND name LIKE :product_name_like)
             """
         ),
         {
@@ -746,8 +804,8 @@ def add_product_block_relation_between_products_by_id(
     conn.execute(
         sa.text(
             """
-                INSERT INTO product_block_relations (in_use_by_id, depends_on_id)
-                VALUES (:in_use_by_id, :depends_on_id)
+            INSERT INTO product_block_relations (in_use_by_id, depends_on_id)
+            VALUES (:in_use_by_id, :depends_on_id)
             """
         ),
         {
@@ -778,8 +836,10 @@ def remove_product_block_relation_between_products_by_id(
     conn.execute(
         sa.text(
             """
-                DELETE FROM product_block_relations
-                WHERE in_use_by_id=:in_use_by_id AND depends_on_id=:depends_on_id
+            DELETE
+            FROM product_block_relations
+            WHERE in_use_by_id = :in_use_by_id
+              AND depends_on_id = :depends_on_id
             """
         ),
         {
@@ -829,11 +889,13 @@ def delete_resource_types_from_product_blocks(conn: sa.engine.Connection, delete
     for product_block_name, resource_types in delete.items():
         conn.execute(
             sa.text(
-                """DELETE FROM product_block_resource_types
-                   USING resource_types
-                   WHERE product_block_id = (SELECT product_block_id FROM product_blocks WHERE name=:product_block_name) AND
-                     resource_types.resource_type_id = product_block_resource_types.resource_type_id AND
-                     resource_types.resource_type = ANY(:obsolete_resource_types)"""
+                """DELETE
+                   FROM product_block_resource_types
+                       USING resource_types
+                   WHERE
+                       product_block_id = (SELECT product_block_id FROM product_blocks WHERE name = :product_block_name)
+                     AND resource_types.resource_type_id = product_block_resource_types.resource_type_id
+                     AND resource_types.resource_type = ANY (:obsolete_resource_types)"""
             ),
             {
                 "product_block_name": product_block_name,
@@ -855,10 +917,11 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
     """
     conn.execute(
         sa.text(
-            """DELETE FROM product_block_resource_types
-               USING resource_types
+            """DELETE
+               FROM product_block_resource_types
+                   USING resource_types
                WHERE resource_types.resource_type_id = product_block_resource_types.resource_type_id
-                 AND resource_types.resource_type = ANY(:obsolete)"""
+                 AND resource_types.resource_type = ANY (:obsolete)"""
         ),
         {"obsolete": tuple(delete)},
     )
@@ -866,7 +929,14 @@ def delete_resource_types(conn: sa.engine.Connection, delete: Iterable) -> None:
 
 
 def delete_products_by_tag(conn: sa.engine.Connection, name: str) -> None:
-    conn.execute(sa.text("""DELETE FROM products p WHERE p.name=:name"""), {"name": name})
+    conn.execute(
+        sa.text(
+            """DELETE
+                            FROM products p
+                            WHERE p.name = :name"""
+        ),
+        {"name": name},
+    )
 
 
 def delete_product(conn: sa.engine.Connection, name: str) -> None:
@@ -884,16 +954,14 @@ def delete_product(conn: sa.engine.Connection, name: str) -> None:
         sa.text(
             """
             WITH deleted_p AS (
-                DELETE FROM products WHERE name=:name
-                RETURNING  product_id
-            ),
-            deleted_p_pb AS (
-                DELETE FROM product_product_blocks WHERE product_id IN (SELECT product_id FROM deleted_p)
-            ),
-            deleted_pb_rt AS (
-                DELETE FROM products_workflows WHERE product_id IN (SELECT product_id FROM deleted_p)
-            )
-            SELECT * from deleted_p;
+                DELETE FROM products WHERE name = :name
+                    RETURNING product_id),
+                 deleted_p_pb AS (
+                     DELETE FROM product_product_blocks WHERE product_id IN (SELECT product_id FROM deleted_p)),
+                 deleted_pb_rt AS (
+                     DELETE FROM products_workflows WHERE product_id IN (SELECT product_id FROM deleted_p))
+            SELECT *
+            from deleted_p;
             """
         ),
         {"name": name},
@@ -915,16 +983,14 @@ def delete_product_block(conn: sa.engine.Connection, name: str) -> None:
         sa.text(
             """
             WITH deleted_pb AS (
-                DELETE FROM product_blocks WHERE name=:name
-                RETURNING  product_block_id
-            ),
-            deleted_p_pb AS (
-                DELETE FROM product_product_blocks WHERE product_block_id IN (SELECT product_block_id FROM deleted_pb)
-            ),
-            deleted_pb_rt AS (
-                DELETE FROM product_block_resource_types WHERE product_block_id IN (SELECT product_block_id FROM deleted_pb)
-            )
-            SELECT * from deleted_pb;
+                DELETE FROM product_blocks WHERE name = :name
+                    RETURNING product_block_id),
+                 deleted_p_pb AS (
+                     DELETE FROM product_product_blocks WHERE product_block_id IN (SELECT product_block_id FROM deleted_pb)),
+                 deleted_pb_rt AS (
+                     DELETE FROM product_block_resource_types WHERE product_block_id IN (SELECT product_block_id FROM deleted_pb))
+            SELECT *
+            from deleted_pb;
             """
         ),
         {"name": name},
@@ -948,9 +1014,9 @@ def delete_workflow(conn: sa.engine.Connection, name: str) -> None:
     conn.execute(
         sa.text(
             """
-                DELETE
-                FROM workflows
-                WHERE name = :name;
+            DELETE
+            FROM workflows
+            WHERE name = :name;
             """
         ),
         {"name": name},
@@ -972,13 +1038,12 @@ def delete_resource_type(conn: sa.engine.Connection, resource_type: str) -> None
         sa.text(
             """
             WITH deleted_pb AS (
-                DELETE FROM resource_types WHERE resource_type=:resource_type
-                RETURNING  resource_type_id
-            ),
-            deleted_pb_rt AS (
-                DELETE FROM product_block_resource_types WHERE resource_type_id IN (SELECT resource_type_id FROM deleted_pb)
-            )
-            SELECT * from deleted_pb;
+                DELETE FROM resource_types WHERE resource_type = :resource_type
+                    RETURNING resource_type_id),
+                 deleted_pb_rt AS (
+                     DELETE FROM product_block_resource_types WHERE resource_type_id IN (SELECT resource_type_id FROM deleted_pb))
+            SELECT *
+            from deleted_pb;
             """
         ),
         {"resource_type": resource_type},
@@ -1058,19 +1123,20 @@ def convert_resource_type_relations_to_instance_relations(
         sa.text(
             """
             INSERT INTO subscription_instance_relations (in_use_by_id, depends_on_id, order_id, domain_model_attr)
-            WITH dependencies AS (
-                SELECT siv.value AS subscription_id, siv.subscription_instance_id AS in_use_by_instance_id, si.product_block_id
-                FROM subscription_instance_values AS siv
-                LEFT JOIN subscription_instances AS si on siv.subscription_instance_id = si.subscription_instance_id
-                WHERE siv.resource_type_id=:resource_type_id
-            )
-            SELECT
-                in_use_by_instance_id AS in_use_by_id,
-                sii.subscription_instance_id AS depends_on_id,
-                (row_number() OVER (PARTITION BY in_use_by_instance_id) - 1) AS order_id,
-                :domain_model_attr AS domain_model_attr
+            WITH dependencies AS (SELECT siv.value                    AS subscription_id,
+                                         siv.subscription_instance_id AS in_use_by_instance_id,
+                                         si.product_block_id
+                                  FROM subscription_instance_values AS siv
+                                           LEFT JOIN subscription_instances AS si
+                                                     on siv.subscription_instance_id = si.subscription_instance_id
+                                  WHERE siv.resource_type_id = :resource_type_id)
+            SELECT in_use_by_instance_id                                        AS in_use_by_id,
+                   sii.subscription_instance_id                                 AS depends_on_id,
+                   (row_number() OVER (PARTITION BY in_use_by_instance_id) - 1) AS order_id,
+                   :domain_model_attr                                           AS domain_model_attr
             FROM subscription_instances AS sii
-            INNER JOIN dependencies AS dep ON sii.subscription_id=uuid(dep.subscription_id) ON CONFLICT DO NOTHING
+                     INNER JOIN dependencies AS dep ON sii.subscription_id = uuid(dep.subscription_id)
+            ON CONFLICT DO NOTHING
             """
         ),
         {
@@ -1083,8 +1149,9 @@ def convert_resource_type_relations_to_instance_relations(
         conn.execute(
             sa.text(
                 """
-                DELETE FROM subscription_instance_values
-                WHERE resource_type_id=:resource_type_id
+                DELETE
+                FROM subscription_instance_values
+                WHERE resource_type_id = :resource_type_id
                 """
             ),
             {"resource_type_id": resource_type_id},
@@ -1114,14 +1181,15 @@ def convert_instance_relations_to_resource_type_relations_by_domain_model_attr(
     conn.execute(
         sa.text(
             """
-                INSERT INTO subscription_instance_values (subscription_instance_id, resource_type_id, value)
-                WITH instance_relations AS (
-                    SELECT in_use_by_id, depends_on_id FROM subscription_instance_relations
-                    WHERE domain_model_attr=:domain_model_attr
-                )
-                SELECT ir.in_use_by_id AS subscription_instance_id, :resource_type_id AS resource_type_id, si.subscription_id AS value
-                from subscription_instances as si
-                inner join instance_relations as ir on si.subscription_instance_id=ir.depends_on_id
+            INSERT INTO subscription_instance_values (subscription_instance_id, resource_type_id, value)
+            WITH instance_relations AS (SELECT in_use_by_id, depends_on_id
+                                        FROM subscription_instance_relations
+                                        WHERE domain_model_attr = :domain_model_attr)
+            SELECT ir.in_use_by_id    AS subscription_instance_id,
+                   :resource_type_id  AS resource_type_id,
+                   si.subscription_id AS value
+            from subscription_instances as si
+                     inner join instance_relations as ir on si.subscription_instance_id = ir.depends_on_id
             """
         ),
         {
@@ -1144,10 +1212,12 @@ def backfill_resource_type_with_default(
         sa.text(
             """
             INSERT INTO subscription_instance_values (subscription_instance_id, resource_type_id, value)
-            SELECT si.subscription_instance_id AS subscription_instance_id, :resource_type_id AS resource_type_id, :value AS value
+            SELECT si.subscription_instance_id AS subscription_instance_id,
+                   :resource_type_id           AS resource_type_id,
+                   :value                      AS value
             FROM subscription_instances AS si
-                JOIN product_blocks pb on si.product_block_id = pb.product_block_id
-                WHERE pb.name = :product_block_name;
+                     JOIN product_blocks pb on si.product_block_id = pb.product_block_id
+            WHERE pb.name = :product_block_name;
             """
         ),
         {
@@ -1162,6 +1232,10 @@ def remove_resource_type_from_subscription_instance(conn: sa.engine.Connection, 
     resource_type_id = get_resource_type_id_by_name(conn, resource_type_name)
 
     conn.execute(
-        sa.text("""DELETE FROM subscription_instance_values WHERE resource_type_id=:resource_type_id"""),
+        sa.text(
+            """DELETE
+                   FROM subscription_instance_values
+                   WHERE resource_type_id = :resource_type_id"""
+        ),
         {"resource_type_id": resource_type_id},
     )
