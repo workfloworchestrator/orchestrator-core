@@ -35,7 +35,6 @@ Interact with the application database. By default, does nothing, specify `main.
         - migrate_tasks
         - revision
         - upgrade
-
       heading_level: 3
 
 ### migrate-domain-models
