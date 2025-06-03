@@ -89,7 +89,7 @@ test = [
     "deepdiff",
     "dirty-equals",
     "jsonref",
-    "mypy==1.9",
+    "mypy==1.16.0",
     "pyinstrument",
     "pytest==8.3.5",
     "pytest-asyncio==0.21.2",
