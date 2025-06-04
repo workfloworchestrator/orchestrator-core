@@ -18,6 +18,7 @@ from typing import Literal
 
 from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
+from services.settings_env_variables import expose_settings
 
 from oauth2_lib.settings import oauth2lib_settings
 from pydantic_forms.types import strEnum
@@ -28,6 +29,7 @@ class ExecutorType(strEnum):
     THREADPOOL = "threadpool"
 
 
+@expose_settings
 class AppSettings(BaseSettings):
     TESTING: bool = True
     SESSION_SECRET: str = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # noqa: S311
