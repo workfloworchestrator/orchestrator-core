@@ -13,7 +13,8 @@
 
 from typing import Any, Dict, Type
 
-from pydantic import BaseModel, PostgresDsn, SecretStr
+from pydantic import BaseModel, SecretStr
+from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings
 
 
@@ -45,7 +46,9 @@ def sanitize_value(key: str, value: Any) -> Any:
     if isinstance(value, SecretStr):
         # Need to convert SecretStr to str for serialization
         return str(value)
-    if isinstance(value, PostgresDsn):
+
+    # PostgresDsn is just MultiHostUrl with extra metadata (annotations)
+    if isinstance(value, MultiHostUrl):
         # Convert PostgresDsn to str for serialization
         return "**********"
 
