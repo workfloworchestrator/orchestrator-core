@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.api.api_v1.endpoints.processes import get_auth_callbacks
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
     ProcessStepTable,
@@ -22,7 +23,7 @@ from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus, done, init, inputstep, step, workflow
+from orchestrator.workflow import ProcessStatus, StepList, done, init, inputstep, make_workflow, step, workflow
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -641,3 +642,69 @@ def test_inputstep_authorization(test_client):
 
     # TODO test how this interacts with passing a different callback to @authorize_workflow
     # These should be as functionally independent as possible.
+
+
+def test_get_auth_callbacks():
+    def A(_: OIDCUserModel) -> bool:
+        return True
+
+    def B(_: OIDCUserModel) -> bool:
+        return True
+
+    def C(_: OIDCUserModel) -> bool:
+        return True
+
+    def D(_: OIDCUserModel) -> bool:
+        return True
+
+    @step("bar")
+    def bar():
+        return {}
+
+    @step("baz")
+    def baz():
+        return {}
+
+    workflow = make_workflow(
+        f=lambda: {},
+        description="description",
+        initial_input_form=None,
+        target=Target.SYSTEM,
+        steps=StepList([]),
+        authorize_callback=None,
+        retry_auth_callback=None,
+    )
+
+    cases = [
+        ((None, None, None, None), (None, None)),
+        ((A, None, None, None), (A, A)),
+        ((None, B, None, None), (None, B)),
+        ((A, B, None, None), (A, B)),
+        ((None, None, C, None), (C, C)),
+        ((A, None, C, None), (C, C)),
+        ((None, B, C, None), (C, C)),
+        ((A, B, C, None), (C, C)),
+        ((None, None, None, D), (None, D)),
+        ((A, None, None, D), (A, D)),
+        ((None, B, None, D), (None, D)),
+        ((A, B, None, D), (A, D)),
+        ((None, None, C, D), (C, D)),  # 4
+        ((A, None, C, D), (C, D)),
+        ((None, B, C, D), (C, D)),
+        ((A, B, C, D), (C, D)),
+    ]
+    for case in cases:
+        auth, retry, step_resume_auth, step_retry_auth = case[0]
+        want_auth, want_retry = case[1]
+        workflow.authorize_callback = auth
+        workflow.retry_auth_callback = retry
+
+        @inputstep("foo", Target.SYSTEM, step_resume_auth, step_retry_auth)
+        def foo():
+            return {}
+
+        steps = StepList([bar, foo, baz])
+
+        got_auth, got_retry = get_auth_callbacks(steps, workflow)
+        assert got_auth == want_auth
+        assert got_retry == want_retry
