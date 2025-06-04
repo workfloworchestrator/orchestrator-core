@@ -130,7 +130,7 @@ class OrchestratorCore(FastAPI):
         init_database(base_settings)
 
         self.add_middleware(ClearStructlogContextASGIMiddleware)
-        self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET)
+        self.add_middleware(SessionMiddleware, secret_key=base_settings.SESSION_SECRET.get_secret_value())
         self.add_middleware(DBSessionMiddleware, database=db)
         origins = base_settings.CORS_ORIGINS.split(",")
         self.add_middleware(
