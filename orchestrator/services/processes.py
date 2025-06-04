@@ -467,9 +467,7 @@ def thread_start_process(
     user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
-    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
-    if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(workflow_key))
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
@@ -506,7 +504,6 @@ def thread_resume_process(
     *,
     user_inputs: list[State] | None = None,
     user: str | None = None,
-    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
@@ -515,8 +512,6 @@ def thread_resume_process(
         user_inputs = [{}]
 
     pstat = load_process(process)
-    if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(str(process.workflow_name)))
 
     if pstat.workflow == removed_workflow:
         raise ValueError("This workflow cannot be resumed")
@@ -556,7 +551,6 @@ def resume_process(
     *,
     user_inputs: list[State] | None = None,
     user: str | None = None,
-    user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     """Resume a failed or suspended process.
@@ -565,7 +559,6 @@ def resume_process(
         process: Process from database
         user_inputs: Optional user input from forms
         user: user who resumed this process
-        user_model: OIDCUserModel of user who resumed this process
         broadcast_func: Optional function to broadcast process data
 
     Returns:
@@ -573,8 +566,6 @@ def resume_process(
 
     """
     pstat = load_process(process)
-    if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(str(process.workflow_name)))
 
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
