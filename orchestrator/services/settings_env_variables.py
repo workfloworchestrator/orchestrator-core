@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from typing import Type, Dict, Any
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, PostgresDsn
 from pydantic_settings import BaseSettings
 
 
@@ -43,6 +43,9 @@ def sanitize_value(key: str, value: Any) -> Any:
     if isinstance(value, SecretStr):
         # Need to convert SecretStr to str for serialization
         return str(value)
+    if isinstance(value, PostgresDsn):
+        # Convert PostgresDsn to str for serialization
+        return "**********"
 
     return value
 
