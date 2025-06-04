@@ -13,7 +13,7 @@
 
 from typing import Type, Dict, Any
 from pydantic import BaseModel
-from schemas import SettingsEnvVariablesSchema
+from orchestrator.schemas import SettingsEnvVariablesSchema
 
 from oauth2_lib.settings import oauth2lib_settings
 
