@@ -25,7 +25,7 @@ from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked
+from more_itertools import chunked, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.orm import defer, joinedload
@@ -110,23 +110,13 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
     # auth_retry defaults to the workflow start callback if not otherwise specified.
     # A workflow SHOULD have both callbacks set to not-None. This enforces the correct default regardless.
     auth_retry = workflow.retry_auth_callback or auth_resume  # type: ignore[unreachable, truthy-function]
-    # Iterate over previous steps to look for policy changes
-    for step in steps:
-        if step.resume_auth_callback and step.retry_auth_callback is None:
-            # Set both to authorize_callback
-            auth_resume = step.resume_auth_callback
-            auth_retry = step.resume_auth_callback
-            continue
-        if step.resume_auth_callback and step.retry_auth_callback:
-            auth_resume = step.resume_auth_callback
-            auth_retry = step.retry_auth_callback
-            continue
-        if step.resume_auth_callback is None and step.retry_auth_callback:
-            # Only update retry
-            auth_retry = step.retry_auth_callback
-            continue
-        # Both None
-        continue
+
+    # Choose the most recently established value for resume.
+    auth_resume = last(filter(None, (step.resume_auth_callback for step in steps)), auth_resume)
+    # Choose the most recently established value for retry, unless there is a more recent value for resume.
+    auth_retry = last(
+        filter(None, (step.retry_auth_callback or step.resume_auth_callback for step in steps)), auth_retry
+    )
     return auth_resume, auth_retry
 
 
