@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from typing import Type, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -34,15 +34,28 @@ def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Ty
     return base_settings
 
 
+def sanitize_value(key: str, value: Any) -> Any:
+    key_lower = key.lower()
+
+    if "secret" in key_lower or "password" in key_lower:
+        # Mask sensitive information
+        return "**********"
+    if isinstance(value, SecretStr):
+        # Need to convert SecretStr to str for serialization
+        return str(value)
+
+    return value
+
+
 def get_all_exposed_settings() -> list[SettingsExposedSchema]:
     """Return all registered settings as dicts."""
     return [
         SettingsExposedSchema(
             name=name,
             settings_variables=[
-                SettingsEnvVariablesSchema(env_name=key, env_value=value)
+                SettingsEnvVariablesSchema(env_name=key, env_value=sanitize_value(key, value))
                 for key, value in base_settings.model_dump().items()
-            ],
+            ]
         )
         for name, base_settings in EXPOSED_ENV_SETTINGS_REGISTRY.items()
     ]
