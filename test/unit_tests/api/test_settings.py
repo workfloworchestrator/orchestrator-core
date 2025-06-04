@@ -87,4 +87,4 @@ def test_get_exposed_settings(test_client):
         (var for var in exposed_settings[0]["settings_variables"] if var["env_name"] == "SESSION_SECRET"), None
     )
     assert session_secret is not None
-    assert session_secret ["env_value"] == "**********"
+    assert session_secret["env_value"] == "**********"

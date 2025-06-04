@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Type, Dict, Any
-from pydantic import BaseModel, SecretStr, PostgresDsn
+from typing import Any, Dict, Type
+
+from pydantic import BaseModel, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -27,6 +28,7 @@ class SettingsExposedSchema(BaseModel):
 
 
 EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, Type[BaseSettings]] = {}
+
 
 def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Type[BaseSettings]:
     """Decorator to register settings classes."""
@@ -58,7 +60,7 @@ def get_all_exposed_settings() -> list[SettingsExposedSchema]:
             settings_variables=[
                 SettingsEnvVariablesSchema(env_name=key, env_value=sanitize_value(key, value))
                 for key, value in base_settings.model_dump().items()
-            ]
+            ],
         )
         for name, base_settings in EXPOSED_ENV_SETTINGS_REGISTRY.items()
     ]

@@ -18,9 +18,9 @@ from typing import Literal
 
 from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, SecretStr
 from pydantic_settings import BaseSettings
-from orchestrator.services.settings_env_variables import expose_settings
 
 from oauth2_lib.settings import oauth2lib_settings
+from orchestrator.services.settings_env_variables import expose_settings
 from pydantic_forms.types import strEnum
 
 

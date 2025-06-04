@@ -30,7 +30,7 @@ from orchestrator.schemas import (
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
 from orchestrator.services.settings import generate_engine_global_status
-from orchestrator.services.settings_env_variables import get_all_exposed_settings, SettingsExposedSchema
+from orchestrator.services.settings_env_variables import SettingsExposedSchema, get_all_exposed_settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
