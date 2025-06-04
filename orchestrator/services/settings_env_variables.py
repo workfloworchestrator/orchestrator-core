@@ -59,7 +59,7 @@ def get_all_exposed_settings() -> list[SettingsExposedSchema]:
             name=name,
             settings_variables=[
                 SettingsEnvVariablesSchema(env_name=key, env_value=sanitize_value(key, value))
-                for key, value in base_settings.model_dump().items()
+                for key, value in base_settings.model_dump().items()  # type: ignore
             ],
         )
         for name, base_settings in EXPOSED_ENV_SETTINGS_REGISTRY.items()

@@ -31,7 +31,7 @@ class ExecutorType(strEnum):
 
 class AppSettings(BaseSettings):
     TESTING: bool = True
-    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # noqa: S311
+    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
     CORS_ORIGINS: str = "*"
     CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
     CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
@@ -97,4 +97,4 @@ oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
 oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT
 
 expose_settings("app_settings", app_settings)  # type: ignore
-expose_settings("oauth2lib_settings", oauth2lib_settings)
+expose_settings("oauth2lib_settings", oauth2lib_settings)  # type: ignore
