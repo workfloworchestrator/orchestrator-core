@@ -29,7 +29,6 @@ class ExecutorType(strEnum):
     THREADPOOL = "threadpool"
 
 
-@expose_settings
 class AppSettings(BaseSettings):
     TESTING: bool = True
     SESSION_SECRET: str = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # noqa: S311
@@ -96,3 +95,6 @@ app_settings = AppSettings()
 # Set oauth2lib_settings variables to the same (default) value of settings
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
 oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT
+
+expose_settings("app_settings", app_settings)  # type: ignore
+expose_settings("oauth2lib_settings", oauth2lib_settings)

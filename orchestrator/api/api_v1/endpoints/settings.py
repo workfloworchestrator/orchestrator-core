@@ -25,13 +25,12 @@ from orchestrator.db import EngineSettingsTable
 from orchestrator.schemas import (
     EngineSettingsBaseSchema,
     EngineSettingsSchema,
-    SettingsEnvVariablesSchema,
     WorkerStatus,
 )
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
 from orchestrator.services.settings import generate_engine_global_status
-from orchestrator.services.settings_env_variables import get_all_exposed_settings
+from orchestrator.services.settings_env_variables import get_all_exposed_settings, SettingsExposedSchema
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
@@ -177,7 +176,6 @@ def generate_engine_status_response(
     return result
 
 
-@router.get("/env-variables", response_model=WorkerStatus)
-def get_settings_env_variables() -> list[SettingsEnvVariablesSchema]:
-    """Return all registered settings as dicts."""
+@router.get("/expose", response_model=list[SettingsExposedSchema])
+def get_exposed_settings() -> list[SettingsExposedSchema]:
     return get_all_exposed_settings()

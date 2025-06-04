@@ -13,25 +13,36 @@
 
 from typing import Type, Dict, Any
 from pydantic import BaseModel
-from orchestrator.schemas import SettingsEnvVariablesSchema
-
-from oauth2_lib.settings import oauth2lib_settings
+from pydantic_settings import BaseSettings
 
 
-EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, Type[BaseModel]] = {
-    "oauth2lib_settings": oauth2lib_settings,  # Manually register the oauth_settings
+class SettingsEnvVariablesSchema(BaseModel):
+    env_name: str
+    env_value: Any
 
-}
 
-def expose_settings(cls: Type[BaseModel]) -> Type[BaseModel]:
+class SettingsExposedSchema(BaseModel):
+    name: str
+    settings_variables: list[SettingsEnvVariablesSchema]
+
+
+EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, Type[BaseSettings]] = {}
+
+def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Type[BaseSettings]:
     """Decorator to register settings classes."""
-    EXPOSED_ENV_SETTINGS_REGISTRY[cls.__name__] = cls
-    return cls
+    EXPOSED_ENV_SETTINGS_REGISTRY[settings_name] = base_settings
+    return base_settings
 
 
-def get_all_exposed_settings() -> list[SettingsEnvVariablesSchema]:
+def get_all_exposed_settings() -> list[SettingsExposedSchema]:
     """Return all registered settings as dicts."""
     return [
-        SettingsEnvVariablesSchema(env_name=name, env_value=cls.model_dump())
-        for name, cls in EXPOSED_ENV_SETTINGS_REGISTRY.items()
+        SettingsExposedSchema(
+            name=name,
+            settings_variables=[
+                SettingsEnvVariablesSchema(env_name=key, env_value=value)
+                for key, value in base_settings.model_dump().items()
+            ],
+        )
+        for name, base_settings in EXPOSED_ENV_SETTINGS_REGISTRY.items()
     ]
