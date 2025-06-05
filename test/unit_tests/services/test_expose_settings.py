@@ -15,12 +15,12 @@ def test_expose_settings():
         uri: PostgresDsn = "postgresql://user:password@localhost/dbname"
 
     my_settings = MySettings()
-    expose_settings("my_settings", my_settings)  # type: ignore
+    expose_settings("my_settings", my_settings)
 
     exposed_settings = get_all_exposed_settings()
 
-    assert len(exposed_settings) == 3  # This includes the default settings also (2)
-    my_settings_index = 2
+    assert len(exposed_settings) == 1
+    my_settings_index = 0
 
     assert exposed_settings[my_settings_index].name == "my_settings"
 
