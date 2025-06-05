@@ -2,16 +2,13 @@ from http import HTTPStatus
 from unittest import mock
 from unittest.mock import Mock
 
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import db
 from orchestrator.services.settings import get_engine_settings
-
-from pydantic import PostgresDsn, SecretStr
-from pydantic_settings import BaseSettings
-
-from orchestrator.services.settings_env_variables import MASK, expose_settings, get_all_exposed_settings
-from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
+from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
 
 
 def test_get_engine_status(test_client):
@@ -96,8 +93,6 @@ def test_get_exposed_settings(test_client):
     exposed_settings = response.json()
 
     # Find the env_name SESSION_SECRET and ensure it is masked is **********
-    session_secret = next(
-        (var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None
-    )
+    session_secret = next((var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None)
     assert session_secret is not None
     assert session_secret["env_value"] == "**********"
