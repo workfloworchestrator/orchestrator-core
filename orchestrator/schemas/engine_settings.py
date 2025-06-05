@@ -12,8 +12,6 @@
 # limitations under the License.
 
 
-from typing import Any
-
 import strawberry
 from pydantic import ConfigDict
 
@@ -43,8 +41,3 @@ class EngineSettingsSchema(EngineSettingsBaseSchema):
     global_status: GlobalStatusEnum | None = None
     running_processes: int
     model_config = ConfigDict(from_attributes=True)
-
-
-class SettingsEnvVariablesSchema(OrchestratorBaseModel):
-    env_name: str
-    env_value: Any

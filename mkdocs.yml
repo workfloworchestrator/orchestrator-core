@@ -193,7 +193,6 @@ nav:
                 - 2.x: migration-guide/2.0.md
                 - 3.x: migration-guide/3.0.md
                 - 4.x: migration-guide/4.0.md
-                - 5.x: migration-guide/5.0.md
 
     - Workshops:
           #    - Beginner:

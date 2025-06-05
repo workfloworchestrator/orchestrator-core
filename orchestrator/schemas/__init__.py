@@ -15,7 +15,6 @@ from orchestrator.schemas.engine_settings import (
     EngineSettingsBaseSchema,
     EngineSettingsSchema,
     GlobalStatusEnum,
-    SettingsEnvVariablesSchema,
     WorkerStatus,
 )
 from orchestrator.schemas.fixed_input import FixedInputSchema
@@ -68,5 +67,4 @@ __all__ = (
     "WorkflowSchema",
     "Reporter",
     "ProcessStatusCounts",
-    "SettingsEnvVariablesSchema",
 )

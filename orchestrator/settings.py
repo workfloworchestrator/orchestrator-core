@@ -16,11 +16,12 @@ import string
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, SecretStr
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.services.settings_env_variables import expose_settings
+from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
 from pydantic_forms.types import strEnum
 
 
@@ -31,7 +32,7 @@ class ExecutorType(strEnum):
 
 class AppSettings(BaseSettings):
     TESTING: bool = True
-    SESSION_SECRET: SecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
+    SESSION_SECRET: OrchSecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
     CORS_ORIGINS: str = "*"
     CORS_ALLOW_METHODS: list[str] = ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS", "HEAD"]
     CORS_ALLOW_HEADERS: list[str] = ["If-None-Match", "Authorization", "If-Match", "Content-Type"]
@@ -56,7 +57,7 @@ class AppSettings(BaseSettings):
     MAIL_PORT: int = 25
     MAIL_STARTTLS: bool = False
     CACHE_URI: RedisDsn = "redis://localhost:6379/0"  # type: ignore
-    CACHE_HMAC_SECRET: SecretStr | None = None  # HMAC signing key, used when pickling results in the cache
+    CACHE_HMAC_SECRET: OrchSecretStr | None = None  # HMAC signing key, used when pickling results in the cache
     REDIS_RETRY_COUNT: NonNegativeInt = Field(
         2, description="Number of retries for redis connection errors/timeouts, 0 to disable"
     )  # More info: https://redis-py.readthedocs.io/en/stable/retry.html

@@ -13,22 +13,15 @@
 
 from typing import Any, Dict, Type
 
-from pydantic import BaseModel, SecretStr
+from pydantic import SecretStr
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings
 
-
-class SettingsEnvVariablesSchema(BaseModel):
-    env_name: str
-    env_value: Any
-
-
-class SettingsExposedSchema(BaseModel):
-    name: str
-    settings_variables: list[SettingsEnvVariablesSchema]
-
+from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
+from orchestrator.utils.expose_settings import SettingsEnvVariablesSchema, SettingsExposedSchema
 
 EXPOSED_ENV_SETTINGS_REGISTRY: Dict[str, Type[BaseSettings]] = {}
+MASK = "**********"
 
 
 def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Type[BaseSettings]:
@@ -37,33 +30,39 @@ def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Ty
     return base_settings
 
 
-def sanitize_value(key: str, value: Any) -> Any:
+def mask_value(key: str, value: Any) -> Any:
     key_lower = key.lower()
 
     if "secret" in key_lower or "password" in key_lower:
         # Mask sensitive information
-        return "**********"
+        return MASK
+
     if isinstance(value, SecretStr):
         # Need to convert SecretStr to str for serialization
         return str(value)
 
+    if isinstance(value, OrchSecretStr):
+        return MASK
+
     # PostgresDsn is just MultiHostUrl with extra metadata (annotations)
     if isinstance(value, MultiHostUrl):
         # Convert PostgresDsn to str for serialization
-        return "**********"
+        return MASK
 
     return value
 
 
 def get_all_exposed_settings() -> list[SettingsExposedSchema]:
     """Return all registered settings as dicts."""
+
+    def _get_settings_env_variables(base_settings: Type[BaseSettings]) -> list[SettingsEnvVariablesSchema]:
+        """Get environment variables from settings."""
+        return [
+            SettingsEnvVariablesSchema(env_name=key, env_value=mask_value(key, value))
+            for key, value in base_settings.model_dump().items()  # type: ignore
+        ]
+
     return [
-        SettingsExposedSchema(
-            name=name,
-            settings_variables=[
-                SettingsEnvVariablesSchema(env_name=key, env_value=sanitize_value(key, value))
-                for key, value in base_settings.model_dump().items()  # type: ignore
-            ],
-        )
+        SettingsExposedSchema(name=name, variables=_get_settings_env_variables(base_settings))
         for name, base_settings in EXPOSED_ENV_SETTINGS_REGISTRY.items()
     ]
