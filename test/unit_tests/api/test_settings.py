@@ -92,7 +92,7 @@ def test_get_exposed_settings(test_client):
 
     exposed_settings = response.json()
 
-    # Find the env_name SESSION_SECRET and ensure it is masked is **********
+    # Find the env_name db_password and ensure it is masked is **********
     session_secret = next((var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None)
     assert session_secret is not None
     assert session_secret["env_value"] == "**********"
