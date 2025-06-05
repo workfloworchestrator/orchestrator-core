@@ -182,6 +182,7 @@ nav:
                 - App.py: reference-docs/app/app.md
                 - Python Version: reference-docs/python.md
                 - Scaling: reference-docs/app/scaling.md
+                - Settings: reference-docs/app/settings.md
           # - Tasks:  reference-docs/tasks.md
           # - Tests: reference-docs/tests.md
           - Workflows:
