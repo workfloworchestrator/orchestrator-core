@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Utility module for exposing settings in a structured format.
+
 Unfortunately, this module needs to be imported from the utils and cannot be added to the schemas folder.
 This is due to circular import issues with the combination of schemas/settings.
 """
@@ -20,11 +21,13 @@ from typing import Any
 from pydantic import BaseModel
 from pydantic_core import core_schema
 
+
 class SecretStr(str):
     """A string that is treated as a secret, for example, passwords or API keys.
 
     This class is used to indicate that the string should not be logged or displayed in plaintext.
     """
+
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):  # type: ignore
         return core_schema.no_info_plain_validator_function(cls)

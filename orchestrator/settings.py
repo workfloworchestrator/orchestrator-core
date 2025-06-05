@@ -89,6 +89,8 @@ class AppSettings(BaseSettings):
     ENABLE_PROMETHEUS_METRICS_ENDPOINT: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
+    EXPOSE_SETTINGS: bool = False
+    EXPOSE_OAUTH_SETTINGS: bool = False
 
 
 app_settings = AppSettings()
@@ -97,5 +99,7 @@ app_settings = AppSettings()
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
 oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT
 
-expose_settings("app_settings", app_settings)  # type: ignore
-expose_settings("oauth2lib_settings", oauth2lib_settings)  # type: ignore
+if app_settings.EXPOSE_SETTINGS:
+    expose_settings("app_settings", app_settings)  # type: ignore
+if app_settings.EXPOSE_OAUTH_SETTINGS:
+    expose_settings("oauth2lib_settings", oauth2lib_settings)  # type: ignore
