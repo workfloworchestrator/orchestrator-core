@@ -7,6 +7,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from orchestrator.db import db
 from orchestrator.services.settings import get_engine_settings
 
+from pydantic import PostgresDsn, SecretStr
+from pydantic_settings import BaseSettings
+
+from orchestrator.services.settings_env_variables import MASK, expose_settings, get_all_exposed_settings
+from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
+
 
 def test_get_engine_status(test_client):
     engine_settings = get_engine_settings()
@@ -77,6 +83,13 @@ def test_reset_search_index_error(test_client, generic_subscription_1, generic_s
 
 
 def test_get_exposed_settings(test_client):
+    class MySettings(BaseSettings):
+        db_password: SecretStr = "test_password"  # noqa: S105
+
+    my_settings = MySettings()
+    expose_settings("my_settings", my_settings)
+    assert len(get_all_exposed_settings()) == 1
+
     response = test_client.get("/api/settings/expose")
     assert response.status_code == HTTPStatus.OK
 
@@ -84,7 +97,7 @@ def test_get_exposed_settings(test_client):
 
     # Find the env_name SESSION_SECRET and ensure it is masked is **********
     session_secret = next(
-        (var for var in exposed_settings[0]["settings_variables"] if var["env_name"] == "SESSION_SECRET"), None
+        (var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None
     )
     assert session_secret is not None
     assert session_secret["env_value"] == "**********"
