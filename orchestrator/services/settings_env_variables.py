@@ -13,7 +13,7 @@
 
 from typing import Any, Dict, Type
 
-from pydantic import SecretStr
+from pydantic import SecretStr as PydanticSecretStr
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings
 
@@ -37,7 +37,7 @@ def mask_value(key: str, value: Any) -> Any:
         # Mask sensitive information
         return MASK
 
-    if isinstance(value, SecretStr):
+    if isinstance(value, PydanticSecretStr):
         # Need to convert SecretStr to str for serialization
         return str(value)
 

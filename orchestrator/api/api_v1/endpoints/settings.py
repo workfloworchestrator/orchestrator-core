@@ -177,6 +177,6 @@ def generate_engine_status_response(
     return result
 
 
-@router.get("/expose", response_model=list[SettingsExposedSchema])
+@router.get("/overview", response_model=list[SettingsExposedSchema])
 def get_exposed_settings() -> list[SettingsExposedSchema]:
     return get_all_exposed_settings()

@@ -30,6 +30,8 @@ class SecretStr(str):
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):  # type: ignore
+        # This method is used to define how the SecretStr type should be handled by Pydantic.
+        # With this implementation, it will fail validation.
         return core_schema.no_info_plain_validator_function(cls)
 
 

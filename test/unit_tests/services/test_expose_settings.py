@@ -1,4 +1,5 @@
-from pydantic import PostgresDsn, SecretStr
+from pydantic import PostgresDsn
+from pydantic import SecretStr as PydanticSecretStr
 from pydantic_settings import BaseSettings
 
 from orchestrator.services.settings_env_variables import MASK, expose_settings, get_all_exposed_settings
@@ -9,7 +10,7 @@ def test_expose_settings():
 
     class MySettings(BaseSettings):
         api_key: OrchSecretStr = "test_api_key"
-        db_password: SecretStr = "test_password"  # noqa: S105
+        db_password: PydanticSecretStr = "test_password"  # noqa: S105
         debug_mode: bool = True
         secret_test: str = "test_secret"  # noqa: S105
         uri: PostgresDsn = "postgresql://user:password@localhost/dbname"

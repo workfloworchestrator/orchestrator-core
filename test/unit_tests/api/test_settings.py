@@ -87,7 +87,7 @@ def test_get_exposed_settings(test_client):
     expose_settings("my_settings", my_settings)
     assert len(get_all_exposed_settings()) == 1
 
-    response = test_client.get("/api/settings/expose")
+    response = test_client.get("/api/settings/overview")
     assert response.status_code == HTTPStatus.OK
 
     exposed_settings = response.json()
