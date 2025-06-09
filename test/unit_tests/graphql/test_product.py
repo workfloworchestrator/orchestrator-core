@@ -85,7 +85,7 @@ def get_all_product_names_query(
 query ProductQuery($filterBy: [GraphqlFilter!]) {
   products(filterBy: $filterBy) {
     page {
-      allPbNames
+      allProductBlockNames
     }
     pageInfo {
       endCursor
@@ -235,7 +235,7 @@ def test_all_product_block_names(test_client, generic_product_4):
     result = response.json()
     products_data = result["data"]["products"]
     products = products_data["page"]
-    names = products[0]["allPbNames"]
+    names = products[0]["allProductBlockNames"]
 
     assert len(names) == 2
 
