@@ -52,21 +52,20 @@ class ProductType:
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
     @strawberry.field(description="Returns list of all nested productblock names")  # type: ignore
-    async def all_pb_names(self) -> list[str]:
-
+    async def all_product_block_names(self) -> list[str]:
         model = get_original_model(self, ProductTable)
 
-        def get_all_pb_names(product_blocks: list[ProductBlockTable]) -> Iterable[str]:
+        def get_names(product_blocks: list[ProductBlockTable], visited: set) -> Iterable[str]:
             for product_block in product_blocks:
+                if product_block.product_block_id in visited:
+                    continue
+                visited.add(product_block.product_block_id)
                 yield product_block.name
-
                 if product_block.depends_on:
-                    yield from get_all_pb_names(product_block.depends_on)
+                    yield from get_names(product_block.depends_on, visited)
 
-        names: list[str] = list(get_all_pb_names(model.product_blocks))
-        names.sort()
-
-        return names
+        names = set(get_names(model.product_blocks, set()))
+        return sorted(names)
 
     @strawberry.field(description="Return product blocks")  # type: ignore
     async def product_blocks(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
