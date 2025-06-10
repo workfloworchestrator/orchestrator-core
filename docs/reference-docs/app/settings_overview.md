@@ -2,7 +2,7 @@
 
 You can use the `api/settings/overview` endpoint to get an overview of the settings that are used in the application.
 This endpoint provides a JSON response that contains the settings that are defined in the application. The settings are
-grouped by their names and the values are masked for security reasons.
+grouped by their names and sensitive values are masked for security reasons.
 Per default, the application settings are used to configure the application. The settings are defined in the
 `orchestrator.settings.py` module and can be used to configure the application.
 
