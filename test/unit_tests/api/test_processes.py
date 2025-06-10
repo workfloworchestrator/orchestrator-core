@@ -640,23 +640,45 @@ def test_inputstep_authorization(test_client):
         response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
         assert HTTPStatus.FORBIDDEN == response.status_code
 
-    # TODO test how this interacts with passing a different callback to @authorize_workflow
-    # These should be as functionally independent as possible.
+
+def _A(_: OIDCUserModel) -> bool:
+    return True
 
 
-def test_get_auth_callbacks():
-    def A(_: OIDCUserModel) -> bool:
-        return True
+def _B(_: OIDCUserModel) -> bool:
+    return True
 
-    def B(_: OIDCUserModel) -> bool:
-        return True
 
-    def C(_: OIDCUserModel) -> bool:
-        return True
+def _C(_: OIDCUserModel) -> bool:
+    return True
 
-    def D(_: OIDCUserModel) -> bool:
-        return True
 
+def _D(_: OIDCUserModel) -> bool:
+    return True
+
+
+@pytest.mark.parametrize(
+    "policies, decisions",
+    [
+        ((None, None, None, None), (None, None)),
+        ((_A, None, None, None), (_A, _A)),
+        ((None, _B, None, None), (None, _B)),
+        ((_A, _B, None, None), (_A, _B)),
+        ((None, None, _C, None), (_C, _C)),
+        ((_A, None, _C, None), (_C, _C)),
+        ((None, _B, _C, None), (_C, _C)),
+        ((_A, _B, _C, None), (_C, _C)),
+        ((None, None, None, _D), (None, _D)),
+        ((_A, None, None, _D), (_A, _D)),
+        ((None, _B, None, _D), (None, _D)),
+        ((_A, _B, None, _D), (_A, _D)),
+        ((None, None, _C, _D), (_C, _D)),  # 4
+        ((_A, None, _C, _D), (_C, _D)),
+        ((None, _B, _C, _D), (_C, _D)),
+        ((_A, _B, _C, _D), (_C, _D)),
+    ],
+)
+def test_get_auth_callbacks(policies, decisions):
     @step("bar")
     def bar():
         return {}
@@ -675,36 +697,17 @@ def test_get_auth_callbacks():
         retry_auth_callback=None,
     )
 
-    cases = [
-        ((None, None, None, None), (None, None)),
-        ((A, None, None, None), (A, A)),
-        ((None, B, None, None), (None, B)),
-        ((A, B, None, None), (A, B)),
-        ((None, None, C, None), (C, C)),
-        ((A, None, C, None), (C, C)),
-        ((None, B, C, None), (C, C)),
-        ((A, B, C, None), (C, C)),
-        ((None, None, None, D), (None, D)),
-        ((A, None, None, D), (A, D)),
-        ((None, B, None, D), (None, D)),
-        ((A, B, None, D), (A, D)),
-        ((None, None, C, D), (C, D)),  # 4
-        ((A, None, C, D), (C, D)),
-        ((None, B, C, D), (C, D)),
-        ((A, B, C, D), (C, D)),
-    ]
-    for case in cases:
-        auth, retry, step_resume_auth, step_retry_auth = case[0]
-        want_auth, want_retry = case[1]
-        workflow.authorize_callback = auth
-        workflow.retry_auth_callback = retry
+    auth, retry, step_resume_auth, step_retry_auth = policies
+    want_auth, want_retry = decisions
+    workflow.authorize_callback = auth
+    workflow.retry_auth_callback = retry
 
-        @inputstep("foo", Target.SYSTEM, step_resume_auth, step_retry_auth)
-        def foo():
-            return {}
+    @inputstep("foo", Target.SYSTEM, step_resume_auth, step_retry_auth)
+    def foo():
+        return {}
 
-        steps = StepList([bar, foo, baz])
+    steps = StepList([bar, foo, baz])
 
-        got_auth, got_retry = get_auth_callbacks(steps, workflow)
-        assert got_auth == want_auth
-        assert got_retry == want_retry
+    got_auth, got_retry = get_auth_callbacks(steps, workflow)
+    assert got_auth == want_auth
+    assert got_retry == want_retry
