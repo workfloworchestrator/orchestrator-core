@@ -120,6 +120,15 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
     return auth_resume, auth_retry
 
 
+def can_be_resumed(status: ProcessStatus) -> bool:
+    return status in (
+        ProcessStatus.SUSPENDED,  # Can be resumed
+        ProcessStatus.FAILED,  # Can be retried
+        ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
+        ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
+    )
+
+
 def resolve_user_name(
     *,
     reporter: Reporter | None,
@@ -192,14 +201,8 @@ def resume_process_endpoint(
 ) -> None:
     process = _get_process(process_id)
 
-    if process.last_status == ProcessStatus.COMPLETED:
-        raise_status(HTTPStatus.CONFLICT, "Resuming a completed workflow is not possible")
-
-    if process.last_status == ProcessStatus.RUNNING:
-        raise_status(HTTPStatus.CONFLICT, "Resuming a running workflow is not possible")
-
-    if process.last_status == ProcessStatus.RESUMED:
-        raise_status(HTTPStatus.CONFLICT, "Resuming a resumed workflow is not possible")
+    if not can_be_resumed(process.last_status):
+        raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
 
     pstat = load_process(process)
     auth_resume, auth_retry = get_auth_callbacks(get_current_steps(pstat), pstat.workflow)
