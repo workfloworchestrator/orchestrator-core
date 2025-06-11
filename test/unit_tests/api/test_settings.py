@@ -2,10 +2,13 @@ from http import HTTPStatus
 from unittest import mock
 from unittest.mock import Mock
 
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import db
 from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.settings_env_variables import expose_settings, get_all_exposed_settings
 
 
 def test_get_engine_status(test_client):
@@ -74,3 +77,22 @@ def test_reset_search_index_error(test_client, generic_subscription_1, generic_s
         ex.attach_mock(session_execute_mock, "execute")
         response = test_client.post("/api/settings/search-index/reset")
         assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def test_get_exposed_settings(test_client):
+    class MySettings(BaseSettings):
+        db_password: SecretStr = "test_password"  # noqa: S105
+
+    my_settings = MySettings()
+    expose_settings("my_settings", my_settings)
+    assert len(get_all_exposed_settings()) == 1
+
+    response = test_client.get("/api/settings/overview")
+    assert response.status_code == HTTPStatus.OK
+
+    exposed_settings = response.json()
+
+    # Find the env_name db_password and ensure it is masked is **********
+    session_secret = next((var for var in exposed_settings[0]["variables"] if var["env_name"] == "db_password"), None)
+    assert session_secret is not None
+    assert session_secret["env_value"] == "**********"
