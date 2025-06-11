@@ -641,6 +641,49 @@ def test_inputstep_authorization(test_client):
         assert HTTPStatus.FORBIDDEN == response.status_code
 
 
+@pytest.mark.xfail(reason="core currently lacks support for tests involving a failed step")
+def test_retry_authorization(test_client):
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    class ConfirmForm(FormPage):
+        confirm: bool
+
+    @inputstep("authorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=allow, retry_auth_callback=disallow)
+    def authorized_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @step("fails once")
+    def fails_once(state):
+        if not hasattr(fails_once, "called"):
+            fails_once.called = False
+
+        if not fails_once.called:
+            fails_once.called = True
+            raise RuntimeError("Failing intentionally, ignore")
+        return {}
+
+    @workflow("test_auth_workflow", target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
+    def test_auth_workflow():
+        return init >> authorized_resume >> fails_once >> done
+
+    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
+        # Creating workflow succeeds
+        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
+        assert HTTPStatus.CREATED == response.status_code
+        process_id = response.json()["id"]
+        # We're authorized to resume, but this will error, so we can retry
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+        # We're authorized to retry, in spite of workflow's retry_auth_callback=disallow
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+
+
 def _A(_: OIDCUserModel) -> bool:
     return True
 
