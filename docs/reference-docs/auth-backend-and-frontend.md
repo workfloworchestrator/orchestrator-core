@@ -269,6 +269,320 @@ app.register_authorization(authorization_instance)
 app.register_graphql_authorization(graphql_authorization_instance)
 ```
 
+## Authorization and Workflows
+**Role-based access control for workflows is currently in beta. Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.**
+
+Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[OIDCUserModel, bool]`, which return True when the input user is authorized, otherwise False.
+
+A table (below) is available for comparing possible configuration states with the policy that will be enforced.
+
+### `@workflow`
+The `@workflow` decorator accepts the optional parameters `auth: Authorizer` and `retry_auth: Authorizer`.
+
+`auth` will be used to determine the authorization of a user to start the workflow.
+If `auth` is omitted, the workflow is authorized for any logged in user.
+
+`retry_auth` will be used to determine the authorization of a user to start, resume, or retry the workflow from a failed step.
+If `retry_auth` is omitted, then `auth` is used to authorize.
+
+(This does not percolate past an `@inputstep` that specifies `resume_auth` or `retry_auth`.)
+
+Examples:
+
+* `auth=None, retry_auth=None`: any user may run the workflow.
+* `auth=A, retry_auth=B`: users authorized by A may start the workflow. Users authorized by B may retry on failure.
+    * Example: starting the workflow is a decision that must be made by a product owner. Retrying can be made by an on-call member of the operations team.
+* `auth=None, retry_auth=B`: any user can start the workflow, but only users authorized by B may retry on failure.
+
+### `@inputstep`
+The `@inputstep` decorator accepts the optional parameters `resume_auth: Authorizer` and `retry_auth: Authorizer`.
+
+`resume_auth` will be used to determine the authorization of a user to resume the workflow when suspended at this inputstep.
+If `resume_auth` is omitted, then the workflow's `auth` will be used.
+
+`retry_auth` will be used to determine the authorization of a user to retry the workflow from a failed step following the inputstep.
+If `retry_auth` is omitted, then `resume_auth` is used to authorize retries.
+If `resume_auth` is also omitted, then the workflow’s `retry_auth` is checked, and then the workflow’s `auth`.
+
+In summary:
+
+* A workflow establishes `auth` for starting, resuming, or retrying.
+* The workflow can also establish `retry_auth`, which will override `auth` for retries.
+    * An inputstep can override the existing `auth` with `resume_auth` and the existing `retry_auth` with its own `retry_auth`.
+* Subsequent inputsteps can do the same, but any None will not overwrite a previous not-None.
+
+### Policy resolutions
+Below is an exhaustive table of how policies (implemented as callbacks `A`, `B`, `C`, and `D`)
+are prioritized in different workflow and inputstep configurations.
+
+<table>
+  <thead>
+    <tr>
+      <th colspan=4>Configuration</th>
+      <th colspan=4>Enforcement</th>
+      <th>Notes</th>
+    </tr>
+    <tr>
+      <th colspan=2>@workflow</th>
+      <th colspan=2>@inputstep</th>
+      <th colspan=2>before @inputstep</th>
+      <th colspan=2>@inputstep and after</th>
+      <th></th>
+    </tr>
+    <tr>
+      <th>auth</th>
+      <th>retry_auth</th>
+      <th>resume_auth</th>
+      <th>retry_auth</th>
+      <th>start</th>
+      <th>retry</th>
+      <th>resume</th>
+      <th>retry</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td>None</td>
+        <td>None</td>
+        <td>None</td>
+        <td>None</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>Default</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>None</td>
+        <td>None</td>
+        <td>None</td>
+        <td>A</td>
+        <td>A</td>
+        <td>A</td>
+        <td>A</td>
+        <td>Broadly restrict the workflow to a specific authorizer.</td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>B</td>
+        <td>None</td>
+        <td>None</td>
+        <td>Anyone</td>
+        <td>B</td>
+        <td>Anyone</td>
+        <td>B</td>
+        <td>original retry_auth is maintained if nothing supercedes it. Weird choice, but this provides a "we specifically want to limit retries" route.</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>B</td>
+        <td>None</td>
+        <td>None</td>
+        <td>A</td>
+        <td>B</td>
+        <td>A</td>
+        <td>B</td>
+        <td>Workflow-level auth and retry. Allows A or B to be tighter or distinct, as needed.</td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>None</td>
+        <td>C</td>
+        <td>None</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>C</td>
+        <td>C</td>
+        <td>Anyone can start this workflow, but only C can continue it.</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>None</td>
+        <td>C</td>
+        <td>None</td>
+        <td>A</td>
+        <td>A</td>
+        <td>C</td>
+        <td>C</td>
+        <td>Subsequent retries use C, not A! Override with retry_auth=A if desired.</td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>B</td>
+        <td>C</td>
+        <td>None</td>
+        <td>Anyone</td>
+        <td>B</td>
+        <td>C</td>
+        <td>C</td>
+        <td>Subsequent retries use C, not B! Override with retry_auth=B if desired.</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>B</td>
+        <td>C</td>
+        <td>None</td>
+        <td>A</td>
+        <td>B</td>
+        <td>C</td>
+        <td>C</td>
+        <td>Simple override initial settings with inputstep resume_auth.</td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>None</td>
+        <td>None</td>
+        <td>D</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>D</td>
+        <td>Anyone can start or retry or resume, but limit retries to D once inputstep is reached.</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>None</td>
+        <td>None</td>
+        <td>D</td>
+        <td>A</td>
+        <td>A</td>
+        <td>A</td>
+        <td>D</td>
+        <td>A can start or retry or resume, but limit retries to D once inputstep is reached.</td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>B</td>
+        <td>None</td>
+        <td>D</td>
+        <td>Anyone</td>
+        <td>B</td>
+        <td>Anyone</td>
+        <td>D</td>
+        <td>Anyone can start or resume, but only B can retry. After inputstep, only D can retry.</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>B</td>
+        <td>None</td>
+        <td>D</td>
+        <td>A</td>
+        <td>B</td>
+        <td>A</td>
+        <td>D</td>
+        <td>A can start or resume, but only B can retry. After inputstep, only D can retry.</td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>None</td>
+        <td>C</td>
+        <td>D</td>
+        <td>Anyone</td>
+        <td>Anyone</td>
+        <td>C</td>
+        <td>D</td>
+        <td>Anyone can start, but only C can resume and only D can retry after the resume.</td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>None</td>
+        <td>C</td>
+        <td>D</td>
+        <td>A</td>
+        <td>A</td>
+        <td>C</td>
+        <td>D</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>None</td>
+        <td>B</td>
+        <td>C</td>
+        <td>D</td>
+        <td>Anyone</td>
+        <td>B</td>
+        <td>C</td>
+        <td>D</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>A</td>
+        <td>B</td>
+        <td>C</td>
+        <td>D</td>
+        <td>A</td>
+        <td>B</td>
+        <td>C</td>
+        <td>D</td>
+        <td></td>
+      </tr>
+  </tbody>
+</table>
+
+### Examples
+Assume we have the following function that can be used to create callbacks:
+
+```python
+def allow_roles(*roles) -> Callable[OIDCUserModel|None, bool]:
+    def f(user: OIDCUserModel) -> bool:
+        if is_admin(user):  # Relative to your authorization provider
+            return True
+        for role in roles:
+            if has_role(user, role):  # Relative to your authorization provider
+                return True
+        return False
+
+    return f
+```
+
+We can now construct a variety of authorization policies.
+
+#### Rubber Stamp Model
+!!!example
+    Suppose we have a workflow W that needs to pause on inputstep `approval` for approval from finance. Ops (and only ops) should be able to start the workflow and retry any failed steps. Finance (and only finance) should be able to resume at the input step.
+
+    ```python
+    @workflow("An expensive workflow", auth=allow_roles("ops"))
+    def W(...):
+        return begin >> A >> ... >> notify_finance >> approval >> ... >> Z
+
+    @inputstep("Approval", resume_auth=allow_roles("finance"), retry_auth=allow_roles("ops"))
+    def approval(...):
+        ...
+    ```
+
+
+#### Hand-off Model
+!!!example
+    Suppose we have two teams, Dev and Platform, and a long workflow W that should be handed off to Platform at step `approval`.
+
+    Dev can start the workflow and retry steps prior to S. Once step S is reached, Platform (and only Platform) can resume the workflow and retry later failed steps.
+
+    ```python
+    @workflow("An expensive workflow", auth=allow_roles("dev"))
+    def W(...):
+        return begin >> A >> ... >> notify_platform >> handoff >> ... >> Z
+
+    @inputstep("Hand-off", resume_auth=allow_roles("platform"))
+    def handoff(...):
+        ...
+    ```
+    Notice that default behaviors let us ignore `retry_auth` arguments in both decorators.
+
+#### Restricted Retries Model
+!!!example
+    Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain backend access.
+
+    ```python
+    @workflow("A workflow for any user", retry_auth=allow_roles("admin"))
+    def W(...):
+        return begin >> A >> ... >> S >> ... >> Z
+    ```
+
+    Note that we could specify `auth=allow_roles("user")` if helpful, or we can omit `auth` to fail open to any logged in user.
+
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://github.com/workfloworchestrator/example-orchestrator
 [3]: https://next-auth.js.org/
