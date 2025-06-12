@@ -89,8 +89,8 @@ class AppSettings(BaseSettings):
     ENABLE_PROMETHEUS_METRICS_ENDPOINT: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
-    EXPOSE_SETTINGS: bool = True
-    EXPOSE_OAUTH_SETTINGS: bool = True
+    EXPOSE_SETTINGS: bool = False
+    EXPOSE_OAUTH_SETTINGS: bool = False
 
 
 app_settings = AppSettings()
