@@ -270,7 +270,10 @@ app.register_graphql_authorization(graphql_authorization_instance)
 ```
 
 ## Authorization and Workflows
-**Role-based access control for workflows is currently in beta. Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.**
+
+!!! Warning
+    Role-based access control for workflows is currently in beta.
+    Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
 
 Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[OIDCUserModel, bool]`, which return True when the input user is authorized, otherwise False.
 
