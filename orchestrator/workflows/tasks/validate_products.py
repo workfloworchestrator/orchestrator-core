@@ -37,6 +37,7 @@ from pydantic_forms.types import State
 
 @step("Check all workflows in database")
 def check_all_workflows_are_in_db() -> State:
+    print("Checking all workflows in database")
     all_workflows_in_db = {k.name for k in get_workflows()}
     all_workflows = {k for k in orchestrator.workflows.ALL_WORKFLOWS.keys()}  # noqa: C416
     not_in_db = all_workflows - all_workflows_in_db

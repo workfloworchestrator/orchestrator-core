@@ -48,7 +48,7 @@ class AppSettings(BaseSettings):
         "ETag",
     ]
     ENVIRONMENT: str = "local"
-    EXECUTOR: str = ExecutorType.THREADPOOL
+    EXECUTOR: str = ExecutorType.WORKER
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
@@ -89,8 +89,8 @@ class AppSettings(BaseSettings):
     ENABLE_PROMETHEUS_METRICS_ENDPOINT: bool = False
     VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS: bool = False
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
-    EXPOSE_SETTINGS: bool = False
-    EXPOSE_OAUTH_SETTINGS: bool = False
+    EXPOSE_SETTINGS: bool = True
+    EXPOSE_OAUTH_SETTINGS: bool = True
 
 
 app_settings = AppSettings()
@@ -98,6 +98,8 @@ app_settings = AppSettings()
 # Set oauth2lib_settings variables to the same (default) value of settings
 oauth2lib_settings.SERVICE_NAME = app_settings.SERVICE_NAME
 oauth2lib_settings.ENVIRONMENT = app_settings.ENVIRONMENT
+oauth2lib_settings.OAUTH2_ACTIVE = False
+oauth2lib_settings.OAUTH2_AUTHORIZATION_ACTIVE = False
 
 if app_settings.EXPOSE_SETTINGS:
     expose_settings("app_settings", app_settings)  # type: ignore
