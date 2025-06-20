@@ -50,4 +50,7 @@ jobs:
 #          mypy .
 
       - name: Run remaining pre-commit hooks
-        uses: pre-commit/action@v3.0.1
+        run: uv run pre-commit run --all-files
+
+#      - name: Run remaining pre-commit hooks
+#        uses: pre-commit/action@v3.0.1
