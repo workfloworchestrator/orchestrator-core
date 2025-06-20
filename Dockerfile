@@ -5,6 +5,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git build-essential \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
+# TODO uv
 RUN pip install --upgrade pip --no-cache-dir
 RUN pip install build --no-cache-dir
 RUN python -m build --wheel --outdir dist
