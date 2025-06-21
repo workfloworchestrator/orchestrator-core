@@ -4,24 +4,47 @@ on:
   release:
     types: [created]
 
+env:
+  UV_FROZEN: true  # Run uv commands without updating the `uv.lock` file
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
 
-      # TODO uv
-    - name: Set up Python
-      uses: actions/setup-python@v2
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v5
       with:
-        python-version: '3.x'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flit
-    - name: Build and publish
+        # It is considered best practice to pin to a specific uv version.
+        version: "0.7.13"
+        python-version: ${{ matrix.python-version }}
+
+    - name: Build package
+      run: uv build
+
+    - name: Publish package
+      run: uv publish
       env:
-        FLIT_USERNAME: ${{ secrets.FLIT_USERNAME }}
-        FLIT_PASSWORD: ${{ secrets.FLIT_PASSWORD }}
-      run: |
-        flit publish
+        UV_PUBLISH_USERNAME: ${{ secrets.FLIT_USERNAME }}
+        UV_PUBLISH_PASSWORD: ${{ secrets.FLIT_PASSWORD }}
+
+# TODO Migrate to trusted publishing with OIDC https://docs.pypi.org/trusted-publishers/
+#    - name: Publish package distributions to PyPI
+#      uses: pypa/gh-action-pypi-publish@release/v1
+
+
+#    - name: Set up Python
+#      uses: actions/setup-python@v2
+#      with:
+#        python-version: '3.x'
+#    - name: Install dependencies
+#      run: |
+#        python -m pip install --upgrade pip
+#        pip install flit
+#    - name: Build and publish
+#      env:
+#        FLIT_USERNAME: ${{ secrets.FLIT_USERNAME }}
+#        FLIT_PASSWORD: ${{ secrets.FLIT_PASSWORD }}
+#      run: |
+#        flit publish
