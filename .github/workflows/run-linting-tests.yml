@@ -9,6 +9,9 @@ on:
   workflow_call:
   pull_request:
 
+env:
+  UV_FROZEN: true  # Run uv commands without updating the `uv.lock` file
+
 jobs:
   build:
     name: Linting Tests
@@ -29,6 +32,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install the project
+        # --locked: Assert that the `uv.lock` will remain unchanged
+        # --all-extras: [project.optional-dependencies]
+        # --dev: group 'dev' from [dependency-groups]
         run: uv sync --locked --all-extras --dev
 
       - name: Check with mypy
@@ -52,5 +58,6 @@ jobs:
       - name: Run remaining pre-commit hooks
         run: uv run pre-commit run --all-files
 
+      # TODO consider keeping the pre-commit action below, would need to add a step `uv pip install pip` before it
 #      - name: Run remaining pre-commit hooks
 #        uses: pre-commit/action@v3.0.1
