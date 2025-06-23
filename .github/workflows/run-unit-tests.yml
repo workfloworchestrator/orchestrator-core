@@ -18,6 +18,7 @@ jobs:
         postgres-version: ['15', '16', '17']
       fail-fast: false
     # container: python:${{ matrix.python-version }}-slim
+    container: ubuntu:latest
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}-alpine
