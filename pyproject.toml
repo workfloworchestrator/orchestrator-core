@@ -91,7 +91,7 @@ test = [
     "jsonref",
     "mypy==1.9",
     "pyinstrument",
-    "pytest==8.3.5",
+    "pytest==8.4.1",
     "pytest-asyncio==0.21.2",
     "pytest-codspeed",
     "pytest-cov",
