@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  UV_FROZEN: true  # Run uv commands without updating the `uv.lock` file
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   container_job:
@@ -52,10 +52,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install the project
-        # --locked: Assert that the `uv.lock` will remain unchanged
         # --all-extras: [project.optional-dependencies]
         # --dev: group 'dev' from [dependency-groups]
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --all-extras --dev
 
       # TODO this fails because the code cannot reach postgres and I have no idea why
       - name: Run tests

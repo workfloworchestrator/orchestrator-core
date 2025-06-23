@@ -5,7 +5,7 @@ on:
     types: [created]
 
 env:
-  UV_FROZEN: true  # Run uv commands without updating the `uv.lock` file
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   deploy:

@@ -5,7 +5,7 @@ on:
       - main
 
 env:
-  UV_FROZEN: true  # Run uv commands without updating the `uv.lock` file
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   deploy:
@@ -21,10 +21,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install the project
-        # --locked: Assert that the `uv.lock` will remain unchanged
         # --no-dev: exclude group 'dev' from [dependency-groups]
         # --group docs: include group 'dev' from [dependency-groups]
-        run: uv sync --locked --no-dev --group docs
+        run: uv sync --no-dev --group docs
 
       - name: Build and publish docs
         run: uv run mkdocs gh-deploy --force
