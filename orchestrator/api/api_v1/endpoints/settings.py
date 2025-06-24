@@ -22,11 +22,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import EngineSettingsTable
-from orchestrator.schemas import EngineSettingsBaseSchema, EngineSettingsSchema, WorkerStatus
+from orchestrator.schemas import (
+    EngineSettingsBaseSchema,
+    EngineSettingsSchema,
+    WorkerStatus,
+)
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
 from orchestrator.services.settings import generate_engine_global_status
+from orchestrator.services.settings_env_variables import get_all_exposed_settings
 from orchestrator.settings import ExecutorType, app_settings
+from orchestrator.utils.expose_settings import SettingsExposedSchema
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis import delete_keys_matching_pattern
 from orchestrator.utils.redis_client import create_redis_asyncio_client
@@ -169,3 +175,8 @@ def generate_engine_status_response(
     result = EngineSettingsSchema.model_validate(engine_settings)
     result.global_status = generate_engine_global_status(engine_settings)
     return result
+
+
+@router.get("/overview", response_model=list[SettingsExposedSchema])
+def get_exposed_settings() -> list[SettingsExposedSchema]:
+    return get_all_exposed_settings()

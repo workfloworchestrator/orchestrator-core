@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.api.api_v1.endpoints.processes import get_auth_callbacks
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
     ProcessStepTable,
@@ -22,7 +23,8 @@ from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus, done, init, step, workflow
+from orchestrator.workflow import ProcessStatus, StepList, done, init, inputstep, make_workflow, step, workflow
+from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
@@ -593,3 +595,162 @@ def test_unauthorized_to_run_process(test_client):
     with WorkflowInstanceForTests(unauthorized_workflow, "unauthorized_workflow"):
         response = test_client.post("/api/processes/unauthorized_workflow", json=[{}])
         assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+def test_inputstep_authorization(test_client):
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    class ConfirmForm(FormPage):
+        confirm: bool
+
+    @inputstep("unauthorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=disallow)
+    def unauthorized_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @inputstep("authorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=allow)
+    def authorized_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @inputstep("noauth_resume", assignee=Assignee.SYSTEM)
+    def noauth_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @workflow("test_auth_workflow", target=Target.CREATE)
+    def test_auth_workflow():
+        return init >> noauth_resume >> authorized_resume >> unauthorized_resume >> done
+
+    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
+        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
+        assert HTTPStatus.CREATED == response.status_code
+        process_id = response.json()["id"]
+        # No auth succeeds
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+        # Authorized succeeds
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+        # Unauthorized fails
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.mark.xfail(reason="core currently lacks support for tests involving a failed step")
+def test_retry_authorization(test_client):
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    class ConfirmForm(FormPage):
+        confirm: bool
+
+    @inputstep("authorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=allow, retry_auth_callback=disallow)
+    def authorized_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
+
+    @step("fails once")
+    def fails_once(state):
+        if not hasattr(fails_once, "called"):
+            fails_once.called = False
+
+        if not fails_once.called:
+            fails_once.called = True
+            raise RuntimeError("Failing intentionally, ignore")
+        return {}
+
+    @workflow("test_auth_workflow", target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
+    def test_auth_workflow():
+        return init >> authorized_resume >> fails_once >> done
+
+    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
+        # Creating workflow succeeds
+        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
+        assert HTTPStatus.CREATED == response.status_code
+        process_id = response.json()["id"]
+        # We're authorized to resume, but this will error, so we can retry
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+        # We're authorized to retry, in spite of workflow's retry_auth_callback=disallow
+        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{}])
+        assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def _A(_: OIDCUserModel) -> bool:
+    return True
+
+
+def _B(_: OIDCUserModel) -> bool:
+    return True
+
+
+def _C(_: OIDCUserModel) -> bool:
+    return True
+
+
+def _D(_: OIDCUserModel) -> bool:
+    return True
+
+
+@pytest.mark.parametrize(
+    "policies, decisions",
+    [
+        ((None, None, None, None), (None, None)),
+        ((_A, None, None, None), (_A, _A)),
+        ((None, _B, None, None), (None, _B)),
+        ((_A, _B, None, None), (_A, _B)),
+        ((None, None, _C, None), (_C, _C)),
+        ((_A, None, _C, None), (_C, _C)),
+        ((None, _B, _C, None), (_C, _C)),
+        ((_A, _B, _C, None), (_C, _C)),
+        ((None, None, None, _D), (None, _D)),
+        ((_A, None, None, _D), (_A, _D)),
+        ((None, _B, None, _D), (None, _D)),
+        ((_A, _B, None, _D), (_A, _D)),
+        ((None, None, _C, _D), (_C, _D)),  # 4
+        ((_A, None, _C, _D), (_C, _D)),
+        ((None, _B, _C, _D), (_C, _D)),
+        ((_A, _B, _C, _D), (_C, _D)),
+    ],
+)
+def test_get_auth_callbacks(policies, decisions):
+    @step("bar")
+    def bar():
+        return {}
+
+    @step("baz")
+    def baz():
+        return {}
+
+    workflow = make_workflow(
+        f=lambda: {},
+        description="description",
+        initial_input_form=None,
+        target=Target.SYSTEM,
+        steps=StepList([]),
+        authorize_callback=None,
+        retry_auth_callback=None,
+    )
+
+    auth, retry, step_resume_auth, step_retry_auth = policies
+    want_auth, want_retry = decisions
+    workflow.authorize_callback = auth
+    workflow.retry_auth_callback = retry
+
+    @inputstep("foo", Target.SYSTEM, step_resume_auth, step_retry_auth)
+    def foo():
+        return {}
+
+    steps = StepList([bar, foo, baz])
+
+    got_auth, got_retry = get_auth_callbacks(steps, workflow)
+    assert got_auth == want_auth
+    assert got_retry == want_retry
