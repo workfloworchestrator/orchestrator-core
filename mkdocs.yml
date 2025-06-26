@@ -240,9 +240,9 @@ nav:
                       - L2 Point-to-Point: workshops/advanced/create-your-own.md
                       - Product and Workflow Generator: workshops/advanced/generator.md
     - Contributing:
+          - Development setup: contributing/development.md
           - Guidelines: contributing/guidelines.md
           - Testing: contributing/testing.md
-          - Development setup: contributing/development.md
 watch:
     - includes
     - orchestrator
