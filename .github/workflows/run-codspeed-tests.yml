@@ -39,9 +39,15 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
         uses: actions/checkout@v3
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.7.13"
+          python-version: '3.13'
 
       - name: Install the project
         # --all-extras: [project.optional-dependencies]
