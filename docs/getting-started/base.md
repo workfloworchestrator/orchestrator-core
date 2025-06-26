@@ -16,8 +16,6 @@ Flask and Django, you install the core library, initialise it with configuration
 
 ### Step 1 - Install the package:
 
-<!-- TODO update to uv -->
-
 Create a virtualenv and install the core.
 
 <div class="termy">
