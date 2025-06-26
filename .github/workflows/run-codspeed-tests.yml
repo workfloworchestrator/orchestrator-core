@@ -14,7 +14,7 @@ jobs:
     name: Run benchmarks
     runs-on: ubuntu-latest
     container:
-      image: python:3.13
+      image: ubuntu:latest
       options: --privileged
     services:
       postgres:
@@ -43,17 +43,10 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
 
-      # TODO uv
-      - name: Install dependencies
-        run: |
-          apt update
-          apt install curl git build-essential libpq-dev libffi-dev -y
-          python -m pip install --upgrade pip
-          pip install flit
-          flit install --deps develop --symlink
-          echo "GIT_COMMIT_HASH=\"test\"" > orchestrator/version.py
-        env:
-          FLIT_ROOT_INSTALL: 1
+      - name: Install the project
+        # --all-extras: [project.optional-dependencies]
+        # --dev: group 'dev' from [dependency-groups]
+        run: uv sync --all-extras --dev
 
       # Prevent error "repository path is not owned by the current user"
       - name: Fix git owner
@@ -65,7 +58,7 @@ jobs:
 
       - uses: CodSpeedHQ/action@v3
         with:
-          run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB pytest test/unit_tests --codspeed
+          run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/unit_tests --codspeed
           token: ${{ secrets.CODSPEED_TOKEN }}
         env:
           POSTGRES_DB: orchestrator-core-test

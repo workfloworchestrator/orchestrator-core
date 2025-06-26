@@ -39,21 +39,6 @@ jobs:
       - name: Check with mypy
         run: uv run mypy .
 
-#      - name: Set up Python ${{ matrix.python-version }}
-#        uses: actions/setup-python@v2
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#
-#      - name: Install dependencies
-#        run: |
-#          python -m pip install --upgrade pip
-#          pip install flit
-#          flit install --deps develop --symlink
-#
-#      - name: Check with mypy
-#        run: |
-#          mypy .
-
       - name: Run remaining pre-commit hooks
         run: uv run pre-commit run --all-files
 
