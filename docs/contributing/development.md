@@ -17,7 +17,10 @@ uv sync --all-groups --all-extras
 ```
 
 This creates a virtual environment at `.venv` with the latest dependencies and version of python.
-You can activate it, but recommended practice is to prefix python commands with `uv run <command>` as we'll show below.
+This command can be repeated to update the venv i.e. when switching to a branch with different dependencies, or after not having worked on the project for a while.
+
+You can either activate the venv with `source .venv/bin/activate` or prefix commands with `uv run <command>`.
+We'll use the latter form throughout this documentation.
 
 More details in [About UV](#about-uv).
 
@@ -63,20 +66,51 @@ uv run mkdocs serve
 
 This should make the docs available on your local machine here: [http://127.0.0.1:8000/orchestrator-core/](http://127.0.0.1:8000/orchestrator-core/)
 
+## Changing the Core database schema
+
+When you would like to change the core database schema, first ensure you have the following:
+* An up-to-date development environment
+* A postgres instance and `orchestrator-core-test` database setup as described in [Running tests](#running-tests)
+* Venv activated with `source .venv/bin/activate` (or prefix alembic commands with `uv run`)
+
+Then execute the following steps to create and test your schema change.
+
+```shell
+# Change to the migrations dir
+cd orchestrator/migrations
+
+# Run all current migrations
+alembic upgrade heads
+
+# add or change models in orchestrator/db/models.py
+vim orchestrator/db/models.py
+
+# Generate a migration for your change
+alembic revision --autogenerate -m "Demonstrating schema changes"
+
+# Output of the previous command mentions the generated migration file:
+#   Generating /.../2025-06-27_68d7ec0a554c_demonstrating_schema_changes.py ...  done
+# Please open and review it carefully.
+
+# Show the revision history and the current version of your database
+alembic history -i
+# 161918133bec -> 68d7ec0a554c (schema) (head), Demonstrating schema changes.
+# 68d14db1b8da -> 161918133bec (schema) (current), Add is_task to workflow.
+# fc5c993a4b4a -> 68d14db1b8da (schema), Make workflow description mandatory.
+
+# Test the upgrade path of your migration
+alembic upgrade 68d7ec0a554c
+
+# Test the downgrade path of your migration
+alembic downgrade 161918133bec
+```
+
+
 ## About UV
 
 uv is a very fast replacement for pip and flit which also adds a lot of functionality.
 This section explains a few concepts relevant to know when developing on the orchestrator-core.
 For a full overview consult the [uv documentation](https://docs.astral.sh/uv/).
-
-### Update dependencies
-
-To ensure your local environment (and the lockfile) contain the latest version of each dependency, add `--upgrade` to the sync command.
-
-For example:
-```
-uv sync --all-groups --all-extras --upgrade
-```
 
 ### Adding and removing dependencies
 
@@ -135,6 +169,16 @@ uv sync --group docs
 ```
 
 uv removes anything not specified in the command or `pyproject.toml` to ensure a clean and reproducible environment.
+
+### Upgrade dependencies
+
+To upgrade all dependencies in the lockfile to the latest version (taking version constraints from `pyproject.toml` into account), run the sync command with `--upgrade`:
+
+```
+uv sync --all-groups --all-extras --upgrade
+```
+
+The github project has Dependabot enabled which can create PRs for dependency upgrades.
 
 ### What is uv.lock for?
 
