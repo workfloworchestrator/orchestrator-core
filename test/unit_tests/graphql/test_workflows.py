@@ -4,8 +4,12 @@ from unittest.mock import patch
 
 import pytest
 
-from orchestrator import app_settings
+from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator import app_settings, workflow
+from orchestrator.targets import Target
+from orchestrator.workflow import done, init
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
+from test.unit_tests.workflows import WorkflowInstanceForTests
 
 
 @pytest.fixture(autouse=True)
@@ -32,6 +36,7 @@ query WorkflowsQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!], $s
       workflowId
       name
       description
+      isAllowed
       createdAt
       steps {
         name
@@ -81,6 +86,7 @@ def test_workflows_query(test_client):
     assert "errors" not in result
     assert len(workflows) == 2
 
+    assert all(workflow["isAllowed"] for workflow in workflows)
     assert all(len(workflow["steps"]) > 0 for workflow in workflows)
 
     assert pageinfo == {
@@ -232,3 +238,23 @@ def test_workflows_sort_by_resource_type_desc(test_client):
         "modify_note",
     ]
     assert [rt["name"] for rt in workflows] == expected_workflows
+
+
+def test_workflows_not_allowed(test_client):
+    forbidden_workflow_name = "unauthorized_workflow"
+
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    @workflow(forbidden_workflow_name, target=Target.CREATE, authorize_callback=disallow)
+    def unauthorized_workflow():
+        return init >> done
+
+    with WorkflowInstanceForTests(unauthorized_workflow, forbidden_workflow_name):
+        data = get_workflows_query(filter_by=[{"field": "name", "value": forbidden_workflow_name}])
+        response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+        assert HTTPStatus.OK == response.status_code
+        result = response.json()
+
+        workflow_data = result["data"]["workflows"]["page"][0]
+        assert not workflow_data["isAllowed"]
