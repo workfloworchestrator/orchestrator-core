@@ -49,7 +49,3 @@ jobs:
         run: uv run pre-commit run --all-files
         env:
           SKIP: mypy
-
-      # TODO consider keeping the pre-commit action below, would need to add a step `uv pip install pip` before it
-#      - name: Run remaining pre-commit hooks
-#        uses: pre-commit/action@v3.0.1

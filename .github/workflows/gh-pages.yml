@@ -27,10 +27,3 @@ jobs:
 
       - name: Build and publish docs
         run: uv run mkdocs gh-deploy --force
-
-#      - uses: actions/setup-python@v2
-#        with:
-#          python-version: 3.x
-#      - run: pip install flit
-#      - run: flit install --only-deps --deps develop
-#      - run: mkdocs gh-deploy --force
