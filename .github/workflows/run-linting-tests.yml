@@ -39,8 +39,16 @@ jobs:
       - name: Check with mypy
         run: uv run mypy .
 
+      - name: Cache pre-commit hooks and environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
       - name: Run remaining pre-commit hooks
         run: uv run pre-commit run --all-files
+        env:
+          SKIP: mypy
 
       # TODO consider keeping the pre-commit action below, would need to add a step `uv pip install pip` before it
 #      - name: Run remaining pre-commit hooks
