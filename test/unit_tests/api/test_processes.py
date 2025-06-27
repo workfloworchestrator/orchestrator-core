@@ -597,52 +597,8 @@ def test_unauthorized_to_run_process(test_client):
         assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def test_inputstep_authorization(test_client):
-    def disallow(_: OIDCUserModel | None = None) -> bool:
-        return False
-
-    def allow(_: OIDCUserModel | None = None) -> bool:
-        return True
-
-    class ConfirmForm(FormPage):
-        confirm: bool
-
-    @inputstep("unauthorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=disallow)
-    def unauthorized_resume(state):
-        user_input = yield ConfirmForm
-        return user_input.model_dump()
-
-    @inputstep("authorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=allow)
-    def authorized_resume(state):
-        user_input = yield ConfirmForm
-        return user_input.model_dump()
-
-    @inputstep("noauth_resume", assignee=Assignee.SYSTEM)
-    def noauth_resume(state):
-        user_input = yield ConfirmForm
-        return user_input.model_dump()
-
-    @workflow("test_auth_workflow", target=Target.CREATE)
-    def test_auth_workflow():
-        return init >> noauth_resume >> authorized_resume >> unauthorized_resume >> done
-
-    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
-        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
-        assert HTTPStatus.CREATED == response.status_code
-        process_id = response.json()["id"]
-        # No auth succeeds
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
-        # Authorized succeeds
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
-        # Unauthorized fails
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.FORBIDDEN == response.status_code
-
-
-@pytest.mark.xfail(reason="core currently lacks support for tests involving a failed step")
-def test_retry_authorization(test_client):
+@pytest.fixture
+def authorize_resume_workflow():
     def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
@@ -671,17 +627,32 @@ def test_retry_authorization(test_client):
     def test_auth_workflow():
         return init >> authorized_resume >> fails_once >> done
 
-    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
-        # Creating workflow succeeds
-        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
-        assert HTTPStatus.CREATED == response.status_code
-        process_id = response.json()["id"]
-        # We're authorized to resume, but this will error, so we can retry
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
-        # We're authorized to retry, in spite of workflow's retry_auth_callback=disallow
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
+    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_authorize_resume(authorize_resume_workflow):
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id, workflow_id=authorize_resume_workflow.workflow_id, last_status=ProcessStatus.SUSPENDED
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_retry_authorization(test_client, process_on_authorize_resume):
+    # We're authorized to resume, but this will error, so we can retry
+    response = test_client.put(f"/api/processes/{process_on_authorize_resume}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.NO_CONTENT == response.status_code
+    # We're authorized to retry, in spite of workflow's retry_auth_callback=disallow
+    response = test_client.put(f"/api/processes/{process_on_authorize_resume}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.NO_CONTENT == response.status_code
 
 
 def _A(_: OIDCUserModel) -> bool:
