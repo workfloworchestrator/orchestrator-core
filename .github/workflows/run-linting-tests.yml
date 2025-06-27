@@ -9,6 +9,9 @@ on:
   workflow_call:
   pull_request:
 
+env:
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+
 jobs:
   build:
     name: Linting Tests
@@ -20,17 +23,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
         with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.7.13"
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flit
-          flit install --deps develop --symlink
+
+      - name: Install the project
+        # --all-extras: [project.optional-dependencies]
+        # --dev: group 'dev' from [dependency-groups]
+        run: uv sync --all-extras --dev
+
       - name: Check with mypy
-        run: |
-          mypy .
+        run: uv run mypy .
+
+      - name: Cache pre-commit hooks and environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
       - name: Run remaining pre-commit hooks
-        uses: pre-commit/action@v3.0.1
+        run: uv run pre-commit run --all-files
+        env:
+          SKIP: mypy

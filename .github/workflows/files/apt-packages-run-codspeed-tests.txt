@@ -1,0 +1,5 @@
+# This file is used by:
+#  1. the cache action to calculate a hash for the cache key
+#  2. apt-get install command which filters out any lines starting with a #
+curl
+git
