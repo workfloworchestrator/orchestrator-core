@@ -237,7 +237,7 @@ def test_all_product_block_names(test_client, test_product_one_nested):
     products = products_data["page"]
     names = products[0]["allProductBlockNames"]
 
-    assert len(names) == 1
+    assert names == ["PB_Chained_1", "PB_Chained_2", "ProductBlockOneNestedForTest"]
 
 
 def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):
