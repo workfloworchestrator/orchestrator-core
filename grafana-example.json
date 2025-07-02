@@ -182,10 +182,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ceqmhn7s5t4aod"
-      },
+      "datasource": "$DS_PROMETHEUS",
       "description": "Sync status for all subscriptions that are not terminated.",
       "fieldConfig": {
         "defaults": {
@@ -245,10 +242,7 @@
       "pluginVersion": "12.0.2",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ceqmhn7s5t4aod"
-          },
+          "datasource": "$DS_PROMETHEUS",
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
@@ -268,10 +262,7 @@
       "type": "gauge"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ceqmhn7s5t4aod"
-      },
+      "datasource": "$DS_PROMETHEUS",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -364,10 +355,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ceqmhn7s5t4aod"
-      },
+      "datasource": "$DS_PROMETHEUS",
       "description": "Currently active subscription count per product",
       "fieldConfig": {
         "defaults": {
@@ -430,10 +418,7 @@
       "type": "piechart"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ceqmhn7s5t4aod"
-      },
+      "datasource": "$DS_PROMETHEUS",
       "description": "Processes with \"failed\" as last state, grouped by workflow name.",
       "fieldConfig": {
         "defaults": {
@@ -527,7 +512,18 @@
   "schemaVersion": 41,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "description": "",
+        "label": "Datasource",
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
