@@ -51,7 +51,6 @@ from orchestrator.workflow import (
     Success,
     Workflow,
     abort_wf,
-    runwf,
 )
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
@@ -71,9 +70,11 @@ _workflow_executor = None
 
 def get_execution_context() -> dict[str, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
-        from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+        from orchestrator.services.executors.celery import CELERY_EXECUTION_CONTEXT
 
         return CELERY_EXECUTION_CONTEXT
+
+    from orchestrator.services.executors.threadpool import THREADPOOL_EXECUTION_CONTEXT
 
     return THREADPOOL_EXECUTION_CONTEXT
 
@@ -449,7 +450,6 @@ def create_process(
     }
 
     try:
-
         state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
@@ -467,19 +467,6 @@ def create_process(
     _db_create_process(pstat)
     store_input_state(process_id, state | initial_state, "initial_state")
     return pstat
-
-
-def thread_start_process(
-    workflow_key: str,
-    user_inputs: list[State] | None = None,
-    user: str = SYSTEM_USER,
-    user_model: OIDCUserModel | None = None,
-    broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
-    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
-
-    _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
 
 def start_process(
@@ -502,57 +489,12 @@ def start_process(
         process id
 
     """
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
+    if not pstat.workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(pstat.workflow.name))
+
     start_func = get_execution_context()["start"]
-    return start_func(
-        workflow_key, user_inputs=user_inputs, user=user, user_model=user_model, broadcast_func=broadcast_func
-    )
-
-
-def thread_resume_process(
-    process: ProcessTable,
-    *,
-    user_inputs: list[State] | None = None,
-    user: str | None = None,
-    broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
-    # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
-
-    if user_inputs is None:
-        user_inputs = [{}]
-
-    pstat = load_process(process)
-
-    if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed")
-
-    form = pstat.log[0].form
-
-    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
-
-    if user:
-        pstat.update(current_user=user)
-
-    if user_input:
-        pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, user_input)))
-    store_input_state(pstat.process_id, user_input, "user_input")
-    # enforce an update to the process status to properly show the process
-    process.last_status = ProcessStatus.RUNNING
-    db.session.add(process)
-    db.session.commit()
-
-    _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
-
-
-def thread_validate_workflow(validation_workflow: str, json: list[State] | None) -> UUID:
-    return thread_start_process(validation_workflow, user_inputs=json)
-
-
-THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": thread_start_process,
-    "resume": thread_resume_process,
-    "validate": thread_validate_workflow,
-}
+    return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
 
 
 def resume_process(
@@ -561,7 +503,7 @@ def resume_process(
     user_inputs: list[State] | None = None,
     user: str | None = None,
     broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
+) -> bool:
     """Resume a failed or suspended process.
 
     Args:
@@ -575,6 +517,9 @@ def resume_process(
 
     """
     pstat = load_process(process)
+
+    if pstat.workflow == removed_workflow:
+        raise ValueError("This workflow cannot be resumed")
 
     try:
         post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])

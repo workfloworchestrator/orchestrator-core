@@ -255,3 +255,7 @@ celery.conf.task_routes = {
 
 If you decide to override the queue names in this configuration, you also have to make sure that you also
 update the names accordingly after the `-Q` flag.
+
+### Celery Workflow/Task flow
+
+![Celery Workflow/Task flow](celery-flow.png)

@@ -10,8 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 import structlog
 from sqlalchemy import select
 
@@ -24,19 +22,35 @@ from pydantic_forms.types import State, UUIDstr
 logger = structlog.get_logger(__name__)
 
 
+def get_process_ids_by_process_statuses(process_statuses: list[ProcessStatus]) -> list:
+    return list(
+        db.session.scalars(select(ProcessTable.process_id).filter(ProcessTable.last_status.in_(process_statuses)))
+    )
+
+
 @step("Find waiting workflows")
 def find_waiting_workflows() -> State:
-    waiting_processes = db.session.scalars(
-        select(ProcessTable).filter(ProcessTable.last_status == ProcessStatus.WAITING)
-    ).all()
-    waiting_process_ids = [str(process.process_id) for process in waiting_processes]
-    return {"number_of_waiting_processes": len(waiting_process_ids), "waiting_process_ids": waiting_process_ids}
+    created_process_ids = get_process_ids_by_process_statuses([ProcessStatus.CREATED])
+    resumed_process_ids = get_process_ids_by_process_statuses([ProcessStatus.RESUMED])
+    waiting_process_ids = get_process_ids_by_process_statuses([ProcessStatus.WAITING])
+
+    return {
+        "number_of_waiting_processes": len(waiting_process_ids),
+        "waiting_process_ids": waiting_process_ids,
+        "created_processes_stuck": len(created_process_ids),
+        "created_process_ids": created_process_ids,
+        "resumed_processes_stuck": len(resumed_process_ids),
+        "resumed_process_ids": resumed_process_ids,
+    }
 
 
 @step("Resume found workflows")
-def resume_found_workflows(waiting_process_ids: list[UUIDstr]) -> State:
+def resume_found_workflows(
+    waiting_process_ids: list[UUIDstr], created_process_ids: list[UUIDstr], resumed_process_ids: list[UUIDstr]
+) -> State:
+    all_processes = waiting_process_ids + created_process_ids + resumed_process_ids
     resumed_process_ids = []
-    for process_id in waiting_process_ids:
+    for process_id in all_processes:
         try:
             process = db.session.get(ProcessTable, process_id)
             if not process:
