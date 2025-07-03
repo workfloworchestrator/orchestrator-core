@@ -2,6 +2,7 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessTable, WorkflowTable, db
@@ -39,8 +40,48 @@ def waiting_process():
     return process
 
 
+@pytest.fixture
+def stuck_created_process():
+    workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
+
+    process = ProcessTable(
+        process_id=uuid4(),
+        workflow_id=workflow.workflow_id,
+        last_status=ProcessStatus.CREATED,
+        assignee=Assignee.SYSTEM,
+        last_step="",
+        created_by="Fredje",
+    )
+    db.session.add(process)
+    db.session.commit()
+    return process
+
+
+@pytest.fixture
+def stuck_resumed_workflow():
+    state = {"foo": "bar"}
+    pid = uuid4()
+    workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
+
+    process = ProcessTable(
+        process_id=pid,
+        workflow_id=workflow.workflow_id,
+        last_status=ProcessStatus.RESUMED,
+        assignee=Assignee.SYSTEM,
+        last_step="generic-step",
+        created_by="Fredje",
+    )
+    success_step = ProcessStepTable(
+        process_id=pid, name="generic-step", status="success", state=state, created_by="Fredje"
+    )
+
+    db.session.add_all([process, success_step])
+    db.session.commit()
+    return process
+
+
 @pytest.mark.workflow
-def test_resume_workflow(waiting_process):
+def test_resume_workflow(waiting_process, stuck_created_process, stuck_resumed_workflow):
     with mock.patch("orchestrator.services.processes.resume_process") as m:
         result, process, step_log = run_workflow("task_resume_workflows", {})
         assert_complete(result)
@@ -50,12 +91,14 @@ def test_resume_workflow(waiting_process):
             "process_id": res["process_id"],
             "reporter": "john.doe",
             "number_of_waiting_processes": 1,
-            "number_of_resumed_process_ids": 1,
+            "created_processes_stuck": 1,
+            "resumed_processes_stuck": 1,
             "waiting_process_ids": [str(waiting_process.process_id)],
-            "resumed_process_ids": [str(waiting_process.process_id)],
+            "created_state_process_ids": [str(stuck_created_process.process_id)],
+            "resumed_state_process_ids": [str(stuck_resumed_workflow.process_id)],
         }
         assert_state(result, state)
-        m.assert_called_once()
+        assert m.call_count == 3
 
 
 @pytest.mark.workflow
@@ -71,9 +114,11 @@ def test_resume_workflow_non_204(waiting_process):
             "process_id": res["process_id"],
             "reporter": "john.doe",
             "number_of_waiting_processes": 1,
-            "number_of_resumed_process_ids": 0,
+            "created_processes_stuck": 0,
+            "resumed_processes_stuck": 0,
             "waiting_process_ids": [str(waiting_process.process_id)],
-            "resumed_process_ids": [],
+            "created_state_process_ids": [],
+            "resumed_state_process_ids": [],
         }
         assert_state(result, state)
         m.assert_called_once()
