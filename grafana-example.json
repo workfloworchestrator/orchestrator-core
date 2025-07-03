@@ -86,10 +86,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ceqmhn7s5t4aod"
-      },
+      "datasource": "$DS_PROMETHEUS",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -531,7 +528,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "WFO Example dashboard",
+  "title": "Workflow Orchestrator",
   "uid": "0643f840-e73f-4fe2-9d40-aef0f378f2b4",
   "version": 1
 }
