@@ -158,6 +158,9 @@ def delete(process_id: UUID) -> None:
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
 
+    if not process.is_task:
+        raise_status(HTTPStatus.BAD_REQUEST)
+
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
 
@@ -270,7 +273,7 @@ def update_progress_on_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
+async def resume_all_processes_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
