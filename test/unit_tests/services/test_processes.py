@@ -3,6 +3,7 @@ from http import HTTPStatus
 from threading import Event
 from time import sleep
 from unittest import mock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -800,13 +801,21 @@ def test_run_process_async_exception(mock_db_log_process_ex):
     app_settings.TESTING = True
 
 
+@mock.patch("orchestrator.services.executors.threadpool.db")
+@mock.patch("orchestrator.services.executors.threadpool._get_process")
 @mock.patch("orchestrator.services.processes.store_input_state")
-@mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.process_id))
+@mock.patch("orchestrator.services.executors.threadpool._run_process_async", return_value=(mock.sentinel.process_id))
 @mock.patch("orchestrator.services.processes._db_create_process")
 @mock.patch("orchestrator.services.processes.post_form")
 @mock.patch("orchestrator.services.processes.get_workflow")
 def test_start_process(
-    mock_get_workflow, mock_post_form, mock_db_create_process, mock_run_process_async, mock_store_input_state
+    mock_get_workflow,
+    mock_post_form,
+    mock_db_create_process,
+    mock_run_process_async,
+    mock_store_input_state,
+    mock_get_process,
+    mock_db,
 ):
     @step("test step")
     def test_step():
@@ -817,6 +826,8 @@ def test_start_process(
     mock_get_workflow.return_value = wf
 
     mock_post_form.return_value = {"a": 1}
+    mock_get_process.return_value = MagicMock(spec=ProcessTable)
+    mock_db.return_value = MagicMock(session=MagicMock())
 
     result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
