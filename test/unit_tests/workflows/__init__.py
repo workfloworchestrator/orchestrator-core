@@ -11,11 +11,11 @@ import structlog
 
 from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.input_state import store_input_state
-from orchestrator.services.processes import StateMerger, _db_create_process
+from orchestrator.services.processes import StateMerger, _db_create_process, _get_process
 from orchestrator.targets import Target
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
-from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
+from orchestrator.workflow import ProcessStat, ProcessStatus, Step, Success, Workflow, runwf
 from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
 from pydantic_forms.core import post_form
 from pydantic_forms.types import FormGenerator, InputForm, State
@@ -238,6 +238,11 @@ def run_workflow(
 
     _db_create_process(pstat)
     store_input_state(process_id, state | initial_state, "initial_state")
+
+    process = _get_process(pstat.process_id)
+    process.last_status = ProcessStatus.RUNNING
+    db.session.add(process)
+    db.session.commit()
 
     result = runwf(pstat, _store_step(step_log))
 
