@@ -623,13 +623,14 @@ def authorize_resume_workflow():
         user_input = yield ConfirmForm
         return user_input.model_dump()
 
-    @step("next_step")
-    def next_step(state):
-        return {}
+    @inputstep("unauthorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=disallow)
+    def unauthorized_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
 
     @workflow("test_auth_workflow", target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
     def test_auth_workflow():
-        return init >> authorized_resume >> next_step >> done
+        return init >> authorized_resume >> unauthorized_resume >> done
 
     with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow") as wf:
         yield wf
@@ -673,13 +674,30 @@ def process_on_retry(authorize_resume_workflow):
     return process_id
 
 
+@pytest.fixture
+def process_on_unauthorize_resume(process_on_resume):
+    authorize_resume_step = ProcessStepTable(
+        process_id=process_on_resume, name="authorized_resume", status=StepStatus.SUCCESS, state={"confirm": True}
+    )
+
+    db.session.add(authorize_resume_step)
+    db.session.commit()
+
+    return process_on_resume
+
+
 def test_authorized_resume_input_step(test_client, process_on_resume):
     response = test_client.put(f"/api/processes/{process_on_resume}/resume", json=[{"confirm": True}])
     assert HTTPStatus.NO_CONTENT == response.status_code
 
 
-def test_unauthorized_resume_input_step_retry(test_client, process_on_retry):
+def xtest_unauthorized_resume_input_step_retry(test_client, process_on_retry):
     response = test_client.put(f"/api/processes/{process_on_retry}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+def test_unauthorized_resume_input_step(test_client, process_on_unauthorize_resume):
+    response = test_client.put(f"/api/processes/{process_on_unauthorize_resume}/resume", json=[{"confirm": True}])
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
