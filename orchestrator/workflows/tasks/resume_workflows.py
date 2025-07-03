@@ -38,17 +38,19 @@ def find_waiting_workflows() -> State:
         "number_of_waiting_processes": len(waiting_process_ids),
         "waiting_process_ids": waiting_process_ids,
         "created_processes_stuck": len(created_process_ids),
-        "created_process_ids": created_process_ids,
+        "created_state_process_ids": created_process_ids,
         "resumed_processes_stuck": len(resumed_process_ids),
-        "resumed_process_ids": resumed_process_ids,
+        "resumed_state_process_ids": resumed_process_ids,
     }
 
 
 @step("Resume found workflows")
 def resume_found_workflows(
-    waiting_process_ids: list[UUIDstr], created_process_ids: list[UUIDstr], resumed_process_ids: list[UUIDstr]
+    waiting_process_ids: list[UUIDstr],
+    created_state_process_ids: list[UUIDstr],
+    resumed_state_process_ids: list[UUIDstr],
 ) -> State:
-    all_processes = waiting_process_ids + created_process_ids + resumed_process_ids
+    all_processes = waiting_process_ids + created_state_process_ids + resumed_state_process_ids
     resumed_process_ids = []
     for process_id in all_processes:
         try:
