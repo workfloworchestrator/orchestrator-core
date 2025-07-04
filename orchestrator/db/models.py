@@ -154,7 +154,9 @@ class ProcessSubscriptionTable(BaseModel):
     )
     subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
-    workflow_target = mapped_column(String(255), nullable=False, server_default=Target.CREATE)
+
+    # FIXME: workflow_target is already stored in the workflow table, this column should get removed in a later release.
+    workflow_target = mapped_column(String(255), nullable=True)
 
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription = relationship("SubscriptionTable", back_populates="processes")

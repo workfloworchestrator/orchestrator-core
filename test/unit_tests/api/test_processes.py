@@ -439,7 +439,7 @@ def test_processes_filterable_response_model(
         "current_state": None,
         "steps": None,
         "form": None,
-        "workflow_target": "CREATE",
+        "workflow_target": "SYSTEM",
     }
 
 
