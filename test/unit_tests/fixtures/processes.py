@@ -26,7 +26,7 @@ def test_workflow(generic_subscription_1: UUIDstr, generic_product_type_1) -> Ge
 
     @step("Test that it is a string now")
     def check_object(subscription_id: Any, model: dict) -> None:
-        # This is actually a test. It would be nicer to have this in a proper test but that takes to much setup that
+        # This is actually a test. It would be nicer to have this in a proper test but that takes too much setup that
         # already happens here. So we hijack this fixture and run this test for all tests that use this fixture
         # (which should not be an issue)
         assert isinstance(subscription_id, str)

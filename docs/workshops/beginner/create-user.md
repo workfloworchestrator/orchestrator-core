@@ -9,7 +9,7 @@ initialize the subscription. This workflow uses the following steps:
 ```python
 init
 >> create_subscription
->> store_process_subscription(Target.CREATE)
+>> store_process_subscription()
 >> initialize_subscription
 >> provision_user
 >> set_status(SubscriptionLifecycle.ACTIVE)

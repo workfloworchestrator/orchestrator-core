@@ -108,20 +108,23 @@ def unsync_unchecked(subscription_id: UUIDstr) -> State:
     return {"subscription": subscription}
 
 
-def store_process_subscription_relationship(
-    process_id: UUIDstr, subscription_id: UUIDstr, workflow_target: str
-) -> ProcessSubscriptionTable:
-    process_subscription = ProcessSubscriptionTable(
-        process_id=process_id, subscription_id=subscription_id, workflow_target=workflow_target
-    )
+def store_process_subscription_relationship(process_id: UUIDstr, subscription_id: UUIDstr) -> ProcessSubscriptionTable:
+    process_subscription = ProcessSubscriptionTable(process_id=process_id, subscription_id=subscription_id)
     db.session.add(process_subscription)
     return process_subscription
 
 
-def store_process_subscription(workflow_target: Target) -> Step:
+def store_process_subscription(workflow_target: Target | None = None) -> Step:
+    if workflow_target:
+        deprecation_warning = (
+            "Providing a workflow target to function store_process_subscription() is deprecated. "
+            "This information is already stored in the workflow table."
+        )
+        logger.warning(deprecation_warning)
+
     @step("Create Process Subscription relation")
     def _store_process_subscription(process_id: UUIDstr, subscription_id: UUIDstr) -> None:
-        store_process_subscription_relationship(process_id, subscription_id, workflow_target)
+        store_process_subscription_relationship(process_id, subscription_id)
 
     return _store_process_subscription
 

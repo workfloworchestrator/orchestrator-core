@@ -8,7 +8,7 @@ customer, releasing all provisioned resources.  The terminate workflow for the
 
 ```python
 init
->> store_process_subscription(Target.TERMINATE)
+>> store_process_subscription()
 >> unsync
 >> deprovision_user_group
 >> set_status(SubscriptionLifecycle.TERMINATED)

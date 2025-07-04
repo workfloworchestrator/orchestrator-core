@@ -36,7 +36,7 @@ def create_node_enrollment() -> StepList:
     return (
         begin
         >> construct_node_enrollment_model
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         ...
         ...
         ...
@@ -82,7 +82,7 @@ def construct_node_enrollment_model(
 After that the the subscription is created and registered with the orchestrator:
 
 ```python
-    >> store_process_subscription(Target.CREATE)
+    >> store_process_subscription()
 ```
 
 The subsequent steps are the actual logic being executed by the workflow. It's a best practice to have each step execute one discrete operation so in case a step fails it can be restarted. To wit if a step contained:

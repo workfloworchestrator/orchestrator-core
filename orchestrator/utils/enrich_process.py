@@ -103,7 +103,7 @@ def enrich_process(process: ProcessTable, p_stat: ProcessStat | None = None) -> 
         "is_task": process.is_task,
         "workflow_id": process.workflow_id,
         "workflow_name": process.workflow.name,
-        "workflow_target": process.process_subscriptions[0].workflow_target if process.process_subscriptions else None,
+        "workflow_target": process.workflow.target,
         "failed_reason": process.failed_reason,
         "created_by": process.created_by,
         "started_at": process.started_at,

@@ -2,7 +2,6 @@ import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider, Label
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
@@ -73,6 +72,6 @@ additional_steps = begin
 @create_workflow("Create example4", initial_input_form=initial_input_form_generator, additional_steps=additional_steps)
 def create_example4() -> StepList:
     return (
-        begin >> construct_example4_model >> store_process_subscription(Target.CREATE)
+        begin >> construct_example4_model >> store_process_subscription()
         # TODO add provision step(s)
     )
