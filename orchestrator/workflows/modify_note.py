@@ -53,4 +53,4 @@ def store_subscription_note(subscription_id: UUIDstr, note: str) -> State:
 
 @workflow("Modify Note", initial_input_form=wrap_modify_initial_input_form(initial_input_form), target=Target.MODIFY)
 def modify_note() -> StepList:
-    return init >> store_process_subscription(Target.MODIFY) >> store_subscription_note >> done
+    return init >> store_process_subscription() >> store_subscription_note >> done
