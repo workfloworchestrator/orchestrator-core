@@ -36,16 +36,17 @@ def test_product_type_one_nested():
 
 
 @pytest.fixture
-def test_product_one_nested(test_product_block_one_nested_db_in_use_by_block):
+def test_product_one_nested(test_product_block_one_nested_db_in_use_by_block, generic_product_block_chain):
     product = ProductTable(
         name="TestProductOneNested", description="Test ProductTable", product_type="Test", tag="TEST", status="active"
     )
 
     fixed_input = FixedInputTable(name="test_fixed_input", value="False")
 
-    product_block = test_product_block_one_nested_db_in_use_by_block
+    pb_1 = test_product_block_one_nested_db_in_use_by_block
+    pb_2, pb_3 = generic_product_block_chain
     product.fixed_inputs = [fixed_input]
-    product.product_blocks = [product_block]
+    product.product_blocks = [pb_1, pb_2, pb_3]
 
     db.session.add(product)
     db.session.commit()

@@ -48,6 +48,7 @@ def test_product_block_one_nested_db_in_use_by_block(resource_type_list, resourc
         name="ProductBlockOneNestedForTest", description="Test Block Parent", tag="TEST", status="active"
     )
     in_use_by_block.resource_types = [resource_type_int]
+    in_use_by_block.in_use_by = [in_use_by_block]
 
     db.session.add(in_use_by_block)
     db.session.commit()

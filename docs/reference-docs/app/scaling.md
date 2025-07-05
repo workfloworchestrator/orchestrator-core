@@ -28,10 +28,19 @@ class AppSettings(BaseSettings):
 
 Celery concepts are introduced in the [Documentation](https://docs.celeryq.dev/en/stable/getting-started/introduction.html).
 
-When using Celery, the Orchestrator is split into two parts: the orchestrator-api and the orchestrator-worker.
+When using Celery, the Orchestrator is split into two parts:
+
+1. orchestrator-api
+2. orchestrator-worker
 
 The orchestrator-api functionality is now limited to handling REST requests and delegating them (via one or more
 queues) to the orchestrator-worker. The workflows are executed in the orchestrator-worker.
+
+The orchestrator-worker has additional dependencies which can be installed with the `celery` dependency group:
+
+```shell
+pip install orchestrator-core[celery]
+```
 
 
 ### Queues
@@ -132,9 +141,7 @@ The application flow looks like this when "celery" is the executor (and websocke
 - FastAPI application grabs this information and publishes it to the client websocket connection.
 
 A celery worker container will start by calling this module instead of `main.py` like so:
-```sh
-celery -A esnetorch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
-```
+    celery -A esnetorch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 
 * `-A` points to this module where the worker class is defined
 * `-E` sends task-related events (capturable and monitorable)
