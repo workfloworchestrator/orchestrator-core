@@ -49,7 +49,9 @@ class ProcessStepSchema(OrchestratorBaseModel):
     name: str
     status: str
     created_by: str | None = None
-    executed: datetime | None = Field(None, deprecated="Deprecated, use 'started' and 'completed' for step start and completion times")
+    executed: datetime | None = Field(
+        None, deprecated="Deprecated, use 'started' and 'completed' for step start and completion times"
+    )
     started: datetime | None = None
     completed: datetime | None = None
     commit_hash: str | None = None

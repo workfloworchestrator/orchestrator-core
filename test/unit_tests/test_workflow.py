@@ -142,7 +142,6 @@ def test_store_all_steps():
     pstat = create_new_process_stat(sample_workflow, {})
     runwf(pstat, store(log))
 
-
     assert [
         ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
         ("Step 2", Success({"steps": [1, 2], "__last_step_started_at": mock.ANY})),
@@ -217,7 +216,10 @@ def test_suspend():
     result = runwf(pstat, store(log))
 
     assert_suspended(result)
-    assert [("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})), ("Input Name", Suspend({"steps": [1], "__last_step_started_at": mock.ANY}))] == log
+    assert [
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Input Name", Suspend({"steps": [1], "__last_step_started_at": mock.ANY})),
+    ] == log
 
 
 def test_resume_suspended_workflow():
@@ -263,7 +265,7 @@ def test_failed_step():
     assert_failed(result)
     assert extract_error(result) == "Failure Message"
     assert [
-        ("Start", Success({"name": "init-state","__last_step_started_at": mock.ANY})),
+        ("Start", Success({"name": "init-state", "__last_step_started_at": mock.ANY})),
         ("Fail", Failed({"class": "ValueError", "error": "Failure Message", "traceback": mock.ANY})),
     ] == log
 
@@ -503,7 +505,6 @@ def test_step_group_basic():
     result = runwf(pstat, store(log))
     assert_complete(result)
 
-
     assert log == [
         ("Start", Success({"n": 3, "__last_step_started_at": mock.ANY})),
         ("Step 1", Success({"n": 3, "steps": [1], "__last_step_started_at": mock.ANY})),
@@ -529,11 +530,21 @@ def test_step_group_with_inputform_suspend():
     result = runwf(pstat, logstep=store(log))
 
     assert_suspended(result)
-    
+
     assert log == [
         ("Start", Success({"__last_step_started_at": mock.ANY})),
         ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
-        ("Multistep", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep", "__last_step_started_at": mock.ANY})),
+        (
+            "Multistep",
+            Suspend(
+                {
+                    "steps": [1, 2],
+                    "__sub_step": "Input Name",
+                    "__step_group": "Multistep",
+                    "__last_step_started_at": mock.ANY,
+                }
+            ),
+        ),
     ]
 
 

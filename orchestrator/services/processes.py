@@ -15,12 +15,12 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
 from http import HTTPStatus
-from pytz import utc
 from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
 from deepmerge.merger import Merger
+from pytz import utc
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
@@ -208,8 +208,8 @@ def _get_current_step_to_update(
     finally:
         step_state.pop("__remove_keys", None)
 
-    #We don't have __last_step_started in __remove_keys because the way __remove_keys is populated appears like it would overwrite
-    #what's put there in the step decorator in certain cases (step groups and callback steps)
+    # We don't have __last_step_started in __remove_keys because the way __remove_keys is populated appears like it would overwrite
+    # what's put there in the step decorator in certain cases (step groups and callback steps)
     step_start_time = step_state.pop("__last_step_started_at", None)
 
     if process_state.isfailed() or process_state.iswaiting():
@@ -242,7 +242,7 @@ def _get_current_step_to_update(
             state=step_state,
             created_by=stat.current_user,
         )
-    #Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
+    # Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
     now = nowtz()
     current_step.started_at = datetime.fromtimestamp(step_start_time or now.timestamp(), tz=utc)
 

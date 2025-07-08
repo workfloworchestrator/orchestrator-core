@@ -29,7 +29,9 @@ class ProcessStepType:
     name: strawberry.auto
     status: strawberry.auto
     created_by: strawberry.auto
-    executed: strawberry.auto = strawberry.field(deprecation_reason="Deprecated, use 'started' and 'completed' for step start and completion times")
+    executed: strawberry.auto = strawberry.field(
+        deprecation_reason="Deprecated, use 'started' and 'completed' for step start and completion times"
+    )
     started: strawberry.auto
     completed: strawberry.auto
     commit_hash: strawberry.auto
