@@ -47,10 +47,12 @@ from orchestrator.services.subscriptions import (
     subscription_workflows,
 )
 from orchestrator.settings import app_settings
+from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.websocket import sync_invalidate_subscription_cache
+from orchestrator.workflows import get_workflow
 
 router = APIRouter()
 
@@ -169,7 +171,9 @@ def subscriptions_search(
     description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
     dependencies=[Depends(deprecated_endpoint)],
 )
-def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[str, list[Any] | str]]]:
+def subscription_workflows_by_id(
+    subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
+) -> dict[str, list[dict[str, list[Any] | str]]]:
     subscription = db.session.get(
         SubscriptionTable,
         subscription_id,
@@ -181,7 +185,14 @@ def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[s
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    return subscription_workflows(subscription)
+    subscription_workflows_dict = subscription_workflows(subscription)
+    for workflow_target in Target.values():
+        for workflow_dict in subscription_workflows_dict[workflow_target.lower()]:
+            workflow = get_workflow(workflow_dict["name"])
+            if workflow.authorize_callback and not workflow.authorize_callback(current_user):  # type: ignore
+                workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
+
+    return subscription_workflows_dict
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)

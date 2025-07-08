@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from nwastdlib.url import URL
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.helpers import product_block_paths
 from orchestrator.db import (
     FixedInputTable,
@@ -29,7 +30,7 @@ from orchestrator.services.subscriptions import (
     unsync,
 )
 from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus
+from orchestrator.workflow import ProcessStatus, done, init, workflow
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
     INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
@@ -39,6 +40,7 @@ from test.unit_tests.config import (
     PORT_SUBSCRIPTION_ID,
 )
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
+from test.unit_tests.workflows import WorkflowInstanceForTests
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
 PORT_A_SUBSCRIPTION_ID = str(uuid4())
@@ -844,3 +846,25 @@ def test_subscription_detail_with_in_use_by_ids_not_filtered_self(test_client, p
     )
     assert response.status_code == HTTPStatus.OK
     assert response.json()["block"]["sub_block"]["in_use_by_ids"]
+
+
+def test_subscription_detail_with_forbidden_workflow(seed, test_client):
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    @workflow("unauthorized_workflow", target=Target.MODIFY, authorize_callback=disallow)
+    def unauthorized_workflow():
+        return init >> done
+
+    with WorkflowInstanceForTests(unauthorized_workflow, "unauthorized_workflow") as wf:
+        product = db.session.get(ProductTable, PRODUCT_ID)
+        product.workflows.append(wf)
+        db.session.commit()
+
+        response = test_client.get(f"/api/subscriptions/workflows/{PORT_A_SUBSCRIPTION_ID}")
+        assert response.status_code == HTTPStatus.OK
+
+        subscription_workflows = response.json()
+        assert len(subscription_workflows["modify"]) == 1
+        assert "reason" in subscription_workflows["modify"][0]
+        assert subscription_workflows["modify"][0]["reason"] == "subscription.insufficient_workflow_permissions"
