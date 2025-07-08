@@ -19,7 +19,6 @@ from pydantic import ConfigDict
 from structlog import get_logger
 
 from orchestrator.forms.validators import CustomerId
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, done, step, workflow
 from orchestrator.workflows.steps import store_process_subscription
@@ -81,4 +80,4 @@ def construct_subscription_model(
 
 @workflow("Create a test product", initial_input_form=wrap_create_initial_input_form(initial_input_form_generator))
 def create_test_product() -> StepList:
-    return begin >> construct_subscription_model >> store_process_subscription(Target.CREATE) >> done
+    return begin >> construct_subscription_model >> store_process_subscription() >> done

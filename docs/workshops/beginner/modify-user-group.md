@@ -8,7 +8,7 @@ used:
 
 ```python
 init
->> store_process_subscription(Target.MODIFY)
+>> store_process_subscription()
 >> unsync
 >> modify_user_group_subscription
 >> resync

@@ -8,7 +8,7 @@ UserGroup product. This is done by executing the following workflow steps:
 ```python
 init
 >> create_subscription
->> store_process_subscription(Target.CREATE)
+>> store_process_subscription()
 >> initialize_subscription
 >> provision_user_group
 >> set_status(SubscriptionLifecycle.ACTIVE)
