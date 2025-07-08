@@ -46,6 +46,7 @@ from orchestrator.services.settings import get_engine_settings
 from orchestrator.targets import Target
 from orchestrator.types import ErrorDict, StepFunc
 from orchestrator.utils.auth import Authorizer
+from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
@@ -248,6 +249,7 @@ def step(name: str) -> Callable[[StepFunc], Step]:
                 step_in_inject_args = inject_args(func)
                 try:
                     with transactional(db, logger):
+                        state["__last_step_started_at"] = nowtz().timestamp()
                         result = step_in_inject_args(state)
                         return Success(result)
                 except Exception as ex:

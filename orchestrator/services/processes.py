@@ -12,8 +12,10 @@
 # limitations under the License.
 from collections.abc import Callable, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime
 from functools import partial
 from http import HTTPStatus
+from pytz import utc
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -206,6 +208,10 @@ def _get_current_step_to_update(
     finally:
         step_state.pop("__remove_keys", None)
 
+    #We don't have __last_step_started in __remove_keys because the way __remove_keys is populated appears like it would overwrite
+    #what's put there in the step decorator in certain cases (step groups and callback steps)
+    step_start_time = step_state.pop("__last_step_started_at", None)
+
     if process_state.isfailed() or process_state.iswaiting():
         if (
             last_db_step is not None
@@ -216,7 +222,7 @@ def _get_current_step_to_update(
         ):
             state_ex_info = {
                 "retries": last_db_step.state.get("retries", 0) + 1,
-                "executed_at": last_db_step.state.get("executed_at", []) + [str(last_db_step.executed_at)],
+                "completed_at": last_db_step.state.get("completed_at", []) + [str(last_db_step.completed_at)],
             }
 
             # write new state info and execution date
@@ -236,10 +242,13 @@ def _get_current_step_to_update(
             state=step_state,
             created_by=stat.current_user,
         )
+    #Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
+    now = nowtz()
+    current_step.started_at = datetime.fromtimestamp(step_start_time or now.timestamp(), tz=utc)
 
     # Always explicitly set this instead of leaving it to the database to prevent failing tests
     # Test will fail if multiple steps have the same timestamp
-    current_step.executed_at = nowtz()
+    current_step.completed_at = now
     return current_step
 
 

@@ -142,10 +142,11 @@ def test_store_all_steps():
     pstat = create_new_process_stat(sample_workflow, {})
     runwf(pstat, store(log))
 
+
     assert [
-        ("Step 1", Success({"steps": [1]})),
-        ("Step 2", Success({"steps": [1, 2]})),
-        ("Step 3", Success({"steps": [1, 2, 3]})),
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"steps": [1, 2], "__last_step_started_at": mock.ANY})),
+        ("Step 3", Success({"steps": [1, 2, 3], "__last_step_started_at": mock.ANY})),
     ] == log
 
 
@@ -176,7 +177,7 @@ def test_waiting():
     assert extract_error(result) == "Failure Message"
 
     assert [
-        ("Step 1", Success({"steps": [1]})),
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
         ("Waiting step", Waiting({"class": "ValueError", "error": "Failure Message", "traceback": mock.ANY})),
     ] == log
 
@@ -202,8 +203,8 @@ def test_resume_waiting_workflow():
 
     assert_success(result)
     assert [
-        ("Waiting step", Success({"steps": [1], "some_key": True})),
-        ("Step 2", Success({"steps": [1, 2], "some_key": True})),
+        ("Waiting step", Success({"steps": [1], "some_key": True, "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"steps": [1, 2], "some_key": True, "__last_step_started_at": mock.ANY})),
     ] == log
 
 
@@ -216,7 +217,7 @@ def test_suspend():
     result = runwf(pstat, store(log))
 
     assert_suspended(result)
-    assert [("Step 1", Success({"steps": [1]})), ("Input Name", Suspend({"steps": [1]}))] == log
+    assert [("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})), ("Input Name", Suspend({"steps": [1], "__last_step_started_at": mock.ANY}))] == log
 
 
 def test_resume_suspended_workflow():
@@ -234,10 +235,10 @@ def test_resume_suspended_workflow():
     result = runwf(p, logstep=store(log))
 
     assert_success(result)
-    assert result == Success({"steps": [1, 2], "name": "Jane Doe"})
+    assert result == Success({"steps": [1, 2], "name": "Jane Doe", "__last_step_started_at": mock.ANY})
     assert [
-        ("Input Name", Success({"steps": [1], "name": "Jane Doe"})),
-        ("Step 2", Success({"steps": [1, 2], "name": "Jane Doe"})),
+        ("Input Name", Success({"steps": [1], "name": "Jane Doe", "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"steps": [1, 2], "name": "Jane Doe", "__last_step_started_at": mock.ANY})),
     ] == log
 
 
@@ -262,7 +263,7 @@ def test_failed_step():
     assert_failed(result)
     assert extract_error(result) == "Failure Message"
     assert [
-        ("Start", Success({"name": "init-state"})),
+        ("Start", Success({"name": "init-state","__last_step_started_at": mock.ANY})),
         ("Fail", Failed({"class": "ValueError", "error": "Failure Message", "traceback": mock.ANY})),
     ] == log
 
@@ -336,7 +337,7 @@ def test_focus_state():
     pstat = create_new_process_stat(wf, {"sub": {}})
     result = runwf(pstat, store(log))
     assert_complete(result)
-    assert_state(result, {"sub": {"result": "substep"}})
+    assert_state(result, {"sub": {"result": "substep", "__last_step_started_at": mock.ANY}})
 
     # Test on empty key
     subwf = focussteps("sub")
@@ -346,7 +347,7 @@ def test_focus_state():
     pstat = create_new_process_stat(wf, {})
     result = runwf(pstat, store(log))
     assert_complete(result)
-    assert_state(result, {"sub": {"result": "substep"}})
+    assert_state(result, {"sub": {"result": "substep", "__last_step_started_at": mock.ANY}})
 
 
 def test_error_in_focus_state():
@@ -501,13 +502,15 @@ def test_step_group_basic():
     pstat = create_new_process_stat(wf, {"n": 3})
     result = runwf(pstat, store(log))
     assert_complete(result)
+
+
     assert log == [
-        ("Start", Success({"n": 3})),
-        ("Step 1", Success({"n": 3, "steps": [1]})),
-        ("Step 2", Success({"n": 3, "steps": [1, 2]})),
-        ("Multiple steps", Success({"n": 3, "steps": [1, 2], "x": 15})),
-        ("Step 3", Success({"n": 3, "steps": [1, 2, 3], "x": 15})),
-        ("Done", Complete({"n": 3, "steps": [1, 2, 3], "x": 15})),
+        ("Start", Success({"n": 3, "__last_step_started_at": mock.ANY})),
+        ("Step 1", Success({"n": 3, "steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"n": 3, "steps": [1, 2], "__last_step_started_at": mock.ANY})),
+        ("Multiple steps", Success({"n": 3, "steps": [1, 2], "x": 15, "__last_step_started_at": mock.ANY})),
+        ("Step 3", Success({"n": 3, "steps": [1, 2, 3], "x": 15, "__last_step_started_at": mock.ANY})),
+        ("Done", Complete({"n": 3, "steps": [1, 2, 3], "x": 15, "__last_step_started_at": mock.ANY})),
     ]
 
 
@@ -526,10 +529,11 @@ def test_step_group_with_inputform_suspend():
     result = runwf(pstat, logstep=store(log))
 
     assert_suspended(result)
+    
     assert log == [
-        ("Start", Success({})),
-        ("Step 1", Success({"steps": [1]})),
-        ("Multistep", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep"})),
+        ("Start", Success({"__last_step_started_at": mock.ANY})),
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Multistep", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep", "__last_step_started_at": mock.ANY})),
     ]
 
 
