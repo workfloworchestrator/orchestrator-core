@@ -339,7 +339,7 @@ def test_focus_state():
     pstat = create_new_process_stat(wf, {"sub": {}})
     result = runwf(pstat, store(log))
     assert_complete(result)
-    assert_state(result, {"sub": {"result": "substep", "__last_step_started_at": mock.ANY}})
+    assert_state(result, {"sub": {"result": "substep"}})
 
     # Test on empty key
     subwf = focussteps("sub")
@@ -349,7 +349,7 @@ def test_focus_state():
     pstat = create_new_process_stat(wf, {})
     result = runwf(pstat, store(log))
     assert_complete(result)
-    assert_state(result, {"sub": {"result": "substep", "__last_step_started_at": mock.ANY}})
+    assert_state(result, {"sub": {"result": "substep"}})
 
 
 def test_error_in_focus_state():

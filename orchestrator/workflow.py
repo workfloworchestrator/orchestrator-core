@@ -249,7 +249,6 @@ def step(name: str) -> Callable[[StepFunc], Step]:
                 step_in_inject_args = inject_args(func)
                 try:
                     with transactional(db, logger):
-                        state["__last_step_started_at"] = nowtz().timestamp()
                         result = step_in_inject_args(state)
                         return Success(result)
                 except Exception as ex:
@@ -1456,6 +1455,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                     "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
                 )
                 return process
+            process.s["__last_step_started_at"] = nowtz().timestamp()
             step_result_process = process.execute_step(step)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
