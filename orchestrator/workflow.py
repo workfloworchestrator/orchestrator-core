@@ -382,8 +382,10 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
                 p = p.map(lambda s: s | {"__replace_last_state": True})
             return step_log_fn(step_, p)
 
+        step_group_start_time = nowtz().timestamp()
         process: Process = Success(initial_state)
         process = _exec_steps(step_list, process, dblogstep)
+        process.s["__last_step_started_at"] = step_group_start_time
 
         # Add instruction to replace state of last sub step before returning process _exec_steps higher in the call tree
         return process.map(lambda s: s | {"__replace_last_state": True})
