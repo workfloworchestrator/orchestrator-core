@@ -102,6 +102,25 @@ def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
     return statuses
 
 
+def _authorized_subscription_workflows(
+    subscription: SubscriptionTable, current_user: OIDCUserModel | None
+) -> dict[str, list[dict[str, list[Any] | str]]]:
+    subscription_workflows_dict = subscription_workflows(subscription)
+
+    for workflow_target in Target.values():
+        for workflow_dict in subscription_workflows_dict[workflow_target.lower()]:
+            workflow = get_workflow(workflow_dict["name"])
+            if not workflow:
+                continue
+            if (
+                not workflow.authorize_callback(current_user)  # The current user isn't allowed to run this workflow
+                and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run
+            ):
+                workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
+
+    return subscription_workflows_dict
+
+
 @router.get(
     "/domain-model/{subscription_id}",
     response_model=SubscriptionDomainModelSchema | None,
@@ -185,14 +204,7 @@ def subscription_workflows_by_id(
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    subscription_workflows_dict = subscription_workflows(subscription)
-    for workflow_target in Target.values():
-        for workflow_dict in subscription_workflows_dict[workflow_target.lower()]:
-            workflow = get_workflow(workflow_dict["name"])
-            if workflow.authorize_callback and not workflow.authorize_callback(current_user):  # type: ignore
-                workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
-
-    return subscription_workflows_dict
+    return _authorized_subscription_workflows(subscription, current_user)
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
