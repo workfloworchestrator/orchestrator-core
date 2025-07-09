@@ -12,7 +12,7 @@ from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.customer import CustomerType
 from orchestrator.graphql.schemas.helpers import get_original_model
 from orchestrator.graphql.schemas.product import ProductType
-from orchestrator.graphql.types import FormUserPermissions, GraphqlFilter, GraphqlSort, OrchestratorInfo
+from orchestrator.graphql.types import FormUserPermissionsType, GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.schemas.process import ProcessSchema, ProcessStepSchema
 from orchestrator.services.processes import load_process
 from orchestrator.settings import app_settings
@@ -78,15 +78,15 @@ class ProcessType:
         )
 
     @strawberry.field(description="Returns user permissions for operations on this process")  # type: ignore
-    def user_permissions(self, info: OrchestratorInfo) -> FormUserPermissions:
+    def user_permissions(self, info: OrchestratorInfo) -> FormUserPermissionsType:
         oidc_user = info.context.get_current_user
         workflow = get_workflow(self.workflow_name)
         process = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
         auth_resume, auth_retry = get_auth_callbacks(get_current_steps(process), workflow)  # type: ignore[arg-type]
 
-        return FormUserPermissions(
+        return FormUserPermissionsType(
             retryAllowed=auth_retry and auth_retry(oidc_user),  # type: ignore[arg-type]
-            inputAllowed=auth_resume and auth_resume(oidc_user),  # type: ignore[arg-type]
+            resumeAllowed=auth_resume and auth_resume(oidc_user),  # type: ignore[arg-type]
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore

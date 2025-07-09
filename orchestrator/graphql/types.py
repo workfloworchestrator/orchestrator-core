@@ -133,9 +133,9 @@ SCALAR_OVERRIDES: ScalarOverrideType = {
 
 
 @strawberry.type(description="User permissions on a specific process")
-class FormUserPermissions:
+class FormUserPermissionsType:
     retryAllowed: bool
-    inputAllowed: bool
+    resumeAllowed: bool
 
 
 @strawberry.type(description="Generic class to capture errors")
