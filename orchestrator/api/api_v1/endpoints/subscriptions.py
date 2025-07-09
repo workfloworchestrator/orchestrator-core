@@ -47,10 +47,12 @@ from orchestrator.services.subscriptions import (
     subscription_workflows,
 )
 from orchestrator.settings import app_settings
+from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.deprecation_logger import deprecated_endpoint
 from orchestrator.utils.get_subscription_dict import get_subscription_dict
 from orchestrator.websocket import sync_invalidate_subscription_cache
+from orchestrator.workflows import get_workflow
 
 router = APIRouter()
 
@@ -98,6 +100,25 @@ def _filter_statuses(filter_statuses: str | None = None) -> list[str]:
                 detail=f"Status {status}, is not a valid `SubscriptionLifecycle`",
             )
     return statuses
+
+
+def _authorized_subscription_workflows(
+    subscription: SubscriptionTable, current_user: OIDCUserModel | None
+) -> dict[str, list[dict[str, list[Any] | str]]]:
+    subscription_workflows_dict = subscription_workflows(subscription)
+
+    for workflow_target in Target.values():
+        for workflow_dict in subscription_workflows_dict[workflow_target.lower()]:
+            workflow = get_workflow(workflow_dict["name"])
+            if not workflow:
+                continue
+            if (
+                not workflow.authorize_callback(current_user)  # The current user isn't allowed to run this workflow
+                and "reason" not in workflow_dict  # and there isn't already a reason why this workflow cannot run
+            ):
+                workflow_dict["reason"] = "subscription.insufficient_workflow_permissions"
+
+    return subscription_workflows_dict
 
 
 @router.get(
@@ -169,7 +190,9 @@ def subscriptions_search(
     description="This endpoint is deprecated and will be removed in a future release. Please use the GraphQL query",
     dependencies=[Depends(deprecated_endpoint)],
 )
-def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[str, list[Any] | str]]]:
+def subscription_workflows_by_id(
+    subscription_id: UUID, current_user: OIDCUserModel | None = Depends(authenticate)
+) -> dict[str, list[dict[str, list[Any] | str]]]:
     subscription = db.session.get(
         SubscriptionTable,
         subscription_id,
@@ -181,7 +204,7 @@ def subscription_workflows_by_id(subscription_id: UUID) -> dict[str, list[dict[s
     if not subscription:
         raise_status(HTTPStatus.NOT_FOUND)
 
-    return subscription_workflows(subscription)
+    return _authorized_subscription_workflows(subscription, current_user)
 
 
 @router.put("/{subscription_id}/set_in_sync", response_model=None, status_code=HTTPStatus.OK)
