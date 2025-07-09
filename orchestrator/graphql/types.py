@@ -1,4 +1,4 @@
-# Copyright 2022-2023 SURF, GÉANT.
+# Copyright 2022-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -130,6 +130,12 @@ SCALAR_OVERRIDES: ScalarOverrideType = {
     IPv6Interface: IPv6InterfaceType,
     int: IntType,
 }
+
+
+@strawberry.type(description="User permissions on a specific process")
+class FormUserPermissionsType:
+    retryAllowed: bool
+    resumeAllowed: bool
 
 
 @strawberry.type(description="Generic class to capture errors")
