@@ -490,8 +490,6 @@ def start_process(
 
     """
     pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
-    if not pstat.workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(pstat.workflow.name))
 
     start_func = get_execution_context()["start"]
     return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
@@ -519,16 +517,18 @@ def resume_process(
     pstat = load_process(process)
 
     if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed")
+        raise ValueError("This workflow cannot be resumed because it has been removed")
 
     try:
-        post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
+        user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
 
+    store_input_state(pstat.process_id, user_input, "user_input")
+
     resume_func = get_execution_context()["resume"]
-    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+    return resume_func(process, user=user, broadcast_func=broadcast_func)
 
 
 def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:

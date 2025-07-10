@@ -18,10 +18,8 @@ import structlog
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.input_state import store_input_state
 from orchestrator.services.processes import (
     SYSTEM_USER,
-    StateMerger,
     _get_process,
     _run_process_async,
     create_process,
@@ -35,7 +33,6 @@ from orchestrator.workflow import (
     runwf,
 )
 from orchestrator.workflows.removed_workflow import removed_workflow
-from pydantic_forms.core import post_form
 from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
@@ -62,30 +59,18 @@ def thread_start_process(
 def thread_resume_process(
     process: ProcessTable,
     *,
-    user_inputs: list[State] | None = None,
     user: str | None = None,
     user_model: OIDCUserModel | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
-
-    if user_inputs is None:
-        user_inputs = [{}]
-
     pstat = load_process(process)
     if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed")
-
-    form = pstat.log[0].form
-
-    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
+        raise ValueError("This workflow cannot be resumed because it has been removed")
 
     if user:
         pstat.update(current_user=user)
 
-    if user_input:
-        pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, user_input)))
-    store_input_state(pstat.process_id, user_input, "user_input")
     # enforce an update to the process status to properly show the process
     process.last_status = ProcessStatus.RUNNING
     db.session.add(process)
