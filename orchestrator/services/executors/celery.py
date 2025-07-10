@@ -22,7 +22,6 @@ from kombu.exceptions import ConnectionError, OperationalError
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.input_state import store_input_state
 from orchestrator.services.processes import create_process, delete_process
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.workflow import ProcessStat
@@ -64,7 +63,6 @@ def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs:
 def _celery_resume_process(
     process: ProcessTable,
     *,
-    user_inputs: list[State] | None = None,
     user: str | None = None,
     **kwargs: Any,
 ) -> bool:
@@ -83,8 +81,6 @@ def _celery_resume_process(
     task_name = RESUME_TASK if wf_table.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
-    user_inputs = user_inputs or [{}]
-    store_input_state(pstat.process_id, user_inputs, "user_input")
     try:
         _celery_set_process_status_resumed(process)
         result = trigger_task.delay(pstat.process_id, user)

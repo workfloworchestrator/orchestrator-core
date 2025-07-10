@@ -21,12 +21,10 @@ from kombu.serialization import registry
 
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.executors.threadpool import thread_resume_process, thread_start_process
-from orchestrator.services.input_state import retrieve_input_state
 from orchestrator.services.processes import _get_process, ensure_correct_process_status, load_process
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import ProcessStatus
-from pydantic_forms.types import State
 
 logger = get_task_logger(__name__)
 
@@ -82,11 +80,11 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
         else:
             return process_id
 
-    def resume_process(process_id: UUID, user_inputs: list[State] | None, user: str) -> UUID | None:
+    def resume_process(process_id: UUID, user: str) -> UUID | None:
         try:
             process = _get_process(process_id)
             ensure_correct_process_status(process_id, ProcessStatus.RESUMED)
-            thread_resume_process(process, user_inputs=user_inputs, user=user, broadcast_func=process_broadcast_fn)
+            thread_resume_process(process, user=user, broadcast_func=process_broadcast_fn)
         except Exception as exc:
             local_logger.error("Worker failed to resume workflow", process_id=process_id, details=str(exc))
             return None
@@ -95,7 +93,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
 
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
-    @celery_task(name=NEW_TASK, time_limit=1)  # type: ignore
+    @celery_task(name=NEW_TASK)  # type: ignore
     def new_task(process_id: UUID, workflow_key: str, user: str) -> UUID | None:
         local_logger.info("Start task", process_id=process_id, workflow_key=workflow_key)
         return start_process(process_id, user=user)
@@ -108,14 +106,12 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     @celery_task(name=RESUME_TASK)  # type: ignore
     def resume_task(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume task", process_id=process_id)
-        state = retrieve_input_state(process_id, "user_input").input_state
-        return resume_process(process_id, user_inputs=state, user=user)
+        return resume_process(process_id, user=user)
 
     @celery_task(name=RESUME_WORKFLOW)  # type: ignore
     def resume_workflow(process_id: UUID, user: str) -> UUID | None:
         local_logger.info("Resume workflow", process_id=process_id)
-        state = retrieve_input_state(process_id, "user_input").input_state
-        return resume_process(process_id, user_inputs=state, user=user)
+        return resume_process(process_id, user=user)
 
 
 class CeleryJobWorkerStatus(WorkerStatus):

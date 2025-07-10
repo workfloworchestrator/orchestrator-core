@@ -258,4 +258,8 @@ update the names accordingly after the `-Q` flag.
 
 ### Celery Workflow/Task flow
 
-![Celery Workflow/Task flow](celery-flow.png)
+This diagram shows the current flow of how we execute a workflow or task with celery.
+It's created to show the reason why a workflow/task can get stuck on `CREATED` or `RESUMED` and what we've done to fix it.
+All step statuses are shown in UPPERCASE for clarity.
+
+![Celery Workflow/Task flow](celery-flow.drawio.png)
