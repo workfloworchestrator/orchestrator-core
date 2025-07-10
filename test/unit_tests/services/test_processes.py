@@ -720,7 +720,7 @@ def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
     mock_get_process.side_effect = processes
 
     # resume_process() should be called 2 times for the non-running / non-resumed processes; let 1 call fail
-    mock_resume_process.side_effect = [None, ValueError("This workflow cannot be resumed")]
+    mock_resume_process.side_effect = [None, ValueError("This workflow cannot be resumed because it has been removed")]
 
     # Don't set app_settings.TESTING=False because we want to await the result
     asyncio.run(_async_resume_processes(processes, "testusername"))
