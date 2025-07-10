@@ -385,10 +385,10 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
         step_group_start_time = nowtz().timestamp()
         process: Process = Success(initial_state)
         process = _exec_steps(step_list, process, dblogstep)
-        process.s["__last_step_started_at"] = step_group_start_time
-
         # Add instruction to replace state of last sub step before returning process _exec_steps higher in the call tree
-        return process.map(lambda s: s | {"__replace_last_state": True})
+        return process.map(
+            lambda s: s | {"__replace_last_state": True, "__last_step_started_at": step_group_start_time}
+        )
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
@@ -1457,7 +1457,10 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                     "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
                 )
                 return process
+
+            # Adding to the state with process.map does not work here, even if we pre-compute the time stamp, because of when the lambda is executed
             process.s["__last_step_started_at"] = nowtz().timestamp()
+
             step_result_process = process.execute_step(step)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")
