@@ -1458,9 +1458,7 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                 )
                 return process
 
-            # Adding to the state with process.map does not work here, even if we pre-compute the time stamp, because of when the lambda is executed
-            process.s["__last_step_started_at"] = nowtz().timestamp()
-
+            process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")

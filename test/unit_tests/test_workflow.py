@@ -239,7 +239,7 @@ def test_resume_suspended_workflow():
     assert_success(result)
     assert result == Success({"steps": [1, 2], "name": "Jane Doe", "__last_step_started_at": mock.ANY})
     assert [
-        ("Input Name", Success({"steps": [1], "name": "Jane Doe", "__last_step_started_at": mock.ANY})),
+        ("Input Name", Success({"steps": [1], "name": "Jane Doe"})),
         ("Step 2", Success({"steps": [1, 2], "name": "Jane Doe", "__last_step_started_at": mock.ANY})),
     ] == log
 
