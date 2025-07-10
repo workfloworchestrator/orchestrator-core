@@ -1,7 +1,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy import select, text
 
 from orchestrator.cli.database import migrate_domain_models
@@ -69,7 +68,6 @@ def test_migrate_domain_models_new_product_block(
     assert_subscription_has_initial_values()
 
 
-@pytest.mark.xfail(reason="#888 generator bug - domain_model_attr missing on subscription_instance_relations inserts")
 def test_migrate_domain_models_new_product_block_on_product_block(
     test_product_type_one, test_product_block_one, product_one_subscription_1, test_product_sub_block_one
 ):
