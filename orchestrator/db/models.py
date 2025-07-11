@@ -117,7 +117,7 @@ class ProcessTable(BaseModel):
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
 
     steps = relationship(
-        "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
+        "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.completed_at)"
     )
     input_states = relationship("InputStateTable", cascade="delete", order_by="desc(InputStateTable.input_time)")
     process_subscriptions = relationship("ProcessSubscriptionTable", back_populates="process", passive_deletes=True)
@@ -141,7 +141,8 @@ class ProcessStepTable(BaseModel):
     status = mapped_column(String(50), nullable=False)
     state = mapped_column(pg.JSONB(), nullable=False)
     created_by = mapped_column(String(255), nullable=True)
-    executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    completed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    started_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
 
