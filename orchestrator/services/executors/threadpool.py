@@ -18,8 +18,10 @@ import structlog
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
+from orchestrator.services.input_state import retrieve_input_state
 from orchestrator.services.processes import (
     SYSTEM_USER,
+    StateMerger,
     _get_process,
     _run_process_async,
     create_process,
@@ -52,6 +54,10 @@ def thread_start_process(
     db.session.add(process)
     db.session.commit()
 
+    pstat = load_process(process)
+    input_data = retrieve_input_state(process.process_id, "initial_state")
+    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
     return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
@@ -70,6 +76,9 @@ def thread_resume_process(
 
     if user:
         pstat.update(current_user=user)
+
+    input_data = retrieve_input_state(process.process_id, "user_input")
+    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     # enforce an update to the process status to properly show the process
     process.last_status = ProcessStatus.RUNNING
