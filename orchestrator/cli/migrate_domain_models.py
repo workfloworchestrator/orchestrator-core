@@ -21,6 +21,7 @@ from orchestrator.cli.domain_gen_helpers.fixed_input_helpers import (
 from orchestrator.cli.domain_gen_helpers.helpers import (
     map_create_fixed_inputs,
     map_create_product_block_relations,
+    map_create_product_to_product_block_relations,
     map_create_resource_type_relations,
     map_delete_fixed_inputs,
     map_delete_product_block_relations,
@@ -191,6 +192,7 @@ def map_changes(
     db_product_names: list[str],
     inputs: dict[str, dict[str, str]],
     updates: ModelUpdates | None,
+    confirm_warnings: bool,
 ) -> DomainModelChanges:
     """Map changes that need to be made to fix differences between models and database.
 
@@ -203,6 +205,7 @@ def map_changes(
         db_product_names: Product names out of the database.
         inputs: Optional Dict with prefilled values.
         updates: Optional Dict.
+        confirm_warnings: confirm warnings to continue, fully knowing that things can go wrong.
 
     Returns: Mapped changes.
     """
@@ -231,7 +234,7 @@ def map_changes(
         create_product_fixed_inputs=map_create_fixed_inputs(model_diffs["products"]),
         update_product_fixed_inputs=updates.fixed_inputs,
         delete_product_fixed_inputs=map_delete_fixed_inputs(model_diffs["products"]),
-        create_product_to_block_relations=map_create_product_block_relations(model_diffs["products"]),
+        create_product_to_block_relations=map_create_product_to_product_block_relations(model_diffs["products"]),
         delete_product_to_block_relations=map_delete_product_block_relations(model_diffs["products"]),
         rename_resource_types=updates.resource_types,
         update_block_resource_types=updates.block_resource_types,
@@ -242,12 +245,14 @@ def map_changes(
         delete_resource_type_relations=delete_resource_type_relations,
         create_product_blocks=map_create_product_blocks(product_blocks),
         delete_product_blocks=map_delete_product_blocks(product_blocks),
-        create_product_block_relations=map_create_product_block_relations(model_diffs["blocks"]),
+        create_product_block_relations=map_create_product_block_relations(
+            model_diffs["blocks"], product_blocks, confirm_warnings
+        ),
         delete_product_block_relations=map_delete_product_block_relations(model_diffs["blocks"]),
     )
 
     changes = map_product_additional_relations(changes)
-    changes = map_product_block_additional_relations(changes)
+    changes = map_product_block_additional_relations(changes, product_blocks, confirm_warnings)
     temp = {key for v in changes.update_block_resource_types.values() for key in v.values()}
     related_resource_type_names = set(changes.create_resource_type_relations.keys()) | temp
     existing_renamed_rts = set(changes.rename_resource_types.values())
@@ -334,8 +339,12 @@ def generate_downgrade_sql(changes: DomainModelChanges) -> list[str]:
     sql_revert_create_product_product_block_relations = generate_delete_product_relations_sql(
         changes.create_product_to_block_relations,
     )
+
+    downgrade_block_relations = {
+        k: {b["name"] for b in blocks} for k, blocks in changes.create_product_block_relations.items()
+    }
     sql_revert_create_product_block_depends_blocks = generate_delete_product_block_relations_sql(
-        changes.create_product_block_relations
+        downgrade_block_relations
     )
 
     sql_revert_create_product_blocks = generate_delete_product_blocks_sql(set(changes.create_product_blocks.keys()))
@@ -361,6 +370,7 @@ def create_domain_models_migration_sql(
     inputs: dict[str, dict[str, str]],
     updates: ModelUpdates | None,
     is_test: bool = False,
+    confirm_warnings: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Create tuple with list for upgrade and downgrade SQL statements based on SubscriptionModel.diff_product_in_database.
 
@@ -370,6 +380,7 @@ def create_domain_models_migration_sql(
         inputs: dict with pre-defined input values
         updates: The model
         is_test: the bool for if it is test
+        confirm_warnings: confirm warnings to continue, fully knowing that things can go wrong.
 
     Returns tuple:
         list of upgrade SQL statements in string format.
@@ -384,7 +395,7 @@ def create_domain_models_migration_sql(
     product_blocks = map_product_blocks(list(SUBSCRIPTION_MODEL_REGISTRY.values()))
     model_diffs = map_differences_unique(products, existing_products)
 
-    changes = map_changes(model_diffs, products, product_blocks, db_product_names, inputs, updates)
+    changes = map_changes(model_diffs, products, product_blocks, db_product_names, inputs, updates, confirm_warnings)
 
     logger.info("create_products", create_products=changes.create_products)
     logger.info("delete_products", delete_products=changes.delete_products)

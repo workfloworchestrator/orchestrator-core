@@ -256,6 +256,9 @@ def migrate_domain_models(
     test: bool = typer.Option(False, help="Optional boolean if you don't want to generate a migration file"),
     inputs: str = typer.Option("{}", help="Stringified dict to prefill inputs"),
     updates: str = typer.Option("{}", help="Stringified dict to map updates instead of using inputs"),
+    confirm_warnings: bool = typer.Option(
+        False, help="Optional boolean if you want to accept all warning inputs, fully knowing things can go wrong"
+    ),
 ) -> tuple[list[str], list[str]] | None:
     """Create migration file based on SubscriptionModel.diff_product_in_database. BACKUP DATABASE BEFORE USING THE MIGRATION!.
 
@@ -282,6 +285,8 @@ def migrate_domain_models(
                 - `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
             - renaming a resource type to existing resource type: `updates = { "resource_types": { "old_resource_type_name": "new_resource_type_name" } }`
 
+        confirm_warnings: Optional boolean if you want to accept all warning inputs, fully knowing things can go wrong.
+
     Returns None unless `--test` is used, in which case it returns:
         - tuple:
             - list of upgrade SQL statements in string format.
@@ -304,7 +309,9 @@ def migrate_domain_models(
             resource_types=updates_dict.get("resource_types", {}),
             block_resource_types=updates_dict.get("block_resource_types", {}),
         )
-    sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(inputs_dict, updates_class, bool(test))
+    sql_upgrade_stmts, sql_downgrade_stmts = create_domain_models_migration_sql(
+        inputs_dict, updates_class, test, confirm_warnings
+    )
 
     if test:
         return sql_upgrade_stmts, sql_downgrade_stmts

@@ -7,8 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.sql.expression import Delete, Insert
 from sqlalchemy.sql.selectable import ScalarSelect
 
-from orchestrator.cli.domain_gen_helpers.helpers import get_product_block_names, sql_compile
-from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
+from orchestrator.cli.domain_gen_helpers.helpers import (
+    format_block_relation_to_dict,
+    get_product_block_names,
+    sql_compile,
+)
+from orchestrator.cli.domain_gen_helpers.types import BlockRelationDict, DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, print_fmt, str_fmt
 from orchestrator.db import db
@@ -68,13 +72,17 @@ def map_delete_product_blocks(product_blocks: dict[str, type[ProductBlockModel]]
     return {name for name in existing_product_blocks if name not in product_blocks}
 
 
-def map_product_block_additional_relations(changes: DomainModelChanges) -> DomainModelChanges:
+def map_product_block_additional_relations(
+    changes: DomainModelChanges, models: dict[str, type[ProductBlockModel]], confirm_warnings: bool
+) -> DomainModelChanges:
     """Map additional relations for created product blocks.
 
     Adds resource type and product block relations.
 
     Args:
         changes: DomainModelChanges class with all changes.
+        models: All product block models.
+        confirm_warnings: confirm warnings to continue, fully knowing that things can go wrong.
 
     Returns: Updated DomainModelChanges.
     """
@@ -86,7 +94,12 @@ def map_product_block_additional_relations(changes: DomainModelChanges) -> Domai
         product_blocks_in_model = block_class._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
         for product_block_name in get_product_block_names(product_blocks_types_in_model):
-            changes.create_product_block_relations.setdefault(product_block_name, set()).add(block_name)
+            relation_list = changes.create_product_block_relations.get(product_block_name, [])
+            new_relation = format_block_relation_to_dict(block_name, product_block_name, models, confirm_warnings)
+
+            if new_relation not in relation_list:
+                changes.create_product_block_relations[product_block_name] = relation_list + [new_relation]
+
     return changes
 
 
@@ -147,31 +160,35 @@ def generate_delete_product_blocks_sql(delete_product_blocks: set[str]) -> list[
     ]
 
 
-def generate_create_product_block_relations_sql(create_block_relations: dict[str, set[str]]) -> list[str]:
+def generate_create_product_block_relations_sql(
+    create_block_relations: dict[str, list[BlockRelationDict]],
+) -> list[str]:
     """Generate SQL to create product block to product block relations.
 
     Args:
         create_block_relations: Dict with product blocks by product block
             - key: product block name.
-            - value: Set of product block names to relate with.
+            - list: List of product blocks to relate with by prop names.
 
     Returns: List of SQL to create relation between product blocks.
     """
 
-    def create_block_relation(depends_block_name: str, block_names: set[str]) -> str:
+    def create_block_relation(depends_block_name: str, block_relations: list[BlockRelationDict]) -> str:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def create_block_relation_dict(block_name: str) -> dict[str, ScalarSelect]:
-            block_id_sql = get_product_block_id(block_name)
+        def create_block_relation_dict(block_relation: BlockRelationDict) -> dict[str, ScalarSelect]:
+            block_id_sql = get_product_block_id(block_relation["name"])
             return {"in_use_by_id": block_id_sql, "depends_on_id": depends_block_id_sql}
 
-        product_product_block_relation_dicts = [create_block_relation_dict(block_name) for block_name in block_names]
+        product_product_block_relation_dicts = [create_block_relation_dict(block) for block in block_relations]
         return sql_compile(Insert(ProductBlockRelationTable).values(product_product_block_relation_dicts))
 
     return [create_block_relation(*item) for item in create_block_relations.items()]
 
 
-def generate_create_product_block_instance_relations_sql(product_block_relations: dict[str, set[str]]) -> list[str]:
+def generate_create_product_block_instance_relations_sql(
+    product_block_relations: dict[str, list[BlockRelationDict]],
+) -> list[str]:
     """Generate SQL to create resource type instance values for existing instances.
 
     Args:
@@ -183,12 +200,14 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
     """
 
     def create_subscription_instance_relations(
-        depends_block_name: str, block_names: set[str]
+        depends_block_name: str, block_relations: list[BlockRelationDict]
     ) -> Generator[str, None, None]:
         depends_block_id_sql = get_product_block_id(depends_block_name)
 
-        def map_subscription_instances(block_name: str) -> dict[str, list[dict[str, str | ScalarSelect]]]:
-            in_use_by_id_sql = get_product_block_id(block_name)
+        def map_subscription_instances(
+            block_relation: BlockRelationDict,
+        ) -> dict[str, list[dict[str, str | ScalarSelect]]]:
+            in_use_by_id_sql = get_product_block_id(block_relation["name"])
             stmt = select(
                 SubscriptionInstanceTable.subscription_instance_id, SubscriptionInstanceTable.subscription_id
             ).where(SubscriptionInstanceTable.product_block_id.in_(in_use_by_id_sql))
@@ -206,13 +225,14 @@ def generate_create_product_block_instance_relations_sql(product_block_relations
                     "in_use_by_id": instance.subscription_instance_id,
                     "depends_on_id": get_subscription_instance(instance.subscription_id, depends_block_id_sql),
                     "order_id": 0,
+                    "domain_model_attr": block_relation["attribute_name"],
                 }
                 for instance in subscription_instances
             ]
 
             return {"instance_list": instance_list, "instance_relation_list": instance_relation_list}
 
-        create_instance_list = [map_subscription_instances(block_name) for block_name in block_names]
+        create_instance_list = [map_subscription_instances(block_relation) for block_relation in block_relations]
 
         subscription_instance_dicts = list(flatten(item["instance_list"] for item in create_instance_list))
         subscription_relation_dicts = list(flatten(item["instance_relation_list"] for item in create_instance_list))

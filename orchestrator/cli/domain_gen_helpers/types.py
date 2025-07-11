@@ -1,6 +1,12 @@
 from pydantic import BaseModel
+from typing_extensions import TypedDict
 
 from orchestrator.domain.base import ProductBlockModel, SubscriptionModel
+
+
+class BlockRelationDict(TypedDict):
+    name: str
+    attribute_name: str
 
 
 class DomainModelChanges(BaseModel):
@@ -10,7 +16,7 @@ class DomainModelChanges(BaseModel):
     delete_product_to_block_relations: dict[str, set[str]] = {}
     create_product_blocks: dict[str, type[ProductBlockModel]] = {}
     delete_product_blocks: set[str] = set()
-    create_product_block_relations: dict[str, set[str]] = {}
+    create_product_block_relations: dict[str, list[BlockRelationDict]] = {}
     delete_product_block_relations: dict[str, set[str]] = {}
     create_product_fixed_inputs: dict[str, set[str]] = {}
     update_product_fixed_inputs: dict[str, dict[str, str]] = {}
