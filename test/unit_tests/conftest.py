@@ -263,6 +263,11 @@ def db_session(database):
         try:
             yield
         finally:
+            # Ensure all connections are closed
+            try:
+                db.wrapped_database.scoped_session.close_all()
+            except Exception:
+                logger.exception("Closing wrapped db connections failed, test teardown may fail")
             if not trans._deactivated_from_connection:
                 trans.rollback()
 
