@@ -50,9 +50,10 @@ def resume_found_workflows(
     created_state_process_ids: list[UUIDstr],
     resumed_state_process_ids: list[UUIDstr],
 ) -> State:
-    all_processes = waiting_process_ids + created_state_process_ids + resumed_state_process_ids
+    resume_processes = waiting_process_ids + resumed_state_process_ids
+
     resumed_process_ids = []
-    for process_id in all_processes:
+    for process_id in resume_processes:
         try:
             process = db.session.get(ProcessTable, process_id)
             if not process:
@@ -67,7 +68,28 @@ def resume_found_workflows(
             # Make sure to turn it on again
             db.session.info["disabled"] = True
 
-    return {"number_of_resumed_process_ids": len(resumed_process_ids), "resumed_process_ids": resumed_process_ids}
+    started_process_ids = []
+    for process_id in created_state_process_ids:
+        try:
+            process = db.session.get(ProcessTable, process_id)
+            if not process:
+                continue
+            # Workaround the commit disable function
+            db.session.info["disabled"] = False
+            processes.restart_process(process)
+            started_process_ids.append(process_id)
+        except Exception:
+            logger.exception()
+        finally:
+            # Make sure to turn it on again
+            db.session.info["disabled"] = True
+
+    return {
+        "number_of_resumed_process_ids": len(resumed_process_ids),
+        "resumed_process_ids": resumed_process_ids,
+        "number_of_started_process_ids": len(started_process_ids),
+        "started_process_ids": started_process_ids,
+    }
 
 
 @workflow("Resume all workflows that are stuck on tasks with the status 'waiting'", target=Target.SYSTEM)
