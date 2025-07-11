@@ -495,6 +495,29 @@ def start_process(
     return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
 
 
+def restart_process(
+    process: ProcessTable,
+    *,
+    user: str | None = None,
+    broadcast_func: BroadcastFunc | None = None,
+) -> UUID:
+    """Start a process for workflow.
+
+    Args:
+        process: Process from database
+        user: user who resumed this process
+        broadcast_func: Optional function to broadcast process data
+
+    Returns:
+        process id
+
+    """
+    pstat = load_process(process)
+
+    start_func = get_execution_context()["start"]
+    return start_func(pstat, user=user, broadcast_func=broadcast_func)
+
+
 def resume_process(
     process: ProcessTable,
     *,
