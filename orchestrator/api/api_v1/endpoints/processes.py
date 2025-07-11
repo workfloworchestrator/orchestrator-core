@@ -123,6 +123,7 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
 def can_be_resumed(status: ProcessStatus) -> bool:
     return status in (
         ProcessStatus.SUSPENDED,  # Can be resumed
+        ProcessStatus.WAITING,  # Can be retried
         ProcessStatus.FAILED,  # Can be retried
         ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
         ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
@@ -212,7 +213,7 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.SUSPENDED:
         if auth_resume is not None and not auth_resume(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
-    elif process.last_status == ProcessStatus.FAILED:
+    elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
         if auth_retry is not None and not auth_retry(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 
