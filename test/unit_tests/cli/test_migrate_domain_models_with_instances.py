@@ -119,11 +119,6 @@ def test_migrate_domain_models_new_product_block_on_product_block(
             db.session.execute(text(stmt))
         db.session.commit()
 
-        # TODO (#888)  upgrade_sql contains insert statements for subscription_instance_relations
-        #  without `domain_model_attr` set. Therefore we cannot reliably map instances of TestBlock to the
-        #  `new_block` field. SubscriptionModel._load_instances() would "fallback" to the field name in the python model
-        #  and when reconstructing instances (which has its flaws as well).
-        #  SubscriptionModel._load_root_instance() can't do this as the instance data is aggregated in the DB query.
         new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
         assert new_model.block.new_block
         assert new_model.block.new_block.str_field

@@ -262,12 +262,8 @@ def _has_product_existing_instances(product_name: str) -> bool:
     return bool(product and get_product_instance_count(product.product_id))
 
 
-def _find_new_relations(block_name: str, relations: dict[str, set[str]]) -> set[str]:
-    return set(flatten((list(v) for k, v in relations.items() if block_name in k)))
-
-
 def _find_new_block_relations(block_name: str, relations: dict[str, list[BlockRelationDict]]) -> set[str]:
-    return set(flatten([r["name"] for r in v] for k, v in relations.items() if block_name in k))
+    return {r["name"] for r in relations.get(block_name, [])}
 
 
 def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str, set[str]]:
@@ -293,7 +289,7 @@ def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str,
         if related_block_names:
             return any(_has_existing_instances(name) for name in related_block_names)
 
-        related_product_names = _find_new_relations(block_name, changes.create_product_to_block_relations)
+        related_product_names = changes.create_product_to_block_relations.get(block_name, set())
         return any(_has_product_existing_instances(name) for name in related_product_names)
 
     return {
