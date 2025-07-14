@@ -23,7 +23,17 @@ from orchestrator.services.processes import shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus, StepList, done, init, inputstep, make_workflow, step, workflow
+from orchestrator.workflow import (
+    ProcessStatus,
+    StepList,
+    StepStatus,
+    done,
+    init,
+    inputstep,
+    make_workflow,
+    step,
+    workflow,
+)
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -53,17 +63,17 @@ def started_process(test_workflow, generic_subscription_1):
     process = ProcessTable(
         process_id=process_id, workflow_id=test_workflow.workflow_id, last_status=ProcessStatus.SUSPENDED
     )
-    init_step = ProcessStepTable(process_id=process_id, name="Start", status="success", state={})
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
     insert_step = ProcessStepTable(
         process_id=process_id,
         name="Insert UUID in state",
-        status="success",
+        status=StepStatus.SUCCESS,
         state={"subscription_id": generic_subscription_1},
     )
     check_step = ProcessStepTable(
         process_id=process_id,
         name="Test that it is a string now",
-        status="success",
+        status=StepStatus.SUCCESS,
         state={"subscription_id": generic_subscription_1},
     )
     step = ProcessStepTable(
@@ -214,7 +224,7 @@ def test_complete_workflow(test_client, test_workflow):
     assert "suspended" == process["last_status"]
 
     steps = process["steps"]
-    assert "success" == steps[0]["status"]
+    assert StepStatus.SUCCESS == steps[0]["status"]
 
     response = test_client.get(f"/api/processes/{process_id}")
     assert response.json()["form"] == {
@@ -610,52 +620,8 @@ def test_unauthorized_to_run_process(test_client):
         assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def test_inputstep_authorization(test_client):
-    def disallow(_: OIDCUserModel | None = None) -> bool:
-        return False
-
-    def allow(_: OIDCUserModel | None = None) -> bool:
-        return True
-
-    class ConfirmForm(FormPage):
-        confirm: bool
-
-    @inputstep("unauthorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=disallow)
-    def unauthorized_resume(state):
-        user_input = yield ConfirmForm
-        return user_input.model_dump()
-
-    @inputstep("authorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=allow)
-    def authorized_resume(state):
-        user_input = yield ConfirmForm
-        return user_input.model_dump()
-
-    @inputstep("noauth_resume", assignee=Assignee.SYSTEM)
-    def noauth_resume(state):
-        user_input = yield ConfirmForm
-        return user_input.model_dump()
-
-    @workflow("test_auth_workflow", target=Target.CREATE)
-    def test_auth_workflow():
-        return init >> noauth_resume >> authorized_resume >> unauthorized_resume >> done
-
-    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
-        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
-        assert HTTPStatus.CREATED == response.status_code
-        process_id = response.json()["id"]
-        # No auth succeeds
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
-        # Authorized succeeds
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
-        # Unauthorized fails
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.FORBIDDEN == response.status_code
-
-
-@pytest.mark.xfail(reason="core currently lacks support for tests involving a failed step")
-def test_retry_authorization(test_client):
+@pytest.fixture
+def authorize_resume_workflow():
     def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
@@ -670,31 +636,82 @@ def test_retry_authorization(test_client):
         user_input = yield ConfirmForm
         return user_input.model_dump()
 
-    @step("fails once")
-    def fails_once(state):
-        if not hasattr(fails_once, "called"):
-            fails_once.called = False
-
-        if not fails_once.called:
-            fails_once.called = True
-            raise RuntimeError("Failing intentionally, ignore")
-        return {}
+    @inputstep("unauthorized_resume", assignee=Assignee.SYSTEM, resume_auth_callback=disallow)
+    def unauthorized_resume(state):
+        user_input = yield ConfirmForm
+        return user_input.model_dump()
 
     @workflow("test_auth_workflow", target=Target.CREATE, authorize_callback=allow, retry_auth_callback=disallow)
     def test_auth_workflow():
-        return init >> authorized_resume >> fails_once >> done
+        return init >> authorized_resume >> unauthorized_resume >> done
 
-    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow"):
-        # Creating workflow succeeds
-        response = test_client.post("/api/processes/test_auth_workflow", json=[{}])
-        assert HTTPStatus.CREATED == response.status_code
-        process_id = response.json()["id"]
-        # We're authorized to resume, but this will error, so we can retry
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{"confirm": True}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
-        # We're authorized to retry, in spite of workflow's retry_auth_callback=disallow
-        response = test_client.put(f"/api/processes/{process_id}/resume", json=[{}])
-        assert HTTPStatus.NO_CONTENT == response.status_code
+    with WorkflowInstanceForTests(test_auth_workflow, "test_auth_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_resume(authorize_resume_workflow):
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_resume_workflow.workflow_id,
+        last_status=ProcessStatus.SUSPENDED,
+        last_step="Start",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_retry(authorize_resume_workflow):
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_resume_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_resume",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_resume", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unauthorize_resume(process_on_resume):
+    authorize_resume_step = ProcessStepTable(
+        process_id=process_on_resume, name="authorized_resume", status=StepStatus.SUCCESS, state={"confirm": True}
+    )
+
+    db.session.add(authorize_resume_step)
+    db.session.commit()
+
+    return process_on_resume
+
+
+def test_authorized_resume_input_step(test_client, process_on_resume):
+    response = test_client.put(f"/api/processes/{process_on_resume}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_resume_input_step_retry(test_client, process_on_retry):
+    response = test_client.put(f"/api/processes/{process_on_retry}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+def test_unauthorized_resume_input_step(test_client, process_on_unauthorize_resume):
+    response = test_client.put(f"/api/processes/{process_on_unauthorize_resume}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.FORBIDDEN == response.status_code
 
 
 def _A(_: OIDCUserModel) -> bool:
