@@ -704,7 +704,7 @@ def test_authorized_resume_input_step(test_client, process_on_resume):
     assert HTTPStatus.NO_CONTENT == response.status_code
 
 
-def xtest_unauthorized_resume_input_step_retry(test_client, process_on_retry):
+def test_unauthorized_resume_input_step_retry(test_client, process_on_retry):
     response = test_client.put(f"/api/processes/{process_on_retry}/resume", json=[{"confirm": True}])
     assert HTTPStatus.FORBIDDEN == response.status_code
 
