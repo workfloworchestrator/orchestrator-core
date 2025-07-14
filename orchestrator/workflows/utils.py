@@ -265,7 +265,7 @@ def modify_workflow(
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription(Target.MODIFY)
+            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
@@ -311,7 +311,7 @@ def terminate_workflow(
     def _terminate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription(Target.TERMINATE)
+            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
@@ -348,7 +348,7 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
     """
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = init >> store_process_subscription(Target.SYSTEM) >> unsync_unchecked >> f() >> resync >> done
+        steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
 
         return make_workflow(f, description, validate_initial_input_form_generator, Target.VALIDATE, steplist)
 

@@ -123,6 +123,7 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
 def can_be_resumed(status: ProcessStatus) -> bool:
     return status in (
         ProcessStatus.SUSPENDED,  # Can be resumed
+        ProcessStatus.WAITING,  # Can be retried
         ProcessStatus.FAILED,  # Can be retried
         ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
         ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
@@ -157,6 +158,9 @@ def delete(process_id: UUID) -> None:
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
+
+    if not process.is_task:
+        raise_status(HTTPStatus.BAD_REQUEST)
 
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
@@ -209,7 +213,7 @@ def resume_process_endpoint(
     if process.last_status == ProcessStatus.SUSPENDED:
         if auth_resume is not None and not auth_resume(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
-    elif process.last_status == ProcessStatus.FAILED:
+    elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
         if auth_retry is not None and not auth_retry(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 
@@ -270,7 +274,7 @@ def update_progress_on_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
+async def resume_all_processes_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.

@@ -8,7 +8,7 @@ This workflow uses the following steps:
 
 ```python
 init
->> store_process_subscription(Target.MODIFY)
+>> store_process_subscription()
 >> unsync
 >> modify_user_subscription
 >> resync

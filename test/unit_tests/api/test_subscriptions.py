@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from nwastdlib.url import URL
+from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.helpers import product_block_paths
 from orchestrator.db import (
     FixedInputTable,
@@ -29,7 +30,7 @@ from orchestrator.services.subscriptions import (
     unsync,
 )
 from orchestrator.targets import Target
-from orchestrator.workflow import ProcessStatus
+from orchestrator.workflow import ProcessStatus, done, init, workflow
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
     INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
@@ -39,6 +40,7 @@ from test.unit_tests.config import (
     PORT_SUBSCRIPTION_ID,
 )
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
+from test.unit_tests.workflows import WorkflowInstanceForTests
 
 SERVICE_SUBSCRIPTION_ID = str(uuid4())
 PORT_A_SUBSCRIPTION_ID = str(uuid4())
@@ -50,7 +52,8 @@ IP_PREFIX_SUBSCRIPTION_ID = str(uuid4())
 INVALID_SUBSCRIPTION_ID = str(uuid4())
 INVALID_PORT_SUBSCRIPTION_ID = str(uuid4())
 
-PRODUCT_ID = str(uuid4())
+PORT_A_PRODUCT_ID = str(uuid4())
+PORT_B_PRODUCT_ID = str(uuid4())
 CUSTOMER_ID = str(uuid4())
 
 
@@ -77,7 +80,7 @@ def seed():
         fixed_inputs=fixed_inputs,
     )
     port_a_product = ProductTable(
-        product_id=PRODUCT_ID,
+        product_id=PORT_A_PRODUCT_ID,
         name="PortAProduct",
         description="Port A description",
         product_type="Port",
@@ -87,6 +90,7 @@ def seed():
         fixed_inputs=fixed_inputs,
     )
     port_b_product = ProductTable(
+        product_id=PORT_B_PRODUCT_ID,
         name="PortBProduct",
         description="Port B description",
         product_type="Port",
@@ -280,7 +284,7 @@ def seed_with_direct_relations():
         fixed_inputs=fixed_inputs,
     )
     port_a_product = ProductTable(
-        product_id=PRODUCT_ID,
+        product_id=PORT_A_PRODUCT_ID,
         name="PortAProduct",
         description="Port A description",
         product_type="Port",
@@ -844,3 +848,34 @@ def test_subscription_detail_with_in_use_by_ids_not_filtered_self(test_client, p
     )
     assert response.status_code == HTTPStatus.OK
     assert response.json()["block"]["sub_block"]["in_use_by_ids"]
+
+
+@pytest.mark.parametrize(
+    "test_input",
+    [
+        (PORT_A_PRODUCT_ID, PORT_A_SUBSCRIPTION_ID, "subscription.no_modify_invalid_status"),
+        (PORT_B_PRODUCT_ID, SSP_SUBSCRIPTION_ID, "subscription.insufficient_workflow_permissions"),
+    ],
+)
+def test_subscription_detail_with_forbidden_workflow_without_override(seed, test_client, test_input):
+    product_id, subscription_id, expected_error = test_input
+
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    @workflow("unauthorized_workflow", target=Target.MODIFY, authorize_callback=disallow)
+    def unauthorized_workflow():
+        return init >> done
+
+    with WorkflowInstanceForTests(unauthorized_workflow, "unauthorized_workflow") as wf:
+        product = db.session.get(ProductTable, product_id)
+        product.workflows.append(wf)
+        db.session.commit()
+
+        response = test_client.get(f"/api/subscriptions/workflows/{subscription_id}")
+        assert response.status_code == HTTPStatus.OK
+
+        subscription_workflows = response.json()
+        assert len(subscription_workflows["modify"]) == 1
+        assert "reason" in subscription_workflows["modify"][0]
+        assert subscription_workflows["modify"][0]["reason"] == expected_error

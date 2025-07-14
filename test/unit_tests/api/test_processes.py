@@ -110,7 +110,20 @@ def test_show_not_found(test_client, started_process):
     assert HTTPStatus.NOT_FOUND == response.status_code
 
 
-def test_delete_process(responses, test_client, started_process):
+def test_delete_process_workflow(responses, test_client, started_process):
+    processes = test_client.get("/api/processes").json()
+    before_delete_count = len(processes)
+
+    response = test_client.delete(f"/api/processes/{started_process}")
+    assert HTTPStatus.BAD_REQUEST == response.status_code
+    assert before_delete_count == len(test_client.get("/api/processes").json())
+
+
+def test_delete_process_task(responses, test_client, started_process):
+    process = db.session.get(ProcessTable, started_process)
+    process.is_task = True
+    db.session.commit()
+
     processes = test_client.get("/api/processes").json()
     before_delete_count = len(processes)
 
@@ -449,7 +462,7 @@ def test_processes_filterable_response_model(
         "current_state": None,
         "steps": None,
         "form": None,
-        "workflow_target": "CREATE",
+        "workflow_target": "SYSTEM",
     }
 
 

@@ -117,7 +117,7 @@ class ProcessTable(BaseModel):
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
 
     steps = relationship(
-        "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
+        "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.completed_at)"
     )
     input_states = relationship("InputStateTable", cascade="delete", order_by="desc(InputStateTable.input_time)")
     process_subscriptions = relationship("ProcessSubscriptionTable", back_populates="process", passive_deletes=True)
@@ -141,7 +141,8 @@ class ProcessStepTable(BaseModel):
     status = mapped_column(String(50), nullable=False)
     state = mapped_column(pg.JSONB(), nullable=False)
     created_by = mapped_column(String(255), nullable=True)
-    executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    completed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    started_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
 
@@ -154,7 +155,9 @@ class ProcessSubscriptionTable(BaseModel):
     )
     subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
-    workflow_target = mapped_column(String(255), nullable=False, server_default=Target.CREATE)
+
+    # FIXME: workflow_target is already stored in the workflow table, this column should get removed in a later release.
+    workflow_target = mapped_column(String(255), nullable=True)
 
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription = relationship("SubscriptionTable", back_populates="processes")
