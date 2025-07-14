@@ -265,8 +265,8 @@ def test_process_log_db_step_waiting(simple_workflow):
     assert psteps[0].status == "waiting"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     assert pstep_state == {"class": "Exception", "error": state_data, "retries": 1}
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.WAITING
@@ -319,8 +319,8 @@ def test_process_log_db_step_failed(simple_workflow):
     assert psteps[0].status == "failed"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     del pstep_state["class"]
     assert pstep_state == {"error": "Hard failure", "retries": 1}
     assert psteps[0].created_by == "user"
@@ -375,8 +375,8 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     assert psteps[0].status == "failed"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     del pstep_state["class"]
     assert pstep_state == {"error": "Assertion failure", "retries": 1}
     assert psteps[0].created_by == "user"
@@ -431,8 +431,8 @@ def test_process_log_db_step_api_failed(simple_workflow):
     assert psteps[0].status == "failed"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     del pstep_state["class"]
     assert pstep_state == {
         "error": "API failure",
@@ -579,7 +579,7 @@ def test_process_log_db_step_deduplication(simple_workflow):
     _db_log_step(pstat, step1, Success({}))
     _db_log_step(pstat, step1, Failed(error_state_data))
 
-    psteps = _get_process_steps(p.process_id, order_by=ProcessStepTable.executed_at.asc())
+    psteps = _get_process_steps(p.process_id, order_by=ProcessStepTable.completed_at.asc())
 
     assert psteps[0].name == "step1"
     assert psteps[0].status == "failed"
