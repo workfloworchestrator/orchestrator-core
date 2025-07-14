@@ -27,7 +27,9 @@ def test_migrate_domain_models_new_product(test_product_type_one, test_product_s
         "list_field": {"description": "list field desc", "ProductBlockOneForTest": "list test"},
         "enum_field": {"description": "an enum", "ProductBlockOneForTest": str(DummyEnum.FOO)},
     }
-    upgrade_sql, downgrade_sql = migrate_domain_models("example", True, inputs=json.dumps(inputs))
+    upgrade_sql, downgrade_sql = migrate_domain_models(
+        "example", True, inputs=json.dumps(inputs), confirm_warnings=True
+    )
 
     assert len(upgrade_sql) == 11
     assert len(downgrade_sql) == 20

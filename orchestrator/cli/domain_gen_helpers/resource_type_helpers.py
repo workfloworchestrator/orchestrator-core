@@ -9,7 +9,7 @@ from sqlalchemy.sql.selectable import ScalarSelect
 
 from orchestrator.cli.domain_gen_helpers.helpers import sql_compile
 from orchestrator.cli.domain_gen_helpers.product_block_helpers import get_product_block_id, get_product_block_ids
-from orchestrator.cli.domain_gen_helpers.types import DomainModelChanges
+from orchestrator.cli.domain_gen_helpers.types import BlockRelationDict, DomainModelChanges
 from orchestrator.cli.helpers.input_helpers import _enumerate_menu_keys, _prompt_user_menu, get_user_input
 from orchestrator.cli.helpers.print_helpers import COLOR, noqa_print, print_fmt, str_fmt
 from orchestrator.db import db
@@ -262,8 +262,8 @@ def _has_product_existing_instances(product_name: str) -> bool:
     return bool(product and get_product_instance_count(product.product_id))
 
 
-def _find_new_relations(block_name: str, relations: dict[str, set[str]]) -> set[str]:
-    return set(flatten((list(v) for k, v in relations.items() if block_name in k)))
+def _find_new_block_relations(block_name: str, relations: dict[str, list[BlockRelationDict]]) -> set[str]:
+    return {r["name"] for r in relations.get(block_name, [])}
 
 
 def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str, set[str]]:
@@ -285,11 +285,11 @@ def map_create_resource_type_instances(changes: DomainModelChanges) -> dict[str,
         if block and get_block_instance_count(block.product_block_id):
             return True
 
-        related_block_names = _find_new_relations(block_name, changes.create_product_block_relations)
+        related_block_names = _find_new_block_relations(block_name, changes.create_product_block_relations)
         if related_block_names:
             return any(_has_existing_instances(name) for name in related_block_names)
 
-        related_product_names = _find_new_relations(block_name, changes.create_product_to_block_relations)
+        related_product_names = changes.create_product_to_block_relations.get(block_name, set())
         return any(_has_product_existing_instances(name) for name in related_product_names)
 
     return {

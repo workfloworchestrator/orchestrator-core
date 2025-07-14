@@ -1,7 +1,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy import select, text
 
 from orchestrator.cli.database import migrate_domain_models
@@ -69,7 +68,6 @@ def test_migrate_domain_models_new_product_block(
     assert_subscription_has_initial_values()
 
 
-@pytest.mark.xfail(reason="#888 generator bug - domain_model_attr missing on subscription_instance_relations inserts")
 def test_migrate_domain_models_new_product_block_on_product_block(
     test_product_type_one, test_product_block_one, product_one_subscription_1, test_product_sub_block_one
 ):
@@ -121,11 +119,6 @@ def test_migrate_domain_models_new_product_block_on_product_block(
             db.session.execute(text(stmt))
         db.session.commit()
 
-        # TODO (#888)  upgrade_sql contains insert statements for subscription_instance_relations
-        #  without `domain_model_attr` set. Therefore we cannot reliably map instances of TestBlock to the
-        #  `new_block` field. SubscriptionModel._load_instances() would "fallback" to the field name in the python model
-        #  and when reconstructing instances (which has its flaws as well).
-        #  SubscriptionModel._load_root_instance() can't do this as the instance data is aggregated in the DB query.
         new_model: ProductTypeOneForTestNew = ProductTypeOneForTestNew.from_subscription(product_one_subscription_1)
         assert new_model.block.new_block
         assert new_model.block.new_block.str_field
