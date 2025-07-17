@@ -15,7 +15,7 @@ class RESTResponse:  # From openapi-generator generated clients
         return self.headers
 
 
-def test_error_state_to_dict():
+def test_error_state_to_dict_base_exception():
     e = Exception("bla")
     assert error_state_to_dict(e) == {
         "class": "Exception",
@@ -23,6 +23,8 @@ def test_error_state_to_dict():
         "traceback": "Exception: bla\n",
     }
 
+
+def test_error_state_to_dict_api_exception():
     e = ApiException(status=HTTPStatus.NOT_FOUND, reason="Not Found")
     assert error_state_to_dict(e) == {
         "body": None,
@@ -33,6 +35,8 @@ def test_error_state_to_dict():
         "traceback": "ApiException: (404)\n" "Reason: Not Found\n" "\n",
     }
 
+
+def test_error_state_to_dict_api_exception_with_http_response():
     e = ApiException(
         http_resp=RESTResponse(HTTPStatus.NOT_FOUND, "Not Found", "Body", {"Header": "value", "Content-type": "bogus"})
     )
@@ -45,6 +49,21 @@ def test_error_state_to_dict():
         "traceback": "ApiException: (404)\nReason: Not Found\nHTTP response headers: {'Header': 'value', 'Content-type': 'bogus'}\nHTTP response body: Body\n\n",
     }
 
+
+def test_error_state_to_dict_api_exception_with_headers_none():
+    e = ApiException(status=HTTPStatus.NOT_FOUND, reason="Not Found")
+    e.headers = None
+    assert error_state_to_dict(e) == {
+        "body": "Body",
+        "class": "ApiException",
+        "error": "Not Found",
+        "headers": "",
+        "status_code": HTTPStatus.NOT_FOUND,
+        "traceback": "ApiException: (404)\nReason: Not Found\nHTTP response headers: {'Header': 'value', 'Content-type': 'bogus'}\nHTTP response body: Body\n\n",
+    }
+
+
+def test_error_state_to_dict_process_failure_exception():
     e = ProcessFailureError(message="Something went wrong", details={"foo": "bar"})
     assert error_state_to_dict(e) == {
         "class": "ProcessFailureError",
