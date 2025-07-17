@@ -54,12 +54,12 @@ def test_error_state_to_dict_api_exception_with_headers_none():
     e = ApiException(status=HTTPStatus.NOT_FOUND, reason="Not Found")
     e.headers = None
     assert error_state_to_dict(e) == {
-        "body": "Body",
+        "body": None,
         "class": "ApiException",
         "error": "Not Found",
         "headers": "",
         "status_code": HTTPStatus.NOT_FOUND,
-        "traceback": "ApiException: (404)\nReason: Not Found\nHTTP response headers: {'Header': 'value', 'Content-type': 'bogus'}\nHTTP response body: Body\n\n",
+        "traceback": "ApiException: (404)\n" "Reason: Not Found\n" "\n",
     }
 
 
