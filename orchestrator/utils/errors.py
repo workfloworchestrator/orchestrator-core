@@ -128,12 +128,13 @@ def _(err: Exception) -> ErrorDict:
     # We can't dispatch on ApiException, see is_api_exception docstring
     if is_api_exception(err):
         err = cast(ApiException, err)
+        headers = err.headers or {}
         return {
             "class": type(err).__name__,
             "error": err.reason,
             "status_code": err.status,
             "body": err.body,
-            "headers": "\n".join(f"{k}: {v}" for k, v in err.headers.items()),
+            "headers": "\n".join(f"{k}: {v}" for k, v in headers.items()),
             "traceback": show_ex(err),
         }
 
