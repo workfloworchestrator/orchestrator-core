@@ -22,12 +22,10 @@ from kombu.exceptions import ConnectionError, OperationalError
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.processes import create_process, delete_process
+from orchestrator.services.processes import SYSTEM_USER, can_be_resumed, create_process, delete_process
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.workflow import ProcessStat
 from pydantic_forms.types import State
-
-SYSTEM_USER = "SYSTEM"
 
 logger = structlog.get_logger(__name__)
 
@@ -112,9 +110,10 @@ def _celery_set_process_status_resumed(process: ProcessTable) -> None:
     from orchestrator.db import db
     from orchestrator.workflow import ProcessStatus
 
-    process.last_status = ProcessStatus.RESUMED
-    db.session.add(process)
-    db.session.commit()
+    if can_be_resumed(process.last_status):
+        process.last_status = ProcessStatus.RESUMED
+        db.session.add(process)
+        db.session.commit()
 
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:
