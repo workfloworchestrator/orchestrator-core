@@ -94,13 +94,13 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
     celery_task = partial(celery.task, log=local_logger, serializer="orchestrator-json")
 
     @celery_task(name=NEW_TASK)  # type: ignore
-    def new_task(process_id: UUID, workflow_key: str, user: str) -> UUID | None:
-        local_logger.info("Start task", process_id=process_id, workflow_key=workflow_key)
+    def new_task(process_id: UUID, user: str) -> UUID | None:
+        local_logger.info("Start task", process_id=process_id)
         return start_process(process_id, user=user)
 
     @celery_task(name=NEW_WORKFLOW)  # type: ignore
-    def new_workflow(process_id: UUID, workflow_key: str, user: str) -> UUID | None:
-        local_logger.info("Start workflow", process_id=process_id, workflow_key=workflow_key)
+    def new_workflow(process_id: UUID, user: str) -> UUID | None:
+        local_logger.info("Start workflow", process_id=process_id)
         return start_process(process_id, user=user)
 
     @celery_task(name=RESUME_TASK)  # type: ignore

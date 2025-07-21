@@ -20,6 +20,8 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
 from orchestrator.services.input_state import retrieve_input_state
 from orchestrator.services.processes import (
+    RESUME_WORKFLOW_REMOVED_ERROR_MSG,
+    START_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
     StateMerger,
     _get_process,
@@ -47,14 +49,13 @@ def thread_start_process(
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
     if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be started")
+        raise ValueError(START_WORKFLOW_REMOVED_ERROR_MSG)
 
     process = _get_process(pstat.process_id)
     process.last_status = ProcessStatus.RUNNING
     db.session.add(process)
     db.session.commit()
 
-    pstat = load_process(process)
     input_data = retrieve_input_state(process.process_id, "initial_state")
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
@@ -72,13 +73,14 @@ def thread_resume_process(
     # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
     pstat = load_process(process)
     if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed because it has been removed")
+        raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
 
     if user:
         pstat.update(current_user=user)
 
-    input_data = retrieve_input_state(process.process_id, "user_input")
-    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    if process.last_status == ProcessStatus.SUSPENDED:
+        input_data = retrieve_input_state(process.process_id, "user_input")
+        pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     # enforce an update to the process status to properly show the process
     process.last_status = ProcessStatus.RUNNING

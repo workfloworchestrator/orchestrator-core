@@ -41,7 +41,7 @@ def waiting_process():
 
 
 @pytest.fixture
-def stuck_created_process():
+def stuck_created_note_process():
     workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
 
     process = ProcessTable(
@@ -58,7 +58,7 @@ def stuck_created_process():
 
 
 @pytest.fixture
-def stuck_resumed_workflow():
+def stuck_resumed_note_workflow():
     state = {"foo": "bar"}
     pid = uuid4()
     workflow = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
@@ -81,44 +81,52 @@ def stuck_resumed_workflow():
 
 
 @pytest.mark.workflow
-def test_resume_workflow(waiting_process, stuck_created_process, stuck_resumed_workflow):
-    with mock.patch("orchestrator.services.processes.resume_process") as m:
-        result, process, step_log = run_workflow("task_resume_workflows", {})
-        assert_complete(result)
-        #
-        res = extract_state(result)
-        state = {
-            "process_id": res["process_id"],
-            "reporter": "john.doe",
-            "number_of_waiting_processes": 1,
-            "created_processes_stuck": 1,
-            "resumed_processes_stuck": 1,
-            "waiting_process_ids": [str(waiting_process.process_id)],
-            "created_state_process_ids": [str(stuck_created_process.process_id)],
-            "resumed_state_process_ids": [str(stuck_resumed_workflow.process_id)],
-        }
-        assert_state(result, state)
-        assert m.call_count == 3
+@mock.patch("orchestrator.services.processes.resume_process")
+@mock.patch("orchestrator.services.processes.restart_process")
+def test_resume_workflow(
+    mock_restart_process, mock_resume_process, waiting_process, stuck_created_note_process, stuck_resumed_note_workflow
+):
+    result, _, _ = run_workflow("task_resume_workflows", {})
+    assert_complete(result)
+    #
+    res = extract_state(result)
+    state = {
+        "process_id": res["process_id"],
+        "reporter": "john.doe",
+        "number_of_waiting_processes": 1,
+        "created_processes_stuck": 1,
+        "resumed_processes_stuck": 1,
+        "waiting_process_ids": [str(waiting_process.process_id)],
+        "created_state_process_ids": [str(stuck_created_note_process.process_id)],
+        "resumed_state_process_ids": [str(stuck_resumed_note_workflow.process_id)],
+        "number_of_resumed_process_ids": 2,
+        "number_of_started_process_ids": 1,
+    }
+    assert_state(result, state)
+
+    assert mock_resume_process.call_count == 2
+    assert mock_restart_process.call_count == 1
 
 
-@pytest.mark.workflow
-def test_resume_workflow_non_204(waiting_process):
-    with mock.patch("orchestrator.services.processes.resume_process") as m:
-        m.side_effect = Exception("Failed to resume")
+@mock.patch("orchestrator.services.processes.resume_process")
+def test_resume_workflow_non_204(mock_resume_process, waiting_process):
+    mock_resume_process.side_effect = Exception("Failed to resume")
 
-        result, process, step_log = run_workflow("task_resume_workflows", {})
-        assert_complete(result)
-        #
-        res = extract_state(result)
-        state = {
-            "process_id": res["process_id"],
-            "reporter": "john.doe",
-            "number_of_waiting_processes": 1,
-            "created_processes_stuck": 0,
-            "resumed_processes_stuck": 0,
-            "waiting_process_ids": [str(waiting_process.process_id)],
-            "created_state_process_ids": [],
-            "resumed_state_process_ids": [],
-        }
-        assert_state(result, state)
-        m.assert_called_once()
+    result, _, _ = run_workflow("task_resume_workflows", {})
+    assert_complete(result)
+    #
+    res = extract_state(result)
+    state = {
+        "process_id": res["process_id"],
+        "reporter": "john.doe",
+        "number_of_waiting_processes": 1,
+        "created_processes_stuck": 0,
+        "resumed_processes_stuck": 0,
+        "waiting_process_ids": [str(waiting_process.process_id)],
+        "created_state_process_ids": [],
+        "resumed_state_process_ids": [],
+        "number_of_resumed_process_ids": 0,
+        "number_of_started_process_ids": 0,
+    }
+    assert_state(result, state)
+    mock_resume_process.assert_called_once()

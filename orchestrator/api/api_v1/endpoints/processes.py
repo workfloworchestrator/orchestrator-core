@@ -48,6 +48,7 @@ from orchestrator.services.processes import (
     _async_resume_processes,
     _get_process,
     abort_process,
+    can_be_resumed,
     continue_awaiting_process,
     load_process,
     resume_process,
@@ -118,16 +119,6 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
         filter(None, (step.retry_auth_callback or step.resume_auth_callback for step in steps)), auth_retry
     )
     return auth_resume, auth_retry
-
-
-def can_be_resumed(status: ProcessStatus) -> bool:
-    return status in (
-        ProcessStatus.SUSPENDED,  # Can be resumed
-        ProcessStatus.WAITING,  # Can be retried
-        ProcessStatus.FAILED,  # Can be retried
-        ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
-        ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
-    )
 
 
 def resolve_user_name(

@@ -22,12 +22,10 @@ from kombu.exceptions import ConnectionError, OperationalError
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.processes import create_process, delete_process
+from orchestrator.services.processes import SYSTEM_USER, can_be_resumed, create_process, delete_process
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.workflow import ProcessStat
 from pydantic_forms.types import State
-
-SYSTEM_USER = "SYSTEM"
 
 logger = structlog.get_logger(__name__)
 
@@ -50,7 +48,7 @@ def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs:
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
     try:
-        result = trigger_task.delay(pstat.process_id, pstat.workflow.name, user)
+        result = trigger_task.delay(pstat.process_id, user)
         _block_when_testing(result)
         return pstat.process_id
     except (ConnectionError, OperationalError) as e:
@@ -67,26 +65,19 @@ def _celery_resume_process(
     **kwargs: Any,
 ) -> bool:
     """Client side call of Celery."""
-    from orchestrator.services.processes import load_process
     from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
 
-    pstat = load_process(process)
     last_process_status = process.last_status
-    workflow = pstat.workflow
 
-    wf_table = get_workflow_by_name(workflow.name)
-    if not workflow or not wf_table:
-        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    task_name = RESUME_TASK if wf_table.is_task else RESUME_WORKFLOW
+    task_name = RESUME_TASK if process.workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
     try:
         _celery_set_process_status_resumed(process)
-        result = trigger_task.delay(pstat.process_id, user)
+        result = trigger_task.delay(process.process_id, user)
         _block_when_testing(result)
 
-        return True
+        return process.process_id
     except (ConnectionError, OperationalError) as e:
         logger.warning(
             "Connection error when submitting task to celery. Resetting process status back",
@@ -109,12 +100,10 @@ def _celery_set_process_status_resumed(process: ProcessTable) -> None:
     Args:
         process: Process from database
     """
-    from orchestrator.db import db
     from orchestrator.workflow import ProcessStatus
 
-    process.last_status = ProcessStatus.RESUMED
-    db.session.add(process)
-    db.session.commit()
+    if can_be_resumed(process.last_status):
+        _celery_set_process_status(process, ProcessStatus.RESUMED)
 
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:

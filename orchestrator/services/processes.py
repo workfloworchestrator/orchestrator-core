@@ -67,6 +67,9 @@ SYSTEM_USER = "SYSTEM"
 
 _workflow_executor = None
 
+START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
+RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
+
 
 def get_execution_context() -> dict[str, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
@@ -518,13 +521,27 @@ def restart_process(
     return start_func(pstat, user=user, broadcast_func=broadcast_func)
 
 
+RESUMABLE_STATUSES = (
+    ProcessStatus.SUSPENDED,  # Can be resumed
+    ProcessStatus.WAITING,  # Can be retried
+    ProcessStatus.FAILED,  # Can be retried
+    ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
+    ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
+    ProcessStatus.RESUMED,  # re-resume stuck process
+)
+
+
+def can_be_resumed(status: ProcessStatus) -> bool:
+    return status in RESUMABLE_STATUSES
+
+
 def resume_process(
     process: ProcessTable,
     *,
     user_inputs: list[State] | None = None,
     user: str | None = None,
     broadcast_func: BroadcastFunc | None = None,
-) -> bool:
+) -> UUID:
     """Resume a failed or suspended process.
 
     Args:
@@ -540,7 +557,7 @@ def resume_process(
     pstat = load_process(process)
 
     if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed because it has been removed")
+        raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
 
     try:
         user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
