@@ -14,7 +14,7 @@
 from typing import Any, Dict, Type
 
 from pydantic import SecretStr as PydanticSecretStr
-from pydantic_core import MultiHostUrl
+from pydantic_core import MultiHostUrl, Url
 from pydantic_settings import BaseSettings
 
 from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
@@ -32,21 +32,9 @@ def expose_settings(settings_name: str, base_settings: Type[BaseSettings]) -> Ty
 
 def mask_value(key: str, value: Any) -> Any:
     key_lower = key.lower()
+    is_sensitive_key = "secret" in key_lower or "password" in key_lower
 
-    if "secret" in key_lower or "password" in key_lower:
-        # Mask sensitive information
-        return MASK
-
-    if isinstance(value, PydanticSecretStr):
-        # Need to convert SecretStr to str for serialization
-        return str(value)
-
-    if isinstance(value, OrchSecretStr):
-        return MASK
-
-    # PostgresDsn is just MultiHostUrl with extra metadata (annotations)
-    if isinstance(value, MultiHostUrl):
-        # Convert PostgresDsn to str for serialization
+    if is_sensitive_key or isinstance(value, (OrchSecretStr, PydanticSecretStr, MultiHostUrl, Url)):
         return MASK
 
     return value

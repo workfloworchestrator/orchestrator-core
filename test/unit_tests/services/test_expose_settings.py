@@ -1,4 +1,4 @@
-from pydantic import PostgresDsn
+from pydantic import PostgresDsn, RedisDsn
 from pydantic import SecretStr as PydanticSecretStr
 from pydantic_settings import BaseSettings
 
@@ -14,6 +14,7 @@ def test_expose_settings():
         debug_mode: bool = True
         secret_test: str = "test_secret"  # noqa: S105
         uri: PostgresDsn = "postgresql://user:password@localhost/dbname"
+        cache_uri: RedisDsn = "rediss://user:password@localhost/dbname"
 
     my_settings = MySettings()
     expose_settings("my_settings", my_settings)
@@ -25,7 +26,7 @@ def test_expose_settings():
 
     assert exposed_settings[my_settings_index].name == "my_settings"
 
-    assert len(exposed_settings[my_settings_index].variables) == 5
+    assert len(exposed_settings[my_settings_index].variables) == 6
 
     # Assert that sensitive values are masked
     assert exposed_settings[my_settings_index].variables[0].env_value == MASK  # api_key
@@ -33,3 +34,4 @@ def test_expose_settings():
     assert exposed_settings[my_settings_index].variables[2].env_value is True  # debug_mode
     assert exposed_settings[my_settings_index].variables[3].env_value == MASK  # secret_test
     assert exposed_settings[my_settings_index].variables[4].env_value == MASK  # uri
+    assert exposed_settings[my_settings_index].variables[5].env_value == MASK  # cache_uri
