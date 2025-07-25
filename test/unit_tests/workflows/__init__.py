@@ -5,18 +5,17 @@ from copy import deepcopy
 from functools import reduce
 from itertools import chain, repeat
 from typing import cast
-from uuid import uuid4
 
 import structlog
 
 from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.input_state import store_input_state
-from orchestrator.services.processes import StateMerger, _db_create_process
+from orchestrator.services.processes import StateMerger, create_process
 from orchestrator.targets import Target
 from orchestrator.utils.json import json_dumps, json_loads
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
-from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance, get_workflow
+from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance
 from pydantic_forms.core import post_form
 from pydantic_forms.types import FormGenerator, InputForm, State
 from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
@@ -213,34 +212,10 @@ def run_workflow(
     user_data = _sanitize_input(input_data)
     user = "john.doe"
 
+    pstat = create_process(workflow_key, user_data, user)
+
     step_log: list[tuple[Step, WFProcess]] = []
-
-    process_id = uuid4()
-    workflow = get_workflow(workflow_key)
-    assert workflow, "Workflow does not exist"
-    initial_state = {
-        "process_id": process_id,
-        "reporter": user,
-        "workflow_name": workflow_key,
-        "workflow_target": workflow.target,
-    }
-
-    user_input = post_form(workflow.initial_input_form, initial_state, user_data)
-
-    state = {**user_input, **initial_state}
-    pstat = ProcessStat(
-        process_id,
-        workflow=workflow,
-        state=Success(state),
-        log=workflow.steps,
-        current_user=user,
-    )
-
-    _db_create_process(pstat)
-    store_input_state(process_id, state | initial_state, "initial_state")
-
     result = runwf(pstat, _store_step(step_log))
-
     return result, pstat, step_log
 
 

@@ -19,7 +19,7 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.security import authenticate
-from orchestrator.services.processes import shutdown_thread_pool
+from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, can_be_resumed, shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
@@ -382,23 +382,15 @@ def test_resume_with_incorrect_workflow_status(test_client, started_process):
     assert process_info_after["last_status"] == "running"
 
 
-def test_try_resume_completed_workflow(test_client, started_process):
-    process = db.session.get(ProcessTable, started_process)
-    assert process
-    # setup DB so it looks like this workflow is already completed
-    process.last_status = ProcessStatus.COMPLETED
-    process.failed_reason = ""
-    db.session.commit()
-
-    response = test_client.put(f"/api/processes/{started_process}/resume", json=[{}])
-    assert 409 == response.status_code
-
-
-def test_try_resume_resumed_workflow(test_client, started_process):
+@pytest.mark.parametrize(
+    "process_status",
+    [status for status in ProcessStatus if not can_be_resumed(status)],
+)
+def test_try_resume_workflow_with_incorrect_status(test_client, started_process, process_status):
     process = db.session.get(ProcessTable, started_process)
     assert process
     # setup DB so it looks like this workflow has already been resumed
-    process.last_status = ProcessStatus.RESUMED
+    process.last_status = process_status
     process.failed_reason = ""
     db.session.add(process)
     db.session.commit()
@@ -525,7 +517,11 @@ def test_resume_all_processes_nothing_to_do(test_client):
 def test_resume_all_processes_value_error(test_client, mocked_processes_resumeall, caplog):
     """Test resuming all processes where one raises ValueError."""
     with mock.patch("orchestrator.services.processes.resume_process") as mocked_resume:
-        mocked_resume.side_effect = [None, ValueError("This workflow cannot be resumed"), None]
+        mocked_resume.side_effect = [
+            None,
+            ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG),
+            None,
+        ]
         response = test_client.put("/api/processes/resume-all")
     assert HTTPStatus.OK == response.status_code
     assert response.json()["count"] == 3  # returns 3 because it's async
