@@ -18,13 +18,19 @@ from uuid import UUID
 import structlog
 from celery.result import AsyncResult
 from kombu.exceptions import ConnectionError, OperationalError
+from sqlalchemy import select
 
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.processes import SYSTEM_USER, can_be_resumed, create_process, delete_process
+from orchestrator.services.processes import (
+    SYSTEM_USER,
+    can_be_resumed,
+    create_process,
+    delete_process,
+)
 from orchestrator.services.workflows import get_workflow_by_name
-from orchestrator.workflow import ProcessStat
+from orchestrator.workflow import ProcessStat, ProcessStatus
 from pydantic_forms.types import State
 
 logger = structlog.get_logger(__name__)
@@ -72,8 +78,9 @@ def _celery_resume_process(
     task_name = RESUME_TASK if process.workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
+    _celery_set_process_status_resumed(process)
+
     try:
-        _celery_set_process_status_resumed(process)
         result = trigger_task.delay(process.process_id, user)
         _block_when_testing(result)
 
@@ -84,7 +91,7 @@ def _celery_resume_process(
             current_status=process.last_status,
             last_status=last_process_status,
         )
-        _celery_set_process_status(process, last_process_status)
+        _celery_set_process_status(process.process_id, last_process_status)
         raise e
 
 
@@ -95,15 +102,18 @@ def _celery_set_process_status(process: ProcessTable, status: str) -> None:
 
 
 def _celery_set_process_status_resumed(process: ProcessTable) -> None:
-    """Set the process status to RESUMED to prevent re-adding to task queue.
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process.process_id).with_for_update()
 
-    Args:
-        process: Process from database
-    """
-    from orchestrator.workflow import ProcessStatus
+    result = db.session.execute(stmt)
+    locked_process = result.scalar_one_or_none()
 
-    if can_be_resumed(process.last_status):
-        _celery_set_process_status(process, ProcessStatus.RESUMED)
+    if locked_process and can_be_resumed(locked_process.last_status):
+        locked_process.last_status = ProcessStatus.RESUMED
+        db.session.commit()
+    else:
+        db.session.rollback()
+        status = locked_process.last_status if locked_process else None
+        raise Exception(f"Process has incorrect status to resume: {status}")
 
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:

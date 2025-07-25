@@ -128,7 +128,6 @@ from test.unit_tests.fixtures.products.resource_types import (  # noqa: F401
     resource_type_str,
 )
 from test.unit_tests.fixtures.workflows import (  # noqa: F401
-    mock_pstat_with_removed_workflow,
     sample_workflow,
     sample_workflow_with_suspend,
 )

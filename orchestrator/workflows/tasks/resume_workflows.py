@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from uuid import UUID
+
 import structlog
 from sqlalchemy import select
 
@@ -22,17 +24,21 @@ from pydantic_forms.types import State, UUIDstr
 logger = structlog.get_logger(__name__)
 
 
-def get_process_ids_by_process_statuses(process_statuses: list[ProcessStatus]) -> list:
+def get_process_ids_by_process_statuses(process_statuses: list[ProcessStatus], exclude_ids: list[UUID]) -> list:
     return list(
-        db.session.scalars(select(ProcessTable.process_id).filter(ProcessTable.last_status.in_(process_statuses)))
+        db.session.scalars(
+            select(ProcessTable.process_id).filter(
+                ProcessTable.last_status.in_(process_statuses), ProcessTable.process_id.not_in(exclude_ids)
+            )
+        )
     )
 
 
 @step("Find waiting workflows")
-def find_waiting_workflows() -> State:
-    created_process_ids = get_process_ids_by_process_statuses([ProcessStatus.CREATED])
-    resumed_process_ids = get_process_ids_by_process_statuses([ProcessStatus.RESUMED])
-    waiting_process_ids = get_process_ids_by_process_statuses([ProcessStatus.WAITING])
+def find_waiting_workflows(process_id: UUID) -> State:
+    created_process_ids = get_process_ids_by_process_statuses([ProcessStatus.CREATED], exclude_ids=[process_id])
+    resumed_process_ids = get_process_ids_by_process_statuses([ProcessStatus.RESUMED], exclude_ids=[process_id])
+    waiting_process_ids = get_process_ids_by_process_statuses([ProcessStatus.WAITING], exclude_ids=[process_id])
 
     return {
         "number_of_waiting_processes": len(waiting_process_ids),

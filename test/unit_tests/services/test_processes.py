@@ -50,6 +50,7 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
+from orchestrator.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
 from test.unit_tests.fixtures.workflows import initial_input_form, step1, step2
@@ -807,7 +808,7 @@ def test_run_process_async_exception(mock_db_log_process_ex):
 
 
 @mock.patch("orchestrator.services.executors.threadpool.db")
-@mock.patch("orchestrator.services.executors.threadpool._get_process")
+@mock.patch("orchestrator.services.processes._get_process")
 @mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
 @mock.patch("orchestrator.services.processes.store_input_state")
 @mock.patch("orchestrator.services.executors.threadpool._run_process_async", return_value=(mock.sentinel.process_id))
@@ -981,10 +982,13 @@ def test_resume_process_form_error(mock_load_process, mock_post_form):
 
 
 @mock.patch("orchestrator.services.processes.load_process")
-def test_resume_process_workflow_removed(mock_load_process, mock_pstat_with_removed_workflow):
+def test_resume_process_workflow_removed(mock_load_process):
+    pstat = MagicMock(spec=ProcessStat)
+    pstat.workflow = removed_workflow
+
     process = MagicMock(spec=ProcessTable)
     process.last_status = ProcessStatus.SUSPENDED
-    mock_load_process.return_value = mock_pstat_with_removed_workflow
+    mock_load_process.return_value = pstat
 
     with pytest.raises(ValueError, match=RESUME_WORKFLOW_REMOVED_ERROR_MSG):
         resume_process(process, user_inputs=None, user=mock.sentinel.user)
