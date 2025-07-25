@@ -24,12 +24,13 @@ logger = structlog.get_logger(__name__)
 InputType = Literal["initial_state", "user_input"]
 
 
-def retrieve_input_state(process_id: UUID, input_type: InputType) -> InputStateTable:
+def retrieve_input_state(process_id: UUID, input_type: InputType, raise_exception: bool = True) -> InputStateTable:
     """Get user input.
 
     Args:
         process_id: Process ID
         input_type: The type of the input.
+        raise_exception: boolean to throw error when not finding data or not
 
     Returns:
         User input table
@@ -46,7 +47,9 @@ def retrieve_input_state(process_id: UUID, input_type: InputType) -> InputStateT
     if res:
         logger.debug("Retrieved input state", process_id=process_id, input_state=res, input_type=input_type)
         return res
-    raise ValueError(f"No input state for pid: {process_id}")
+    if raise_exception:
+        raise ValueError(f"No input state for pid: {process_id}")
+    return InputStateTable(input_state={})
 
 
 def store_input_state(

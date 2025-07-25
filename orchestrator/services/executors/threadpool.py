@@ -15,6 +15,7 @@ from functools import partial
 from uuid import UUID
 
 import structlog
+from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
@@ -24,7 +25,6 @@ from orchestrator.services.processes import (
     START_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
     StateMerger,
-    _get_process,
     _run_process_async,
     create_process,
     load_process,
@@ -42,6 +42,20 @@ from pydantic_forms.types import State
 logger = structlog.get_logger(__name__)
 
 
+def _set_process_status_running(process_id: UUID) -> None:
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
+
+    result = db.session.execute(stmt)
+    locked_process = result.scalar_one_or_none()
+
+    if locked_process and locked_process.last_status is not ProcessStatus.RUNNING:
+        locked_process.last_status = ProcessStatus.RUNNING
+        db.session.commit()
+    else:
+        db.session.rollback()
+        raise Exception("Process is already running")
+
+
 def thread_start_process(
     pstat: ProcessStat,
     user: str = SYSTEM_USER,
@@ -51,12 +65,10 @@ def thread_start_process(
     if pstat.workflow == removed_workflow:
         raise ValueError(START_WORKFLOW_REMOVED_ERROR_MSG)
 
-    process = _get_process(pstat.process_id)
-    process.last_status = ProcessStatus.RUNNING
-    db.session.add(process)
-    db.session.commit()
+    # enforce an update to the process status to properly show the process
+    _set_process_status_running(pstat.process_id)
 
-    input_data = retrieve_input_state(process.process_id, "initial_state")
+    input_data = retrieve_input_state(pstat.process_id, "initial_state")
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
@@ -78,14 +90,11 @@ def thread_resume_process(
     if user:
         pstat.update(current_user=user)
 
-    if process.last_status == ProcessStatus.SUSPENDED:
-        input_data = retrieve_input_state(process.process_id, "user_input")
-        pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
+    input_data = retrieve_input_state(process.process_id, "user_input", False)
+    pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     # enforce an update to the process status to properly show the process
-    process.last_status = ProcessStatus.RUNNING
-    db.session.add(process)
-    db.session.commit()
+    _set_process_status_running(process.process_id)
 
     _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
     _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))

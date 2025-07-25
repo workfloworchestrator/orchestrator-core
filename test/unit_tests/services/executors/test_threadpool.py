@@ -1,12 +1,12 @@
 from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 from uuid import uuid4
 
 import pytest
 
 from orchestrator.db import ProcessTable
-from orchestrator.db.models import InputStateTable
 from orchestrator.services.executors.threadpool import (
+    _set_process_status_running,
     thread_resume_process,
     thread_start_process,
 )
@@ -19,6 +19,7 @@ from orchestrator.workflow import (
     make_workflow,
     step,
 )
+from orchestrator.workflows.removed_workflow import removed_workflow
 
 
 def mock_process_data():
@@ -46,106 +47,128 @@ def mock_process_data():
 
 
 @mock.patch("orchestrator.services.executors.threadpool.db")
-@mock.patch("orchestrator.services.executors.threadpool._get_process")
+def test_set_process_status_running(mock_db):
+    mock_process = MagicMock()
+    mock_process.last_status = ProcessStatus.CREATED
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_process
+    mock_db.session.execute.return_value = mock_result
+
+    _set_process_status_running(uuid4())
+
+    assert mock_process.last_status == ProcessStatus.RUNNING
+    mock_db.session.commit.assert_called_once()
+    mock_db.session.rollback.assert_not_called()
+
+
+@mock.patch("orchestrator.services.executors.threadpool.db")
+def test_set_process_status_running_errors_if_already_running(mock_db):
+    mock_process = MagicMock()
+    mock_process.last_status = ProcessStatus.RUNNING
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_process
+    mock_db.session.execute.return_value = mock_result
+
+    with pytest.raises(Exception, match="Process is already running"):
+        _set_process_status_running(uuid4())
+
+    mock_db.session.rollback.assert_called_once()
+    mock_db.session.commit.assert_not_called()
+
+
+@mock.patch("orchestrator.services.executors.threadpool.db")
+def test_set_process_status_running_errors_if_not_found(mock_db):
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_db.session.execute.return_value = mock_result
+
+    with pytest.raises(Exception, match="Process is already running"):
+        _set_process_status_running(uuid4())
+
+    mock_db.session.rollback.assert_called_once()
+    mock_db.session.commit.assert_not_called()
+
+
+@mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
 @mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
 @mock.patch("orchestrator.services.executors.threadpool._run_process_async")
-@mock.patch("orchestrator.services.processes.get_workflow")
 def test_thread_start_process(
-    mock_get_workflow,
     mock_run_process_async,
     mock_retrieve_input_state,
-    mock_get_process,
-    mock_db,
+    mock_set_process_status_running,
 ):
-    pstat, process, wf, mock_update_pstat, initial_state_dict = mock_process_data()
+    process_id = uuid4()
 
-    input_state = {"key": "value"}
+    pstat = MagicMock()
+    pstat.process_id = process_id
+    pstat.state.map.return_value = {"state": "test"}
 
-    mock_get_workflow.return_value = wf
-    mock_get_process.return_value = process
-    mock_db.return_value = MagicMock(session=MagicMock())
-    mock_retrieve_input_state.return_value = InputStateTable(
-        process_id=process.process_id, input_state=input_state, input_type="initial_state"
-    )
+    mock_input_data = MagicMock()
+    mock_input_data.input_state = {"key": "val"}
+    mock_retrieve_input_state.return_value = mock_input_data
+    mock_run_process_async.return_value = process_id
 
-    expected_updated_state = Success(initial_state_dict | input_state)
+    result = thread_start_process(pstat)
 
-    assert process.last_status != ProcessStatus.RUNNING
-
-    thread_start_process(pstat)
-
-    assert process.last_status == ProcessStatus.RUNNING
-    mock_retrieve_input_state.assert_called_once_with(mock.ANY, "initial_state")
-    mock_update_pstat.assert_called_once_with(state=expected_updated_state)
+    mock_set_process_status_running.assert_called_once_with(process_id)
+    mock_retrieve_input_state.assert_called_once_with(process_id, "initial_state")
+    assert pstat.update.call_args_list == [call(state={"state": "test"})]
     mock_run_process_async.assert_called_once()
+    assert result == process_id
 
 
-def test_thread_start_process_errors_workflow_removed(mock_pstat_with_removed_workflow):
+def test_thread_start_process_erroris_with_removed_workflow():
+    pstat = MagicMock()
+    pstat.workflow = removed_workflow
+
     with pytest.raises(ValueError, match=START_WORKFLOW_REMOVED_ERROR_MSG):
-        thread_start_process(mock_pstat_with_removed_workflow)
+        thread_start_process(pstat)
 
 
-@mock.patch("orchestrator.services.executors.threadpool.db")
+@mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
 @mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
 @mock.patch("orchestrator.services.executors.threadpool._run_process_async")
 @mock.patch("orchestrator.services.executors.threadpool.load_process")
-def test_thread_resume_process_suspended(
+def test_thread_resume_process_resumed(
     mock_load_process,
     mock_run_process_async,
     mock_retrieve_input_state,
-    mock_db,
+    mock_set_process_status_running,
 ):
-    pstat, process, wf, mock_update_pstat, initial_state_dict = mock_process_data()
-    process.last_status = ProcessStatus.SUSPENDED
-    input_state = {"key": "value"}
-
-    mock_load_process.return_value = pstat
-    mock_db.return_value = MagicMock(session=MagicMock())
-    mock_retrieve_input_state.return_value = InputStateTable(
-        process_id=process.process_id, input_state=input_state, input_type="user_input"
-    )
-
-    expected_updated_state = Success(initial_state_dict | input_state)
-
-    assert process.last_status != ProcessStatus.RUNNING
-
-    thread_resume_process(process)
-
-    mock_retrieve_input_state.assert_called_once_with(process.process_id, "user_input")
-    mock_update_pstat.assert_called_once_with(state=expected_updated_state)
-    mock_run_process_async.assert_called_once()
-    assert process.last_status == ProcessStatus.RUNNING
-
-
-@mock.patch("orchestrator.services.executors.threadpool.db")
-@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
-@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
-@mock.patch("orchestrator.services.executors.threadpool.load_process")
-def test_thread_resume_process_failed(
-    mock_load_process,
-    mock_run_process_async,
-    mock_retrieve_input_state,
-    mock_db,
-):
-    pstat, process, _, _, _ = mock_process_data()
-    process.last_status = ProcessStatus.FAILED
-
-    mock_load_process.return_value = pstat
-    mock_db.return_value = MagicMock(session=MagicMock())
-
-    assert process.last_status != ProcessStatus.RUNNING
-
-    thread_resume_process(process)
-
-    mock_retrieve_input_state.assert_not_called()
-    mock_run_process_async.assert_called_once()
-    assert process.last_status == ProcessStatus.RUNNING
-
-
-@mock.patch("orchestrator.services.executors.threadpool.load_process")
-def test_thread_resume_process_errors_workflow_removed(mock_load_process, mock_pstat_with_removed_workflow):
+    process_id = uuid4()
     process = MagicMock()
-    mock_load_process.return_value = mock_pstat_with_removed_workflow
+    process.process_id = process_id
+    process.last_status = ProcessStatus.SUSPENDED
+
+    pstat = MagicMock()
+    pstat.process_id = process_id
+    pstat.state.map.return_value = {"state": "test"}
+
+    mock_load_process.return_value = pstat
+
+    expected_user = "other user"
+
+    result = thread_resume_process(process, user="other user")
+
+    pstat.user = expected_user
+    mock_set_process_status_running.assert_called_once()
+    mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "user_input", False)
+    assert pstat.update.call_args_list == [call(current_user="other user"), call(state={"state": "test"})]
+    mock_run_process_async.assert_called_once()
+    assert result == process_id
+
+
+@mock.patch("orchestrator.services.executors.threadpool.load_process")
+def test_thread_resume_process_errors_workflow_removed(mock_load_process):
+    pstat = MagicMock(spec=ProcessStat)
+    pstat.workflow = removed_workflow
+
+    process = MagicMock()
+    process.last_status = "RESUMED"
+
+    mock_load_process.return_value = pstat
 
     with pytest.raises(ValueError, match=RESUME_WORKFLOW_REMOVED_ERROR_MSG):
         thread_resume_process(process)

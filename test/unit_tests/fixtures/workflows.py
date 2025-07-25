@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock
-
 import pytest
 
 from orchestrator.config.assignee import Assignee
@@ -7,7 +5,6 @@ from orchestrator.db import WorkflowTable, db
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import (
-    ProcessStat,
     done,
     init,
     inputstep,
@@ -15,7 +12,6 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
-from orchestrator.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core import FormPage
 
 
@@ -101,10 +97,3 @@ def add_soft_deleted_workflows():
         db.session.commit()
 
     return _add_soft_deleted_workflow
-
-
-@pytest.fixture()
-def mock_pstat_with_removed_workflow():
-    pstat = MagicMock(spec=ProcessStat)
-    pstat.workflow = removed_workflow
-    return pstat
