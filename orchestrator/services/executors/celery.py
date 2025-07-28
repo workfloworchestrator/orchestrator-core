@@ -28,6 +28,7 @@ from orchestrator.services.processes import (
     can_be_resumed,
     create_process,
     delete_process,
+    set_process_status,
 )
 from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.workflow import ProcessStat, ProcessStatus
@@ -78,7 +79,7 @@ def _celery_resume_process(
     task_name = RESUME_TASK if process.workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
-    _celery_set_process_status_resumed(process)
+    _celery_set_process_status_resumed(process.process_id)
 
     try:
         result = trigger_task.delay(process.process_id, user)
@@ -91,29 +92,33 @@ def _celery_resume_process(
             current_status=process.last_status,
             last_status=last_process_status,
         )
-        _celery_set_process_status(process.process_id, last_process_status)
+        set_process_status(process.process_id, last_process_status)
         raise e
 
 
-def _celery_set_process_status(process: ProcessTable, status: str) -> None:
-    process.last_status = status
-    db.session.add(process)
-    db.session.commit()
+def _celery_set_process_status_resumed(process_id: UUID) -> None:
+    """Set the process status to RESUMED to show its waiting to be picked up by a worker.
 
+    uses with_for_update to lock the subscription in a transaction, preventing other changes.
+    rolls back transation and raises an exception when it can't change to RESUMED to prevent it from being added to the queue.
 
-def _celery_set_process_status_resumed(process: ProcessTable) -> None:
-    stmt = select(ProcessTable).where(ProcessTable.process_id == process.process_id).with_for_update()
+    Args:
+        process_id: Process ID to fetch process from DB
+    """
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
 
     result = db.session.execute(stmt)
     locked_process = result.scalar_one_or_none()
 
-    if locked_process and can_be_resumed(locked_process.last_status):
+    if not locked_process:
+        raise ValueError(f"Process not found: {process_id}")
+
+    if can_be_resumed(locked_process.last_status):
         locked_process.last_status = ProcessStatus.RESUMED
         db.session.commit()
     else:
         db.session.rollback()
-        status = locked_process.last_status if locked_process else None
-        raise Exception(f"Process has incorrect status to resume: {status}")
+        raise ValueError(f"Process has incorrect status to resume: {locked_process.last_status}")
 
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:

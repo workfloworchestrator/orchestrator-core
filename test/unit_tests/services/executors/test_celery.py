@@ -21,7 +21,6 @@ from orchestrator.workflow import ProcessStatus
 @mock.patch("orchestrator.services.executors.celery.delete_process")
 def test_celery_start_process(mock_delete_process, mock_get_workflow_by_name, mock_get_celery_task):
     pstat = MagicMock()
-    trigger_task = MagicMock()
 
     trigger_task = MagicMock()
     trigger_task.delay.get.return_value = uuid4()

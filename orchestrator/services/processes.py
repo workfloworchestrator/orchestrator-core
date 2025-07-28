@@ -504,7 +504,7 @@ def restart_process(
     user: str | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
-    """Start a process for workflow.
+    """Restart a process that is stuck on status CREATED.
 
     Args:
         process: Process from database
@@ -794,6 +794,12 @@ def _get_running_processes() -> list[ProcessTable]:
     return list(db.session.scalars(stmt))
 
 
+def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
+    process.last_status = status
+    db.session.add(process)
+    db.session.commit()
+
+
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
     """Manage processes depending on the engine status.
 
@@ -816,6 +822,7 @@ def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bo
 
             # Resume all the running processes
             for process in _get_running_processes():
+                set_process_status(process, ProcessStatus.RESUMED)
                 resume_process(process, user=SYSTEM_USER)
 
         elif not engine_settings.global_lock and new_global_lock:

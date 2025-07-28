@@ -53,51 +53,51 @@ def find_waiting_workflows(process_id: UUID) -> State:
 @step("Resume found workflows")
 def resume_found_workflows(
     waiting_process_ids: list[UUIDstr],
-    created_state_process_ids: list[UUIDstr],
     resumed_state_process_ids: list[UUIDstr],
 ) -> State:
     resume_processes = waiting_process_ids + resumed_state_process_ids
 
-    resumed_process_ids = []
+    resumed_process_ids: list = []
     for process_id in resume_processes:
         try:
             process = db.session.get(ProcessTable, process_id)
             if not process:
                 continue
-            # Workaround the commit disable function
-            db.session.info["disabled"] = False
+
             processes.resume_process(process)
             resumed_process_ids.append(process_id)
-        except Exception:
-            logger.exception()
-        finally:
-            # Make sure to turn it on again
-            db.session.info["disabled"] = True
+        except Exception as exc:
+            logger.warning("Could not resume process", process_id=process_id, error=str(exc))
 
+    return {
+        "number_of_resumed_process_ids": len(resumed_process_ids),
+        "resumed_process_ids": resumed_process_ids,
+    }
+
+
+@step("Restart found CREATED workflows")
+def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State:
     started_process_ids = []
     for process_id in created_state_process_ids:
         try:
             process = db.session.get(ProcessTable, process_id)
             if not process:
                 continue
-            # Workaround the commit disable function
-            db.session.info["disabled"] = False
+
             processes.restart_process(process)
             started_process_ids.append(process_id)
-        except Exception:
-            logger.exception()
-        finally:
-            # Make sure to turn it on again
-            db.session.info["disabled"] = True
+        except Exception as exc:
+            logger.warning("Could not resume process", process_id=process_id, error=str(exc))
 
     return {
-        "number_of_resumed_process_ids": len(resumed_process_ids),
-        "resumed_process_ids": resumed_process_ids,
         "number_of_started_process_ids": len(started_process_ids),
         "started_process_ids": started_process_ids,
     }
 
 
-@workflow("Resume all workflows that are stuck on tasks with the status 'waiting'", target=Target.SYSTEM)
+@workflow(
+    "Resume all workflows that are stuck on tasks with the status 'waiting', 'created' or 'resumed'",
+    target=Target.SYSTEM,
+)
 def task_resume_workflows() -> StepList:
-    return init >> find_waiting_workflows >> resume_found_workflows >> done
+    return init >> find_waiting_workflows >> resume_found_workflows >> restart_created_workflows >> done

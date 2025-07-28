@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.input_state import retrieve_input_state
+from orchestrator.services.input_state import InputType, retrieve_input_state
 from orchestrator.services.processes import (
     RESUME_WORKFLOW_REMOVED_ERROR_MSG,
     START_WORKFLOW_REMOVED_ERROR_MSG,
@@ -43,12 +43,23 @@ logger = structlog.get_logger(__name__)
 
 
 def _set_process_status_running(process_id: UUID) -> None:
+    """Set the process status to RUNNING to prevent it from being picked up by mutliple workers.
+
+    uses with_for_update to lock the subscription in a transaction, preventing other changes.
+    rolls back transation and raises an exception when its already on status RUNNING to prevent worker from running an already running process
+
+    Args:
+        process_id: Process ID to fetch process from DB
+    """
     stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
 
     result = db.session.execute(stmt)
     locked_process = result.scalar_one_or_none()
 
-    if locked_process and locked_process.last_status is not ProcessStatus.RUNNING:
+    if not locked_process:
+        raise ValueError(f"Process not found: {process_id}")
+
+    if locked_process.last_status is not ProcessStatus.RUNNING:
         locked_process.last_status = ProcessStatus.RUNNING
         db.session.commit()
     else:
@@ -68,7 +79,7 @@ def thread_start_process(
     # enforce an update to the process status to properly show the process
     _set_process_status_running(pstat.process_id)
 
-    input_data = retrieve_input_state(pstat.process_id, "initial_state")
+    input_data = retrieve_input_state(pstat.process_id, "initial_state", False)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
@@ -90,7 +101,10 @@ def thread_resume_process(
     if user:
         pstat.update(current_user=user)
 
-    input_data = retrieve_input_state(process.process_id, "user_input", False)
+    # retrieve_input_str is for the edge case when workflow engine stops whilst there is an existing 'CREATED' process queue'ed.
+    # It will have become a `RUNNING` process that gets resumed and this should fetch initial_state instead of user_input.
+    retrieve_input_str: InputType = "user_input" if process.steps else "initial_state"
+    input_data = retrieve_input_state(process.process_id, retrieve_input_str, False)
     pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, input_data.input_state)))
 
     # enforce an update to the process status to properly show the process

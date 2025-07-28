@@ -119,7 +119,7 @@ def test_thread_start_process(
     assert result == process_id
 
 
-def test_thread_start_process_erroris_with_removed_workflow():
+def test_thread_start_process_errors_with_removed_workflow():
     pstat = MagicMock()
     pstat.workflow = removed_workflow
 
