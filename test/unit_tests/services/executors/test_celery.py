@@ -80,7 +80,7 @@ def test_celery_resume_process(mock_db, mock_get_celery_task):
     assert process.last_status == ProcessStatus.RESUMED
 
 
-@mock.patch("orchestrator.services.executors.celery._celery_set_process_status")
+@mock.patch("orchestrator.services.executors.celery.set_process_status")
 @mock.patch("orchestrator.services.tasks.get_celery_task")
 @mock.patch("orchestrator.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
 def test_celery_resume_process_connection_error_should_revert_process_status(

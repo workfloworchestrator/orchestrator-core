@@ -64,10 +64,16 @@ def resume_found_workflows(
             if not process:
                 continue
 
+            # Workaround the commit disable function
+            db.session.info["disabled"] = False
+
             processes.resume_process(process)
             resumed_process_ids.append(process_id)
         except Exception as exc:
             logger.warning("Could not resume process", process_id=process_id, error=str(exc))
+        finally:
+            # Make sure to turn it on again
+            db.session.info["disabled"] = True
 
     return {
         "number_of_resumed_process_ids": len(resumed_process_ids),
@@ -84,10 +90,16 @@ def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State
             if not process:
                 continue
 
+            # Workaround the commit disable function
+            db.session.info["disabled"] = False
+
             processes.restart_process(process)
             started_process_ids.append(process_id)
         except Exception as exc:
             logger.warning("Could not resume process", process_id=process_id, error=str(exc))
+        finally:
+            # Make sure to turn it on again
+            db.session.info["disabled"] = True
 
     return {
         "number_of_started_process_ids": len(started_process_ids),

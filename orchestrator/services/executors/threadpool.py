@@ -57,6 +57,7 @@ def _set_process_status_running(process_id: UUID) -> None:
     locked_process = result.scalar_one_or_none()
 
     if not locked_process:
+        db.session.rollback()
         raise ValueError(f"Process not found: {process_id}")
 
     if locked_process.last_status is not ProcessStatus.RUNNING:

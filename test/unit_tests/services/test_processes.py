@@ -847,7 +847,7 @@ def test_start_process(
         "workflow_target": Target.SYSTEM,
     }
     mock_store_input_state.assert_called_once_with(mock.ANY, initial_state, "initial_state")
-    mock_retrieve_input_state.assert_called_once_with(mock.ANY, "initial_state")
+    mock_retrieve_input_state.assert_called_once_with(mock.ANY, "initial_state", False)
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.process_id
     assert pstat.current_user == mock.sentinel.user

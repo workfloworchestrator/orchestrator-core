@@ -84,8 +84,10 @@ def test_set_process_status_running_errors_if_not_found(mock_db):
     mock_result.scalar_one_or_none.return_value = None
     mock_db.session.execute.return_value = mock_result
 
-    with pytest.raises(Exception, match="Process is already running"):
-        _set_process_status_running(uuid4())
+    process_id = uuid4()
+
+    with pytest.raises(Exception, match=f"Process not found: {process_id}"):
+        _set_process_status_running(process_id)
 
     mock_db.session.rollback.assert_called_once()
     mock_db.session.commit.assert_not_called()
@@ -113,7 +115,7 @@ def test_thread_start_process(
     result = thread_start_process(pstat)
 
     mock_set_process_status_running.assert_called_once_with(process_id)
-    mock_retrieve_input_state.assert_called_once_with(process_id, "initial_state")
+    mock_retrieve_input_state.assert_called_once_with(process_id, "initial_state", False)
     assert pstat.update.call_args_list == [call(state={"state": "test"})]
     mock_run_process_async.assert_called_once()
     assert result == process_id
@@ -158,6 +160,34 @@ def test_thread_resume_process_resumed(
     assert pstat.update.call_args_list == [call(current_user="other user"), call(state={"state": "test"})]
     mock_run_process_async.assert_called_once()
     assert result == process_id
+
+
+@mock.patch("orchestrator.services.executors.threadpool._set_process_status_running")
+@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
+@mock.patch("orchestrator.services.executors.threadpool._run_process_async")
+@mock.patch("orchestrator.services.executors.threadpool.load_process")
+def test_thread_resume_process_with_created_process_that_is_resumed_by_workflow_engine_stop_and_start(
+    mock_load_process,
+    mock_run_process_async,
+    mock_retrieve_input_state,
+    mock_set_process_status_running,
+):
+    process_id = uuid4()
+    process = MagicMock()
+    process.process_id = process_id
+    process.last_status = ProcessStatus.SUSPENDED
+    process.steps = []
+
+    pstat = MagicMock()
+    pstat.process_id = process_id
+    pstat.state.map.return_value = {"state": "test"}
+
+    mock_load_process.return_value = pstat
+
+    thread_resume_process(process, user="other user")
+
+    # calls with `initial_state` instead of `user_input`
+    mock_retrieve_input_state.assert_called_once_with(pstat.process_id, "initial_state", False)
 
 
 @mock.patch("orchestrator.services.executors.threadpool.load_process")
