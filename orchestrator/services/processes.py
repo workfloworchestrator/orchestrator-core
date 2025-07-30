@@ -51,7 +51,6 @@ from orchestrator.workflow import (
     Success,
     Workflow,
     abort_wf,
-    runwf,
 )
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
@@ -68,12 +67,17 @@ SYSTEM_USER = "SYSTEM"
 
 _workflow_executor = None
 
+START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
+RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
+
 
 def get_execution_context() -> dict[str, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
-        from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+        from orchestrator.services.executors.celery import CELERY_EXECUTION_CONTEXT
 
         return CELERY_EXECUTION_CONTEXT
+
+    from orchestrator.services.executors.threadpool import THREADPOOL_EXECUTION_CONTEXT
 
     return THREADPOOL_EXECUTION_CONTEXT
 
@@ -449,7 +453,6 @@ def create_process(
     }
 
     try:
-
         state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
@@ -467,19 +470,6 @@ def create_process(
     _db_create_process(pstat)
     store_input_state(process_id, state | initial_state, "initial_state")
     return pstat
-
-
-def thread_start_process(
-    workflow_key: str,
-    user_inputs: list[State] | None = None,
-    user: str = SYSTEM_USER,
-    user_model: OIDCUserModel | None = None,
-    broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
-    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
-
-    _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
 
 def start_process(
@@ -502,57 +492,47 @@ def start_process(
         process id
 
     """
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
+
     start_func = get_execution_context()["start"]
-    return start_func(
-        workflow_key, user_inputs=user_inputs, user=user, user_model=user_model, broadcast_func=broadcast_func
-    )
+    return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
 
 
-def thread_resume_process(
+def restart_process(
     process: ProcessTable,
     *,
-    user_inputs: list[State] | None = None,
     user: str | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
-    # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
+    """Restart a process that is stuck on status CREATED.
 
-    if user_inputs is None:
-        user_inputs = [{}]
+    Args:
+        process: Process from database
+        user: user who resumed this process
+        broadcast_func: Optional function to broadcast process data
 
+    Returns:
+        process id
+
+    """
     pstat = load_process(process)
 
-    if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed")
-
-    form = pstat.log[0].form
-
-    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
-
-    if user:
-        pstat.update(current_user=user)
-
-    if user_input:
-        pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, user_input)))
-    store_input_state(pstat.process_id, user_input, "user_input")
-    # enforce an update to the process status to properly show the process
-    process.last_status = ProcessStatus.RUNNING
-    db.session.add(process)
-    db.session.commit()
-
-    _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
+    start_func = get_execution_context()["start"]
+    return start_func(pstat, user=user, broadcast_func=broadcast_func)
 
 
-def thread_validate_workflow(validation_workflow: str, json: list[State] | None) -> UUID:
-    return thread_start_process(validation_workflow, user_inputs=json)
+RESUMABLE_STATUSES = (
+    ProcessStatus.SUSPENDED,  # Can be resumed
+    ProcessStatus.WAITING,  # Can be retried
+    ProcessStatus.FAILED,  # Can be retried
+    ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
+    ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
+    ProcessStatus.RESUMED,  # re-resume stuck process
+)
 
 
-THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": thread_start_process,
-    "resume": thread_resume_process,
-    "validate": thread_validate_workflow,
-}
+def can_be_resumed(status: ProcessStatus) -> bool:
+    return status in RESUMABLE_STATUSES
 
 
 def resume_process(
@@ -576,14 +556,19 @@ def resume_process(
     """
     pstat = load_process(process)
 
+    if pstat.workflow == removed_workflow:
+        raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
+
     try:
-        post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
+        user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
 
+    store_input_state(pstat.process_id, user_input, "user_input")
+
     resume_func = get_execution_context()["resume"]
-    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+    return resume_func(process, user=user, broadcast_func=broadcast_func)
 
 
 def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:
@@ -809,6 +794,12 @@ def _get_running_processes() -> list[ProcessTable]:
     return list(db.session.scalars(stmt))
 
 
+def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
+    process.last_status = status
+    db.session.add(process)
+    db.session.commit()
+
+
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
     """Manage processes depending on the engine status.
 
@@ -831,6 +822,7 @@ def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bo
 
             # Resume all the running processes
             for process in _get_running_processes():
+                set_process_status(process, ProcessStatus.RESUMED)
                 resume_process(process, user=SYSTEM_USER)
 
         elif not engine_settings.global_lock and new_global_lock:
