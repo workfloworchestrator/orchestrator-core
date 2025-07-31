@@ -151,6 +151,9 @@ nav:
           - Base Application:
                 - Preparing source folder: getting-started/prepare-source-folder.md
                 - Base application: getting-started/base.md
+          - Workflows:
+                - Creating a workflow: getting-started/workflows.md
+                - Registering a workflow: getting-started/workflows/#register-workflows
           - Docker: getting-started/docker.md
           - Orchestrator UI: getting-started/orchestration-ui.md
     - Reference Documentation:
@@ -186,9 +189,10 @@ nav:
           # - Tasks:  reference-docs/tasks.md
           # - Tests: reference-docs/tests.md
           - Workflows:
+                - Workflows: reference-docs/workflows/workflows.md
                 - Workflow Steps: reference-docs/workflows/workflow-steps.md
-                # - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
-                - Callbacks: reference-docs/workflows/callbacks.md
+            #     - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
+                - Callback step: reference-docs/workflows/callbacks.md
           - Websockets: reference-docs/websockets.md
           - Search: reference-docs/search.md
           - Monitoring:
@@ -199,29 +203,30 @@ nav:
                 - 4.x: migration-guide/4.0.md
 
     - Workshops:
-          #    - Beginner:
-          #      - Overview: workshops/beginner/overview.md
-          #      - Installation:
-          #        - Manual:
-          #          - Debian: workshops/beginner/debian.md
-          #          - MacOS: workshops/beginner/macos.md
-          #        - Docker compose: workshops/beginner/docker.md
-          #      - Start applications: workshops/beginner/start-applications.md
-          #      - Products:
-          #        - Scenario: workshops/beginner/scenario.md
-          #        - Domain models: workshops/beginner/domain-models.md
-          #        - Database migration: workshops/beginner/database-migration.md
-          #      - Workflows:
-          #        - Introduction: workshops/beginner/workflow-introduction.md
-          #        - Register workflows: workshops/beginner/register-workflows.md
-          #        - Input forms: workshops/beginner/input-forms.md
-          #        - Create UserGroup: workshops/beginner/create-user-group.md
-          #        - Modify UserGroup: workshops/beginner/modify-user-group.md
-          #        - Terminate UserGroup: workshops/beginner/terminate-user-group.md
-          #        - Create User: workshops/beginner/create-user.md
-          #        - Modify User: workshops/beginner/modify-user.md
-          #        - Terminate User: workshops/beginner/terminate-user.md
-          #      - Explore: workshops/beginner/explore.md
+          # - Beginner:
+          #   - Overview: workshops/beginner/workshop-overview.md
+          #   - introduction: workshops/beginner/workshop-introduction.md
+          #   - Installation:
+          #     - Manual:
+          #       - Debian: workshops/beginner/debian.md
+          #       - MacOS: workshops/beginner/macos.md
+          #     - Docker compose: workshops/beginner/docker.md
+          #   - Start applications: workshops/beginner/start-applications.md
+          #   - Products:
+          #     - Scenario: workshops/beginner/scenario.md
+          #     - Domain models: workshops/beginner/domain-models.md
+          #     - Database migration: workshops/beginner/database-migration.md
+          #   - Workflows:
+          #     - Introduction: workshops/beginner/workflow-introduction.md
+          #     - Register workflows: workshops/beginner/register-workflows.md
+          #     - Input forms: workshops/beginner/input-forms.md
+          #     - Create UserGroup: workshops/beginner/create-user-group.md
+          #     - Modify UserGroup: workshops/beginner/modify-user-group.md
+          #     - Terminate UserGroup: workshops/beginner/terminate-user-group.md
+          #     - Create User: workshops/beginner/create-user.md
+          #     - Modify User: workshops/beginner/modify-user.md
+          #     - Terminate User: workshops/beginner/terminate-user.md
+          #   - Explore: workshops/beginner/explore.md
           - Example Orchestrator Workshop:
                 - Overview: workshops/advanced/overview.md
                 #      - Installation: workshops/advanced/docker-installation.md
