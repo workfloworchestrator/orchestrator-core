@@ -175,6 +175,10 @@ class SubscriptionInterface:
         ]
         return await resolve_subscriptions(info, filter_by_with_related_subscriptions, sort_by, first, after)
 
+    @strawberry.field(description="Returns the date and time of the last validation workflow run for a subscription")  # type: ignore
+    async def last_validated_at(self, info: OrchestratorInfo) -> datetime | None:
+        return await info.context.core_last_validation_datetime_loader.load(self.subscription_id)
+
     @strawberry.field(description="Returns customer of a subscription")  # type: ignore
     def customer(self) -> CustomerType:
         return CustomerType(
