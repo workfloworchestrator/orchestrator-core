@@ -733,9 +733,7 @@ def validation_workflow_instance():
 
 
 @pytest.fixture
-def validation_workflow_process_instance(
-    generic_subscription_1, validation_workflow_instance: WorkflowInstanceForTests
-):
+def validation_workflow_process_instance(generic_subscription_1, validation_workflow_instance):
     """Fixture to create a ProcessSubscriptionTable entry for testing."""
     start_time = datetime.datetime.now(datetime.UTC)
     process_id = uuid4()
