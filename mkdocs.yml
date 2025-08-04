@@ -191,7 +191,6 @@ nav:
           - Workflows:
                 - Workflows: reference-docs/workflows/workflows.md
                 - Workflow Steps: reference-docs/workflows/workflow-steps.md
-            #     - Workflow Lifecycles: reference-docs/workflows/workflow-lifecycles.md
                 - Callback step: reference-docs/workflows/callbacks.md
           - Websockets: reference-docs/websockets.md
           - Search: reference-docs/search.md
