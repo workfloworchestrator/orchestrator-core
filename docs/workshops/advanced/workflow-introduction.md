@@ -1,30 +1,33 @@
-The workflow engine is the core of the orchestrator, it is responsible for the following functions:
+> [read more detailed explanation on workflows here](../../architecture/application/workflow.md)
 
-* Safely and reliable manipulate customer Subscriptions from one state to the next and maintain auditability.
-* Create an API through which Subscriptions can be manipulated programmatically.
-* Execute step functions in order and allow the retry of previously failed process-steps in an idempotent way.
-* Atomically execute workflow functions.
+The workflow engine is the core of the software, it has been created to execute a number of functions.
+
+- Safely and reliable manipulate customer `Subscriptions` from one state to the next and maintain auditability.
+- Create an API through which programmatically `Subscriptions` can be manipulated.
+- Execute step functions in order and allow the retry of previously failed process-steps in an idempotent way.
+- Atomically execute workflow functions.
 
 ### Best Practices
-The orchestrator will always attempt to be a robust a possible when executing workflow steps. However it is always
-up to the developer to implement the best practices as well as he/she can.
+The orchestrator will always attempt to be as robust as possible when executing workflow steps.
+However it is always up to the developer to implement the best practices as well as he/she can.
 
 #### Safeguards in the orchestrator;
-* Steps will be treated as atomic units: All code must execute otherwise the state will not be commited to the
-  database. For this reason it is not possible to call `.commit()` on the ORM within a step function
-* Workflows are only allowed to be run on `insync` subscriptions, unless explicitly configured otherwise. This is to
-  safeguard against resource contention. One of the first things a workflow should do is set the subscription it it
-  manipulating `out of sync`. No other workflow can then manipulate it.
-* Failed steps can be retried again and again, they use the state from the **last successful** step as their
-  starting point.
+- **Atomic Step Execution**: Each step is treated as an atomic unit.
+  If a step fails, no partial changes are committed to the database.
+  Because of this, calling .commit() on the ORM within a step function is not allowed.
+- **`insync` Subscription Requirement**: By default, workflows can only run on subscriptions that are marked as `insync`, unless explicitly configured otherwise.
+  This prevents multiple workflows from manipulating the same subscription concurrently.
+  One of the first actions a workflow should perform is to mark the subscription as `out of sync` to avoid conflicts.
+- **Step Retry Behavior**: Failed steps can be retried indefinitely. Each retry starts from the state of the **last successfully completed** step.
+
 
 #### Coding gotchas
-* The orchestrator is best suited to be used as a data manipulator, not as a data transporter. Use the State log as
-  a log of work, not a log of data. If the data you enter in the state is corrupt or wrong, you might need to
-  attempt a very difficult database query to update the state to solve your conflict
-* Always fetch data needed from an external system, **Just in time**. This will increase the robustness of the step
-* Always create a step function that executes one piece of work at a time. Theoretically you can execute the whole
-  workflow in a single  step. However this does not help with traceability and reliability.
+- The orchestrator is best suited to be used as a data manipulator, not as a data transporter.
+  - Use the State log as a log of work, not a log of data.
+  - If the data you enter in the state is corrupt or wrong, you might need to attempt a very difficult database query to update the state to solve your conflict.
+- Always retrieve external data at the moment it's needed during a step. This increases the robustness of the step.
+- Each step function should perform a single, clearly defined unit of work.
+  Theoretically you can execute the whole workflow in a single step, However this does not help with traceability and reliability.
 
 
 ### Workshop continued
