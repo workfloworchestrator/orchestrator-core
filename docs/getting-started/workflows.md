@@ -82,22 +82,37 @@ In this step:
 Every workflow starts with the builtin step `init` and ends with the builtin
 step `done`, with an arbitrary list of other builtin steps or custom steps in between.
 
+Domain models as parameters are subject to special processing.
+With the previous step, the `subscription` is available in the state, which for the next step, can be used directly with the Subscription model type, for example:
+
+```python
+@step("Add subscription to external system")
+def add_subscription_to_external_system(
+    subscription: MySubscriptionModel,
+) -> State:
+    payload = subscription.my_block
+    response = add_to_external_system(payload)
+    return {"response": response}
+```
+
+for `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subscription` is directly usable from the first step.
+
 [Information about all usable step decorators can be found here](../architecture/application/workflow#workflow-steps)
-
-
 ## Register workflows
 
-The orchestrator needs to know which workflows are available for which products.
-This is a two stage registration process.
-The workflows need to be registered as a workflow function in the code and a mapping between workflow and product_type needs to be added to the database through a migration script.
-First we will add the workflow functions.
-For creating the migration script, we can either let the `cli` create an empty one and fill it manually or use the `db migrate-workflows` command to generate one based on the diffs between the registered workflows in the code and the database.
+To make workflows available in the orchestrator, they must be registered in two stages:
 
-### Step 1: Map workflow function to package
+1. In code — by defining them as workflow functions and registering them via `LazyWorkflowInstance`.
+2. In the database — by mapping them to the corresponding `product_type` using a migration.
+    - workflows don't need to necessarily be added to a product_type, doing this will only make them available as tasks not meant to be ran by a subscription.
 
-Registering workflow functions in the code is done by creating appropriate `LazyWorkflowInstance` instances that maps a workflow function to the Python package where it is defined.
+We’ll start with the code registration, followed by options for generating the database migration.
 
-For example, the `LazyWorkflowInstance` for the `UserGroup` create workflow looks like this:
+### Step 1: Register workflow functions in code
+
+Workflow functions must be registered by creating a `LazyWorkflowInstance`, which maps a workflow function to the Python module where it's defined.
+
+Example — registering the `create_user_group` workflow:
 
 ```python
 from orchestrator.workflows import LazyWorkflowInstance
@@ -105,31 +120,24 @@ from orchestrator.workflows import LazyWorkflowInstance
 LazyWorkflowInstance("workflows.user_group.create_user_group", "create_user_group")
 ```
 
-Add the `LazyWorkflowInstance` calls for all six workflows to `workflows/__init__. py`, and add `import workflows` to `main.py` so the instances are created as part of the workflow package.
+To ensure the workflows are discovered at runtime:
+
+- Add all `LazyWorkflowInstance(...)` calls to `workflows/__init__.py`.
+- Add `import workflows` to `main.py` so they are registered during app startup.
 
 !!! example
 
     for inspiration look at an example implementation of the [lazy
     workflow instances ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py)
 
-### Step 2: Register workflow in database
+### Step 2: Register workflows in the database
 
-There are several ways to complete this step:
+After registering workflows in code, you need to add them to the database by mapping them to their `product_type`.
+There are three ways to do this:
 
-- [Copy the example workflows migration](#copy-the-example-workflows-migration)
 - [Migrate workflows generator script](#migrate-workflows-generator-script)
+- [Copy the example workflows migration](#copy-the-example-workflows-migration)
 - [Manual](#manual)
-
-#### Copy the example workflows migration
-
-```shell
-(
-  cd migrations/versions/schema
-  curl --remote-name https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator-beginner/main/examples/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py
-)
-```
-
-And restart the Docker compose environment.
 
 #### Migrate workflows generator script
 
@@ -148,6 +156,23 @@ The migration can be run with:
 python main.py db upgrade heads
 ```
 
+#### Copy the example workflows migration
+
+You can copy a predefined migration file from the example repository:
+
+```shell
+(
+  cd migrations/versions/schema
+  curl --remote-name https://raw.githubusercontent.com/workfloworchestrator/example-orchestrator-beginner/main/examples/2022-11-12_8040c515d356_add_user_and_usergroup_workflows.py
+)
+```
+
+Update it to your own workflow and update the database with:
+
+```shell
+python main.py db upgrade heads
+```
+
 #### Manual
 
 Create a new empty database migration with the following command:
@@ -156,8 +181,8 @@ Create a new empty database migration with the following command:
 PYTHONPATH=. python main.py db revision --head data --message "add User and UserGroup workflows"
 ```
 
-This will create an empty database migration in the folder
-`migrations/versions/schema`. For the migration we will make use of the migration helper functions `create_workflow` and `delete_workflow` that both expect a `Dict` that describes the workflow registration to be added or deleted from the database.
+This will create an empty database migration in the folder `migrations/versions/schema`.
+For the migration we will make use of the migration helper functions `create_workflow` and `delete_workflow` that both expect a `Dict` that describes the workflow registration to be added or deleted from the database.
 
 To add all User and UserGroup workflows in bulk a list of `Dict` is created, for only the UserGroup create workflow the list looks like this:
 
@@ -207,7 +232,9 @@ PYTHONPATH=. python main.py db upgrade heads
 
 ### Validate
 
-Validate workflows run integrity checks on an existing subscription. Checking the state of associated data in an external system for example. The validate migration parameters look something like this:
+Validate workflows run integrity checks on an existing subscription.
+Checking the state of associated data in an external system for example.
+The validate migration parameters look something like this:
 
 ```python
 new_workflows = [
@@ -220,15 +247,15 @@ new_workflows = [
     },
 ]
 ```
+This workflow uses a `target` of `VALIDATE`, which explicitly distinguishes it from system tasks that use `Target.SYSTEM`.
+While both are marked with `is_task=True` and treated as tasks, they serve different purposes:
 
-It uses a `target` of `VALIDATE`. Unlike system tasks, which use the `target` of `SYSTEM` designation, validate
-workflows explicitly use `target="VALIDATE"` to distinguish themselves. This distinction reflects their different
-purposes.
-The `is_task` parameter is set to `True` to indicate that this workflow is a task. Tasks are workflows that are not
-directly associated with a subscription and are typically used for background processing or system maintenance.
-Both `SYSTEM` and `VALIDATE` workflows are considered tasks, but they serve different purposes.
+- `SYSTEM` workflows are typically used for background processing and internal orchestration.
+- `VALIDATE` workflows are used to confirm that a subscription is correct and consistent before transitioning to a new lifecycle phase (e.g., moving into production).
 
-Generally the steps raise assertions if a check fails, otherwise return OK to the state:
+Validate workflow steps generally raise an `AssertionError` when a condition fails.
+If all checks pass, they return a simple success marker (e.g., "OK") to the workflow state.
+
 
 ```python
 @step("Check NSO")
@@ -242,7 +269,7 @@ def check_nso(subscription: NodeEnrollment, node_name: str) -> State:
 
 ### Modify
 
-Very similar to validate workflow but the migration params vary as one would expect with a different `target`:
+The `Modify` workflow is similar to a `Validate` workflow, but uses different migration parameters appropriate to its `Target.MODIFY` context.
 
 ```python
 new_workflows = [
@@ -256,9 +283,10 @@ new_workflows = [
 ]
 ```
 
-It would make any desired changes to the existing subscription and if need by, change the lifecycle state at the end.
-For example, for our `CREATE` that put the initial sub into the state `PROVISIONING`,
-a secondary modify workflow will put it into production and then set the state to `ACTIVE` at the end:
+This type of workflow applies changes to an existing subscription.
+If necessary, it can also update the subscription’s lifecycle state at the end of the process.
+For example, suppose a `CREATE` workflow initially sets the subscription to the `PROVISIONING` state.
+A follow-up `Modify` workflow might transition it to production and set the lifecycle state to `ACTIVE`:
 
 ```python
 @step("Activate Subscription")
@@ -269,11 +297,11 @@ def update_subscription_and_description(subscription: NodeEnrollmentProvisioning
     return {"subscription": subscription}
 ```
 
-These also have the subscription id passed in in the initial step as outlined above.
+These also have the `subscription_id` passed in in the initial step as outlined above.
 
 ### Terminate
 
-Terminates a workflow and undoes changes that were made.
+A Terminate workflow is used to cleanly remove a subscription and undo any changes made during its lifecycle.
 
 The migration params are as one would suspect:
 
@@ -288,15 +316,16 @@ new_workflows = [
     },
 ]
 ```
+Here, the `target`, `name`, and `description` follow standard naming conventions for `terminate` workflows.
 
-`target` is `TERMINATE`, `name` and `tag` are as you would expect.
-
-The first step of these workflow are slightly different as it pulls in the `State` object rather than just the subscription id:
+the first step of a workflow:
 
 ```python
 @step("Load relevant subscription information")
-def load_subscription_info(state: State) -> FormGenerator:
+def load_subscription_info(subscription: NodeEnrollment) -> FormGenerator:
     subscription = state["subscription"]
     node = get_detailed_node(subscription["ne"]["esdb_node_id"])
     return {"subscription": subscription, "node_name": node.get("name")}
 ```
+
+This approach ensures that the workflow has all the necessary context to safely tear down the subscription and associated resources.
