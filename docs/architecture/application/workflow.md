@@ -6,122 +6,108 @@ The workflow engine is the core of the software, it has been created to execute 
 - Execute step functions in order and allow the retry of previously failed process-steps in an idempotent way.
 - Atomically execute workflow functions.
 
-## Create
+### Best Practices
+The orchestrator will always attempt to be a robust a possible when executing workflow steps. However it is always
+up to the developer to implement the best practices as well as he/she can.
 
-The "base" workflow out of a set is the `CREATE` workflow. That will create a subscription and all of the associated workflows "nest" under that.
+#### Safeguards in the orchestrator;
+* Steps will be treated as atomic units: All code must execute otherwise the state will not be commited to the
+  database. For this reason it is not possible to call `.commit()` on the ORM within a step function
+* Workflows are only allowed to be run on `insync` subscriptions, unless explicitly configured otherwise. This is to
+  safeguard against resource contention. One of the first things a workflow should do is set the subscription it it
+  manipulating `out of sync`. No other workflow can then manipulate it.
+* Failed steps can be retried again and again, they use the state from the **last successful** step as their
+  starting point.
 
-### Create migration
+#### Coding gotchas
+* The orchestrator is best suited to be used as a data manipulator, not as a data transporter. Use the State log as
+  a log of work, not a log of data. If the data you enter in the state is corrupt or wrong, you might need to
+  attempt a very difficult database query to update the state to solve your conflict
+* Always fetch data needed from an external system, **Just in time**. This will increase the robustness of the step
+* Always create a step function that executes one piece of work at a time. Theoretically you can execute the whole
+  workflow in a single  step. However this does not help with traceability and reliability.
 
-The migration needs to define a specific set of parameters:
 
-```python
-params_create = dict(
-    name="create_node_enrollment",
-    target="CREATE",
-    description="Create Node Enrollment Service",
-    tag="NodeEnrollment",
-    search_phrase="Node Enrollment%",
-)
-```
+## Workflows
 
-The `name` is the actual name of the workflow as defined in the workflow code itself:
+> [explanation to create workflow in code](../../getting-started/workflows.md)
 
-```python
-@create_workflow(
-    "Create Node Enrollment",
-    initial_input_form=initial_input_form_generator,
-    status=SubscriptionLifecycle.PROVISIONING
-)
-def create_node_enrollment() -> StepList:
-    return (
-        begin
-        >> construct_node_enrollment_model
-        >> store_process_subscription()
-        ...
-        ...
-        ...
-```
+Workflows are composed of one or more **steps**, each representing a discrete unit of work in the subscription management process. Steps are executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
 
-The `target` is `CREATE`, `description` is a human readable label and the `tag` is a specific string that will be used in all of the associated workflows.
+There are two high-level kinds of workflows:
 
-### Create flow
+- workflows
+    - Defined for specific products.
+    - Perform operations like creating, modifying, or terminating subscriptions.
+- tasks
+    - Not tied to a specific product and may not involve a subscription at all.
+    - Can be scheduled to run periodically or triggered manually.
+    - Useful for actions like cleanup jobs or triggering validations across multiple subscriptions.
+    - Examples can be found in `orchestrator.workflows.tasks`.
 
-Generally the initial step will be the form generator function to display information and gather user input. The first actual step (`construct_node_enrollment_model` here) is generally one that takes data gathered in the form input step (and any data gathered from external systems, etc) and constructs the populated domain model.
+workflows need to be registered in the database and initialized as a `LazyWorkflowInstance` to work, [more info on this here](../../getting-started/workflows.md#register-workflows)
 
-Note that at this point the subscription is created with a lifecycle state of `INITIAL`.
+### Subscription Workflow Types
 
-The domain model is then returned as part of the `subscription` object along with any other data downstream steps might want:
+Workflows are categorized based on the operations they perform on a subscription:
 
-```python
-@step("Construct Node Enrollment model")
-def construct_node_enrollment_model(
-    product: UUIDstr, customer_id: UUIDstr, esdb_node_id: int, select_node: str, url: str, uuid: str, role_id: str
-) -> State:
-    subscription = NodeEnrollmentInactive.from_product_id(
-        product_id=product, customer_id=customer_id, status=SubscriptionLifecycle.INITIAL
-    )
+- Create ([create_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow))
+    - The "base" workflow that initializes a new subscription for the product.
+    - Only one create workflow should exist per product.
+- Modify ([modify_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow))
+    - Modify an existing subscription (e.g., updating parameters, migrating to another product).
+    - Multiple modify workflows can exist, each handling a specific type of modification.
+- Terminate ([terminate_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow))
+    - Terminates the subscription and removes its data and references from external systems.
+    - External references should only be retained if they also hold historical records.
+    - Only one terminate workflow should exist per product.
+- Validate ([validate_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow))
+    - Verifies that external systems are consistent with the orchestrator's subscription state.
+    - Only one validate workflow should exist per product.
 
-    subscription.ne.esdb_node_id = esdb_node_id
-    subscription.description = f"Node {select_node} Initial Subscription"
-    subscription.ne.esdb_node_uuid = uuid
-    subscription.ne.nso_service_id = uuid4()
-    subscription.ne.routing_domain = "esnet-293"
 
-    role = map_role(role_id, select_node)
-    site_id = select_node.split("-")[0] # location short name
+### Default Workflows
 
-    return {
-        "subscription": subscription,
-        "subscription_id": subscription.subscription_id,
-        "subscription_description": subscription.description,
-        "role": role,
-        "site_id": site_id
-    }
-```
+A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products. To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration.
 
-After that the the subscription is created and registered with the orchestrator:
+Alternatively, be sure to execute `ensure_default_workflows()` within the migration if using `helpers.create()` is not desirable.
 
-```python
-    >> store_process_subscription()
-```
+By default, `DEFAULT_PRODUCT_WORKFLOWS` is set to `['modify_note']`.
 
-The subsequent steps are the actual logic being executed by the workflow. It's a best practice to have each step execute one discrete operation so in case a step fails it can be restarted. To wit if a step contained:
 
-```python
-@step("Do things rather than thing")
-def do_things(subscription: NodeEnrollmentProvisioning):
+## Workflow Steps
 
-    do_x()
+Workflows are composed of one or more **steps**, where each step is executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
 
-    do_y()
+### Step Characteristics
 
-    do_z()
+- **Atomicity**: Each step is atomic-either it fully completes or has no effect. This ensures data consistency and reliable state transitions.
+- **Idempotency**: Steps should be designed to be safely repeatable without causing unintended side effects.
+- **Traceability**: By breaking workflows into fine-grained steps, the orchestrator maintains clear audit trails and simplifies error handling and retries.
 
-    return {"subscription": subscription}
-```
+### Types of Steps
 
-And `do_z()` fails, restarting the workflow will execute the first two steps again and that might cause problems.
+The orchestrator supports several kinds of steps to cover different use cases:
 
-The final step will make any final changes to the subscription information and change the state of the subscription to (usually) `PROVISIONING` or `ACTIVE`:
+- **`step`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.step)  
+  Executes specific business logic or external API calls as part of the subscription process.
 
-```python
-@step("Update subscription name with node info")
-def update_subscription_name_and_description(subscription: NodeEnrollmentProvisioning, select_node: str) -> State:
-    subscription = change_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
-    subscription.description = f"Node {select_node} Provisioned (without system service)"
+- **`retrystep`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.retrystep)  
+  Similar to `step`, but designed for operations that may fail intermittently. These steps will automatically be retried periodically on failure.
 
-    return {"subscription": subscription}
-```
+- **`inputstep`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.inputstep)  
+  Pauses the workflow to request and receive user input during execution.
 
-No other magic really, when this step completes successfully the workflow is done and the active subscription will show up in the orchestrator UI.
+- **`conditional`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.conditional)  
+  Conditionally executes the step based on environment variables or process state.  
+  If the condition evaluates to false, the step is skipped entirely.
 
-## Associated workflows
+- **`callback_step`** [functional docs here](../../reference-docs/workflows/callbacks.md)  
+  Pauses workflow execution while waiting for a external event to complete.
 
-Now with an active subscription, the associated workflows (modify, validate, terminate, etc) "nest" under the active subscription in the UI. When they are executed they are run "on" the subscription they are associated with.
 
-Like the `CREATE` workflow they *can* have an initial form generator step but they don't necessarily need one. For example a validate workflow probably would not need any additional input since it's just running checks on an existing subscription.
+[example of re-usable step and single dispatch](../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core)
 
-These workflows have more in common with each other than not, it's mostly a matter of how they are registered with the system.
 
 ### Execution parameters
 
@@ -180,116 +166,3 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 !!! danger
     It is potentially dangerous to run workflows on subscriptions that are not in sync. Only use this for small and
     specific usecases, such as editing a description that is only used within orchestrator.
-
-#### Initial state
-
-The first step of any of these associated workflows will be to fetch the subscription from the orchestrator:
-
-```python
-@step("Load initial state")
-def load_initial_state(subscription_id: UUIDstr) -> State:
-    subscription = NodeEnrollment.from_subscription(subscription_id)
-
-    return {
-        "subscription": subscription,
-    }
-```
-
-The `subscription_id` is automatically passed in.
-
-### Validate
-
-Validate workflows run integrity checks on an existing subscription. Checking the state of associated data in an external system for example. The validate migration parameters look something like this:
-
-```python
-    params = dict(
-        name="validate_node_enrollment",
-        target="VALIDATE",
-        is_task=True,
-        description="Validate Node Enrollment before production",
-        tag="NodeEnrollment",
-        search_phrase="Node Enrollment%",
-    )
-```
-
-It uses a `target` of `VALIDATE`. Unlike system tasks, which use the `target` of `SYSTEM` designation, validate
-workflows explicitly use `target="VALIDATE"` to distinguish themselves. This distinction reflects their different
-purposes.
-The `is_task` parameter is set to `True` to indicate that this workflow is a task. Tasks are workflows that are not
-directly associated with a subscription and are typically used for background processing or system maintenance.
-Both `SYSTEM` and `VALIDATE` workflows are considered tasks, but they serve different purposes.
-
-Generally the steps raise assertions if a check fails, otherwise return OK to the state:
-
-```python
-@step("Check NSO")
-def check_nso(subscription: NodeEnrollment, node_name: str) -> State:
-    device = get_device(device_name=node_name)
-
-    if device is None:
-        raise AssertionError(f"Device not found in NSO")
-    return {"check_nso": "OK"}
-```
-
-## Modify
-
-Very similar to validate but the migration params vary as one would expect with a different `target`:
-
-```python
-    params_modify = dict(
-        name="modify_node_enrollment",
-        target="MODIFY",
-        description="Modify Node Enrollment",
-        tag="NodeEnrollment",
-        search_phrase="Node Enrollment%"
-)
-```
-
-It would make any desired changes to the existing subscription and if need by, change the lifecycle state at the end. For example, for our `CREATE` that put the initial sub into the state `PROVISIONING`, a secondary modify workflow will put it into production and then set the state to `ACTIVE` at the end:
-
-```python
-@step("Activate Subscription")
-def update_subscription_and_description(subscription: NodeEnrollmentProvisioning, node_name: str) -> State:
-    subscription = change_lifecycle(subscription, SubscriptionLifecycle.ACTIVE)
-    subscription.description = f"Node {node_name} Production"
-
-    return {"subscription": subscription}
-```
-
-These also have the subscription id passed in in the initial step as outlined above.
-
-## Terminate
-
-Terminates a workflow and undoes changes that were made.
-
-The migration params are as one would suspect:
-
-```python
-    params = dict(
-        name="terminate_node_enrollment",
-        target="TERMINATE",
-        description="Terminate Node Enrollment subscription",
-        tag="NodeEnrollment",
-        search_phrase="Node Enrollment%",
-    )
-```
-
-`target` is `TERMINATE`, `name` and `tag` are as you would expect.
-
-The first step of these workflow are slightly different as it pulls in the `State` object rather than just the subscription id:
-
-```python
-@step("Load relevant subscription information")
-def load_subscription_info(state: State) -> FormGenerator:
-    subscription = state["subscription"]
-    node = get_detailed_node(subscription["ne"]["esdb_node_id"])
-    return {"subscription": subscription, "node_name": node.get("name")}
-```
-
-## Default Workflows
-
-A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products. To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration.
-
-Alternatively, be sure to execute `ensure_default_workflows()` within the migration if using `helpers.create()` is not desirable.
-
-By default, `DEFAULT_PRODUCT_WORKFLOWS` is set to `['modify_note']`.
