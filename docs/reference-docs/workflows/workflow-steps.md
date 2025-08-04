@@ -34,11 +34,11 @@ When designing workflows in Orchestrator Core, reusability is key.
 With a single product definition, you can build reusable steps for both `CREATE` and `MODIFY` workflows.
 For example, you may want to:
 
-- Update a product’s description using subscription properties.
+- Update a product's description using subscription properties.
 - Push data to an external system via an upsert operation.
 
-To take reusability further, Python’s `@singledispatch` decorator can help abstract product-specific logic behind a common interface.
-This makes your steps cleaner, easier to reuse across multiple workflows, and more maintainable.
+To take reusability further, Python's `@singledispatch` decorator can help abstract product-specific logic behind a common interface.
+This makes your steps cleaner, easier to reuse across multiple workflows and more maintainable.
 
 
 ### Generic Workflow Steps
@@ -67,7 +67,7 @@ This is where `@singledispatch` can help.
 ### Using `@singledispatch` for Cleaner Reusability
 
 In the example above, each product requires slightly different logic for building the payload.
-Rather than branching on type manually, you can delegate this responsibility to Python’s `@singledispatch`.
+Rather than branching on type manually, you can delegate this responsibility to Python's `@singledispatch`.
 
 With `@singledispatch`, you define a generic function and register specific implementations based on the type of the input model.
 

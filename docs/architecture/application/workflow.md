@@ -7,32 +7,34 @@ The workflow engine is the core of the software, it has been created to execute 
 - Atomically execute workflow functions.
 
 ### Best Practices
-The orchestrator will always attempt to be a robust a possible when executing workflow steps. However it is always
-up to the developer to implement the best practices as well as he/she can.
+The orchestrator will always attempt to be as robust as possible when executing workflow steps.
+However it is always up to the developer to implement the best practices as well as he/she can.
 
 #### Safeguards in the orchestrator;
-* Steps will be treated as atomic units: All code must execute otherwise the state will not be commited to the
-  database. For this reason it is not possible to call `.commit()` on the ORM within a step function
-* Workflows are only allowed to be run on `insync` subscriptions, unless explicitly configured otherwise. This is to
-  safeguard against resource contention. One of the first things a workflow should do is set the subscription it it
-  manipulating `out of sync`. No other workflow can then manipulate it.
-* Failed steps can be retried again and again, they use the state from the **last successful** step as their
-  starting point.
+- **Atomic Step Execution**: Each step is treated as an atomic unit.
+  If a step fails, no partial changes are committed to the database.
+  Because of this, calling .commit() on the ORM within a step function is not allowed.
+- **`insync` Subscription Requirement**: By default, workflows can only run on subscriptions that are marked as `insync`, unless explicitly configured otherwise.
+  This prevents multiple workflows from manipulating the same subscription concurrently.
+  One of the first actions a workflow should perform is to mark the subscription as `out of sync` to avoid conflicts.
+- **Step Retry Behavior**: Failed steps can be retried indefinitely. Each retry starts from the state of the **last successfully completed** step.
+
 
 #### Coding gotchas
-* The orchestrator is best suited to be used as a data manipulator, not as a data transporter. Use the State log as
-  a log of work, not a log of data. If the data you enter in the state is corrupt or wrong, you might need to
-  attempt a very difficult database query to update the state to solve your conflict
-* Always fetch data needed from an external system, **Just in time**. This will increase the robustness of the step
-* Always create a step function that executes one piece of work at a time. Theoretically you can execute the whole
-  workflow in a single  step. However this does not help with traceability and reliability.
+- The orchestrator is best suited to be used as a data manipulator, not as a data transporter.
+  - Use the State log as a log of work, not a log of data.
+  - If the data you enter in the state is corrupt or wrong, you might need to attempt a very difficult database query to update the state to solve your conflict.
+- Always retrieve external data at the moment it's needed during a step. This increases the robustness of the step.
+- Each step function should perform a single, clearly defined unit of work.
+  Theoretically you can execute the whole workflow in a single step, However this does not help with traceability and reliability.
 
 
 ## Workflows
 
-> [explanation to create workflow in code](../../getting-started/workflows.md)
+> [explanation to create a workflow in code](../../getting-started/workflows.md)
 
-Workflows are composed of one or more **steps**, each representing a discrete unit of work in the subscription management process. Steps are executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
+Workflows are composed of one or more **steps**, each representing a discrete unit of work in the subscription management process.
+Steps are executed sequentially by the workflow engine and are the fundamental building blocks of workflows.
 
 There are two high-level kinds of workflows:
 
@@ -68,7 +70,8 @@ Workflows are categorized based on the operations they perform on a subscription
 
 ### Default Workflows
 
-A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products. To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration.
+A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products.
+To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration.
 
 Alternatively, be sure to execute `ensure_default_workflows()` within the migration if using `helpers.create()` is not desirable.
 
@@ -81,7 +84,7 @@ Workflows are composed of one or more **steps**, where each step is executed seq
 
 ### Step Characteristics
 
-- **Atomicity**: Each step is atomic-either it fully completes or has no effect. This ensures data consistency and reliable state transitions.
+- **Atomicity**: Each step is atomic, either it fully completes or has no effect. This ensures data consistency and reliable state transitions.
 - **Idempotency**: Steps should be designed to be safely repeatable without causing unintended side effects.
 - **Traceability**: By breaking workflows into fine-grained steps, the orchestrator maintains clear audit trails and simplifies error handling and retries.
 
@@ -105,17 +108,22 @@ The orchestrator supports several kinds of steps to cover different use cases:
 - **`callback_step`** [functional docs here](../../reference-docs/workflows/callbacks.md)  
   Pauses workflow execution while waiting for a external event to complete.
 
-
-[example of re-usable step and single dispatch](../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core)
+For a practical example of how to define reusable workflow steps—and how to leverage singledispatch for type-specific logic—see:
+👉 [Reusable step functions and singledispatch usage](../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core)
 
 
 ### Execution parameters
 
-There are a few parameters to finetune workflow execution constraints. The recommended place to alter them is from the workflows module, i.e. in `workflows/__init__.py`. Refer to the examples below.
+You can fine-tune workflow execution behavior using a set of configuration parameters.
+The recommended location to define or override these is in `workflows/__init__.py`.
+Below are examples of key configuration options:
 
-1. `WF_USABLE_MAP`: configure subscription lifecycles on which a workflow is usable
+1. `WF_USABLE_MAP`: Define usable subscription lifecycles for workflows.
 
-By default, the associated workflow can only be run on a subscription with a lifecycle state set to `ACTIVE`. This behavior can be changed in the `WF_USABLE_MAP` data structure:
+By default, the associated workflow can only be run on a subscription with a lifecycle state set to `ACTIVE`.
+This behavior can be changed in the `WF_USABLE_MAP` data structure:
+
+> note: Terminate workflows are by default, allowed to run on subscriptions in any lifecycle state unless explicitly restricted in this map.
 
 ```python
 from orchestrator.services.subscriptions import WF_USABLE_MAP
@@ -129,11 +137,12 @@ WF_USABLE_MAP.update(
 )
 ```
 
-Now validate and provision can be run on subscriptions in either `ACTIVE` or `PROVISIONING` states and modify can *only* be run on subscriptions in the `PROVISIONING` state. The exception is terminate, those workflows can be run on subscriptions in any state unless constrained here.
+Now validate and provision can be run on subscriptions in either `ACTIVE` or `PROVISIONING` states and modify can *only* be run on subscriptions in the `PROVISIONING` state.
 
-2. `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS`: block modify workflows on subscriptions with unterminated `in_use_by` subscriptions
+2. `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS`: Block modify workflows on subscriptions with unterminated `in_use_by` subscriptions
 
-By default, only terminate workflows are prohibited from running on subscriptions with unterminated `in_use_by` subscriptions. This behavior can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data structure:
+By default, only terminate workflows are prohibited from running on subscriptions with unterminated `in_use_by` subscriptions.
+This behavior can be changed in the `WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS` data structure:
 
 ```python
 from orchestrator.services.subscriptions import WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS
@@ -147,9 +156,10 @@ WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS.update(
 
 With this configuration, both terminate and modify will not run on subscriptions with unterminated `in_use_by` subscriptions.
 
-3. `WF_USABLE_WHILE_OUT_OF_SYNC`: allow specific workflows on out of sync subscriptions
+3. `WF_USABLE_WHILE_OUT_OF_SYNC`: Allow specific workflows on out of sync subscriptions
 
-By default, only system workflows (tasks) are allowed to run on subscriptions that are not in sync. This behavior can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
+By default, only system workflows (tasks) are allowed to run on subscriptions that are not in sync.
+This behavior can be changed with the `WF_USABLE_WHILE_OUT_OF_SYNC` data structure:
 
 ```python
 from orchestrator.services.subscriptions import WF_USABLE_WHILE_OUT_OF_SYNC

@@ -8,7 +8,7 @@ A **workflow** in Orchestrator is the combination of:
 - A sequence of **workflow steps** — defining the logic to be executed.
 
 For a more detailed explanation, see  
-👉 [Detailed explanation of workflows](../../architecture/application/workflow.md)
+👉 [Detailed explanation of workflows](../architecture/application/workflow.md)
 
 ---
 
@@ -20,13 +20,15 @@ To create a workflow, use the `@workflow` decorator. It takes the following argu
 
 The decorated function must return a chain of steps using the `>>` operator to define their execution order.
 
-there also exists util functions for each [workflow type](../architecture/application/workflow#subscription-workflow-types) that give usefull generic logic:
-[create_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow),
-[modify_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow),
-[terminate_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow),
-[validate_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow)
+there are also util functions for each [workflow type](../architecture/application/workflow#subscription-workflow-types) that give usefull generic logic:
 
----
+- [create_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow)
+- [modify_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow)
+- [terminate_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow)
+- [validate_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow)
+
+For more details on these workflow types, refer to:
+👉 [Subscription Workflow Types](../architecture/application/workflow.md#subscription-workflow-types)
 
 ### Minimal Example
 
@@ -85,8 +87,11 @@ step `done`, with an arbitrary list of other builtin steps or custom steps in be
 
 ## Register workflows
 
-The orchestrator needs to know which workflows are available for which products. This is a two stage registration process. The workflows need to be registered as a workflow function in the code and a mapping between workflow and product_type needs to be added to the database through migration
-script. First we will add the workflow functions. For creating the migration script, we can either let the `cli` create an empty one and fill it manually or use the `db migrate-workflows` command to generate one based on the diffs between the registered workflows in the code and the database.
+The orchestrator needs to know which workflows are available for which products.
+This is a two stage registration process.
+The workflows need to be registered as a workflow function in the code and a mapping between workflow and product_type needs to be added to the database through a migration script.
+First we will add the workflow functions.
+For creating the migration script, we can either let the `cli` create an empty one and fill it manually or use the `db migrate-workflows` command to generate one based on the diffs between the registered workflows in the code and the database.
 
 ### Step 1: Map workflow function to package
 
@@ -111,20 +116,9 @@ Add the `LazyWorkflowInstance` calls for all six workflows to `workflows/__init_
 
 There are several ways to complete this step:
 
-- [Creating a workflow](#creating-a-workflow)
-  - [Creating a Workflow](#creating-a-workflow-1)
-    - [Minimal Example](#minimal-example)
-    - [How Workflow Steps Work](#how-workflow-steps-work)
-  - [Register workflows](#register-workflows)
-    - [Step 1: Map workflow function to package](#step-1-map-workflow-function-to-package)
-    - [Step 2: Register workflow in database](#step-2-register-workflow-in-database)
-      - [Copy the example workflows migration](#copy-the-example-workflows-migration)
-      - [Migrate workflows generator script](#migrate-workflows-generator-script)
-      - [Manual](#manual)
-  - [more workflow examples for each type](#more-workflow-examples-for-each-type)
-    - [Validate](#validate)
-    - [Modify](#modify)
-    - [Terminate](#terminate)
+- [Copy the example workflows migration](#copy-the-example-workflows-migration)
+- [Migrate workflows generator script](#migrate-workflows-generator-script)
+- [Manual](#manual)
 
 #### Copy the example workflows migration
 
@@ -248,7 +242,7 @@ def check_nso(subscription: NodeEnrollment, node_name: str) -> State:
 
 ### Modify
 
-Very similar to validate but the migration params vary as one would expect with a different `target`:
+Very similar to validate workflow but the migration params vary as one would expect with a different `target`:
 
 ```python
 new_workflows = [
@@ -262,7 +256,9 @@ new_workflows = [
 ]
 ```
 
-It would make any desired changes to the existing subscription and if need by, change the lifecycle state at the end. For example, for our `CREATE` that put the initial sub into the state `PROVISIONING`, a secondary modify workflow will put it into production and then set the state to `ACTIVE` at the end:
+It would make any desired changes to the existing subscription and if need by, change the lifecycle state at the end.
+For example, for our `CREATE` that put the initial sub into the state `PROVISIONING`,
+a secondary modify workflow will put it into production and then set the state to `ACTIVE` at the end:
 
 ```python
 @step("Activate Subscription")
