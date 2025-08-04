@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -8,7 +9,11 @@ from strawberry.dataloader import DataLoader
 from orchestrator.db import (
     SubscriptionTable,
 )
-from orchestrator.services.subscription_relations import get_depends_on_subscriptions, get_in_use_by_subscriptions
+from orchestrator.services.subscription_relations import (
+    get_depends_on_subscriptions,
+    get_in_use_by_subscriptions,
+    get_last_validation_datetimes,
+)
 from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
@@ -38,4 +43,10 @@ async def depends_on_subs_loader(keys: list[tuple[UUID, tuple[str, ...]]]) -> li
     return await get_depends_on_subscriptions(subscription_ids, filter_statuses)
 
 
+async def last_validation_datetime_loader(keys: list[UUID]) -> list[datetime | None]:
+    """GraphQL dataloader to efficiently get the last validation datetime for multiple subscription_ids."""
+    return await get_last_validation_datetimes(keys)
+
+
 SubsLoaderType = DataLoader[tuple[UUID, tuple[str, ...]], list[SubscriptionTable]]
+LastValidationLoaderType = DataLoader[UUID, datetime | None]

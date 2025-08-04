@@ -4,6 +4,7 @@ import os
 import typing
 from contextlib import closing
 from typing import Any, cast
+from uuid import uuid4
 
 import pytest
 import requests
@@ -19,7 +20,10 @@ from starlette.testclient import TestClient
 from urllib3_mock import Responses
 
 from orchestrator import OrchestratorCore
+from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
     ProductBlockTable,
     ProductTable,
     ResourceTypeTable,
@@ -726,6 +730,35 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 def validation_workflow_instance():
     with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
         yield ctx
+
+
+@pytest.fixture
+def validation_workflow_process_instance(generic_subscription_1, validation_workflow_instance):
+    """Fixture to create a ProcessSubscriptionTable entry for testing."""
+    start_time = datetime.datetime.now(datetime.UTC)
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=validation_workflow_instance.workflow_id,
+        last_status="completed",
+        last_step="Modify",
+        started_at=start_time,
+        last_modified_at=start_time + datetime.timedelta(seconds=10),
+        assignee=Assignee.SYSTEM,
+        is_task=True,
+    )
+
+    process_subscription = ProcessSubscriptionTable(
+        subscription_id=generic_subscription_1,
+        process_id=process_id,
+        workflow_target=validation_workflow_instance.target,
+        created_at=start_time,
+    )
+
+    db.session.add(process)
+    db.session.add(process_subscription)
+    db.session.commit()
+    return process, process_subscription
 
 
 @pytest.fixture

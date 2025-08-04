@@ -1,15 +1,18 @@
+from datetime import datetime
 from itertools import chain
 from typing import Any, Awaitable, Callable, NamedTuple
 from uuid import UUID
 
 import structlog
 from more_itertools import flatten, unique_everseen
-from sqlalchemy import Row, select
+from sqlalchemy import Row, func, select
 from sqlalchemy import Text as SaText
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.orm import aliased
 
 from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
     ResourceTypeTable,
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
@@ -267,3 +270,20 @@ async def get_recursive_relations(
             relation_fetcher=relation_fetcher,
         )
     return list(unique_everseen(relations + nested_relations, key=lambda s: s.subscription_id))
+
+
+async def get_last_validation_datetimes(subscription_ids: list[UUID]) -> list[datetime | None]:
+    stmt = (
+        select(ProcessSubscriptionTable.subscription_id, func.max(ProcessTable.last_modified_at))
+        .join(ProcessSubscriptionTable)
+        .group_by(ProcessSubscriptionTable.subscription_id)
+        .where(
+            (ProcessSubscriptionTable.workflow_target == "VALIDATE")
+            & ProcessSubscriptionTable.subscription_id.in_(subscription_ids)
+        )
+    )
+    results = db.session.execute(stmt).all()
+    last_validation_indexed_by_sub_id = {
+        str(subscription_id): last_validation for subscription_id, last_validation in results
+    }
+    return [last_validation_indexed_by_sub_id.get(str(subscription_id), None) for subscription_id in subscription_ids]
