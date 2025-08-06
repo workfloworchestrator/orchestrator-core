@@ -8,8 +8,9 @@ The workflow engine is the core of the software, it has been created to execute 
 - Atomically execute workflow functions.
 
 ### Best Practices
+
 The orchestrator will always attempt to be as robust as possible when executing workflow steps.
-However it is always up to the developer to implement the best practices as well as he/she can.
+However, it is always up to the developer to implement the best practices as well as they can.
 
 #### Safeguards in the orchestrator;
 - **Atomic Step Execution**: Each step is treated as an atomic unit.

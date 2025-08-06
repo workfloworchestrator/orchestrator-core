@@ -100,6 +100,7 @@ Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1
 
 
 ### Next:
+
 - [Create a product.](../workshops/advanced/domain-models.md)
 - [Create a workflow for a product.](./workflows.md)
 - [Generate products and workflows](../reference-docs/cli.md#generate)

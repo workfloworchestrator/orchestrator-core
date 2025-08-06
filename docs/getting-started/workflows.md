@@ -2,7 +2,7 @@
 
 ## Creating a Workflow
 
-A **workflow** in Orchestrator is the combination of:
+A **workflow** is the combination of:
 
 - An **initial input form** — used to collect input from the user.
 - A sequence of **workflow steps** — defining the logic to be executed.
@@ -67,7 +67,7 @@ A minimal workflow step looks as follows:
 ```python
 @step("Create subscription")
 def create_subscription(
-    product: UUIDstr,
+    product: UUID,
     user_input: str,
 ) -> State:
     subscription = build_subscription(product, user_input)
@@ -95,9 +95,10 @@ def add_subscription_to_external_system(
     return {"response": response}
 ```
 
-for `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subscription` is directly usable from the first step.
+For `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subscription` is directly usable from the first step.
 
 [Information about all usable step decorators can be found here](../architecture/application/workflow#workflow-steps)
+
 ## Register workflows
 
 To make workflows available in the orchestrator, they must be registered in two stages:
@@ -149,7 +150,9 @@ Start with the following command:
 python main.py db migrate-workflows "add User and UserGroup workflows"
 ```
 
-Navigate through the menu to add the six workflows to the corresponding `User` or `UserGroup` product type. After confirming a migration file will be added to `migrations/versions/schema`
+Navigate through the menu to add the six workflows to the corresponding `User` or `UserGroup` product type.
+After confirming a migration file will be added to `migrations/versions/schema`.
+
 The migration can be run with:
 
 ```shell
@@ -228,7 +231,7 @@ PYTHONPATH=. python main.py db upgrade heads
 ```
 
 
-## more workflow examples for each type
+## More workflow examples
 
 ### Validate
 
@@ -247,11 +250,12 @@ new_workflows = [
     },
 ]
 ```
-This workflow uses a `target` of `VALIDATE`, which explicitly distinguishes it from system tasks that use `Target.SYSTEM`.
+
+This workflow uses `Target.VALIDATE`, which explicitly distinguishes it from system tasks that use `Target.SYSTEM`.
 While both are marked with `is_task=True` and treated as tasks, they serve different purposes:
 
 - `SYSTEM` workflows are typically used for background processing and internal orchestration.
-- `VALIDATE` workflows are used to confirm that a subscription is correct and consistent before transitioning to a new lifecycle phase (e.g., moving into production).
+- `VALIDATE` workflows are used to confirm that a subscription is still correct and consistent, verifying that external systems are still in sync with it.
 
 Validate workflow steps generally raise an `AssertionError` when a condition fails.
 If all checks pass, they return a simple success marker (e.g., "OK") to the workflow state.
@@ -278,7 +282,6 @@ new_workflows = [
         "target": Target.MODIFY,
         "description": "Modify Node Enrollment",
         "product_type": "Node",
-        "is_task": True,
     },
 ]
 ```
@@ -291,13 +294,13 @@ A follow-up `Modify` workflow might transition it to production and set the life
 ```python
 @step("Activate Subscription")
 def update_subscription_and_description(subscription: NodeEnrollmentProvisioning, node_name: str) -> State:
-    subscription = change_lifecycle(subscription, SubscriptionLifecycle.ACTIVE)
+    subscription = NodeEnrollment.from_other_lifecycle(subscription)
     subscription.description = f"Node {node_name} Production"
 
     return {"subscription": subscription}
 ```
 
-These also have the `subscription_id` passed in in the initial step as outlined above.
+These also have the `subscription` passed in in the initial step as outlined above.
 
 ### Terminate
 
@@ -312,19 +315,17 @@ new_workflows = [
         "target": Target.TERMINATE,
         "description": "Terminate Node Enrollment subscription",
         "product_type": "Node",
-        "is_task": True,
     },
 ]
 ```
 Here, the `target`, `name`, and `description` follow standard naming conventions for `terminate` workflows.
 
-the first step of a workflow:
+The first step of a terminate workflow can be used to store identifiers in the state, for example:
 
 ```python
 @step("Load relevant subscription information")
 def load_subscription_info(subscription: NodeEnrollment) -> FormGenerator:
-    subscription = state["subscription"]
-    node = get_detailed_node(subscription["ne"]["esdb_node_id"])
+    node = get_detailed_node(subscription.ne.esdb_node_id)
     return {"subscription": subscription, "node_name": node.get("name")}
 ```
 

@@ -1,7 +1,7 @@
 # Introduction
 
 A workflow is the combination of an initial input form, used to acquire input from the user, and a list of workflow steps.
-[read more detailed explanation on workflows here](../../architecture/application/workflow.md)
+For more details, see [workflow architecture](../../architecture/application/workflow.md).
 
 The `workflow` decorator takes a description, initial input form, and a target
 as input and turns a function into a workflow that returns a step list to be

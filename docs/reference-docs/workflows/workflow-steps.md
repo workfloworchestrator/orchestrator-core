@@ -28,9 +28,9 @@ One important detail that is very helpful to understand is how your Step Functio
         heading_level: 3
 
 
-## Reusable Workflow Steps in Orchestrator Core
+## Reusable Workflow Steps
 
-When designing workflows in Orchestrator Core, reusability is key.
+When designing workflows it is good practice to make steps reusable.
 With a single product definition, you can build reusable steps for both `CREATE` and `MODIFY` workflows.
 For example, you may want to:
 
