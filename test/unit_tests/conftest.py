@@ -312,13 +312,13 @@ def fastapi_app(database, db_uri):
 def test_client(fastapi_app):
     class JsonTestClient(TestClient):
         def request(  # type: ignore
-                self,
-                method: str,
-                url: str,
-                data: Any | None = None,
-                headers: typing.MutableMapping[str, str] | None = None,
-                json: typing.Any = None,
-                **kwargs: Any,
+            self,
+            method: str,
+            url: str,
+            data: Any | None = None,
+            headers: typing.MutableMapping[str, str] | None = None,
+            json: typing.Any = None,
+            **kwargs: Any,
         ) -> requests.Response:
             if json is not None:
                 if headers is None:
@@ -678,11 +678,11 @@ def generic_product_type_2(generic_product_2, generic_product_block_type_3):
 @pytest.fixture
 def product_type_1_subscription_factory(generic_product_1, generic_product_type_1):
     def subscription_create(
-            description="Generic Subscription One",
-            start_date="2023-05-24T00:00:00+00:00",
-            rt_1="Value1",
-            rt_2=42,
-            rt_3="Value2",
+        description="Generic Subscription One",
+        start_date="2023-05-24T00:00:00+00:00",
+        rt_1="Value1",
+        rt_2=42,
+        rt_3="Value2",
     ):
         GenericProductOneInactive, _ = generic_product_type_1
         gen_subscription = GenericProductOneInactive.from_product_id(
