@@ -60,6 +60,35 @@ def build_complex_query(subscription_id):
     ).encode("utf-8")
 
 
+def build_last_validation_query(subscription_id):
+    q = """query LastValidationQuery($id: UUID!) {
+        subscription(id: $id) {
+            lastValidatedAt
+        }
+    }"""
+    return json.dumps(
+        {
+            "operationName": "LastValidationQuery",
+            "query": q,
+            "variables": {
+                "id": str(subscription_id),
+            },
+        }
+    ).encode("utf-8")
+
+
+def test_last_validation_query(fastapi_app_graphql, test_client, validation_workflow_process_instance, benchmark):
+    process, process_subscription = validation_workflow_process_instance
+    test_query = build_last_validation_query(process_subscription.subscription_id)
+
+    @benchmark
+    def response():
+        return test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"data": {"subscription": {"lastValidatedAt": process.last_modified_at.isoformat()}}}
+
+
 def test_single_simple_subscription(fastapi_app_graphql, test_client, product_sub_list_union_subscription_1, benchmark):
     test_query = build_simple_query(subscription_id=product_sub_list_union_subscription_1)
 
