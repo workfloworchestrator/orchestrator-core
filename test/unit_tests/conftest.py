@@ -35,8 +35,9 @@ from orchestrator.db import (
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.services.tasks import initialise_celery
 from orchestrator.services.translations import generate_translations
-from orchestrator.settings import app_settings
+from orchestrator.settings import app_settings, AppSettings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis_client import create_redis_client
@@ -137,6 +138,7 @@ from test.unit_tests.fixtures.workflows import (  # noqa: F401
 )
 from test.unit_tests.workflows import WorkflowInstanceForTests
 from test.unit_tests.workflows.shared.test_validate_subscriptions import validation_workflow
+from celery import Celery
 
 logger = structlog.getLogger(__name__)
 
@@ -244,6 +246,15 @@ def database(db_uri):
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
             conn.execute(text("COMMIT;"))
+            # Terminate other connections
+            conn.execute(
+                text(f"""
+                        SELECT pg_terminate_backend(pid)
+                        FROM pg_stat_activity
+                        WHERE datname = '{db_to_create}' AND pid <> pg_backend_pid();
+                    """)
+            )
+            conn.execute(text("COMMIT;"))
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
@@ -320,7 +331,11 @@ def test_client(fastapi_app):
 
 
 @pytest.fixture(autouse=True)
-def responses():
+def responses(request):
+    if request.node.get_closest_marker("noresponses"):
+        # This test doesn't want responses mocking
+        yield None
+        return
     responses_mock = Responses("requests.packages.urllib3")
 
     def _find_request(call):
@@ -697,7 +712,7 @@ def product_type_1_subscriptions_factory(product_type_1_subscription_factory):
             product_type_1_subscription_factory(
                 description=f"Subscription {i}",
                 start_date=(
-                    datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
+                        datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
                 ).replace(tzinfo=datetime.UTC),
             )
             for i in range(0, amount)
@@ -778,7 +793,7 @@ def make_customer_description():
 def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context():
-        cache = create_redis_client(app_settings.CACHE_URI)
+        cache = create_redis_client(app_settingsapp_settings.CACHE_URI)
         # Clear cache before using this fixture
         cache.flushdb()
 
@@ -845,3 +860,52 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
         yield monitor_queries
     else:
         yield noop
+
+
+class TestOrchestratorCelery(Celery):
+    def on_init(self) -> None:
+        test_settings = AppSettings()
+        test_settings.TESTING = True
+
+        app = OrchestratorCore(base_settings=test_settings)
+
+
+@pytest.fixture(scope="session")
+def celery_app():
+    cache_uri = "localhost:6379/0"
+    celery = TestOrchestratorCelery(
+        "orchestrator-test",
+        broker=f"redis://{cache_uri}",
+        backend=f"redis://{cache_uri}",
+        include=["orchestrator.services.tasks"],
+    )
+
+    # Set the test config
+    celery.conf.update(
+        task_always_eager=False,  # Set to True in your test for debugging
+        task_ignore_result=False,
+        result_expires=3600,
+        task_serializer="orchestrator-json",
+        accept_content=["orchestrator-json", "json"],
+        result_serializer="json",
+        worker_send_task_events=True,
+        task_send_sent_event=True,
+    )
+    initialise_celery(celery)
+    import orchestrator.services.tasks  # Ensure the real tasks are loaded
+    celery.autodiscover_tasks(['orchestrator.services.tasks'])
+    return celery
+
+
+@pytest.fixture
+def celery_worker_parameters():
+    # You must return `task_modules` to make pytest-celery auto-discover your tasks
+    return {"task_modules": ["orchestrator.services.tasks"]}
+
+
+@pytest.fixture(scope="session")
+def celery_worker(celery_app):
+    from celery.contrib.testing.worker import start_worker
+
+    with start_worker(celery_app, perform_ping_check=False) as worker:
+        yield worker
