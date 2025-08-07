@@ -50,6 +50,7 @@ params = dict(
     name="task_sync_from",
     target="SYSTEM",
     description="Nightly validate and NSO sync",
+    is_task=True
 )
 
 
@@ -58,8 +59,8 @@ def upgrade() -> None:
     conn.execute(
         sa.text(
             """
-            INSERT INTO workflows(name, target, description)
-                VALUES (:name, :target, :description)
+            INSERT INTO workflows(name, target, description, is_task)
+                VALUES (:name, :target, :description, true)
             """
         ),
         params,
@@ -71,7 +72,8 @@ This just needs to add an entry in the workflows table. No relations with other 
 
 ### Running the task in the UI
 
-After the migration is applied, the new task will surface in the UI under the tasks tab. It can be manually executed that way. Even if the task does not have any form input, an entry will still need to be made in `orchestrator-client/src/locale/en.ts` or an error will occur.
+After the migration is applied, the new task will surface in the UI under the tasks tab.
+It can be manually executed that way. Even if the task does not have any form input, an entry will still need to be made in `orchestrator-client/src/locale/en.ts` or an error will occur.
 
 ```ts
 // ESnet
@@ -80,25 +82,29 @@ task_sync_from: "Verify and NSO sync",
 
 ## The schedule file
 
-The schedule file is essentially the crontab associated with the task. They are located in `orchestrator/server/schedules/` - a sample schedule file:
+The schedule file is essentially the crontab associated with the task.
+They are located in `orchestrator/server/schedules/` - a sample schedule file:
 
 ```python
-from server.schedules.scheduling import scheduler
+from server.schedules.scheduler import scheduler
 from server.services.processes import start_process
 
 
-@scheduler(name="Nightly sync", time_unit="minutes", period=1)
+@scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="interval", minutes=1)
 def run_nightly_sync() -> None:
     start_process("task_sync_from")
 ```
 
-Yes this runs every minute even though it's called `nightly_sync`. There are other variations on the time units that can be used:
+Yes this runs every minute even though it's called `nightly_sync`.
+There are other variations on the time units that can be used:
 
 ```python
-time_unit = "hour", period = 1
-time_unit = "hours", period = 6
-time_unit = "day", at = "03:00"
-time_unit = "day", at = "00:10"
+trigger="interval", seconds=6
+trigger="interval", minutes=6
+trigger="interval", hours=6
+trigger="cron", hour=3
+trigger="cron", minutes=10
+trigger="cron", hour=3, minutes=10
 ```
 
 And similar to the task/workflow file, the schedule file will need to be registered in `orchestrator/server/schedules/__init__.py`:
