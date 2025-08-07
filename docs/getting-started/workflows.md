@@ -1,6 +1,6 @@
-# Creating a workflow
+# Workflows
 
-## Creating a Workflow
+## Creating a workflow
 
 A **workflow** is the combination of:
 
@@ -12,47 +12,45 @@ For a more detailed explanation, see
 
 ---
 
-To create a workflow, use the `@workflow` decorator. It takes the following arguments:
+There are specialized decorators for each [workflow type] that execute "default" steps before and after the steps from your workflow.
+It is recommended to use these decorators because they ensure correct functioning of the Orchestrator.
 
-- `description`: A human-readable name for the workflow.
-- `initial_input_form`: A function that defines the input form shown to the user.
-- `target`: The workflow type — typically `Target.CREATE`, `Target.MODIFY`, or `Target.TERMINATE`.
+- [create_workflow]
+- [modify_workflow]
+- [terminate_workflow]
+- [validate_workflow]
+
+under the hood they all use a [workflow] decorator which can be used for tasks that don't fit any of the types above.
 
 The decorated function must return a chain of steps using the `>>` operator to define their execution order.
 
-there are also util functions for each [workflow type](../architecture/application/workflow#subscription-workflow-types) that give usefull generic logic:
-
-- [create_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow)
-- [modify_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow)
-- [terminate_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow)
-- [validate_workflow](../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow)
-
-For more details on these workflow types, refer to:
-👉 [Subscription Workflow Types](../architecture/application/workflow.md#subscription-workflow-types)
-
-### Minimal Example
+### Minimal create workflow example
 
 ```python
-@workflow(
+from orchestrator.workflows.utils import create_workflow
+from orchestrator.workflow import StepList, begin
+
+
+@create_workflow(
     "Create product subscription",
-    initial_input_form=initial_input_form_generator,
-    target=Target.CREATE,
+    initial_input_form=initial_input_form_generator
 )
-def create_product_subscription():
-    return init >> create_subscription >> done
+def create_product_subscription() -> StepList:
+    return begin >> create_subscription
 ```
 
 In this example:
 
 - The workflow is named **"Create product subscription"**.
 - The input form is defined by `initial_input_form_generator`.
-- The workflow engine will execute the steps `init`, `create_subscription`, and `done`, in that order.
+- The workflow engine will execute the steps inside `create_workflow` before returned steps,
+   `create_subscription`, and steps inside `create_workflow` after returned steps.
 
 Each step should be defined using the `@step` decorator and can access and update the shared subscription model.
 
 ---
 
-### How Workflow Steps Work
+### How workflow steps work
 
 Information between workflow steps is passed using `State`, which is nothing more than a collection of key/value pairs.
 In Python the state is represented by a `Dict`, with string keys and arbitrary values.
@@ -65,6 +63,7 @@ The serialization and deserialization between JSON and the indicated Python type
 A minimal workflow step looks as follows:
 
 ```python
+
 @step("Create subscription")
 def create_subscription(
     product: UUID,
@@ -79,8 +78,9 @@ In this step:
 - `product` and `user_input` are populated from the `State`.
 - The return value includes a new key `subscription`, which will be available to the next step in the workflow.
 
-Every workflow starts with the builtin step `init` and ends with the builtin
-step `done`, with an arbitrary list of other builtin steps or custom steps in between.
+Every workflow starts with the builtin step `init` and ends with the builtin step `done`,
+ with an arbitrary list of other builtin steps or custom steps in between.  
+the [workflow type] decorators have these included and can use `begin >> your_step`.
 
 Domain models as parameters are subject to special processing.
 With the previous step, the `subscription` is available in the state, which for the next step, can be used directly with the Subscription model type, for example:
@@ -128,8 +128,7 @@ To ensure the workflows are discovered at runtime:
 
 !!! example
 
-    for inspiration look at an example implementation of the [lazy
-    workflow instances ](https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py)
+    for inspiration look at an example implementation of the [lazy workflow instances]
 
 ### Step 2: Register workflows in the database
 
@@ -142,7 +141,8 @@ There are three ways to do this:
 
 #### Migrate workflows generator script
 
-Similar to `db migrate-domain-models`, the orchestrator command line interface offers the `db migrate-workflows` command that walks you through a menu to create a database migration file based on the difference between the registered workflows in the code and the database.
+Similar to `db migrate-domain-models`, the orchestrator command line interface offers the `db migrate-workflows` command
+that walks you through a menu to create a database migration file based on the difference between the registered workflows in the code and the database.
 
 Start with the following command:
 
@@ -330,3 +330,11 @@ def load_subscription_info(subscription: NodeEnrollment) -> FormGenerator:
 ```
 
 This approach ensures that the workflow has all the necessary context to safely tear down the subscription and associated resources.
+
+[create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow
+[modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow
+[terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
+[validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
+[workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflow.workflow
+[workflow type]: ../architecture/application/workflow#subscription-workflow-types
+[lazy workflow instances]: https://github.com/workfloworchestrator/example-orchestrator-beginner/blob/main/workflows/__init__.py

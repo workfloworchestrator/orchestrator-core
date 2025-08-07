@@ -153,7 +153,7 @@ nav:
                 - Base application: getting-started/base.md
           - Workflows:
                 - Creating a workflow: getting-started/workflows.md
-                - Registering a workflow: getting-started/workflows/#register-workflows
+                - Registering a workflow: getting-started/workflows#register-workflows
           - Docker: getting-started/docker.md
           - Orchestrator UI: getting-started/orchestration-ui.md
     - Reference Documentation:

@@ -1,4 +1,5 @@
 # What is a workflow and how does it work?
+
 The workflow engine is the core of the software, it has been created to execute a number of functions.
 
 - Safely and reliable manipulate customer `Subscriptions` from one state to the next and maintain auditability.
@@ -6,11 +7,13 @@ The workflow engine is the core of the software, it has been created to execute 
 - Execute step functions in order and allow the retry of previously failed process-steps in an idempotent way.
 - Atomically execute workflow functions.
 
-### Best Practices
-The orchestrator will always attempt to be as robust as possible when executing workflow steps.
-However it is always up to the developer to implement the best practices as well as he/she can.
+## Best Practices
 
-#### Safeguards in the orchestrator;
+The orchestrator will always attempt to be as robust as possible when executing workflow steps.
+However, it is always up to the developer to implement the best practices as well as they can.
+
+### Safeguards in the orchestrator;
+
 - **Atomic Step Execution**: Each step is treated as an atomic unit.
   If a step fails, no partial changes are committed to the database.
   Because of this, calling .commit() on the ORM within a step function is not allowed.
@@ -20,11 +23,13 @@ However it is always up to the developer to implement the best practices as well
 - **Step Retry Behavior**: Failed steps can be retried indefinitely. Each retry starts from the state of the **last successfully completed** step.
 
 
-#### Coding gotchas
+### Coding gotchas
+
 - The orchestrator is best suited to be used as a data manipulator, not as a data transporter.
   - Use the State log as a log of work, not a log of data.
-  - If the data you enter in the state is corrupt or wrong, you might need to attempt a very difficult database query to update the state to solve your conflict.
-- Always retrieve external data at the moment it's needed during a step. This increases the robustness of the step.
+  - If the data you enter in the state is corrupt or wrong, you might need a difficult database query to update the state to resolve the conflict.
+- Always retrieve external data at the moment it's needed during a step, not earlier.
+  This increases the robustness of the step.
 - Each step function should perform a single, clearly defined unit of work.
   Theoretically you can execute the whole workflow in a single step, However this does not help with traceability and reliability.
 
@@ -47,30 +52,30 @@ There are two high-level kinds of workflows:
     - Useful for actions like cleanup jobs or triggering validations across multiple subscriptions.
     - Examples can be found in `orchestrator.workflows.tasks`.
 
-workflows need to be registered in the database and initialized as a `LazyWorkflowInstance` to work, [more info on this here](../../getting-started/workflows.md#register-workflows)
+Workflows and tasks need to be registered in the database and initialized as a `LazyWorkflowInstance` to work, see [registering workflows] for more info.
 
 ### Subscription Workflow Types
 
 Workflows are categorized based on the operations they perform on a subscription:
 
-- Create ([create_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow))
+- Create ([create_workflow])
     - The "base" workflow that initializes a new subscription for the product.
     - Only one create workflow should exist per product.
-- Modify ([modify_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow))
+- Modify ([modify_workflow])
     - Modify an existing subscription (e.g., updating parameters, migrating to another product).
     - Multiple modify workflows can exist, each handling a specific type of modification.
-- Terminate ([terminate_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow))
+- Terminate ([terminate_workflow])
     - Terminates the subscription and removes its data and references from external systems.
     - External references should only be retained if they also hold historical records.
     - Only one terminate workflow should exist per product.
-- Validate ([validate_workflow](../../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow))
+- Validate ([validate_workflow])
     - Verifies that external systems are consistent with the orchestrator's subscription state.
     - Only one validate workflow should exist per product.
 
 
 ### Default Workflows
 
-A Default Workflows mechanism is provided to provide a way for a given workflow to be automatically attached to all Products.
+Registering a _Default Workflow_ attaches a given workflow to all Products.
 To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable, and be sure to use `helpers.create()` in your migration.
 
 Alternatively, be sure to execute `ensure_default_workflows()` within the migration if using `helpers.create()` is not desirable.
@@ -92,24 +97,24 @@ Workflows are composed of one or more **steps**, where each step is executed seq
 
 The orchestrator supports several kinds of steps to cover different use cases:
 
-- **`step`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.step)  
+- **`step`** [functional docs for step]  
   Executes specific business logic or external API calls as part of the subscription process.
 
-- **`retrystep`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.retrystep)  
+- **`retrystep`** [functional docs for retrystep]  
   Similar to `step`, but designed for operations that may fail intermittently. These steps will automatically be retried periodically on failure.
 
-- **`inputstep`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.inputstep)  
+- **`inputstep`** [functional docs for inputstep]  
   Pauses the workflow to request and receive user input during execution.
 
-- **`conditional`** [functional docs here](../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.conditional)  
+- **`conditional`** [functional docs for conditional]  
   Conditionally executes the step based on environment variables or process state.  
   If the condition evaluates to false, the step is skipped entirely.
 
-- **`callback_step`** [functional docs here](../../reference-docs/workflows/callbacks.md)  
+- **`callback_step`** [functional docs for callback_step]  
   Pauses workflow execution while waiting for a external event to complete.
 
 For a practical example of how to define reusable workflow steps—and how to leverage singledispatch for type-specific logic—see:
-👉 [Reusable step functions and singledispatch usage](../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core)
+👉 [Reusable step functions and singledispatch usage]
 
 
 ### Execution parameters
@@ -176,3 +181,15 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 !!! danger
     It is potentially dangerous to run workflows on subscriptions that are not in sync. Only use this for small and
     specific usecases, such as editing a description that is only used within orchestrator.
+
+[registering workflows]: ../../getting-started/workflows.md#register-workflows
+[create_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.create_workflow
+[modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow
+[terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
+[validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
+[functional docs for step]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.step
+[functional docs for retrystep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.retrystep
+[functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.inputstep
+[functional docs for conditional]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.conditional
+[functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
+[Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core
