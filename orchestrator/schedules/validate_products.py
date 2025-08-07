@@ -14,11 +14,17 @@ from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessTable
-from orchestrator.schedules.scheduling import scheduler
+from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
 
 
-@scheduler(name="Validate Products and inactive subscriptions", time_unit="day", at="02:30")
+@scheduler.scheduled_job(  # type: ignore[misc]
+    id="validate_products",
+    name="Validate Products and inactive subscriptions",
+    trigger="cron",
+    hour=2,
+    minute=30,
+)
 def validate_products() -> None:
     uncompleted_products = db.session.scalar(
         select(func.count())
