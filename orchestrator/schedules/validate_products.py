@@ -19,7 +19,7 @@ from orchestrator.services.processes import start_process
 
 
 @scheduler.scheduled_job(  # type: ignore[misc]
-    id="validate_products",
+    id="validate-products",
     name="Validate Products and inactive subscriptions",
     trigger="cron",
     hour=2,

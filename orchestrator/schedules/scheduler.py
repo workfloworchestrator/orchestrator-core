@@ -17,67 +17,111 @@ from typing import Any
 
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
+from more_itertools import partition
 from pydantic import BaseModel
 
 from orchestrator.db.filters import Filter
+from orchestrator.db.filters.filters import CallableErrorHandler
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.sorting import SortOrder
 from orchestrator.settings import app_settings
+from orchestrator.utils.helpers import camel_to_snake, to_camel
 
 jobstores = {"default": SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI))}
 
 scheduler = BackgroundScheduler(jobstores=jobstores)
 
 
-class ScheduledJob(BaseModel):
+class ScheduledTask(BaseModel):
     id: str
     name: str | None = None
     next_run_time: datetime | None = None
     trigger: str
 
 
-def get_scheduler_jobs(
-    first: int = 10, after: int = 0, filter_by: list[Filter] | None = None, sort_by: list[Sort] | None = None
-) -> tuple[list[ScheduledJob], int]:
-    scheduler.start(paused=True)
-    jobs = scheduler.get_jobs()
-    scheduler.shutdown()
+scheduled_task_keys = set(ScheduledTask.model_fields.keys())
+scheduled_job_filter_keys = sorted(scheduled_task_keys | {to_camel(key) for key in scheduled_task_keys})
+scheduled_job_sort_keys = scheduled_job_filter_keys
 
-    # Filter by search string
-    if filter_by:
-        filtered_jobs = jobs
-        for filter in filter_by:
-            search_lower = filter.value.lower()
-            filtered_jobs = [
-                job for job in filtered_jobs if search_lower in getattr(job, filter.field.lower(), "").lower()
-            ]
-        jobs = filtered_jobs
 
-    if sort_by:
-        # Sort jobs
-        def sort_key(sort_field: str, sort_order: SortOrder) -> Any:
-            def _sort_key(job: Any) -> Any:
-                value = getattr(job, sort_field, None)
-                if sort_field == "next_run_time" and value is None:
-                    return float("inf") if sort_order == SortOrder.ASC else float("-inf")
-                return value
+def job_in_filter(job: ScheduledTask, filter_by: list[Filter]) -> bool:
+    return any(f.value.lower() in getattr(job, camel_to_snake(f.field.lower()), "").lower() for f in filter_by)
 
-            return _sort_key
 
-        for sort in sort_by:
-            jobs.sort(
-                key=sort_key(sort_field=sort.field, sort_order=sort.order), reverse=(sort.order == SortOrder.DESC)
+def filter_scheduled_tasks(
+    items: list[ScheduledTask],
+    handle_filter_error: CallableErrorHandler,
+    filter_by: list[Filter] | None = None,
+) -> list[ScheduledTask]:
+    if not filter_by:
+        return items
+
+    try:
+        invalid_filters, valid_filters = partition(lambda x: x.field.lower() in scheduled_job_filter_keys, filter_by)
+        inval = [item.field for item in invalid_filters]
+        if inval:
+            handle_filter_error(
+                "Invalid filter arguments", invalid_filters=inval, valid_filter_keys=scheduled_job_filter_keys
             )
 
-    total = len(jobs)
-    paginated_jobs = jobs[after : after + first + 1]
+        valid_filter_list = list(valid_filters)
+        return [item for item in items if job_in_filter(item, valid_filter_list)]
+    except Exception as e:
+        handle_filter_error(str(e))
+        return []
+
+
+def sort_scheduled_tasks(
+    scheduled_tasks: list[ScheduledTask], sort_by: list[Sort] | None = None
+) -> list[ScheduledTask]:
+    if not sort_by:
+        return scheduled_tasks
+
+    def sort_key(sort_field: str, sort_order: SortOrder) -> Any:
+        def _sort_key(task: Any) -> Any:
+            value = getattr(task, sort_field, None)
+            if sort_field == "next_run_time" and value is None:
+                return float("inf") if sort_order == SortOrder.ASC else float("-inf")
+            return value
+
+        return _sort_key
+
+    for sort in sort_by:
+        scheduled_tasks.sort(
+            key=sort_key(sort_field=sort.field, sort_order=sort.order), reverse=(sort.order == SortOrder.DESC)
+        )
+    return scheduled_tasks
+
+
+def default_error_handler(message: str, **context) -> None:  # type: ignore
+    from orchestrator.graphql.utils.create_resolver_error_handler import _format_context
+
+    raise ValueError(f"{message} {_format_context(context)}")
+
+
+def get_scheduler_tasks(
+    first: int = 10,
+    after: int = 0,
+    filter_by: list[Filter] | None = None,
+    sort_by: list[Sort] | None = None,
+    error_handler: CallableErrorHandler = default_error_handler,
+) -> tuple[list[ScheduledTask], int]:
+    scheduler.start(paused=True)
+    scheduled_tasks = scheduler.get_jobs()
+    scheduler.shutdown()
+
+    scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
+    scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, sort_by)
+
+    total = len(scheduled_tasks)
+    paginated_tasks = scheduled_tasks[after : after + first + 1]
 
     return [
-        ScheduledJob(
-            id=job.id,
-            name=job.name,
-            next_run_time=getattr(job, "next_run_time", None),
-            trigger=str(job.trigger),
+        ScheduledTask(
+            id=task.id,
+            name=task.name,
+            next_run_time=task.next_run_time,
+            trigger=str(task.trigger),
         )
-        for job in paginated_jobs
+        for task in paginated_tasks
     ], total
