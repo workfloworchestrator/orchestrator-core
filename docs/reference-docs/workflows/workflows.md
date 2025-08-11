@@ -23,3 +23,12 @@ To see more details about the workflow lifecycle states and functions, read on t
 ::: orchestrator.workflow.workflow
     options:
         heading_level: 3
+
+
+## Workflow helpers to register them in DB
+::: orchestrator.migrations.helpers
+    options:
+        heading_level: 3
+    members:
+    - create
+    - ensure_default_workflows

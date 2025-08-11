@@ -61,7 +61,7 @@ def update_external_system(subscription: SubscriptionModel):
     return {"response": response}
 ```
 
-While this approach works, the switch logic (via match or if isinstance) can become unwieldy as more product types are introduced.
+While this approach works, the switch logic (via `match` or `if isinstance()`) can become unwieldy as more product types are introduced.
 This is where `@singledispatch` can help.
 
 ### Using `@singledispatch` for Cleaner Reusability

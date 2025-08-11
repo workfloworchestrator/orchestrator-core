@@ -20,7 +20,7 @@ It is recommended to use these decorators because they ensure correct functionin
 - [terminate_workflow]
 - [validate_workflow]
 
-under the hood they all use a [workflow] decorator which can be used for tasks that don't fit any of the types above.
+Under the hood they all use a [workflow] decorator which can be used for tasks that don't fit any of the types above.
 
 The decorated function must return a chain of steps using the `>>` operator to define their execution order.
 
@@ -97,7 +97,7 @@ def add_subscription_to_external_system(
 
 For `@modify_workflow`, `@validate_workflow` and `@terminate_workflow` the `subscription` is directly usable from the first step.
 
-[Information about all usable step decorators can be found here](../architecture/application/workflow#workflow-steps)
+Information about all usable step decorators can be found on [the architecture page on workflows](../architecture/application/workflow#workflow-steps).
 
 ## Register workflows
 
@@ -128,7 +128,7 @@ To ensure the workflows are discovered at runtime:
 
 !!! example
 
-    for inspiration look at an example implementation of the [lazy workflow instances]
+    For inspiration look at an example implementation of the [lazy workflow instances]
 
 ### Step 2: Register workflows in the database
 
@@ -181,7 +181,7 @@ python main.py db upgrade heads
 Create a new empty database migration with the following command:
 
 ```shell
-PYTHONPATH=. python main.py db revision --head data --message "add User and UserGroup workflows"
+python main.py db revision --head data --message "add User and UserGroup workflows"
 ```
 
 This will create an empty database migration in the folder `migrations/versions/schema`.
@@ -227,7 +227,7 @@ def downgrade() -> None:
 Run the migration with the following command:
 
 ```shell
-PYTHONPATH=. python main.py db upgrade heads
+python main.py db upgrade heads
 ```
 
 
