@@ -82,41 +82,40 @@ task_sync_from: "Verify and NSO sync",
 
 ## The schedule file
 
+> from `4.3.0` we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and schedule tasks from the API.
+
 The schedule file is essentially the crontab associated with the task.
 They are located in `orchestrator/server/schedules/` - a sample schedule file:
 
 ```python
-from server.schedules.scheduler import scheduler
-from server.services.processes import start_process
+from orchestrator.schedules.scheduler import scheduler
+from orchestrator.services.processes import start_process
 
 
+# previously `scheduler()` which is now deprecated
 @scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="interval", minutes=1)
 def run_nightly_sync() -> None:
     start_process("task_sync_from")
 ```
 
-Yes this runs every minute even though it's called `nightly_sync`.
-There are other variations on the time units that can be used:
+This schedule will start the `task_sync_from` task every minute.
 
-```python
-trigger="interval", seconds=6
-trigger="interval", minutes=6
-trigger="interval", hours=6
-trigger="cron", hour=3
-trigger="cron", minutes=10
-trigger="cron", hour=3, minutes=10
-```
+There are multiple triggers that can be used: [data from docs]
 
-And similar to the task/workflow file, the schedule file will need to be registered in `orchestrator/server/schedules/__init__.py`:
+- [DateTrigger]: use when you want to run the task just once at a certain point of time
+- [IntervalTrigger]: use when you want to run the task at fixed intervals of time
+- [CronTrigger]: use when you want to run the task periodically at certain time(s) of day
+- [CalendarIntervalTrigger]: use when you want to run the task on calendar-based intervals, at a specific time of day
 
-```python
-from server.schedules.scheduling import SchedulingFunction
-from server.schedules.nightly_sync import run_nightly_sync
+For detailed configuration options, see the [APScheduler scheduling docs].
 
-ALL_SCHEDULERS: List[SchedulingFunction] = [
-    run_nightly_sync,
-]
-```
+The scheduler automatically loads any schedules that are imported before the scheduler starts.
+To keep things organized and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a `/schedules/__init__.py`.
+
+> `ALL_SCHEDULERS` (Backwards Compatibility)  
+> In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
+> This is no longer required, but ALL_SCHEDULERS is still supported for backwards compatibility.
+
 
 ## Executing the task
 
@@ -173,3 +172,11 @@ def run_nightly_sync() -> None:
 
     start_process("task_sync_from")
 ```
+
+[schedule]: https://pypi.org/project/schedule/
+[apscheduler]: https://pypi.org/project/APScheduler/
+[DateTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.DateTrigger
+[IntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.IntervalTrigger
+[CronTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.IntervalTrigger
+[CalendarIntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.CalendarIntervalTrigger
+[APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks

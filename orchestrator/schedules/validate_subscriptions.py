@@ -16,7 +16,7 @@ from threading import BoundedSemaphore
 
 import structlog
 
-from orchestrator.schedules.scheduling import scheduler
+from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.subscriptions import (
     get_subscriptions_on_product_table,
     get_subscriptions_on_product_table_in_sync,
@@ -33,7 +33,7 @@ logger = structlog.get_logger(__name__)
 task_semaphore = BoundedSemaphore(value=2)
 
 
-@scheduler(name="Subscriptions Validator", time_unit="day", at="00:10")
+@scheduler.scheduled_job(id="subscriptions-validator", name="Subscriptions Validator", trigger="cron", hour=0, minute=10)  # type: ignore[misc]
 def validate_subscriptions() -> None:
     if app_settings.VALIDATE_OUT_OF_SYNC_SUBSCRIPTIONS:
         # Automatically re-validate out-of-sync subscriptions. This is not recommended for production.
