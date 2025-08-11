@@ -127,7 +127,8 @@ def get_scheduler_tasks(
 ) -> tuple[list[ScheduledTask], int]:
     scheduler.start(paused=True)
     scheduled_tasks = scheduler.get_jobs()
-    scheduler.shutdown()
+    scheduler.shutdown(wait=False)
+    jobstores["default"].engine.dispose()
 
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
