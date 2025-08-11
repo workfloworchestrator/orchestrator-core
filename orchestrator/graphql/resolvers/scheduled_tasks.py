@@ -7,7 +7,7 @@ from orchestrator.graphql.schemas.scheduled_task import ScheduledTaskGraphql
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler, to_graphql_result_page
 from orchestrator.graphql.utils.is_query_detailed import is_querying_page_data
-from orchestrator.schedules.scheduler import get_scheduler_tasks, scheduled_job_filter_keys, scheduled_job_sort_keys
+from orchestrator.schedules.scheduler import get_scheduler_tasks, scheduled_task_filter_keys, scheduled_task_sort_keys
 
 logger = structlog.get_logger(__name__)
 
@@ -32,5 +32,5 @@ async def resolve_scheduled_tasks(
         graphql_scheduled_tasks = [ScheduledTaskGraphql.from_pydantic(p) for p in scheduled_tasks]
 
     return to_graphql_result_page(
-        graphql_scheduled_tasks, first, after, total, scheduled_job_filter_keys, scheduled_job_sort_keys
+        graphql_scheduled_tasks, first, after, total, scheduled_task_filter_keys, scheduled_task_sort_keys
     )
