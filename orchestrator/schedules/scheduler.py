@@ -40,57 +40,76 @@ class ScheduledTask(BaseModel):
 
 
 scheduled_task_keys = set(ScheduledTask.model_fields.keys())
-scheduled_job_filter_keys = sorted(scheduled_task_keys | {to_camel(key) for key in scheduled_task_keys})
-scheduled_job_sort_keys = scheduled_job_filter_keys
+scheduled_task_filter_keys = sorted(scheduled_task_keys | {to_camel(key) for key in scheduled_task_keys})
+scheduled_task_sort_keys = scheduled_task_filter_keys
 
 
-def job_in_filter(job: ScheduledTask, filter_by: list[Filter]) -> bool:
+def scheduled_task_in_filter(job: ScheduledTask, filter_by: list[Filter]) -> bool:
     return any(f.value.lower() in getattr(job, camel_to_snake(f.field.lower()), "").lower() for f in filter_by)
 
 
 def filter_scheduled_tasks(
-    items: list[ScheduledTask],
+    scheduled_tasks: list[ScheduledTask],
     handle_filter_error: CallableErrorHandler,
     filter_by: list[Filter] | None = None,
 ) -> list[ScheduledTask]:
     if not filter_by:
-        return items
+        return scheduled_tasks
 
     try:
-        invalid_filters, valid_filters = partition(lambda x: x.field.lower() in scheduled_job_filter_keys, filter_by)
-        inval = [item.field for item in invalid_filters]
-        if inval:
+        invalid_filters, valid_filters = partition(lambda x: x.field.lower() in scheduled_task_filter_keys, filter_by)
+
+        if invalid_list := [item.field for item in invalid_filters]:
             handle_filter_error(
-                "Invalid filter arguments", invalid_filters=inval, valid_filter_keys=scheduled_job_filter_keys
+                "Invalid filter arguments", invalid_filters=invalid_list, valid_filter_keys=scheduled_task_filter_keys
             )
 
         valid_filter_list = list(valid_filters)
-        return [item for item in items if job_in_filter(item, valid_filter_list)]
+        return [task for task in scheduled_tasks if scheduled_task_in_filter(task, valid_filter_list)]
     except Exception as e:
         handle_filter_error(str(e))
         return []
 
 
+def _invert(value: Any) -> Any:
+    """Invert value for descending order."""
+    if isinstance(value, (int, float)):
+        return -value
+    if isinstance(value, str):
+        return "".join(chr(255 - ord(c)) for c in value)
+    return value
+
+
+def sort_key(sort_field: str, sort_order: SortOrder) -> Any:
+    def _sort_key(task: Any) -> Any:
+        value = getattr(task, sort_field, None)
+        if sort_field == "next_run_time" and value is None:
+            return float("inf") if sort_order == SortOrder.ASC else float("-inf")
+        return value if sort_order == SortOrder.ASC else _invert(value)
+
+    return _sort_key
+
+
 def sort_scheduled_tasks(
-    scheduled_tasks: list[ScheduledTask], sort_by: list[Sort] | None = None
+    scheduled_tasks: list[ScheduledTask], handle_sort_error: CallableErrorHandler, sort_by: list[Sort] | None = None
 ) -> list[ScheduledTask]:
     if not sort_by:
         return scheduled_tasks
 
-    def sort_key(sort_field: str, sort_order: SortOrder) -> Any:
-        def _sort_key(task: Any) -> Any:
-            value = getattr(task, sort_field, None)
-            if sort_field == "next_run_time" and value is None:
-                return float("inf") if sort_order == SortOrder.ASC else float("-inf")
-            return value
+    try:
+        invalid_sorting, valid_sorting = partition(lambda x: x.field.lower() in scheduled_task_sort_keys, sort_by)
+        if invalid_list := [item.field for item in invalid_sorting]:
+            handle_sort_error(
+                "Invalid sort arguments", invalid_sorting=invalid_list, valid_sort_keys=scheduled_task_sort_keys
+            )
 
-        return _sort_key
-
-    for sort in sort_by:
-        scheduled_tasks.sort(
-            key=sort_key(sort_field=sort.field, sort_order=sort.order), reverse=(sort.order == SortOrder.DESC)
+        valid_sort_list = list(valid_sorting)
+        return sorted(
+            scheduled_tasks, key=lambda task: tuple(sort_key(sort.field, sort.order)(task) for sort in valid_sort_list)
         )
-    return scheduled_tasks
+    except Exception as e:
+        handle_sort_error(str(e))
+        return []
 
 
 def default_error_handler(message: str, **context) -> None:  # type: ignore
@@ -111,7 +130,7 @@ def get_scheduler_tasks(
     scheduler.shutdown()
 
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
-    scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, sort_by)
+    scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
 
     total = len(scheduled_tasks)
     paginated_tasks = scheduled_tasks[after : after + first + 1]

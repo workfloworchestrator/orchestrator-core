@@ -151,6 +151,7 @@ def test_scheduled_tasks_sort_by(test_client):
     scheduled_tasks = scheduled_tasks_data["page"]
     pageinfo = scheduled_tasks_data["pageInfo"]
 
+    assert "errors" not in result
     assert pageinfo == {
         "hasNextPage": False,
         "hasPreviousPage": False,
@@ -165,3 +166,30 @@ def test_scheduled_tasks_sort_by(test_client):
         "Clean up tasks",
     ]
     assert [job["name"] for job in scheduled_tasks] == expected_workflows
+
+
+def test_scheduled_tasks_invalid_sort(test_client):
+    data = get_scheduled_tasks_query(sort_by=[{"field": "namee", "order": "DESC"}])
+    response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
+
+    assert HTTPStatus.OK == response.status_code, response.text
+    result = response.json()
+    scheduled_tasks_data = result["data"]["scheduledTasks"]
+    scheduled_tasks = scheduled_tasks_data["page"]
+    pageinfo = scheduled_tasks_data["pageInfo"]
+
+    expected_error_msg = (
+        "Invalid sort arguments (invalid_sorting=['namee'] valid_sort_keys"
+        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger'])"
+    )
+
+    assert pageinfo == {
+        "hasNextPage": False,
+        "hasPreviousPage": False,
+        "startCursor": 0,
+        "endCursor": 3,
+        "totalItems": 4,
+    }
+    assert len(result["errors"]) == 1
+    assert result["errors"][0]["message"] == expected_error_msg
+    assert len(scheduled_tasks) == 4
