@@ -17,7 +17,7 @@ import time
 
 import typer
 
-from orchestrator.schedules.scheduler import scheduler
+from orchestrator.schedules.scheduler import jobstores, scheduler
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ def run() -> None:
             time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()
+        jobstores["default"].engine.dispose()
 
 
 @app.command()
@@ -43,7 +44,11 @@ def show_schedule() -> None:
     in cli underscore is replaced by a dash `show-schedule`
     """
     scheduler.start(paused=True)  # paused: avoid triggering jobs during CLI
-    for job in scheduler.get_jobs():
+    jobs = scheduler.get_jobs()
+    scheduler.shutdown(wait=False)
+    jobstores["default"].engine.dispose()
+
+    for job in jobs:
         typer.echo(f"[{job.id}] Next run: {job.next_run_time} | Trigger: {job.trigger}")
 
 
@@ -52,6 +57,9 @@ def force(job_id: str) -> None:
     """Force the execution of (a) scheduler(s) based on a job_id."""
     scheduler.start(paused=True)  # paused: avoid triggering jobs during CLI
     job = scheduler.get_job(job_id)
+    scheduler.shutdown(wait=False)
+    jobstores["default"].engine.dispose()
+
     if not job:
         typer.echo(f"Job '{job_id}' not found.")
         raise typer.Exit(code=1)
