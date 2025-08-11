@@ -17,6 +17,8 @@ follows:
 └── workflows
 ```
 
+- [skip to creating a workflow](./workflows.md)
+
 Some of the orchestrator-core functionality relies on the source folder being a
 valid Git repository.
 
