@@ -29,6 +29,8 @@ from orchestrator.api.api_v1.endpoints import (
     user,
     workflows,
     ws,
+    search,
+    agent,
 )
 from orchestrator.security import authorize
 
@@ -83,3 +85,5 @@ api_router.include_router(
     tags=["Core", "Translations"],
 )
 api_router.include_router(ws.router, prefix="/ws", tags=["Core", "Events"])
+
+api_router.include_router(search.router)

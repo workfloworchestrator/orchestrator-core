@@ -14,9 +14,9 @@
 import secrets
 import string
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
@@ -91,6 +91,29 @@ class AppSettings(BaseSettings):
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
     EXPOSE_SETTINGS: bool = False
     EXPOSE_OAUTH_SETTINGS: bool = False
+
+    AGENT_MODEL: str = "openai:gpt-4o"
+    OPENAI_API_KEY: str = "OPENAI_API_KEY"
+    OPENAI_BASE_URL: Optional[str] = None  # Change for local inference
+    EMBEDDING_DIMENSION: int = 1536
+    EMBEDDING_MODEL: str = "openai:text-embedding-3-small"
+
+    @field_validator("EMBEDDING_MODEL")
+    def validate_embedding_model_format(cls, v):
+        """Validate that embedding model is in 'vendor:model' format"""
+        if ":" not in v:
+            raise ValueError("EMBEDDING_MODEL must be in format 'vendor:model'")
+        return v
+
+    @property
+    def embedding_model_name(self) -> str:
+        """Extract just the model name (after the colon) from EMBEDDING_MODEL"""
+        return self.EMBEDDING_MODEL.split(":", 1)[1]
+
+    @property
+    def embedding_model_vendor(self) -> str:
+        """Extract the vendor (before the colon) from EMBEDDING_MODEL"""
+        return self.EMBEDDING_MODEL.split(":", 1)[0]
 
 
 app_settings = AppSettings()

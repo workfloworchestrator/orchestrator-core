@@ -1,0 +1,73 @@
+from typing import Annotated, Any, Union, Literal
+from datetime import datetime, date
+from pydantic import BaseModel, model_validator, BeforeValidator, Field
+from sqlalchemy import and_
+from sqlalchemy import and_, cast as sa_cast, TIMESTAMP
+from sqlalchemy.sql.elements import ColumnElement
+from dateutil.parser import parse as dt_parse
+from .operators import FilterOp
+
+
+def _validate_date_string(v: Any) -> Any:
+    if not isinstance(v, str):
+        return v
+    try:
+        dt_parse(v)
+        return v
+    except Exception as exc:
+        raise ValueError("is not a valid date or datetime string") from exc
+
+
+DateValue = datetime | date | str
+ValidatedDateValue = Annotated[DateValue, BeforeValidator(_validate_date_string)]
+
+
+class DateRange(BaseModel):
+
+    start: ValidatedDateValue
+    end: ValidatedDateValue
+
+    @model_validator(mode="after")
+    def _order(self) -> "DateRange":
+        to_datetime = dt_parse(str(self.end))
+        from_datetime = dt_parse(str(self.start))
+        if to_datetime <= from_datetime:
+            raise ValueError("'to' must be after 'from'")
+        return self
+
+
+class DateValueFilter(BaseModel):
+    """A filter that operates on a single date value."""
+
+    op: Literal[FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE]
+    value: ValidatedDateValue
+
+    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+        date_column = sa_cast(column, TIMESTAMP(timezone=True))
+        match self.op:
+            case FilterOp.EQ:
+                return date_column == self.value
+            case FilterOp.NEQ:
+                return date_column != self.value
+            case FilterOp.LT:
+                return date_column < self.value
+            case FilterOp.LTE:
+                return date_column <= self.value
+            case FilterOp.GT:
+                return date_column > self.value
+            case FilterOp.GTE:
+                return date_column >= self.value
+
+
+class DateRangeFilter(BaseModel):
+    """A filter that operates on a range of dates."""
+
+    op: Literal[FilterOp.BETWEEN]
+    value: DateRange
+
+    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+        date_column = sa_cast(column, TIMESTAMP(timezone=True))
+        return and_(date_column >= self.value.start, date_column < self.value.end)
+
+
+DateFilter = Annotated[Union[DateValueFilter, DateRangeFilter], Field(discriminator="op")]

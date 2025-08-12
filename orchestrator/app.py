@@ -41,6 +41,8 @@ from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_lo
 from oauth2_lib.fastapi import AuthManager, Authorization, GraphqlAuthorization, OIDCAuth
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
+from orchestrator.api.api_v1.endpoints.agent import build_agent_app
+
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
@@ -149,6 +151,9 @@ class OrchestratorCore(FastAPI):
             initialize_default_metrics()
             metrics_app = make_asgi_app(registry=ORCHESTRATOR_METRICS_REGISTRY)
             self.mount("/api/metrics", metrics_app)
+
+        agent_app = build_agent_app()
+        self.mount("/agent", agent_app)
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:

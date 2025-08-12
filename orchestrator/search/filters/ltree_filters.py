@@ -1,0 +1,29 @@
+from typing import Literal
+from .operators import FilterOp
+from pydantic import BaseModel, Field
+from sqlalchemy import bindparam, TEXT
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy_utils.types.ltree import Ltree
+
+
+class LtreeFilter(BaseModel):
+    """Filter for ltree path operations."""
+
+    op: Literal[FilterOp.MATCHES_LQUERY, FilterOp.IS_ANCESTOR, FilterOp.IS_DESCENDANT, FilterOp.PATH_EXISTS]
+    value: str = Field(description="The ltree path or lquery pattern to compare against.")
+
+    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+        """Converts the filter condition into a SQLAlchemy expression."""
+        match self.op:
+            case FilterOp.IS_DESCENDANT:
+                ltree_value = Ltree(self.value)
+                return column.op("<@")(ltree_value)
+            case FilterOp.IS_ANCESTOR:
+                ltree_value = Ltree(self.value)
+                return column.op("@>")(ltree_value)
+            case FilterOp.MATCHES_LQUERY:
+                param = bindparam("lquery_pattern", self.value, type_=TEXT)
+                return column.op("~")(param)
+            case FilterOp.PATH_EXISTS:
+                ltree_value = Ltree(path)
+                return column == ltree_value

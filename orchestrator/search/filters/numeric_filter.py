@@ -1,0 +1,57 @@
+from typing import Union, Literal, Annotated
+from pydantic import BaseModel, model_validator, Field
+
+from sqlalchemy import and_, cast as sa_cast, INTEGER, DOUBLE_PRECISION
+from sqlalchemy.sql.elements import ColumnElement
+from .operators import FilterOp
+
+
+class NumericRange(BaseModel):
+    start: Union[int, float]
+    end: Union[int, float]
+
+    @model_validator(mode="after")
+    def validate_order(self):
+        if self.end <= self.start:
+            raise ValueError("'end' must be greater than 'start'")
+        return self
+
+
+class NumericValueFilter(BaseModel):
+    """A filter for single numeric value comparisons (int or float)."""
+
+    op: Literal[FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE]
+    value: Union[int, float]
+
+    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+        cast_type = INTEGER if isinstance(self.value, int) else DOUBLE_PRECISION
+        numeric_column = sa_cast(column, cast_type)
+        match self.op:
+
+            case FilterOp.EQ:
+                return numeric_column == self.value
+            case FilterOp.NEQ:
+                return numeric_column != self.value
+            case FilterOp.LT:
+                return numeric_column < self.value
+            case FilterOp.LTE:
+                return numeric_column <= self.value
+            case FilterOp.GT:
+                return numeric_column > self.value
+            case FilterOp.GTE:
+                return numeric_column >= self.value
+
+
+class NumericRangeFilter(BaseModel):
+    """A filter for a range of numeric values (int or float)."""
+
+    op: Literal[FilterOp.BETWEEN]
+    value: NumericRange
+
+    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+        cast_type = INTEGER if isinstance(self.value.start, int) else DOUBLE_PRECISION
+        numeric_column = sa_cast(column, cast_type)
+        return and_(numeric_column >= self.value.start, numeric_column <= self.value.end)
+
+
+NumericFilter = Annotated[Union[NumericValueFilter, NumericRangeFilter], Field(discriminator="op")]
