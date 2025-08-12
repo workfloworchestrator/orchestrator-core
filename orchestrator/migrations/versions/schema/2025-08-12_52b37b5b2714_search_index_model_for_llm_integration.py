@@ -57,11 +57,9 @@ def upgrade() -> None:
     )
     op.alter_column(TABLE, "value_type", server_default=None)
 
-    # Create basic indexes
     op.create_index(op.f("ix_ai_search_index_entity_id"), TABLE, ["entity_id"], unique=False)
     op.create_index(IDX_CONTENT_HASH, TABLE, ["content_hash"])
 
-    # Create specialized PostgreSQL indexes
     op.create_index(
         IDX_PATH_GIST,
         TABLE,
