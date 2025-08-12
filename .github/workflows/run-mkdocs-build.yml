@@ -1,8 +1,8 @@
-name: gh-pages
+name: Test mkdocs build
+
 on:
-  push:
-    branches:
-      - main
+  pull_request:
+    branches: [ "main" ]
 
 env:
   UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
@@ -25,5 +25,5 @@ jobs:
         # --group docs: include group 'dev' from [dependency-groups]
         run: uv sync --no-dev --group docs
 
-      - name: Build and publish docs
-        run: uv run mkdocs gh-deploy --force
+      - name: Test mkdocs build
+        run: uv run mkdocs build
