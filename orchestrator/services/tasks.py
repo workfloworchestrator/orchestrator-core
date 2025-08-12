@@ -72,7 +72,7 @@ def initialise_celery(celery: Celery) -> None:  # noqa: C901
             process = _get_process(process_id)
             pstat = load_process(process)
             ensure_correct_process_status(process_id, ProcessStatus.CREATED)
-            thread_start_process(pstat, user)
+            thread_start_process(pstat, user=user, broadcast_func=process_broadcast_fn)
 
         except Exception as exc:
             local_logger.error("Worker failed to execute workflow", process_id=process_id, details=str(exc))
