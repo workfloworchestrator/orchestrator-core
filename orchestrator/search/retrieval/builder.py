@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Select, and_, select, Table
+from sqlalchemy import Select, Table, and_, select
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db.models import AiSearchIndex
@@ -60,7 +60,7 @@ class QueryBuilder:
             return stmt
 
         for i, path_filter in enumerate(filters):
-            filter_alias: Table = getattr(AiSearchIndex, "__table__").alias(f"filter_{i}")
+            filter_alias: Table = AiSearchIndex.__table__.alias(f"filter_{i}")
 
             stmt = stmt.join(filter_alias, filter_alias.c.entity_id == AiSearchIndex.entity_id)
 
