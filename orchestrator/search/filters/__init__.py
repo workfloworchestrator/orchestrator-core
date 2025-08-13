@@ -1,27 +1,25 @@
 from .base import (
-    PathFilter,
-    FilterSet,
-    FilterCondition,
-    StringFilter,
     EqualityFilter,
+    FilterCondition,
+    FilterSet,
+    PathFilter,
+    StringFilter,
 )
-
+from .date_filters import DateFilter, DateRangeFilter, DateValueFilter
+from .ltree_filters import LtreeFilter
+from .numeric_filter import NumericFilter, NumericRangeFilter, NumericValueFilter
 from .operators import FilterOp
 
-from .numeric_filter import NumericValueFilter, NumericRangeFilter, NumericFilter
-from .date_filters import DateValueFilter, DateRangeFilter, DateFilter
-from .ltree_filters import LtreeFilter
-
 __all__ = [
-    # base
+    # Base filter classes
     "PathFilter",
     "FilterSet",
     "FilterCondition",
     "StringFilter",
     "EqualityFilter",
-    # operators
+    # Filter operation enums
     "FilterOp",
-    # typed filters
+    # Filters for specific value types
     "NumericValueFilter",
     "NumericRangeFilter",
     "DateValueFilter",

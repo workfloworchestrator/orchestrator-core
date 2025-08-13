@@ -1,13 +1,15 @@
-import structlog
 import json
-from sqlalchemy import and_
-from sqlalchemy_utils.types.ltree import Ltree
 from typing import List, Tuple
 
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+import structlog
+from sqlalchemy import and_
+from sqlalchemy_utils.types.ltree import Ltree
+
+from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.core.types import EntityKind
+from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import SearchResult
 
 logger = structlog.get_logger(__name__)
@@ -24,7 +26,9 @@ def generate_highlight_indices(text: str, term: str) -> List[Tuple[int, int]]:
     return indices
 
 
-def display_filtered_paths_only(results: list[SearchResult], search_params: BaseSearchParameters, db_session) -> None:
+def display_filtered_paths_only(
+    results: list[SearchResult], search_params: BaseSearchParameters, db_session: WrappedSession
+) -> None:
     """Display only the paths that were searched for in the results."""
     if not results:
         logger.info("No results found.")
@@ -38,7 +42,7 @@ def display_filtered_paths_only(results: list[SearchResult], search_params: Base
 
     for result in results:
         for path in searched_paths:
-            record: AiSearchIndex = (
+            record: AiSearchIndex | None = (
                 db_session.query(AiSearchIndex)
                 .filter(and_(AiSearchIndex.entity_id == result.entity_id, AiSearchIndex.path == Ltree(path)))
                 .first()
@@ -52,7 +56,7 @@ def display_filtered_paths_only(results: list[SearchResult], search_params: Base
 
 def display_results(
     results: list[SearchResult],
-    db_session,
+    db_session: WrappedSession,
     score_label: str = "Score",
 ) -> None:
     """Finds the original DB record for each search result and logs its traversed fields."""

@@ -13,7 +13,7 @@
 
 import typer
 
-from orchestrator.cli import database, generate, scheduler, index_llm, search_explore
+from orchestrator.cli import database, generate, index_llm, scheduler, search_explore
 
 app = typer.Typer()
 app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")

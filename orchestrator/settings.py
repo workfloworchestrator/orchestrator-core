@@ -99,20 +99,20 @@ class AppSettings(BaseSettings):
     EMBEDDING_MODEL: str = "openai:text-embedding-3-small"
 
     @field_validator("EMBEDDING_MODEL")
-    def validate_embedding_model_format(cls, v):
-        """Validate that embedding model is in 'vendor:model' format"""
+    def validate_embedding_model_format(cls, v: str) -> str:
+        """Validate that embedding model is in 'vendor:model' format."""
         if ":" not in v:
             raise ValueError("EMBEDDING_MODEL must be in format 'vendor:model'")
         return v
 
     @property
     def embedding_model_name(self) -> str:
-        """Extract just the model name (after the colon) from EMBEDDING_MODEL"""
+        """Extract just the model name (after the colon) from EMBEDDING_MODEL."""
         return self.EMBEDDING_MODEL.split(":", 1)[1]
 
     @property
     def embedding_model_vendor(self) -> str:
-        """Extract the vendor (before the colon) from EMBEDDING_MODEL"""
+        """Extract the vendor (before the colon) from EMBEDDING_MODEL."""
         return self.EMBEDDING_MODEL.split(":", 1)[0]
 
 

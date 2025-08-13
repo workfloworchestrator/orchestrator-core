@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 from typing import List, Optional, Tuple
+
+from pydantic import BaseModel
 
 
 class Highlight(BaseModel):

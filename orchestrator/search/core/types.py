@@ -1,10 +1,12 @@
-from enum import Enum
-from typing import Any, NamedTuple, Type, TYPE_CHECKING
-from uuid import UUID
-from datetime import datetime, date
-from .validators import is_uuid, is_iso_date, is_bool_string
 from dataclasses import dataclass
+from datetime import date, datetime
+from enum import Enum
+from typing import TYPE_CHECKING, Any, NamedTuple, Type
+from uuid import UUID
+
 from orchestrator.db.database import BaseModel
+
+from .validators import is_bool_string, is_iso_date, is_uuid
 
 if TYPE_CHECKING:
     from search.indexing.traverse import BaseTraverser
@@ -37,37 +39,46 @@ class FieldType(str, Enum):
     @classmethod
     def infer(cls, val: Any) -> "FieldType":
         if isinstance(val, TypedValue):
-            if val.type == cls.BLOCK:
-                return cls.BLOCK
-            elif val.type == cls.RESOURCE_TYPE:
-                return cls.RESOURCE_TYPE
+            return cls._infer_typed_value(val)
 
-        elif isinstance(val, bool):
+        if isinstance(val, bool):
             return cls.BOOLEAN
-        elif isinstance(val, int):
+        if isinstance(val, int):
             return cls.INTEGER
-        elif isinstance(val, float):
+        if isinstance(val, float):
             return cls.FLOAT
-        elif isinstance(val, UUID):
+        if isinstance(val, UUID):
             return cls.UUID
-        elif isinstance(val, (datetime, date)):
+        if isinstance(val, (datetime, date)):
             return cls.DATETIME
-        elif isinstance(val, str):
-            if is_uuid(val):
-                return cls.UUID
-            elif is_iso_date(val):
-                return cls.DATETIME
-            elif is_bool_string(val):
-                return cls.BOOLEAN
-            elif val.isdigit():
-                return cls.INTEGER
-            else:
-                try:
-                    float(val)
-                    return cls.FLOAT
-                except ValueError:
-                    pass
+        if isinstance(val, str):
+            return cls._infer_from_str(val)
+
         return cls.STRING
+
+    @classmethod
+    def _infer_typed_value(cls, val: "TypedValue") -> "FieldType":
+        if val.type == cls.BLOCK:
+            return cls.BLOCK
+        if val.type == cls.RESOURCE_TYPE:
+            return cls.RESOURCE_TYPE
+        return cls.STRING
+
+    @classmethod
+    def _infer_from_str(cls, val: str) -> "FieldType":
+        if is_uuid(val):
+            return cls.UUID
+        if is_iso_date(val):
+            return cls.DATETIME
+        if is_bool_string(val):
+            return cls.BOOLEAN
+        if val.isdigit():
+            return cls.INTEGER
+        try:
+            float(val)
+            return cls.FLOAT
+        except ValueError:
+            return cls.STRING
 
     def pg_cast(self) -> str:
         return {

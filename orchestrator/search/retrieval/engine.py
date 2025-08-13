@@ -1,19 +1,38 @@
-import structlog
-from sqlalchemy.orm import Session
-from sqlalchemy.engine.row import RowMapping
 from typing import Sequence
+
+import structlog
+from sqlalchemy.engine.row import RowMapping
+from sqlalchemy.orm import Session
+
+from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.search.schemas.results import Highlight, SearchResponse, SearchResult
 
 from .builder import QueryBuilder
 from .ranker import Ranker
 from .utils import generate_highlight_indices
-from orchestrator.search.schemas.parameters import BaseSearchParameters
-from orchestrator.search.schemas.results import SearchResponse, SearchResult, Highlight
 
 logger = structlog.get_logger(__name__)
 
 
 def _format_response(db_rows: Sequence[RowMapping], search_params: BaseSearchParameters) -> SearchResponse:
-    """Formats raw database rows into the final SearchResponse, including highlights."""
+    """Format database query results into a `SearchResponse`.
+
+    Converts raw SQLAlchemy `RowMapping` objects into `SearchResult` instances,
+    optionally generating highlight metadata if a fuzzy term is present.
+
+    Parameters
+    ----------
+    db_rows : Sequence[RowMapping]
+        The rows returned from the executed SQLAlchemy query.
+    search_params : BaseSearchParameters
+        The parameters used for the search, including any fuzzy term for highlighting.
+
+    Returns:
+    -------
+    SearchResponse
+        A list of `SearchResult` objects containing entity IDs, scores, and
+        optional highlight information.
+    """
     response: SearchResponse = []
     for row in db_rows:
         highlight = None
@@ -34,9 +53,31 @@ def _format_response(db_rows: Sequence[RowMapping], search_params: BaseSearchPar
 
 
 def execute_search(search_params: BaseSearchParameters, db_session: Session, limit: int = 5) -> SearchResponse:
-    """
-    Executes a search by building a candidate query, applying a ranking
-    strategy, and executing the final query.
+    """Execute a hybrid search and return ranked results.
+
+    Builds a candidate entity query based on the given search parameters,
+    applies the appropriate ranking strategy, and executes the final ranked
+    query to retrieve results.
+
+    Parameters
+    ----------
+    search_params : BaseSearchParameters
+        The search parameters specifying vector, fuzzy, or filter criteria.
+    db_session : Session
+        The active SQLAlchemy session for executing the query.
+    limit : int, optional
+        The maximum number of search results to return, by default 5.
+
+    Returns:
+    -------
+    SearchResponse
+        A list of `SearchResult` objects containing entity IDs, scores, and
+        optional highlight metadata.
+
+    Notes:
+    -----
+    If no vector query, filters, or fuzzy term are provided, a warning is logged
+    and an empty result set is returned.
     """
     if not search_params.vector_query and not search_params.filters and not search_params.fuzzy_term:
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")

@@ -1,16 +1,16 @@
-import typer
-from orchestrator.db import db
-import structlog
 from typing import Optional
+
+import structlog
+import typer
 from pydantic import ValidationError
 
-from orchestrator.search.retrieval import execute_search
-from orchestrator.search.retrieval.validation import get_structured_filter_schema
-from orchestrator.search.retrieval.utils import display_results, display_filtered_paths_only
+from orchestrator.db import db
 from orchestrator.search.core.types import EntityKind
-from orchestrator.search.filters import PathFilter, FilterOp, LtreeFilter, EqualityFilter
+from orchestrator.search.filters import EqualityFilter, FilterOp, LtreeFilter, PathFilter
+from orchestrator.search.retrieval import execute_search
+from orchestrator.search.retrieval.utils import display_filtered_paths_only, display_results
+from orchestrator.search.retrieval.validation import get_structured_filter_schema
 from orchestrator.search.schemas.parameters import BaseSearchParameters
-
 
 app = typer.Typer(help="Experiment with the subscription search indexes.")
 
@@ -18,9 +18,8 @@ logger = structlog.getLogger(__name__)
 
 
 @app.command()
-def structured(path: str, value: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10):
-    """
-    Finds subscriptions where a specific field path contains an exact value.
+def structured(path: str, value: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+    """Finds subscriptions where a specific field path contains an exact value.
 
     Example:
         dotenv run python main.py search structured "subscription.status" "provisioning"
@@ -40,9 +39,8 @@ def structured(path: str, value: str, entity_type: EntityKind = EntityKind.SUBSC
 
 
 @app.command()
-def semantic(query: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10):
-    """
-    Finds subscriptions that are conceptually most similar to the query text.
+def semantic(query: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+    """Finds subscriptions that are conceptually most similar to the query text.
 
     Example:
         dotenv run python main.py search semantic "Shop for an alligator store"
@@ -59,9 +57,8 @@ def semantic(query: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limi
 
 
 @app.command()
-def fuzzy(term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10):
-    """
-    Finds subscriptions containing text similar to the query, tolerating typos.
+def fuzzy(term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+    """Finds subscriptions containing text similar to the query, tolerating typos.
 
     Example:
         dotenv run python main.py search fuzzy "Colonel"
@@ -84,9 +81,8 @@ def hierarchical(
     query: Optional[str] = typer.Option(None, "--query", "-f", help="An optional fuzzy term to rank the results."),
     entity_type: EntityKind = EntityKind.SUBSCRIPTION,
     limit: int = 10,
-):
-    """
-    Performs a hierarchical search, optionally combined with fuzzy ranking.
+) -> None:
+    """Performs a hierarchical search, optionally combined with fuzzy ranking.
 
     Examples:
         dotenv run python main.py search hierarchical is_descendant "subscription.shop" --query "Kingwood"
@@ -105,9 +101,8 @@ def hierarchical(
 
 
 @app.command()
-def hybrid(query: str, term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10):
-    """
-    Performs a hybrid search, combining semantic and fuzzy matching.
+def hybrid(query: str, term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+    """Performs a hybrid search, combining semantic and fuzzy matching.
 
     Example:
         dotenv run python main.py search hybrid "reptile store" "Kingswood"
@@ -119,9 +114,8 @@ def hybrid(query: str, term: str, entity_type: EntityKind = EntityKind.SUBSCRIPT
 
 
 @app.command("generate-schema")
-def generate_schema():
-    """
-    Generates and prints the dynamic filter schema from the live search index.
+def generate_schema() -> None:
+    """Generates and prints the dynamic filter schema from the live search index.
 
     This queries the index for all distinct non-string paths to be used as
     context for the LLM agent.
@@ -139,7 +133,7 @@ def generate_schema():
 
     logger.info("\nAvailable Structured Filters:\n")
     for path, value_type in schema_map.items():
-        print(f"- {path}: {value_type}")
+        logger.info(f"- {path}: {value_type}")
 
     logger.info("Successfully generated dynamic schema.", path_count=len(schema_map))
 

@@ -1,7 +1,8 @@
-import typer
 from typing import Optional
 
-from orchestrator.search.indexing.tasks import index_subscriptions, index_products, index_processes, index_workflows
+import typer
+
+from orchestrator.search.indexing.tasks import index_processes, index_products, index_subscriptions, index_workflows
 
 app = typer.Typer(
     name="index",

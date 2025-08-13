@@ -1,18 +1,20 @@
 import uuid
-from typing import Optional
+from typing import Optional, Sequence
+
 import structlog
 
-from orchestrator.db import db, ProductTable, SubscriptionTable, ProcessTable, WorkflowTable
+from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
+from orchestrator.db.database import BaseModel
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.indexing.registry import EntityConfig, ENTITY_CONFIG_REGISTRY
-from orchestrator.search.core.types import EntityKind
-from orchestrator.search.indexing.common import index_entity
 from orchestrator.search.core.exceptions import SearchUtilsError
+from orchestrator.search.core.types import EntityConfig, EntityKind
+from orchestrator.search.indexing.common import index_entity
+from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
 logger = structlog.get_logger(__name__)
 
 
-def _process_entities(rows, config: EntityConfig, dry_run, force_index):
+def _process_entities(rows: Sequence[BaseModel], config: EntityConfig, dry_run: bool, force_index: bool) -> None:
     """Process and index a list of entities."""
     for entity in rows:
         try:

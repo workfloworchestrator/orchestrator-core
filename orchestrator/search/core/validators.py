@@ -1,5 +1,6 @@
-from dateutil.parser import isoparse
 import uuid
+
+from dateutil.parser import isoparse
 
 
 def is_uuid(value: str) -> bool:
@@ -21,10 +22,6 @@ def is_iso_date(value: str) -> bool:
 
 
 def is_bool_string(value: str) -> bool:
-    """
-    Check if a string explicitly represents a boolean value with true/false.
-    """
-    if not isinstance(value, str):
-        return False
+    """Check if a string explicitly represents a boolean value with true/false."""
 
     return value.strip().lower() in {"true", "false"}

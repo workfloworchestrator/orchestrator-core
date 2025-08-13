@@ -1,12 +1,12 @@
-from typing import List, Union, Literal, Any
+from typing import Any, List, Literal, Union
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.sql.elements import ColumnElement
-from .operators import FilterOp
+
+from .date_filters import DateFilter
 from .ltree_filters import LtreeFilter
 from .numeric_filter import NumericFilter
-from .date_filters import DateFilter
+from .operators import FilterOp
 
 
 class EqualityFilter(BaseModel):
@@ -37,9 +37,7 @@ class StringFilter(BaseModel):
 
     @model_validator(mode="after")
     def validate_like_pattern(self) -> "StringFilter":
-        """
-        If the operation is 'like', the value must contain a wildcard.
-        """
+        """If the operation is 'like', the value must contain a wildcard."""
         if self.op == FilterOp.LIKE:
             if "%" not in self.value and "_" not in self.value:
                 raise ValueError("The value for a 'like' operation must contain a wildcard character ('%' or '_').")
@@ -91,9 +89,20 @@ class PathFilter(BaseModel):
     )
 
     def to_expression(self, value_column: ColumnElement) -> ColumnElement[bool]:
-        """
-        Converts the path filter into a SQLAlchemy expression.
-        Delegates to the specific filter's to_expression method.
+        """Convert the path filter into a SQLAlchemy expression.
+
+        This method delegates to the specific filter condition's ``to_expression``
+        implementation, passing along the column and path for context.
+
+        Parameters
+        ----------
+        value_column : ColumnElement
+            The SQLAlchemy column element representing the value to be filtered.
+
+        Returns:
+        -------
+        ColumnElement[bool]
+            A SQLAlchemy boolean expression that can be used in a ``WHERE`` clause.
         """
         return self.condition.to_expression(value_column, self.path)
 

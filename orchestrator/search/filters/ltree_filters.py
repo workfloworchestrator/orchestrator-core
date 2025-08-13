@@ -1,9 +1,11 @@
 from typing import Literal
-from .operators import FilterOp
+
 from pydantic import BaseModel, Field
-from sqlalchemy import bindparam, TEXT
+from sqlalchemy import TEXT, bindparam
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
+
+from .operators import FilterOp
 
 
 class LtreeFilter(BaseModel):

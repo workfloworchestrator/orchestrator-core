@@ -1,6 +1,9 @@
-from typing import Any, List, Type
-from pydantic import BaseModel
+import asyncio
+from typing import Any, List, Type, TypeVar, cast
+from uuid import UUID
+
 from fastapi import APIRouter
+from pydantic import BaseModel
 from sqlalchemy import case, select
 from sqlalchemy.orm import selectinload
 
@@ -10,35 +13,30 @@ from orchestrator.db import (
     WorkflowTable,
     db,
 )
-from orchestrator.search.schemas.parameters import (
-    SubscriptionSearchParameters,
-    WorkflowSearchParameters,
-    ProductSearchParameters,
-    ProcessSearchParameters,
-    BaseSearchParameters,
-)
-
-from orchestrator.search.retrieval import execute_search
-
 from orchestrator.schemas.search import (
     ConnectionSchema,
     PageInfoSchema,
     ProcessSearchSchema,
     ProductSearchSchema,
-    WorkflowSearchSchema,
     SubscriptionSearchResult,
+    WorkflowSearchSchema,
 )
-import asyncio
-from uuid import UUID
-
-from orchestrator.utils.get_subscription_dict import get_subscription_dict
+from orchestrator.search.retrieval import execute_search
+from orchestrator.search.schemas.parameters import (
+    BaseSearchParameters,
+    ProcessSearchParameters,
+    ProductSearchParameters,
+    SubscriptionSearchParameters,
+    WorkflowSearchParameters,
+)
 from orchestrator.services.subscriptions import (
     format_extended_domain_model,
     format_special_types,
 )
-
+from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
 router = APIRouter(tags=["Search"], prefix="/search")
+T = TypeVar("T", bound=BaseModel)
 
 
 def _perform_search_and_fetch_simple(
@@ -51,7 +49,8 @@ def _perform_search_and_fetch_simple(
     results = execute_search(search_params=search_params, db_session=db.session, limit=20)
 
     if not results:
-        return ConnectionSchema(page=[], pageInfo=PageInfoSchema())
+        data: dict[str, Any] = {"page_info": PageInfoSchema(), "page": []}
+        return ConnectionSchema(**cast(Any, data))
 
     entity_ids = [res.entity_id for res in results]
     pk_column = getattr(db_model, pk_column_name)
@@ -62,7 +61,8 @@ def _perform_search_and_fetch_simple(
 
     page = [response_schema.model_validate(entity) for entity in entities]
 
-    return ConnectionSchema(page=page, pageInfo=PageInfoSchema())
+    data = {"page_info": PageInfoSchema(), "page": page}
+    return ConnectionSchema(**cast(Any, data))
 
 
 @router.post(
@@ -76,7 +76,8 @@ async def search_subscriptions(
     search_results = execute_search(search_params=search_params, db_session=db.session, limit=20)
 
     if not search_results:
-        return ConnectionSchema(page=[], pageInfo=PageInfoSchema())
+        data: dict[str, Any] = {"page_info": PageInfoSchema(), "page": []}
+        return ConnectionSchema(**cast(Any, data))
 
     search_info_map = {res.entity_id: res for res in search_results}
 
@@ -109,7 +110,8 @@ async def search_subscriptions(
         )
         page.append(result_item)
 
-    return ConnectionSchema(page=page, pageInfo=PageInfoSchema())
+    data = {"page_info": PageInfoSchema(), "page": page}
+    return ConnectionSchema(**cast(Any, data))
 
 
 @router.post("/workflows", response_model=ConnectionSchema[WorkflowSearchSchema], response_model_by_alias=True)

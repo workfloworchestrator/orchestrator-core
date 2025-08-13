@@ -7,11 +7,13 @@ Create Date: 2025-08-12 22:34:26.694750
 """
 
 import os
+
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects import postgresql
 from sqlalchemy_utils import LtreeType
+
 from orchestrator.search.core.types import FieldType
 
 # revision identifiers, used by Alembic.

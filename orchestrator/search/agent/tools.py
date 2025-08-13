@@ -1,29 +1,38 @@
 import asyncio
-import structlog
-from typing import Optional
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional, TypeVar, Union
 
+import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
-from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import ModelRequest, UserPromptPart
+from pydantic_ai.toolsets import FunctionToolset
 
-from .state import SearchState
-from orchestrator.search.core.types import EntityKind, ActionType
-from orchestrator.search.filters import PathFilter
-from orchestrator.search.retrieval.validation import complete_filter_validation
-from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY
 from orchestrator.api.api_v1.endpoints.search import (
+    search_processes,
+    search_products,
     search_subscriptions,
     search_workflows,
-    search_products,
-    search_processes,
 )
+from orchestrator.schemas.search import ConnectionSchema
+from orchestrator.search.core.types import ActionType, EntityKind
+from orchestrator.search.filters import PathFilter
+from orchestrator.search.retrieval.validation import complete_filter_validation
+from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
+
+from .state import SearchState
 
 logger = structlog.get_logger(__name__)
+P = TypeVar("P", bound=BaseSearchParameters)
 
-SEARCH_FN_MAP = {
+SearchFn = Union[
+    Callable[[P], ConnectionSchema[Any]],
+    Callable[[P], Awaitable[ConnectionSchema[Any]]],
+]
+
+SEARCH_FN_MAP: dict[EntityKind, SearchFn] = {
     EntityKind.SUBSCRIPTION: search_subscriptions,
     EntityKind.WORKFLOW: search_workflows,
     EntityKind.PRODUCT: search_products,

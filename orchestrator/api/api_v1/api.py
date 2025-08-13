@@ -22,6 +22,7 @@ from orchestrator.api.api_v1.endpoints import (
     product_blocks,
     products,
     resource_types,
+    search,
     settings,
     subscription_customer_descriptions,
     subscriptions,
@@ -29,8 +30,6 @@ from orchestrator.api.api_v1.endpoints import (
     user,
     workflows,
     ws,
-    search,
-    agent,
 )
 from orchestrator.security import authorize
 

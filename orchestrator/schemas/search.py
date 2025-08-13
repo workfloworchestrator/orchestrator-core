@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Any, TypeVar, Generic
-from uuid import UUID
 from datetime import datetime
+from typing import Any, Generic, List, Optional, TypeVar
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from orchestrator.search.schemas.results import Highlight
 
 T = TypeVar("T")
@@ -40,7 +42,7 @@ class ConnectionSchema(BaseModel, Generic[T]):
 
 
 class WorkflowProductSchema(BaseModel):
-    """Product associated with a workflow"""
+    """Product associated with a workflow."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -50,7 +52,7 @@ class WorkflowProductSchema(BaseModel):
 
 
 class WorkflowSearchSchema(BaseModel):
-    """Schema for workflow search results"""
+    """Schema for workflow search results."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -61,7 +63,7 @@ class WorkflowSearchSchema(BaseModel):
 
 
 class ProductSearchSchema(BaseModel):
-    """Schema for product search results"""
+    """Schema for product search results."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -75,7 +77,7 @@ class ProductSearchSchema(BaseModel):
 
 
 class ProcessSearchSchema(BaseModel):
-    """Schema for process search results"""
+    """Schema for process search results."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

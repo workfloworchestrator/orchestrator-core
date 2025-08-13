@@ -1,18 +1,17 @@
 from orchestrator.db import (
-    SubscriptionTable,
-    ProductTable,
-    WorkflowTable,
     ProcessTable,
+    ProductTable,
+    SubscriptionTable,
+    WorkflowTable,
 )
+from orchestrator.search.core.types import EntityConfig, EntityKind
 
-from orchestrator.search.core.types import EntityKind, EntityConfig
 from .traverse import (
-    SubscriptionTraverser,
-    ProductTraverser,
     ProcessTraverser,
+    ProductTraverser,
+    SubscriptionTraverser,
     WorkflowTraverser,
 )
-
 
 ENTITY_CONFIG_REGISTRY: dict[EntityKind, EntityConfig] = {
     EntityKind.SUBSCRIPTION: EntityConfig(

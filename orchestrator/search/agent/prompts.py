@@ -1,13 +1,13 @@
 import json
-import structlog
 from textwrap import dedent
 
+import structlog
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 
+from orchestrator.search.retrieval.validation import get_structured_filter_schema
 
 from .state import SearchState
-from orchestrator.search.retrieval.validation import get_structured_filter_schema
 
 logger = structlog.get_logger(__name__)
 

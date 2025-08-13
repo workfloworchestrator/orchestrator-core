@@ -1,16 +1,16 @@
-import structlog
-from openai import OpenAIError
-from fastapi import FastAPI, HTTPException
-from starlette.types import ASGIApp
+from typing import Any, NoReturn
 
+import structlog
+from fastapi import FastAPI, HTTPException
+from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.agent import Agent
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.ag_ui import StateDeps
+from starlette.types import ASGIApp
 
-from orchestrator.settings import app_settings
-from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic_instructions
+from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
+from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -19,7 +19,7 @@ def _disabled_agent_app(reason: str) -> FastAPI:
     app = FastAPI(title="Agent disabled")
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
-    async def _disabled(*_args, **_kwargs):
+    async def _disabled(*_args: Any, **_kwargs: Any) -> NoReturn:
         raise HTTPException(status_code=503, detail=f"Agent disabled: {reason}")
 
     return app

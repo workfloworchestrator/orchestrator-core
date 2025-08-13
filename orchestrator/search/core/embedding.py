@@ -1,29 +1,34 @@
-from typing import List, Optional
-from .types import ExtractedField
-from orchestrator.settings import app_settings
 import os
-import structlog
+from typing import List, Optional
+
 import openai
+import structlog
 from openai import OpenAI
+
+from orchestrator.settings import app_settings
+
+from .types import ExtractedField
 
 logger = structlog.get_logger(__name__)
 
 
 class EmbeddingGenerator:
-    """
-    A class to handle the creation of vector embeddings from structured data.
+    """Handles the creation of vector embeddings from structured data.
 
-    This class encapsulates the logic for filtering noisy data and interacting
-    with an embedding model API.
+    This class provides methods for converting structured data into text
+    and generating embeddings via the OpenAI API.
     """
 
     _client: Optional[OpenAI] = None
 
     @classmethod
     def _get_client(cls) -> OpenAI:
+        """Get or create a shared OpenAI client instance.
+
+        Returns:
+            OpenAI: An initialized OpenAI API client.
         """
-        Returns a shared OpenAI client instance, creating it if it doesn't exist.
-        """
+
         if cls._client is None:
             base_url = os.environ.get("OPENAI_BASE_URL")
             api_key = os.environ.get("OPENAI_API_KEY")
@@ -33,8 +38,14 @@ class EmbeddingGenerator:
 
     @classmethod
     def _create_filtered_document(cls, fields: List[ExtractedField]) -> str:
-        """
-        Serializes embeddable fields into a clean text document.
+        """Convert embeddable fields into a clean text document.
+
+        Args:
+            fields (List[ExtractedField]): A list of extracted fields.
+
+        Returns:
+            str: A newline-separated string containing paths and lowercased values
+            for embeddable fields only.
         """
         document_lines = [
             f"{field.path}: {field.value.lower()}" for field in fields if field.value_type.is_embeddable()
@@ -43,8 +54,14 @@ class EmbeddingGenerator:
 
     @classmethod
     def _get_embedding_from_api(cls, text: str) -> List[float]:
-        """
-        Generates a vector embedding for a given text document using the OpenAI API.
+        """Generate a vector embedding for a given text.
+
+        Args:
+            text (str): The text to embed.
+
+        Returns:
+            List[float]: The generated embedding vector, or an empty list if
+            the text is empty or an error occurs.
         """
         if not text:
             return []
@@ -64,9 +81,16 @@ class EmbeddingGenerator:
 
     @classmethod
     def generate_for_fields(cls, fields: List[ExtractedField], dry_run: bool = False) -> List[float]:
-        """
-        The main public method. Takes a list of fields, creates a filtered
-        document, and returns the resulting vector embedding.
+        """Generate an embedding from a list of extracted fields.
+
+        Args:
+            fields (List[ExtractedField]): Fields to include in the embedding.
+            dry_run (bool, optional): If True, log the document without calling
+                the API. Defaults to False.
+
+        Returns:
+            List[float]: The embedding vector, or an empty list if dry_run is True
+            or an error occurs.
         """
         document = cls._create_filtered_document(fields)
 
@@ -77,9 +101,14 @@ class EmbeddingGenerator:
 
     @classmethod
     def _get_embeddings_from_api_batch(cls, texts: List[str]) -> List[List[float]]:
-        """
-        Generates vector embeddings for a batch of texts using a single API call.
-        Returns a list of embeddings in the same order as the input texts.
+        """Generate embeddings for multiple texts in a single API call.
+
+        Args:
+            texts (List[str]): A list of text strings to embed.
+
+        Returns:
+            List[List[float]]: A list of embedding vectors, in the same order as input.
+            Returns empty lists for failed embeddings.
         """
         if not texts:
             return []
@@ -100,9 +129,15 @@ class EmbeddingGenerator:
 
     @classmethod
     def generate_for_batch(cls, texts: List[str], dry_run: bool = False) -> List[List[float]]:
-        """
-        The main public method for batch processing. Takes a list of texts
-        and returns a list of corresponding vector embeddings.
+        """Generate embeddings for multiple texts.
+
+        Args:
+            texts (List[str]): The list of texts to embed.
+            dry_run (bool, optional): If True, return empty embeddings without
+                calling the API. Defaults to False.
+
+        Returns:
+            List[List[float]]: A list of embedding vectors for each text.
         """
         if dry_run:
             return [[] for _ in texts]
@@ -110,9 +145,16 @@ class EmbeddingGenerator:
 
     @classmethod
     def generate_for_text(cls, text: str, dry_run: bool = False) -> List[float]:
-        """
-        Creates an embedding from a pre-formatted string.
-        Used for embedding LLM-generated queries or other raw text.
+        """Generate an embedding from a single text string.
+
+        Args:
+            text (str): The text to embed.
+            dry_run (bool, optional): If True, log the text without calling
+                the API. Defaults to False.
+
+        Returns:
+            List[float]: The embedding vector, or an empty list if dry_run is True
+            or an error occurs.
         """
         normalized_text = text.lower()
         if dry_run:

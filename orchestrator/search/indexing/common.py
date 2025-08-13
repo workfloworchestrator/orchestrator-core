@@ -1,19 +1,17 @@
-from typing import Any, Sequence, Type, Tuple, Dict, Set
 import hashlib
+from typing import Any, Dict, Sequence, Set, Tuple, Type
 
 import structlog
+from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy_utils.types.ltree import Ltree
-from sqlalchemy import delete
 
 from orchestrator.db import db
-from orchestrator.search.core.embedding import EmbeddingGenerator
-from orchestrator.search.indexing.registry import EntityKind
-from orchestrator.search.indexing.traverse import BaseTraverser
-from orchestrator.search.core.types import ExtractedField
 from orchestrator.db.database import BaseModel
 from orchestrator.db.models import AiSearchIndex
-
+from orchestrator.search.core.embedding import EmbeddingGenerator
+from orchestrator.search.core.types import EntityKind, ExtractedField
+from orchestrator.search.indexing.traverse import BaseTraverser
 
 logger = structlog.get_logger(__name__)
 
@@ -23,8 +21,24 @@ def compute_content_hash(path: str, value: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def get_existing_hashes(entity_id: str, index_model) -> Dict[str, str]:
-    """Get existing content hashes for an entity, keyed by path."""
+def get_existing_hashes(entity_id: str, index_model: Type[AiSearchIndex]) -> Dict[str, str]:
+    """Retrieve existing content hashes for an entity.
+
+    Queries the index model table for all paths and their associated content
+    hashes for the given entity ID.
+
+    Parameters
+    ----------
+    entity_id : str
+        The unique identifier of the entity whose hashes should be retrieved.
+    index_model : Type[AiSearchIndex]
+        The SQLAlchemy model representing the index table to query.
+
+    Returns:
+    -------
+    Dict[str, str]
+        A dictionary mapping each path (as a string) to its content hash.
+    """
     existing_records = (
         db.session.query(index_model.path, index_model.content_hash).filter(index_model.entity_id == entity_id).all()
     )
@@ -35,13 +49,25 @@ def get_existing_hashes(entity_id: str, index_model) -> Dict[str, str]:
 def identify_changes(
     fields: Sequence[ExtractedField], existing_hashes: Dict[str, str]
 ) -> Tuple[Set[str], Set[str], Set[str]]:
-    """
-    Compare current fields with existing hashes to identify changes.
+    """Identify added, updated, and deleted paths based on content hashes.
+
+    Compares the given fields against the existing hashes in the database and
+    determines which paths are new, which have updated content, and which have
+    been removed.
+
+    Parameters
+    ----------
+    fields : Sequence[ExtractedField]
+        The current set of extracted fields for the entity.
+    existing_hashes : Dict[str, str]
+        A mapping of existing paths to their stored content hashes.
 
     Returns:
-        - paths_to_add: New paths that don't exist
-        - paths_to_update: Existing paths with changed content
-        - paths_to_delete: Existing paths no longer present
+    -------
+    Tuple[Set[str], Set[str], Set[str]]
+        - **paths_to_add**: Paths not in `existing_hashes` that should be inserted.
+        - **paths_to_update**: Paths with changed content hashes that should be updated.
+        - **paths_to_delete**: Paths in `existing_hashes` but not in `fields` that should be removed.
     """
     current_paths = set()
     paths_to_add = set()
@@ -66,9 +92,26 @@ def identify_changes(
 def make_indexable_records(
     fields: Sequence[ExtractedField], entity_id: str, entity_kind: EntityKind, embedding_map: dict[str, list[float]]
 ) -> list[dict[str, Any]]:
-    """
-    Transforms raw field data and their embeddings into a list of dictionary
-    records ready for insertion into the new flat index table.
+    """Create indexable records from extracted fields and embeddings.
+
+    Transforms the given fields and their corresponding embeddings into a list
+    of dictionaries formatted for insertion into the flat index table.
+
+    Parameters
+    ----------
+    fields : Sequence[ExtractedField]
+        The extracted fields to index.
+    entity_id : str
+        The unique identifier of the entity to which the fields belong.
+    entity_kind : EntityKind
+        The type of entity being indexed.
+    embedding_map : dict[str, list[float]]
+        A mapping from the full field text (``"path: value"``) to its vector embedding.
+
+    Returns:
+    -------
+    list[dict[str, Any]]
+        A list of dictionaries, each representing a record ready for database insertion.
     """
     records: list[dict[str, Any]] = []
     for field in fields:

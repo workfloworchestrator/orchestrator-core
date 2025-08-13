@@ -1,8 +1,10 @@
-from typing import Optional, Literal, Any, Dict, Type, overload
-from pydantic import BaseModel, Field, ConfigDict
 import uuid
-from orchestrator.search.filters import FilterSet
+from typing import Any, Dict, Literal, Optional, Type
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from orchestrator.search.core.types import ActionType, EntityKind
+from orchestrator.search.filters import FilterSet
 
 
 class BaseSearchParameters(BaseModel):
@@ -30,7 +32,7 @@ class BaseSearchParameters(BaseModel):
 
     @property
     def vector_query(self) -> Optional[str]:
-        """Extract vector query from unified query field"""
+        """Extract vector query from unified query field."""
         if not self.query:
             return None
         try:
@@ -41,7 +43,7 @@ class BaseSearchParameters(BaseModel):
 
     @property
     def fuzzy_term(self) -> Optional[str]:
-        """Extract fuzzy term from unified query field"""
+        """Extract fuzzy term from unified query field."""
         if not self.query:
             return None
 

@@ -20,7 +20,9 @@ from uuid import UUID
 import sqlalchemy
 import structlog
 from more_itertools import first_true
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    TEXT,
     TIMESTAMP,
     Boolean,
     CheckConstraint,
@@ -29,16 +31,15 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     Select,
     String,
     Table,
     Text,
     TypeDecorator,
     UniqueConstraint,
-    PrimaryKeyConstraint,
     select,
     text,
-    TEXT,
 )
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.engine import Dialect
@@ -47,17 +48,15 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
 from sqlalchemy.sql.functions import GenericFunction
-from sqlalchemy_utils import TSVectorType, UUIDType, LtreeType
-from pgvector.sqlalchemy import Vector
+from sqlalchemy_utils import LtreeType, TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
+from orchestrator.search.core.types import FieldType
+from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
-from orchestrator.search.core.types import FieldType
-from orchestrator.settings import app_settings
-
 
 logger = structlog.get_logger(__name__)
 

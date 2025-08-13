@@ -1,8 +1,11 @@
-from typing import Union, Literal, Annotated
-from pydantic import BaseModel, model_validator, Field
+from typing import Annotated, Any, Literal, Union
 
-from sqlalchemy import and_, cast as sa_cast, INTEGER, DOUBLE_PRECISION
+from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import DOUBLE_PRECISION, INTEGER, and_
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.sql.elements import ColumnElement
+from typing_extensions import Self
+
 from .operators import FilterOp
 
 
@@ -11,7 +14,7 @@ class NumericRange(BaseModel):
     end: Union[int, float]
 
     @model_validator(mode="after")
-    def validate_order(self):
+    def validate_order(self) -> Self:
         if self.end <= self.start:
             raise ValueError("'end' must be greater than 'start'")
         return self
@@ -25,7 +28,7 @@ class NumericValueFilter(BaseModel):
 
     def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
         cast_type = INTEGER if isinstance(self.value, int) else DOUBLE_PRECISION
-        numeric_column = sa_cast(column, cast_type)
+        numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         match self.op:
 
             case FilterOp.EQ:
@@ -50,7 +53,7 @@ class NumericRangeFilter(BaseModel):
 
     def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
         cast_type = INTEGER if isinstance(self.value.start, int) else DOUBLE_PRECISION
-        numeric_column = sa_cast(column, cast_type)
+        numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         return and_(numeric_column >= self.value.start, numeric_column <= self.value.end)
 
 

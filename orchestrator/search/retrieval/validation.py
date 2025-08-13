@@ -1,45 +1,76 @@
-from typing import Dict, Optional
-from sqlalchemy import select
+from typing import Dict, Optional, assert_never
+
+from sqlalchemy import select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy_utils import Ltree
+
 from orchestrator.db import db
+from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import FieldType, EntityKind
+from orchestrator.search.core.types import EntityKind, FieldType
 from orchestrator.search.filters import (
-    PathFilter,
-    FilterCondition,
-    StringFilter,
-    EqualityFilter,
-    DateValueFilter,
     DateRangeFilter,
+    DateValueFilter,
+    EqualityFilter,
+    FilterCondition,
     LtreeFilter,
     NumericRangeFilter,
     NumericValueFilter,
+    PathFilter,
+    StringFilter,
 )
-
-from sqlalchemy import text
-from sqlalchemy.exc import ProgrammingError
 
 
 def is_filter_compatible_with_field_type(filter_condition: FilterCondition, field_type: FieldType) -> bool:
-    """Check if a filter condition is compatible with a field type."""
+    """Check whether a filter condition is compatible with a given field type.
 
-    if isinstance(filter_condition, LtreeFilter):
-        return True  # Filters for path only
-    elif isinstance(filter_condition, (DateRangeFilter, DateValueFilter)):
-        return field_type == FieldType.DATETIME
-    elif isinstance(filter_condition, (NumericRangeFilter, NumericValueFilter)):
-        return field_type in {FieldType.INTEGER, FieldType.FLOAT}
-    elif isinstance(filter_condition, StringFilter):
-        return field_type == FieldType.STRING
-    elif isinstance(filter_condition, EqualityFilter):
-        return field_type in {FieldType.BOOLEAN, FieldType.UUID, FieldType.BLOCK, FieldType.RESOURCE_TYPE}
+    Parameters
+    ----------
+    filter_condition : FilterCondition
+        The filter condition instance to check.
+    field_type : FieldType
+        The type of field from the index schema.
 
-    return False
-
-
-def is_lquery_syntactically_valid(pattern: str, db_session) -> bool:
+    Returns:
+    -------
+    bool
+        True if the filter condition is valid for the given field type, False otherwise.
     """
-    Checks if a string is a syntactically valid lquery pattern by attempting to cast it in the database.
+
+    match filter_condition:
+        case LtreeFilter():
+            return True  # Filters for path only
+        case DateRangeFilter() | DateValueFilter():
+            return field_type == FieldType.DATETIME
+        case NumericRangeFilter() | NumericValueFilter():
+            return field_type in {FieldType.INTEGER, FieldType.FLOAT}
+        case StringFilter():
+            return field_type == FieldType.STRING
+        case EqualityFilter():
+            return field_type in {
+                FieldType.BOOLEAN,
+                FieldType.UUID,
+                FieldType.BLOCK,
+                FieldType.RESOURCE_TYPE,
+            }
+        case _:
+            assert_never(filter_condition)
+
+
+def is_lquery_syntactically_valid(pattern: str, db_session: WrappedSession) -> bool:
+    """Validate whether a string is a syntactically correct `lquery` pattern.
+
+    Parameters
+    ----------
+    pattern : str
+        The LTree lquery pattern string to validate.
+    db_session : WrappedSession
+        The database session used to test casting.
+
+    Returns:
+    -------
+    bool
+        True if the pattern is valid, False if it fails to cast in PostgreSQL.
     """
     try:
         with db_session.begin_nested():
@@ -50,8 +81,12 @@ def is_lquery_syntactically_valid(pattern: str, db_session) -> bool:
 
 
 def get_structured_filter_schema() -> Dict[str, str]:
-    """
-    Queries the index for all distinct paths with value_type.
+    """Retrieve all distinct filterable paths and their field types from the index.
+
+    Returns:
+    -------
+    Dict[str, str]
+        Mapping of path strings to their corresponding field type values.
     """
     stmt = select(AiSearchIndex.path, AiSearchIndex.value_type).distinct().order_by(AiSearchIndex.path)
     result = db.session.execute(stmt)
@@ -59,9 +94,17 @@ def get_structured_filter_schema() -> Dict[str, str]:
 
 
 def validate_filter_path(path: str) -> Optional[str]:
-    """
-    Checks if a given path exists in the index and returns its type
-    using the AiSearchIndex ORM model.
+    """Check if a given path exists in the index and return its field type.
+
+    Parameters
+    ----------
+    path : str
+        The fully qualified LTree path.
+
+    Returns:
+    -------
+    Optional[str]
+        The value type of the field if found, otherwise None.
     """
     stmt = select(AiSearchIndex.value_type).where(AiSearchIndex.path == Ltree(path)).limit(1)
     result = db.session.execute(stmt).scalar_one_or_none()
@@ -69,22 +112,27 @@ def validate_filter_path(path: str) -> Optional[str]:
 
 
 async def complete_filter_validation(filter: PathFilter, entity_type: EntityKind) -> None:
-    """
-    Validates a filter against the database schema.
+    """Validate a PathFilter against the database schema and entity type.
 
-    Checks:
-    1. Path exists in the database (skip for LtreeFilter)
-    2. Filter type is compatible with the field's value_type
-    3. Path follows entity type prefix requirements
+    Checks performed:
+    1. LTree filter syntax (for LtreeFilter only)
+    2. Non-empty path
+    3. Path exists in the database schema
+    4. Filter type matches the field's value_type
+    5. Path starts with the correct entity type prefix (unless wildcard)
 
-    Args:
-        filter: The PathFilter to validate
-        entity_type: The entity type being searched
+    Parameters
+    ----------
+    filter : PathFilter
+        The filter to validate.
+    entity_type : EntityKind
+        The entity type being searched.
 
     Raises:
-        ValueError: If validation fails
+    ------
+    ValueError
+        If any of the validation checks fail.
     """
-
     # Ltree is a special case
     if isinstance(filter.condition, LtreeFilter):
         lquery_pattern = filter.condition.value

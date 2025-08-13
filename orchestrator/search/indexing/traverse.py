@@ -1,21 +1,21 @@
-import structlog
-from typing import Any, Iterable, List, Optional, Set
 from abc import ABC, abstractmethod
-from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
+from typing import Any, Iterable, List, Optional, Set, cast
 
-from orchestrator.db import SubscriptionTable, ProcessTable, ProductTable, WorkflowTable
+import structlog
+from sqlalchemy.inspection import inspect
+
+from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
 from orchestrator.domain import (
     SUBSCRIPTION_MODEL_REGISTRY,
     SubscriptionModel,
 )
+from orchestrator.domain.base import ProductBlockModel
 from orchestrator.domain.lifecycle import (
     lookup_specialized_type,
 )
-from orchestrator.search.core.types import TypedValue, FieldType, ExtractedField
-from sqlalchemy.inspection import inspect
-from orchestrator.domain.base import ProductBlockModel
+from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
+from orchestrator.search.core.types import ExtractedField, FieldType, TypedValue
 from orchestrator.types import SubscriptionLifecycle
-
 
 logger = structlog.get_logger(__name__)
 
@@ -70,9 +70,7 @@ class BaseTraverser(ABC):
 
     @classmethod
     def get_fields(cls, entity: Any, pk_name: str, root_name: str) -> List[ExtractedField]:
-        """
-        Serializes a model instance and returns a list of (path, value) tuples.
-        """
+        """Serializes a model instance and returns a list of (path, value) tuples."""
         try:
             data_dict = cls._dump(entity)
         except Exception as e:
@@ -92,7 +90,8 @@ class SubscriptionTraverser(BaseTraverser):
         base_model_cls = SUBSCRIPTION_MODEL_REGISTRY.get(sub.product.name)
         if not base_model_cls:
             raise ProductNotInRegistryError(f"Product '{sub.product.name}' not in registry.")
-        specialized_model_cls = lookup_specialized_type(base_model_cls, sub.status)
+        specialized_model_cls = cast(type[SubscriptionModel], lookup_specialized_type(base_model_cls, sub.status))
+
         try:
             return specialized_model_cls.from_subscription(sub.subscription_id)
         except Exception as e:
@@ -100,9 +99,7 @@ class SubscriptionTraverser(BaseTraverser):
 
     @classmethod
     def _dump(cls, sub: SubscriptionTable) -> dict:
-        """
-        Loads a Pydantic model, dumps it to a dict, and then transforms the keys.
-        """
+        """Loads a Pydantic model, dumps it to a dict, and then transforms the keys."""
         model = cls._load_model(sub)
         if not model:
             return {}
@@ -111,9 +108,7 @@ class SubscriptionTraverser(BaseTraverser):
 
 
 class ProductTraverser(BaseTraverser):
-    """
-    Product traverser dumps core product fields and a nested structure of product blocks.
-    """
+    """Product traverser dumps core product fields and a nested structure of product blocks."""
 
     @classmethod
     def _dump(cls, prod: ProductTable) -> dict[str, Any]:
@@ -140,11 +135,13 @@ class ProductTraverser(BaseTraverser):
             return base  # No model = skip block info
 
         try:
-            lifecycle_model = lookup_specialized_type(domain_model_cls, SubscriptionLifecycle.INITIAL)
+            lifecycle_model = cast(
+                type[SubscriptionModel], lookup_specialized_type(domain_model_cls, SubscriptionLifecycle.INITIAL)
+            )
         except Exception:
             lifecycle_model = domain_model_cls
 
-        seen = set()
+        seen: Set[str] = set()
         nested_blocks = {}
 
         for attr, field in lifecycle_model.model_fields.items():
@@ -187,9 +184,7 @@ class WorkflowTraverser(BaseTraverser):
 
     @classmethod
     def _dump(cls, workflow: WorkflowTable) -> dict:
-        """
-        Serializes a WorkflowTable instance into a dictionary including all fields.
-        """
+        """Serializes a WorkflowTable instance into a dictionary including all fields."""
 
         base = cls._dump_sqlalchemy_fields(workflow)
 

@@ -42,7 +42,6 @@ from oauth2_lib.fastapi import AuthManager, Authorization, GraphqlAuthorization,
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
 from orchestrator.api.api_v1.endpoints.agent import build_agent_app
-
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
