@@ -1,4 +1,4 @@
-from typing import Any, NoReturn
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, HTTPException
@@ -19,7 +19,7 @@ def _disabled_agent_app(reason: str) -> FastAPI:
     app = FastAPI(title="Agent disabled")
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
-    async def _disabled(*_args: Any, **_kwargs: Any) -> NoReturn:
+    async def _disabled(*_args: Any, **_kwargs: Any) -> None:
         raise HTTPException(status_code=503, detail=f"Agent disabled: {reason}")
 
     return app
