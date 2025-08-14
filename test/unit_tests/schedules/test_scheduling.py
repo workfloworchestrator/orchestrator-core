@@ -31,7 +31,6 @@ def test_force_command(mock_scheduler):
     mock_job.id = "job1"
     mock_job.func = mock.MagicMock()
 
-    # mock_scheduler.start = mock.MagicMock()
     mock_scheduler.get_job.return_value = mock_job
 
     result = runner.invoke(app, ["force", "job1"])
@@ -43,7 +42,6 @@ def test_force_command(mock_scheduler):
 
 @mock.patch("orchestrator.cli.scheduler.scheduler", spec=BackgroundScheduler)
 def test_force_command_job_not_found(mock_scheduler):
-    # mock_scheduler.start = mock.MagicMock()
     mock_scheduler.get_job.return_value = None
 
     result = runner.invoke(app, ["force", "missing_job"])
@@ -62,7 +60,6 @@ def test_force_command_job_raises_exception(mock_scheduler):
     mock_job.args = ()
     mock_job.kwargs = {}
 
-    # mock_scheduler.start = mock.MagicMock()
     mock_scheduler.get_job.return_value = mock_job
 
     result = runner.invoke(app, ["force", "job1"])

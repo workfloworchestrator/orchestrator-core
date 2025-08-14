@@ -32,6 +32,10 @@ jobstores = {"default": SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI))}
 scheduler = BackgroundScheduler(jobstores=jobstores)
 
 
+def scheduler_dispose_db_connections() -> None:
+    jobstores["default"].engine.dispose()
+
+
 class ScheduledTask(BaseModel):
     id: str
     name: str | None = None
@@ -45,7 +49,7 @@ scheduled_task_sort_keys = scheduled_task_filter_keys
 
 
 def scheduled_task_in_filter(job: ScheduledTask, filter_by: list[Filter]) -> bool:
-    return any(f.value.lower() in getattr(job, camel_to_snake(f.field.lower()), "").lower() for f in filter_by)
+    return any(f.value.lower() in getattr(job, camel_to_snake(f.field), "").lower() for f in filter_by)
 
 
 def filter_scheduled_tasks(
@@ -57,7 +61,7 @@ def filter_scheduled_tasks(
         return scheduled_tasks
 
     try:
-        invalid_filters, valid_filters = partition(lambda x: x.field.lower() in scheduled_task_filter_keys, filter_by)
+        invalid_filters, valid_filters = partition(lambda x: x.field in scheduled_task_filter_keys, filter_by)
 
         if invalid_list := [item.field for item in invalid_filters]:
             handle_filter_error(
@@ -76,13 +80,15 @@ def _invert(value: Any) -> Any:
     if isinstance(value, (int, float)):
         return -value
     if isinstance(value, str):
-        return "".join(chr(255 - ord(c)) for c in value)
+        return tuple(-ord(c) for c in value)
+    if isinstance(value, datetime):
+        return -value.timestamp()
     return value
 
 
 def sort_key(sort_field: str, sort_order: SortOrder) -> Any:
     def _sort_key(task: Any) -> Any:
-        value = getattr(task, sort_field, None)
+        value = getattr(task, camel_to_snake(sort_field), None)
         if sort_field == "next_run_time" and value is None:
             return float("inf") if sort_order == SortOrder.ASC else float("-inf")
         return value if sort_order == SortOrder.ASC else _invert(value)
@@ -97,7 +103,7 @@ def sort_scheduled_tasks(
         return scheduled_tasks
 
     try:
-        invalid_sorting, valid_sorting = partition(lambda x: x.field.lower() in scheduled_task_sort_keys, sort_by)
+        invalid_sorting, valid_sorting = partition(lambda x: x.field in scheduled_task_sort_keys, sort_by)
         if invalid_list := [item.field for item in invalid_sorting]:
             handle_sort_error(
                 "Invalid sort arguments", invalid_sorting=invalid_list, valid_sort_keys=scheduled_task_sort_keys
@@ -128,7 +134,7 @@ def get_scheduler_tasks(
     scheduler.start(paused=True)
     scheduled_tasks = scheduler.get_jobs()
     scheduler.shutdown(wait=False)
-    jobstores["default"].engine.dispose()
+    scheduler_dispose_db_connections()
 
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
