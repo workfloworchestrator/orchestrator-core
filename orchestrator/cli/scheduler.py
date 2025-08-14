@@ -17,7 +17,7 @@ import time
 
 import typer
 
-from orchestrator.schedules.scheduler import jobstores, scheduler
+from orchestrator.schedules.scheduler import scheduler, scheduler_dispose_db_connections
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def run() -> None:
             time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()
-        jobstores["default"].engine.dispose()
+        scheduler_dispose_db_connections()
 
 
 @app.command()
@@ -46,7 +46,7 @@ def show_schedule() -> None:
     scheduler.start(paused=True)  # paused: avoid triggering jobs during CLI
     jobs = scheduler.get_jobs()
     scheduler.shutdown(wait=False)
-    jobstores["default"].engine.dispose()
+    scheduler_dispose_db_connections()
 
     for job in jobs:
         typer.echo(f"[{job.id}] Next run: {job.next_run_time} | Trigger: {job.trigger}")
@@ -58,7 +58,7 @@ def force(job_id: str) -> None:
     scheduler.start(paused=True)  # paused: avoid triggering jobs during CLI
     job = scheduler.get_job(job_id)
     scheduler.shutdown(wait=False)
-    jobstores["default"].engine.dispose()
+    scheduler_dispose_db_connections()
 
     if not job:
         typer.echo(f"Job '{job_id}' not found.")
