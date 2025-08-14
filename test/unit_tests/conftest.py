@@ -14,6 +14,7 @@ from alembic.config import Config
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 from starlette.testclient import TestClient
@@ -273,7 +274,7 @@ def db_session(database):
         finally:
             # Ensure all connections are closed
             try:
-                db.wrapped_database.scoped_session.close_all()
+                close_all_sessions()
             except Exception:
                 logger.exception("Closing wrapped db connections failed, test teardown may fail")
             if not trans._deactivated_from_connection:
