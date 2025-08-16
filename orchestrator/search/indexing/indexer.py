@@ -1,25 +1,34 @@
 import hashlib
-from typing import Any, Dict, List, Iterable, Generator, Tuple, Optional
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from functools import lru_cache
-from sqlalchemy.dialects.postgresql.dml import Insert
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
+
 import structlog
+from litellm.utils import encode, get_max_tokens
 from sqlalchemy import delete, tuple_
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy_utils.types.ltree import Ltree
-
+from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session
+from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db import db
 from orchestrator.db.database import BaseModel
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.indexing.registry import EntityConfig
 from orchestrator.search.core.embedding import EmbeddingIndexer
 from orchestrator.search.core.types import ExtractedField, IndexableRecord
-from litellm.utils import get_max_tokens, encode
+from orchestrator.search.indexing.registry import EntityConfig
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
+
+
+@contextmanager
+def _maybe_begin(session: Optional[Session]) -> Iterator[None]:
+    if session is None:
+        yield
+    else:
+        with session.begin():
+            yield
 
 
 class Indexer:
@@ -85,14 +94,14 @@ class Indexer:
             for entity in entities:
                 chunk.append(entity)
                 if len(chunk) >= chunk_size:
-                    with session.begin() if session else nullcontext():
+                    with _maybe_begin(session):
                         processed_in_chunk, identical_in_chunk = self._process_chunk(chunk, session)
                         total_records_processed += processed_in_chunk
                         total_identical_records += identical_in_chunk
                     chunk.clear()
 
             if chunk:
-                with session.begin() if session else nullcontext():
+                with _maybe_begin(session):
                     processed_in_chunk, identical_in_chunk = self._process_chunk(chunk, session)
                     total_records_processed += processed_in_chunk
                     total_identical_records += identical_in_chunk
@@ -122,9 +131,7 @@ class Indexer:
             session.execute(delete_stmt)
 
         if fields_to_upsert:
-            self.logger.debug(f"Upserting {len(fields_to_upsert)} new or updated records in chunk.")
             upsert_stmt = self._get_upsert_statement()
-
             batch_generator = self._generate_upsert_batches(fields_to_upsert)
 
             for batch in batch_generator:
@@ -253,7 +260,7 @@ class Indexer:
         self.logger.warning("Could not auto-detect max tokens.", model=self.embedding_model)
         max_ctx = app_settings.EMBEDDING_FALLBACK_MAX_TOKENS
         if not isinstance(max_ctx, int):
-            raise RuntimeError(f"Model not recognized and EMBEDDING_FALLBACK_MAX_TOKENS not set.")
+            raise RuntimeError("Model not recognized and EMBEDDING_FALLBACK_MAX_TOKENS not set.")
         self.logger.warning("Using configured fallback token limit.", fallback=max_ctx)
         return max_ctx
 

@@ -51,7 +51,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> Optional[str]:
     return None
 
 
-@search_toolset.tool
+@search_toolset.tool  # type: ignore[misc]
 async def set_search_parameters(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
@@ -71,7 +71,7 @@ async def set_search_parameters(
     )
 
 
-@search_toolset.tool(retries=2)
+@search_toolset.tool(retries=2)  # type: ignore[misc]
 async def add_filter(
     ctx: RunContext[StateDeps[SearchState]],
     filter: PathFilter,
@@ -98,7 +98,7 @@ async def add_filter(
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
 
-@search_toolset.tool
+@search_toolset.tool  # type: ignore[misc]
 async def execute_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 5,
