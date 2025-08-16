@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 
 import structlog
@@ -5,7 +6,7 @@ import typer
 from pydantic import ValidationError
 
 from orchestrator.db import db
-from orchestrator.search.core.types import EntityKind
+from orchestrator.search.core.types import EntityType
 from orchestrator.search.filters import EqualityFilter, FilterOp, LtreeFilter, PathFilter
 from orchestrator.search.retrieval import execute_search
 from orchestrator.search.retrieval.utils import display_filtered_paths_only, display_results
@@ -18,7 +19,7 @@ logger = structlog.getLogger(__name__)
 
 
 @app.command()
-def structured(path: str, value: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+def structured(path: str, value: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 10) -> None:
     """Finds subscriptions where a specific field path contains an exact value.
 
     Example:
@@ -32,14 +33,13 @@ def structured(path: str, value: str, entity_type: EntityKind = EntityKind.SUBSC
     """
     path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value))
     search_params = BaseSearchParameters.create(entity_type=entity_type, filters=[path_filter])
-    results = execute_search(search_params=search_params, db_session=db.session, limit=limit)
-
+    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_filtered_paths_only(results, search_params, db.session)
     display_results(results, db.session, "Match")
 
 
 @app.command()
-def semantic(query: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+def semantic(query: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 10) -> None:
     """Finds subscriptions that are conceptually most similar to the query text.
 
     Example:
@@ -52,12 +52,12 @@ def semantic(query: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limi
         ...
     """
     search_params = BaseSearchParameters.create(entity_type=entity_type, query=query)
-    results = execute_search(search_params=search_params, db_session=db.session, limit=limit)
+    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_results(results, db.session, "Distance")
 
 
 @app.command()
-def fuzzy(term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+def fuzzy(term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 10) -> None:
     """Finds subscriptions containing text similar to the query, tolerating typos.
 
     Example:
@@ -70,7 +70,7 @@ def fuzzy(term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: i
         ...
     """
     search_params = BaseSearchParameters.create(entity_type=entity_type, query=term)
-    results = execute_search(search_params=search_params, db_session=db.session, limit=limit)
+    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_results(results, db.session, "Similarity")
 
 
@@ -79,7 +79,7 @@ def hierarchical(
     op: str = typer.Argument(..., help="The hierarchical operation to perform."),
     path: str = typer.Argument(..., help="The ltree path or lquery pattern for the operation."),
     query: Optional[str] = typer.Option(None, "--query", "-f", help="An optional fuzzy term to rank the results."),
-    entity_type: EntityKind = EntityKind.SUBSCRIPTION,
+    entity_type: EntityType = EntityType.SUBSCRIPTION,
     limit: int = 10,
 ) -> None:
     """Performs a hierarchical search, optionally combined with fuzzy ranking.
@@ -96,12 +96,12 @@ def hierarchical(
     path_filter = PathFilter(path="ltree_hierarchical_filter", condition=condition)
 
     search_params = BaseSearchParameters.create(entity_type=entity_type, filters=[path_filter], query=query)
-    results = execute_search(search_params=search_params, db_session=db.session, limit=limit)
+    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_results(results, db.session, "Hierarchical Score")
 
 
 @app.command()
-def hybrid(query: str, term: str, entity_type: EntityKind = EntityKind.SUBSCRIPTION, limit: int = 10) -> None:
+def hybrid(query: str, term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 10) -> None:
     """Performs a hybrid search, combining semantic and fuzzy matching.
 
     Example:
@@ -109,7 +109,7 @@ def hybrid(query: str, term: str, entity_type: EntityKind = EntityKind.SUBSCRIPT
     """
     search_params = BaseSearchParameters.create(entity_type=entity_type, query=query)
     logger.info("Executing Hybrid Search", query=query, term=term)
-    results = execute_search(search_params=search_params, db_session=db.session, limit=limit)
+    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_results(results, db.session, "Hybrid Score")
 
 

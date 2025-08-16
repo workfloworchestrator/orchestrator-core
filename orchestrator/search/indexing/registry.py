@@ -1,42 +1,85 @@
+from dataclasses import dataclass
+from typing import Generic, Optional, Type, TypeVar, Union
+from uuid import UUID
+
+from sqlalchemy.orm import Query
+from sqlalchemy.sql import Select
+
 from orchestrator.db import (
     ProcessTable,
     ProductTable,
     SubscriptionTable,
     WorkflowTable,
 )
-from orchestrator.search.core.types import EntityConfig, EntityKind
+from orchestrator.db.database import BaseModel
+from orchestrator.search.core.types import EntityType
 
 from .traverse import (
+    BaseTraverser,
     ProcessTraverser,
     ProductTraverser,
     SubscriptionTraverser,
     WorkflowTraverser,
 )
 
-ENTITY_CONFIG_REGISTRY: dict[EntityKind, EntityConfig] = {
-    EntityKind.SUBSCRIPTION: EntityConfig(
-        entity_kind=EntityKind.SUBSCRIPTION,
+ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class EntityConfig(Generic[ModelT]):
+    """A container for all configuration related to a specific entity type."""
+
+    entity_kind: EntityType
+    table: Type[ModelT]
+
+    traverser: "Type[BaseTraverser]"
+    pk_name: str
+    root_name: str
+
+    def get_all_query(self, entity_id: Optional[str] = None) -> Union[Query, Select]:
+        query = self.table.query
+        if entity_id:
+            pk_column = getattr(self.table, self.pk_name)
+            query = query.filter(pk_column == UUID(entity_id))
+        return query
+
+
+@dataclass(frozen=True)
+class WorkflowConfig(EntityConfig[WorkflowTable]):
+    """Workflows have a custom select() function that filters out deleted workflows."""
+
+    def get_all_query(self, entity_id: Optional[str] = None) -> Select:
+        query = self.table.select()
+        if entity_id:
+            pk_column = getattr(self.table, self.pk_name)
+            query = query.where(pk_column == UUID(entity_id))
+        return query
+
+
+ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
+    EntityType.SUBSCRIPTION: EntityConfig(
+        entity_kind=EntityType.SUBSCRIPTION,
         table=SubscriptionTable,
         traverser=SubscriptionTraverser,
         pk_name="subscription_id",
         root_name="subscription",
     ),
-    EntityKind.PRODUCT: EntityConfig(
-        entity_kind=EntityKind.PRODUCT,
+    EntityType.PRODUCT: EntityConfig(
+        entity_kind=EntityType.PRODUCT,
         table=ProductTable,
         traverser=ProductTraverser,
         pk_name="product_id",
         root_name="product",
     ),
-    EntityKind.PROCESS: EntityConfig(
-        entity_kind=EntityKind.PROCESS,
+    EntityType.PROCESS: EntityConfig(
+        entity_kind=EntityType.PROCESS,
         table=ProcessTable,
         traverser=ProcessTraverser,
         pk_name="process_id",
         root_name="process",
     ),
-    EntityKind.WORKFLOW: EntityConfig(
-        entity_kind=EntityKind.WORKFLOW,
+    EntityType.WORKFLOW: WorkflowConfig(
+        entity_kind=EntityType.WORKFLOW,
         table=WorkflowTable,
         traverser=WorkflowTraverser,
         pk_name="workflow_id",

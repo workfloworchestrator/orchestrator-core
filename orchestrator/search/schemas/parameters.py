@@ -3,7 +3,7 @@ from typing import Any, Dict, Literal, Optional, Type
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from orchestrator.search.core.types import ActionType, EntityKind
+from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterSet
 
 
@@ -11,7 +11,7 @@ class BaseSearchParameters(BaseModel):
     """Base model with common search parameters."""
 
     action: ActionType = Field(default=ActionType.SELECT, description="The action to perform.")
-    entity_type: EntityKind
+    entity_type: EntityType
 
     filters: Optional[FilterSet] = Field(
         default=None, description="A list of structured filters to apply to the search."
@@ -24,7 +24,7 @@ class BaseSearchParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     @classmethod
-    def create(cls, entity_type: EntityKind, **kwargs: Any) -> "BaseSearchParameters":
+    def create(cls, entity_type: EntityType, **kwargs: Any) -> "BaseSearchParameters":
         try:
             return PARAMETER_REGISTRY[entity_type](entity_type=entity_type, **kwargs)
         except KeyError:
@@ -53,8 +53,8 @@ class BaseSearchParameters(BaseModel):
 
 
 class SubscriptionSearchParameters(BaseSearchParameters):
-    entity_type: Literal[EntityKind.SUBSCRIPTION] = Field(
-        default=EntityKind.SUBSCRIPTION, description="The type of entity to search."
+    entity_type: Literal[EntityType.SUBSCRIPTION] = Field(
+        default=EntityType.SUBSCRIPTION, description="The type of entity to search."
     )
     model_config = ConfigDict(
         json_schema_extra={
@@ -73,8 +73,8 @@ class SubscriptionSearchParameters(BaseSearchParameters):
 
 
 class ProductSearchParameters(BaseSearchParameters):
-    entity_type: Literal[EntityKind.PRODUCT] = Field(
-        default=EntityKind.PRODUCT, description="The type of entity to search."
+    entity_type: Literal[EntityType.PRODUCT] = Field(
+        default=EntityType.PRODUCT, description="The type of entity to search."
     )
     model_config = ConfigDict(
         json_schema_extra={
@@ -92,22 +92,22 @@ class ProductSearchParameters(BaseSearchParameters):
 
 
 class WorkflowSearchParameters(BaseSearchParameters):
-    entity_type: Literal[EntityKind.WORKFLOW] = Field(
-        default=EntityKind.WORKFLOW, description="The type of entity to search."
+    entity_type: Literal[EntityType.WORKFLOW] = Field(
+        default=EntityType.WORKFLOW, description="The type of entity to search."
     )
 
 
 class ProcessSearchParameters(BaseSearchParameters):
     """Search parameters specifically for PROCESS entities."""
 
-    entity_type: Literal[EntityKind.PROCESS] = Field(
-        default=EntityKind.PROCESS, description="The type of entity to search."
+    entity_type: Literal[EntityType.PROCESS] = Field(
+        default=EntityType.PROCESS, description="The type of entity to search."
     )
 
 
-PARAMETER_REGISTRY: Dict[EntityKind, Type[BaseSearchParameters]] = {
-    EntityKind.SUBSCRIPTION: SubscriptionSearchParameters,
-    EntityKind.PRODUCT: ProductSearchParameters,
-    EntityKind.WORKFLOW: WorkflowSearchParameters,
-    EntityKind.PROCESS: ProcessSearchParameters,
+PARAMETER_REGISTRY: Dict[EntityType, Type[BaseSearchParameters]] = {
+    EntityType.SUBSCRIPTION: SubscriptionSearchParameters,
+    EntityType.PRODUCT: ProductSearchParameters,
+    EntityType.WORKFLOW: WorkflowSearchParameters,
+    EntityType.PROCESS: ProcessSearchParameters,
 }

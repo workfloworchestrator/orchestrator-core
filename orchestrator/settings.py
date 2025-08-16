@@ -92,28 +92,35 @@ class AppSettings(BaseSettings):
     EXPOSE_SETTINGS: bool = False
     EXPOSE_OAUTH_SETTINGS: bool = False
 
-    AGENT_MODEL: str = "openai:gpt-4o"
+    AGENT_MODEL: str = "openai/gpt-4o"
     OPENAI_API_KEY: str = "OPENAI_API_KEY"
     OPENAI_BASE_URL: Optional[str] = None  # Change for local inference
     EMBEDDING_DIMENSION: int = 1536
-    EMBEDDING_MODEL: str = "openai:text-embedding-3-small"
+    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
+    EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
+        0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
+    )
+    EMBEDDING_FALLBACK_MAX_TOKENS: Optional[int] = None
+
+    LLM_MAX_RETRIES: int = 3
+    LLM_TIMEOUT: int = 30
 
     @field_validator("EMBEDDING_MODEL")
     def validate_embedding_model_format(cls, v: str) -> str:
-        """Validate that embedding model is in 'vendor:model' format."""
-        if ":" not in v:
-            raise ValueError("EMBEDDING_MODEL must be in format 'vendor:model'")
+        """Validate that embedding model is in 'vendor/model' format."""
+        if "/" not in v:
+            raise ValueError("EMBEDDING_MODEL must be in format 'vendor/model'")
         return v
 
     @property
     def embedding_model_name(self) -> str:
         """Extract just the model name (after the colon) from EMBEDDING_MODEL."""
-        return self.EMBEDDING_MODEL.split(":", 1)[1]
+        return self.EMBEDDING_MODEL.split("/", 1)[1]
 
     @property
     def embedding_model_vendor(self) -> str:
         """Extract the vendor (before the colon) from EMBEDDING_MODEL."""
-        return self.EMBEDDING_MODEL.split(":", 1)[0]
+        return self.EMBEDDING_MODEL.split("/", 1)[0]
 
 
 app_settings = AppSettings()

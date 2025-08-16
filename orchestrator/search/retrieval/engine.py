@@ -52,7 +52,7 @@ def _format_response(db_rows: Sequence[RowMapping], search_params: BaseSearchPar
     return response
 
 
-def execute_search(search_params: BaseSearchParameters, db_session: Session, limit: int = 5) -> SearchResponse:
+async def execute_search(search_params: BaseSearchParameters, db_session: Session, limit: int = 5) -> SearchResponse:
     """Execute a hybrid search and return ranked results.
 
     Builds a candidate entity query based on the given search parameters,
@@ -86,7 +86,7 @@ def execute_search(search_params: BaseSearchParameters, db_session: Session, lim
     builder = QueryBuilder()
     candidate_query = builder.build(search_params)
 
-    ranker = Ranker.from_params(search_params)
+    ranker = await Ranker.from_params(search_params)
     logger.debug("Using ranker", ranker_type=ranker.__class__.__name__)
 
     final_stmt = ranker.apply(candidate_query)

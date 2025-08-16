@@ -24,7 +24,7 @@ class BaseTraverser(ABC):
     """An abstract base class for traversing database models."""
 
     _LTREE_SEPARATOR = "."
-    _MAX_DEPTH = 20
+    _MAX_DEPTH = 40
 
     @staticmethod
     def _traverse(data: Any, path: str = "", depth: int = 0, max_depth: int = _MAX_DEPTH) -> Iterable[ExtractedField]:

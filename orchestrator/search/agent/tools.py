@@ -17,7 +17,7 @@ from orchestrator.api.api_v1.endpoints.search import (
     search_workflows,
 )
 from orchestrator.schemas.search import ConnectionSchema
-from orchestrator.search.core.types import ActionType, EntityKind
+from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import PathFilter
 from orchestrator.search.retrieval.validation import complete_filter_validation
 from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
@@ -32,11 +32,11 @@ SearchFn = Union[
     Callable[[P], Awaitable[ConnectionSchema[Any]]],
 ]
 
-SEARCH_FN_MAP: dict[EntityKind, SearchFn] = {
-    EntityKind.SUBSCRIPTION: search_subscriptions,
-    EntityKind.WORKFLOW: search_workflows,
-    EntityKind.PRODUCT: search_products,
-    EntityKind.PROCESS: search_processes,
+SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
+    EntityType.SUBSCRIPTION: search_subscriptions,
+    EntityType.WORKFLOW: search_workflows,
+    EntityType.PRODUCT: search_products,
+    EntityType.PROCESS: search_processes,
 }
 
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
@@ -54,7 +54,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> Optional[str]:
 @search_toolset.tool
 async def set_search_parameters(
     ctx: RunContext[StateDeps[SearchState]],
-    entity_type: EntityKind,
+    entity_type: EntityType,
     action: str | ActionType = ActionType.SELECT,
 ) -> StateSnapshotEvent:
     params = ctx.deps.state.parameters or {}
@@ -85,7 +85,7 @@ async def add_filter(
             "query": None,
         }
 
-    entity_type = EntityKind(ctx.deps.state.parameters["entity_type"])
+    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
 
     try:
         await complete_filter_validation(filter, entity_type)
@@ -107,7 +107,7 @@ async def execute_search(
     if not ctx.deps.state.parameters:
         raise ValueError("No search parameters set")
 
-    entity_type = EntityKind(ctx.deps.state.parameters["entity_type"])
+    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
     param_class = PARAMETER_REGISTRY.get(entity_type)
     if not param_class:
         raise ValueError(f"Unknown entity type: {entity_type}")

@@ -1,90 +1,55 @@
-import uuid
-from typing import Optional, Sequence
+from typing import Optional
 
 import structlog
+from sqlalchemy.orm import Query
 
-from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
-from orchestrator.db.database import BaseModel
-from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.exceptions import SearchUtilsError
-from orchestrator.search.core.types import EntityConfig, EntityKind
-from orchestrator.search.indexing.common import index_entity
+from orchestrator.db import db
+from orchestrator.search.core.types import EntityType
+from orchestrator.search.indexing.indexer import Indexer
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 
 logger = structlog.get_logger(__name__)
 
 
-def _process_entities(rows: Sequence[BaseModel], config: EntityConfig, dry_run: bool, force_index: bool) -> None:
-    """Process and index a list of entities."""
-    for entity in rows:
-        try:
-            index_entity(
-                entity=entity,
-                entity_kind=config.entity_kind,
-                traverser=config.traverser,
-                index_model=AiSearchIndex,
-                pk_name=config.pk_name,
-                root_name=config.root_name,
-                dry=dry_run,
-                force_index=force_index,
-            )
-        except SearchUtilsError as e:
-            logger.error(
-                f"Skipping {config.root_name} due to indexing error",
-                **{config.pk_name: str(getattr(entity, config.pk_name))},
-                error=str(e),
-            )
-
-    if not dry_run:
-        db.session.commit()
-
-
-def index_products(
-    product_id: Optional[str] = None,
+def run_indexing_for_entity(
+    entity_kind: EntityType,
+    entity_id: Optional[str] = None,
     dry_run: bool = False,
     force_index: bool = False,
+    chunk_size: int = 1000,
 ) -> None:
-    """Re-index products in hybrid search columns."""
+    """Stream and index entities for the given kind.
 
-    rows = (
-        ProductTable.query.filter(ProductTable.product_id == uuid.UUID(product_id)).all()
-        if product_id
-        else ProductTable.query.all()
-    )
+    Builds a streaming query via the entity's registry config, disables ORM eager
+    loads when applicable and delegates processing to `Indexer`.
 
-    config = ENTITY_CONFIG_REGISTRY[EntityKind.PRODUCT]
-    _process_entities(rows, config, dry_run, force_index)
+    Args:
+        entity_kind (EntityType): The entity type to index (must exist in
+            `ENTITY_CONFIG_REGISTRY`).
+        entity_id (Optional[str]): If provided, restricts indexing to a single
+            entity (UUID string).
+        dry_run (bool): When True, runs the full pipeline without performing
+            writes or external embedding calls.
+        force_index (bool): When True, re-indexes all fields regardless of
+            existing hashes.
+        chunk_size (int): Number of rows fetched per round-trip and passed to
+            the indexer per batch.
 
+    Returns:
+        None
+    """
+    config = ENTITY_CONFIG_REGISTRY[entity_kind]
 
-def index_subscriptions(
-    subscription_id: Optional[str] = None, dry_run: bool = False, force_index: bool = False
-) -> None:
-    """Re-index subscriptions in the search index."""
-    rows = (
-        SubscriptionTable.query.filter(SubscriptionTable.subscription_id == uuid.UUID(subscription_id)).all()
-        if subscription_id
-        else SubscriptionTable.query.all()
-    )
-    config = ENTITY_CONFIG_REGISTRY[EntityKind.SUBSCRIPTION]
-    _process_entities(rows, config, dry_run, force_index)
+    q = config.get_all_query(entity_id)
 
+    if isinstance(q, Query):
+        q = q.enable_eagerloads(False)
+        stmt = q.statement
+    else:
+        stmt = q
 
-def index_workflows(workflow_id: Optional[str] = None, dry_run: bool = False, force_index: bool = False) -> None:
-    """Re-index workflows in the search index."""
-    query = WorkflowTable.select()  # Filter out deleted workflows
-    if workflow_id:
-        query = query.filter(WorkflowTable.workflow_id == uuid.UUID(workflow_id))
-    rows = db.session.execute(query).scalars().all()
-    config = ENTITY_CONFIG_REGISTRY[EntityKind.WORKFLOW]
-    _process_entities(rows, config, dry_run, force_index)
+    stmt = stmt.execution_options(stream_results=True, yield_per=chunk_size)
+    entities = db.session.execute(stmt).scalars()
 
-
-def index_processes(process_id: Optional[str] = None, dry_run: bool = False, force_index: bool = False) -> None:
-    """Re-index processes in hybrid search columns."""
-    rows = (
-        ProcessTable.query.filter(ProcessTable.process_id == uuid.UUID(process_id)).all()
-        if process_id
-        else ProcessTable.query.all()
-    )
-    config = ENTITY_CONFIG_REGISTRY[EntityKind.PROCESS]
-    _process_entities(rows, config, dry_run, force_index)
+    indexer = Indexer(config=config, dry_run=dry_run, force_index=force_index)
+    indexer.run(entities, chunk_size=chunk_size)

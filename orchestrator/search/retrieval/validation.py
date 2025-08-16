@@ -7,7 +7,7 @@ from sqlalchemy_utils import Ltree
 from orchestrator.db import db
 from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityKind, FieldType
+from orchestrator.search.core.types import EntityType, FieldType
 from orchestrator.search.filters import (
     DateRangeFilter,
     DateValueFilter,
@@ -111,7 +111,7 @@ def validate_filter_path(path: str) -> Optional[str]:
     return result.value if result else None
 
 
-async def complete_filter_validation(filter: PathFilter, entity_type: EntityKind) -> None:
+async def complete_filter_validation(filter: PathFilter, entity_type: EntityType) -> None:
     """Validate a PathFilter against the database schema and entity type.
 
     Checks performed:
@@ -125,7 +125,7 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityKind
     ----------
     filter : PathFilter
         The filter to validate.
-    entity_type : EntityKind
+    entity_type : EntityType
         The entity type being searched.
 
     Raises:

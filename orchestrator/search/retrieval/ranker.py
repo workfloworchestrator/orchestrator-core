@@ -6,7 +6,7 @@ from sqlalchemy import Select, bindparam, case, func, literal, select
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.embedding import EmbeddingGenerator
+from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 
 logger = structlog.get_logger(__name__)
@@ -17,7 +17,7 @@ class Ranker(ABC):
     """Abstract base class for applying a ranking strategy to a search query."""
 
     @classmethod
-    def from_params(cls, params: BaseSearchParameters, use_rrf: bool = True) -> "Ranker":
+    async def from_params(cls, params: BaseSearchParameters, use_rrf: bool = True) -> "Ranker":
         """Create the appropriate ranker instance from search parameters.
 
         Parameters
@@ -35,7 +35,7 @@ class Ranker(ABC):
         vq, fq = params.vector_query, params.fuzzy_term
         q_vec = None
         if vq:
-            q_vec = EmbeddingGenerator.generate_for_text(vq)
+            q_vec = await QueryEmbedder.generate_for_text_async(vq)
             if not q_vec:
                 logger.warning("Embedding generation failed; using non-semantic ranker")
                 vq = None
@@ -85,7 +85,7 @@ class FuzzyRanker(Ranker):
         score_expr = func.max(func.similarity(Index.value, self.fuzzy_term))
 
         return (
-            select(Index.entity_id, score_expr)
+            select(Index.entity_id, score_expr.label("score"))
             .select_from(Index)
             .join(cand, cand.c.entity_id == Index.entity_id)
             .group_by(Index.entity_id)

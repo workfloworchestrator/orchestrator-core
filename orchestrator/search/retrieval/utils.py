@@ -7,7 +7,7 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityKind
+from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import SearchResult
@@ -75,7 +75,7 @@ def display_results(
             continue
 
         first_record = index_records[0]
-        kind = EntityKind(first_record.entity_type)
+        kind = EntityType(first_record.entity_type)
         config = ENTITY_CONFIG_REGISTRY[kind]
 
         db_entity = db_session.get(config.table, entity_id) if config.table else None

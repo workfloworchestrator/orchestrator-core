@@ -1,18 +1,15 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, NamedTuple, Type
+from typing import Any, List, NamedTuple, Optional, TypedDict
 from uuid import UUID
 
-from orchestrator.db.database import BaseModel
+from sqlalchemy_utils.types.ltree import Ltree
 
 from .validators import is_bool_string, is_iso_date, is_uuid
 
-if TYPE_CHECKING:
-    from search.indexing.traverse import BaseTraverser
 
-
-class EntityKind(str, Enum):
+class EntityType(str, Enum):
     SUBSCRIPTION = "SUBSCRIPTION"
     PRODUCT = "PRODUCT"
     WORKFLOW = "WORKFLOW"
@@ -112,12 +109,11 @@ class ExtractedField(NamedTuple):
         return cls(path=path, value=value, value_type=value_type)
 
 
-@dataclass(frozen=True)
-class EntityConfig:
-    """A container for all configuration related to a specific entity type."""
-
-    entity_kind: EntityKind
-    table: Type[BaseModel]
-    traverser: "Type[BaseTraverser]"
-    pk_name: str
-    root_name: str
+class IndexableRecord(TypedDict):
+    entity_id: str
+    entity_type: str
+    path: Ltree
+    value: Any
+    value_type: Any
+    content_hash: str
+    embedding: Optional[List[float]]

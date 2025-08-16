@@ -1,6 +1,4 @@
-import asyncio
 from typing import Any, List, Type, TypeVar, cast
-from uuid import UUID
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -10,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from orchestrator.db import (
     ProcessTable,
     ProductTable,
+    SubscriptionTable,
     WorkflowTable,
     db,
 )
@@ -21,6 +20,7 @@ from orchestrator.schemas.search import (
     SubscriptionSearchResult,
     WorkflowSearchSchema,
 )
+from orchestrator.schemas.subscription import SubscriptionDomainModelSchema
 from orchestrator.search.retrieval import execute_search
 from orchestrator.search.schemas.parameters import (
     BaseSearchParameters,
@@ -29,24 +29,19 @@ from orchestrator.search.schemas.parameters import (
     SubscriptionSearchParameters,
     WorkflowSearchParameters,
 )
-from orchestrator.services.subscriptions import (
-    format_extended_domain_model,
-    format_special_types,
-)
-from orchestrator.utils.get_subscription_dict import get_subscription_dict
 
 router = APIRouter(tags=["Search"], prefix="/search")
 T = TypeVar("T", bound=BaseModel)
 
 
-def _perform_search_and_fetch_simple(
+async def _perform_search_and_fetch_simple(
     search_params: BaseSearchParameters,
     db_model: Any,
     response_schema: Type[BaseModel],
     pk_column_name: str,
     eager_loads: List[Any],
 ) -> ConnectionSchema:
-    results = execute_search(search_params=search_params, db_session=db.session, limit=20)
+    results = await execute_search(search_params=search_params, db_session=db.session, limit=20)
 
     if not results:
         data: dict[str, Any] = {"page_info": PageInfoSchema(), "page": []}
@@ -73,50 +68,49 @@ def _perform_search_and_fetch_simple(
 async def search_subscriptions(
     search_params: SubscriptionSearchParameters,
 ) -> ConnectionSchema[SubscriptionSearchResult]:
-    search_results = execute_search(search_params=search_params, db_session=db.session, limit=20)
+    search_results = await execute_search(search_params=search_params, db_session=db.session, limit=20)
 
     if not search_results:
-        data: dict[str, Any] = {"page_info": PageInfoSchema(), "page": []}
+        data = {"page_info": PageInfoSchema(), "page": []}
         return ConnectionSchema(**cast(Any, data))
 
     search_info_map = {res.entity_id: res for res in search_results}
+    entity_ids = list(search_info_map.keys())
 
-    async def _get_domain_model(subscription_id: UUID) -> dict | None:
-        try:
-            subscription_dict, _ = await get_subscription_dict(subscription_id)
-            return subscription_dict
-        except Exception:
-            return None
+    pk_column = SubscriptionTable.subscription_id
+    ordering_case = case({entity_id: i for i, entity_id in enumerate(entity_ids)}, value=pk_column)
 
-    tasks = [_get_domain_model(UUID(res.entity_id)) for res in search_results]
-    domain_model_list = await asyncio.gather(*tasks)
+    stmt = (
+        select(SubscriptionTable)
+        .options(
+            selectinload(SubscriptionTable.product),
+            selectinload(SubscriptionTable.customer_descriptions),
+        )
+        .filter(pk_column.in_(entity_ids))
+        .order_by(ordering_case)
+    )
+    subscriptions = db.session.scalars(stmt).all()
 
     page = []
-    for domain_model in domain_model_list:
-        if not domain_model:
-            continue
+    for sub in subscriptions:
+        search_data = search_info_map.get(str(sub.subscription_id))
+        if search_data:
+            subscription_model = SubscriptionDomainModelSchema.model_validate(sub)
 
-        sub_id_str = str(domain_model.get("subscription_id"))
-        search_data = search_info_map.get(sub_id_str)
-
-        if not search_data:
-            continue
-
-        filtered_model = format_extended_domain_model(domain_model, filter_owner_relations=True)
-        formatted_model = format_special_types(filtered_model)
-
-        result_item = SubscriptionSearchResult(
-            score=search_data.score, highlight=search_data.highlight, subscription=formatted_model
-        )
-        page.append(result_item)
+            result_item = SubscriptionSearchResult(
+                score=search_data.score,
+                highlight=search_data.highlight,
+                subscription=subscription_model.model_dump(),
+            )
+            page.append(result_item)
 
     data = {"page_info": PageInfoSchema(), "page": page}
     return ConnectionSchema(**cast(Any, data))
 
 
 @router.post("/workflows", response_model=ConnectionSchema[WorkflowSearchSchema], response_model_by_alias=True)
-def search_workflows(search_params: WorkflowSearchParameters) -> ConnectionSchema[WorkflowSearchSchema]:
-    return _perform_search_and_fetch_simple(
+async def search_workflows(search_params: WorkflowSearchParameters) -> ConnectionSchema[WorkflowSearchSchema]:
+    return await _perform_search_and_fetch_simple(
         search_params=search_params,
         db_model=WorkflowTable,
         response_schema=WorkflowSearchSchema,
@@ -126,8 +120,8 @@ def search_workflows(search_params: WorkflowSearchParameters) -> ConnectionSchem
 
 
 @router.post("/products", response_model=ConnectionSchema[ProductSearchSchema], response_model_by_alias=True)
-def search_products(search_params: ProductSearchParameters) -> ConnectionSchema[ProductSearchSchema]:
-    return _perform_search_and_fetch_simple(
+async def search_products(search_params: ProductSearchParameters) -> ConnectionSchema[ProductSearchSchema]:
+    return await _perform_search_and_fetch_simple(
         search_params=search_params,
         db_model=ProductTable,
         response_schema=ProductSearchSchema,
@@ -141,8 +135,8 @@ def search_products(search_params: ProductSearchParameters) -> ConnectionSchema[
 
 
 @router.post("/processes", response_model=ConnectionSchema[ProcessSearchSchema], response_model_by_alias=True)
-def search_processes(search_params: ProcessSearchParameters) -> ConnectionSchema[ProcessSearchSchema]:
-    return _perform_search_and_fetch_simple(
+async def search_processes(search_params: ProcessSearchParameters) -> ConnectionSchema[ProcessSearchSchema]:
+    return await _perform_search_and_fetch_simple(
         search_params=search_params,
         db_model=ProcessTable,
         response_schema=ProcessSearchSchema,
