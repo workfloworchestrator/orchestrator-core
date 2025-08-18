@@ -41,7 +41,7 @@ def retrieve_input_state(process_id: UUID, input_type: InputType, raise_exceptio
         select(InputStateTable)
         .filter(InputStateTable.process_id == process_id)
         .filter(InputStateTable.input_type == input_type)
-        .order_by(InputStateTable.input_time.asc())
+        .order_by(InputStateTable.input_time.desc())
     ).first()
 
     if res:
