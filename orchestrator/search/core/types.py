@@ -20,7 +20,7 @@ class ActionType(str, Enum):
     """Defines the explicit, safe actions the agent can request."""
 
     SELECT = "select"  # Retrieve a list of matching records.
-    # COUNT = "count"  # For phase1; the search bar will not support this yet.
+    # COUNT = "count"  # For phase1; the agent will not support this yet.
 
 
 class FieldType(str, Enum):

@@ -83,28 +83,29 @@ class Indexer:
 
     def run(self, entities: Iterable[BaseModel], chunk_size: int) -> int:
         """Orchestrates the entire indexing process."""
-        chunk = []
+        chunk: List[BaseModel] = []
         total_records_processed = 0
         total_identical_records = 0
 
         write_scope = db.database_scope() if not self.dry_run else nullcontext()
+
+        def flush() -> None:
+            nonlocal total_records_processed, total_identical_records
+            with _maybe_begin(session):
+                processed_in_chunk, identical_in_chunk = self._process_chunk(chunk, session)
+                total_records_processed += processed_in_chunk
+                total_identical_records += identical_in_chunk
+            chunk.clear()
 
         with write_scope as database:
             session: Optional[Session] = getattr(database, "session", None)
             for entity in entities:
                 chunk.append(entity)
                 if len(chunk) >= chunk_size:
-                    with _maybe_begin(session):
-                        processed_in_chunk, identical_in_chunk = self._process_chunk(chunk, session)
-                        total_records_processed += processed_in_chunk
-                        total_identical_records += identical_in_chunk
-                    chunk.clear()
+                    flush()
 
             if chunk:
-                with _maybe_begin(session):
-                    processed_in_chunk, identical_in_chunk = self._process_chunk(chunk, session)
-                    total_records_processed += processed_in_chunk
-                    total_identical_records += identical_in_chunk
+                flush()
 
         final_log_message = (
             f"processed {total_records_processed} records and skipped {total_identical_records} identical records."

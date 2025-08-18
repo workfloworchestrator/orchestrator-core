@@ -79,7 +79,7 @@ class BaseTraverser(ABC):
             return []
 
         fields = cls._traverse(data_dict, path=root_name)
-        return sorted(fields, key=lambda field: (field.path.count("."), field.path))
+        return sorted(fields, key=lambda field: (field.path.count(cls._LTREE_SEPARATOR), field.path))
 
 
 class SubscriptionTraverser(BaseTraverser):

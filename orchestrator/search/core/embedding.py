@@ -26,7 +26,7 @@ class EmbeddingIndexer:
 
         try:
             resp = llm_embedding(
-                model=app_settings.embedding_model_name,
+                model=app_settings.EMBEDDING_MODEL,
                 input=[t.lower() for t in texts],
                 api_key=app_settings.OPENAI_API_KEY,
                 base_url=app_settings.OPENAI_BASE_URL,

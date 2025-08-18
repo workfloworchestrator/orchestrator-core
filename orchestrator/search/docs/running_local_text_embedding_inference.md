@@ -16,7 +16,7 @@ docker run --rm -p 8080:80 ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
 Point your backend to the local endpoint and declare the new vector size:
 
 ```env
-EMBEDDING_MODEL=openai:all-MiniLM-L6-v2
+EMBEDDING_MODEL=openai/tei # "tei" can be anything.
 OPENAI_BASE_URL=http://localhost:8080/v1
 EMBEDDING_DIMENSION=384
 ```
@@ -32,7 +32,7 @@ Make sure you re-index afterwards.
 ### Step back to the revision right before the dynamic-dimension migration
 
 ```bash
-dotenv run python main.py db downgrade 11659f24d388
+dotenv run python main.py db downgrade 850dccac3b02
 ```
 
 ### Upgrade to the latest head (this will truncate and alter the embedding column):

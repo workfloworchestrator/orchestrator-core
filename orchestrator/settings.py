@@ -92,8 +92,12 @@ class AppSettings(BaseSettings):
     EXPOSE_SETTINGS: bool = False
     EXPOSE_OAUTH_SETTINGS: bool = False
 
+    # Pydantic-ai Agent settings
     AGENT_MODEL: str = "openai/gpt-4o"
-    OPENAI_API_KEY: str = "OPENAI_API_KEY"
+    OPENAI_API_KEY: str = "OPENAI_API_KEY"  # Change per provider
+
+    # Litellm embedding settings
+    # OPENAI_API_KEY included here.
     OPENAI_BASE_URL: Optional[str] = None  # Change for local inference
     EMBEDDING_DIMENSION: int = 1536
     EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
