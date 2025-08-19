@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from dateutil.parser import parse as dt_parse
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
@@ -72,4 +72,4 @@ class DateRangeFilter(BaseModel):
         return and_(date_column >= self.value.start, date_column < self.value.end)
 
 
-DateFilter = Annotated[Union[DateValueFilter, DateRangeFilter], Field(discriminator="op")]
+DateFilter = Annotated[DateValueFilter | DateRangeFilter, Field(discriminator="op")]

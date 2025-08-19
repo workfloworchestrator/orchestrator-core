@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import Select, Table, and_, select
 from sqlalchemy_utils.types.ltree import Ltree
 
@@ -37,7 +35,7 @@ class QueryBuilder:
         # Apply all structured filters from the search parameters
         return self._apply_filters(stmt, params.filters)
 
-    def _apply_filters(self, stmt: Select, filters: Optional[FilterSet] = None) -> Select:
+    def _apply_filters(self, stmt: Select, filters: FilterSet | None) -> Select:
         """Apply structured path-based filters to the query.
 
         For each filter in the provided list, joins the index table and applies

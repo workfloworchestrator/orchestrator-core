@@ -1,5 +1,3 @@
-from typing import Optional
-
 import structlog
 from sqlalchemy.orm import Query
 
@@ -13,7 +11,7 @@ logger = structlog.get_logger(__name__)
 
 def run_indexing_for_entity(
     entity_kind: EntityType,
-    entity_id: Optional[str] = None,
+    entity_id: str | None = None,
     dry_run: bool = False,
     force_index: bool = False,
     chunk_size: int = 1000,

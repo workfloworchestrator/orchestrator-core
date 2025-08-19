@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 
 from orchestrator.search.core.types import EntityType
@@ -13,7 +11,7 @@ app = typer.Typer(
 
 @app.command("subscriptions")
 def subscriptions_command(
-    subscription_id: Optional[str] = typer.Option(None, help="UUID (default = all)"),
+    subscription_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
 ) -> None:
@@ -28,7 +26,7 @@ def subscriptions_command(
 
 @app.command("products")
 def products_command(
-    product_id: Optional[str] = typer.Option(None, help="UUID (default = all)"),
+    product_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
 ) -> None:
@@ -43,7 +41,7 @@ def products_command(
 
 @app.command("processes")
 def processes_command(
-    process_id: Optional[str] = typer.Option(None, help="UUID (default = all)"),
+    process_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
 ) -> None:
@@ -58,7 +56,7 @@ def processes_command(
 
 @app.command("workflows")
 def workflows_command(
-    workflow_id: Optional[str] = typer.Option(None, help="UUID (default = all)"),
+    workflow_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
 ) -> None:

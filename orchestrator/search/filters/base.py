@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.sql.elements import ColumnElement
@@ -44,13 +44,13 @@ class StringFilter(BaseModel):
         return self
 
 
-FilterCondition = Union[
-    DateFilter,  # DATETIME
-    NumericFilter,  # INT/FLOAT
-    StringFilter,  # STRING TODO: convert to hybrid search
-    EqualityFilter,  # BOOLEAN/UUID/BLOCK/RESOURCE_TYPE
-    LtreeFilter,  # Path
-]
+FilterCondition = (
+    DateFilter  # DATETIME
+    | NumericFilter  # INT/FLOAT
+    | StringFilter  # STRING TODO: convert to hybrid search
+    | EqualityFilter  # BOOLEAN/UUID/BLOCK/RESOURCE_TYPE
+    | LtreeFilter  # Path
+)
 
 
 class PathFilter(BaseModel):
@@ -107,4 +107,4 @@ class PathFilter(BaseModel):
         return self.condition.to_expression(value_column, self.path)
 
 
-FilterSet = List[PathFilter]
+FilterSet = list[PathFilter]

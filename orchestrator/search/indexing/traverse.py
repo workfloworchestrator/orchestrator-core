@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Iterable, List, Optional, Set, cast
+from collections.abc import Iterable
+from typing import Any, cast
 
 import structlog
 from sqlalchemy.inspection import inspect
@@ -49,7 +50,7 @@ class BaseTraverser(ABC):
             yield ExtractedField.from_raw(path, data)
 
     @staticmethod
-    def _dump_sqlalchemy_fields(entity: Any, exclude: Optional[Set[str]] = None) -> dict:
+    def _dump_sqlalchemy_fields(entity: Any, exclude: set[str] | None = None) -> dict:
         """Serialize SQLAlchemy column attributes of an entity into a dictionary, with optional exclusions."""
         exclude = exclude or set()
         mapper = inspect(entity.__class__)
@@ -69,7 +70,7 @@ class BaseTraverser(ABC):
         ...
 
     @classmethod
-    def get_fields(cls, entity: Any, pk_name: str, root_name: str) -> List[ExtractedField]:
+    def get_fields(cls, entity: Any, pk_name: str, root_name: str) -> list[ExtractedField]:
         """Serializes a model instance and returns a list of (path, value) tuples."""
         try:
             data_dict = cls._dump(entity)
@@ -85,7 +86,7 @@ class BaseTraverser(ABC):
 class SubscriptionTraverser(BaseTraverser):
 
     @classmethod
-    def _load_model(cls, sub: SubscriptionTable) -> Optional[SubscriptionModel]:
+    def _load_model(cls, sub: SubscriptionTable) -> SubscriptionModel | None:
 
         base_model_cls = SUBSCRIPTION_MODEL_REGISTRY.get(sub.product.name)
         if not base_model_cls:
@@ -141,7 +142,7 @@ class ProductTraverser(BaseTraverser):
         except Exception:
             lifecycle_model = domain_model_cls
 
-        seen: Set[str] = set()
+        seen: set[str] = set()
         nested_blocks = {}
 
         for attr, field in lifecycle_model.model_fields.items():
@@ -158,7 +159,7 @@ class ProductTraverser(BaseTraverser):
 class ProcessTraverser(BaseTraverser):
     # We are explicitly excluding 'traceback' and 'steps'
     # to avoid overloading the index with too much data.
-    _process_fields_to_exclude: Set[str] = {
+    _process_fields_to_exclude: set[str] = {
         "traceback",
     }
 

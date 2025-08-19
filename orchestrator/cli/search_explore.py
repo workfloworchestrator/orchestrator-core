@@ -1,5 +1,4 @@
 import asyncio
-from typing import Optional
 
 import structlog
 import typer
@@ -78,7 +77,7 @@ def fuzzy(term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: i
 def hierarchical(
     op: str = typer.Argument(..., help="The hierarchical operation to perform."),
     path: str = typer.Argument(..., help="The ltree path or lquery pattern for the operation."),
-    query: Optional[str] = typer.Option(None, "--query", "-f", help="An optional fuzzy term to rank the results."),
+    query: str | None = typer.Option(None, "--query", "-f", help="An optional fuzzy term to rank the results."),
     entity_type: EntityType = EntityType.SUBSCRIPTION,
     limit: int = 10,
 ) -> None:

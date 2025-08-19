@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, Literal, Optional, Type
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,11 +13,9 @@ class BaseSearchParameters(BaseModel):
     action: ActionType = Field(default=ActionType.SELECT, description="The action to perform.")
     entity_type: EntityType
 
-    filters: Optional[FilterSet] = Field(
-        default=None, description="A list of structured filters to apply to the search."
-    )
+    filters: FilterSet | None = Field(default=None, description="A list of structured filters to apply to the search.")
 
-    query: Optional[str] = Field(
+    query: str | None = Field(
         default=None, description="Unified search query - will be processed into vector_query and/or fuzzy_term"
     )
 
@@ -31,7 +29,7 @@ class BaseSearchParameters(BaseModel):
             raise ValueError(f"No search parameter class found for entity type: {entity_type.value}")
 
     @property
-    def vector_query(self) -> Optional[str]:
+    def vector_query(self) -> str | None:
         """Extract vector query from unified query field."""
         if not self.query:
             return None
@@ -42,7 +40,7 @@ class BaseSearchParameters(BaseModel):
             return self.query
 
     @property
-    def fuzzy_term(self) -> Optional[str]:
+    def fuzzy_term(self) -> str | None:
         """Extract fuzzy term from unified query field."""
         if not self.query:
             return None
@@ -105,7 +103,7 @@ class ProcessSearchParameters(BaseSearchParameters):
     )
 
 
-PARAMETER_REGISTRY: Dict[EntityType, Type[BaseSearchParameters]] = {
+PARAMETER_REGISTRY: dict[EntityType, type[BaseSearchParameters]] = {
     EntityType.SUBSCRIPTION: SubscriptionSearchParameters,
     EntityType.PRODUCT: ProductSearchParameters,
     EntityType.WORKFLOW: WorkflowSearchParameters,

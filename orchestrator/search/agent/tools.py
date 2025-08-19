@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Any, Optional, TypeVar, Union
+from typing import Any, TypeVar
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
@@ -27,10 +27,7 @@ from .state import SearchState
 logger = structlog.get_logger(__name__)
 P = TypeVar("P", bound=BaseSearchParameters)
 
-SearchFn = Union[
-    Callable[[P], ConnectionSchema[Any]],
-    Callable[[P], Awaitable[ConnectionSchema[Any]]],
-]
+SearchFn = Callable[[P], ConnectionSchema[Any]] | Callable[[P], Awaitable[ConnectionSchema[Any]]]
 
 SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
     EntityType.SUBSCRIPTION: search_subscriptions,
@@ -42,7 +39,7 @@ SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
 
-def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> Optional[str]:
+def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
     for msg in reversed(ctx.messages):
         if isinstance(msg, ModelRequest):
             for part in msg.parts:

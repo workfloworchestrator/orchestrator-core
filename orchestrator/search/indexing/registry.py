@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Generic, Optional, Type, TypeVar, Union
+from typing import Generic, TypeVar
 from uuid import UUID
 
 from sqlalchemy.orm import Query
@@ -30,13 +30,13 @@ class EntityConfig(Generic[ModelT]):
     """A container for all configuration related to a specific entity type."""
 
     entity_kind: EntityType
-    table: Type[ModelT]
+    table: type[ModelT]
 
-    traverser: "Type[BaseTraverser]"
+    traverser: "type[BaseTraverser]"
     pk_name: str
     root_name: str
 
-    def get_all_query(self, entity_id: Optional[str] = None) -> Union[Query, Select]:
+    def get_all_query(self, entity_id: str | None = None) -> Query | Select:
         query = self.table.query
         if entity_id:
             pk_column = getattr(self.table, self.pk_name)
@@ -48,7 +48,7 @@ class EntityConfig(Generic[ModelT]):
 class WorkflowConfig(EntityConfig[WorkflowTable]):
     """Workflows have a custom select() function that filters out deleted workflows."""
 
-    def get_all_query(self, entity_id: Optional[str] = None) -> Select:
+    def get_all_query(self, entity_id: str | None = None) -> Select:
         query = self.table.select()
         if entity_id:
             pk_column = getattr(self.table, self.pk_name)

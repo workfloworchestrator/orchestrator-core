@@ -1,5 +1,4 @@
 import json
-from typing import List, Tuple
 
 import structlog
 from sqlalchemy import and_
@@ -15,7 +14,7 @@ from orchestrator.search.schemas.results import SearchResult
 logger = structlog.get_logger(__name__)
 
 
-def generate_highlight_indices(text: str, term: str) -> List[Tuple[int, int]]:
+def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
     if not text or not term:
         return []
     indices = []

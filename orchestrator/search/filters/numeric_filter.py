@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import DOUBLE_PRECISION, INTEGER, and_
@@ -10,8 +10,8 @@ from .operators import FilterOp
 
 
 class NumericRange(BaseModel):
-    start: Union[int, float]
-    end: Union[int, float]
+    start: int | float
+    end: int | float
 
     @model_validator(mode="after")
     def validate_order(self) -> Self:
@@ -24,7 +24,7 @@ class NumericValueFilter(BaseModel):
     """A filter for single numeric value comparisons (int or float)."""
 
     op: Literal[FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE]
-    value: Union[int, float]
+    value: int | float
 
     def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
         cast_type = INTEGER if isinstance(self.value, int) else DOUBLE_PRECISION
@@ -57,4 +57,4 @@ class NumericRangeFilter(BaseModel):
         return and_(numeric_column >= self.value.start, numeric_column <= self.value.end)
 
 
-NumericFilter = Annotated[Union[NumericValueFilter, NumericRangeFilter], Field(discriminator="op")]
+NumericFilter = Annotated[NumericValueFilter | NumericRangeFilter, Field(discriminator="op")]

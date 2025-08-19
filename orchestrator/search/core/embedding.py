@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 import structlog
 from litellm import aembedding as llm_aembedding
@@ -17,7 +16,7 @@ logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 class EmbeddingIndexer:
 
     @classmethod
-    def get_embeddings_from_api_batch(cls, texts: List[str], dry_run: bool) -> List[List[float]]:
+    def get_embeddings_from_api_batch(cls, texts: list[str], dry_run: bool) -> list[list[float]]:
         if not texts:
             return []
         if dry_run:
@@ -47,7 +46,7 @@ class QueryEmbedder:
     """A stateless, async utility for embedding real-time user queries."""
 
     @classmethod
-    async def generate_for_text_async(cls, text: str) -> List[float]:
+    async def generate_for_text_async(cls, text: str) -> list[float]:
         if not text:
             return []
         try:

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any
 
 import structlog
 from sqlalchemy import Select, bindparam, case, func, literal, select
@@ -96,7 +96,7 @@ class FuzzyRanker(Ranker):
 class SemanticRanker(Ranker):
     """Ranks results based on the minimum semantic vector distance."""
 
-    def __init__(self, vector_query: List[float]) -> None:
+    def __init__(self, vector_query: list[float]) -> None:
         self.vector_query = vector_query
 
     def apply(self, candidate_query: Select) -> Select:
@@ -121,7 +121,7 @@ class HybridRanker(Ranker):
     Prioritizes fuzzy score, using semantic score as a tie-breaker.
     """
 
-    def __init__(self, q_vec: List[float], fuzzy_term: str) -> None:
+    def __init__(self, q_vec: list[float], fuzzy_term: str) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
 
@@ -152,7 +152,7 @@ class HybridRanker(Ranker):
 class RrfHybridRanker(Ranker):
     """Reciprocal Rank Fusion of semantic and fuzzy ranking."""
 
-    def __init__(self, q_vec: List[float], fuzzy_term: str, k: int = 60) -> None:
+    def __init__(self, q_vec: list[float], fuzzy_term: str, k: int = 60) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
         self.k = k

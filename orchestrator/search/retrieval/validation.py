@@ -1,4 +1,4 @@
-from typing import Dict, Optional, assert_never
+from typing import assert_never
 
 from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
@@ -80,7 +80,7 @@ def is_lquery_syntactically_valid(pattern: str, db_session: WrappedSession) -> b
         return False
 
 
-def get_structured_filter_schema() -> Dict[str, str]:
+def get_structured_filter_schema() -> dict[str, str]:
     """Retrieve all distinct filterable paths and their field types from the index.
 
     Returns:
@@ -93,7 +93,7 @@ def get_structured_filter_schema() -> Dict[str, str]:
     return {str(path): value_type.value for path, value_type in result}
 
 
-def validate_filter_path(path: str) -> Optional[str]:
+def validate_filter_path(path: str) -> str | None:
     """Check if a given path exists in the index and return its field type.
 
     Parameters

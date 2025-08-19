@@ -1,4 +1,4 @@
-from typing import Any, List, Type, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -37,9 +37,9 @@ T = TypeVar("T", bound=BaseModel)
 async def _perform_search_and_fetch_simple(
     search_params: BaseSearchParameters,
     db_model: Any,
-    response_schema: Type[BaseModel],
+    response_schema: type[BaseModel],
     pk_column_name: str,
-    eager_loads: List[Any],
+    eager_loads: list[Any],
 ) -> ConnectionSchema:
     results = await execute_search(search_params=search_params, db_session=db.session, limit=20)
 

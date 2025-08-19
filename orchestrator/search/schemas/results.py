@@ -1,5 +1,3 @@
-from typing import List, Optional, Tuple
-
 from pydantic import BaseModel
 
 
@@ -7,7 +5,7 @@ class Highlight(BaseModel):
     """Contains the text and the indices of the matched term."""
 
     text: str
-    indices: List[Tuple[int, int]]
+    indices: list[tuple[int, int]]
 
 
 class SearchResult(BaseModel):
@@ -15,7 +13,7 @@ class SearchResult(BaseModel):
 
     entity_id: str
     score: float
-    highlight: Optional[Highlight] = None
+    highlight: Highlight | None = None
 
 
-SearchResponse = List[SearchResult]
+SearchResponse = list[SearchResult]

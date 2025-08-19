@@ -1,7 +1,8 @@
 import hashlib
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from functools import lru_cache
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
+from typing import Any
 
 import structlog
 from litellm.utils import encode, get_max_tokens
@@ -23,7 +24,7 @@ logger = structlog.get_logger(__name__)
 
 
 @contextmanager
-def _maybe_begin(session: Optional[Session]) -> Iterator[None]:
+def _maybe_begin(session: Session | None) -> Iterator[None]:
     if session is None:
         yield
     else:
@@ -83,7 +84,7 @@ class Indexer:
 
     def run(self, entities: Iterable[BaseModel], chunk_size: int) -> int:
         """Orchestrates the entire indexing process."""
-        chunk: List[BaseModel] = []
+        chunk: list[BaseModel] = []
         total_records_processed = 0
         total_identical_records = 0
 
@@ -98,7 +99,7 @@ class Indexer:
             chunk.clear()
 
         with write_scope as database:
-            session: Optional[Session] = getattr(database, "session", None)
+            session: Session | None = getattr(database, "session", None)
             for entity in entities:
                 chunk.append(entity)
                 if len(chunk) >= chunk_size:
@@ -117,7 +118,7 @@ class Indexer:
         )
         return total_records_processed
 
-    def _process_chunk(self, entity_chunk: List[BaseModel], session: Optional[Session] = None) -> Tuple[int, int]:
+    def _process_chunk(self, entity_chunk: list[BaseModel], session: Session | None = None) -> tuple[int, int]:
         """Process a chunk of entities."""
         if not entity_chunk:
             return 0, 0
@@ -144,15 +145,15 @@ class Indexer:
         return len(fields_to_upsert), identical_count
 
     def _determine_changes(
-        self, entities: List[BaseModel], session: Optional[Session] = None
-    ) -> Tuple[List[Tuple[str, ExtractedField]], List[Tuple[str, Ltree]], int]:
+        self, entities: list[BaseModel], session: Session | None = None
+    ) -> tuple[list[tuple[str, ExtractedField]], list[tuple[str, Ltree]], int]:
         """Identifies all changes across all entities using pre-fetched data."""
         entity_ids = [str(getattr(e, self.config.pk_name)) for e in entities]
         read_session = session or db.session
         existing_hashes = {} if self.force_index else self._get_all_existing_hashes(entity_ids, read_session)
 
-        fields_to_upsert: List[Tuple[str, ExtractedField]] = []
-        paths_to_delete: List[Tuple[str, Ltree]] = []
+        fields_to_upsert: list[tuple[str, ExtractedField]] = []
+        paths_to_delete: list[tuple[str, Ltree]] = []
         identical_records_count = 0
 
         for entity in entities:
@@ -177,7 +178,7 @@ class Indexer:
 
         return fields_to_upsert, paths_to_delete, identical_records_count
 
-    def _get_all_existing_hashes(self, entity_ids: List[str], session: Session) -> Dict[str, Dict[str, str]]:
+    def _get_all_existing_hashes(self, entity_ids: list[str], session: Session) -> dict[str, dict[str, str]]:
         """Fetches all existing hashes for a list of entity IDs in a single query."""
         if not entity_ids:
             return {}
@@ -188,17 +189,17 @@ class Indexer:
             .all()
         )
 
-        hashes_by_entity: Dict[str, Dict[str, str]] = {eid: {} for eid in entity_ids}
+        hashes_by_entity: dict[str, dict[str, str]] = {eid: {} for eid in entity_ids}
         for entity_id, path, content_hash in results:
             hashes_by_entity[str(entity_id)][str(path)] = content_hash
         return hashes_by_entity
 
     def _generate_upsert_batches(
-        self, fields_to_upsert: Iterable[Tuple[str, ExtractedField]]
-    ) -> Generator[List[IndexableRecord], None, None]:
+        self, fields_to_upsert: Iterable[tuple[str, ExtractedField]]
+    ) -> Generator[list[IndexableRecord], None, None]:
         """Streams through fields, buffers them by token count, and yields batches."""
-        embeddable_buffer: List[Tuple[str, ExtractedField]] = []
-        non_embeddable_records: List[IndexableRecord] = []
+        embeddable_buffer: list[tuple[str, ExtractedField]] = []
+        non_embeddable_records: list[IndexableRecord] = []
         current_tokens = 0
 
         max_ctx = self._get_max_tokens()
@@ -235,7 +236,7 @@ class Indexer:
         if embeddable_buffer or non_embeddable_records:
             yield self._flush_buffer(embeddable_buffer, non_embeddable_records)
 
-    def _flush_buffer(self, embeddable_buffer: List, non_embeddable_records: List) -> List[IndexableRecord]:
+    def _flush_buffer(self, embeddable_buffer: list, non_embeddable_records: list) -> list[IndexableRecord]:
         """Processes and combines buffers into a single batch."""
         if not embeddable_buffer:
             return non_embeddable_records
@@ -276,7 +277,7 @@ class Indexer:
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def _make_indexable_record(
-        self, field: ExtractedField, entity_id: str, embedding: Optional[List[float]]
+        self, field: ExtractedField, entity_id: str, embedding: list[float] | None
     ) -> IndexableRecord:
         return IndexableRecord(
             entity_id=entity_id,

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, List, NamedTuple, Optional, TypedDict
+from typing import Any, NamedTuple, TypedDict
 from uuid import UUID
 
 from sqlalchemy_utils.types.ltree import Ltree
@@ -116,4 +116,4 @@ class IndexableRecord(TypedDict):
     value: Any
     value_type: Any
     content_hash: str
-    embedding: Optional[List[float]]
+    embedding: list[float] | None
