@@ -12,10 +12,10 @@
 # limitations under the License.
 
 import strawberry
-
 from pydantic_forms.types import strEnum
 
 
+# NOTE: RECONCILE ADDED AS TARGET WORKFLOW
 @strawberry.enum
 class Target(strEnum):
     CREATE = "CREATE"
@@ -23,3 +23,4 @@ class Target(strEnum):
     TERMINATE = "TERMINATE"
     SYSTEM = "SYSTEM"
     VALIDATE = "VALIDATE"
+    RECONCILE = "RECONCILE"

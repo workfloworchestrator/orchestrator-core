@@ -18,6 +18,8 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import field_validator, model_validator
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
 from sqlalchemy import select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
@@ -38,8 +40,6 @@ from orchestrator.workflows.steps import (
     unsync,
     unsync_unchecked,
 )
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
 
 
 def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:
@@ -154,7 +154,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
 
 def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> StateInputStepFunc | None:
-    """Wrap initial input for modify and terminate workflows.
+    """Wrap initial input for modify, reconcile and terminate workflows.
 
     This is needed because the frontend expects all modify workflows to start with a page that only contains the
     subscription id. It also expects the second page to have some user visible inputs and the subscription id *again*.
@@ -262,6 +262,7 @@ def modify_workflow(
 
     wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
+    # This is the actual decorator which is applied on the workflow function
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
@@ -353,6 +354,109 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
         return make_workflow(f, description, validate_initial_input_form_generator, Target.VALIDATE, steplist)
 
     return _validate_workflow
+
+# NOTE: reconcile added - should not be decorator
+def reconcile_workflow(
+        description: str,
+        modify: Workflow,
+        additional_steps: StepList | None = None,
+        authorize_callback: Authorizer | None = None,
+        retry_auth_callback: Authorizer | None = None,
+) -> Workflow:
+    """Uses modify_workflow with minimum of required input fields to perform sync with external systems based on existing configuration.
+
+    Use this for subscription reconcile workflows.
+
+    Example::
+
+        @reconcile_workflow("Reconcile L2VPN", initial_input_form=minimal_required_input_form_generator)
+        @modify_workflow("Modify L2Vpn", initial_input_form=initial_input_form_generator)
+        def modify_sn8_l2vpn() -> StepList:
+            return (
+                begin
+                >> update_subscription
+                ...
+            )
+    """
+    # Get the initial_input_form generator from the modify workflow
+    initial_input_form = getattr(modify, "initial_input_form", None)
+
+    # def minimal_input_form(state: State):
+    #     if initial_input_form is None:
+    #         return {}
+    #     form_gen = initial_input_form(state)
+    #     user_input_state = state.get("user_input_state", {})  # Or however you want to pass user input
+    #     try:
+    #         page = next(form_gen)
+    #         while True:
+    #             # Prefer user input if available, otherwise use empty string
+    #             input_for_page = {field: user_input_state.get(field, "") for field in page.model_fields}
+    #             page = form_gen.send(input_for_page)
+    #             yield page
+    #     except StopIteration as e:
+    #         return e.value
+
+    # Compose the steps: use the same steps as the modify workflow
+    steplist = modify.steps
+    if additional_steps:
+        steplist = steplist >> additional_steps
+
+    return make_workflow(
+        modify,
+        description,
+        initial_input_form,
+        Target.RECONCILE,
+        steplist,
+        authorize_callback=authorize_callback,
+        retry_auth_callback=retry_auth_callback,
+    )
+
+
+def reconcile_workflow(
+    description: str,
+    additional_steps: StepList | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Uses modify_workflow with minimum of required input fields to perform sync with external systems based on existing configuration.
+
+    Use this for subscription reconcile workflows.
+
+    Example::
+
+        @reconcile_workflow("Reconcile l2vpn")
+        def reconcile_l2vpn() -> StepList:
+            return (
+                begin
+                >> update_l2vpn_in_external_systems
+            )
+    """
+
+    wrapped_reconcile_initial_input_form_generator = wrap_modify_initial_input_form(None)
+
+    def _reconcile_workflow(f: Callable[[], StepList]) -> Workflow:
+        steplist = (
+            init
+            >> store_process_subscription()
+            >> unsync
+            >> f()
+            >> (additional_steps or StepList())
+            >> resync
+            >> refresh_subscription_search_index
+            >> done
+        )
+
+        return make_workflow(
+            f,
+            description,
+            wrapped_reconcile_initial_input_form_generator,
+            Target.RECONCILE,
+            steplist,
+            authorize_callback=authorize_callback,
+            retry_auth_callback=retry_auth_callback,
+        )
+
+    return _reconcile_workflow
 
 
 def ensure_provisioning_status(modify_steps: Step | StepList) -> StepList:

@@ -23,6 +23,7 @@ from uuid import UUID
 import more_itertools
 import structlog
 from more_itertools import first
+from pydantic_forms.types import UUIDstr
 from sqlalchemy import Text, cast, not_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
@@ -51,7 +52,6 @@ from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.helpers import is_ipaddress_type
-from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)
 
@@ -506,6 +506,7 @@ TARGET_DEFAULT_USABLE_MAP: dict[Target, list[str]] = {
     Target.TERMINATE: ["active", "provisioning"],
     Target.SYSTEM: ["active"],
     Target.VALIDATE: ["active"],
+    Target.RECONCILE: ["active"],
 }
 
 WF_USABLE_MAP: dict[str, list[str]] = {}
@@ -532,6 +533,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         ...     "terminate": [],
         ...     "system": [],
         ...     "validate": [],
+        ...     "reconcile: [],
         ... }
 
     """
@@ -552,9 +554,10 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         "terminate": [],
         "system": [],
         "validate": [],
+        "reconcile": [],
     }
     for workflow in subscription.product.workflows:
-        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task:
+        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task or workflow.target == Target.RECONCILE:
             # validations and modify note are also possible with: not in sync or locked relations
             workflow_json = {"name": workflow.name, "description": workflow.description}
         else:
