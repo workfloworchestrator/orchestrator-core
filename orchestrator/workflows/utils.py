@@ -18,6 +18,8 @@ from uuid import UUID
 
 from more_itertools import first_true
 from pydantic import field_validator, model_validator
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
 from sqlalchemy import select
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
@@ -38,8 +40,6 @@ from orchestrator.workflows.steps import (
     unsync,
     unsync_unchecked,
 )
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import FormGenerator, InputForm, InputStepFunc, State, StateInputStepFunc
 
 
 def _generate_new_subscription_form(_workflow_target: str, workflow_name: str) -> InputForm:
@@ -353,6 +353,27 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
         return make_workflow(f, description, validate_initial_input_form_generator, Target.VALIDATE, steplist)
 
     return _validate_workflow
+
+# NOTE: reconcile added
+def reconcile_workflow(description: str) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Transform an initial_input_form and a step list into a workflow.
+
+    Use this for subscription validate workflows.
+
+    Example::
+
+        @validate_workflow("create service port")
+        def create_service_port():
+            do_something
+            >> do_something_else
+    """
+    # this should call the modify workflow with empty minimal empty required input fields.
+    def _reconcile_workflow(f: Callable[[], StepList]) -> Workflow:
+        steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
+
+        return make_workflow(f, description, validate_initial_input_form_generator, Target.RECONCILE, steplist)
+
+    return _reconcile_workflow
 
 
 def ensure_provisioning_status(modify_steps: Step | StepList) -> StepList:

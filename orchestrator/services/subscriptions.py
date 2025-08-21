@@ -23,6 +23,7 @@ from uuid import UUID
 import more_itertools
 import structlog
 from more_itertools import first
+from pydantic_forms.types import UUIDstr
 from sqlalchemy import Text, cast, not_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, aliased, joinedload
@@ -51,7 +52,6 @@ from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.helpers import is_ipaddress_type
-from pydantic_forms.types import UUIDstr
 
 logger = structlog.get_logger(__name__)
 
@@ -506,6 +506,7 @@ TARGET_DEFAULT_USABLE_MAP: dict[Target, list[str]] = {
     Target.TERMINATE: ["active", "provisioning"],
     Target.SYSTEM: ["active"],
     Target.VALIDATE: ["active"],
+    Target.RECONCILE: ["active"],
 }
 
 WF_USABLE_MAP: dict[str, list[str]] = {}
@@ -513,9 +514,10 @@ WF_USABLE_MAP: dict[str, list[str]] = {}
 WF_BLOCKED_BY_PARENTS: dict[str, bool] = {}
 WF_BLOCKED_BY_IN_USE_BY_SUBSCRIPTIONS: dict[str, bool] = {}
 
-WF_USABLE_WHILE_OUT_OF_SYNC: list[str] = ["modify_note"]
+# NOTE: reconcile workflow should run while out of sync
+WF_USABLE_WHILE_OUT_OF_SYNC: list[str] = ["modify_note", "reconcile_workflow"]
 
-
+# NOTE: this should be modified
 def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
     """Return a dict containing all the workflows a user can start for this subscription.
 
@@ -532,6 +534,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         ...     "terminate": [],
         ...     "system": [],
         ...     "validate": [],
+        ...     "reconcile: [],
         ... }
 
     """
@@ -552,6 +555,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         "terminate": [],
         "system": [],
         "validate": [],
+        "reconcile": [],
     }
     for workflow in subscription.product.workflows:
         if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task:

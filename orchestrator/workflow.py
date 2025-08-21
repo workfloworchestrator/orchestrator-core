@@ -35,6 +35,17 @@ from uuid import UUID
 
 import strawberry
 import structlog
+from pydantic_forms.core import FormPage
+from pydantic_forms.types import (
+    FormGenerator,
+    InputFormGenerator,
+    InputStepFunc,
+    State,
+    StateInputFormGenerator,
+    StateInputStepFunc,
+    StateSimpleInputFormGenerator,
+    strEnum,
+)
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -50,17 +61,6 @@ from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import (
-    FormGenerator,
-    InputFormGenerator,
-    InputStepFunc,
-    State,
-    StateInputFormGenerator,
-    StateInputStepFunc,
-    StateSimpleInputFormGenerator,
-    strEnum,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -226,6 +226,7 @@ def make_workflow(
         # This would happen on first post that is used to retrieve the first form page
         initial_input_form = cast(InputStepFunc, const(FormPage))
 
+    # NOTE: modify so that initial_input_form is generated with no input (or minimal input such as subscription_id)
     wrapping_function.initial_input_form = _handle_simple_input_form_generator(initial_input_form)
     wrapping_function.target = target
     wrapping_function.steps = steps
