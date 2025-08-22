@@ -558,7 +558,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         "reconcile": [],
     }
     for workflow in subscription.product.workflows:
-        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task:
+        if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task or workflow.target == Target.RECONCILE:
             # validations and modify note are also possible with: not in sync or locked relations
             workflow_json = {"name": workflow.name, "description": workflow.description}
         else:

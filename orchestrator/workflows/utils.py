@@ -354,24 +354,40 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
 
     return _validate_workflow
 
-# NOTE: reconcile added
-def reconcile_workflow(description: str) -> Callable[[Callable[[], StepList]], Workflow]:
-    """Transform an initial_input_form and a step list into a workflow.
+# NOTE: reconcile added - should not be decorator
+def reconcile_workflow(
+        description: str,
+        modify_workflow_function: Workflow, # callable returned by @modify_workflow
+        authorize_callback: Authorizer | None = None, # TODO: check whether this is needed
+        retry_auth_callback: Authorizer | None = None, # TODO: check whether this is needed
+    ) -> Workflow:
+    """Uses modify_workflow with minimum of required input fields to perform sync with external systems based on existing configuration.
 
-    Use this for subscription validate workflows.
+    Use this for subscription reconcile workflows.
 
     Example::
 
-        @validate_workflow("create service port")
-        def create_service_port():
-            do_something
-            >> do_something_else
+        @reconcile_workflow("Reconcile L2VPN", initial_input_form=minimal_required_input_form_generator)
+        @modify_workflow("Modify L2Vpn", initial_input_form=initial_input_form_generator)
+        def modify_sn8_l2vpn() -> StepList:
+            return (
+                begin
+                >> update_subscription
+                ...
+            )
     """
-    # this should call the modify workflow with empty minimal empty required input fields.
-    def _reconcile_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
+    # TODO: check whether these steps should be part of the inner function
+    # STEP 1: call the modify_workflow_function with 101 input paratemers
 
-        return make_workflow(f, description, validate_initial_input_form_generator, Target.RECONCILE, steplist)
+    # STEP 2: check the exception how many input fields are required
+
+    # STEP 3: initial_input_form should be modified to have the minimum required parameters (incl. )
+    minimal_required_input_form = modify_workflow_function.initial_input_form
+
+    # STEP 4: call the modify workflow with empty minimal empty required input fields.
+    def _reconcile_workflow(modified_workflow: Workflow) -> Workflow:
+
+        return make_workflow(modified_workflow, description, minimal_required_input_form, Target.RECONCILE, modified_workflow.steps)
 
     return _reconcile_workflow
 
