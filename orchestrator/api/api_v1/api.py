@@ -22,6 +22,7 @@ from orchestrator.api.api_v1.endpoints import (
     product_blocks,
     products,
     resource_types,
+    search,
     settings,
     subscription_customer_descriptions,
     subscriptions,
@@ -83,3 +84,9 @@ api_router.include_router(
     tags=["Core", "Translations"],
 )
 api_router.include_router(ws.router, prefix="/ws", tags=["Core", "Events"])
+
+api_router.include_router(
+    search.router,
+    prefix="/search",
+    tags=["Core", "Search"],
+)
