@@ -1,76 +1,64 @@
-from sqlalchemy import Select, Table, and_, select
-from sqlalchemy_utils.types.ltree import Ltree
+from sqlalchemy import Select, String, cast, func, select
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.filters import FilterSet, LtreeFilter
+from orchestrator.search.core.types import EntityType, FilterOp
+from orchestrator.search.filters import LtreeFilter
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 
 
-class QueryBuilder:
-    """Constructs SQLAlchemy queries to retrieve candidate entities.
+def create_path_autocomplete_lquery(prefix: str) -> str:
+    """Create the lquery pattern for a multi-level path autocomplete search."""
+    return f"{prefix}*.*"
 
-    This class encapsulates logic for building the base query and applying
-    structured search filters on indexed entity data.
+
+def build_candidate_query(params: BaseSearchParameters) -> Select:
+    """Build the base query for retrieving candidate entities.
+
+    Constructs a `SELECT` statement that retrieves distinct `entity_id` values
+    from the index table for the given entity type, applying any structured
+    filters from the provided search parameters.
+
+    Parameters
+    ----------
+    params : BaseSearchParameters
+        The search parameters containing the entity type and optional filters.
+
+    Returns:
+    -------
+    Select
+        The SQLAlchemy `Select` object representing the query.
     """
+    stmt = select(AiSearchIndex.entity_id).where(AiSearchIndex.entity_type == params.entity_type.value).distinct()
 
-    def build(self, params: BaseSearchParameters) -> Select:
-        """Build the base query for retrieving candidate entities.
+    if params.filters is not None:
+        entity_id_col = AiSearchIndex.entity_id
+        stmt = stmt.where(
+            params.filters.to_expression(
+                entity_id_col,
+                entity_type_value=params.entity_type.value,
+            )
+        )
 
-        Constructs a `SELECT` statement that retrieves distinct `entity_id` values
-        from the index table for the given entity type, applying any structured
-        filters from the provided search parameters.
+    return stmt
 
-        Parameters
-        ----------
-        params : BaseSearchParameters
-            The search parameters containing the entity type and optional filters.
 
-        Returns:
-        -------
-        Select
-            The SQLAlchemy `Select` object representing the query.
-        """
-        stmt = select(AiSearchIndex.entity_id).where(AiSearchIndex.entity_type == params.entity_type.value).distinct()
+def build_paths_query(entity_type: EntityType, prefix: str | None = None, q: str | None = None) -> Select:
+    """Build the query for retrieving paths."""
+    stmt = select(AiSearchIndex.path, AiSearchIndex.value_type).where(AiSearchIndex.entity_type == entity_type.value)
 
-        # Apply all structured filters from the search parameters
-        return self._apply_filters(stmt, params.filters)
+    if prefix:
+        lquery_pattern = create_path_autocomplete_lquery(prefix)
+        ltree_filter = LtreeFilter(op=FilterOp.MATCHES_LQUERY, value=lquery_pattern)
+        stmt = stmt.where(ltree_filter.to_expression(AiSearchIndex.path, path=""))
 
-    def _apply_filters(self, stmt: Select, filters: FilterSet | None) -> Select:
-        """Apply structured path-based filters to the query.
+    if q:
+        score = func.similarity(cast(AiSearchIndex.path, String), q).label("score")
+        stmt = (
+            stmt.add_columns(score)
+            .group_by(AiSearchIndex.path, AiSearchIndex.value_type, score)
+            .order_by(score.desc(), AiSearchIndex.path)
+        )
+    else:
+        stmt = stmt.group_by(AiSearchIndex.path, AiSearchIndex.value_type).order_by(AiSearchIndex.path)
 
-        For each filter in the provided list, joins the index table and applies
-        the filter's SQLAlchemy expression. Handles both `LtreeFilter` path
-        filters and value-based filters.
-
-        Parameters
-        ----------
-        stmt : Select
-            The base SQLAlchemy `Select` statement to modify.
-        filters : Optional[FilterSet]
-            A list of `PathFilter` objects representing the filter conditions.
-
-        Returns:
-        -------
-        Select
-            The modified SQLAlchemy `Select` statement with all filters applied.
-        """
-        if not filters:
-            return stmt
-
-        for i, path_filter in enumerate(filters):
-            filter_alias: Table = AiSearchIndex.__table__.alias(f"filter_{i}")
-
-            stmt = stmt.join(filter_alias, filter_alias.c.entity_id == AiSearchIndex.entity_id)
-
-            if isinstance(path_filter.condition, LtreeFilter):
-                # LTree only applies to path
-                stmt = stmt.where(path_filter.to_expression(filter_alias.c.path))
-            else:
-                # We have to change this once we introduce nested groupings in our filters.
-                stmt = stmt.where(
-                    and_(
-                        filter_alias.c.path == Ltree(path_filter.path),
-                        path_filter.to_expression(filter_alias.c.value),
-                    )
-                )
-        return stmt
+    return stmt

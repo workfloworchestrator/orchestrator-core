@@ -1,12 +1,37 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, NamedTuple, TypedDict
+from typing import Any, NamedTuple, TypeAlias, TypedDict
 from uuid import UUID
 
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
 
 from .validators import is_bool_string, is_iso_date, is_uuid
+
+SQLAColumn: TypeAlias = ColumnElement[Any] | InstrumentedAttribute[Any]
+
+
+class BooleanOperator(str, Enum):
+    AND = "AND"
+    OR = "OR"
+
+
+class FilterOp(str, Enum):
+    EQ = "eq"
+    NEQ = "neq"
+    LT = "lt"
+    LIKE = "like"
+    LTE = "lte"
+    GT = "gt"
+    GTE = "gte"
+    BETWEEN = "between"
+
+    MATCHES_LQUERY = "matches_lquery"  # The ~ operator for wildcard matching
+    IS_ANCESTOR = "is_ancestor"  # The @> operator
+    IS_DESCENDANT = "is_descendant"  # The <@ operator
+    PATH_MATCH = "path_match"
 
 
 class EntityType(str, Enum):
@@ -21,6 +46,24 @@ class ActionType(str, Enum):
 
     SELECT = "select"  # Retrieve a list of matching records.
     # COUNT = "count"  # For phase1; the agent will not support this yet.
+
+
+class UIType(str, Enum):
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    DATETIME = "datetime"
+
+    @classmethod
+    def from_field_type(cls, ft: "FieldType") -> "UIType":
+        """Create a UIType from a backend FieldType to indicate how a value must be rendered."""
+        if ft in (FieldType.INTEGER, FieldType.FLOAT):
+            return cls.NUMBER
+        if ft == FieldType.BOOLEAN:
+            return cls.BOOLEAN
+        if ft == FieldType.DATETIME:
+            return cls.DATETIME
+        return cls.STRING
 
 
 class FieldType(str, Enum):

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import Highlight, SearchResponse, SearchResult
 
-from .builder import QueryBuilder
+from .builder import build_candidate_query
 from .ranker import Ranker
 from .utils import generate_highlight_indices
 
@@ -83,8 +83,7 @@ async def execute_search(search_params: BaseSearchParameters, db_session: Sessio
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
         return []
 
-    builder = QueryBuilder()
-    candidate_query = builder.build(search_params)
+    candidate_query = build_candidate_query(search_params)
 
     ranker = await Ranker.from_params(search_params)
     logger.debug("Using ranker", ranker_type=ranker.__class__.__name__)

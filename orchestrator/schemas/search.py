@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from orchestrator.search.schemas.results import Highlight
+from orchestrator.search.schemas.results import Highlight, PathInfo
 
 T = TypeVar("T")
 
@@ -92,3 +92,10 @@ class ProcessSearchSchema(BaseModel):
     last_step: str | None = Field(alias="lastStep", default=None)
     failed_reason: str | None = Field(alias="failedReason", default=None)
     subscription_ids: list[UUID] | None = Field(alias="subscriptionIds", default=None)
+
+
+class PathsResponse(BaseModel):
+    prefix: str
+    paths: list[PathInfo]
+
+    model_config = ConfigDict(extra="forbid", use_enum_values=True)

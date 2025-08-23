@@ -85,4 +85,8 @@ api_router.include_router(
 )
 api_router.include_router(ws.router, prefix="/ws", tags=["Core", "Events"])
 
-api_router.include_router(search.router)
+api_router.include_router(
+    search.router,
+    prefix="/search",
+    tags=["Core", "Search"],
+)

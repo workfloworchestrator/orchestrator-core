@@ -1,24 +1,21 @@
 from .base import (
     EqualityFilter,
     FilterCondition,
-    FilterSet,
+    FilterTree,
     PathFilter,
     StringFilter,
 )
 from .date_filters import DateFilter, DateRangeFilter, DateValueFilter
 from .ltree_filters import LtreeFilter
 from .numeric_filter import NumericFilter, NumericRangeFilter, NumericValueFilter
-from .operators import FilterOp
 
 __all__ = [
     # Base filter classes
     "PathFilter",
-    "FilterSet",
+    "FilterTree",
     "FilterCondition",
     "StringFilter",
     "EqualityFilter",
-    # Filter operation enums
-    "FilterOp",
     # Filters for specific value types
     "NumericValueFilter",
     "NumericRangeFilter",

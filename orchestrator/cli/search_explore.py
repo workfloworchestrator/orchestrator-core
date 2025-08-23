@@ -5,8 +5,8 @@ import typer
 from pydantic import ValidationError
 
 from orchestrator.db import db
-from orchestrator.search.core.types import EntityType
-from orchestrator.search.filters import EqualityFilter, FilterOp, LtreeFilter, PathFilter
+from orchestrator.search.core.types import EntityType, FilterOp
+from orchestrator.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.search.retrieval import execute_search
 from orchestrator.search.retrieval.utils import display_filtered_paths_only, display_results
 from orchestrator.search.retrieval.validation import get_structured_filter_schema
@@ -31,7 +31,9 @@ def structured(path: str, value: str, entity_type: EntityType = EntityType.SUBSC
         ...
     """
     path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value))
-    search_params = BaseSearchParameters.create(entity_type=entity_type, filters=[path_filter])
+    search_params = BaseSearchParameters.create(
+        entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter])
+    )
     results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_filtered_paths_only(results, search_params, db.session)
     display_results(results, db.session, "Match")
@@ -94,7 +96,9 @@ def hierarchical(
 
     path_filter = PathFilter(path="ltree_hierarchical_filter", condition=condition)
 
-    search_params = BaseSearchParameters.create(entity_type=entity_type, filters=[path_filter], query=query)
+    search_params = BaseSearchParameters.create(
+        entity_type=entity_type, filters=[FilterTree.from_flat_and([path_filter])], query=query
+    )
     results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
     display_results(results, db.session, "Hierarchical Score")
 
@@ -123,7 +127,6 @@ def generate_schema() -> None:
         dotenv run python main.py search generate-schema
     """
 
-    # Call the new function to get the schema as a dictionary
     schema_map = get_structured_filter_schema()
 
     if not schema_map:
@@ -135,6 +138,65 @@ def generate_schema() -> None:
         logger.info(f"- {path}: {value_type}")
 
     logger.info("Successfully generated dynamic schema.", path_count=len(schema_map))
+
+
+@app.command("nested-demo")
+def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 10) -> None:
+    tree = FilterTree.model_validate(
+        {
+            "op": "AND",
+            "children": [
+                {
+                    "op": "OR",
+                    "children": [
+                        # First OR case: Active subscriptions from 2024
+                        {
+                            "op": "AND",
+                            "children": [
+                                {
+                                    "path": "subscription.status",
+                                    "condition": {"op": "eq", "value": "active"},
+                                },
+                                {
+                                    "path": "subscription.start_date",
+                                    "condition": {
+                                        "op": "between",
+                                        "value": {
+                                            "start": "2024-01-01T00:00:00Z",
+                                            "end": "2024-12-31T23:59:59Z",
+                                        },
+                                    },
+                                },
+                            ],
+                        },
+                        # Second OR case: Terminated subscriptions before 2026
+                        {
+                            "op": "AND",
+                            "children": [
+                                {
+                                    "path": "subscription.status",
+                                    "condition": {"op": "eq", "value": "terminated"},
+                                },
+                                {
+                                    "path": "subscription.end_date",
+                                    "condition": {"op": "lte", "value": "2025-12-31"},
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "path": "subscription.*.port_mode",
+                    "condition": {"op": "matches_lquery", "value": "*.port_mode"},
+                },
+            ],
+        }
+    )
+
+    params = BaseSearchParameters.create(entity_type=entity_type, filters=tree)
+    results = asyncio.run(execute_search(params, db.session, limit=limit))
+
+    display_results(results, db.session, "Score")
 
 
 if __name__ == "__main__":

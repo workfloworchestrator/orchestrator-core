@@ -13,6 +13,7 @@ from orchestrator.search.filters import (
     DateValueFilter,
     EqualityFilter,
     FilterCondition,
+    FilterTree,
     LtreeFilter,
     NumericRangeFilter,
     NumericValueFilter,
@@ -52,6 +53,7 @@ def is_filter_compatible_with_field_type(filter_condition: FilterCondition, fiel
                 FieldType.UUID,
                 FieldType.BLOCK,
                 FieldType.RESOURCE_TYPE,
+                FieldType.STRING,
             }
         case _:
             assert_never(filter_condition)
@@ -162,3 +164,11 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
         raise ValueError(
             f"Filter path '{filter.path}' must start with '{expected_prefix}' for {entity_type.value} searches."
         )
+
+
+async def validate_filter_tree(filters: FilterTree | None, entity_type: EntityType) -> None:
+    """Validate all PathFilter leaves in a FilterTree."""
+    if filters is None:
+        return
+    for leaf in filters.get_all_leaves():
+        await complete_filter_validation(leaf, entity_type)

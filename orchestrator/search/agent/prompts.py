@@ -31,24 +31,17 @@ async def get_base_instructions() -> str:
 
     **Available Data Schema:**
     Use the following schema to understand the available fields.
-    When you call `add_filter`, the `path` argument MUST be a valid path according to this schema.
-    The chosen filter must be appropiate for the type according to the schema.
+    When you build filters, each `path` MUST be a valid path from this schema,
+    and the operator/value MUST match that path's type.
     ```
 {schema_info}
     ```
-
-    **Your Process (MUST be followed in order):**
-    1.  Start by calling `set_search_parameters` to define the main entity being searched.
-    2.  Next, call `add_filter` **one time for each filter** required by the user's query, using valid paths from the schema above.
-    3.  Finally, when all filters have been added, call `execute_search` to get the results.
-
-    **Example for "Find active subscriptions for customer Surf":**
-    1. Call `set_search_parameters(entity_type="SUBSCRIPTION")`
-    2. Call `add_filter(path="subscription.status", op="eq", value="active")`
-    3. Call `add_filter(path="subscription.customer_id", op="eq", value="Surf")`
-    4. Call `execute_search()`
-
-    After `execute_search` is complete, your final response must be a brief summary or answer to the users' query.
+    **Workflow (do in order):**
+    1) `set_search_parameters`  to define the main entity being searched.
+    2) Build a complete `FilterTree` (AND at root unless the user asks for OR).
+    3) `set_filter_tree(filters=<FilterTree or null>)`.
+    4) `execute_search()`.
+    5) Summarize the results for the user.
     """
     )
 
@@ -61,5 +54,9 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
         f"""
         Current search parameters state:
         {param_state}
+
+        Remember:
+        - If filters are missing or incomplete, construct a full FilterTree and call `set_filter_tree`.
+        - Then call `execute_search`.
         """
     )

@@ -7,7 +7,7 @@ from sqlalchemy import TIMESTAMP, and_
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.sql.elements import ColumnElement
 
-from .operators import FilterOp
+from orchestrator.search.core.types import FilterOp, SQLAColumn
 
 
 def _validate_date_string(v: Any) -> Any:
@@ -44,7 +44,7 @@ class DateValueFilter(BaseModel):
     op: Literal[FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE]
     value: ValidatedDateValue
 
-    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+    def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
         date_column = sa_cast(column, TIMESTAMP(timezone=True))
         match self.op:
             case FilterOp.EQ:
@@ -67,7 +67,7 @@ class DateRangeFilter(BaseModel):
     op: Literal[FilterOp.BETWEEN]
     value: DateRange
 
-    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+    def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
         date_column = sa_cast(column, TIMESTAMP(timezone=True))
         return and_(date_column >= self.value.start, date_column < self.value.end)
 

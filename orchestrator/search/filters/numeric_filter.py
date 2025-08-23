@@ -6,7 +6,7 @@ from sqlalchemy import cast as sa_cast
 from sqlalchemy.sql.elements import ColumnElement
 from typing_extensions import Self
 
-from .operators import FilterOp
+from orchestrator.search.core.types import FilterOp, SQLAColumn
 
 
 class NumericRange(BaseModel):
@@ -26,7 +26,7 @@ class NumericValueFilter(BaseModel):
     op: Literal[FilterOp.EQ, FilterOp.NEQ, FilterOp.LT, FilterOp.LTE, FilterOp.GT, FilterOp.GTE]
     value: int | float
 
-    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+    def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
         cast_type = INTEGER if isinstance(self.value, int) else DOUBLE_PRECISION
         numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         match self.op:
@@ -51,7 +51,7 @@ class NumericRangeFilter(BaseModel):
     op: Literal[FilterOp.BETWEEN]
     value: NumericRange
 
-    def to_expression(self, column: ColumnElement, path: str) -> ColumnElement[bool]:
+    def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
         cast_type = INTEGER if isinstance(self.value.start, int) else DOUBLE_PRECISION
         numeric_column: ColumnElement[Any] = sa_cast(column, cast_type)
         return and_(numeric_column >= self.value.start, numeric_column <= self.value.end)

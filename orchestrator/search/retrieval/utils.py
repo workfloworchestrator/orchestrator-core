@@ -35,7 +35,7 @@ def display_filtered_paths_only(
 
     logger.info("--- Search Results ---")
 
-    searched_paths = [pf.path for pf in search_params.filters] if search_params.filters else []
+    searched_paths = search_params.filters.get_all_paths() if search_params.filters else []
     if not searched_paths:
         return
 

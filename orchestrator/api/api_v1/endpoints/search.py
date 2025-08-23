@@ -1,6 +1,6 @@
 from typing import Any, TypeVar, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import case, select
 from sqlalchemy.orm import selectinload
@@ -15,13 +15,18 @@ from orchestrator.db import (
 from orchestrator.schemas.search import (
     ConnectionSchema,
     PageInfoSchema,
+    PathsResponse,
     ProcessSearchSchema,
     ProductSearchSchema,
     SubscriptionSearchResult,
     WorkflowSearchSchema,
 )
 from orchestrator.schemas.subscription import SubscriptionDomainModelSchema
+from orchestrator.search.core.types import EntityType, FieldType, UIType
+from orchestrator.search.filters.definitions import generate_definitions
 from orchestrator.search.retrieval import execute_search
+from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery
+from orchestrator.search.retrieval.validation import is_lquery_syntactically_valid
 from orchestrator.search.schemas.parameters import (
     BaseSearchParameters,
     ProcessSearchParameters,
@@ -29,8 +34,9 @@ from orchestrator.search.schemas.parameters import (
     SubscriptionSearchParameters,
     WorkflowSearchParameters,
 )
+from orchestrator.search.schemas.results import PathInfo, TypeDefinition
 
-router = APIRouter(tags=["Search"], prefix="/search")
+router = APIRouter()
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -145,3 +151,47 @@ async def search_processes(search_params: ProcessSearchParameters) -> Connection
             selectinload(ProcessTable.workflow),
         ],
     )
+
+
+@router.get(
+    "/paths",
+    response_model=PathsResponse,
+    response_model_exclude_none=True,
+)
+async def list_paths(
+    prefix: str = Query("", min_length=0),
+    q: str | None = Query(None, description="Query for path suggestions"),
+    entity_type: EntityType = Query(EntityType.SUBSCRIPTION),
+    limit: int = Query(10, ge=1, le=10),
+) -> PathsResponse:
+    if prefix:
+        lquery_pattern = create_path_autocomplete_lquery(prefix)
+
+        if not is_lquery_syntactically_valid(lquery_pattern, db.session):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Prefix '{prefix}' creates an invalid search pattern.",
+            )
+    stmt = build_paths_query(entity_type=entity_type, prefix=prefix, q=q)
+    stmt = stmt.limit(limit)
+    rows = db.session.execute(stmt).all()
+
+    paths = [
+        PathInfo(
+            path=str(path),
+            type=UIType.from_field_type(FieldType(value_type)),
+        )
+        for path, value_type in rows
+    ]
+
+    return PathsResponse(prefix=prefix, paths=paths)
+
+
+@router.get(
+    "/definitions",
+    response_model=dict[UIType, TypeDefinition],
+    response_model_exclude_none=True,
+)
+async def get_definitions() -> dict[UIType, TypeDefinition]:
+    """Provide a static definition of operators and schemas for each UI type."""
+    return generate_definitions()

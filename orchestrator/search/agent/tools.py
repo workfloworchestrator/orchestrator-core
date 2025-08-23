@@ -18,8 +18,8 @@ from orchestrator.api.api_v1.endpoints.search import (
 )
 from orchestrator.schemas.search import ConnectionSchema
 from orchestrator.search.core.types import ActionType, EntityType
-from orchestrator.search.filters import PathFilter
-from orchestrator.search.retrieval.validation import complete_filter_validation
+from orchestrator.search.filters import FilterTree
+from orchestrator.search.retrieval.validation import validate_filter_tree
 from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
 
 from .state import SearchState
@@ -58,7 +58,7 @@ async def set_search_parameters(
     is_new_search = params.get("entity_type") != entity_type.value
     final_query = (last_user_message(ctx) or "") if is_new_search else params.get("query", "")
 
-    ctx.deps.state.parameters = {"action": action, "entity_type": entity_type, "filters": [], "query": final_query}
+    ctx.deps.state.parameters = {"action": action, "entity_type": entity_type, "filters": None, "query": final_query}
     ctx.deps.state.results = []
     logger.info(f"Set search parameters: entity_type={entity_type}, action={action}")
 
@@ -69,29 +69,32 @@ async def set_search_parameters(
 
 
 @search_toolset.tool(retries=2)  # type: ignore[misc]
-async def add_filter(
+async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
-    filter: PathFilter,
+    filters: FilterTree | None,
 ) -> StateSnapshotEvent:
-    """Add a single filter to the search parameters."""
+    """Replace current filters atomically with a full FilterTree, or clear with None.
+
+    Requirements:
+    - Root/group operators must be 'AND' or 'OR' (uppercase).
+    - Provide either PathFilters or nested groups under `children`.
+    - See the FilterTree schema examples for the exact shape.
+    """
     if ctx.deps.state.parameters is None:
-        ctx.deps.state.parameters = {
-            "action": "select",
-            "entity_type": "SUBSCRIPTION",
-            "filters": [],
-            "query": None,
-        }
+        raise ModelRetry("Search parameters are not initialized. Call set_search_parameters first.")
 
     entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
 
     try:
-        await complete_filter_validation(filter, entity_type)
+        await validate_filter_tree(filters, entity_type)
     except Exception as e:
         raise ModelRetry(str(e))
 
-    ctx.deps.state.parameters.setdefault("filters", []).append(filter.model_dump(by_alias=True))
-    logger.info("Added filter", filter=filter.model_dump(mode="json", by_alias=True))
-
+    ctx.deps.state.parameters["filters"] = None if filters is None else filters.model_dump(mode="json", by_alias=True)
+    logger.info(
+        "Set filter tree",
+        filters=None if filters is None else filters.model_dump(mode="json", by_alias=True),
+    )
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
 

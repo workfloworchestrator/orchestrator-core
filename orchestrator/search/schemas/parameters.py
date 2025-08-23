@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.search.core.types import ActionType, EntityType
-from orchestrator.search.filters import FilterSet
+from orchestrator.search.filters import FilterTree
 
 
 class BaseSearchParameters(BaseModel):
@@ -13,7 +13,7 @@ class BaseSearchParameters(BaseModel):
     action: ActionType = Field(default=ActionType.SELECT, description="The action to perform.")
     entity_type: EntityType
 
-    filters: FilterSet | None = Field(default=None, description="A list of structured filters to apply to the search.")
+    filters: FilterTree | None = Field(default=None, description="A list of structured filters to apply to the search.")
 
     query: str | None = Field(
         default=None, description="Unified search query - will be processed into vector_query and/or fuzzy_term"
@@ -60,10 +60,13 @@ class SubscriptionSearchParameters(BaseSearchParameters):
             "description": "Search subscriptions based on specific criteria.",
             "examples": [
                 {
-                    "filters": [
-                        {"path": "subscription.status", "condition": {"op": "eq", "value": "provisioning"}},
-                        {"path": "subscription.end_date", "condition": {"op": "gte", "value": "2025-01-01"}},
-                    ]
+                    "filters": {
+                        "op": "AND",
+                        "children": [
+                            {"path": "subscription.status", "condition": {"op": "eq", "value": "provisioning"}},
+                            {"path": "subscription.end_date", "condition": {"op": "gte", "value": "2025-01-01"}},
+                        ],
+                    }
                 }
             ],
         }
