@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from itertools import count
-from typing import Any, Literal
+from typing import Any, Literal, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import and_, exists, or_, select
@@ -152,7 +152,7 @@ class FilterTree(BaseModel):
 
     children: list[FilterTree | PathFilter] = Field(min_length=1, description="Path filters or nested groups.")
 
-    MAX_DEPTH: int = 5
+    MAX_DEPTH: ClassVar[int] = 5
 
     @model_validator(mode="after")
     def _validate_depth(self) -> FilterTree:

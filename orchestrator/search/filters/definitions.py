@@ -20,8 +20,8 @@ def value_schema_for(ft: FieldType) -> dict[FilterOp, ValueSchema]:
             FilterOp.BETWEEN: ValueSchema(
                 kind="object",
                 fields={
-                    "from": ValueSchema(kind=UIType.NUMBER),
-                    "to": ValueSchema(kind=UIType.NUMBER),
+                    "start": ValueSchema(kind=UIType.NUMBER),
+                    "end": ValueSchema(kind=UIType.NUMBER),
                 },
             ),
         }
@@ -43,8 +43,8 @@ def value_schema_for(ft: FieldType) -> dict[FilterOp, ValueSchema]:
             FilterOp.BETWEEN: ValueSchema(
                 kind="object",
                 fields={
-                    "from": ValueSchema(kind=UIType.DATETIME),
-                    "to": ValueSchema(kind=UIType.DATETIME),
+                    "start": ValueSchema(kind=UIType.DATETIME),
+                    "end": ValueSchema(kind=UIType.DATETIME),
                 },
             ),
         }

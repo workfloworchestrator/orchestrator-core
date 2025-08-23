@@ -169,7 +169,7 @@ async def list_paths(
 
         if not is_lquery_syntactically_valid(lquery_pattern, db.session):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Prefix '{prefix}' creates an invalid search pattern.",
             )
     stmt = build_paths_query(entity_type=entity_type, prefix=prefix, q=q)
