@@ -1,6 +1,6 @@
 from unittest import mock
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import pytest
 from kombu.exceptions import ConnectionError
@@ -33,6 +33,38 @@ def test_celery_start_process(mock_delete_process, mock_get_workflow_by_name, mo
     trigger_task.delay.assert_called_once()
     mock_get_workflow_by_name.assert_called_once()
     mock_delete_process.assert_not_called()
+
+
+@mock.patch("orchestrator.services.tasks.get_celery_task")
+def test_pytest_celery_start_process(mock_get_celery_task, celery_app, celery_worker):
+    @celery_app.task(name="start_process_task")
+    def start_process_task(process_id):
+        return f"Started process {process_id}"
+
+    celery_worker.reload()
+    process_id = str(uuid4())
+    result = start_process_task.delay(process_id)
+    value = result.get(timeout=10)
+    print(f"Task returned value: {value}")
+    assert value == f"Started process {process_id}"
+    # Assert mocks are not called, as in test_celery_start_process
+    mock_get_celery_task.assert_not_called()
+
+
+def test_pytest_celery_start_new_process(celery_app, celery_worker, generic_subscription_1):
+    from orchestrator.services.tasks import NEW_TASK
+    from orchestrator.db import db
+    print(f"Registered tasks: {list(celery_app.tasks.keys())}")
+    process_id = UUID(generic_subscription_1)
+    user = "pytest-user"
+    celery_worker.reload()
+    db.session.commit()  # Ensure process is committed and visible
+    print(f"Submitting Celery task for process_id={process_id}, user={user}")
+    result = celery_app.tasks[NEW_TASK].delay(str(process_id), user)  # Pass process_id as str
+    print("Waiting for Celery result...")
+    value = result.get(timeout=10)
+    print(f"Task returned value: {value}")
+    assert str(value) == str(process_id)
 
 
 @mock.patch("orchestrator.services.tasks.get_celery_task")
@@ -102,6 +134,7 @@ def test_celery_resume_process_connection_error_should_revert_process_status(
         _celery_resume_process(process, user="test")
 
     mock_celery_set_process_status.assert_called_once_with(process.process_id, ProcessStatus.FAILED)
+
 
 
 @mock.patch("orchestrator.services.executors.celery.db", return_value=MagicMock(session=MagicMock()))
