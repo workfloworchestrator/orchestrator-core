@@ -262,6 +262,7 @@ def modify_workflow(
 
     wrapped_modify_initial_input_form_generator = wrap_modify_initial_input_form(initial_input_form)
 
+    # This is the actual decorator which is applied on the workflow function
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
@@ -357,10 +358,11 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
 # NOTE: reconcile added - should not be decorator
 def reconcile_workflow(
         description: str,
-        modify_workflow_function: Workflow, # callable returned by @modify_workflow
-        authorize_callback: Authorizer | None = None, # TODO: check whether this is needed
-        retry_auth_callback: Authorizer | None = None, # TODO: check whether this is needed
-    ) -> Workflow:
+        modify: Workflow,
+        additional_steps: StepList | None = None,
+        authorize_callback: Authorizer | None = None,
+        retry_auth_callback: Authorizer | None = None,
+) -> Workflow:
     """Uses modify_workflow with minimum of required input fields to perform sync with external systems based on existing configuration.
 
     Use this for subscription reconcile workflows.
@@ -376,20 +378,38 @@ def reconcile_workflow(
                 ...
             )
     """
-    # TODO: check whether these steps should be part of the inner function
-    # STEP 1: call the modify_workflow_function with 101 input paratemers
+    # Get the initial_input_form generator from the modify workflow
+    initial_input_form = getattr(modify, "initial_input_form", None)
 
-    # STEP 2: check the exception how many input fields are required
+    # def minimal_input_form(state: State):
+    #     if initial_input_form is None:
+    #         return {}
+    #     form_gen = initial_input_form(state)
+    #     user_input_state = state.get("user_input_state", {})  # Or however you want to pass user input
+    #     try:
+    #         page = next(form_gen)
+    #         while True:
+    #             # Prefer user input if available, otherwise use empty string
+    #             input_for_page = {field: user_input_state.get(field, "") for field in page.model_fields}
+    #             page = form_gen.send(input_for_page)
+    #             yield page
+    #     except StopIteration as e:
+    #         return e.value
 
-    # STEP 3: initial_input_form should be modified to have the minimum required parameters (incl. )
-    minimal_required_input_form = modify_workflow_function.initial_input_form
+    # Compose the steps: use the same steps as the modify workflow
+    steplist = modify.steps
+    if additional_steps:
+        steplist = steplist >> additional_steps
 
-    # STEP 4: call the modify workflow with empty minimal empty required input fields.
-    def _reconcile_workflow(modified_workflow: Workflow) -> Workflow:
-
-        return make_workflow(modified_workflow, description, minimal_required_input_form, Target.RECONCILE, modified_workflow.steps)
-
-    return _reconcile_workflow
+    return make_workflow(
+        modify,
+        description,
+        initial_input_form,
+        Target.RECONCILE,
+        steplist,
+        authorize_callback=authorize_callback,
+        retry_auth_callback=retry_auth_callback,
+    )
 
 
 def ensure_provisioning_status(modify_steps: Step | StepList) -> StepList:
