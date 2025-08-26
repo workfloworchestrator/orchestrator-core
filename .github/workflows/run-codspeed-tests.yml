@@ -2,12 +2,12 @@ name: CodSpeed
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   codspeed:
@@ -18,7 +18,7 @@ jobs:
       options: --privileged
     services:
       postgres:
-        image: postgres:15-alpine
+        image: pgvector/pgvector:pg15
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
