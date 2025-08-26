@@ -206,6 +206,10 @@ class Indexer:
         safe_margin = int(max_ctx * app_settings.EMBEDDING_SAFE_MARGIN_PERCENT)
         token_budget = max(1, max_ctx - safe_margin)
 
+        max_batch_size = None
+        if app_settings.OPENAI_BASE_URL:  # We are using a local model
+            max_batch_size = app_settings.EMBEDDING_MAX_BATCH_SIZE
+
         for entity_id, field in fields_to_upsert:
             if field.value_type.is_embeddable():
                 text = self._prepare_text_for_embedding(field)
@@ -221,7 +225,12 @@ class Indexer:
                     )
                     continue
 
-                if embeddable_buffer and (current_tokens + item_tokens > token_budget):
+                should_flush = embeddable_buffer and (
+                    current_tokens + item_tokens > token_budget
+                    or (max_batch_size and len(embeddable_buffer) >= max_batch_size)
+                )
+
+                if should_flush:
                     yield self._flush_buffer(embeddable_buffer, non_embeddable_records)
                     embeddable_buffer.clear()
                     non_embeddable_records.clear()
@@ -255,11 +264,14 @@ class Indexer:
 
     def _get_max_tokens(self) -> int:
         """Gets max tokens, using a fallback from settings if necessary."""
-        max_ctx = get_max_tokens(self.embedding_model)
-        if isinstance(max_ctx, int):
-            return max_ctx
+        try:
+            max_ctx = get_max_tokens(self.embedding_model)
+            if isinstance(max_ctx, int):
+                return max_ctx
+        except Exception:
+            # Allow local(unknown) models to fall back.
+            self.logger.warning("Could not auto-detect max tokens.", model=self.embedding_model)
 
-        self.logger.warning("Could not auto-detect max tokens.", model=self.embedding_model)
         max_ctx = app_settings.EMBEDDING_FALLBACK_MAX_TOKENS
         if not isinstance(max_ctx, int):
             raise RuntimeError("Model not recognized and EMBEDDING_FALLBACK_MAX_TOKENS not set.")

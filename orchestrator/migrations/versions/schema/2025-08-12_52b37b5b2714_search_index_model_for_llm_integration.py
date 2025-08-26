@@ -6,8 +6,6 @@ Create Date: 2025-08-12 22:34:26.694750
 
 """
 
-import os
-
 import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
@@ -29,7 +27,7 @@ IDX_PATH_BTREE = "ix_flat_path_btree"
 IDX_VALUE_TRGM = "ix_flat_value_trgm"
 IDX_CONTENT_HASH = "idx_ai_search_index_content_hash"
 
-TARGET_DIM = int(os.environ.get("EMBEDDING_DIMENSION", 1536))
+TARGET_DIM = 1536
 
 
 def upgrade() -> None:

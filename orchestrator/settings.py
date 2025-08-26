@@ -14,7 +14,7 @@
 import secrets
 import string
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings
@@ -93,19 +93,23 @@ class AppSettings(BaseSettings):
     EXPOSE_OAUTH_SETTINGS: bool = False
 
     # Pydantic-ai Agent settings
-    AGENT_MODEL: str = "openai/gpt-4o"
-    OPENAI_API_KEY: str = "OPENAI_API_KEY"  # Change per provider
+    AGENT_MODEL: str = "openai:gpt-4o-mini"  # See pydantic-ai docs for supported models.
+    OPENAI_API_KEY: str = "OPENAI_API_KEY"  # Change per provider (Azure, etc).
 
-    # Litellm embedding settings
-    # OPENAI_API_KEY included here.
-    OPENAI_BASE_URL: Optional[str] = None  # Change for local inference
+    # Embedding settings
     EMBEDDING_DIMENSION: int = 1536
-    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
+    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"  # See litellm docs for supported models.
     EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
         0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
     )
-    EMBEDDING_FALLBACK_MAX_TOKENS: Optional[int] = None
 
+    # The following settings are only needed for local models.
+    # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
+    OPENAI_BASE_URL: str | None = None
+    EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
+    EMBEDDING_MAX_BATCH_SIZE: int | None = 32
+
+    # General LiteLLM settings
     LLM_MAX_RETRIES: int = 3
     LLM_TIMEOUT: int = 30
 
@@ -115,16 +119,6 @@ class AppSettings(BaseSettings):
         if "/" not in v:
             raise ValueError("EMBEDDING_MODEL must be in format 'vendor/model'")
         return v
-
-    @property
-    def embedding_model_name(self) -> str:
-        """Extract just the model name (after the colon) from EMBEDDING_MODEL."""
-        return self.EMBEDDING_MODEL.split("/", 1)[1]
-
-    @property
-    def embedding_model_vendor(self) -> str:
-        """Extract the vendor (before the colon) from EMBEDDING_MODEL."""
-        return self.EMBEDDING_MODEL.split("/", 1)[0]
 
 
 app_settings = AppSettings()

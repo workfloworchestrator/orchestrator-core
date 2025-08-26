@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from itertools import count
-from typing import Any, Literal, ClassVar
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import and_, exists, or_, select

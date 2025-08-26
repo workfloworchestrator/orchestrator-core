@@ -51,7 +51,7 @@ class QueryEmbedder:
             return []
         try:
             resp = await llm_aembedding(
-                model=app_settings.embedding_model_name,
+                model=app_settings.EMBEDDING_MODEL,
                 input=[text.lower()],
                 api_key=app_settings.OPENAI_API_KEY,
                 base_url=app_settings.OPENAI_BASE_URL,
