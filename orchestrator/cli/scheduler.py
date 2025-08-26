@@ -13,11 +13,11 @@
 
 
 import logging
-import time
 
 import typer
+from apscheduler.schedulers.blocking import BlockingScheduler
 
-from orchestrator.schedules.scheduler import scheduler, scheduler_dispose_db_connections
+from orchestrator.schedules.scheduler import jobstores, scheduler, scheduler_dispose_db_connections
 
 log = logging.getLogger(__name__)
 
@@ -27,11 +27,10 @@ app: typer.Typer = typer.Typer()
 @app.command()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
-    scheduler.start()
+    blocking_scheduler = BlockingScheduler(jobstores=jobstores)
 
     try:
-        while True:
-            time.sleep(1)
+        blocking_scheduler.start()
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()
         scheduler_dispose_db_connections()

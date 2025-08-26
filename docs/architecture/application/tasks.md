@@ -93,19 +93,21 @@ from orchestrator.services.processes import start_process
 
 
 # previously `scheduler()` which is now deprecated
-@scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="interval", minutes=1)
+@scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="cron", hour=1)
 def run_nightly_sync() -> None:
     start_process("task_sync_from")
 ```
 
-This schedule will start the `task_sync_from` task every minute.
+This schedule will start the `task_sync_from` task every day at 01:00.
 
 There are multiple triggers that can be used: [data from docs]
 
-- [DateTrigger]: use when you want to run the task just once at a certain point of time
-- [IntervalTrigger]: use when you want to run the task at fixed intervals of time
-- [CronTrigger]: use when you want to run the task periodically at certain time(s) of day
-- [CalendarIntervalTrigger]: use when you want to run the task on calendar-based intervals, at a specific time of day
+- [IntervalTrigger]: use when you want to run the task at fixed intervals of time.
+- [CronTrigger]: use when you want to run the task periodically at certain time(s) of day.
+- [DateTrigger]: use when you want to run the task just once at a certain point of time.
+- [CalendarIntervalTrigger]: use when you want to run the task on calendar-based intervals, at a specific time of day.
+- [AndTrigger]: use when you want to combine multiple triggers so the task only runs when **all** of them would fire at the same time.
+- [OrTrigger]: use when you want to combine multiple triggers so the task runs when **any one** of them would fire.
 
 For detailed configuration options, see the [APScheduler scheduling docs].
 
@@ -175,8 +177,11 @@ def run_nightly_sync() -> None:
 
 [schedule]: https://pypi.org/project/schedule/
 [apscheduler]: https://pypi.org/project/APScheduler/
-[DateTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.DateTrigger
 [IntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.IntervalTrigger
-[CronTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.IntervalTrigger
-[CalendarIntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.CalendarIntervalTrigger
+[CronTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.cron.CronTrigger
+[DateTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.date.DateTrigger
+[CalendarIntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.calendarinterval.CalendarIntervalTrigger
+[AndTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.AndTrigger
+[OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
+[data from docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
