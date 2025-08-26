@@ -733,11 +733,17 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
 
 
 def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:
-    # Remove all extra steps (Failed, Suspended and (A)waiting steps in db). Only keep cleared steps.
+    """Recover workflow state and remaining steps from the given 'Process step' objects.
 
-    persistent = list(
-        filter(lambda p: not (p.isfailed() or p.issuspend() or p.iswaiting() or p.isawaitingcallback()), log)
-    )
+    Returns:
+      - The state accumulated up until the last cleared (completed) step\
+      - The remaining steps to execute (including Failed, Suspended and (A)waiting steps)
+    """
+
+    def is_cleared(p: WFProcess) -> bool:
+        return not (p.isfailed() or p.issuspend() or p.iswaiting() or p.isawaitingcallback())
+
+    persistent = [p for p in log if is_cleared(p)]
     stepcount = len(persistent)
 
     if log and (log[-1].issuspend() or log[-1].isawaitingcallback()):
@@ -760,15 +766,14 @@ def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]
 
 
 def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
-    result = []
-    for step in steps:
-        process = WFProcess.from_status(step.status, step.state)
+    """Deserialize ProcessStepTable objects into foldable 'Process step' objects."""
 
-        if not process:
-            raise ValueError(step.status)
+    def deserialize(step: ProcessStepTable) -> WFProcess:
+        if not (wf_process := WFProcess.from_status(step.status, step.state)):
+            raise ValueError(f"Unable to deserialize step from it's status {step.status}")
+        return wf_process
 
-        result.append(process)
-    return result
+    return [deserialize(step) for step in steps]
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
