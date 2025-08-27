@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from nwastdlib import const
+from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import db
 from orchestrator.services.processes import SYSTEM_USER
@@ -643,3 +644,22 @@ def test_list_any_arg_type_error() -> None:
                 extract_error(result)
                 == "Step function argument 'list_any' cannot be serialized from database with type 'Any'"
             )
+
+
+@pytest.mark.parametrize(
+    ["given_steps", "num_remaining_steps", "expected_steps_to_evaluate"],
+    [
+        (begin >> step1 >> step2 >> step3, 0, [step1]),
+        (begin >> step1 >> step2 >> step3, 1, [step1, step2]),
+        (begin >> step1 >> step2 >> step3, 2, [step1, step2, step3]),
+        (begin >> step1 >> step2 >> step3, 3, [step1, step2, step3]),
+    ],
+)
+def test_get_steps_to_evaluate_for_rbac(given_steps, num_remaining_steps, expected_steps_to_evaluate):
+    wf = workflow("test_get_steps_to_evaluate_for_rbac")(lambda: given_steps)
+
+    log = wf.steps[num_remaining_steps:]
+    pstat = ProcessStat(process_id=1, workflow=wf, state=Success({}), log=log, current_user="john.doe")
+
+    actual_steps = get_steps_to_evaluate_for_rbac(pstat)
+    assert actual_steps == expected_steps_to_evaluate
