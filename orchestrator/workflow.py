@@ -552,7 +552,7 @@ class ProcessStat:
     process_id: UUID
     workflow: Workflow
     state: Process
-    log: StepList
+    log: StepList  # Remaining steps to execute
     current_user: str
     user_model: OIDCUserModel | None = None
 
@@ -597,6 +597,13 @@ class StepStatus(strEnum):
 
 
 class Process(Generic[S]):
+    """ADT base class.
+
+    This class defines an Algebraic Data Type - specifically a "sum type" - that defines the possible
+    variants of a Process. It encapsulates the state and allows to fold _instances_ of a process into
+    a single value. These instances correspond to subsequent steps of the process.
+    """
+
     def __init__(self, s: S):
         self.s = s
 

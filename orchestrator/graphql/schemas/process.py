@@ -6,7 +6,7 @@ from strawberry.federation.schema_directives import Key
 from strawberry.scalars import JSON
 
 from oauth2_lib.strawberry import authenticated_field
-from orchestrator.api.api_v1.endpoints.processes import get_auth_callbacks, get_current_steps
+from orchestrator.api.api_v1.endpoints.processes import get_auth_callbacks, get_steps_to_evaluate_for_rbac
 from orchestrator.db import ProcessTable, ProductTable, db
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
 from orchestrator.graphql.schemas.customer import CustomerType
@@ -86,7 +86,7 @@ class ProcessType:
         oidc_user = info.context.get_current_user
         workflow = get_workflow(self.workflow_name)
         process = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
-        auth_resume, auth_retry = get_auth_callbacks(get_current_steps(process), workflow)  # type: ignore[arg-type]
+        auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)  # type: ignore[arg-type]
 
         return FormUserPermissionsType(
             retryAllowed=auth_retry and auth_retry(oidc_user),  # type: ignore[arg-type]
