@@ -361,7 +361,7 @@ def reconcile_workflow(
     authorize_callback: Authorizer | None = None,
     retry_auth_callback: Authorizer | None = None,
 ) -> Callable[[Callable[[], StepList]], Workflow]:
-    """Uses modify_workflow with minimum of required input fields to perform sync with external systems based on existing configuration.
+    """Similar to a modify_workflow but without required input user input to perform a sync with external systems based on the subscriptions existing configuration.
 
     Use this for subscription reconcile workflows.
 
