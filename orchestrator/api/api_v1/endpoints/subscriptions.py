@@ -12,6 +12,7 @@
 # limitations under the License.
 
 """Module that implements subscription related API endpoints."""
+
 from http import HTTPStatus
 from typing import Any
 from uuid import UUID

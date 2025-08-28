@@ -23,3 +23,4 @@ class Target(strEnum):
     TERMINATE = "TERMINATE"
     SYSTEM = "SYSTEM"
     VALIDATE = "VALIDATE"
+    RECONCILE = "RECONCILE"

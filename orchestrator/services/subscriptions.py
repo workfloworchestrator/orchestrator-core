@@ -12,6 +12,7 @@
 # limitations under the License.
 
 """Module that provides service functions on subscriptions."""
+
 import pickle  # noqa: S403
 from collections import defaultdict
 from collections.abc import Sequence
@@ -506,6 +507,7 @@ TARGET_DEFAULT_USABLE_MAP: dict[Target, list[str]] = {
     Target.TERMINATE: ["active", "provisioning"],
     Target.SYSTEM: ["active"],
     Target.VALIDATE: ["active"],
+    Target.RECONCILE: ["active"],
 }
 
 WF_USABLE_MAP: dict[str, list[str]] = {}
@@ -532,6 +534,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         ...     "terminate": [],
         ...     "system": [],
         ...     "validate": [],
+        ...     "reconcile: [],
         ... }
 
     """
@@ -552,6 +555,7 @@ def subscription_workflows(subscription: SubscriptionTable) -> dict[str, Any]:
         "terminate": [],
         "system": [],
         "validate": [],
+        "reconcile": [],
     }
     for workflow in subscription.product.workflows:
         if workflow.name in WF_USABLE_WHILE_OUT_OF_SYNC or workflow.is_task:

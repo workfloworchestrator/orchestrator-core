@@ -71,6 +71,9 @@ Workflows are categorized based on the operations they perform on a subscription
 - Validate ([validate_workflow])
     - Verifies that external systems are consistent with the orchestrator's subscription state.
     - Only one validate workflow should exist per product.
+- Reconcile ([reconcile_workflow])
+    - Ensures that the orchestrator's subscription state is in sync with external systems.
+    - Only one reconcile workflow should exist per product.
 
 
 ### Default Workflows
@@ -187,6 +190,7 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 [modify_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.modify_workflow
 [terminate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.terminate_workflow
 [validate_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.validate_workflow
+[reconcile_workflow]: ../reference-docs/workflows/workflows.md#orchestrator.workflows.utils.reconcile_workflow
 [functional docs for step]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.step
 [functional docs for retrystep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.retrystep
 [functional docs for inputstep]: ../../reference-docs/workflows/workflow-steps.md#orchestrator.workflow.inputstep
