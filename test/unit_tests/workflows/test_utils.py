@@ -12,7 +12,7 @@ def extra_dummy_step():
 def test_reconcile_workflow_basic():
     workflow_description = "Test Reconcile Workflow"
 
-    @reconcile_workflow(workflow_description)
+    @reconcile_workflow(workflow_description)  # type: ignore
     def test_workflow() -> StepList:
         return begin >> done
 
@@ -40,7 +40,7 @@ def test_reconcile_workflow_additional_steps():
 
     additional_step = StepList() >> extra_dummy_step
 
-    @reconcile_workflow(workflow_description, additional_steps=additional_step)
+    @reconcile_workflow(workflow_description, additional_steps=additional_step)  # type: ignore
     def test_workflow() -> StepList:
         return begin >> done
 
@@ -66,7 +66,7 @@ def test_reconcile_workflow_additional_steps():
 def test_reconcile_workflow_empty_function_steps():
     workflow_description = "Test Reconcile Workflow empty steps"
 
-    @reconcile_workflow(workflow_description)
+    @reconcile_workflow(workflow_description)  # type: ignore
     def test_workflow() -> StepList:
         return StepList()
 
