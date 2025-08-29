@@ -12,8 +12,9 @@
 # limitations under the License.
 
 
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Any
+from typing import Any, Generator
 
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -34,6 +35,17 @@ scheduler = BackgroundScheduler(jobstores=jobstores)
 
 def scheduler_dispose_db_connections() -> None:
     jobstores["default"].engine.dispose()
+
+
+@contextmanager
+def get_pauzed_scheduler() -> Generator[BackgroundScheduler, Any, None]:
+    scheduler.start(paused=True)
+
+    try:
+        yield scheduler
+    finally:
+        scheduler.shutdown(wait=False)
+        scheduler_dispose_db_connections()
 
 
 class ScheduledTask(BaseModel):
@@ -131,10 +143,8 @@ def get_scheduler_tasks(
     sort_by: list[Sort] | None = None,
     error_handler: CallableErrorHandler = default_error_handler,
 ) -> tuple[list[ScheduledTask], int]:
-    scheduler.start(paused=True)
-    scheduled_tasks = scheduler.get_jobs()
-    scheduler.shutdown(wait=False)
-    scheduler_dispose_db_connections()
+    with get_pauzed_scheduler() as pauzed_scheduler:
+        scheduled_tasks = pauzed_scheduler.get_jobs()
 
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)

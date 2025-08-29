@@ -17,7 +17,7 @@ import logging
 import typer
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from orchestrator.schedules.scheduler import jobstores, scheduler, scheduler_dispose_db_connections
+from orchestrator.schedules.scheduler import get_pauzed_scheduler, jobstores, scheduler_dispose_db_connections
 
 log = logging.getLogger(__name__)
 
@@ -27,12 +27,17 @@ app: typer.Typer = typer.Typer()
 @app.command()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
-    blocking_scheduler = BlockingScheduler(jobstores=jobstores)
+    # necessary to add the schedules to the DB since they are added to the BackgroundScheduler
+    with get_pauzed_scheduler() as scheduler:
+        scheduler.resume()
+        scheduler.pause()
+
+    blocking_scheduler = BlockingScheduler(jobstores=jobstores, jobstore_update_interval=5)
 
     try:
         blocking_scheduler.start()
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+    finally:
+        blocking_scheduler.shutdown()
         scheduler_dispose_db_connections()
 
 
@@ -42,10 +47,8 @@ def show_schedule() -> None:
 
     in cli underscore is replaced by a dash `show-schedule`
     """
-    scheduler.start(paused=True)  # paused: avoid triggering jobs during CLI
-    jobs = scheduler.get_jobs()
-    scheduler.shutdown(wait=False)
-    scheduler_dispose_db_connections()
+    with get_pauzed_scheduler() as scheduler:
+        jobs = scheduler.get_jobs()
 
     for job in jobs:
         typer.echo(f"[{job.id}] Next run: {job.next_run_time} | Trigger: {job.trigger}")
@@ -54,10 +57,8 @@ def show_schedule() -> None:
 @app.command()
 def force(job_id: str) -> None:
     """Force the execution of (a) scheduler(s) based on a job_id."""
-    scheduler.start(paused=True)  # paused: avoid triggering jobs during CLI
-    job = scheduler.get_job(job_id)
-    scheduler.shutdown(wait=False)
-    scheduler_dispose_db_connections()
+    with get_pauzed_scheduler() as scheduler:
+        job = scheduler.get_job(job_id)
 
     if not job:
         typer.echo(f"Job '{job_id}' not found.")
