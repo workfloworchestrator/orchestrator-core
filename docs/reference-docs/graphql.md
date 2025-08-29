@@ -1,9 +1,9 @@
 # GraphQL documentation
 
-The `orchestrator-core` comes with a graphql interface that can to be registered after you create your OrchestratorApp.
-If you add it after registering your `SUBSCRIPTION_MODEL_REGISTRY` it will automatically create graphql types for them.
+The `orchestrator-core` comes with a graphQL interface that can to be registered after you create your OrchestratorApp.
+If you add it after registering your `SUBSCRIPTION_MODEL_REGISTRY` it will automatically create graphQL types for them.
 
-example:
+Example:
 
 ```python
 app = OrchestratorCore(base_settings=AppSettings())
@@ -11,10 +11,108 @@ app = OrchestratorCore(base_settings=AppSettings())
 app.register_graphql()
 ```
 
+## How we use Strawberry for GraphQL
+
+### What is Strawberry?
+Strawberry is a Python library for building GraphQL APIs using a code-first approach. It allows you to define your GraphQL schema using Python classes and type annotations.
+
+Here is a simple example of how Strawberry uses a code first approach to create a schema:
+
+```python
+import typing
+import strawberry
+
+
+@strawberry.type
+class Book:
+    title: str
+    author: "Author"
+
+
+@strawberry.type
+class Author:
+    name: str
+    books: typing.List[Book]
+
+
+schema = strawberry.Schema(query=Query)
+```
+
+### How do we use Strawberry GraphQL in the `orchestrator-core`?
+
+Strawberry GraphQL is used to define and expose a GraphQL API for orchestrating products,
+subscriptions, and related entities. Here’s a brief overview of how GraphQL is used:
+
+* **Schema Definition:** GraphQL types, interfaces, and inputs are defined using Strawberry
+decorators (e.g., `@strawberry.type`, `@strawberry.interface`, `@strawberry.input`). These are
+mapped to Pydantic models and SQLAlchemy tables for type safety and data validation.
+
+* **Resolvers:** Resolver functions (e.g., `resolve_subscription`, `resolve_subscriptions`) are
+implemented to fetch and return data from the database, often using SQLAlchemy queries. These
+resolvers are attached to fields in the schema.
+
+* **Pagination, Filtering, Sorting**: The API supports pagination, filtering, and sorting for list
+queries, using custom types like `GraphqlFilter`, `GraphqlSort`, and a `Connection` type for
+paginated results.
+
+* **Federation:** Some types use Strawberry’s federation features
+(e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture. Federation
+allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
+useful when working with multiple services, as it enables you to develop, deploy, and scale GraphQL
+services independently while presenting a single schema to clients.
+
+Below example shows how to use Strawberry to define a federated, extensible GraphQL interface for
+subscriptions, including both basic fields and custom resolvers for related data:
+
+```python
+import strawberry
+
+@strawberry.federation.interface
+class SubscriptionInterface:
+    # Basic subscription data fields
+    subscription_id: str
+    customer_id: str
+    description: str
+    # ... other basic fields
+
+    # Resolver which fetches related product info for a specific subscription
+    @strawberry.field(description="Product information")
+    async def product(self) -> Product:
+       # ... other product specific data fields
+
+    @strawberry.field(name="_schema", description="Return subscription schema")
+    async def schema(self) -> dict:
+        # Returns dynamic schema based on product type
+```
+
+The `SubscriptionInterface` can be implemented or extented by other types or services. This means
+you can:
+
+* Add new fields or resolvers to the interface in other modules or services without changing the
+original definition.
+* Extend the interface with additional product-specific data or logic as your application grows.
+* Support federation, allowing other GraphQL services to reference or build upon this interface,
+enabling integration across multiple services.
+
+
+
+<!-- ```python
+import strawberry
+from strawberry.federation import key
+
+@strawberry.federation.type(description="Orchestrator queries")
+class Query:
+    pass
+
+@strawberry.federation.type(description="Orchestrator mutations")
+class Mutation:
+    pass
+``` -->
+
 ## Extending the Query and Mutation
 
 You are not able to remove resolvers from a Query, so we split the Query into 2 and merged them back for a default Query.
-Our usecase for this is that we use an external graphql source as our customers root.
+Our usecase for this is that we use an external graphQL source as our customers root.
 
 - `OrchestratorQuery` all resolvers except for customers.
 - `CustomerQuery` only has `customers` resolver.
@@ -56,11 +154,11 @@ app = OrchestratorCore(base_settings=AppSettings())
 app.register_graphql(query=NewQuery)
 ```
 
-## Adding federated types to the graphql
+## Adding federated types to the graphQL
 
-federation introduction: https://strawberry.rocks/docs/federation/introduction
+Federation introduction: https://strawberry.rocks/docs/federation/introduction
 
-Within a federation, it is possible to add orchestrator data to graphql types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`. Here is an example for when instead of overriding the customers resolver, you instead use a different graphql source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
+Within a federation, it is possible to add orchestrator data to graphQL types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`. Here is an example for when instead of overriding the customers resolver, you instead use a different graphQL source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
 
 ```python
 import strawberry
@@ -102,10 +200,10 @@ UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
 app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
 ```
 
-Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the graphql ui interface.
+Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the graphQL UI interface.
 Adding product or product block strawberry types to the `graphql_models` will skip their generation inside `register_domain_models`. More info [here](#domain-models-auto-registration-for-graphql)
 
-## Add Json schema for metadata
+## Add JSON schema for metadata
 
 The metadata in a subscription is completely unrestricted and can have anything.
 This functionality is to make metadata descriptive in a `__schema__` for the frontend to be able to render the metadata and know what to do with typing.
