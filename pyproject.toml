@@ -230,3 +230,6 @@ known-first-party = [
     "oauth2_lib",
     "pydantic_forms",
 ]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"
