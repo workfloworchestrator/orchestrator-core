@@ -2,14 +2,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from orchestrator.search.core.types import FilterOp, UIType
+from orchestrator.search.core.types import FilterOp, SearchMetadata, UIType
 
 
-class Highlight(BaseModel):
-    """Contains the text and the indices of the matched term."""
+class MatchingField(BaseModel):
+    """Contains the field that contributed most to the (fuzzy) search result."""
 
     text: str
-    indices: list[tuple[int, int]]
+    path: str
+    highlight_indices: list[tuple[int, int]] | None = None
 
 
 class SearchResult(BaseModel):
@@ -17,10 +18,15 @@ class SearchResult(BaseModel):
 
     entity_id: str
     score: float
-    highlight: Highlight | None = None
+    perfect_match: int = 0
+    matching_field: MatchingField | None = None
 
 
-SearchResponse = list[SearchResult]
+class SearchResponse(BaseModel):
+    """Response containing search results and metadata."""
+
+    results: list[SearchResult]
+    metadata: SearchMetadata
 
 
 class ValueSchema(BaseModel):

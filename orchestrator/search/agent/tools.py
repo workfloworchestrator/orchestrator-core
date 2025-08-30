@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
@@ -16,7 +15,7 @@ from orchestrator.api.api_v1.endpoints.search import (
     search_subscriptions,
     search_workflows,
 )
-from orchestrator.schemas.search import ConnectionSchema
+from orchestrator.schemas.search import SearchResultsSchema
 from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.validation import validate_filter_tree
@@ -27,7 +26,7 @@ from .state import SearchState
 logger = structlog.get_logger(__name__)
 P = TypeVar("P", bound=BaseSearchParameters)
 
-SearchFn = Callable[[P], ConnectionSchema[Any]] | Callable[[P], Awaitable[ConnectionSchema[Any]]]
+SearchFn = Callable[[P], Awaitable[SearchResultsSchema[Any]]]
 
 SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
     EntityType.SUBSCRIPTION: search_subscriptions,
@@ -116,7 +115,7 @@ async def execute_search(
     logger.info("Executing database search", **params.model_dump(mode="json"))
 
     fn = SEARCH_FN_MAP[entity_type]
-    page_connection = await fn(params) if asyncio.iscoroutinefunction(fn) else fn(params)
-    ctx.deps.state.results = [item.model_dump(mode="json") for item in page_connection.page[:limit]]
+    search_results = await fn(params)
+    ctx.deps.state.results = search_results.data[:limit]
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())

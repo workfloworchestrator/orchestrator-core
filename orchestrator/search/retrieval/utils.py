@@ -1,4 +1,5 @@
 import json
+import re
 
 import structlog
 from sqlalchemy import and_
@@ -15,14 +16,11 @@ logger = structlog.get_logger(__name__)
 
 
 def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
+    """Finds all occurrences of a term as a literal substring case-insensitively. Works for both simple words and complex IDs."""
     if not text or not term:
         return []
-    indices = []
-    start = text.lower().find(term.lower())
-    if start != -1:
-        end = start + len(term)
-        indices.append((start, end))
-    return indices
+
+    return [(m.start(), m.end()) for m in re.finditer(re.escape(term), text, re.IGNORECASE)]
 
 
 def display_filtered_paths_only(

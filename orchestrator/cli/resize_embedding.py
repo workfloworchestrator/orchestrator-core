@@ -1,10 +1,11 @@
-import typer
 import structlog
+import typer
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from settings import app_settings
+
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex
+from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -106,9 +107,7 @@ def resize_embeddings_command() -> None:
 
     logger.info("Dimension mismatch detected", current_dimension=current_dimension, new_dimension=new_dimension)
 
-    if not typer.confirm(
-        f"This will DELETE ALL RECORDS from ai_search_index and alter the embedding column. Continue?"
-    ):
+    if not typer.confirm("This will DELETE ALL RECORDS from ai_search_index and alter the embedding column. Continue?"):
         logger.info("Operation cancelled by user")
         return
 

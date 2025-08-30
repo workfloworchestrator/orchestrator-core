@@ -32,11 +32,11 @@ def structured(path: str, value: str, entity_type: EntityType = EntityType.SUBSC
     """
     path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value))
     search_params = BaseSearchParameters.create(
-        entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter])
+        entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), limit=limit
     )
-    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
-    display_filtered_paths_only(results, search_params, db.session)
-    display_results(results, db.session, "Match")
+    search_response = asyncio.run(execute_search(search_params=search_params, db_session=db.session))
+    display_filtered_paths_only(search_response.results, search_params, db.session)
+    display_results(search_response.results, db.session, "Match")
 
 
 @app.command()
@@ -52,9 +52,9 @@ def semantic(query: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limi
         },
         ...
     """
-    search_params = BaseSearchParameters.create(entity_type=entity_type, query=query)
-    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
-    display_results(results, db.session, "Distance")
+    search_params = BaseSearchParameters.create(entity_type=entity_type, query=query, limit=limit)
+    search_response = asyncio.run(execute_search(search_params=search_params, db_session=db.session))
+    display_results(search_response.results, db.session, "Distance")
 
 
 @app.command()
@@ -70,9 +70,9 @@ def fuzzy(term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: i
         },
         ...
     """
-    search_params = BaseSearchParameters.create(entity_type=entity_type, query=term)
-    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
-    display_results(results, db.session, "Similarity")
+    search_params = BaseSearchParameters.create(entity_type=entity_type, query=term, limit=limit)
+    search_response = asyncio.run(execute_search(search_params=search_params, db_session=db.session))
+    display_results(search_response.results, db.session, "Similarity")
 
 
 @app.command()
@@ -97,10 +97,10 @@ def hierarchical(
     path_filter = PathFilter(path="ltree_hierarchical_filter", condition=condition)
 
     search_params = BaseSearchParameters.create(
-        entity_type=entity_type, filters=[FilterTree.from_flat_and([path_filter])], query=query
+        entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), query=query, limit=limit
     )
-    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
-    display_results(results, db.session, "Hierarchical Score")
+    search_response = asyncio.run(execute_search(search_params=search_params, db_session=db.session))
+    display_results(search_response.results, db.session, "Hierarchical Score")
 
 
 @app.command()
@@ -110,10 +110,10 @@ def hybrid(query: str, term: str, entity_type: EntityType = EntityType.SUBSCRIPT
     Example:
         dotenv run python main.py search hybrid "reptile store" "Kingswood"
     """
-    search_params = BaseSearchParameters.create(entity_type=entity_type, query=query)
+    search_params = BaseSearchParameters.create(entity_type=entity_type, query=query, limit=limit)
     logger.info("Executing Hybrid Search", query=query, term=term)
-    results = asyncio.run(execute_search(search_params=search_params, db_session=db.session, limit=limit))
-    display_results(results, db.session, "Hybrid Score")
+    search_response = asyncio.run(execute_search(search_params=search_params, db_session=db.session))
+    display_results(search_response.results, db.session, "Hybrid Score")
 
 
 @app.command("generate-schema")
@@ -193,10 +193,10 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
         }
     )
 
-    params = BaseSearchParameters.create(entity_type=entity_type, filters=tree)
-    results = asyncio.run(execute_search(params, db.session, limit=limit))
+    params = BaseSearchParameters.create(entity_type=entity_type, filters=tree, limit=limit)
+    search_response = asyncio.run(execute_search(params, db.session))
 
-    display_results(results, db.session, "Score")
+    display_results(search_response.results, db.session, "Score")
 
 
 if __name__ == "__main__":

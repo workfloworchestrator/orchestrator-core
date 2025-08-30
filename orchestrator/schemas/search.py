@@ -4,94 +4,89 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from orchestrator.search.schemas.results import Highlight, PathInfo
+from orchestrator.search.core.types import SearchMetadata
+from orchestrator.search.schemas.results import MatchingField, PathInfo
 
 T = TypeVar("T")
 
 
 class PageInfoSchema(BaseModel):
-    total_items: int = Field(default=0, alias="totalItems")
-    start_cursor: int = Field(default=0, alias="startCursor")
-    has_previous_page: bool = Field(default=False, alias="hasPreviousPage")
-    has_next_page: bool = Field(default=False, alias="hasNextPage")
-    end_cursor: int = Field(default=0, alias="endCursor")
-    sort_fields: list[str] = Field(default_factory=list, alias="sortFields")
-    filter_fields: list[str] = Field(default_factory=list, alias="filterFields")
+    has_next_page: bool = False
+    next_page_cursor: str | None = None
 
 
 class ProductSchema(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
     name: str
     tag: str
-    product_type: str = Field(alias="productType")
+    product_type: str
 
 
 class SubscriptionSearchResult(BaseModel):
     score: float
-    highlight: Highlight | None = None
-
+    perfect_match: int
+    matching_field: MatchingField | None = None
     subscription: dict[str, Any]
 
 
-class ConnectionSchema(BaseModel, Generic[T]):
-    page: list[T]
-    page_info: PageInfoSchema = Field(alias="pageInfo")
-
-    model_config = ConfigDict(populate_by_name=True)
+class SearchResultsSchema(BaseModel, Generic[T]):
+    data: list[T] = Field(default_factory=list)
+    page_info: PageInfoSchema = Field(default_factory=PageInfoSchema)
+    search_metadata: SearchMetadata | None = None
 
 
 class WorkflowProductSchema(BaseModel):
     """Product associated with a workflow."""
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    product_type: str = Field(alias="productType")
-    product_id: UUID = Field(alias="productId")
+    product_type: str
+    product_id: UUID
     name: str
 
 
 class WorkflowSearchSchema(BaseModel):
     """Schema for workflow search results."""
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
     name: str
     products: list[WorkflowProductSchema]
     description: str | None = None
-    created_at: datetime | None = Field(alias="createdAt", default=None)
+    created_at: datetime | None = None
 
 
 class ProductSearchSchema(BaseModel):
     """Schema for product search results."""
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    product_id: UUID = Field(alias="productId")
+    product_id: UUID
     name: str
-    product_type: str = Field(alias="productType")
+    product_type: str
     tag: str | None = None
     description: str | None = None
     status: str | None = None
-    created_at: datetime | None = Field(alias="createdAt", default=None)
+    created_at: datetime | None = None
 
 
 class ProcessSearchSchema(BaseModel):
     """Schema for process search results."""
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    process_id: UUID = Field(alias="processId")
-    workflow_name: str = Field(alias="workflowName")
-    workflow_id: UUID = Field(alias="workflowId")
-    status: str = Field(alias="last_status")
-    is_task: bool = Field(alias="isTask")
-    created_by: str | None = Field(alias="createdBy", default=None)
-    started_at: datetime = Field(alias="startedAt")
-    last_modified_at: datetime = Field(alias="lastModifiedAt")
-    last_step: str | None = Field(alias="lastStep", default=None)
-    failed_reason: str | None = Field(alias="failedReason", default=None)
-    subscription_ids: list[UUID] | None = Field(alias="subscriptionIds", default=None)
+    process_id: UUID
+    workflow_name: str
+    workflow_id: UUID
+    last_status: str
+    is_task: bool
+    created_by: str | None = None
+    started_at: datetime
+    last_modified_at: datetime
+    last_step: str | None = None
+    failed_reason: str | None = None
+    subscription_ids: list[UUID] | None = None
 
 
 class PathsResponse(BaseModel):

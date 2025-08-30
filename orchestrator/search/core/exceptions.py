@@ -14,3 +14,9 @@ class ModelLoadError(SearchUtilsError):
     """Raised when a Pydantic model fails to load from a subscription."""
 
     pass
+
+
+class InvalidCursorError(SearchUtilsError):
+    """Raised when cursor cannot be decoded."""
+
+    pass

@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -8,24 +8,29 @@ from sqlalchemy.orm import selectinload
 from orchestrator.db import (
     ProcessTable,
     ProductTable,
-    SubscriptionTable,
     WorkflowTable,
     db,
 )
+from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas.search import (
-    ConnectionSchema,
     PageInfoSchema,
     PathsResponse,
     ProcessSearchSchema,
     ProductSearchSchema,
+    SearchResultsSchema,
     SubscriptionSearchResult,
     WorkflowSearchSchema,
 )
-from orchestrator.schemas.subscription import SubscriptionDomainModelSchema
+from orchestrator.search.core.exceptions import InvalidCursorError
 from orchestrator.search.core.types import EntityType, FieldType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
+from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.search.retrieval import execute_search
 from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery
+from orchestrator.search.retrieval.pagination import (
+    create_next_page_cursor,
+    process_pagination_cursor,
+)
 from orchestrator.search.retrieval.validation import is_lquery_syntactically_valid
 from orchestrator.search.schemas.parameters import (
     BaseSearchParameters,
@@ -35,6 +40,7 @@ from orchestrator.search.schemas.parameters import (
     WorkflowSearchParameters,
 )
 from orchestrator.search.schemas.results import PathInfo, TypeDefinition
+from orchestrator.services.subscriptions import format_special_types
 
 router = APIRouter()
 T = TypeVar("T", bound=BaseModel)
@@ -42,114 +48,129 @@ T = TypeVar("T", bound=BaseModel)
 
 async def _perform_search_and_fetch_simple(
     search_params: BaseSearchParameters,
-    db_model: Any,
+    entity_type: EntityType,
     response_schema: type[BaseModel],
-    pk_column_name: str,
     eager_loads: list[Any],
-) -> ConnectionSchema:
-    results = await execute_search(search_params=search_params, db_session=db.session, limit=20)
+    cursor: str | None = None,
+) -> SearchResultsSchema:
+    try:
+        pagination_params = await process_pagination_cursor(cursor, search_params)
+    except InvalidCursorError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
 
-    if not results:
-        data: dict[str, Any] = {"page_info": PageInfoSchema(), "page": []}
-        return ConnectionSchema(**cast(Any, data))
+    search_response = await execute_search(
+        search_params=search_params,
+        db_session=db.session,
+        pagination_params=pagination_params,
+    )
 
-    entity_ids = [res.entity_id for res in results]
-    pk_column = getattr(db_model, pk_column_name)
+    if not search_response.results:
+        return SearchResultsSchema(search_metadata=search_response.metadata)
+
+    next_page_cursor = create_next_page_cursor(search_response.results, pagination_params, search_params.limit)
+    has_next_page = next_page_cursor is not None
+    page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
+
+    config = ENTITY_CONFIG_REGISTRY[entity_type]
+    entity_ids = [res.entity_id for res in search_response.results]
+    pk_column = getattr(config.table, config.pk_name)
     ordering_case = case({entity_id: i for i, entity_id in enumerate(entity_ids)}, value=pk_column)
 
-    stmt = select(db_model).options(*eager_loads).filter(pk_column.in_(entity_ids)).order_by(ordering_case)
+    stmt = select(config.table).options(*eager_loads).filter(pk_column.in_(entity_ids)).order_by(ordering_case)
     entities = db.session.scalars(stmt).all()
 
-    page = [response_schema.model_validate(entity) for entity in entities]
+    data = [response_schema.model_validate(entity) for entity in entities]
 
-    data = {"page_info": PageInfoSchema(), "page": page}
-    return ConnectionSchema(**cast(Any, data))
+    return SearchResultsSchema(data=data, page_info=page_info, search_metadata=search_response.metadata)
 
 
 @router.post(
     "/subscriptions",
-    response_model=ConnectionSchema[SubscriptionSearchResult],
-    response_model_by_alias=True,
+    response_model=SearchResultsSchema[SubscriptionSearchResult],
 )
 async def search_subscriptions(
     search_params: SubscriptionSearchParameters,
-) -> ConnectionSchema[SubscriptionSearchResult]:
-    search_results = await execute_search(search_params=search_params, db_session=db.session, limit=20)
+    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
+) -> SearchResultsSchema[SubscriptionSearchResult]:
+    try:
+        pagination_params = await process_pagination_cursor(cursor, search_params)
+    except InvalidCursorError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
 
-    if not search_results:
-        data = {"page_info": PageInfoSchema(), "page": []}
-        return ConnectionSchema(**cast(Any, data))
+    search_response = await execute_search(
+        search_params=search_params,
+        db_session=db.session,
+        pagination_params=pagination_params,
+    )
 
-    search_info_map = {res.entity_id: res for res in search_results}
-    entity_ids = list(search_info_map.keys())
+    if not search_response.results:
+        return SearchResultsSchema(search_metadata=search_response.metadata)
 
-    pk_column = SubscriptionTable.subscription_id
-    ordering_case = case({entity_id: i for i, entity_id in enumerate(entity_ids)}, value=pk_column)
+    next_page_cursor = create_next_page_cursor(search_response.results, pagination_params, search_params.limit)
+    has_next_page = next_page_cursor is not None
+    page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
-    stmt = (
-        select(SubscriptionTable)
-        .options(
-            selectinload(SubscriptionTable.product),
-            selectinload(SubscriptionTable.customer_descriptions),
+    search_info_map = {res.entity_id: res for res in search_response.results}
+    results_data = []
+    for sub_id, search_info in search_info_map.items():
+        subscription_model = SubscriptionModel.from_subscription(sub_id)
+        sub_data = subscription_model.model_dump(exclude_unset=False)
+        search_result_item = SubscriptionSearchResult(
+            subscription=format_special_types(sub_data),
+            score=search_info.score,
+            perfect_match=search_info.perfect_match,
+            matching_field=search_info.matching_field,
         )
-        .filter(pk_column.in_(entity_ids))
-        .order_by(ordering_case)
-    )
-    subscriptions = db.session.scalars(stmt).all()
+        results_data.append(search_result_item)
 
-    page = []
-    for sub in subscriptions:
-        search_data = search_info_map.get(str(sub.subscription_id))
-        if search_data:
-            subscription_model = SubscriptionDomainModelSchema.model_validate(sub)
-
-            result_item = SubscriptionSearchResult(
-                score=search_data.score,
-                highlight=search_data.highlight,
-                subscription=subscription_model.model_dump(),
-            )
-            page.append(result_item)
-
-    data = {"page_info": PageInfoSchema(), "page": page}
-    return ConnectionSchema(**cast(Any, data))
+    return SearchResultsSchema(data=results_data, page_info=page_info, search_metadata=search_response.metadata)
 
 
-@router.post("/workflows", response_model=ConnectionSchema[WorkflowSearchSchema], response_model_by_alias=True)
-async def search_workflows(search_params: WorkflowSearchParameters) -> ConnectionSchema[WorkflowSearchSchema]:
+@router.post("/workflows", response_model=SearchResultsSchema[WorkflowSearchSchema])
+async def search_workflows(
+    search_params: WorkflowSearchParameters,
+    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
+) -> SearchResultsSchema[WorkflowSearchSchema]:
     return await _perform_search_and_fetch_simple(
         search_params=search_params,
-        db_model=WorkflowTable,
+        entity_type=EntityType.WORKFLOW,
         response_schema=WorkflowSearchSchema,
-        pk_column_name="workflow_id",
         eager_loads=[selectinload(WorkflowTable.products)],
+        cursor=cursor,
     )
 
 
-@router.post("/products", response_model=ConnectionSchema[ProductSearchSchema], response_model_by_alias=True)
-async def search_products(search_params: ProductSearchParameters) -> ConnectionSchema[ProductSearchSchema]:
+@router.post("/products", response_model=SearchResultsSchema[ProductSearchSchema])
+async def search_products(
+    search_params: ProductSearchParameters,
+    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
+) -> SearchResultsSchema[ProductSearchSchema]:
     return await _perform_search_and_fetch_simple(
         search_params=search_params,
-        db_model=ProductTable,
+        entity_type=EntityType.PRODUCT,
         response_schema=ProductSearchSchema,
-        pk_column_name="product_id",
         eager_loads=[
             selectinload(ProductTable.workflows),
             selectinload(ProductTable.fixed_inputs),
             selectinload(ProductTable.product_blocks),
         ],
+        cursor=cursor,
     )
 
 
-@router.post("/processes", response_model=ConnectionSchema[ProcessSearchSchema], response_model_by_alias=True)
-async def search_processes(search_params: ProcessSearchParameters) -> ConnectionSchema[ProcessSearchSchema]:
+@router.post("/processes", response_model=SearchResultsSchema[ProcessSearchSchema])
+async def search_processes(
+    search_params: ProcessSearchParameters,
+    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
+) -> SearchResultsSchema[ProcessSearchSchema]:
     return await _perform_search_and_fetch_simple(
         search_params=search_params,
-        db_model=ProcessTable,
+        entity_type=EntityType.PROCESS,
         response_schema=ProcessSearchSchema,
-        pk_column_name="process_id",
         eager_loads=[
             selectinload(ProcessTable.workflow),
         ],
+        cursor=cursor,
     )
 
 

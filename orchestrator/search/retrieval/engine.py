@@ -4,28 +4,30 @@ import structlog
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import Session
 
+from orchestrator.search.core.types import SearchMetadata
 from orchestrator.search.schemas.parameters import BaseSearchParameters
-from orchestrator.search.schemas.results import Highlight, SearchResponse, SearchResult
+from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
 from .builder import build_candidate_query
+from .pagination import PaginationParams
 from .ranker import Ranker
 from .utils import generate_highlight_indices
 
 logger = structlog.get_logger(__name__)
 
 
-def _format_response(db_rows: Sequence[RowMapping], search_params: BaseSearchParameters) -> SearchResponse:
+def _format_response(
+    db_rows: Sequence[RowMapping], search_params: BaseSearchParameters, metadata: SearchMetadata
+) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
     Converts raw SQLAlchemy `RowMapping` objects into `SearchResult` instances,
-    optionally generating highlight metadata if a fuzzy term is present.
+    including highlight metadata if present in the database results.
 
     Parameters
     ----------
     db_rows : Sequence[RowMapping]
         The rows returned from the executed SQLAlchemy query.
-    search_params : BaseSearchParameters
-        The parameters used for the search, including any fuzzy term for highlighting.
 
     Returns:
     -------
@@ -33,26 +35,44 @@ def _format_response(db_rows: Sequence[RowMapping], search_params: BaseSearchPar
         A list of `SearchResult` objects containing entity IDs, scores, and
         optional highlight information.
     """
-    response: SearchResponse = []
-    for row in db_rows:
-        highlight = None
-        if search_params.fuzzy_term and row.get("highlight_text"):
-            text = row.highlight_text
-            indices = generate_highlight_indices(text, search_params.fuzzy_term)
-            if indices:
-                highlight = Highlight(text=text, indices=indices)
 
-        response.append(
+    if not db_rows:
+        return SearchResponse(results=[], metadata=metadata)
+
+    user_query = search_params.query
+
+    results = []
+    for row in db_rows:
+        matching_field = None
+
+        if user_query and row.get("highlight_text") and row.get("highlight_path"):
+            text = row.highlight_text
+            path = row.highlight_path
+
+            if not isinstance(text, str):
+                text = str(text)
+            if not isinstance(path, str):
+                path = str(path)
+
+            highlight_indices = generate_highlight_indices(text, user_query) or None
+            matching_field = MatchingField(text=text, path=path, highlight_indices=highlight_indices)
+
+        results.append(
             SearchResult(
                 entity_id=str(row.entity_id),
                 score=row.score,
-                highlight=highlight,
+                perfect_match=row.get("perfect_match", 1),
+                matching_field=matching_field,
             )
         )
-    return response
+    return SearchResponse(results=results, metadata=metadata)
 
 
-async def execute_search(search_params: BaseSearchParameters, db_session: Session, limit: int = 5) -> SearchResponse:
+async def execute_search(
+    search_params: BaseSearchParameters,
+    db_session: Session,
+    pagination_params: PaginationParams | None = None,
+) -> SearchResponse:
     """Execute a hybrid search and return ranked results.
 
     Builds a candidate entity query based on the given search parameters,
@@ -81,16 +101,17 @@ async def execute_search(search_params: BaseSearchParameters, db_session: Sessio
     """
     if not search_params.vector_query and not search_params.filters and not search_params.fuzzy_term:
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
-        return []
+        return SearchResponse(results=[], metadata=SearchMetadata.empty())
 
     candidate_query = build_candidate_query(search_params)
 
-    ranker = await Ranker.from_params(search_params)
+    pagination_params = pagination_params or PaginationParams()
+    ranker = await Ranker.from_params(search_params, pagination_params)
     logger.debug("Using ranker", ranker_type=ranker.__class__.__name__)
 
     final_stmt = ranker.apply(candidate_query)
-    final_stmt = final_stmt.limit(limit)
+    final_stmt = final_stmt.limit(search_params.limit)
     logger.debug(final_stmt)
     result = db_session.execute(final_stmt).mappings().all()
 
-    return _format_response(result, search_params)
+    return _format_response(result, search_params, ranker.metadata)

@@ -19,6 +19,7 @@ class BaseSearchParameters(BaseModel):
         default=None, description="Unified search query - will be processed into vector_query and/or fuzzy_term"
     )
 
+    limit: int = Field(default=10, ge=1, le=30, description="Maximum number of search results to return.")
     model_config = ConfigDict(extra="forbid")
 
     @classmethod

@@ -13,6 +13,40 @@ from .validators import is_bool_string, is_iso_date, is_uuid
 SQLAColumn: TypeAlias = ColumnElement[Any] | InstrumentedAttribute[Any]
 
 
+@dataclass
+class SearchMetadata:
+    """Metadata about the search operation performed."""
+
+    search_type: str
+    description: str
+
+    @classmethod
+    def structured(cls) -> "SearchMetadata":
+        return cls(search_type="structured", description="Filter-based search using structured queries")
+
+    @classmethod
+    def fuzzy(cls) -> "SearchMetadata":
+        return cls(search_type="fuzzy", description="PostgreSQL trigram similarity search using similarity() function")
+
+    @classmethod
+    def semantic(cls) -> "SearchMetadata":
+        return cls(
+            search_type="semantic",
+            description="Vector similarity using L2 distance on embeddings with minimum distance scoring",
+        )
+
+    @classmethod
+    def hybrid(cls) -> "SearchMetadata":
+        return cls(
+            search_type="hybrid",
+            description="Reciprocal rank fusion combining trigram similarity(), word_similarity(), and L2 vector distance",
+        )
+
+    @classmethod
+    def empty(cls) -> "SearchMetadata":
+        return cls(search_type="empty", description="Empty search - no criteria provided")
+
+
 class BooleanOperator(str, Enum):
     AND = "AND"
     OR = "OR"
