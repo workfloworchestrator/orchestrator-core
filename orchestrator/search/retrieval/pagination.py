@@ -1,10 +1,12 @@
-import base64
 import array
+import base64
 from dataclasses import dataclass
+
 from pydantic import BaseModel
+
 from orchestrator.search.core.exceptions import InvalidCursorError
-from orchestrator.search.schemas.results import SearchResult
 from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.search.schemas.results import SearchResult
 
 
 @dataclass
@@ -60,13 +62,12 @@ async def process_pagination_cursor(cursor: str | None, search_params: BaseSearc
             page_after_id=c.id,
             q_vec_override=b64_to_floats(c.q_vec_b64),
         )
-    elif search_params.vector_query:
+    if search_params.vector_query:
         from orchestrator.search.core.embedding import QueryEmbedder
 
         q_vec_override = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
         return PaginationParams(q_vec_override=q_vec_override)
-    else:
-        return PaginationParams()
+    return PaginationParams()
 
 
 def create_next_page_cursor(

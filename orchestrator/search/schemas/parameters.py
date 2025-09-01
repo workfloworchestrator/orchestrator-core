@@ -48,6 +48,7 @@ class BaseSearchParameters(BaseModel):
 
         words = self.query.split()
         # Only use fuzzy for single words
+        # otherwise, trigram operator filters out too much.
         return self.query if len(words) == 1 else None
 
 

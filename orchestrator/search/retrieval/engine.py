@@ -10,7 +10,7 @@ from orchestrator.search.schemas.results import MatchingField, SearchResponse, S
 
 from .builder import build_candidate_query
 from .pagination import PaginationParams
-from .ranker import Ranker
+from .retriever import Retriever
 from .utils import generate_highlight_indices
 
 logger = structlog.get_logger(__name__)
@@ -106,12 +106,12 @@ async def execute_search(
     candidate_query = build_candidate_query(search_params)
 
     pagination_params = pagination_params or PaginationParams()
-    ranker = await Ranker.from_params(search_params, pagination_params)
-    logger.debug("Using ranker", ranker_type=ranker.__class__.__name__)
+    retriever = await Retriever.from_params(search_params, pagination_params)
+    logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
-    final_stmt = ranker.apply(candidate_query)
+    final_stmt = retriever.apply(candidate_query)
     final_stmt = final_stmt.limit(search_params.limit)
     logger.debug(final_stmt)
     result = db_session.execute(final_stmt).mappings().all()
 
-    return _format_response(result, search_params, ranker.metadata)
+    return _format_response(result, search_params, retriever.metadata)

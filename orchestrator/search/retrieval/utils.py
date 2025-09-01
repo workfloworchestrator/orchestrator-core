@@ -16,11 +16,24 @@ logger = structlog.get_logger(__name__)
 
 
 def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
-    """Finds all occurrences of a term as a literal substring case-insensitively. Works for both simple words and complex IDs."""
+    """Finds all occurrences of individual words from the term with word boundary matching case-insensitively."""
     if not text or not term:
         return []
 
-    return [(m.start(), m.end()) for m in re.finditer(re.escape(term), text, re.IGNORECASE)]
+    all_matches = []
+    words = [w.strip() for w in term.split() if w.strip()]
+
+    for word in words:
+        word_boundary_pattern = rf"\b{re.escape(word)}\b"
+        matches = list(re.finditer(word_boundary_pattern, text, re.IGNORECASE))
+
+        if not matches:
+            substring_pattern = re.escape(word)
+            matches = list(re.finditer(substring_pattern, text, re.IGNORECASE))
+
+        all_matches.extend([(m.start(), m.end()) for m in matches])
+
+    return sorted(set(all_matches))
 
 
 def display_filtered_paths_only(
@@ -56,7 +69,7 @@ def display_results(
     db_session: WrappedSession,
     score_label: str = "Score",
 ) -> None:
-    """Finds the original DB record for each search result and logs its traversed fields."""
+    """Display search results, showing matched field when available or uuid+name for vector search."""
     if not results:
         logger.info("No results found.")
         return
@@ -65,6 +78,13 @@ def display_results(
     for result in results:
         entity_id = result.entity_id
         score = result.score
+
+        # If we have a matching field from fuzzy search, display only that
+        if result.matching_field:
+            logger.info(f"Entity ID: {entity_id}")
+            logger.info(f"Matched field ({result.matching_field.path}): {result.matching_field.text}")
+            logger.info(f"{score_label}: {score:.4f}\n" + "-" * 20)
+            continue
 
         index_records = db_session.query(AiSearchIndex).filter(AiSearchIndex.entity_id == entity_id).all()
         if not index_records:

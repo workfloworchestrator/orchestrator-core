@@ -13,7 +13,15 @@
 
 import typer
 
-from orchestrator.cli import database, generate, index_llm, resize_embedding, scheduler, search_explore
+from orchestrator.cli import (
+    database,
+    generate,
+    index_llm,
+    resize_embedding,
+    scheduler,
+    search_explore,
+    speedtest,
+)
 
 app = typer.Typer()
 app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
@@ -25,6 +33,11 @@ app.add_typer(
     resize_embedding.app,
     name="embedding",
     help="Resize the vector dimension of the embedding column in the search table.",
+)
+app.add_typer(
+    speedtest.app,
+    name="speedtest",
+    help="Search performance testing and analysis.",
 )
 
 

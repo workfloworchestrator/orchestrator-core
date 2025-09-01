@@ -1,32 +1,42 @@
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Any
 
 import structlog
 from sqlalchemy import BindParameter, Float, Numeric, Select, and_, bindparam, case, cast, func, literal, or_, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import FieldType, SearchMetadata
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 
 from .pagination import PaginationParams
 
 logger = structlog.get_logger(__name__)
-Index = AiSearchIndex
 
 
-class Ranker(ABC):
+class Retriever(ABC):
     """Abstract base class for applying a ranking strategy to a search query."""
+
+    SCORE_PRECISION = 12
+    SCORE_NUMERIC_TYPE = Numeric(38, 12)
+    HIGHLIGHT_TEXT_LABEL = "highlight_text"
+    HIGHLIGHT_PATH_LABEL = "highlight_path"
+    SCORE_LABEL = "score"
+    SEARCHABLE_FIELD_TYPES = [
+        FieldType.STRING.value,
+        FieldType.UUID.value,
+        FieldType.BLOCK.value,
+        FieldType.RESOURCE_TYPE.value,
+    ]
 
     @classmethod
     async def from_params(
         cls,
         params: BaseSearchParameters,
         pagination_params: PaginationParams,
-    ) -> "Ranker":
-        """Create the appropriate ranker instance from search parameters.
+    ) -> "Retriever":
+        """Create the appropriate retriever instance from search parameters.
 
         Parameters
         ----------
@@ -37,20 +47,20 @@ class Ranker(ABC):
 
         Returns:
         -------
-        Ranker
-            A concrete ranker instance (semantic, fuzzy, hybrid, or structured).
+        Retriever
+            A concrete retriever instance (semantic, fuzzy, hybrid, or structured).
         """
         fuzzy_term = params.fuzzy_term
         q_vec = await cls._get_query_vector(params.vector_query, pagination_params.q_vec_override)
 
         if q_vec is not None and fuzzy_term is not None:
-            return RrfHybridRanker(q_vec, fuzzy_term, pagination_params)
+            return RrfHybridRetriever(q_vec, fuzzy_term, pagination_params)
         if q_vec is not None:
-            return SemanticRanker(q_vec, pagination_params)
+            return SemanticRetriever(q_vec, pagination_params)
         if fuzzy_term is not None:
-            return FuzzyRanker(fuzzy_term, pagination_params)
+            return FuzzyRetriever(fuzzy_term, pagination_params)
 
-        return StructuredRanker(pagination_params)
+        return StructuredRetriever(pagination_params)
 
     @classmethod
     async def _get_query_vector(
@@ -63,9 +73,11 @@ class Ranker(ABC):
         if not vector_query:
             return None
 
+        from orchestrator.search.core.embedding import QueryEmbedder
+
         q_vec = await QueryEmbedder.generate_for_text_async(vector_query)
         if not q_vec:
-            logger.warning("Embedding generation failed; using non-semantic ranker")
+            logger.warning("Embedding generation failed; using non-semantic retriever")
 
         return q_vec
 
@@ -92,7 +104,7 @@ class Ranker(ABC):
         ...
 
 
-class StructuredRanker(Ranker):
+class StructuredRetriever(Retriever):
     """Applies a dummy score for purely structured searches with no text query."""
 
     def __init__(self, pagination_params: PaginationParams) -> None:
@@ -112,7 +124,7 @@ class StructuredRanker(Ranker):
         return SearchMetadata.structured()
 
 
-class FuzzyRanker(Ranker):
+class FuzzyRetriever(Retriever):
     """Ranks results based on the max of fuzzy text similarity scores."""
 
     def __init__(self, fuzzy_term: str, pagination_params: PaginationParams) -> None:
@@ -123,30 +135,33 @@ class FuzzyRanker(Ranker):
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
 
-        similarity_expr = func.similarity(Index.value, self.fuzzy_term)
+        similarity_expr = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
 
-        raw_max = func.max(similarity_expr).over(partition_by=Index.entity_id)
-        score = cast(func.round(cast(raw_max, Numeric(38, 12)), 12), Numeric(38, 12)).label("score")
+        raw_max = func.max(similarity_expr).over(partition_by=AiSearchIndex.entity_id)
+        score = cast(
+            func.round(cast(raw_max, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
+        ).label(self.SCORE_LABEL)
 
         combined_query = (
             select(
-                Index.entity_id,
+                AiSearchIndex.entity_id,
                 score,
-                func.first_value(Index.value)
-                .over(partition_by=Index.entity_id, order_by=similarity_expr.desc())
-                .label("highlight_text"),
-                func.first_value(Index.path)
-                .over(partition_by=Index.entity_id, order_by=similarity_expr.desc())
-                .label("highlight_path"),
+                func.first_value(AiSearchIndex.value)
+                .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
+                .label(self.HIGHLIGHT_TEXT_LABEL),
+                func.first_value(AiSearchIndex.path)
+                .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
+                .label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .select_from(Index)
-            .join(cand, cand.c.entity_id == Index.entity_id)
+            .select_from(AiSearchIndex)
+            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
             .where(
-                Index.value_type.in_(
-                    [FieldType.STRING.value, FieldType.UUID.value, FieldType.BLOCK.value, FieldType.RESOURCE_TYPE.value]
+                and_(
+                    AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
+                    literal(self.fuzzy_term).op("<%")(AiSearchIndex.value),
                 )
             )
-            .distinct(Index.entity_id)
+            .distinct(AiSearchIndex.entity_id)
         )
         final_query = combined_query.subquery("ranked_fuzzy")
 
@@ -182,7 +197,7 @@ class FuzzyRanker(Ranker):
         return stmt
 
 
-class SemanticRanker(Ranker):
+class SemanticRetriever(Retriever):
     """Ranks results based on the minimum semantic vector distance."""
 
     def __init__(self, vector_query: list[float], pagination_params: PaginationParams) -> None:
@@ -193,27 +208,41 @@ class SemanticRanker(Ranker):
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
 
-        dist = Index.embedding.l2_distance(self.vector_query)
+        dist = AiSearchIndex.embedding.l2_distance(self.vector_query)
 
-        raw_min = func.min(dist)
-        score = cast(func.round(cast(-raw_min, Numeric(38, 12)), 12), Numeric(38, 12)).label("score")
+        raw_min = func.min(dist).over(partition_by=AiSearchIndex.entity_id)
+        score = cast(
+            func.round(cast(-raw_min, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
+        ).label(self.SCORE_LABEL)
 
-        scores = (
+        combined_query = (
             select(
-                Index.entity_id.label("entity_id"),
+                AiSearchIndex.entity_id,
                 score,
+                func.first_value(AiSearchIndex.value)
+                .over(partition_by=AiSearchIndex.entity_id, order_by=[dist.asc(), AiSearchIndex.path.asc()])
+                .label(self.HIGHLIGHT_TEXT_LABEL),
+                func.first_value(AiSearchIndex.path)
+                .over(partition_by=AiSearchIndex.entity_id, order_by=[dist.asc(), AiSearchIndex.path.asc()])
+                .label(self.HIGHLIGHT_PATH_LABEL),
             )
-            .select_from(Index)
-            .join(cand, cand.c.entity_id == Index.entity_id)
-            .where(Index.embedding.isnot(None))
-            .group_by(Index.entity_id)
-        ).cte("scores")
+            .select_from(AiSearchIndex)
+            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
+            .where(AiSearchIndex.embedding.isnot(None))
+            .distinct(AiSearchIndex.entity_id)
+        )
+        final_query = combined_query.subquery("ranked_semantic")
 
-        stmt = select(scores.c.entity_id, scores.c.score).select_from(scores)
+        stmt = select(
+            final_query.c.entity_id,
+            final_query.c.score,
+            final_query.c.highlight_text,
+            final_query.c.highlight_path,
+        ).select_from(final_query)
 
-        stmt = self._apply_semantic_pagination(stmt, scores.c.score, scores.c.entity_id)
+        stmt = self._apply_semantic_pagination(stmt, final_query.c.score, final_query.c.entity_id)
 
-        return stmt.order_by(scores.c.score.desc().nulls_last(), scores.c.entity_id.asc())
+        return stmt.order_by(final_query.c.score.desc().nulls_last(), final_query.c.entity_id.asc())
 
     @property
     def metadata(self) -> SearchMetadata:
@@ -237,10 +266,10 @@ class SemanticRanker(Ranker):
         """Convert score value to properly typed Decimal parameter for SQLAlchemy."""
         pas_dec = Decimal(str(score_value))
         pas_dec = pas_dec.quantize(Decimal("0.000000000001"))
-        return literal(pas_dec, type_=Numeric(38, 12))
+        return literal(pas_dec, type_=self.SCORE_NUMERIC_TYPE)
 
 
-class RrfHybridRanker(Ranker):
+class RrfHybridRetriever(Retriever):
     """Reciprocal Rank Fusion of semantic and fuzzy ranking with parent-child retrieval."""
 
     def __init__(
@@ -261,28 +290,39 @@ class RrfHybridRanker(Ranker):
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
-        q_param: ColumnElement[Any] = bindparam("q_vec", self.q_vec, type_=Index.embedding.type)
-        sem_dist = Index.embedding.op("<->")(q_param)
-        sim_base = func.similarity(Index.value, self.fuzzy_term)
-        sim_word = func.word_similarity(self.fuzzy_term, Index.value)
-        best_similarity = func.greatest(sim_base, sim_word)
+        I = aliased(AiSearchIndex)
+        q_param: BindParameter[list[float]] = bindparam("q_vec", self.q_vec, type_=AiSearchIndex.embedding.type)
+
+        best_similarity = func.word_similarity(self.fuzzy_term, I.value)
+        sem_expr = case(
+            (I.embedding.is_(None), None),
+            else_=I.embedding.op("<->")(q_param),
+        )
+        sem_val = func.coalesce(sem_expr, literal(1.0)).label("semantic_distance")
+
+        filter_condition = literal(self.fuzzy_term).op("<%")(I.value)
 
         field_candidates = (
             select(
-                Index.entity_id,
-                Index.path,
-                Index.value,
-                func.coalesce(sem_dist, literal(1.0)).label("semantic_distance"),
+                I.entity_id,
+                I.path,
+                I.value,
+                sem_val,
                 best_similarity.label("fuzzy_score"),
             )
-            .select_from(Index)
-            .join(cand, cand.c.entity_id == Index.entity_id)
+            .select_from(I)
+            .join(cand, cand.c.entity_id == I.entity_id)
             .where(
-                Index.value_type.in_(
-                    [FieldType.STRING.value, FieldType.UUID.value, FieldType.BLOCK.value, FieldType.RESOURCE_TYPE.value]
+                and_(
+                    I.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
+                    filter_condition,
                 )
             )
-            .order_by(best_similarity.desc().nulls_last(), func.coalesce(sem_dist, literal(1.0)).asc().nulls_last())
+            .order_by(
+                best_similarity.desc().nulls_last(),
+                sem_expr.asc().nulls_last(),
+                I.entity_id.asc(),
+            )
             .limit(self.field_candidates_limit)
         ).cte("field_candidates")
 
@@ -291,23 +331,25 @@ class RrfHybridRanker(Ranker):
                 field_candidates.c.entity_id,
                 func.avg(field_candidates.c.semantic_distance).label("avg_semantic_distance"),
                 func.avg(field_candidates.c.fuzzy_score).label("avg_fuzzy_score"),
-            )
-            .select_from(field_candidates)
-            .group_by(field_candidates.c.entity_id)
+            ).group_by(field_candidates.c.entity_id)
         ).cte("entity_scores")
 
         entity_highlights = (
             select(
                 field_candidates.c.entity_id,
                 func.first_value(field_candidates.c.value)
-                .over(partition_by=field_candidates.c.entity_id, order_by=field_candidates.c.fuzzy_score.desc())
-                .label("highlight_text"),
+                .over(
+                    partition_by=field_candidates.c.entity_id,
+                    order_by=[field_candidates.c.fuzzy_score.desc(), field_candidates.c.path.asc()],
+                )
+                .label(self.HIGHLIGHT_TEXT_LABEL),
                 func.first_value(field_candidates.c.path)
-                .over(partition_by=field_candidates.c.entity_id, order_by=field_candidates.c.fuzzy_score.desc())
-                .label("highlight_path"),
-            )
-            .select_from(field_candidates)
-            .distinct(field_candidates.c.entity_id)
+                .over(
+                    partition_by=field_candidates.c.entity_id,
+                    order_by=[field_candidates.c.fuzzy_score.desc(), field_candidates.c.path.asc()],
+                )
+                .label(self.HIGHLIGHT_PATH_LABEL),
+            ).distinct(field_candidates.c.entity_id)
         ).cte("entity_highlights")
 
         ranked = (
@@ -318,10 +360,12 @@ class RrfHybridRanker(Ranker):
                 entity_highlights.c.highlight_text,
                 entity_highlights.c.highlight_path,
                 func.dense_rank()
-                .over(order_by=entity_scores.c.avg_semantic_distance.asc().nulls_last())
+                .over(
+                    order_by=[entity_scores.c.avg_semantic_distance.asc().nulls_last(), entity_scores.c.entity_id.asc()]
+                )
                 .label("sem_rank"),
                 func.dense_rank()
-                .over(order_by=entity_scores.c.avg_fuzzy_score.desc().nulls_last())
+                .over(order_by=[entity_scores.c.avg_fuzzy_score.desc().nulls_last(), entity_scores.c.entity_id.asc()])
                 .label("fuzzy_rank"),
             ).select_from(
                 entity_scores.join(entity_highlights, entity_scores.c.entity_id == entity_highlights.c.entity_id)
@@ -329,33 +373,24 @@ class RrfHybridRanker(Ranker):
         ).cte("ranked_results")
 
         rrf_raw = (1.0 / (self.k + ranked.c.sem_rank)) + (1.0 / (self.k + ranked.c.fuzzy_rank))
-        score = cast(func.round(cast(rrf_raw, Numeric), 12), Float).label("score")
-
+        score = cast(func.round(cast(rrf_raw, Numeric), self.SCORE_PRECISION), Float).label(self.SCORE_LABEL)
         perfect = case((ranked.c.avg_fuzzy_score >= 0.9, 0), else_=1).label("perfect_match")
 
-        scored = (
-            select(
-                ranked.c.entity_id.label("entity_id"),
-                score,
-                ranked.c.highlight_text.label("highlight_text"),
-                ranked.c.highlight_path.label("highlight_path"),
-                perfect,
-            ).select_from(ranked)
-        ).cte("scored")
-
         stmt = select(
-            scored.c.entity_id,
-            scored.c.score,
-            scored.c.highlight_text,
-            scored.c.highlight_path,
-            scored.c.perfect_match,
-        ).select_from(scored)
+            ranked.c.entity_id,
+            score,
+            ranked.c.highlight_text,
+            ranked.c.highlight_path,
+            perfect.label("perfect_match"),
+        ).select_from(ranked)
 
-        stmt = self._apply_hybrid_pagination(stmt, scored.c.perfect_match, scored.c.score, scored.c.entity_id)
+        stmt = self._apply_hybrid_pagination(stmt, perfect, score, ranked.c.entity_id)
 
-        return stmt.order_by(scored.c.perfect_match.asc(), scored.c.score.desc(), scored.c.entity_id.asc()).params(
-            q_vec=self.q_vec
-        )
+        return stmt.order_by(
+            perfect.asc(),
+            score.desc(),
+            ranked.c.entity_id.asc(),
+        ).params(q_vec=self.q_vec)
 
     def _apply_hybrid_pagination(
         self,
