@@ -1,6 +1,6 @@
 from unittest import mock
 from unittest.mock import MagicMock
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 import pytest
 from kombu.exceptions import ConnectionError
