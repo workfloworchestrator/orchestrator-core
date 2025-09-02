@@ -37,10 +37,10 @@ plugins:
     - search
     - open-in-new-tab
     - render_swagger
-    - macros
+#     - macros
     - include-markdown
     - privacy
-    - social
+#     - social
     - mkdocstrings:
           default_handler: python
           enable_inventory: true
@@ -195,6 +195,7 @@ nav:
           - Websockets: reference-docs/websockets.md
           - Search: reference-docs/search.md
           - Monitoring:
+              - Error Tracking: reference-docs/monitoring/error_tracking.md
               - Metrics: reference-docs/monitoring/metrics.md
           - Migration guides:
                 - 2.x: migration-guide/2.0.md
