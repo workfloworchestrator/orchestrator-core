@@ -62,58 +62,17 @@ queries, using custom types like `GraphqlFilter`, `GraphqlSort`, and a `Connecti
 paginated results.
 
 * **Federation:** Some types use Strawberry’s federation features
-(e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture. Federation
-allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
-useful when working with multiple services, as it enables you to develop, deploy, and scale GraphQL
-services independently while presenting a single schema to clients.
+(e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture.
 
-Below example shows how to use Strawberry to define a federated, extensible GraphQL interface for
-subscriptions, including both basic fields and custom resolvers for related data:
+!!! info "Federation"
+    Federation allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
+    useful when working with multiple services, as it enables you to develop, deploy, and scale GraphQL
+    services independently while presenting a single schema to clients.
 
-```python
-import strawberry
+### How to enable Federation in the `orchestrator-core`?
 
-@strawberry.federation.interface
-class SubscriptionInterface:
-    # Basic subscription data fields
-    subscription_id: str
-    customer_id: str
-    description: str
-    # ... other basic fields
-
-    # Resolver which fetches related product info for a specific subscription
-    @strawberry.field(description="Product information")
-    async def product(self) -> Product:
-       # ... other product specific data fields
-
-    @strawberry.field(name="_schema", description="Return subscription schema")
-    async def schema(self) -> dict:
-        # Returns dynamic schema based on product type
-```
-
-The `SubscriptionInterface` can be implemented or extented by other types or services. This means
-you can:
-
-* Add new fields or resolvers to the interface in other modules or services without changing the
-original definition.
-* Extend the interface with additional product-specific data or logic as your application grows.
-* Support federation, allowing other GraphQL services to reference or build upon this interface,
-enabling integration across multiple services.
-
-
-
-<!-- ```python
-import strawberry
-from strawberry.federation import key
-
-@strawberry.federation.type(description="Orchestrator queries")
-class Query:
-    pass
-
-@strawberry.federation.type(description="Orchestrator mutations")
-class Mutation:
-    pass
-``` -->
+- Set `FEDERATION_ENABLED=True` in your `.env` file
+- See the [`example-orchestrator` documentation](https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation) for a detailed example of setting up federation with the orchestrator-core and other backend services.
 
 ## Extending the Query and Mutation
 
