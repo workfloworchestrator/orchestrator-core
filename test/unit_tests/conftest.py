@@ -4,7 +4,7 @@ import os
 import typing
 from contextlib import closing
 from typing import Any, cast
-from uuid import uuid4, UUID
+from uuid import UUID
 
 import pytest
 import requests
@@ -18,7 +18,9 @@ from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
-
+from amqp.exceptions import ConnectionError as AMQPConnectionError
+from orchestrator.workflow import ProcessStatus
+from orchestrator.targets import Target
 from orchestrator import OrchestratorCore
 from orchestrator.db import (
     ProductBlockTable,
@@ -32,7 +34,7 @@ from orchestrator.db import (
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
-from orchestrator.services.tasks import initialise_celery
+from orchestrator.services.tasks import initialise_celery, NEW_TASK
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings, AppSettings
 from orchestrator.types import SubscriptionLifecycle
@@ -281,9 +283,12 @@ def db_session(database):
         finally:
             # Ensure all connections are closed
             try:
-                close_all_sessions()
-            except Exception:
-                logger.exception("Closing wrapped db connections failed, test teardown may fail")
+                # Remove each session in the registry
+                db.wrapped_database.scoped_session.remove()
+                # Clear the session factory
+                db.wrapped_database.session_factory.close_all()
+            except Exception as e:
+                logger.exception("Closing wrapped db connections failed, test teardown may fail", exc_info=e)
             if not trans._deactivated_from_connection:
                 trans.rollback()
 
@@ -831,49 +836,122 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
 
 
 class TestOrchestratorCelery(Celery):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set test configuration during initialization
+        self.conf.update(
+            task_always_eager=True,
+            task_eager_propagates=True,
+            task_serializer="orchestrator-json",
+            accept_content=["orchestrator-json", "json"],
+            result_serializer="json",
+            task_track_started=True
+        )
+
     def on_init(self) -> None:
         test_settings = AppSettings()
         test_settings.TESTING = True
-
         app = OrchestratorCore(base_settings=test_settings)
 
 
 @pytest.fixture(scope="session")
-def celery_app():
-    cache_uri = "localhost:6379/0"
-    celery = TestOrchestratorCelery(
-        "orchestrator-test",
-        broker=f"redis://{cache_uri}",
-        backend=f"redis://{cache_uri}",
-        include=["orchestrator.services.tasks"],
-    )
-
-    # Set the test config
-    celery.conf.update(
-        task_always_eager=False,  # Set to True in your test for debugging
-        task_ignore_result=False,
-        result_expires=3600,
-        task_serializer="orchestrator-json",
-        accept_content=["orchestrator-json", "json"],
-        result_serializer="json",
-        worker_send_task_events=True,
-        task_send_sent_event=True,
-    )
-    initialise_celery(celery)
-    import orchestrator.services.tasks  # Ensure the real tasks are loaded
-    celery.autodiscover_tasks(['orchestrator.services.tasks'])
-    return celery
+def celery_config():
+    from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, RESUME_TASK, RESUME_WORKFLOW
+    return {
+        "broker_url": "redis://localhost:6379/0",
+        "result_backend": "redis://localhost:6379/0",
+        "task_always_eager": True,
+        "task_eager_propagates": True,
+        "task_track_started": True,
+        "task_serializer": "orchestrator-json",
+        "accept_content": ["orchestrator-json", "json"],
+        "result_serializer": "json",
+        "task_routes": {
+            NEW_TASK: {"queue": "new_tasks"},
+            NEW_WORKFLOW: {"queue": "new_workflows"},
+            RESUME_TASK: {"queue": "resume_tasks"},
+            RESUME_WORKFLOW: {"queue": "resume_workflows"}
+        }
+    }
 
 
-@pytest.fixture
-def celery_worker_parameters():
-    # You must return `task_modules` to make pytest-celery auto-discover your tasks
-    return {"task_modules": ["orchestrator.services.tasks"]}
+@pytest.fixture(autouse=True)
+def setup_test_celery(celery_session_app, monkeypatch):
+    from orchestrator.services.tasks import _celery, register_custom_serializer, initialise_celery
+    monkeypatch.setattr('orchestrator.services.tasks._celery', None)
+    register_custom_serializer()
+    initialise_celery(celery_session_app)
 
 
 @pytest.fixture(scope="session")
-def celery_worker(celery_app):
-    from celery.contrib.testing.worker import start_worker
+def register_celery_tasks(celery_session_app):
+    """Common fixture to register custom serializer and setup basic test tasks."""
+    from orchestrator.services.tasks import (
+        register_custom_serializer,
+        NEW_TASK,
+        NEW_WORKFLOW,
+        RESUME_TASK,
+        RESUME_WORKFLOW
+    )
 
-    with start_worker(celery_app, perform_ping_check=False) as worker:
-        yield worker
+    register_custom_serializer()
+
+    @celery_session_app.task(name=NEW_TASK, serializer="orchestrator-json")
+    def new_task(process_id: str, user: str = "test") -> str:
+        return f"Started new process {process_id}"
+
+    @celery_session_app.task(name=NEW_WORKFLOW, serializer="orchestrator-json")
+    def new_workflow(process_id: str, user: str = "test") -> str:
+        return f"Started new workflow {process_id}"
+
+    @celery_session_app.task(name=RESUME_TASK, serializer="orchestrator-json")
+    def resume_task(process_id: str, user: str = "test") -> str:
+        return f"Resumed task {process_id}"
+
+    @celery_session_app.task(name=RESUME_WORKFLOW, bind=True, throws=(AMQPConnectionError,))
+    def resume_workflow(self, process_id: str, user: str = "test") -> str:
+        if process_id is None:
+            raise ValueError("process_id cannot be None")
+        return f"Resumed workflow {process_id}"
+
+    return {
+        NEW_TASK: new_task,
+        NEW_WORKFLOW: new_workflow,
+        RESUME_TASK: resume_task,
+        RESUME_WORKFLOW: resume_workflow
+    }
+
+
+@pytest.fixture
+def cleanup_test_workflows():
+    """Cleanup test workflows after test execution."""
+    from orchestrator.db import db
+    from orchestrator.db.models import WorkflowTable
+
+    yield
+
+    session = db.wrapped_database.scoped_session
+    try:
+        session.query(WorkflowTable).filter(
+            WorkflowTable.name.like('Test Workflow%')
+        ).delete(synchronize_session=False)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise e
+
+
+@pytest.fixture
+def test_workflow_factory():
+    def _create_workflow(name: str):
+        from orchestrator.db import WorkflowTable, db
+        from orchestrator.targets import Target
+        workflow = WorkflowTable(
+            name=name,
+            description="Test workflow",
+            target=Target.SYSTEM
+        )
+        db.session.add(workflow)
+        db.session.commit()
+        return workflow
+    return _create_workflow
