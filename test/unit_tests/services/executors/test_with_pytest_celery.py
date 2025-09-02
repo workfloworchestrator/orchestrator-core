@@ -6,8 +6,6 @@ from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, RESUME_TASK, RES
 from orchestrator.workflow import ProcessStatus
 from orchestrator.db import db, ProcessTable
 from orchestrator.config.assignee import Assignee
-from orchestrator.targets import Target
-from datetime import datetime, timezone
 
 
 @pytest.mark.celery
@@ -84,32 +82,13 @@ def test_pytest_celery_start_new_process(
     celery_session_app,
     celery_worker,
     register_celery_tasks,
-    test_workflow_factory,
-    cleanup_test_workflows,
+    setup_test_process,
+    cleanup_workflow_and_process,
     generic_subscription_1
 ):
     """Test starting a new process with celery worker"""
-    # Create a test workflow that won't be removed
-    workflow_name = f"Test Workflow {uuid4()}"
-    workflow = test_workflow_factory(workflow_name)
-    workflow.target = Target.SYSTEM
-    workflow.deleted_at = None
-    db.session.add(workflow)
-    db.session.commit()
-    db.session.refresh(workflow)
-
-    # Create a process record
-    process = ProcessTable(
-        process_id=uuid4(),
-        workflow_id=workflow.workflow_id,
-        last_status=ProcessStatus.CREATED,
-        is_task=False,
-        assignee=Assignee.SYSTEM,
-        started_at=datetime.now(timezone.utc)
-    )
-    db.session.add(process)
-    db.session.commit()
-    db.session.refresh(process)
+    # Setup test workflow and process
+    workflow, process = setup_test_process()
 
     try:
         # Submit task to worker
@@ -135,9 +114,7 @@ def test_pytest_celery_start_new_process(
 
     finally:
         # Cleanup
-        db.session.delete(process)
-        db.session.delete(workflow)
-        db.session.commit()
+        cleanup_workflow_and_process(workflow, process)
 
 
 @pytest.mark.celery
@@ -146,33 +123,14 @@ def test_pytest_celery_resume_process(
     celery_session_app,
     celery_worker,
     register_celery_tasks,
-    monkeypatch,
-    test_workflow_factory
+    setup_test_process,
+    cleanup_workflow_and_process
 ):
     """Test resume process using real workflow and process with pytest-celery"""
     from orchestrator.services.executors.celery import _celery_resume_process
 
-    # Create a test workflow that won't be removed
-    workflow_name = f"Test Workflow {uuid4()}"
-    workflow = test_workflow_factory(workflow_name)
-    workflow.target = Target.SYSTEM
-    workflow.deleted_at = None  # Ensure workflow isn't marked as deleted
-    db.session.add(workflow)
-    db.session.commit()
-    db.session.refresh(workflow)  # Ensure we have latest data
-
-    # Create a process record with minimum required fields
-    process = ProcessTable(
-        process_id=uuid4(),
-        workflow_id=workflow.workflow_id,
-        last_status=ProcessStatus.FAILED,
-        is_task=False,
-        assignee=Assignee.SYSTEM,
-        started_at=datetime.now(timezone.utc)
-    )
-    db.session.add(process)
-    db.session.commit()
-    db.session.refresh(process)  # Ensure we have latest data
+    # Setup test workflow and process with FAILED status
+    workflow, process = setup_test_process(process_status=ProcessStatus.FAILED)
 
     try:
         # Test the resume process
@@ -192,8 +150,4 @@ def test_pytest_celery_resume_process(
 
     finally:
         # Cleanup
-        db.session.delete(process)
-        db.session.delete(workflow)  # Clean up the workflow as well
-        db.session.commit()
-
-
+        cleanup_workflow_and_process(workflow, process)
