@@ -38,7 +38,7 @@ def scheduler_dispose_db_connections() -> None:
 
 
 @contextmanager
-def get_pauzed_scheduler() -> Generator[BackgroundScheduler, Any, None]:
+def get_paused_scheduler() -> Generator[BackgroundScheduler, Any, None]:
     scheduler.start(paused=True)
 
     try:
@@ -143,7 +143,7 @@ def get_scheduler_tasks(
     sort_by: list[Sort] | None = None,
     error_handler: CallableErrorHandler = default_error_handler,
 ) -> tuple[list[ScheduledTask], int]:
-    with get_pauzed_scheduler() as pauzed_scheduler:
+    with get_paused_scheduler() as pauzed_scheduler:
         scheduled_tasks = pauzed_scheduler.get_jobs()
 
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)

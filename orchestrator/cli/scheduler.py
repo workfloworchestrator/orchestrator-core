@@ -17,7 +17,7 @@ import logging
 import typer
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from orchestrator.schedules.scheduler import get_pauzed_scheduler, jobstores, scheduler_dispose_db_connections
+from orchestrator.schedules.scheduler import get_paused_scheduler, jobstores, scheduler_dispose_db_connections
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ app: typer.Typer = typer.Typer()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
     # necessary to add the schedules to the DB since they are added to the BackgroundScheduler
-    with get_pauzed_scheduler() as scheduler:
+    with get_paused_scheduler() as scheduler:
         scheduler.resume()
         scheduler.pause()
 
@@ -47,7 +47,7 @@ def show_schedule() -> None:
 
     in cli underscore is replaced by a dash `show-schedule`
     """
-    with get_pauzed_scheduler() as scheduler:
+    with get_paused_scheduler() as scheduler:
         jobs = scheduler.get_jobs()
 
     for job in jobs:
@@ -57,7 +57,7 @@ def show_schedule() -> None:
 @app.command()
 def force(job_id: str) -> None:
     """Force the execution of (a) scheduler(s) based on a job_id."""
-    with get_pauzed_scheduler() as scheduler:
+    with get_paused_scheduler() as scheduler:
         job = scheduler.get_job(job_id)
 
     if not job:
