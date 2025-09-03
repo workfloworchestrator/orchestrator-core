@@ -13,12 +13,11 @@
 
 
 import logging
-from time import sleep
 
-import schedule
 import typer
+from apscheduler.schedulers.blocking import BlockingScheduler
 
-from orchestrator.schedules import ALL_SCHEDULERS
+from orchestrator.schedules.scheduler import get_paused_scheduler, jobstores, scheduler_dispose_db_connections
 
 log = logging.getLogger(__name__)
 
@@ -27,36 +26,48 @@ app: typer.Typer = typer.Typer()
 
 @app.command()
 def run() -> None:
-    """Loop eternally and run schedulers at configured times."""
-    for s in ALL_SCHEDULERS:
-        job = getattr(schedule.every(s.period), s.time_unit)
-        if s.at:
-            job = job.at(s.at)
-        job.do(s).tag(s.name)
-    log.info("Starting Schedule")
-    for j in schedule.jobs:
-        log.info("%s: %s", ", ".join(j.tags), j)
-    while True:
-        schedule.run_pending()
-        idle = schedule.idle_seconds()
-        if idle < 0:
-            log.info("Next job in queue is scheduled in the past, run it now.")
-        else:
-            log.info("Sleeping for %d seconds", idle)
-            sleep(idle)
+    """Start scheduler and loop eternally to keep thread alive."""
+    # necessary to add the schedules to the DB since they are added to the BackgroundScheduler
+    with get_paused_scheduler() as scheduler:
+        scheduler.resume()
+        scheduler.pause()
+
+    blocking_scheduler = BlockingScheduler(jobstores=jobstores, jobstore_update_interval=5)
+
+    try:
+        blocking_scheduler.start()
+    finally:
+        blocking_scheduler.shutdown()
+        scheduler_dispose_db_connections()
 
 
 @app.command()
 def show_schedule() -> None:
-    """Show the currently configured schedule."""
-    for s in ALL_SCHEDULERS:
-        at_str = f"@ {s.at} " if s.at else ""
-        typer.echo(f"{s.name}: {s.__name__} {at_str}every {s.period} {s.time_unit}")
+    """Show the currently configured schedule.
+
+    in cli underscore is replaced by a dash `show-schedule`
+    """
+    with get_paused_scheduler() as scheduler:
+        jobs = scheduler.get_jobs()
+
+    for job in jobs:
+        typer.echo(f"[{job.id}] Next run: {job.next_run_time} | Trigger: {job.trigger}")
 
 
 @app.command()
-def force(keyword: str) -> None:
-    """Force the execution of (a) scheduler(s) based on a keyword."""
-    for s in ALL_SCHEDULERS:
-        if keyword in s.name or keyword in s.__name__:
-            s()
+def force(job_id: str) -> None:
+    """Force the execution of (a) scheduler(s) based on a job_id."""
+    with get_paused_scheduler() as scheduler:
+        job = scheduler.get_job(job_id)
+
+    if not job:
+        typer.echo(f"Job '{job_id}' not found.")
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Running job [{job.id}] now...")
+    try:
+        job.func(*job.args or (), **job.kwargs or {})
+        typer.echo("Job executed successfully.")
+    except Exception as e:
+        typer.echo(f"Job execution failed: {e}")
+        raise typer.Exit(code=1)

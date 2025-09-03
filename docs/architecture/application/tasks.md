@@ -50,6 +50,7 @@ params = dict(
     name="task_sync_from",
     target="SYSTEM",
     description="Nightly validate and NSO sync",
+    is_task=True
 )
 
 
@@ -58,8 +59,8 @@ def upgrade() -> None:
     conn.execute(
         sa.text(
             """
-            INSERT INTO workflows(name, target, description)
-                VALUES (:name, :target, :description)
+            INSERT INTO workflows(name, target, description, is_task)
+                VALUES (:name, :target, :description, true)
             """
         ),
         params,
@@ -71,7 +72,8 @@ This just needs to add an entry in the workflows table. No relations with other 
 
 ### Running the task in the UI
 
-After the migration is applied, the new task will surface in the UI under the tasks tab. It can be manually executed that way. Even if the task does not have any form input, an entry will still need to be made in `orchestrator-client/src/locale/en.ts` or an error will occur.
+After the migration is applied, the new task will surface in the UI under the tasks tab.
+It can be manually executed that way. Even if the task does not have any form input, an entry will still need to be made in `orchestrator-client/src/locale/en.ts` or an error will occur.
 
 ```ts
 // ESnet
@@ -80,37 +82,42 @@ task_sync_from: "Verify and NSO sync",
 
 ## The schedule file
 
-The schedule file is essentially the crontab associated with the task. They are located in `orchestrator/server/schedules/` - a sample schedule file:
+> from `4.3.0` we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and schedule tasks from the API.
+
+The schedule file is essentially the crontab associated with the task.
+They are located in `orchestrator/server/schedules/` - a sample schedule file:
 
 ```python
-from server.schedules.scheduling import scheduler
-from server.services.processes import start_process
+from orchestrator.schedules.scheduler import scheduler
+from orchestrator.services.processes import start_process
 
 
-@scheduler(name="Nightly sync", time_unit="minutes", period=1)
+# previously `scheduler()` which is now deprecated
+@scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="cron", hour=1)
 def run_nightly_sync() -> None:
     start_process("task_sync_from")
 ```
 
-Yes this runs every minute even though it's called `nightly_sync`. There are other variations on the time units that can be used:
+This schedule will start the `task_sync_from` task every day at 01:00.
 
-```python
-time_unit = "hour", period = 1
-time_unit = "hours", period = 6
-time_unit = "day", at = "03:00"
-time_unit = "day", at = "00:10"
-```
+There are multiple triggers that can be used: [data from docs]
 
-And similar to the task/workflow file, the schedule file will need to be registered in `orchestrator/server/schedules/__init__.py`:
+- [IntervalTrigger]: use when you want to run the task at fixed intervals of time.
+- [CronTrigger]: use when you want to run the task periodically at certain time(s) of day.
+- [DateTrigger]: use when you want to run the task just once at a certain point of time.
+- [CalendarIntervalTrigger]: use when you want to run the task on calendar-based intervals, at a specific time of day.
+- [AndTrigger]: use when you want to combine multiple triggers so the task only runs when **all** of them would fire at the same time.
+- [OrTrigger]: use when you want to combine multiple triggers so the task runs when **any one** of them would fire.
 
-```python
-from server.schedules.scheduling import SchedulingFunction
-from server.schedules.nightly_sync import run_nightly_sync
+For detailed configuration options, see the [APScheduler scheduling docs].
 
-ALL_SCHEDULERS: List[SchedulingFunction] = [
-    run_nightly_sync,
-]
-```
+The scheduler automatically loads any schedules that are imported before the scheduler starts.
+To keep things organized and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a `/schedules/__init__.py`.
+
+> `ALL_SCHEDULERS` (Backwards Compatibility)  
+> In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
+> This is no longer required, but ALL_SCHEDULERS is still supported for backwards compatibility.
+
 
 ## Executing the task
 
@@ -167,3 +174,14 @@ def run_nightly_sync() -> None:
 
     start_process("task_sync_from")
 ```
+
+[schedule]: https://pypi.org/project/schedule/
+[apscheduler]: https://pypi.org/project/APScheduler/
+[IntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.interval.IntervalTrigger
+[CronTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.cron.CronTrigger
+[DateTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.date.DateTrigger
+[CalendarIntervalTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.calendarinterval.CalendarIntervalTrigger
+[AndTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.AndTrigger
+[OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
+[APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
+[data from docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers

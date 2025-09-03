@@ -25,7 +25,7 @@ from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked, last
+from more_itertools import chunked, first, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.orm import defer, joinedload
@@ -88,11 +88,17 @@ def check_global_lock() -> None:
         )
 
 
-def get_current_steps(pstat: ProcessStat) -> StepList:
-    """Extract past and current steps from the ProcessStat."""
-    remaining_steps = pstat.log
+def get_steps_to_evaluate_for_rbac(pstat: ProcessStat) -> StepList:
+    """Extract all steps from the ProcessStat for a process that should be evaluated for a RBAC callback.
+
+    For a suspended process this includes all previously completed steps as well as the current step.
+    For a completed process this includes all steps.
+    """
+    if not (remaining_steps := pstat.log):
+        return pstat.workflow.steps
+
     past_steps = pstat.workflow.steps[: -len(remaining_steps)]
-    return StepList(past_steps + [pstat.log[0]])
+    return StepList(past_steps >> first(remaining_steps))
 
 
 def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer | None, Authorizer | None]:
@@ -200,7 +206,7 @@ def resume_process_endpoint(
         raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
 
     pstat = load_process(process)
-    auth_resume, auth_retry = get_auth_callbacks(get_current_steps(pstat), pstat.workflow)
+    auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(pstat), pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:
         if auth_resume is not None and not auth_resume(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")

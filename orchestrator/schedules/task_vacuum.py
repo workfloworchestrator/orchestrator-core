@@ -12,10 +12,10 @@
 # limitations under the License.
 
 
-from orchestrator.schedules.scheduling import scheduler
+from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
 
 
-@scheduler(name="Clean up tasks", time_unit="hours", period=6)
+@scheduler.scheduled_job(id="clean-tasks", name="Clean up tasks", trigger="interval", hours=6)  # type: ignore[misc]
 def vacuum_tasks() -> None:
     start_process("task_clean_up_tasks")
