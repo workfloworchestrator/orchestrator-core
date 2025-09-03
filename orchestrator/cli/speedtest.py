@@ -1,15 +1,16 @@
 import asyncio
 import time
 from typing import Any
+
 import structlog
 import typer
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
-from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
 
 from orchestrator.db import db
-from orchestrator.search.core.types import EntityType
 from orchestrator.search.core.embedding import QueryEmbedder
+from orchestrator.search.core.types import EntityType
 from orchestrator.search.core.validators import is_uuid
 from orchestrator.search.retrieval.engine import execute_search
 from orchestrator.search.retrieval.pagination import PaginationParams
@@ -50,7 +51,7 @@ async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[
     return embedding_lookup
 
 
-async def run_single_query(query: str, embedding_lookup: dict[str, list[float]] = {}) -> dict[str, Any]:
+async def run_single_query(query: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
     search_params = BaseSearchParameters(entity_type=EntityType.SUBSCRIPTION, query=query, limit=30)
 
     if is_uuid(query):
@@ -129,7 +130,7 @@ def quick(
     avg_time = total_time / len(results) * 1000
     max_time = max(r["time"] for r in results) * 1000
 
-    console.print(f"[bold]Summary:[/bold]")
+    console.print("[bold]Summary:[/bold]")
     console.print(f"  Total time: {total_time * 1000:.1f}ms")
     console.print(f"  Average: {avg_time:.1f}ms")
     console.print(f"  Slowest: {max_time:.1f}ms")

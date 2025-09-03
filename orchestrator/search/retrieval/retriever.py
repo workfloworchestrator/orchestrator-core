@@ -2,8 +2,7 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import BindParameter, Float, Numeric, Select, and_, bindparam, case, cast, func, literal, or_, select
-from sqlalchemy.orm import aliased
+from sqlalchemy import BindParameter, Numeric, Select, and_, bindparam, case, cast, func, literal, or_, select
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.db.models import AiSearchIndex
@@ -301,38 +300,37 @@ class RrfHybridRetriever(Retriever):
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
-        I = aliased(AiSearchIndex)
         q_param: BindParameter[list[float]] = bindparam("q_vec", self.q_vec, type_=AiSearchIndex.embedding.type)
 
-        best_similarity = func.word_similarity(self.fuzzy_term, I.value)
+        best_similarity = func.word_similarity(self.fuzzy_term, AiSearchIndex.value)
         sem_expr = case(
-            (I.embedding.is_(None), None),
-            else_=I.embedding.op("<->")(q_param),
+            (AiSearchIndex.embedding.is_(None), None),
+            else_=AiSearchIndex.embedding.op("<->")(q_param),
         )
         sem_val = func.coalesce(sem_expr, literal(1.0)).label("semantic_distance")
 
-        filter_condition = literal(self.fuzzy_term).op("<%")(I.value)
+        filter_condition = literal(self.fuzzy_term).op("<%")(AiSearchIndex.value)
 
         field_candidates = (
             select(
-                I.entity_id,
-                I.path,
-                I.value,
+                AiSearchIndex.entity_id,
+                AiSearchIndex.path,
+                AiSearchIndex.value,
                 sem_val,
                 best_similarity.label("fuzzy_score"),
             )
-            .select_from(I)
-            .join(cand, cand.c.entity_id == I.entity_id)
+            .select_from(AiSearchIndex)
+            .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
             .where(
                 and_(
-                    I.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
+                    AiSearchIndex.value_type.in_(self.SEARCHABLE_FIELD_TYPES),
                     filter_condition,
                 )
             )
             .order_by(
                 best_similarity.desc().nulls_last(),
                 sem_expr.asc().nulls_last(),
-                I.entity_id.asc(),
+                AiSearchIndex.entity_id.asc(),
             )
             .limit(self.field_candidates_limit)
         ).cte("field_candidates")
