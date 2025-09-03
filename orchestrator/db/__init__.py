@@ -14,8 +14,8 @@ from typing import Any, cast
 
 from structlog import get_logger
 
+from orchestrator.db.database import AsyncDatabase, Database, transactional
 from orchestrator.db.database import BaseModel as DbBaseModel
-from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
     EngineSettingsTable,
     FixedInputTable,
@@ -42,15 +42,15 @@ logger = get_logger(__name__)
 
 
 class WrappedDatabase:
-    def __init__(self, wrappee: Database | None = None) -> None:
+    def __init__(self, wrappee: Database | AsyncDatabase | None = None) -> None:
         self.wrapped_database = wrappee
 
-    def update(self, wrappee: Database) -> None:
+    def update(self, wrappee: Database | AsyncDatabase) -> None:
         self.wrapped_database = wrappee
         logger.info("Database object configured, all methods referencing `db` should work.")
 
     def __getattr__(self, attr: str) -> Any:
-        if not isinstance(self.wrapped_database, Database):
+        if not isinstance(self.wrapped_database, Database | AsyncDatabase):
             if "_" in attr:
                 logger.warning("No database configured, but attempting to access class methods")
                 return None
@@ -70,6 +70,15 @@ db = cast(Database, wrapped_db)
 def init_database(settings: AppSettings) -> Database:
     wrapped_db.update(Database(str(settings.DATABASE_URI)))
     return db
+
+
+async_wrapped_db = WrappedDatabase()
+async_db = cast(AsyncDatabase, async_wrapped_db)
+
+
+def init_async_database(settings: AppSettings) -> AsyncDatabase:
+    async_wrapped_db.update(AsyncDatabase(str(settings.DATABASE_URI)))
+    return async_db
 
 
 __all__ = [
@@ -94,6 +103,8 @@ __all__ = [
     "UtcTimestampError",
     "db",
     "init_database",
+    "async_db",
+    "init_async_database",
 ]
 
 ALL_DB_MODELS: list[type[DbBaseModel]] = [

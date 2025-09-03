@@ -12,14 +12,16 @@
 # limitations under the License.
 
 from collections.abc import Callable, Generator, Iterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
-from typing import Any, ClassVar, cast
+from typing import Any, AsyncIterator, ClassVar, Mapping, cast
 from uuid import uuid4
 
 import structlog
+from pydantic import PostgresDsn
 from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
@@ -171,6 +173,7 @@ ENGINE_ARGUMENTS = {
     "json_deserializer": json_loads,
 }
 SESSION_ARGUMENTS = {"class_": WrappedSession, "autocommit": False, "autoflush": True, "query_cls": SearchQuery}
+ASYNC_SESSION_ARGUMENTS = {"class_": AsyncSession, "autocommit": False, "autoflush": True, "query_cls": SearchQuery}
 
 
 class Database:
@@ -220,10 +223,23 @@ class Database:
             self.request_context.reset(token)
 
 
+class AsyncDatabase:
+    def __init__(self, db_url: PostgresDsn | str):
+        self.engine = create_async_engine(str(db_url), **ENGINE_ARGUMENTS)
+        self.session_factory = async_sessionmaker(bind=self.engine, expire_on_commit=False, **ASYNC_SESSION_ARGUMENTS)  # type: ignore[call-overload]
+
+    @asynccontextmanager
+    async def session(self, **kwargs: Mapping) -> AsyncIterator[AsyncSession]:
+        async with self.session_factory() as session:
+            yield session
+
+    async def dispose(self) -> None:
+        await self.engine.dispose()
+
+
 class DBSessionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, database: Database, commit_on_exit: bool = False):
         super().__init__(app)
-        self.commit_on_exit = commit_on_exit
         self.database = database
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:

@@ -14,7 +14,7 @@
 import secrets
 import string
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
@@ -51,7 +51,7 @@ class AppSettings(BaseSettings):
     EXECUTOR: str = ExecutorType.THREADPOOL
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
-    DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
+    DATABASE_URI: PostgresDsn = cast(PostgresDsn, "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core")
     MAX_WORKERS: int = 5
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25

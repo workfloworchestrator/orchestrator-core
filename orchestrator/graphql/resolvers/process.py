@@ -17,7 +17,7 @@ from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from orchestrator.db import ProcessTable, db
+from orchestrator.db import ProcessTable
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.process import PROCESS_TABLE_COLUMN_CLAUSES, filter_processes, process_filter_fields
 from orchestrator.db.models import ProcessSubscriptionTable, SubscriptionTable
@@ -42,7 +42,6 @@ from orchestrator.utils.search_query import create_sqlalchemy_select
 
 logger = structlog.get_logger(__name__)
 
-
 detailed_props = ("steps", "form", "current_state")
 simple_props = tuple([to_lower_camel(key) for key in ProcessType.__annotations__ if key not in detailed_props])
 
@@ -56,9 +55,10 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
 
 
 async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
+    session = info.context.db_session
     query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info)
     stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
-    if process := db.session.scalar(stmt):
+    if process := await session.scalar(stmt):
         is_detailed = _is_process_detailed(info)
         return ProcessType.from_pydantic(_enrich_process(process, is_detailed))
     return None
@@ -72,6 +72,7 @@ async def resolve_processes(
     after: int = 0,
     query: str | None = None,
 ) -> Connection[ProcessType]:
+    session = info.context.db_session
     _error_handler = create_resolver_error_handler(info)
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
@@ -98,7 +99,7 @@ async def resolve_processes(
         stmt = select_stmt
 
     stmt = sort_processes(stmt, pydantic_sort_by, _error_handler)
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     graphql_processes = []

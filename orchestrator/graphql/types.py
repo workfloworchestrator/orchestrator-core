@@ -18,6 +18,7 @@ from typing import Any, NewType, TypeVar
 
 import strawberry
 from graphql import GraphQLError
+from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.dataloader import DataLoader
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.scalars import JSON
@@ -60,16 +61,24 @@ class OrchestratorContext(OauthContext):
         auth_manager: AuthManager,
         broadcast_thread: ProcessDataBroadcastThread | None = None,
         graphql_models: StrawberryModelType | None = None,
+        db_session: AsyncSession | None = None,
     ):
         self.errors: list[GraphQLError] = []
         self.broadcast_thread = broadcast_thread
         self.graphql_models = graphql_models or {}
+        self._db_session = db_session
         self.core_in_use_by_subs_loader: SubsLoaderType = DataLoader(load_fn=in_use_by_subs_loader)
         self.core_depends_on_subs_loader: SubsLoaderType = DataLoader(load_fn=depends_on_subs_loader)
         self.core_last_validation_datetime_loader: LastValidationLoaderType = DataLoader(
             load_fn=last_validation_datetime_loader
         )
         super().__init__(auth_manager)
+
+    @property
+    def db_session(self) -> AsyncSession:
+        if self._db_session is None:
+            raise RuntimeError("No async db session created for strawberry context")
+        return self._db_session
 
 
 OrchestratorInfo = Info[OrchestratorContext, RootValueType]
