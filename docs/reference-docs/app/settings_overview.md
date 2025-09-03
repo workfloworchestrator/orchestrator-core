@@ -87,3 +87,10 @@ The following rules apply when exposing settings:
 - `SecretStr` from `from pydantic import SecretStr` are masked.
 - `SecretStr` from `from orchestrator.utils.expose_settings import SecretStr` are masked.
 - `PostgresDsn` from `from pydantic import PostgresDsn` are masked.
+
+## Overview of AppSettings class
+Toggle the source code block below to get a complete overview of the current application settings.
+::: orchestrator.settings.AppSettings
+    options:
+        heading_level: 4
+        show_source: true
