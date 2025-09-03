@@ -21,7 +21,7 @@ from sqlalchemy.orm import contains_eager
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib.asyncio import gather_nice
-from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.db import ProductTable, SubscriptionTable
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.subscription import (
     filter_by_query_string,
@@ -99,9 +99,10 @@ async def format_subscription(info: OrchestratorInfo, subscription: Subscription
 
 
 async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
+    session = info.context.db_session
     stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
 
-    if subscription := db.session.scalar(stmt):
+    if subscription := await session.scalar(stmt):
         return await format_subscription(info, subscription)
     return None
 
@@ -115,6 +116,7 @@ async def resolve_subscriptions(
     query: str | None = None,
 ) -> Connection[SubscriptionInterface]:
     _error_handler = create_resolver_error_handler(info)
+    session = info.context.db_session
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
@@ -141,12 +143,13 @@ async def resolve_subscriptions(
         stmt = filter_by_query_string(stmt, query)
 
     stmt = cast(Select, sort_subscriptions(stmt, pydantic_sort_by, _error_handler))
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     graphql_subscriptions: list[SubscriptionInterface] = []
     if is_querying_page_data(info):
-        subscriptions = db.session.scalars(stmt).all()
+        query_result = await session.scalars(stmt)
+        subscriptions = query_result.all()
         graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))  # type: ignore
     logger.info("Resolve subscriptions", filter_by=filter_by, total=total)
 

@@ -10,6 +10,7 @@ from strawberry.federation.schema_directives import Key
 
 from oauth2_lib.strawberry import authenticated_field
 from orchestrator.db import FixedInputTable, ProductTable, SubscriptionTable, db
+from orchestrator.db.models import SubscriptionCustomerDescriptionTable
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.graphql.loaders.subscriptions import SubsLoaderType
 from orchestrator.graphql.pagination import EMPTY_PAGE, Connection
@@ -188,14 +189,21 @@ class SubscriptionInterface:
         )
 
     @strawberry.field(description="Returns customer descriptions of a subscription")  # type: ignore
-    def customer_descriptions(self) -> list[CustomerDescription]:
+    async def customer_descriptions(self, info: OrchestratorInfo) -> list[CustomerDescription]:
+        session = info.context.db_session
         db_model = self._original_model  # type: ignore
         if not isinstance(self._original_model, SubscriptionTable):  # type: ignore
             db_model = self._original_model._db_model  # type: ignore
-        return [
-            CustomerDescription.from_pydantic(customer_description)
-            for customer_description in db_model.customer_descriptions
-        ]
+
+        # Lazy-loading of 'customer_descriptions' relationship does not work with async dbapi
+        # see https://docs.sqlalchemy.org/en/20/errors.html#error-xd2s for more detail
+        result = await session.execute(
+            select(SubscriptionCustomerDescriptionTable).where(
+                SubscriptionCustomerDescriptionTable.subscription_id == db_model.subscription_id
+            )
+        )
+        rows = result.scalars().all()
+        return [CustomerDescription.from_pydantic(customer_description) for customer_description in rows]
 
     @strawberry.field(name="_metadataSchema", description="Returns metadata schema of a subscription")  # type: ignore
     def metadata_schema(self) -> dict:
