@@ -12,7 +12,7 @@ The Orchestrator engine operates in three distinct states that control workflow 
 | `PAUSING` | Transitional state during shutdown | No new workflows accepted, existing workflows are being gracefully stopped | Automatically transitions to `PAUSED` when complete |
 | `PAUSED` | Fully stopped state | No workflow activity, all processes stopped | Can transition back to `RUNNING` |
 
-## Pausing the Orchestrator
+## Pause and Resume the Orchestrator
 There are several ways to pause (and resume) the Orchestrator:
 
 ### 1. Using the API

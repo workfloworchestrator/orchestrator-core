@@ -93,4 +93,3 @@ Toggle the source code block below to get a complete overview of the current app
 ::: orchestrator.settings.AppSettings
     options:
         heading_level: 4
-        show_source: true
