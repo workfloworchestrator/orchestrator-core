@@ -53,12 +53,17 @@ class Retriever(ABC):
         fuzzy_term = params.fuzzy_term
         q_vec = await cls._get_query_vector(params.vector_query, pagination_params.q_vec_override)
 
-        if q_vec is not None and fuzzy_term is not None:
-            return RrfHybridRetriever(q_vec, fuzzy_term, pagination_params)
+        # If semantic search was attempted but failed, fall back to fuzzy with the full query
+        fallback_fuzzy_term = fuzzy_term
+        if q_vec is None and params.vector_query is not None and params.query is not None:
+            fallback_fuzzy_term = params.query
+
+        if q_vec is not None and fallback_fuzzy_term is not None:
+            return RrfHybridRetriever(q_vec, fallback_fuzzy_term, pagination_params)
         if q_vec is not None:
             return SemanticRetriever(q_vec, pagination_params)
-        if fuzzy_term is not None:
-            return FuzzyRetriever(fuzzy_term, pagination_params)
+        if fallback_fuzzy_term is not None:
+            return FuzzyRetriever(fallback_fuzzy_term, pagination_params)
 
         return StructuredRetriever(pagination_params)
 
@@ -78,6 +83,7 @@ class Retriever(ABC):
         q_vec = await QueryEmbedder.generate_for_text_async(vector_query)
         if not q_vec:
             logger.warning("Embedding generation failed; using non-semantic retriever")
+            return None
 
         return q_vec
 
@@ -96,6 +102,11 @@ class Retriever(ABC):
             A new `Select` statement with ranking expressions applied.
         """
         ...
+
+    def _quantize_score_for_pagination(self, score_value: float) -> BindParameter[Decimal]:
+        """Convert score value to properly quantized Decimal parameter for pagination."""
+        pas_dec = Decimal(str(score_value)).quantize(Decimal("0.000000000001"))
+        return literal(pas_dec, type_=self.SCORE_NUMERIC_TYPE)
 
     @property
     @abstractmethod
@@ -211,8 +222,15 @@ class SemanticRetriever(Retriever):
         dist = AiSearchIndex.embedding.l2_distance(self.vector_query)
 
         raw_min = func.min(dist).over(partition_by=AiSearchIndex.entity_id)
+
+        # Normalize score to preserve ordering in accordance with other retrievers:
+        # smaller distance = higher score
+        similarity = literal(1.0, type_=self.SCORE_NUMERIC_TYPE) / (
+            literal(1.0, type_=self.SCORE_NUMERIC_TYPE) + cast(raw_min, self.SCORE_NUMERIC_TYPE)
+        )
+
         score = cast(
-            func.round(cast(-raw_min, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
+            func.round(cast(similarity, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION), self.SCORE_NUMERIC_TYPE
         ).label(self.SCORE_LABEL)
 
         combined_query = (
@@ -253,7 +271,7 @@ class SemanticRetriever(Retriever):
     ) -> Select:
         """Apply semantic score pagination with precise Decimal handling."""
         if self.page_after_score is not None and self.page_after_id is not None:
-            score_param = self._convert_to_decimal_param(self.page_after_score)
+            score_param = self._quantize_score_for_pagination(self.page_after_score)
             stmt = stmt.where(
                 or_(
                     score_column < score_param,
@@ -261,12 +279,6 @@ class SemanticRetriever(Retriever):
                 )
             )
         return stmt
-
-    def _convert_to_decimal_param(self, score_value: float) -> BindParameter[Decimal]:
-        """Convert score value to properly typed Decimal parameter for SQLAlchemy."""
-        pas_dec = Decimal(str(score_value))
-        pas_dec = pas_dec.quantize(Decimal("0.000000000001"))
-        return literal(pas_dec, type_=self.SCORE_NUMERIC_TYPE)
 
 
 class RrfHybridRetriever(Retriever):
@@ -282,7 +294,6 @@ class RrfHybridRetriever(Retriever):
     ) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
-        self.page_after_perfect_match = pagination_params.page_after_perfect_match
         self.page_after_score = pagination_params.page_after_score
         self.page_after_id = pagination_params.page_after_id
         self.k = k
@@ -372,9 +383,34 @@ class RrfHybridRetriever(Retriever):
             )
         ).cte("ranked_results")
 
+        # RRF (rank-based)
         rrf_raw = (1.0 / (self.k + ranked.c.sem_rank)) + (1.0 / (self.k + ranked.c.fuzzy_rank))
-        score = cast(func.round(cast(rrf_raw, Numeric), self.SCORE_PRECISION), Float).label(self.SCORE_LABEL)
-        perfect = case((ranked.c.avg_fuzzy_score >= 0.9, 0), else_=1).label("perfect_match")
+        rrf_num = cast(rrf_raw, self.SCORE_NUMERIC_TYPE)
+
+        # Perfect flag to boost near perfect fuzzy matches as this most likely indicates the desired record.
+        perfect = case((ranked.c.avg_fuzzy_score >= 0.9, 1), else_=0).label("perfect_match")
+
+        # Dynamic beta based on k (and number of sources)
+        # rrf_max = n_sources / (k + 1)
+        k_num = literal(float(self.k), type_=self.SCORE_NUMERIC_TYPE)
+        n_sources = literal(2.0, type_=self.SCORE_NUMERIC_TYPE)  # semantic + fuzzy
+        rrf_max = n_sources / (k_num + literal(1.0, type_=self.SCORE_NUMERIC_TYPE))
+
+        # Choose a small positive margin above rrf_max to ensure strict separation
+        # Keep it small to avoid compressing perfects near 1 after normalization
+        margin = rrf_max * literal(0.05, type_=self.SCORE_NUMERIC_TYPE)  # 5% above bound
+        beta = rrf_max + margin
+
+        fused_num = rrf_num + beta * cast(perfect, self.SCORE_NUMERIC_TYPE)
+
+        # Normalize to [0,1] via the theoretical max (beta + rrf_max)
+        norm_den = beta + rrf_max
+        normalized_score = fused_num / norm_den
+
+        score = cast(
+            func.round(cast(normalized_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION),
+            self.SCORE_NUMERIC_TYPE,
+        ).label(self.SCORE_LABEL)
 
         stmt = select(
             ranked.c.entity_id,
@@ -384,39 +420,26 @@ class RrfHybridRetriever(Retriever):
             perfect.label("perfect_match"),
         ).select_from(ranked)
 
-        stmt = self._apply_hybrid_pagination(stmt, perfect, score, ranked.c.entity_id)
+        stmt = self._apply_fused_pagination(stmt, score, ranked.c.entity_id)
 
         return stmt.order_by(
-            perfect.asc(),
-            score.desc(),
+            score.desc().nulls_last(),
             ranked.c.entity_id.asc(),
         ).params(q_vec=self.q_vec)
 
-    def _apply_hybrid_pagination(
+    def _apply_fused_pagination(
         self,
         stmt: Select,
-        perfect_match_column: ColumnElement,
         score_column: ColumnElement,
         entity_id_column: ColumnElement,
     ) -> Select:
-        """Apply 3-level cursor pagination: perfect_match + score + entity_id."""
-        if (
-            self.page_after_perfect_match is not None
-            and self.page_after_score is not None
-            and self.page_after_id is not None
-        ):
+        """Keyset paginate by fused score + id."""
+        if self.page_after_score is not None and self.page_after_id is not None:
+            score_param = self._quantize_score_for_pagination(self.page_after_score)
             stmt = stmt.where(
                 or_(
-                    perfect_match_column > self.page_after_perfect_match,
-                    and_(
-                        perfect_match_column == self.page_after_perfect_match,
-                        score_column < self.page_after_score,
-                    ),
-                    and_(
-                        perfect_match_column == self.page_after_perfect_match,
-                        score_column == self.page_after_score,
-                        entity_id_column > self.page_after_id,
-                    ),
+                    score_column < score_param,
+                    and_(score_column == score_param, entity_id_column > self.page_after_id),
                 )
             )
         return stmt

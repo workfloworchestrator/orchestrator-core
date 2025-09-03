@@ -22,24 +22,29 @@ class SearchMetadata:
 
     @classmethod
     def structured(cls) -> "SearchMetadata":
-        return cls(search_type="structured", description="Filter-based search using structured queries")
+        return cls(
+            search_type="structured", description="This search performs a filter-based search using structured queries."
+        )
 
     @classmethod
     def fuzzy(cls) -> "SearchMetadata":
-        return cls(search_type="fuzzy", description="PostgreSQL trigram similarity search using similarity() function")
+        return cls(
+            search_type="fuzzy",
+            description="This search performs a trigram similarity search.",
+        )
 
     @classmethod
     def semantic(cls) -> "SearchMetadata":
         return cls(
             search_type="semantic",
-            description="Vector similarity using L2 distance on embeddings with minimum distance scoring",
+            description="This search performs a vector similarity search, using L2 distance on embeddings with minimum distance scoring (normalized).",
         )
 
     @classmethod
     def hybrid(cls) -> "SearchMetadata":
         return cls(
             search_type="hybrid",
-            description="Reciprocal rank fusion combining trigram similarity(), word_similarity(), and L2 vector distance",
+            description="This search performs reciprocal rank fusion combining trigram similarity, word_similarity, and L2 vector distance.",
         )
 
     @classmethod

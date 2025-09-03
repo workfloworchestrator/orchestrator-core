@@ -55,8 +55,8 @@ class QueryEmbedder:
                 input=[text.lower()],
                 api_key=app_settings.OPENAI_API_KEY,
                 base_url=app_settings.OPENAI_BASE_URL,
-                timeout=app_settings.LLM_TIMEOUT,
-                max_retries=app_settings.LLM_MAX_RETRIES,
+                timeout=5.0,
+                max_retries=0,  # No retries, prioritize speed.
             )
             return resp.data[0]["embedding"]
         except Exception as e:

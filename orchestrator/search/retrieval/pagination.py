@@ -13,7 +13,6 @@ from orchestrator.search.schemas.results import SearchResult
 class PaginationParams:
     """Parameters for pagination in search queries."""
 
-    page_after_perfect_match: int | None = None
     page_after_score: float | None = None
     page_after_id: str | None = None
     q_vec_override: list[float] | None = None
@@ -32,7 +31,6 @@ def b64_to_floats(s: str) -> list[float]:
 
 
 class PageCursor(BaseModel):
-    perfect_match: int
     score: float
     id: str
     q_vec_b64: str
@@ -57,7 +55,6 @@ async def process_pagination_cursor(cursor: str | None, search_params: BaseSearc
     if cursor:
         c = PageCursor.decode(cursor)
         return PaginationParams(
-            page_after_perfect_match=c.perfect_match,
             page_after_score=c.score,
             page_after_id=c.id,
             q_vec_override=b64_to_floats(c.q_vec_b64),
@@ -78,7 +75,6 @@ def create_next_page_cursor(
     if has_next_page:
         last_item = search_results[-1]
         cursor_data = PageCursor(
-            perfect_match=last_item.perfect_match,
             score=float(last_item.score),
             id=last_item.entity_id,
             q_vec_b64=floats_to_b64(pagination_params.q_vec_override or []),
