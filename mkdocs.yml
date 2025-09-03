@@ -186,6 +186,7 @@ nav:
                 - Python Version: reference-docs/python.md
                 - Scaling: reference-docs/app/scaling.md
                 - Settings: reference-docs/app/settings_overview.md
+                - Pausing the Orchestrator: reference-docs/app/pausing.md
           # - Tasks:  reference-docs/tasks.md
           # - Tests: reference-docs/tests.md
           - Workflows:
