@@ -4,7 +4,7 @@ import os
 import typing
 from contextlib import closing
 from typing import Any, cast
-from uuid import UUID
+from uuid import uuid4
 
 import pytest
 import requests
@@ -15,13 +15,11 @@ from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
-from sqlalchemy.orm.session import sessionmaker
+from sqlalchemy.orm.session import sessionmaker, close_all_sessions
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
-from amqp.exceptions import ConnectionError as AMQPConnectionError
-from orchestrator.workflow import ProcessStatus
-from orchestrator.targets import Target
 from orchestrator import OrchestratorCore
+from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
     ProductBlockTable,
     ProductTable,
@@ -29,14 +27,13 @@ from orchestrator.db import (
     SubscriptionCustomerDescriptionTable,
     SubscriptionMetadataTable,
     WorkflowTable,
-    db,
+    db, ProcessTable, ProcessSubscriptionTable,
 )
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
-from orchestrator.services.tasks import initialise_celery, NEW_TASK
 from orchestrator.services.translations import generate_translations
-from orchestrator.settings import app_settings, AppSettings
+from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis_client import create_redis_client
@@ -245,15 +242,6 @@ def database(db_uri):
         db.wrapped_database.engine.dispose()
         with closing(engine.connect()) as conn:
             conn.execute(text("COMMIT;"))
-            # Terminate other connections
-            conn.execute(
-                text(f"""
-                        SELECT pg_terminate_backend(pid)
-                        FROM pg_stat_activity
-                        WHERE datname = '{db_to_create}' AND pid <> pg_backend_pid();
-                    """)
-            )
-            conn.execute(text("COMMIT;"))
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
@@ -283,12 +271,9 @@ def db_session(database):
         finally:
             # Ensure all connections are closed
             try:
-                # Remove each session in the registry
-                db.wrapped_database.scoped_session.remove()
-                # Clear the session factory
-                db.wrapped_database.session_factory.close_all()
-            except Exception as e:
-                logger.exception("Closing wrapped db connections failed, test teardown may fail", exc_info=e)
+                close_all_sessions()
+            except Exception:
+                logger.exception("Closing wrapped db connections failed, test teardown may fail")
             if not trans._deactivated_from_connection:
                 trans.rollback()
 
@@ -714,7 +699,7 @@ def product_type_1_subscriptions_factory(product_type_1_subscription_factory):
             product_type_1_subscription_factory(
                 description=f"Subscription {i}",
                 start_date=(
-                        datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
+                    datetime.datetime.fromisoformat("2023-05-24T00:00:00+00:00") + datetime.timedelta(days=i)
                 ).replace(tzinfo=datetime.UTC),
             )
             for i in range(0, amount)
@@ -748,6 +733,34 @@ def validation_workflow_instance():
     with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
         yield ctx
 
+@pytest.fixture
+def validation_workflow_process_instance(generic_subscription_1, validation_workflow_instance):
+    """Fixture to create a ProcessSubscriptionTable entry for testing."""
+    start_time = datetime.datetime.now(datetime.UTC)
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=validation_workflow_instance.workflow_id,
+        last_status="completed",
+        last_step="Modify",
+        started_at=start_time,
+        last_modified_at=start_time + datetime.timedelta(seconds=10),
+        assignee=Assignee.SYSTEM,
+        is_task=True,
+    )
+
+    process_subscription = ProcessSubscriptionTable(
+        subscription_id=generic_subscription_1,
+        process_id=process_id,
+        workflow_target=validation_workflow_instance.target,
+        created_at=start_time,
+    )
+
+    db.session.add(process)
+    db.session.add(process_subscription)
+    db.session.commit()
+    return process, process_subscription
+
 
 @pytest.fixture
 def make_customer_description():
@@ -766,7 +779,7 @@ def make_customer_description():
 def cache_fixture(monkeypatch):
     """Fixture to enable domain model caching and cleanup keys added to the list."""
     with monkeypatch.context():
-        cache = create_redis_client(app_settingsapp_settings.CACHE_URI)
+        cache = create_redis_client(app_settings.CACHE_URI)
         # Clear cache before using this fixture
         cache.flushdb()
 
@@ -833,125 +846,3 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
         yield monitor_queries
     else:
         yield noop
-
-
-class TestOrchestratorCelery(Celery):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Set test configuration during initialization
-        self.conf.update(
-            task_always_eager=True,
-            task_eager_propagates=True,
-            task_serializer="orchestrator-json",
-            accept_content=["orchestrator-json", "json"],
-            result_serializer="json",
-            task_track_started=True
-        )
-
-    def on_init(self) -> None:
-        test_settings = AppSettings()
-        test_settings.TESTING = True
-        app = OrchestratorCore(base_settings=test_settings)
-
-
-@pytest.fixture(scope="session")
-def celery_config():
-    from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, RESUME_TASK, RESUME_WORKFLOW
-    return {
-        "broker_url": "redis://localhost:6379/0",
-        "result_backend": "redis://localhost:6379/0",
-        "task_always_eager": True,
-        "task_eager_propagates": True,
-        "task_track_started": True,
-        "task_serializer": "orchestrator-json",
-        "accept_content": ["orchestrator-json", "json"],
-        "result_serializer": "json",
-        "task_routes": {
-            NEW_TASK: {"queue": "new_tasks"},
-            NEW_WORKFLOW: {"queue": "new_workflows"},
-            RESUME_TASK: {"queue": "resume_tasks"},
-            RESUME_WORKFLOW: {"queue": "resume_workflows"}
-        }
-    }
-
-
-@pytest.fixture(autouse=True)
-def setup_test_celery(celery_session_app, monkeypatch):
-    from orchestrator.services.tasks import _celery, register_custom_serializer, initialise_celery
-    monkeypatch.setattr('orchestrator.services.tasks._celery', None)
-    register_custom_serializer()
-    initialise_celery(celery_session_app)
-
-
-@pytest.fixture(scope="session")
-def register_celery_tasks(celery_session_app):
-    """Common fixture to register custom serializer and setup basic test tasks."""
-    from orchestrator.services.tasks import (
-        register_custom_serializer,
-        NEW_TASK,
-        NEW_WORKFLOW,
-        RESUME_TASK,
-        RESUME_WORKFLOW
-    )
-
-    register_custom_serializer()
-
-    @celery_session_app.task(name=NEW_TASK, serializer="orchestrator-json")
-    def new_task(process_id: str, user: str = "test") -> str:
-        return f"Started new process {process_id}"
-
-    @celery_session_app.task(name=NEW_WORKFLOW, serializer="orchestrator-json")
-    def new_workflow(process_id: str, user: str = "test") -> str:
-        return f"Started new workflow {process_id}"
-
-    @celery_session_app.task(name=RESUME_TASK, serializer="orchestrator-json")
-    def resume_task(process_id: str, user: str = "test") -> str:
-        return f"Resumed task {process_id}"
-
-    @celery_session_app.task(name=RESUME_WORKFLOW, bind=True, throws=(AMQPConnectionError,))
-    def resume_workflow(self, process_id: str, user: str = "test") -> str:
-        if process_id is None:
-            raise ValueError("process_id cannot be None")
-        return f"Resumed workflow {process_id}"
-
-    return {
-        NEW_TASK: new_task,
-        NEW_WORKFLOW: new_workflow,
-        RESUME_TASK: resume_task,
-        RESUME_WORKFLOW: resume_workflow
-    }
-
-
-@pytest.fixture
-def cleanup_test_workflows():
-    """Cleanup test workflows after test execution."""
-    from orchestrator.db import db
-    from orchestrator.db.models import WorkflowTable
-
-    yield
-
-    session = db.wrapped_database.scoped_session
-    try:
-        session.query(WorkflowTable).filter(
-            WorkflowTable.name.like('Test Workflow%')
-        ).delete(synchronize_session=False)
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-
-
-@pytest.fixture
-def test_workflow_factory():
-    def _create_workflow(name: str):
-        from orchestrator.db import WorkflowTable, db
-        from orchestrator.targets import Target
-        workflow = WorkflowTable(
-            name=name,
-            description="Test workflow",
-            target=Target.SYSTEM
-        )
-        db.session.add(workflow)
-        db.session.commit()
-        return workflow
-    return _create_workflow
