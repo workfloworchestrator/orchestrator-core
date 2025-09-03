@@ -18,6 +18,7 @@ To see more details about the workflow lifecycle states and functions, read on t
         - modify_workflow
         - terminate_workflow
         - validate_workflow
+        - reconcile_workflow
         - workflow
 
 ::: orchestrator.workflow.workflow
