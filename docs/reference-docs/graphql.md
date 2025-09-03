@@ -72,7 +72,8 @@ paginated results.
 ### How to enable Federation in the `orchestrator-core`?
 
 - Set `FEDERATION_ENABLED=True` in your `.env` file
-- See the [`example-orchestrator` documentation](https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation) for a detailed example of setting up federation with the orchestrator-core and other backend services.
+- See the [`example-orchestrator` documentation][example-orchestrator] for a detailed example of
+setting up federation with the orchestrator-core and other backend services.
 
 ## Extending the Query and Mutation
 
@@ -750,3 +751,6 @@ and won't include `10G` or `100G`.
 Searching can also be configured for partial matching as well, where a search for `10` would include `10G` and `100G`.
 
 This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a value of `exact` or `partial` as needed.
+
+
+[example-orchestrator]: https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation
