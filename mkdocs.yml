@@ -37,10 +37,10 @@ plugins:
     - search
     - open-in-new-tab
     - render_swagger
-#     - macros
+    - macros
     - include-markdown
     - privacy
-#     - social
+    - social
     - mkdocstrings:
           default_handler: python
           enable_inventory: true
