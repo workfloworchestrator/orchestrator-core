@@ -8,6 +8,7 @@ import pytest
 import redis
 import structlog
 from celery import Celery
+from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.tasks import (
@@ -21,12 +22,7 @@ from orchestrator.services.tasks import (
 from orchestrator.settings import AppSettings
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
-
-# Configure structlog to handle exceptions properly in tests
-logger = structlog.get_logger(__name__)
-
-# Import fixtures from unit tests conftest
-from test.unit_tests.conftest import (  # noqa: F401  lgtm[py/unused-import]
+from test.unit_tests.conftest import (  # noqa: F401,E402
     database,
     db_session,
     # Database fixtures
@@ -38,6 +34,9 @@ from test.unit_tests.conftest import (  # noqa: F401  lgtm[py/unused-import]
     # Base workflow fixtures
     run_migrations,
 )
+
+# Configure structlog to handle exceptions properly in tests
+logger = structlog.get_logger(__name__)  # noqa: F811
 
 # Singleton Redis connection pool
 _redis_pool = None
@@ -104,7 +103,7 @@ class TestOrchestratorCelery(Celery):
 
 
 @pytest.fixture
-def setup_test_process(request, db_session):
+def setup_test_process(request, db_session):  # noqa: F811
     """Create test workflow and process for celery tests.
 
     Args:
@@ -136,13 +135,12 @@ def setup_test_process(request, db_session):
 
 
 @pytest.fixture
-def setup_base_workflows(db_session):
+def setup_base_workflows(db_session):  # noqa: F811
     """Create base workflows needed for tests.
 
     Returns:
         WorkflowTable: The created or existing modify_note workflow
     """
-    from sqlalchemy import select
 
     # Check if workflow exists
     existing = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
