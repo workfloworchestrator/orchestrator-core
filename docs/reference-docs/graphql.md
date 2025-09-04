@@ -1,9 +1,9 @@
 # GraphQL documentation
 
-The `orchestrator-core` comes with a graphql interface that can to be registered after you create your OrchestratorApp.
-If you add it after registering your `SUBSCRIPTION_MODEL_REGISTRY` it will automatically create graphql types for them.
+The `orchestrator-core` comes with a GraphQL interface that can to be registered after you create your OrchestratorApp.
+If you add it after registering your `SUBSCRIPTION_MODEL_REGISTRY` it will automatically create GraphQL types for them.
 
-example:
+Example:
 
 ```python
 app = OrchestratorCore(base_settings=AppSettings())
@@ -11,10 +11,74 @@ app = OrchestratorCore(base_settings=AppSettings())
 app.register_graphql()
 ```
 
+## How we use Strawberry for GraphQL
+
+### What is Strawberry?
+[Strawberry](https://strawberry.rocks/) is a Python library for building GraphQL APIs using a
+code-first approach. It allows you to define your GraphQL schema using Python classes and type
+annotations.
+
+Here is a simple example of how Strawberry create's a schema:
+
+```python
+import typing
+import strawberry
+
+
+@strawberry.type
+class Book:
+    title: str
+    author: "Author"
+
+
+@strawberry.type
+class Author:
+    name: str
+    books: typing.List[Book]
+
+
+schema = strawberry.Schema(query=Query)
+```
+
+The schema defines a hierarchy of types with fields that are populated from data stores. The schema
+also specifies exactly which queries and mutations are available for clients to execute.
+
+### How do we use Strawberry GraphQL in the `orchestrator-core`?
+
+Strawberry GraphQL is used to define and expose a GraphQL API for orchestrating products,
+subscriptions, and related entities. Here’s a brief overview of how GraphQL is used:
+
+* **Schema Definition:** GraphQL types, interfaces, and inputs are defined using Strawberry
+decorators (e.g., `@strawberry.field`, `@strawberry.type`, `@strawberry.interface`,
+`@strawberry.input`). These are mapped to Pydantic models and SQLAlchemy tables for type safety and
+data validation.
+
+* **Resolvers:** Resolver functions (e.g., `resolve_subscriptions`, `resolve_products`) are
+implemented to fetch and return data from the database, often using SQLAlchemy queries. These
+resolvers are attached to fields in the schema.
+
+* **Pagination, Filtering, Sorting**: The API supports pagination, filtering, and sorting for list
+queries, using custom types like `GraphqlFilter`, `GraphqlSort`, and a `Connection` type for
+paginated results.
+
+* **Federation:** Some types use Strawberry’s federation features
+(e.g., `@strawberry.federation.interface`) to support a federated GraphQL architecture.
+
+!!! info "Federation"
+    Federation allows you to combine multiple, distributed GraphQL services into one unified API. This is extremely
+    useful when working with multiple services, as it enables you to develop, deploy, and scale GraphQL
+    services independently while presenting a single schema to clients.
+
+### How to enable Federation in the `orchestrator-core`?
+
+- Set `FEDERATION_ENABLED=True` in your `.env` file
+- See the [`example-orchestrator` documentation][example-orchestrator] for a detailed example of
+setting up federation with the orchestrator-core and other backend services.
+
 ## Extending the Query and Mutation
 
 You are not able to remove resolvers from a Query, so we split the Query into 2 and merged them back for a default Query.
-Our usecase for this is that we use an external graphql source as our customers root.
+Our usecase for this is that we use an external GraphQL source as our customers root.
 
 - `OrchestratorQuery` all resolvers except for customers.
 - `CustomerQuery` only has `customers` resolver.
@@ -56,11 +120,13 @@ app = OrchestratorCore(base_settings=AppSettings())
 app.register_graphql(query=NewQuery)
 ```
 
-## Adding federated types to the graphql
+## Adding federated types to the GraphQL
 
-federation introduction: https://strawberry.rocks/docs/federation/introduction
+For an introduction to federation using Strawberry, see the [Strawberry federation docs](https://strawberry.rocks/docs/federation/introduction).
 
-Within a federation, it is possible to add orchestrator data to graphql types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`. Here is an example for when instead of overriding the customers resolver, you instead use a different graphql source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
+Within a federation, it is possible to add orchestrator data to GraphQL types from other sources by extending the `DEFAULT_GRAPHL_MODELS` dictionary with your own federated classes and adding them as parameter to `app.register_graphql(graphql_models={})`.
+
+Here is an example for when instead of overriding the customers resolver, you instead use a different GraphQL source (know that not storing any customer data in the orchestator will make filtering and sorting unavailable and very tricky to implement):
 
 ```python
 import strawberry
@@ -102,10 +168,11 @@ UPDATED_GRAPHQL_MODELS = DEFAULT_GRAPHQL_MODELS | {
 app.register_graphql(query=OrchestratorQuery, graphql_models=UPDATED_GRAPHQL_MODELS)
 ```
 
-Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the graphql ui interface.
-Adding product or product block strawberry types to the `graphql_models` will skip their generation inside `register_domain_models`. More info [here](#domain-models-auto-registration-for-graphql)
+Types that are added in this way but aren't used in a resolver, will be viewable outside of a federation inside the types in the GraphQL UI interface.
 
-## Add Json schema for metadata
+Adding product or product block Strawberry types to the `graphql_models` will skip their generation inside `register_domain_models`. More info [here](#domain-models-auto-registration-for-graphql)
+
+## Add JSON schema for metadata
 
 The metadata in a subscription is completely unrestricted and can have anything.
 This functionality is to make metadata descriptive in a `__schema__` for the frontend to be able to render the metadata and know what to do with typing.
@@ -366,17 +433,17 @@ By following these examples, you can effectively federate autogenerated types (`
 
 ### Usage of USE_PYDANTIC_ALIAS_MODEL_MAPPING
 
-`USE_PYDANTIC_ALIAS_MODEL_MAPPING` is a mapping to prevent pydantic field alias from being used as field names when creating strawberry types in the domain model autoregistration.
-Our usecase for this is that functions decorated with pydantics `@computed_field` and `@property` in domain models are not converted to strawberry fields inside the strawberry types.
-to add the function properties, we use a aliased pydantic field:
+`USE_PYDANTIC_ALIAS_MODEL_MAPPING` is a mapping to prevent pydantic field alias from being used as field names when creating Strawberry types in the domain model autoregistration.
+Our use case for this is that functions decorated with pydantics `@computed_field` and `@property` in domain models are not converted to Strawberry fields inside the Strawberry types.
+To add the function properties, we use a aliased pydantic field:
 
 ```python
 class ExampleProductInactive(SubscriptionModel, is_base=True):
-    # this aliased property is used to add `property_example` as strawberry field.
+    # this aliased property is used to add `property_example` as Strawberry field.
     # you need a default it the value can't be `None` since it doesn't directly add the return value of property_example
     aliased_property_example: Field(alias="property_example", default="")
 
-    # this computed property function does not get converted into the strawberry type.
+    # this computed property function does not get converted into the Strawberry type.
     @computed_field  # type: ignore[misc]
     @property
     def property_example(self) -> str:
@@ -393,8 +460,8 @@ class ExampleProduct(ExampleProductInactive, lifecycle=[SubscriptionLifecycle.AC
     pass
 ```
 
-The problem with this is that strawberry automatically uses the alias name and doesn't camelcase it so the strawberry field becomes `property_example`.
-To fix it and have camelcasing, we can prevent aliases from being used in strawberry.type using the created mapping `USE_PYDANTIC_ALIAS_MODEL_MAPPING`:
+The problem with this is that Strawberry automatically uses the alias name and doesn't camelcase it so the Strawberry field becomes `property_example`.
+To fix it and have CamelCasing, we can prevent aliases from being used in `strawberry.type` using the created mapping `USE_PYDANTIC_ALIAS_MODEL_MAPPING`:
 
 ```python
 from orchestrator.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPING
@@ -402,23 +469,23 @@ from orchestrator.graphql.autoregistration import USE_PYDANTIC_ALIAS_MODEL_MAPPI
 USE_PYDANTIC_ALIAS_MODEL_MAPPING.update({"ExampleProductSubscription": False})
 ```
 
-which would now give us a strawberry field `aliasedPropertyExample`.
-To name it `propertyExample` you can't override the function property name and have two choices.
+which would now give us a Strawberry field `aliasedPropertyExample`.
+To name it `propertyExample` you can't override the function property name and have two choices:
 
-1. camelcase the aliased property:
+1. CamelCase the aliased property:
    ```python
    class ExampleProductInactive(SubscriptionModel, is_base=True):
-       # this aliased property is used to add `property_example` as strawberry field.
+       # this aliased property is used to add `property_example` as Strawberry field.
        propertyExample: Field(alias="property_example")
    ```
 
-2. rename the property function and name the aliased field correctly, when accessing outside of the graphql field, you do need to use `computed_property_example` instead of `property_example`:
+2. Rename the property function and name the aliased field correctly, when accessing outside of the GraphQLfield, you do need to use `computed_property_example` instead of `property_example`:
    ```python
    class ExampleProductInactive(SubscriptionModel, is_base=True):
-       # this aliased property is used to add `property_example` as strawberry field.
+       # this aliased property is used to add `property_example` as Strawberry field.
        property_example: Field(alias="computed_property_example")
 
-       # this computed property function does not get converted into the strawberry type.
+       # this computed property function does not get converted into the Strawberry type.
        @computed_field  # type: ignore[misc]
        @property
        def computed_property_example(self) -> str:
@@ -427,7 +494,7 @@ To name it `propertyExample` you can't override the function property name and h
 
 ## Overriding Types
 
-Overriding strawberry types can be achieved through various methods. One less desirable approach involves extending classes using class inheritance.
+Overriding Strawberry types can be achieved through various methods. One less desirable approach involves extending classes using class inheritance.
 However, this method becomes cumbersome when updating a single class, as it necessitates updating all associated types and their corresponding resolvers, essentially impacting the entire structure.
 
 For instance, consider the scenario of overriding the `CustomerType`. you would need to update the related `SubscriptionInterface`, `ProcessType` and their respective resolvers. due to these modifications, all their related types and resolvers would also require updates, resulting in a tedious and error-prone process.
@@ -444,14 +511,14 @@ custom_subscription_interface = override_class(SubscriptionInterface, override_f
 app.register_graphql(subscription_interface=custom_subscription_interface)
 ```
 
-quick example (for more indebt check customerType override):
+Quick example (for more indebt check customerType override):
 
 ```python
 import strawberry
 from orchestrator.graphql.utils.override_class import override_class
 
 
-# Define a strawberry type representing an example entity
+# Define a Strawberry type representing an example entity
 @strawberry.type()
 class ExampleType:
     @strawberry.field(description="Existing field")  # type: ignore
@@ -459,7 +526,7 @@ class ExampleType:
         return 1
 
 
-# Define a strawberry type for example queries
+# Define a Strawberry type for example queries
 @strawberry.type(description="Example queries")
 class Query:
     example: ExampleType = strawberry.field(resolver=lambda: ExampleType())
@@ -470,9 +537,9 @@ async def update_existing_resolver() -> str:
     return "updated to new type"
 
 
-# Create a strawberry field with the resolver for the existing field
+# Create a Strawberry field with the resolver for the existing field
 existing_field = strawberry.field(resolver=update_existing_resolver, description="update existing field")  # type: ignore
-# Assign a new name to the strawberry field; this name will override the existing field in the class
+# Assign a new name to the Strawberry field; this name will override the existing field in the class
 existing_field.name = "existing"
 
 
@@ -545,7 +612,7 @@ async def resolve_subscriptions(
 customer_subscriptions_field = authenticated_field(
     resolver=resolve_subscriptions, description="Returns subscriptions of a customer"
 )
-# Assign a new name to the strawberry field; this name will add the 'subscriptions' field in the class
+# Assign a new name to the Strawberry field; this name will add the 'subscriptions' field in the class
 customer_subscriptions_field.name = "subscriptions"
 
 # Override the CustomerType with the new 'subscriptions' field
@@ -647,7 +714,7 @@ def resolve_customers(
 
 #### CustomerType Related Type Overrides
 
-Having overridden the `customer_resolver` and added the `subscriptions` field to the `CustomerType`, the final step involves updating the related strawberry types, namely `SubscriptionInterface` and `ProcessType`.
+Having overridden the `customer_resolver` and added the `subscriptions` field to the `CustomerType`, the final step involves updating the related Strawberry types, namely `SubscriptionInterface` and `ProcessType`.
 
 For both types, the `customer_id` is at the root, allowing us to create a generic override resolver for both.
 As we modify `SubscriptionInterface`, it's essential to utilize the returned type (stored in the `custom_subscription_interface` variable) when registering GraphQL in the application using `app.register_graphql(subscription_interface=custom_subscription_interface)`.
@@ -668,9 +735,9 @@ async def resolve_customer(root: CustomerType) -> CustomerType:
     )
 
 
-# Create a strawberry field with the resolver for the customer field
+# Create a Strawberry field with the resolver for the customer field
 customer_field = strawberry.field(resolver=resolve_customer, description="Returns customer of a subscription")  # type: ignore
-# Assign a new name to the strawberry field; this name will add the 'customer' field in the class
+# Assign a new name to the Strawberry field; this name will add the 'customer' field in the class
 customer_field.name = "customer"
 
 # Override the SubscriptionInterface and ProcessType with the new 'customer' field
@@ -684,3 +751,6 @@ and won't include `10G` or `100G`.
 Searching can also be configured for partial matching as well, where a search for `10` would include `10G` and `100G`.
 
 This can be controlled by setting the variable `FILTER_BY_MODE` can be set to a value of `exact` or `partial` as needed.
+
+
+[example-orchestrator]: https://github.com/workfloworchestrator/example-orchestrator/blob/master/README.md#federation
