@@ -15,19 +15,22 @@ from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
-from sqlalchemy.orm.session import sessionmaker, close_all_sessions
+from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
+
 from orchestrator import OrchestratorCore
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
     ProductBlockTable,
     ProductTable,
     ResourceTypeTable,
     SubscriptionCustomerDescriptionTable,
     SubscriptionMetadataTable,
     WorkflowTable,
-    db, ProcessTable, ProcessSubscriptionTable,
+    db,
 )
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
@@ -134,7 +137,6 @@ from test.unit_tests.fixtures.workflows import (  # noqa: F401
 )
 from test.unit_tests.workflows import WorkflowInstanceForTests
 from test.unit_tests.workflows.shared.test_validate_subscriptions import validation_workflow
-from celery import Celery
 
 logger = structlog.getLogger(__name__)
 
@@ -732,6 +734,7 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 def validation_workflow_instance():
     with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
         yield ctx
+
 
 @pytest.fixture
 def validation_workflow_process_instance(generic_subscription_1, validation_workflow_instance):

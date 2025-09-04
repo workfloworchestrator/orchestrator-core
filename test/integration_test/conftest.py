@@ -1,60 +1,60 @@
 """Integration test configuration."""
+
 import os
-import pytest
-import structlog
-import redis
 from contextlib import contextmanager
 from uuid import uuid4
+
+import pytest
+import redis
+import structlog
 from celery import Celery
-from orchestrator.settings import AppSettings
-from orchestrator.workflow import ProcessStatus
-from orchestrator.targets import Target
-from orchestrator.db import WorkflowTable, ProcessTable, db
+
+from orchestrator.db import ProcessTable, WorkflowTable, db
 from orchestrator.services.tasks import (
-    initialise_celery,
-    register_custom_serializer,
     NEW_TASK,
     NEW_WORKFLOW,
     RESUME_TASK,
     RESUME_WORKFLOW,
-    _celery
+    initialise_celery,
+    register_custom_serializer,
 )
-
+from orchestrator.settings import AppSettings
+from orchestrator.targets import Target
+from orchestrator.workflow import ProcessStatus
 
 # Configure structlog to handle exceptions properly in tests
 logger = structlog.get_logger(__name__)
 
 # Import fixtures from unit tests conftest
-from test.unit_tests.conftest import (
-    # Database fixtures
-    db_uri,
+from test.unit_tests.conftest import (  # noqa: F401  lgtm[py/unused-import]
     database,
     db_session,
-
+    # Database fixtures
+    db_uri,
     # Application fixtures
     fastapi_app,
-
-    # Base workflow fixtures
-    run_migrations,
-
     # Utils
     logger,
+    # Base workflow fixtures
+    run_migrations,
 )
 
 # Singleton Redis connection pool
 _redis_pool = None
+
 
 def get_redis_connection():
     """Get Redis connection from pool."""
     global _redis_pool
     if _redis_pool is None:
         _redis_pool = redis.ConnectionPool(
-            host=os.getenv('REDIS_HOST', 'localhost'),
-            port=int(os.getenv('REDIS_PORT', 6379)),
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
             decode_responses=True,
-            max_connections=5  # Limit connections for testing
+            max_connections=5,  # Limit connections for testing
         )
     return redis.Redis(connection_pool=_redis_pool)
+
 
 @contextmanager
 def redis_client():
@@ -64,6 +64,7 @@ def redis_client():
         yield client
     finally:
         client.close()
+
 
 def validate_redis_connection():
     """Validate Redis connection is available."""
@@ -86,23 +87,20 @@ class TestOrchestratorCelery(Celery):
             task_serializer="orchestrator-json",
             accept_content=["orchestrator-json", "json"],
             result_serializer="json",
-            task_track_started=True
+            task_track_started=True,
         )
 
     def on_init(self) -> None:
         """Initialize test settings and create mock OrchestratorCore."""
         test_settings = AppSettings()
         test_settings.TESTING = True
-        # Create a mock OrchestratorCore for testing
+
         class MockOrchestratorCore:
             def __init__(self, base_settings):
                 self.settings = base_settings
-                self.broadcast_thread = type('DummyThread', (), {
-                    'start': lambda: None,
-                    'stop': lambda: None
-                })()
+                self.broadcast_thread = type("DummyThread", (), {"start": lambda: None, "stop": lambda: None})()
 
-        app = MockOrchestratorCore(base_settings=test_settings)
+        app = MockOrchestratorCore(base_settings=test_settings)  # noqa:  F841
 
 
 @pytest.fixture
@@ -116,27 +114,23 @@ def setup_test_process(request, db_session):
     Returns:
         tuple: (workflow, process) The created test workflow and process
     """
+
     def _create_process(status=ProcessStatus.CREATED):
         workflow = WorkflowTable(
-            name=f"Test Workflow {uuid4()}",
-            description="Test workflow for celery",
-            target=Target.SYSTEM
+            name=f"Test Workflow {uuid4()}", description="Test workflow for celery", target=Target.SYSTEM
         )
         db.session.add(workflow)
         db.session.commit()
 
         process = ProcessTable(
-            workflow_id=workflow.workflow_id,
-            last_status=status,
-            assignee=Target.SYSTEM,
-            process_id=uuid4()
+            workflow_id=workflow.workflow_id, last_status=status, assignee=Target.SYSTEM, process_id=uuid4()
         )
         db.session.add(process)
         db.session.commit()
 
         return workflow, process
 
-    if hasattr(request, 'param'):
+    if hasattr(request, "param"):
         return _create_process(request.param)
     return _create_process()
 
@@ -151,16 +145,10 @@ def setup_base_workflows(db_session):
     from sqlalchemy import select
 
     # Check if workflow exists
-    existing = db.session.scalar(
-        select(WorkflowTable).where(WorkflowTable.name == "modify_note")
-    )
+    existing = db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == "modify_note"))
 
     if not existing:
-        workflow = WorkflowTable(
-            name="modify_note",
-            description="Test workflow for modify_note",
-            target=Target.SYSTEM
-        )
+        workflow = WorkflowTable(name="modify_note", description="Test workflow for modify_note", target=Target.SYSTEM)
         db.session.add(workflow)
         db.session.commit()
         return workflow
@@ -188,7 +176,7 @@ def celery_config():
             NEW_TASK: {"queue": "test_tasks"},
             NEW_WORKFLOW: {"queue": "test_workflows"},
             RESUME_TASK: {"queue": "test_tasks"},
-            RESUME_WORKFLOW: {"queue": "test_workflows"}
+            RESUME_WORKFLOW: {"queue": "test_workflows"},
         },
         "worker_prefetch_multiplier": 1,
         "worker_max_tasks_per_child": 10,  # Increased for better performance
@@ -199,7 +187,7 @@ def celery_config():
         "broker_heartbeat": 0,
         "worker_send_task_events": False,
         "event_queue_expires": 10,
-        "worker_disable_rate_limits": True
+        "worker_disable_rate_limits": True,
     }
 
 
@@ -214,7 +202,7 @@ def celery_worker_parameters():
         "without_heartbeat": True,
         "without_mingle": True,
         "without_gossip": True,
-        "shutdown_timeout": 0
+        "shutdown_timeout": 0,
     }
 
 
@@ -226,16 +214,19 @@ def register_celery_tasks(celery_session_app):
     @celery_session_app.task(name=NEW_TASK)  # type: ignore[misc]
     def new_task(process_id: str, user: str = "test") -> str:
         return f"Started new process {process_id}"
+
     tasks[NEW_TASK] = new_task
 
     @celery_session_app.task(name=NEW_WORKFLOW)  # type: ignore[misc]
     def new_workflow(process_id: str, user: str = "test") -> str:
         return f"Started new workflow {process_id}"
+
     tasks[NEW_WORKFLOW] = new_workflow
 
     @celery_session_app.task(name=RESUME_TASK)  # type: ignore[misc]
     def resume_task(process_id: str, user: str = "test") -> str:
         return f"Resumed task {process_id}"
+
     tasks[RESUME_TASK] = resume_task
 
     @celery_session_app.task(name=RESUME_WORKFLOW)  # type: ignore[misc]
@@ -243,6 +234,7 @@ def register_celery_tasks(celery_session_app):
         if process_id is None:
             raise ValueError("process_id cannot be None")
         return f"Resumed workflow {process_id}"
+
     tasks[RESUME_WORKFLOW] = resume_workflow
 
     return tasks
@@ -264,7 +256,7 @@ def celery_timeout():
 def setup_test_celery(celery_session_app, monkeypatch):
     """Setup and teardown for Celery tests."""
     # Reset Celery app
-    monkeypatch.setattr('orchestrator.services.tasks._celery', None)
+    monkeypatch.setattr("orchestrator.services.tasks._celery", None)
 
     # Initialize Celery
     register_custom_serializer()
