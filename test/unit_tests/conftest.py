@@ -241,9 +241,24 @@ def database(db_uri):
     try:
         yield
     finally:
+        # Close all SQLAlchemy sessions
         db.wrapped_database.engine.dispose()
+        close_all_sessions()
+
+        # Force disconnect all sessions from the database
         with closing(engine.connect()) as conn:
             conn.execute(text("COMMIT;"))
+            conn.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid)"
+                    " FROM pg_stat_activity"
+                    " WHERE datname = :dbname"
+                    " AND pid <> pg_backend_pid()"
+                ),
+                {"dbname": db_to_create},
+            )
+            conn.execute(text("COMMIT;"))
+            # Now try to drop the database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
