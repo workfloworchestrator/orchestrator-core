@@ -1,6 +1,6 @@
 # Error tracking
 
-The ``orchestrator-core`` orchestrator-core uses [Sentry](https://docs.sentry.io/product/) for
+The ``orchestrator-core`` supports [Sentry](https://docs.sentry.io/product/) for
 error tracking and performance monitoring. Sentry is an application monitoring
 platform that helps developers identify, debug, and resolve issues in their applications by
 providing real-time error tracking, performance monitoring, and distributed tracing capabilities.
@@ -9,19 +9,33 @@ In order to initialize Sentry (assuming you have already set up a
 [Sentry project](https://docs.sentry.io/product/projects/)), perform the following steps:
 
 
-**1. Update the `AppSettings` class**
+**1. Update your own `Settings` class**
 
-Add the following attributes to the `AppSettings` class in `settings.py`:
+Add the following attributes to the `Settings` object in your own orchestrator's `settings.py`:
+
 ```python
-SENTRY_DSN: str
-TRACE_SAMPLE_RATE: float = 1.0
+TRACING_ENABLED: bool = False
+SENTRY_DSN: str = ""
+TRACE_SAMPLE_RATE: float = 0.1
+```
+
+```python
+# settings.py
+from pydantic_settings import BaseSettings
+
+class MySettings(BaseSettings):
+    TRACING_ENABLED: bool = False
+    SENTRY_DSN: str = ""
+    TRACE_SAMPLE_RATE: float = 0.1
+
+my_settings = MySettings()
 ```
 
 **2. Set environment variables**
 ```python
 TRACING_ENABLED=True
 SENTRY_DSN = "your_sentry_dsn" # should be obtained from Sentry
-TRACE_SAMPLE_RATE = 0.5 # should be a float between 0 and 1
+TRACE_SAMPLE_RATE = 0.1 # should be a float between 0 and 1
 ```
 Setting ``TRACING_ENABLED`` to ``True`` will enable tracing for the application, allowing you to monitor
 performance and errors more effectively.
@@ -29,15 +43,17 @@ performance and errors more effectively.
     - **SENTRY_DSN**: The Data Source Name (DSN) is a unique URL provided by Sentry. It connects your
     application to your Sentry project so errors and performance data are sent to the correct place.
     - **TRACE_SAMPLE_RATE**: A float between 0 and 1 that controls what percentage of transactions
-    are sent to Sentry for performance monitoring (e.g., 0.5 means 50% of traces are sampled).
+    are sent to Sentry for performance monitoring (e.g., 0.5 means 50% of traces are sampled). See
+    Sentry documentation for more details on [sampling](https://docs.sentry.io/concepts/key-terms/sample-rates/).
 
 **3. Update `main.py` file**
 
-Add the following code to the `main.py` file
+Add the following code to the `main.py` file of the `orchestrator-core` application:
 ```python
 from orchestrator import OrchestratorCore
 from orchestrator.cli.main import app as core_cli
 from orchestrator.settings import AppSettings
+from my_orchestrator.settings import my_settings
 
 app = OrchestratorCore(base_settings=AppSettings())
 
@@ -48,8 +64,8 @@ if app.base_settings.TRACING_ENABLED and app.base_settings.ENVIRONMENT != "local
     sentry_integrations.append(HttpxIntegration())
 
     app.add_sentry(
-        app.base_settings.SENTRY_DSN,
-        app.base_settings.TRACE_SAMPLE_RATE,
+        my_settings.SENTRY_DSN,
+        my_settings.TRACE_SAMPLE_RATE,
         app.base_settings.SERVICE_NAME,
         app.base_settings.ENVIRONMENT,
     )
