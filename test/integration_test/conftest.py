@@ -162,7 +162,7 @@ def celery_config():
 
     return {
         "broker_url": os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
-        "result_backend": os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0"),
+        "result_backend": os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1"),
         "broker_connection_pool_limit": 2,
         "result_backend_connection_pool_limit": 2,
         "task_always_eager": True,  # Run tasks synchronously for testing

@@ -38,6 +38,8 @@ jobs:
           --health-retries 5
       redis:
         image: redis
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -67,4 +69,14 @@ jobs:
           POSTGRES_HOST: postgres
           ENVIRONMENT: TESTING
           PYTHONPATH: .
-        run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/integration_test/test_with_pytest_celery.py -v
+          # Add Celery-specific environment variables
+          CELERY_BROKER_URL: redis://redis:6379/0
+          CELERY_RESULT_BACKEND: redis://redis:6379/1
+          REDIS_HOST: redis
+          REDIS_PORT: 6379
+        run: |
+          CACHE_URI=redis://redis:6379 \
+          DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB \
+          CELERY_BROKER_URL=$CELERY_BROKER_URL \
+          CELERY_RESULT_BACKEND=$CELERY_RESULT_BACKEND \
+          uv run pytest test/integration_test/test_with_pytest_celery.py -v
