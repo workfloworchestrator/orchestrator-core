@@ -32,7 +32,20 @@ def init_celery_app(celery_session_app):
 @pytest.fixture
 def celery_worker_setup(celery_worker):
     """Worker fixture that matches the scope of celery_worker."""
-    return celery_worker
+    try:
+        yield celery_worker
+    finally:
+        # Ensure worker connections are closed
+        if hasattr(celery_worker, "app"):
+            celery_worker.app.control.purge()
+            if hasattr(celery_worker.app, "close"):
+                celery_worker.app.close()
+            # Force close any remaining db connections from the worker
+            if hasattr(db, "wrapped_database"):
+                if hasattr(db.wrapped_database, "engine"):
+                    db.wrapped_database.engine.dispose()
+                if hasattr(db.wrapped_database, "scoped_session"):
+                    db.wrapped_database.scoped_session.remove()
 
 
 @pytest.mark.celery
