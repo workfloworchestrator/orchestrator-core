@@ -9,7 +9,7 @@ from celery import Celery
 from orchestrator.settings import AppSettings
 from orchestrator.workflow import ProcessStatus
 from orchestrator.targets import Target
-from orchestrator.db import WorkflowTable, ProcessTable, db, Database
+from orchestrator.db import WorkflowTable, ProcessTable, db
 from orchestrator.services.tasks import (
     initialise_celery,
     register_custom_serializer,
@@ -33,9 +33,6 @@ from test.unit_tests.conftest import (
 
     # Application fixtures
     fastapi_app,
-
-    # Core settings
-    app_settings,
 
     # Base workflow fixtures
     run_migrations,
@@ -226,22 +223,22 @@ def register_celery_tasks(celery_session_app):
     """Register test tasks with the Celery application."""
     tasks = {}
 
-    @celery_session_app.task(name=NEW_TASK)
+    @celery_session_app.task(name=NEW_TASK)  # type: ignore[misc]
     def new_task(process_id: str, user: str = "test") -> str:
         return f"Started new process {process_id}"
     tasks[NEW_TASK] = new_task
 
-    @celery_session_app.task(name=NEW_WORKFLOW)
+    @celery_session_app.task(name=NEW_WORKFLOW)  # type: ignore[misc]
     def new_workflow(process_id: str, user: str = "test") -> str:
         return f"Started new workflow {process_id}"
     tasks[NEW_WORKFLOW] = new_workflow
 
-    @celery_session_app.task(name=RESUME_TASK)
+    @celery_session_app.task(name=RESUME_TASK)  # type: ignore[misc]
     def resume_task(process_id: str, user: str = "test") -> str:
         return f"Resumed task {process_id}"
     tasks[RESUME_TASK] = resume_task
 
-    @celery_session_app.task(name=RESUME_WORKFLOW)
+    @celery_session_app.task(name=RESUME_WORKFLOW)  # type: ignore[misc]
     def resume_workflow(process_id: str, user: str = "test") -> str:
         if process_id is None:
             raise ValueError("process_id cannot be None")
