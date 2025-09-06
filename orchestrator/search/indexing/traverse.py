@@ -205,5 +205,8 @@ class WorkflowTraverser(BaseTraverser):
                     base[product_key] = product_reference
                 else:
                     logger.warning("Workflow has an associated product without a tag", product_name=product.name)
-
+        if workflow.processes:
+            base["processes"] = [
+                cls._dump_sqlalchemy_fields(p) for p in sorted(workflow.processes, key=lambda s: s.process_id)
+            ]
         return base

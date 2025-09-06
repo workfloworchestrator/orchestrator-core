@@ -5,6 +5,7 @@ from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import Session
 
 from orchestrator.search.core.types import SearchMetadata
+from orchestrator.search.filters import FilterTree
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
@@ -46,6 +47,7 @@ def _format_response(
         matching_field = None
 
         if user_query and row.get("highlight_text") and row.get("highlight_path"):
+            # Text/semantic searches
             text = row.highlight_text
             path = row.highlight_path
 
@@ -57,6 +59,10 @@ def _format_response(
             highlight_indices = generate_highlight_indices(text, user_query) or None
             matching_field = MatchingField(text=text, path=path, highlight_indices=highlight_indices)
 
+        elif not user_query and search_params.filters and metadata.search_type == "structured":
+            # Structured search (filter-only)
+            matching_field = _extract_matching_field_from_filters(search_params.filters)
+
         results.append(
             SearchResult(
                 entity_id=str(row.entity_id),
@@ -66,6 +72,27 @@ def _format_response(
             )
         )
     return SearchResponse(results=results, metadata=metadata)
+
+
+def _extract_matching_field_from_filters(filters: FilterTree) -> MatchingField | None:
+    """Extract the first path filter to use as matching field for structured searches."""
+    leaves = filters.get_all_leaves()
+
+    if not leaves:
+        return None
+
+    # TODO: Should we allow a list of matched fields in the MatchingField model?
+    first_filter = leaves[0]
+
+    filter_value = str(first_filter.condition.value) if hasattr(first_filter.condition, "value") else ""
+
+    highlight_indices = generate_highlight_indices(filter_value, filter_value) if filter_value else None
+
+    return MatchingField(
+        text=filter_value,
+        path=first_filter.path,
+        highlight_indices=highlight_indices,
+    )
 
 
 async def execute_search(

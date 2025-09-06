@@ -89,6 +89,27 @@ class ProcessSearchSchema(BaseModel):
     subscription_ids: list[UUID] | None = None
 
 
+class WorkflowSearchResult(BaseModel):
+    score: float
+    perfect_match: int
+    matching_field: MatchingField | None = None
+    workflow: WorkflowSearchSchema
+
+
+class ProductSearchResult(BaseModel):
+    score: float
+    perfect_match: int
+    matching_field: MatchingField | None = None
+    product: ProductSearchSchema
+
+
+class ProcessSearchResult(BaseModel):
+    score: float
+    perfect_match: int
+    matching_field: MatchingField | None = None
+    process: ProcessSearchSchema
+
+
 class PathsResponse(BaseModel):
     prefix: str
     paths: list[PathInfo]

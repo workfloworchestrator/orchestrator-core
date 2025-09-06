@@ -1,7 +1,6 @@
-from typing import Any, TypeVar
+from typing import Any, Literal, overload
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel
 from sqlalchemy import case, select
 from sqlalchemy.orm import selectinload
 
@@ -15,10 +14,13 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.schemas.search import (
     PageInfoSchema,
     PathsResponse,
+    ProcessSearchResult,
     ProcessSearchSchema,
+    ProductSearchResult,
     ProductSearchSchema,
     SearchResultsSchema,
     SubscriptionSearchResult,
+    WorkflowSearchResult,
     WorkflowSearchSchema,
 )
 from orchestrator.search.core.exceptions import InvalidCursorError
@@ -39,20 +41,77 @@ from orchestrator.search.schemas.parameters import (
     SubscriptionSearchParameters,
     WorkflowSearchParameters,
 )
-from orchestrator.search.schemas.results import PathInfo, TypeDefinition
+from orchestrator.search.schemas.results import PathInfo, SearchResult, TypeDefinition
 from orchestrator.services.subscriptions import format_special_types
 
 router = APIRouter()
-T = TypeVar("T", bound=BaseModel)
 
 
-async def _perform_search_and_fetch_simple(
+def _create_search_result_item(
+    entity: WorkflowTable | ProductTable | ProcessTable, entity_type: EntityType, search_info: SearchResult
+) -> WorkflowSearchResult | ProductSearchResult | ProcessSearchResult | None:
+    match entity_type:
+        case EntityType.WORKFLOW:
+            workflow_data = WorkflowSearchSchema.model_validate(entity)
+            return WorkflowSearchResult(
+                workflow=workflow_data,
+                score=search_info.score,
+                perfect_match=search_info.perfect_match,
+                matching_field=search_info.matching_field,
+            )
+        case EntityType.PRODUCT:
+            product_data = ProductSearchSchema.model_validate(entity)
+            return ProductSearchResult(
+                product=product_data,
+                score=search_info.score,
+                perfect_match=search_info.perfect_match,
+                matching_field=search_info.matching_field,
+            )
+        case EntityType.PROCESS:
+            process_data = ProcessSearchSchema.model_validate(entity)
+            return ProcessSearchResult(
+                process=process_data,
+                score=search_info.score,
+                perfect_match=search_info.perfect_match,
+                matching_field=search_info.matching_field,
+            )
+        case _:
+            return None
+
+
+@overload
+async def _perform_search_and_fetch(
     search_params: BaseSearchParameters,
-    entity_type: EntityType,
-    response_schema: type[BaseModel],
+    entity_type: Literal[EntityType.WORKFLOW],
     eager_loads: list[Any],
     cursor: str | None = None,
-) -> SearchResultsSchema:
+) -> SearchResultsSchema[WorkflowSearchResult]: ...
+
+
+@overload
+async def _perform_search_and_fetch(
+    search_params: BaseSearchParameters,
+    entity_type: Literal[EntityType.PRODUCT],
+    eager_loads: list[Any],
+    cursor: str | None = None,
+) -> SearchResultsSchema[ProductSearchResult]: ...
+
+
+@overload
+async def _perform_search_and_fetch(
+    search_params: BaseSearchParameters,
+    entity_type: Literal[EntityType.PROCESS],
+    eager_loads: list[Any],
+    cursor: str | None = None,
+) -> SearchResultsSchema[ProcessSearchResult]: ...
+
+
+async def _perform_search_and_fetch(
+    search_params: BaseSearchParameters,
+    entity_type: EntityType,
+    eager_loads: list[Any],
+    cursor: str | None = None,
+) -> SearchResultsSchema[Any]:
     try:
         pagination_params = await process_pagination_cursor(cursor, search_params)
     except InvalidCursorError:
@@ -63,7 +122,6 @@ async def _perform_search_and_fetch_simple(
         db_session=db.session,
         pagination_params=pagination_params,
     )
-
     if not search_response.results:
         return SearchResultsSchema(search_metadata=search_response.metadata)
 
@@ -79,7 +137,17 @@ async def _perform_search_and_fetch_simple(
     stmt = select(config.table).options(*eager_loads).filter(pk_column.in_(entity_ids)).order_by(ordering_case)
     entities = db.session.scalars(stmt).all()
 
-    data = [response_schema.model_validate(entity) for entity in entities]
+    search_info_map = {res.entity_id: res for res in search_response.results}
+    data = []
+    for entity in entities:
+        entity_id = getattr(entity, config.pk_name)
+        search_info = search_info_map.get(str(entity_id))
+        if not search_info:
+            continue
+
+        search_result_item = _create_search_result_item(entity, entity_type, search_info)
+        if search_result_item:
+            data.append(search_result_item)
 
     return SearchResultsSchema(data=data, page_info=page_info, search_metadata=search_response.metadata)
 
@@ -90,7 +158,7 @@ async def _perform_search_and_fetch_simple(
 )
 async def search_subscriptions(
     search_params: SubscriptionSearchParameters,
-    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
+    cursor: str | None = None,
 ) -> SearchResultsSchema[SubscriptionSearchResult]:
     try:
         pagination_params = await process_pagination_cursor(cursor, search_params)
@@ -126,29 +194,27 @@ async def search_subscriptions(
     return SearchResultsSchema(data=results_data, page_info=page_info, search_metadata=search_response.metadata)
 
 
-@router.post("/workflows", response_model=SearchResultsSchema[WorkflowSearchSchema])
+@router.post("/workflows", response_model=SearchResultsSchema[WorkflowSearchResult])
 async def search_workflows(
     search_params: WorkflowSearchParameters,
-    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
-) -> SearchResultsSchema[WorkflowSearchSchema]:
-    return await _perform_search_and_fetch_simple(
+    cursor: str | None = None,
+) -> SearchResultsSchema[WorkflowSearchResult]:
+    return await _perform_search_and_fetch(
         search_params=search_params,
         entity_type=EntityType.WORKFLOW,
-        response_schema=WorkflowSearchSchema,
         eager_loads=[selectinload(WorkflowTable.products)],
         cursor=cursor,
     )
 
 
-@router.post("/products", response_model=SearchResultsSchema[ProductSearchSchema])
+@router.post("/products", response_model=SearchResultsSchema[ProductSearchResult])
 async def search_products(
     search_params: ProductSearchParameters,
-    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
-) -> SearchResultsSchema[ProductSearchSchema]:
-    return await _perform_search_and_fetch_simple(
+    cursor: str | None = None,
+) -> SearchResultsSchema[ProductSearchResult]:
+    return await _perform_search_and_fetch(
         search_params=search_params,
         entity_type=EntityType.PRODUCT,
-        response_schema=ProductSearchSchema,
         eager_loads=[
             selectinload(ProductTable.workflows),
             selectinload(ProductTable.fixed_inputs),
@@ -158,15 +224,14 @@ async def search_products(
     )
 
 
-@router.post("/processes", response_model=SearchResultsSchema[ProcessSearchSchema])
+@router.post("/processes", response_model=SearchResultsSchema[ProcessSearchResult])
 async def search_processes(
     search_params: ProcessSearchParameters,
-    cursor: str | None = Query(None, description="Pagination cursor for the next page"),
-) -> SearchResultsSchema[ProcessSearchSchema]:
-    return await _perform_search_and_fetch_simple(
+    cursor: str | None = None,
+) -> SearchResultsSchema[ProcessSearchResult]:
+    return await _perform_search_and_fetch(
         search_params=search_params,
         entity_type=EntityType.PROCESS,
-        response_schema=ProcessSearchSchema,
         eager_loads=[
             selectinload(ProcessTable.workflow),
         ],
