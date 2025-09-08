@@ -14,9 +14,8 @@ from alembic.config import Config
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.orm.scoping import scoped_session
-from sqlalchemy.orm.session import sessionmaker
+from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
 
@@ -242,9 +241,24 @@ def database(db_uri):
     try:
         yield
     finally:
+        # Close all SQLAlchemy sessions
         db.wrapped_database.engine.dispose()
+        close_all_sessions()
+
+        # Force disconnect all sessions from the database
         with closing(engine.connect()) as conn:
             conn.execute(text("COMMIT;"))
+            conn.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid)"
+                    " FROM pg_stat_activity"
+                    " WHERE datname = :dbname"
+                    " AND pid <> pg_backend_pid()"
+                ),
+                {"dbname": db_to_create},
+            )
+            conn.execute(text("COMMIT;"))
+            # Now try to drop the database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
@@ -321,7 +335,11 @@ def test_client(fastapi_app):
 
 
 @pytest.fixture(autouse=True)
-def responses():
+def responses(request):
+    if request.node.get_closest_marker("noresponses"):
+        # This test doesn't want responses mocking
+        yield None
+        return
     responses_mock = Responses("requests.packages.urllib3")
 
     def _find_request(call):

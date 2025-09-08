@@ -1,0 +1,82 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Pytest Celery Tests
+
+on:
+  push:
+    branches: [ main ]
+  workflow_call:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+
+jobs:
+  container_job:
+    name: Pytest Celery Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.13']
+        postgres-version: ['17']
+      fail-fast: false
+    container: ubuntu:latest
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}-alpine
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+          POSTGRES_DB: orchestrator-core-test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.7.13"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Run pytest-celery tests
+        env:
+          POSTGRES_DB: orchestrator-core-test
+          POSTGRES_USER: nwa
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_HOST: postgres
+          ENVIRONMENT: TESTING
+          PYTHONPATH: .
+          # Add Celery-specific environment variables
+          CELERY_BROKER_URL: redis://redis:6379/0
+          CELERY_RESULT_BACKEND: redis://redis:6379/1
+          REDIS_HOST: redis
+          REDIS_PORT: 6379
+        run: |
+          CACHE_URI=redis://redis:6379 \
+          DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB \
+          CELERY_BROKER_URL=$CELERY_BROKER_URL \
+          CELERY_RESULT_BACKEND=$CELERY_RESULT_BACKEND \
+          uv run pytest test/integration_test/test_with_pytest_celery.py -v
