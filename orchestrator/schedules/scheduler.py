@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator
 
-from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
+from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from more_itertools import partition
@@ -32,7 +32,6 @@ from orchestrator.utils.helpers import camel_to_snake, to_camel
 jobstores = {"default": SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI))}
 executors = {
     "default": ThreadPoolExecutor(1),
-    "processpool": ProcessPoolExecutor(1),
 }
 job_defaults = {
     "coalesce": True,
