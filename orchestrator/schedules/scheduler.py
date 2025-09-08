@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator
 
+from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from more_itertools import partition
@@ -29,8 +30,15 @@ from orchestrator.settings import app_settings
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 
 jobstores = {"default": SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI))}
+executors = {
+    "default": ThreadPoolExecutor(1),
+    "processpool": ProcessPoolExecutor(1),
+}
+job_defaults = {
+    "coalesce": True,
+}
 
-scheduler = BackgroundScheduler(jobstores=jobstores)
+scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, job_defaults=job_defaults)
 
 
 def scheduler_dispose_db_connections() -> None:
@@ -44,7 +52,7 @@ def get_paused_scheduler() -> Generator[BackgroundScheduler, Any, None]:
     try:
         yield scheduler
     finally:
-        scheduler.shutdown(wait=False)
+        scheduler.shutdown()
         scheduler_dispose_db_connections()
 
 
