@@ -11,7 +11,15 @@ from orchestrator.search.core.types import FilterOp, SQLAColumn
 class LtreeFilter(BaseModel):
     """Filter for ltree path operations."""
 
-    op: Literal[FilterOp.MATCHES_LQUERY, FilterOp.IS_ANCESTOR, FilterOp.IS_DESCENDANT, FilterOp.PATH_MATCH]
+    op: Literal[
+        FilterOp.MATCHES_LQUERY,
+        FilterOp.IS_ANCESTOR,
+        FilterOp.IS_DESCENDANT,
+        FilterOp.PATH_MATCH,
+        FilterOp.HAS_COMPONENT,
+        FilterOp.NOT_HAS_COMPONENT,
+        FilterOp.ENDS_WITH,
+    ]
     value: str = Field(description="The ltree path or lquery pattern to compare against.")
 
     def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
@@ -24,8 +32,14 @@ class LtreeFilter(BaseModel):
                 ltree_value = Ltree(self.value)
                 return column.op("@>")(ltree_value)
             case FilterOp.MATCHES_LQUERY:
-                param = bindparam("lquery_pattern", self.value, type_=TEXT)
+                param = bindparam(None, self.value, type_=TEXT)
                 return column.op("~")(param)
             case FilterOp.PATH_MATCH:
                 ltree_value = Ltree(path)
                 return column == ltree_value
+            case FilterOp.HAS_COMPONENT:
+                return column.op("~")(bindparam(None, f"*.{self.value}.*", type_=TEXT))
+            case FilterOp.NOT_HAS_COMPONENT:
+                return ~column.op("~")(bindparam(None, f"*.{self.value}.*", type_=TEXT))
+            case FilterOp.ENDS_WITH:
+                return column.op("~")(bindparam(None, f"*.{self.value}", type_=TEXT))

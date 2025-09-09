@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.search.core.types import SearchMetadata
-from orchestrator.search.schemas.results import MatchingField, PathInfo
+from orchestrator.search.schemas.results import ComponentInfo, LeafInfo, MatchingField
 
 T = TypeVar("T")
 
@@ -111,7 +111,7 @@ class ProcessSearchResult(BaseModel):
 
 
 class PathsResponse(BaseModel):
-    prefix: str
-    paths: list[PathInfo]
+    leaves: list[LeafInfo]
+    components: list[ComponentInfo]
 
     model_config = ConfigDict(extra="forbid", use_enum_values=True)

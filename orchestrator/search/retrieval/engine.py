@@ -4,8 +4,8 @@ import structlog
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import Session
 
-from orchestrator.search.core.types import SearchMetadata
-from orchestrator.search.filters import FilterTree
+from orchestrator.search.core.types import FilterOp, SearchMetadata
+from orchestrator.search.filters import FilterTree, LtreeFilter
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
@@ -67,7 +67,7 @@ def _format_response(
             SearchResult(
                 entity_id=str(row.entity_id),
                 score=row.score,
-                perfect_match=row.get("perfect_match", 1),
+                perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,
             )
         )
@@ -75,24 +75,32 @@ def _format_response(
 
 
 def _extract_matching_field_from_filters(filters: FilterTree) -> MatchingField | None:
-    """Extract the first path filter to use as matching field for structured searches."""
-    leaves = filters.get_all_leaves()
+    """Extract the first path filter to use as matching field for structured searches.
 
-    if not leaves:
+    TODO: Should we allow a list of matched fields in the MatchingField model?
+    We need a different approach, probably a cross join in StructuredRetriever.
+    """
+    leaves = filters.get_all_leaves()
+    if len(leaves) != 1:
         return None
 
-    # TODO: Should we allow a list of matched fields in the MatchingField model?
-    first_filter = leaves[0]
+    pf = leaves[0]
 
-    filter_value = str(first_filter.condition.value) if hasattr(first_filter.condition, "value") else ""
+    if isinstance(pf.condition, LtreeFilter):
+        op = pf.condition.op
+        # Prefer the original component/pattern (validator may set path="*" and move the value)
+        display = str(getattr(pf.condition, "value", "") or pf.path)
 
-    highlight_indices = generate_highlight_indices(filter_value, filter_value) if filter_value else None
+        # There can be no match for abscence.
+        if op == FilterOp.NOT_HAS_COMPONENT:
+            return None
 
-    return MatchingField(
-        text=filter_value,
-        path=first_filter.path,
-        highlight_indices=highlight_indices,
-    )
+        return MatchingField(text=display, path=display, highlight_indices=[(0, len(display))])
+
+    # Everything thats not Ltree
+    val = getattr(pf.condition, "value", "")
+    text = "" if val is None else str(val)
+    return MatchingField(text=text, path=pf.path, highlight_indices=[(0, len(text))])
 
 
 async def execute_search(

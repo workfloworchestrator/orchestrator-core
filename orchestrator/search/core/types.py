@@ -72,6 +72,10 @@ class FilterOp(str, Enum):
     IS_DESCENDANT = "is_descendant"  # The <@ operator
     PATH_MATCH = "path_match"
 
+    HAS_COMPONENT = "has_component"  # Path contains this segment
+    NOT_HAS_COMPONENT = "not_has_component"  # Path doesn't contain segment
+    ENDS_WITH = "ends_with"
+
 
 class EntityType(str, Enum):
     SUBSCRIPTION = "SUBSCRIPTION"
@@ -92,6 +96,7 @@ class UIType(str, Enum):
     NUMBER = "number"
     BOOLEAN = "boolean"
     DATETIME = "datetime"
+    COMPONENT = "component"
 
     @classmethod
     def from_field_type(cls, ft: "FieldType") -> "UIType":

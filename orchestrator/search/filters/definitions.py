@@ -7,6 +7,14 @@ def operators_for(ft: FieldType) -> list[FilterOp]:
     return list(value_schema_for(ft).keys())
 
 
+def component_operators() -> dict[FilterOp, ValueSchema]:
+    """Return operators available for path components."""
+    return {
+        FilterOp.HAS_COMPONENT: ValueSchema(kind=UIType.COMPONENT),
+        FilterOp.NOT_HAS_COMPONENT: ValueSchema(kind=UIType.COMPONENT),
+    }
+
+
 def value_schema_for(ft: FieldType) -> dict[FilterOp, ValueSchema]:
     """Return the value schema map for a given FieldType."""
     if ft in (FieldType.INTEGER, FieldType.FLOAT):
@@ -57,20 +65,29 @@ def value_schema_for(ft: FieldType) -> dict[FilterOp, ValueSchema]:
 
 def generate_definitions() -> dict[UIType, TypeDefinition]:
     """Generate the full definitions dictionary for all UI types."""
-    definitions = {}
+    definitions: dict[UIType, TypeDefinition] = {}
 
     for ui_type in UIType:
-        if ui_type == UIType.NUMBER:
-            rep_ft = FieldType.INTEGER
-        elif ui_type == UIType.DATETIME:
-            rep_ft = FieldType.DATETIME
-        elif ui_type == UIType.BOOLEAN:
-            rep_ft = FieldType.BOOLEAN
+        if ui_type == UIType.COMPONENT:
+            # Special case for component filtering
+            comp_ops = component_operators()
+            definitions[ui_type] = TypeDefinition(
+                operators=list(comp_ops.keys()),
+                valueSchema=comp_ops,
+            )
         else:
-            rep_ft = FieldType.STRING
+            # Regular field types
+            if ui_type == UIType.NUMBER:
+                rep_ft = FieldType.INTEGER
+            elif ui_type == UIType.DATETIME:
+                rep_ft = FieldType.DATETIME
+            elif ui_type == UIType.BOOLEAN:
+                rep_ft = FieldType.BOOLEAN
+            else:
+                rep_ft = FieldType.STRING
 
-        definitions[ui_type] = TypeDefinition(
-            operators=operators_for(rep_ft),
-            valueSchema=value_schema_for(rep_ft),
-        )
+            definitions[ui_type] = TypeDefinition(
+                operators=operators_for(rep_ft),
+                valueSchema=value_schema_for(rep_ft),
+            )
     return definitions

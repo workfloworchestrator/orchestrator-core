@@ -24,11 +24,11 @@ from orchestrator.schemas.search import (
     WorkflowSearchSchema,
 )
 from orchestrator.search.core.exceptions import InvalidCursorError
-from orchestrator.search.core.types import EntityType, FieldType, UIType
+from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 from orchestrator.search.retrieval import execute_search
-from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery
+from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
 from orchestrator.search.retrieval.pagination import (
     create_next_page_cursor,
     process_pagination_cursor,
@@ -41,7 +41,7 @@ from orchestrator.search.schemas.parameters import (
     SubscriptionSearchParameters,
     WorkflowSearchParameters,
 )
-from orchestrator.search.schemas.results import PathInfo, SearchResult, TypeDefinition
+from orchestrator.search.schemas.results import SearchResult, TypeDefinition
 from orchestrator.services.subscriptions import format_special_types
 
 router = APIRouter()
@@ -250,6 +250,7 @@ async def list_paths(
     entity_type: EntityType = Query(EntityType.SUBSCRIPTION),
     limit: int = Query(10, ge=1, le=10),
 ) -> PathsResponse:
+
     if prefix:
         lquery_pattern = create_path_autocomplete_lquery(prefix)
 
@@ -262,15 +263,8 @@ async def list_paths(
     stmt = stmt.limit(limit)
     rows = db.session.execute(stmt).all()
 
-    paths = [
-        PathInfo(
-            path=str(path),
-            type=UIType.from_field_type(FieldType(value_type)),
-        )
-        for path, value_type in rows
-    ]
-
-    return PathsResponse(prefix=prefix, paths=paths)
+    leaves, components = process_path_rows(rows)
+    return PathsResponse(leaves=leaves, components=components)
 
 
 @router.get(

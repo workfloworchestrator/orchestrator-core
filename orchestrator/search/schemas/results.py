@@ -36,9 +36,19 @@ class ValueSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class PathInfo(BaseModel):
-    path: str
-    type: UIType
+class LeafInfo(BaseModel):
+    name: str
+    ui_types: list[UIType]
+
+    model_config = ConfigDict(
+        extra="forbid",
+        use_enum_values=True,
+    )
+
+
+class ComponentInfo(BaseModel):
+    name: str
+    ui_types: list[UIType]
 
     model_config = ConfigDict(
         extra="forbid",

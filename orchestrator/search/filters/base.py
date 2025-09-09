@@ -4,12 +4,13 @@ from itertools import count
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import and_, exists, or_, select
+from sqlalchemy import BinaryExpression, and_, cast, exists, literal, or_, select
+from sqlalchemy.dialects.postgresql import BOOLEAN
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import BooleanOperator, FilterOp, SQLAColumn
+from orchestrator.search.core.types import BooleanOperator, FieldType, FilterOp, SQLAColumn, UIType
 
 from .date_filters import DateFilter
 from .ltree_filters import LtreeFilter
@@ -18,15 +19,14 @@ from .numeric_filter import NumericFilter
 
 class EqualityFilter(BaseModel):
     op: Literal[FilterOp.EQ, FilterOp.NEQ]
-    value: Any  # bool, str (UUID), str (enum values)
+    value: Any
 
-    def to_expression(self, column: SQLAColumn, path: str) -> ColumnElement[bool]:
-        str_value = str(self.value)
-        match self.op:
-            case FilterOp.EQ:
-                return column == str_value
-            case FilterOp.NEQ:
-                return column != str_value
+    def to_expression(self, column: SQLAColumn, path: str) -> BinaryExpression[bool] | ColumnElement[bool]:
+        if isinstance(self.value, bool):
+            colb = cast(column, BOOLEAN)
+            return colb.is_(self.value) if self.op == FilterOp.EQ else ~colb.is_(self.value)
+        sv = str(self.value)
+        return (column == sv) if self.op == FilterOp.EQ else (column != sv)
 
 
 class StringFilter(BaseModel):
@@ -59,6 +59,8 @@ class PathFilter(BaseModel):
     path: str = Field(description="The ltree path of the field to filter on, e.g., 'subscription.customer_id'.")
     condition: FilterCondition = Field(description="The filter condition to apply.")
 
+    value_kind: UIType
+
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
@@ -89,23 +91,53 @@ class PathFilter(BaseModel):
         }
     )
 
-    def to_expression(self, value_column: SQLAColumn) -> ColumnElement[bool]:
-        """Convert the path filter into a SQLAlchemy expression.
+    @model_validator(mode="before")
+    @classmethod
+    def _transfer_path_to_value_if_needed(cls, data: Any) -> Any:
+        """Transform for path-only filters.
 
-        This method delegates to the specific filter condition's ``to_expression``
-        implementation, passing along the column and path for context.
+        If `op` is `has_component`, `not_has_component`, or `ends_with` and no `value` is
+        provided in the `condition`, this validator will automatically use the `path`
+        field as the `value` and set the `path` to a wildcard '*' for the query.
+        """
+        if isinstance(data, dict):
+            path = data.get("path")
+            condition = data.get("condition")
+
+            if path and isinstance(condition, dict):
+                op = condition.get("op")
+                value = condition.get("value")
+
+                path_only_ops = [FilterOp.HAS_COMPONENT, FilterOp.NOT_HAS_COMPONENT, FilterOp.ENDS_WITH]
+
+                if op in path_only_ops and value is None:
+                    condition["value"] = path
+                    data["path"] = "*"
+        return data
+
+    def to_expression(self, value_column: SQLAColumn, value_type_column: SQLAColumn) -> ColumnElement[bool]:
+        """Convert the path filter into a SQLAlchemy expression with type safety.
+
+        This method creates a type guard to ensure we only match compatible field types,
+        then delegates to the specific filter condition.
 
         Parameters
         ----------
         value_column : ColumnElement
             The SQLAlchemy column element representing the value to be filtered.
+        value_type_column : ColumnElement
+            The SQLAlchemy column element representing the field type.
 
         Returns:
         -------
         ColumnElement[bool]
             A SQLAlchemy boolean expression that can be used in a ``WHERE`` clause.
         """
-        return self.condition.to_expression(value_column, self.path)
+        # Type guard - only match compatible field types
+        allowed_field_types = [ft.value for ft in FieldType if UIType.from_field_type(ft) == self.value_kind]
+        type_guard = value_type_column.in_(allowed_field_types) if allowed_field_types else literal(True)
+
+        return and_(type_guard, self.condition.to_expression(value_column, self.path))
 
 
 class FilterTree(BaseModel):
@@ -216,14 +248,20 @@ class FilterTree(BaseModel):
             if isinstance(pf.condition, LtreeFilter):
                 # Path-only condition acts on path column
                 pred = pf.condition.to_expression(alias.path, pf.path)
-                where_clause = and_(*correlates, pred)
-            else:
-                where_clause = and_(
-                    *correlates,
-                    alias.path == Ltree(pf.path),
-                    pf.condition.to_expression(alias.value, pf.path),
-                )
 
+            elif "." not in pf.path:
+                # Auto-detection: leaf-only path with value condition
+                # Create ENDS_WITH path condition + value condition
+                path_pred = LtreeFilter(op=FilterOp.ENDS_WITH, value=pf.path).to_expression(alias.path, "")
+                value_pred = pf.to_expression(alias.value, alias.value_type)
+                pred = and_(path_pred, value_pred)
+            else:
+                # TODO: (Refactor) Backwards compatibility for agent:
+                # full path: exact path + type-gated comparison
+                value_pred = pf.to_expression(alias.value, alias.value_type)
+                pred = and_(alias.path == Ltree(pf.path), value_pred)
+
+            where_clause = and_(*correlates, pred)
             subq = select(1).select_from(alias).where(where_clause)
             return exists(subq)
 

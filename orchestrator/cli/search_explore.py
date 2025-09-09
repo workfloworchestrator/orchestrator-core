@@ -5,7 +5,7 @@ import typer
 from pydantic import ValidationError
 
 from orchestrator.db import db
-from orchestrator.search.core.types import EntityType, FilterOp
+from orchestrator.search.core.types import EntityType, FilterOp, UIType
 from orchestrator.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.search.retrieval import execute_search
 from orchestrator.search.retrieval.utils import display_filtered_paths_only, display_results
@@ -30,7 +30,7 @@ def structured(path: str, value: str, entity_type: EntityType = EntityType.SUBSC
         },
         ...
     """
-    path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value))
+    path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value), value_kind=UIType.STRING)
     search_params = BaseSearchParameters.create(
         entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), limit=limit
     )
@@ -94,7 +94,7 @@ def hierarchical(
     except (ValueError, ValidationError) as e:
         raise typer.BadParameter(f"Invalid filter: {e}")
 
-    path_filter = PathFilter(path="ltree_hierarchical_filter", condition=condition)
+    path_filter = PathFilter(path="ltree_hierarchical_filter", condition=condition, value_kind=UIType.STRING)
 
     search_params = BaseSearchParameters.create(
         entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), query=query, limit=limit
@@ -156,6 +156,7 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
                                 {
                                     "path": "subscription.status",
                                     "condition": {"op": "eq", "value": "active"},
+                                    "value_kind": "string",
                                 },
                                 {
                                     "path": "subscription.start_date",
@@ -166,6 +167,7 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
                                             "end": "2024-12-31T23:59:59Z",
                                         },
                                     },
+                                    "value_kind": "datetime",
                                 },
                             ],
                         },
@@ -176,10 +178,12 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
                                 {
                                     "path": "subscription.status",
                                     "condition": {"op": "eq", "value": "terminated"},
+                                    "value_kind": "string",
                                 },
                                 {
                                     "path": "subscription.end_date",
                                     "condition": {"op": "lte", "value": "2025-12-31"},
+                                    "value_kind": "datetime",
                                 },
                             ],
                         },
@@ -188,6 +192,7 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
                 {
                     "path": "subscription.*.port_mode",
                     "condition": {"op": "matches_lquery", "value": "*.port_mode"},
+                    "value_kind": "string",
                 },
             ],
         }
