@@ -246,23 +246,21 @@ class FilterTree(BaseModel):
                 correlates.append(alias.entity_type == entity_type_value)
 
             if isinstance(pf.condition, LtreeFilter):
-                # Path-only condition acts on path column
-                pred = pf.condition.to_expression(alias.path, pf.path)
+                # row-level predicate is always positive
+                positive = pf.condition.to_expression(alias.path, pf.path)
+                subq = select(1).select_from(alias).where(and_(*correlates, positive))
+                if pf.condition.op == FilterOp.NOT_HAS_COMPONENT:
+                    return ~exists(subq)  # NOT at the entity level
+                return exists(subq)
 
-            elif "." not in pf.path:
-                # Auto-detection: leaf-only path with value condition
-                # Create ENDS_WITH path condition + value condition
+            # value leaf: path predicate + typed value compare
+            if "." not in pf.path:
                 path_pred = LtreeFilter(op=FilterOp.ENDS_WITH, value=pf.path).to_expression(alias.path, "")
-                value_pred = pf.to_expression(alias.value, alias.value_type)
-                pred = and_(path_pred, value_pred)
             else:
-                # TODO: (Refactor) Backwards compatibility for agent:
-                # full path: exact path + type-gated comparison
-                value_pred = pf.to_expression(alias.value, alias.value_type)
-                pred = and_(alias.path == Ltree(pf.path), value_pred)
+                path_pred = alias.path == Ltree(pf.path)
 
-            where_clause = and_(*correlates, pred)
-            subq = select(1).select_from(alias).where(where_clause)
+            value_pred = pf.to_expression(alias.value, alias.value_type)
+            subq = select(1).select_from(alias).where(and_(*correlates, path_pred, value_pred))
             return exists(subq)
 
         def compile_node(node: FilterTree | PathFilter) -> ColumnElement[bool]:

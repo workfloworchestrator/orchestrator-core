@@ -37,9 +37,7 @@ class LtreeFilter(BaseModel):
             case FilterOp.PATH_MATCH:
                 ltree_value = Ltree(path)
                 return column == ltree_value
-            case FilterOp.HAS_COMPONENT:
+            case FilterOp.HAS_COMPONENT | FilterOp.NOT_HAS_COMPONENT:
                 return column.op("~")(bindparam(None, f"*.{self.value}.*", type_=TEXT))
-            case FilterOp.NOT_HAS_COMPONENT:
-                return ~column.op("~")(bindparam(None, f"*.{self.value}.*", type_=TEXT))
             case FilterOp.ENDS_WITH:
                 return column.op("~")(bindparam(None, f"*.{self.value}", type_=TEXT))
