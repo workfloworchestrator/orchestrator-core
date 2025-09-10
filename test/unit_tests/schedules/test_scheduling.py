@@ -7,15 +7,14 @@ from orchestrator.cli.scheduler import app
 runner = CliRunner()
 
 
-@mock.patch("orchestrator.cli.scheduler.BlockingScheduler")
 @mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")
-def test_run_scheduler_initializes_jobs(mock_get_paused_scheduler, mock_scheduler):
-    mock_scheduler.return_value.start.side_effect = KeyboardInterrupt
+def test_run_scheduler(mock_get_paused_scheduler):
+    mock_scheduler = mock.MagicMock()
+    mock_scheduler.resume.side_effect = KeyboardInterrupt
+    mock_get_paused_scheduler.return_value.__enter__.return_value = mock_scheduler
 
     result = runner.invoke(app, ["run"])
     assert result.exit_code == 130
-    mock_get_paused_scheduler.assert_called_once()
-    mock_scheduler.return_value.start.assert_called_once()
 
 
 @mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")

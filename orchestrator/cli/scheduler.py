@@ -13,11 +13,13 @@
 
 
 import logging
+import time
 
 import typer
-from apscheduler.schedulers.blocking import BlockingScheduler
 
-from orchestrator.schedules.scheduler import get_paused_scheduler, jobstores, scheduler_dispose_db_connections
+from orchestrator.schedules.scheduler import (
+    get_paused_scheduler,
+)
 
 log = logging.getLogger(__name__)
 
@@ -27,18 +29,11 @@ app: typer.Typer = typer.Typer()
 @app.command()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
-    # necessary to add the schedules to the DB since they are added to the BackgroundScheduler
     with get_paused_scheduler() as scheduler:
         scheduler.resume()
-        scheduler.pause()
 
-    blocking_scheduler = BlockingScheduler(jobstores=jobstores, jobstore_update_interval=5)
-
-    try:
-        blocking_scheduler.start()
-    finally:
-        blocking_scheduler.shutdown()
-        scheduler_dispose_db_connections()
+        while True:
+            time.sleep(1)
 
 
 @app.command()
