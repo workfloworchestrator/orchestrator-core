@@ -47,7 +47,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
     return None
 
 
-@search_toolset.tool  # type: ignore[misc]
+@search_toolset.tool
 async def set_search_parameters(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
@@ -67,7 +67,7 @@ async def set_search_parameters(
     )
 
 
-@search_toolset.tool(retries=2)  # type: ignore[misc]
+@search_toolset.tool(retries=2)
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
@@ -97,7 +97,7 @@ async def set_filter_tree(
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
 
-@search_toolset.tool  # type: ignore[misc]
+@search_toolset.tool
 async def execute_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 5,
