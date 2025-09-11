@@ -1,12 +1,12 @@
 name: Unit tests
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_call:
   pull_request:
 
 env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   container_job:
@@ -14,13 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
-        postgres-version: ['15', '16', '17']
+        python-version: ["3.11", "3.12", "3.13"]
+        postgres-version: ["15", "16", "17"]
       fail-fast: false
     container: ubuntu:latest
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}-alpine
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
@@ -68,6 +69,6 @@ jobs:
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}  # gives error 'Could not find a repository associated with upload token'
+          token: ${{ secrets.CODECOV_TOKEN }} # gives error 'Could not find a repository associated with upload token'
           fail_ci_if_error: false
           files: ./coverage.xml
