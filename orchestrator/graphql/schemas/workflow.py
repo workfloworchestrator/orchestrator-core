@@ -33,8 +33,8 @@ class Workflow:
         return [Step(name=step.name, assignee=step.assignee) for step in get_workflow(self.name).steps]  # type: ignore
 
     @strawberry.field(description="Return whether the currently logged-in used is allowed to start this workflow")  # type: ignore
-    def is_allowed(self, info: OrchestratorInfo) -> bool:
-        oidc_user = info.context.get_current_user
+    async def is_allowed(self, info: OrchestratorInfo) -> bool:
+        oidc_user = await info.context.get_current_user
         workflow_table = get_original_model(self, WorkflowTable)
         workflow = get_workflow(workflow_table.name)
 
