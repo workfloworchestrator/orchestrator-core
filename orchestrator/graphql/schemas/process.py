@@ -82,8 +82,8 @@ class ProcessType:
         )
 
     @strawberry.field(description="Returns user permissions for operations on this process")  # type: ignore
-    def user_permissions(self, info: OrchestratorInfo) -> FormUserPermissionsType:
-        oidc_user = info.context.get_current_user
+    async def user_permissions(self, info: OrchestratorInfo) -> FormUserPermissionsType:
+        oidc_user = await info.context.get_current_user
         workflow = get_workflow(self.workflow_name)
         process = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
         auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)  # type: ignore[arg-type]
