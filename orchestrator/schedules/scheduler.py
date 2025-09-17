@@ -29,7 +29,6 @@ from orchestrator.db.sorting.sorting import SortOrder
 from orchestrator.settings import app_settings
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 
-jobstores = {"default": SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI))}
 executors = {
     "default": ThreadPoolExecutor(1),
 }
@@ -37,22 +36,22 @@ job_defaults = {
     "coalesce": True,
 }
 
-scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, job_defaults=job_defaults)
-
-
-def scheduler_dispose_db_connections() -> None:
-    jobstores["default"].engine.dispose()
+scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 
 
 @contextmanager
 def get_paused_scheduler() -> Generator[BackgroundScheduler, Any, None]:
+    try:
+        scheduler.add_jobstore(SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI)))
+    except ValueError:
+        pass
     scheduler.start(paused=True)
 
     try:
         yield scheduler
     finally:
         scheduler.shutdown()
-        scheduler_dispose_db_connections()
+        scheduler._jobstores["default"].engine.dispose()
 
 
 class ScheduledTask(BaseModel):
