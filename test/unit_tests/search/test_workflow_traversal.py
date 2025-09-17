@@ -1,5 +1,5 @@
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 from orchestrator.db import WorkflowTable
 from orchestrator.search.core.types import EntityType, FieldType

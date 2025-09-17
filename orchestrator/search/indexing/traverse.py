@@ -6,7 +6,6 @@ from typing import Annotated, Any, Literal, cast, get_args, get_origin
 from uuid import UUID
 
 import structlog
-from strawberry.experimental.pydantic.fields import replace_pydantic_types
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
 from orchestrator.domain import (
@@ -39,6 +38,15 @@ class BaseTraverser(ABC):
 
     _LTREE_SEPARATOR = "."
     _MAX_DEPTH = 40
+
+    _type_mapping = {
+        int: FieldType.INTEGER,
+        float: FieldType.FLOAT,
+        bool: FieldType.BOOLEAN,
+        str: FieldType.STRING,
+        datetime: FieldType.DATETIME,
+        UUID: FieldType.UUID,
+    }
 
     @classmethod
     def get_fields(cls, entity: DatabaseEntity, pk_name: str, root_name: str) -> list[ExtractedField]:
@@ -116,19 +124,10 @@ class BaseTraverser(ABC):
 
     @staticmethod
     def _type_hint_to_field_type(type_hint: object) -> FieldType:
-        """Convert Strawberry type to FieldType."""
+        """Convert type hint to FieldType."""
 
-        type_mapping = {
-            int: FieldType.INTEGER,
-            float: FieldType.FLOAT,
-            bool: FieldType.BOOLEAN,
-            str: FieldType.STRING,
-            datetime: FieldType.DATETIME,
-            UUID: FieldType.UUID,
-        }
-
-        if type_hint in type_mapping:
-            return type_mapping[type_hint]
+        if type_hint in BaseTraverser._type_mapping:
+            return BaseTraverser._type_mapping[type_hint]
 
         if get_origin(type_hint) is Annotated:
             inner_type = get_args(type_hint)[0]

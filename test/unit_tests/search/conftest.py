@@ -1,30 +1,32 @@
-from uuid import UUID
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import pytest
 
-from orchestrator.search.core.types import ExtractedField
 from orchestrator.domain.base import ProductModel
+from orchestrator.search.core.types import ExtractedField
 
+from .fixtures.expected_data.subscriptions import (
+    get_complex_expected_fields,
+    get_computed_property_expected_fields,
+    get_nested_expected_fields,
+    get_simple_expected_fields,
+)
+from .fixtures.factories import (
+    create_complex_product_instance,
+    create_complex_subscription_instance,
+    create_computed_product_instance,
+    create_computed_property_subscription_instance,
+    create_nested_product_instance,
+    create_nested_subscription_instance,
+    create_simple_product_instance,
+    create_simple_subscription_instance,
+)
 from .fixtures.subscriptions import (
-    SimpleSubscription,
-    NestedSubscription,
     ComplexSubscription,
     ComputedPropertySubscription,
-)
-from .fixtures.factories import create_simple_subscription_instance
-from .fixtures.expected_data.subscriptions import get_simple_expected_fields
-from .fixtures.factories import create_nested_subscription_instance
-from .fixtures.expected_data.subscriptions import get_nested_expected_fields
-from .fixtures.factories import create_complex_subscription_instance
-from .fixtures.expected_data.subscriptions import get_complex_expected_fields
-from .fixtures.factories import create_computed_property_subscription_instance
-from .fixtures.expected_data.subscriptions import get_computed_property_expected_fields
-from .fixtures.factories import (
-    create_simple_product_instance,
-    create_nested_product_instance,
-    create_complex_product_instance,
-    create_computed_product_instance,
+    NestedSubscription,
+    SimpleSubscription,
 )
 
 

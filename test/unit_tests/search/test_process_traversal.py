@@ -1,6 +1,6 @@
-from uuid import UUID
 from datetime import datetime
 from unittest.mock import MagicMock
+from uuid import UUID
 
 from orchestrator.db import ProcessTable
 from orchestrator.search.core.types import EntityType, FieldType

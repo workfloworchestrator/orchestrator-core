@@ -6,21 +6,21 @@ from orchestrator.domain.lifecycle import ProductLifecycle
 
 from .blocks import (
     BasicBlock,
-    StatusEnum,
-    PriorityIntEnum,
+    ComputedBlock,
+    ContainerBlock,
+    ContainerListBlock,
     InnerBlock,
     MiddleBlock,
     OuterBlock,
+    PriorityIntEnum,
+    StatusEnum,
     UnionBlock,
-    ContainerBlock,
-    ContainerListBlock,
-    ComputedBlock,
 )
 from .subscriptions import (
-    SimpleSubscription,
-    NestedSubscription,
     ComplexSubscription,
     ComputedPropertySubscription,
+    NestedSubscription,
+    SimpleSubscription,
 )
 
 
@@ -211,6 +211,7 @@ def create_computed_property_subscription_instance(
 
 
 # Product factory functions (products are just ProductModel instances, not subscription instances)
+
 
 def create_simple_product_instance(product_uuid: UUID) -> ProductModel:
     """Create a simple product for testing basic product traversal."""

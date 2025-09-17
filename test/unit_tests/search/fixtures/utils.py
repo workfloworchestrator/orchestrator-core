@@ -1,4 +1,5 @@
-from typing import List, Tuple, Union
+from typing import List, Tuple
+
 from orchestrator.search.core.types import ExtractedField, FieldType
 
 

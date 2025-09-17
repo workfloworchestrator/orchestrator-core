@@ -1,11 +1,9 @@
-from typing import List, Union, Annotated, Literal
 from datetime import datetime
-from uuid import UUID
 from enum import Enum, IntEnum
+from typing import Annotated, List, Literal, Union
 
-from pydantic import computed_field, AfterValidator
 from annotated_types import Len
-from strawberry.experimental.pydantic import type as strawberry_type
+from pydantic import AfterValidator, computed_field
 
 from orchestrator.domain.base import ProductBlockModel
 

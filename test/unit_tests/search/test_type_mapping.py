@@ -1,12 +1,13 @@
-from typing import List, Union, Annotated, Literal
 from datetime import datetime
+from typing import Annotated, List, Literal, Union
 from uuid import UUID
 
 import pytest
 
 from orchestrator.search.core.types import FieldType
 from orchestrator.search.indexing.traverse import BaseTraverser
-from .fixtures.blocks import StatusEnum, PriorityIntEnum, MTU, MTUChoice, RequiredIntList
+
+from .fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
 
 
 class TestTypeMapping:

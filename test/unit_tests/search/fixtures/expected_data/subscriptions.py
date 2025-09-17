@@ -1,5 +1,7 @@
 from uuid import UUID
+
 from orchestrator.search.core.types import ExtractedField, FieldType
+
 from ..utils import fields
 
 

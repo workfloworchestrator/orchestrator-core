@@ -1,8 +1,6 @@
-from strawberry.experimental.pydantic import type as strawberry_type
-
 from orchestrator.domain.base import SubscriptionModel
 
-from .blocks import BasicBlock, OuterBlock, ContainerListBlock, ComputedBlock
+from .blocks import BasicBlock, ComputedBlock, ContainerListBlock, OuterBlock
 
 
 class SimpleSubscription(SubscriptionModel, is_base=True):

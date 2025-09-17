@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
+import pytest
+
 from orchestrator.db import ProcessTable, SubscriptionTable
 from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
-from orchestrator.search.indexing.traverse import ProcessTraverser, SubscriptionTraverser, ProductTraverser
+from orchestrator.search.indexing.traverse import ProcessTraverser, ProductTraverser, SubscriptionTraverser
 
 
 class TestTraverserExceptions:

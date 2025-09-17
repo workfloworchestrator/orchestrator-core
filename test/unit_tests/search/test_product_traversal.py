@@ -1,15 +1,18 @@
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from orchestrator.search.core.exceptions import ProductNotInRegistryError
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.search.indexing.traverse import SUBSCRIPTION_MODEL_REGISTRY, ProductTraverser
+
 from .fixtures.expected_data.products import (
-    get_simple_product_expected_fields,
-    get_nested_product_expected_fields,
     get_complex_product_expected_fields,
     get_computed_product_expected_fields,
+    get_nested_product_expected_fields,
+    get_simple_product_expected_fields,
 )
-import pytest
-from unittest.mock import MagicMock, patch
-from orchestrator.search.indexing.traverse import SUBSCRIPTION_MODEL_REGISTRY, ProductTraverser
-from orchestrator.search.core.exceptions import ProductNotInRegistryError
 
 
 class TestProductTraverser:

@@ -1,6 +1,6 @@
 from orchestrator.search.core.types import EntityType
-from orchestrator.search.indexing.traverse import SubscriptionTraverser
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
+from orchestrator.search.indexing.traverse import SubscriptionTraverser
 
 
 class TestSubscriptionTraverser:
@@ -29,10 +29,7 @@ class TestSubscriptionTraverser:
     def test_traverse_with_real_subscription_flow(
         self, mock_load_model, mock_db_subscription, subscription_instance, expected_traverse_fields
     ) -> None:
-        """
-        Verifies that traverse() walks the Pydantic subscription model and
-        emits the expected searchable fields and types.
-        """
+        """Verifies that traverse() walks the Pydantic subscription model and emits the expected searchable fields and types."""
         self._assert_traverse_fields_match(
             mock_load_model, mock_db_subscription, subscription_instance, expected_traverse_fields
         )
