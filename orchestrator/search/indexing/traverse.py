@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from datetime import datetime
-from enum import Enum, IntEnum
-from typing import Annotated, Any, Literal, cast, get_args, get_origin
-from uuid import UUID
+from enum import Enum
+from typing import Any, cast, get_args
 
 import structlog
 
@@ -20,13 +18,7 @@ from orchestrator.schemas.process import ProcessSchema
 from orchestrator.schemas.workflow import WorkflowSchema
 from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
 from orchestrator.search.core.types import ExtractedField, FieldType
-from orchestrator.types import (
-    SubscriptionLifecycle,
-    filter_nonetype,
-    get_origin_and_args,
-    is_optional_type,
-    is_union_type,
-)
+from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
 
@@ -38,15 +30,6 @@ class BaseTraverser(ABC):
 
     _LTREE_SEPARATOR = "."
     _MAX_DEPTH = 40
-
-    _type_mapping = {
-        int: FieldType.INTEGER,
-        float: FieldType.FLOAT,
-        bool: FieldType.BOOLEAN,
-        str: FieldType.STRING,
-        datetime: FieldType.DATETIME,
-        UUID: FieldType.UUID,
-    }
 
     @classmethod
     def get_fields(cls, entity: DatabaseEntity, pk_name: str, root_name: str) -> list[ExtractedField]:
@@ -69,13 +52,12 @@ class BaseTraverser(ABC):
 
         # Handle both standard and computed fields from the Pydantic model
         all_fields = model_class.model_fields.copy()
-        all_fields.update(getattr(model_class, "model_computed_fields", {}))
+        all_fields.update(getattr(model_class, "__pydantic_computed_fields__", {}))
 
         for name, field in all_fields.items():
             value = getattr(instance, name, None)
             new_path = f"{path}{cls._LTREE_SEPARATOR}{name}" if path else name
             annotation = field.annotation if hasattr(field, "annotation") else field.return_type
-            # annotation = replace_pydantic_types(annotation, is_input=False)
             yield from cls._yield_fields_for_value(value, new_path, annotation)
 
     @classmethod
@@ -95,7 +77,7 @@ class BaseTraverser(ABC):
             yield from cls.traverse(value, path)
             return
 
-        ftype = cls._type_hint_to_field_type(annotation)
+        ftype = FieldType.from_type_hint(annotation)
 
         if isinstance(value, Enum):
             yield ExtractedField(path, str(value.value), ftype)
@@ -121,56 +103,6 @@ class BaseTraverser(ABC):
     @classmethod
     @abstractmethod
     def _load_model(cls, entity: Any) -> Any: ...
-
-    @staticmethod
-    def _type_hint_to_field_type(type_hint: object) -> FieldType:
-        """Convert type hint to FieldType."""
-
-        if type_hint in BaseTraverser._type_mapping:
-            return BaseTraverser._type_mapping[type_hint]
-
-        if get_origin(type_hint) is Annotated:
-            inner_type = get_args(type_hint)[0]
-            return BaseTraverser._type_hint_to_field_type(inner_type)
-
-        origin, args = get_origin_and_args(type_hint)
-
-        if origin is list:
-            if args:
-                element_type = args[0]
-                return BaseTraverser._type_hint_to_field_type(element_type)
-
-        if origin is Literal:
-            if args:
-                first_value = args[0]
-                if isinstance(first_value, bool):
-                    return FieldType.BOOLEAN
-                if isinstance(first_value, int):
-                    return FieldType.INTEGER
-                if isinstance(first_value, str):
-                    return FieldType.STRING
-                if isinstance(first_value, float):
-                    return FieldType.FLOAT
-
-        if is_optional_type(type_hint):
-            non_none_types = list(filter_nonetype(args))
-            if non_none_types:
-                return BaseTraverser._type_hint_to_field_type(non_none_types[0])
-
-        if is_union_type(type_hint):
-            non_none_types = list(filter_nonetype(args))
-            if non_none_types:
-                return BaseTraverser._type_hint_to_field_type(non_none_types[0])
-
-        if isinstance(type_hint, type):
-            if issubclass(type_hint, ProductBlockModel):
-                return FieldType.BLOCK
-            if issubclass(type_hint, IntEnum):
-                return FieldType.INTEGER
-            if issubclass(type_hint, Enum):
-                return FieldType.STRING
-
-        return FieldType.STRING
 
 
 class SubscriptionTraverser(BaseTraverser):

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from orchestrator.domain.base import ProductModel
@@ -104,7 +105,7 @@ def create_nested_subscription_instance(subscription_uuid: UUID, product_uuid: U
 
 def create_complex_subscription_instance(subscription_uuid: UUID, product_uuid: UUID) -> ComplexSubscription:
 
-    def create_basic_block(**kwargs) -> BasicBlock:
+    def create_basic_block(**kwargs: Any) -> BasicBlock:
         defaults = {
             "name": "ProductBlock",
             "subscription_instance_id": subscription_uuid,
@@ -114,9 +115,10 @@ def create_complex_subscription_instance(subscription_uuid: UUID, product_uuid: 
             "ratio": 0.75,
             "created_at": datetime(2024, 5, 1, 12, 0, 0),
         }
-        return BasicBlock(**(defaults | kwargs))
+        merged_kwargs = {**defaults, **kwargs}
+        return BasicBlock(**merged_kwargs)
 
-    def create_union_block(**kwargs) -> UnionBlock:
+    def create_union_block(**kwargs: Any) -> UnionBlock:
         defaults = {
             "name": "AlternativeBlock",
             "subscription_instance_id": subscription_uuid,
@@ -126,9 +128,10 @@ def create_complex_subscription_instance(subscription_uuid: UUID, product_uuid: 
             "mtu_choice": 1500,
             "validated_mtu": 9000,
         }
-        return UnionBlock(**(defaults | kwargs))
+        merged_kwargs = {**defaults, **kwargs}
+        return UnionBlock(**merged_kwargs)
 
-    def create_container_block(**kwargs) -> ContainerBlock:
+    def create_container_block(**kwargs: Any) -> ContainerBlock:
         defaults = {
             "name": "EndpointBlock",
             "subscription_instance_id": subscription_uuid,
@@ -155,16 +158,18 @@ def create_complex_subscription_instance(subscription_uuid: UUID, product_uuid: 
             "float_field": 3.14,
             "last_seen": datetime(2024, 5, 1, 12, 0, 0),
         }
-        return ContainerBlock(**(defaults | kwargs))
+        merged_kwargs = {**defaults, **kwargs}
+        return ContainerBlock(**merged_kwargs)
 
-    def create_container_list_block(**kwargs) -> ContainerListBlock:
+    def create_container_list_block(**kwargs: Any) -> ContainerListBlock:
         defaults = {
             "name": "ContainerListBlock",
             "subscription_instance_id": subscription_uuid,
             "owner_subscription_id": subscription_uuid,
             "endpoints": [create_container_block(name="endpoint-1")],
         }
-        return ContainerListBlock(**(defaults | kwargs))
+        merged_kwargs = {**defaults, **kwargs}
+        return ContainerListBlock(**merged_kwargs)
 
     container_list = create_container_list_block()
 

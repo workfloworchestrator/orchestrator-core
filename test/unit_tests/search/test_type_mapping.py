@@ -5,7 +5,6 @@ from uuid import UUID
 import pytest
 
 from orchestrator.search.core.types import FieldType
-from orchestrator.search.indexing.traverse import BaseTraverser
 
 from .fixtures.blocks import MTU, MTUChoice, PriorityIntEnum, RequiredIntList, StatusEnum
 
@@ -28,7 +27,7 @@ class TestTypeMapping:
     )
     def test_basic_type_mapping(self, python_type, expected_field_type):
         """Test direct Python type to FieldType mapping for all basic types in fixtures."""
-        result = BaseTraverser._type_hint_to_field_type(python_type)
+        result = FieldType.from_type_hint(python_type)
         assert result == expected_field_type
 
     @pytest.mark.parametrize(
@@ -46,7 +45,7 @@ class TestTypeMapping:
     )
     def test_list_type_mapping(self, list_type, expected_field_type):
         """Test list types resolve to their element type for all list patterns in fixtures."""
-        result = BaseTraverser._type_hint_to_field_type(list_type)
+        result = FieldType.from_type_hint(list_type)
         assert result == expected_field_type
 
     @pytest.mark.parametrize(
@@ -60,7 +59,7 @@ class TestTypeMapping:
     )
     def test_union_type_mapping(self, union_type, expected_field_type):
         """Test Union types resolve to first non-None type as used in UnionBlock."""
-        result = BaseTraverser._type_hint_to_field_type(union_type)
+        result = FieldType.from_type_hint(union_type)
         assert result == expected_field_type
 
     @pytest.mark.parametrize(
@@ -75,7 +74,7 @@ class TestTypeMapping:
     )
     def test_literal_type_mapping(self, literal_type, expected_field_type):
         """Test Literal types resolve based on their value types as used in fixtures."""
-        result = BaseTraverser._type_hint_to_field_type(literal_type)
+        result = FieldType.from_type_hint(literal_type)
         assert result == expected_field_type
 
     @pytest.mark.parametrize(
@@ -94,16 +93,16 @@ class TestTypeMapping:
     )
     def test_annotated_type_mapping(self, annotated_type, expected_field_type):
         """Test Annotated types resolve to their inner type as used in fixtures."""
-        result = BaseTraverser._type_hint_to_field_type(annotated_type)
+        result = FieldType.from_type_hint(annotated_type)
         assert result == expected_field_type
 
     def test_complex_nested_types_from_fixtures(self):
         """Test complex nested type combinations actually used in the fixtures."""
 
-        result = BaseTraverser._type_hint_to_field_type(list[MTU])
+        result = FieldType.from_type_hint(list[MTU])
         assert result == FieldType.INTEGER
 
-        result = BaseTraverser._type_hint_to_field_type(Union[MTU, None])
+        result = FieldType.from_type_hint(Union[MTU, None])
         assert result == FieldType.INTEGER
 
     def test_unknown_type_defaults_to_string(self):
@@ -112,12 +111,12 @@ class TestTypeMapping:
         class UnknownType:
             pass
 
-        result = BaseTraverser._type_hint_to_field_type(UnknownType)
+        result = FieldType.from_type_hint(UnknownType)
         assert result == FieldType.STRING
 
     def test_list_edge_cases(self):
         """Test list edge cases that hit the string fallback."""
-        result = BaseTraverser._type_hint_to_field_type(list)
+        result = FieldType.from_type_hint(list)
         assert result == FieldType.STRING
 
     def test_product_block_model_type(self):
@@ -127,7 +126,7 @@ class TestTypeMapping:
         class TestBlock(ProductBlockModel):
             pass
 
-        result = BaseTraverser._type_hint_to_field_type(TestBlock)
+        result = FieldType.from_type_hint(TestBlock)
         assert result == FieldType.BLOCK
 
     def test_enum_types(self):
@@ -142,8 +141,8 @@ class TestTypeMapping:
             VALUE1 = 1
             VALUE2 = 2
 
-        result = BaseTraverser._type_hint_to_field_type(TestStringEnum)
+        result = FieldType.from_type_hint(TestStringEnum)
         assert result == FieldType.STRING
 
-        result = BaseTraverser._type_hint_to_field_type(TestIntEnum)
+        result = FieldType.from_type_hint(TestIntEnum)
         assert result == FieldType.INTEGER

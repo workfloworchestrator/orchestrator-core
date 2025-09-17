@@ -2,10 +2,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.search.core.exceptions import ProductNotInRegistryError
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.indexing.traverse import SUBSCRIPTION_MODEL_REGISTRY, ProductTraverser
+from orchestrator.search.indexing.traverse import ProductTraverser
 
 from .fixtures.expected_data.products import (
     get_complex_product_expected_fields,

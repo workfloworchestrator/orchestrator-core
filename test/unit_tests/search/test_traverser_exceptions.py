@@ -72,6 +72,16 @@ class TestTraverserExceptions:
 
         assert result == []
 
+    def test_product_get_fields_handles_load_model_returns_none(self):
+        """ProductTraverser.get_fields should return [] when _load_model returns None."""
+        mock_product = MagicMock()
+        mock_product.product_id = "test-123"
+
+        with patch.object(ProductTraverser, "_load_model", return_value=None):
+            result = ProductTraverser.get_fields(mock_product, "product_id", "product")
+
+        assert result == []
+
     def test_get_fields_handles_product_not_in_registry_error(self, caplog):
         """Test that ProductNotInRegistryError is caught and logged properly."""
         mock_product = MagicMock()

@@ -13,11 +13,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db import db
-from orchestrator.db.database import BaseModel
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.embedding import EmbeddingIndexer
 from orchestrator.search.core.types import ExtractedField, IndexableRecord
 from orchestrator.search.indexing.registry import EntityConfig
+from orchestrator.search.indexing.traverse import DatabaseEntity
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
@@ -82,9 +82,9 @@ class Indexer:
         self.embedding_model = app_settings.EMBEDDING_MODEL
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
 
-    def run(self, entities: Iterable[BaseModel], chunk_size: int) -> int:
+    def run(self, entities: Iterable[DatabaseEntity], chunk_size: int) -> int:
         """Orchestrates the entire indexing process."""
-        chunk: list[BaseModel] = []
+        chunk: list[DatabaseEntity] = []
         total_records_processed = 0
         total_identical_records = 0
 
@@ -118,7 +118,7 @@ class Indexer:
         )
         return total_records_processed
 
-    def _process_chunk(self, entity_chunk: list[BaseModel], session: Session | None = None) -> tuple[int, int]:
+    def _process_chunk(self, entity_chunk: list[DatabaseEntity], session: Session | None = None) -> tuple[int, int]:
         """Process a chunk of entities."""
         if not entity_chunk:
             return 0, 0
@@ -145,7 +145,7 @@ class Indexer:
         return len(fields_to_upsert), identical_count
 
     def _determine_changes(
-        self, entities: list[BaseModel], session: Session | None = None
+        self, entities: list[DatabaseEntity], session: Session | None = None
     ) -> tuple[list[tuple[str, ExtractedField]], list[tuple[str, Ltree]], int]:
         """Identifies all changes across all entities using pre-fetched data."""
         entity_ids = [str(getattr(e, self.config.pk_name)) for e in entities]

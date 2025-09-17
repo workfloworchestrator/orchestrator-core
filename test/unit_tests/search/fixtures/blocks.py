@@ -89,7 +89,7 @@ class ComputedBlock(ProductBlockModel):
     device_name: str
     status: str
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field  # type: ignore[misc]
     @property
     def display_name(self) -> str:
         return f"{self.device_name} ({self.device_id})"
