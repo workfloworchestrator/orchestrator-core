@@ -22,23 +22,25 @@ from orchestrator.cli import (
     search_explore,
     speedtest,
 )
+from orchestrator.llm_settings import llm_settings
 
 app = typer.Typer()
 app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler functions")
 app.add_typer(database.app, name="db", help="Interact with the application database")
 app.add_typer(generate.app, name="generate", help="Generate products, workflows and other artifacts")
-app.add_typer(index_llm.app, name="index", help="(Re-)Index the search table.")
-app.add_typer(search_explore.app, name="search", help="Try out different search types.")
-app.add_typer(
-    resize_embedding.app,
-    name="embedding",
-    help="Resize the vector dimension of the embedding column in the search table.",
-)
 app.add_typer(
     speedtest.app,
     name="speedtest",
     help="Search performance testing and analysis.",
 )
+if llm_settings.LLM_ENABLED:
+    app.add_typer(index_llm.app, name="index", help="(Re-)Index the search table.")
+    app.add_typer(search_explore.app, name="search", help="Try out different search types.")
+    app.add_typer(
+        resize_embedding.app,
+        name="embedding",
+        help="Resize the vector dimension of the embedding column in the search table.",
+    )
 
 
 if __name__ == "__main__":

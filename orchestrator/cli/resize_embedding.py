@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.settings import app_settings
+from orchestrator.llm_settings import llm_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -85,10 +85,10 @@ def resize_embeddings_command() -> None:
     """Resize vector dimensions of the ai_search_index embedding column.
 
     Compares the current embedding dimension in the database with the configured
-    dimension in app_settings. If they differ, drops all records and alters the
+    dimension in llm_settings. If they differ, drops all records and alters the
     column to match the new dimension.
     """
-    new_dimension = app_settings.EMBEDDING_DIMENSION
+    new_dimension = llm_settings.EMBEDDING_DIMENSION
 
     logger.info("Starting embedding dimension resize", new_dimension=new_dimension)
 

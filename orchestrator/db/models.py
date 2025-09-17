@@ -52,8 +52,8 @@ from sqlalchemy_utils import LtreeType, TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
+from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.types import FieldType
-from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
@@ -715,7 +715,7 @@ class AiSearchIndex(BaseModel):
     )
 
     # Embedding
-    embedding = mapped_column(Vector(app_settings.EMBEDDING_DIMENSION), nullable=True)
+    embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=True)
 
     # SHA-256
     content_hash = mapped_column(String(64), nullable=False, index=True)

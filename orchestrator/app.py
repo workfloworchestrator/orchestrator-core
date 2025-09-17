@@ -26,6 +26,8 @@ import typer
 from fastapi.applications import FastAPI
 from fastapi_etag.dependency import add_exception_handler
 from prometheus_client import make_asgi_app
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.toolsets import FunctionToolset
 from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -41,7 +43,6 @@ from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_lo
 from oauth2_lib.fastapi import AuthManager, Authorization, GraphqlAuthorization, OIDCAuth
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
-from orchestrator.api.api_v1.endpoints.agent import build_agent_app
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
@@ -55,6 +56,7 @@ from orchestrator.graphql import Mutation, Query, create_graphql_router
 from orchestrator.graphql.schema import ContextGetterFactory
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
+from orchestrator.llm_settings import LLMSettings, llm_settings
 from orchestrator.log_config import LOGGER_OVERRIDES
 from orchestrator.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
@@ -89,8 +91,13 @@ class OrchestratorCore(FastAPI):
         version: str = __version__,
         default_response_class: type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
+        llm_model: OpenAIModel | None = None,
+        llm_settings: LLMSettings = llm_settings,
+        agent_tools: list[FunctionToolset] | None = None,
         **kwargs: Any,
     ) -> None:
+        self.llm_model = llm_model
+        self.agent_tools = agent_tools
         initialise_logging(LOGGER_OVERRIDES)
         init_model_loaders()
         if base_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
@@ -151,8 +158,9 @@ class OrchestratorCore(FastAPI):
             metrics_app = make_asgi_app(registry=ORCHESTRATOR_METRICS_REGISTRY)
             self.mount("/api/metrics", metrics_app)
 
-        agent_app = build_agent_app()
-        self.mount("/agent", agent_app)
+        if llm_settings.LLM_ENABLED and self.llm_model:
+            logger.info("Mounting the agent")
+            self.register_llm_integration()
 
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
@@ -187,6 +195,12 @@ class OrchestratorCore(FastAPI):
             profiles_sample_rate=trace_sample_rate,
             **sentry_kwargs,
         )
+
+    def register_llm_integration(self) -> None:
+        from orchestrator.search.agent import build_agent_app
+
+        agent_app = build_agent_app(self.llm_model, self.agent_tools)
+        self.mount("/agent", agent_app)
 
     @staticmethod
     def register_subscription_models(product_to_subscription_model_mapping: dict[str, type[SubscriptionModel]]) -> None:

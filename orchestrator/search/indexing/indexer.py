@@ -14,11 +14,12 @@ from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex
+from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.embedding import EmbeddingIndexer
 from orchestrator.search.core.types import ExtractedField, IndexableRecord
 from orchestrator.search.indexing.registry import EntityConfig
 from orchestrator.search.indexing.traverse import DatabaseEntity
-from orchestrator.settings import app_settings
+
 
 logger = structlog.get_logger(__name__)
 
@@ -80,8 +81,12 @@ class Indexer:
         self.config = config
         self.dry_run = dry_run
         self.force_index = force_index
+<<<<<<< HEAD
         self.chunk_size = chunk_size
         self.embedding_model = app_settings.EMBEDDING_MODEL
+=======
+        self.embedding_model = llm_settings.EMBEDDING_MODEL
+>>>>>>> b8d031e2 (Make the LLM module more configurable and do not install all deps straight away)
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
 
     def run(self, entities: Iterable[DatabaseEntity]) -> int:
@@ -210,12 +215,12 @@ class Indexer:
         current_tokens = 0
 
         max_ctx = self._get_max_tokens()
-        safe_margin = int(max_ctx * app_settings.EMBEDDING_SAFE_MARGIN_PERCENT)
+        safe_margin = int(max_ctx * llm_settings.EMBEDDING_SAFE_MARGIN_PERCENT)
         token_budget = max(1, max_ctx - safe_margin)
 
         max_batch_size = None
-        if app_settings.OPENAI_BASE_URL:  # We are using a local model
-            max_batch_size = app_settings.EMBEDDING_MAX_BATCH_SIZE
+        if llm_settings.OPENAI_BASE_URL:  # We are using a local model
+            max_batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE
 
         for entity_id, field in fields_to_upsert:
             if field.value_type.is_embeddable():
@@ -279,7 +284,7 @@ class Indexer:
             # Allow local(unknown) models to fall back.
             self.logger.warning("Could not auto-detect max tokens.", model=self.embedding_model)
 
-        max_ctx = app_settings.EMBEDDING_FALLBACK_MAX_TOKENS
+        max_ctx = llm_settings.EMBEDDING_FALLBACK_MAX_TOKENS
         if not isinstance(max_ctx, int):
             raise RuntimeError("Model not recognized and EMBEDDING_FALLBACK_MAX_TOKENS not set.")
         self.logger.warning("Using configured fallback token limit.", fallback=max_ctx)

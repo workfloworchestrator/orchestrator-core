@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,7 @@ import string
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings
 
 from oauth2_lib.settings import oauth2lib_settings
@@ -91,34 +91,6 @@ class AppSettings(BaseSettings):
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
     EXPOSE_SETTINGS: bool = False
     EXPOSE_OAUTH_SETTINGS: bool = False
-
-    # Pydantic-ai Agent settings
-    AGENT_MODEL: str = "openai:gpt-4o-mini"  # See pydantic-ai docs for supported models.
-    OPENAI_API_KEY: str = "OPENAI_API_KEY"  # Change per provider (Azure, etc).
-
-    # Embedding settings
-    EMBEDDING_DIMENSION: int = 1536
-    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"  # See litellm docs for supported models.
-    EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
-        0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
-    )
-
-    # The following settings are only needed for local models.
-    # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
-    OPENAI_BASE_URL: str | None = None
-    EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
-    EMBEDDING_MAX_BATCH_SIZE: int | None = 32
-
-    # General LiteLLM settings
-    LLM_MAX_RETRIES: int = 3
-    LLM_TIMEOUT: int = 30
-
-    @field_validator("EMBEDDING_MODEL")
-    def validate_embedding_model_format(cls, v: str) -> str:
-        """Validate that embedding model is in 'vendor/model' format."""
-        if "/" not in v:
-            raise ValueError("EMBEDDING_MODEL must be in format 'vendor/model'")
-        return v
 
 
 app_settings = AppSettings()
