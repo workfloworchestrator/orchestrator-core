@@ -1,14 +1,17 @@
+from typing import Any
+
 import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.agent import Agent
+from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.settings import ModelSettings
+from pydantic_ai.toolsets import FunctionToolset
 from starlette.types import ASGIApp
 
 from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic_instructions
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
-from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -23,19 +26,17 @@ def _disabled_agent_app(reason: str) -> FastAPI:
     return app
 
 
-def build_agent_app() -> ASGIApp:
-    if not app_settings.AGENT_MODEL or not app_settings.OPENAI_API_KEY:
-        logger.warning("Agent route disabled: missing model or OPENAI_API_KEY")
-        return _disabled_agent_app("missing configuration")
-
+def build_agent_app(model: str | OpenAIModel, toolsets: list[FunctionToolset[Any]] | None = None) -> ASGIApp:
     try:
+        toolsets = toolsets + [search_toolset] if toolsets else [search_toolset]
+
         agent = Agent(
-            model=app_settings.AGENT_MODEL,
+            model=model,
             deps_type=StateDeps[SearchState],
             model_settings=ModelSettings(
-                parallel_tool_calls=False
+                parallel_tool_calls=False,
             ),  # https://github.com/pydantic/pydantic-ai/issues/562
-            toolsets=[search_toolset],
+            toolsets=toolsets,
         )
         agent.instructions(get_base_instructions)
         agent.instructions(get_dynamic_instructions)

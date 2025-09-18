@@ -41,7 +41,6 @@ from nwastdlib.logging import ClearStructlogContextASGIMiddleware, initialise_lo
 from oauth2_lib.fastapi import AuthManager, Authorization, GraphqlAuthorization, OIDCAuth
 from orchestrator import __version__
 from orchestrator.api.api_v1.api import api_router
-from orchestrator.api.api_v1.endpoints.agent import build_agent_app
 from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.cli.main import app as cli_app
 from orchestrator.db import db, init_database
@@ -91,6 +90,22 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        """Initialize the Orchestrator.
+
+        Args:
+            title: Name of the application.
+            description: Description of the application.
+            openapi_url: Location of the OpenAPI endpoint.
+            docs_url: Location of the docs endpoint.
+            redoc_url: Location of the redoc endpoint.
+            version: Version of the application.
+            default_response_class: Override the default response class.
+            base_settings: Settings for the application.
+            **kwargs: Any additional keyword arguments are sent to the
+
+        Returns:
+            None
+        """
         initialise_logging(LOGGER_OVERRIDES)
         init_model_loaders()
         if base_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
@@ -151,9 +166,6 @@ class OrchestratorCore(FastAPI):
             metrics_app = make_asgi_app(registry=ORCHESTRATOR_METRICS_REGISTRY)
             self.mount("/api/metrics", metrics_app)
 
-        agent_app = build_agent_app()
-        self.mount("/agent", agent_app)
-
         @self.router.get("/", response_model=str, response_class=JSONResponse, include_in_schema=False)
         def _index() -> str:
             return "Orchestrator Core"
@@ -167,6 +179,22 @@ class OrchestratorCore(FastAPI):
         release: str | None = GIT_COMMIT_HASH,
         **sentry_kwargs: Any,
     ) -> None:
+        """Register sentry to your application.
+
+        Sentry is an application monitoring toolkit.
+
+        Args:
+            sentry_dsn: The location where sentry traces are posted to.
+            trace_sample_rate: The sample rate
+            server_name: The name of the application
+            environment: Production or development
+            release: Version of the application
+            **sentry_kwargs: Any sentry keyword arguments
+
+        Returns:
+            None
+
+        """
         logger.info("Adding Sentry middleware to app", app=self.title)
         if self.base_settings.EXECUTOR == ExecutorType.WORKER:
             from sentry_sdk.integrations.celery import CeleryIntegration

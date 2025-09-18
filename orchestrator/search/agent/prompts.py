@@ -5,9 +5,8 @@ import structlog
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 
+from orchestrator.search.agent.state import SearchState
 from orchestrator.search.retrieval.validation import get_structured_filter_schema
-
-from .state import SearchState
 
 logger = structlog.get_logger(__name__)
 
@@ -42,6 +41,7 @@ async def get_base_instructions() -> str:
     3) `set_filter_tree(filters=<FilterTree or null>)`.
     4) `execute_search()`.
     5) Summarize the results for the user.
+
     """
     )
 

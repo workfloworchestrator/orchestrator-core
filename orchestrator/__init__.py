@@ -13,15 +13,39 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "5.0.0a1"
+__version__ = "4.5.1a1"
 
-from orchestrator.app import OrchestratorCore
+
+from structlog import get_logger
+
+logger = get_logger(__name__)
+
+logger.info("Starting the orchestrator", version=__version__)
+
+from orchestrator.llm_settings import llm_settings
 from orchestrator.settings import app_settings
+
+if llm_settings.LLM_ENABLED:
+    try:
+        from importlib import import_module
+
+        import_module("pydantic_ai")
+        from orchestrator.agentic_app import AgenticOrchestratorCore as OrchestratorCore
+
+    except ImportError:
+        logger.error(
+            "Unable to import 'pydantic_ai' module, please install the orchestrator with llm dependencies. `pip install orchestrator-core[llm]",
+        )
+        exit(1)
+else:
+    from orchestrator.app import OrchestratorCore  # type: ignore[assignment]
+
 from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
 
 __all__ = [
     "OrchestratorCore",
     "app_settings",
+    "llm_settings",
     "step",
     "inputstep",
     "workflow",
