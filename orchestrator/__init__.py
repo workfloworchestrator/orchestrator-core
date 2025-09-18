@@ -30,14 +30,15 @@ if llm_settings.LLM_ENABLED:
         from importlib import import_module
 
         import_module("pydantic_ai")
-        from orchestrator.agentic_app import AgenticOrchestratorCore as OrchestratorCore  # noqa: F401
+        from orchestrator.agentic_app import AgenticOrchestratorCore as OrchestratorCore
+
     except ImportError:
         logger.error(
             "Unable to import 'pydantic_ai' module, please install the orchestrator with llm dependencies. `pip install orchestrator-core[llm]",
         )
         exit(1)
 else:
-    from orchestrator.app import OrchestratorCore  # noqa: F401
+    from orchestrator.app import OrchestratorCore  # type: ignore[assignment]
 
 from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
 
