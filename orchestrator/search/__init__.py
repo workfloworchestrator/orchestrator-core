@@ -10,16 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from importlib import import_module
-
-import structlog
-
-logger = structlog.get_logger(__name__)
-
-try:
-    import_module("pydantic_ai")
-except ImportError:
-    logger.error(
-        "LLM dependencies not installed, but LLM_ENABLED. Please install the orchestrator-core package as follows: orchestrator-core[llm], exiting now"
-    )
-    exit(1)

@@ -20,7 +20,6 @@ from orchestrator.search.core.types import ExtractedField, IndexableRecord
 from orchestrator.search.indexing.registry import EntityConfig
 from orchestrator.search.indexing.traverse import DatabaseEntity
 
-
 logger = structlog.get_logger(__name__)
 
 

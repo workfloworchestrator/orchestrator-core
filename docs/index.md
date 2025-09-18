@@ -76,7 +76,7 @@ There are a number of options for getting started:
 - For those who are more adventurous, follow the guide on the [next page](getting-started/base.md) to
   start coding right away.
 
-<!-- Followinh line are not visible? -->
+<!-- Following line are not visible? -->
 [//]: # (- If you would like to see the workflow engine in action, click [here]&#40;https://demo.workfloworchestrator.org&#41; this )
 
 [//]: # (will take you to our demo environment, where you can see some of our examples in action.)

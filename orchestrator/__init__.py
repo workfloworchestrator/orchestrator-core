@@ -15,7 +15,15 @@
 
 __version__ = "5.0.0a1"
 
+
+from structlog import get_logger
+
+logger = get_logger(__name__)
+
+logger.info("Starting the orchestrator", version=__version__)
+
 from orchestrator.app import OrchestratorCore
+from orchestrator.llm_settings import llm_settings
 from orchestrator.settings import app_settings
 from orchestrator.workflow import begin, conditional, done, focussteps, inputstep, retrystep, step, steplens, workflow
 
@@ -32,3 +40,17 @@ __all__ = [
     "focussteps",
     "steplens",
 ]
+
+if llm_settings.LLM_ENABLED:
+    try:
+        from importlib import import_module
+
+        import_module("pydantic_ai")
+        from orchestrator.agentic_app import AgenticOrchestratorCore  # noqa: F401
+
+        __all__ = __all__ + ["llm_settings", "AgentOrchestratorCore"]
+    except ImportError:
+        logger.error(
+            "Unable to import 'pydantic_ai' module, please install the orchestrator with llm dependencies. `pip install orchestrator-core[llm]",
+        )
+        exit(1)
