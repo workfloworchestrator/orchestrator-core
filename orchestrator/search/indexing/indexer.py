@@ -54,6 +54,7 @@ class Indexer:
             embedding calls.
         force_index (bool): If True, ignore existing hashes and reindex all
             fields for each entity.
+        chunk_size (int): Number of entities to process per batch. Defaults to 1000.
 
     Notes:
         - Non-dry-run runs open a write session and wrap each processed chunk in
@@ -75,14 +76,15 @@ class Indexer:
         8) Repeat until the stream is exhausted.
     """
 
-    def __init__(self, config: EntityConfig, dry_run: bool, force_index: bool) -> None:
+    def __init__(self, config: EntityConfig, dry_run: bool, force_index: bool, chunk_size: int = 1000) -> None:
         self.config = config
         self.dry_run = dry_run
         self.force_index = force_index
+        self.chunk_size = chunk_size
         self.embedding_model = app_settings.EMBEDDING_MODEL
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
 
-    def run(self, entities: Iterable[DatabaseEntity], chunk_size: int) -> int:
+    def run(self, entities: Iterable[DatabaseEntity]) -> int:
         """Orchestrates the entire indexing process."""
         chunk: list[DatabaseEntity] = []
         total_records_processed = 0
@@ -102,7 +104,7 @@ class Indexer:
             session: Session | None = getattr(database, "session", None)
             for entity in entities:
                 chunk.append(entity)
-                if len(chunk) >= chunk_size:
+                if len(chunk) >= self.chunk_size:
                     flush()
 
             if chunk:
@@ -127,10 +129,7 @@ class Indexer:
 
         if paths_to_delete and session is not None:
             self.logger.debug(f"Deleting {len(paths_to_delete)} stale records in chunk.")
-            delete_stmt = delete(AiSearchIndex).where(
-                tuple_(AiSearchIndex.entity_id, AiSearchIndex.path).in_(paths_to_delete)
-            )
-            session.execute(delete_stmt)
+            self._execute_batched_deletes(paths_to_delete, session)
 
         if fields_to_upsert:
             upsert_stmt = self._get_upsert_statement()
@@ -167,7 +166,7 @@ class Indexer:
 
             for field in current_fields:
                 current_paths.add(field.path)
-                current_hash = self._compute_content_hash(field.path, field.value)
+                current_hash = self._compute_content_hash(field.path, field.value, field.value_type)
                 if field.path not in entity_hashes or entity_hashes[field.path] != current_hash:
                     fields_to_upsert.append((entity_id, field))
                 else:
@@ -177,6 +176,14 @@ class Indexer:
             paths_to_delete.extend([(entity_id, Ltree(p)) for p in stale_paths])
 
         return fields_to_upsert, paths_to_delete, identical_records_count
+
+    def _execute_batched_deletes(self, paths_to_delete: list[tuple[str, Ltree]], session: Session) -> None:
+        """Execute delete operations in batches to avoid PostgreSQL stack depth limits."""
+        for i in range(0, len(paths_to_delete), self.chunk_size):
+            batch = paths_to_delete[i : i + self.chunk_size]
+            delete_stmt = delete(AiSearchIndex).where(tuple_(AiSearchIndex.entity_id, AiSearchIndex.path).in_(batch))
+            session.execute(delete_stmt)
+            self.logger.debug(f"Deleted batch of {len(batch)} records.")
 
     def _get_all_existing_hashes(self, entity_ids: list[str], session: Session) -> dict[str, dict[str, str]]:
         """Fetches all existing hashes for a list of entity IDs in a single query."""
@@ -283,9 +290,9 @@ class Indexer:
         return f"{field.path}: {str(field.value)}"
 
     @staticmethod
-    def _compute_content_hash(path: str, value: Any) -> str:
+    def _compute_content_hash(path: str, value: Any, value_type: Any) -> str:
         v = "" if value is None else str(value)
-        content = f"{path}:{v}"
+        content = f"{path}:{v}:{value_type}"
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def _make_indexable_record(
@@ -297,7 +304,7 @@ class Indexer:
             path=Ltree(field.path),
             value=field.value,
             value_type=field.value_type,
-            content_hash=self._compute_content_hash(field.path, field.value),
+            content_hash=self._compute_content_hash(field.path, field.value, field.value_type),
             embedding=embedding if embedding else None,
         )
 

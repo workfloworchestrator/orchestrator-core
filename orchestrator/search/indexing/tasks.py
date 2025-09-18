@@ -49,5 +49,5 @@ def run_indexing_for_entity(
     stmt = stmt.execution_options(stream_results=True, yield_per=chunk_size)
     entities = db.session.execute(stmt).scalars()
 
-    indexer = Indexer(config=config, dry_run=dry_run, force_index=force_index)
-    indexer.run(entities, chunk_size=chunk_size)
+    indexer = Indexer(config=config, dry_run=dry_run, force_index=force_index, chunk_size=chunk_size)
+    indexer.run(entities)

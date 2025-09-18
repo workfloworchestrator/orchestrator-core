@@ -79,6 +79,18 @@ class TestProductTraverser:
         )
 
 
+class TestSanitizeForLtree:
+    def test_sanitize_invalid_name_returns_unnamed_product(self):
+        """Test that a product name with only invalid characters returns 'unnamed_product'."""
+        result = ProductTraverser._sanitize_for_ltree("@#$%^&*()")
+        assert result == "unnamed_product"
+
+    def test_sanitize_mixed_invalid_name(self):
+        """Test that a product name with some valid characters gets properly sanitized."""
+        result = ProductTraverser._sanitize_for_ltree("My@Product#Name!")
+        assert result == "my_product_name"
+
+
 class TestLoadModel:
     def test_product_not_in_registry_raises_error(self):
         mock_product = MagicMock()

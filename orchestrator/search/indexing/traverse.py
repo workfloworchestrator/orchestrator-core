@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from enum import Enum
 from typing import Any, cast, get_args
-
+import re
 import structlog
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
@@ -55,7 +55,11 @@ class BaseTraverser(ABC):
         all_fields.update(getattr(model_class, "__pydantic_computed_fields__", {}))
 
         for name, field in all_fields.items():
-            value = getattr(instance, name, None)
+            try:
+                value = getattr(instance, name, None)
+            except Exception as e:
+                logger.error(f"Failed to access field '{name}' on {model_class.__name__}", error=str(e))
+                continue
             new_path = f"{path}{cls._LTREE_SEPARATOR}{name}" if path else name
             annotation = field.annotation if hasattr(field, "annotation") else field.return_type
             yield from cls._yield_fields_for_value(value, new_path, annotation)
@@ -126,6 +130,27 @@ class ProductTraverser(BaseTraverser):
     """Traverser for product entities using a template SubscriptionModel instance."""
 
     @classmethod
+    def _sanitize_for_ltree(cls, name: str) -> str:
+        """Sanitizes a string to be a valid ltree path label."""
+        # Convert to lowercase
+        sanitized = name.lower()
+
+        # Replace all non-alphanumeric (and non-underscore) characters with an underscore
+        sanitized = re.sub(r"[^a-z0-9_]", "_", sanitized)
+
+        # Collapse multiple underscores into a single one
+        sanitized = re.sub(r"__+", "_", sanitized)
+
+        # Remove leading or trailing underscores
+        sanitized = sanitized.strip("_")
+
+        # Handle cases where the name was only invalid characters
+        if not sanitized:
+            return "unnamed_product"
+
+        return sanitized
+
+    @classmethod
     def get_fields(cls, entity: ProductTable, pk_name: str, root_name: str) -> list[ExtractedField]:  # type: ignore[override]
         """Extracts fields by creating a template SubscriptionModel instance for the product.
 
@@ -142,7 +167,7 @@ class ProductTraverser(BaseTraverser):
             product_fields = cls.traverse(model.product, root_name)
             fields.extend(product_fields)
 
-            product_name = model.product.name.lower().replace(" ", "_").replace("-", "_")
+            product_name = cls._sanitize_for_ltree(model.product.name)
 
             product_block_root = f"{root_name}.{product_name}.product_block"
 

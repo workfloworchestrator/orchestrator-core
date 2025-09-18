@@ -114,3 +114,30 @@ class TestTraverserExceptions:
         with patch.object(ProductTraverser, "_load_model", side_effect=ValueError("Unexpected error")):
             with pytest.raises(ValueError, match="Unexpected error"):
                 ProductTraverser.get_fields(mock_product, "product_id", "product")
+
+    def test_traverse_handles_computed_property_exception(self, caplog):
+        """Test that traverse() handles computed property exceptions."""
+        from pydantic import BaseModel, computed_field
+        from orchestrator.search.indexing.traverse import BaseTraverser
+
+        class TestModel(BaseModel):
+            normal_field: str = "test_value"
+
+            @computed_field
+            @property
+            def failing_computed_field(self) -> str:
+                raise AssertionError("Computed property failed")
+
+        instance = TestModel()
+
+        fields = list(BaseTraverser.traverse(instance, "test"))
+
+        # Should get the normal field but skip the failing computed field
+        field_paths = [field.path for field in fields]
+        assert "test.normal_field" in field_paths
+        assert "test.failing_computed_field" not in field_paths
+
+        # Should log the error
+        assert "Failed to access field 'failing_computed_field'" in caplog.text
+        assert "Computed property failed" in caplog.text
+        assert any(record.levelname == "ERROR" for record in caplog.records)
