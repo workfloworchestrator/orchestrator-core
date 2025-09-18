@@ -14,7 +14,7 @@
 from typing import Any, Dict, Type
 
 from pydantic import SecretStr as PydanticSecretStr
-from pydantic_core import MultiHostUrl, Url
+from pydantic.networks import AnyUrl, _BaseMultiHostUrl
 from pydantic_settings import BaseSettings
 
 from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
@@ -34,7 +34,7 @@ def mask_value(key: str, value: Any) -> Any:
     key_lower = key.lower()
     is_sensitive_key = "secret" in key_lower or "password" in key_lower
 
-    if is_sensitive_key or isinstance(value, (OrchSecretStr, PydanticSecretStr, MultiHostUrl, Url)):
+    if is_sensitive_key or isinstance(value, (OrchSecretStr, PydanticSecretStr, _BaseMultiHostUrl, AnyUrl)):
         return MASK
 
     return value
