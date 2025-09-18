@@ -39,6 +39,20 @@ class AgenticOrchestratorCore(OrchestratorCore):
         agent_tools: list[FunctionToolset] | None = None,
         **kwargs: Any,
     ) -> None:
+        """Initialize the `AgenticOrchestratorCore` class.
+
+        This class takes the same arguments as the `OrchestratorCore` class.
+
+        Args:
+            *args: All the normal arguments passed to the `OrchestratorCore` class.
+            llm_model: An OpenAI model class or string, not limited to OpenAI models (gpt-4o-mini etc)
+            llm_settings: A class of settings for the LLM
+            agent_tools: A list of tools that can be used by the agent
+            **kwargs: Additional arguments passed to the `OrchestratorCore` class.
+
+        Returns:
+            None
+        """
         self.llm_model = llm_model
         self.agent_tools = agent_tools
         self.llm_settings = llm_settings
@@ -49,6 +63,14 @@ class AgenticOrchestratorCore(OrchestratorCore):
         self.register_llm_integration()
 
     def register_llm_integration(self) -> None:
+        """Mount the Agent endpoint.
+
+        This helper mounts the agent endpoint on the application.
+
+        Returns:
+            None
+
+        """
         from orchestrator.search.agent import build_agent_app
 
         agent_app = build_agent_app(self.llm_model, self.agent_tools)

@@ -1,36 +1,36 @@
-# Base application
+# Agentic application
+!!! danger
+    The features and api described in this section are under heavy development and therefore subject to change.
+    Be prepared for it to break.
 
-By following these steps you can start a bare orchestrator application that can be used to run workflows. This
-app runs as a standalone API with workflows loaded that can be run in the background. Similar to a Framework like FastAPI,
-Flask and Django, you install the core library, initialise it with configuration and run. The orchestrator-core contains:
-
-* API
-* Workflow engine
-* Database
+    **However if you don't care about an unstable API, using the features in this mode
+    of the orchestrator will unlock quite a bit of potential**
 
 
-!!! note
-    The Orchestrator-core is designed to be installed and extended just like a FastAPI or Flask application. For more
-    information about how this works read the [Reference documentation](../reference-docs/app/app.md).
+The Agentic mode of the Orchestrator can be unlocked by doing the following.
 
+### Pre-requisites
+- pg_vector installed in your postgres database
+- At minimum an `api_key` to talk to ChatGPT
+- The UI configured to with the LLM integration branch - still WIP - https://github.com/workfloworchestrator/example-orchestrator-ui/pull/72/files
 
 ### Step 1 - Install the package:
 
-Create a virtualenv and install the core.
+Create a virtualenv and install the core including the LLM dependencies.
 
 <div class="termy">
 
 ```shell
 python -m venv .venv
 source .venv/bin/activate
-pip install orchestrator-core
+pip install orchestrator-core[llm]
 ```
 
 </div>
 
 ### Step 2 - Setup the database:
 
-Create a postgres database:
+Create a postgres database, make sure your postgres install has the `pgvector` extension installed:
 
 <div class="termy">
 
@@ -56,11 +56,22 @@ docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb or
 Create a `main.py` file.
 
 ```python
-from orchestrator import OrchestratorCore
+from orchestrator import AgenticOrchestratorCore
 from orchestrator.cli.main import app as core_cli
 from orchestrator.settings import app_settings
+from orchestrator.llm_settings import llm_settings
 
-app = OrchestratorCore(base_settings=app_settings)
+llm_settings.LLM_ENABLED = True
+llm_settings.AGENT_MODEL = 'gpt-4o-mini'
+llm_settings.OPENAI_API_KEY = 'xxxxx'
+
+
+app = AgenticOrchestratorCore(
+    base_settings=app_settings,
+    llm_settings=llm_settings,
+    llm_model=llm_settings.AGENT_MODEL,
+    agent_tools=[]
+)
 
 if __name__ == "__main__":
     core_cli()
@@ -94,7 +105,24 @@ uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 
 </div>
 
-### Step 6 - Profit :boom: :grin:
+### Step 6 - Index all your current subscriptions, processes, workflows and products:
+
+!!! warning
+    This will call out to external LLM services and cost money
+
+
+<div class="termy">
+
+```shell
+python main.py index subscriptions
+python main.py index products
+python main.py index processes
+python main.py index workflows  
+```
+
+</div>
+
+### Step 7 - Profit :boom: :grin:
 
 Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) to view and interact with the API.
 
