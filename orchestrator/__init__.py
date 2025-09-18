@@ -48,7 +48,7 @@ if llm_settings.LLM_ENABLED:
         import_module("pydantic_ai")
         from orchestrator.agentic_app import AgenticOrchestratorCore  # noqa: F401
 
-        __all__ = __all__ + ["llm_settings", "AgentOrchestratorCore"]
+        __all__ = __all__ + ["llm_settings", "AgenticOrchestratorCore"]
     except ImportError:
         logger.error(
             "Unable to import 'pydantic_ai' module, please install the orchestrator with llm dependencies. `pip install orchestrator-core[llm]",

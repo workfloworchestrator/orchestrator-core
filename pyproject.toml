@@ -80,7 +80,7 @@ celery = [
     "celery~=5.5.1",
 ]
 llm = [
-    "pydantic-ai-slim[mcp]==0.7.0",
+    "pydantic-ai-slim ==0.7.0",
     "ag-ui-protocol>=0.1.8",
     "litellm>=1.75.7",
 ]
