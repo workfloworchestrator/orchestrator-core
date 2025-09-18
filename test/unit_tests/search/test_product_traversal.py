@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.domain.lifecycle import ProductLifecycle
 from orchestrator.search.core.exceptions import ProductNotInRegistryError
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
@@ -100,15 +101,21 @@ class TestLoadModel:
             with pytest.raises(ProductNotInRegistryError, match="Product 'MissingProduct' not in registry"):
                 ProductTraverser._load_model(mock_product)
 
-    def test_successful_load_model(self):
+    def test_successful_load_model(self, product_uuid):
         mock_product = MagicMock()
         mock_product.name = "MyProduct"
-        mock_product.product_id = "product-123"
+        mock_product.product_id = product_uuid
+        mock_product.description = "Test Product"
+        mock_product.product_type = "Test"
+        mock_product.tag = "TEST"
+        mock_product.status = ProductLifecycle.ACTIVE
+        mock_product.fixed_inputs = []
 
         mock_domain_cls = MagicMock()
         mock_specialized_cls = MagicMock()
-        mock_instance = MagicMock()
-        mock_specialized_cls.from_product_id.return_value = mock_instance
+
+        # Mock the _init_instances method
+        mock_specialized_cls._init_instances.return_value = {}
 
         with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
             with patch(
@@ -116,25 +123,30 @@ class TestLoadModel:
             ):
                 result = ProductTraverser._load_model(mock_product)
 
-        assert result == mock_instance
-        mock_specialized_cls.from_product_id.assert_called_once_with(
-            product_id="product-123", customer_id="traverser_template"
-        )
+        assert result is not None
+        mock_specialized_cls._init_instances.assert_called_once()
 
-    def test_lookup_specialized_type_fallback(self):
+    def test_lookup_specialized_type_fallback(self, product_uuid):
         mock_product = MagicMock()
         mock_product.name = "MyProduct"
-        mock_product.product_id = "product-123"
+        mock_product.product_id = product_uuid
+        mock_product.description = "Test Product"
+        mock_product.product_type = "Test"
+        mock_product.tag = "TEST"
+        mock_product.status = ProductLifecycle.ACTIVE
+        mock_product.fixed_inputs = []
 
         mock_domain_cls = MagicMock()
-        mock_instance = MagicMock()
-        mock_domain_cls.from_product_id.return_value = mock_instance
+        # Mock the _init_instances method
+        mock_domain_cls._init_instances.return_value = {}
 
         with patch.dict(SUBSCRIPTION_MODEL_REGISTRY, {"MyProduct": mock_domain_cls}, clear=True):
             with patch("orchestrator.search.indexing.traverse.lookup_specialized_type", side_effect=Exception("boom")):
                 result = ProductTraverser._load_model(mock_product)
 
-        assert result == mock_instance
+        # When lookup_specialized_type fails, should fall back to domain_model_cls
+        assert result is not None
+        mock_domain_cls._init_instances.assert_called_once()
 
     def test_from_product_id_failure_returns_none(self, caplog):
         mock_product = MagicMock()

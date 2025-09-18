@@ -244,8 +244,13 @@ class FieldType(str, Enum):
 
         return cls.STRING
 
-    def is_embeddable(self) -> bool:
-        return self == FieldType.STRING
+    def is_embeddable(self, value: str | None) -> bool:
+        """Check if a field should be embedded."""
+        if value is None:
+            return False
+
+        # If inference suggests it's not actually a string, don't embed it
+        return FieldType._infer_from_str(value) == FieldType.STRING
 
 
 @dataclass(frozen=True)

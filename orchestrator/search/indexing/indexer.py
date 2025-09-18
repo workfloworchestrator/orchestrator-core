@@ -218,7 +218,7 @@ class Indexer:
             max_batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE
 
         for entity_id, field in fields_to_upsert:
-            if field.value_type.is_embeddable():
+            if field.value_type.is_embeddable(field.value):
                 text = self._prepare_text_for_embedding(field)
                 try:
                     item_tokens = len(encode(model=self.embedding_model, text=text))
