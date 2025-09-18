@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from datetime import date, datetime
-from enum import Enum
-from typing import Any, NamedTuple, TypeAlias, TypedDict
+from enum import Enum, IntEnum
+from typing import Annotated, Any, Literal, NamedTuple, TypeAlias, TypedDict, get_args, get_origin
 from uuid import UUID
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
+
+from orchestrator.types import filter_nonetype, get_origin_and_args, is_optional_type, is_union_type
 
 from .validators import is_bool_string, is_iso_date, is_uuid
 
@@ -164,15 +166,83 @@ class FieldType(str, Enum):
         except ValueError:
             return cls.STRING
 
-    def pg_cast(self) -> str:
-        return {
-            FieldType.STRING: "::text",
-            FieldType.INTEGER: "::integer",
-            FieldType.FLOAT: "::double precision",
-            FieldType.BOOLEAN: "::boolean",
-            FieldType.DATETIME: "::timestamptz",
-            FieldType.UUID: "::uuid",
-        }.get(self, "::text")
+    @classmethod
+    def from_type_hint(cls, type_hint: object) -> "FieldType":
+        """Convert type hint to FieldType."""
+        _type_mapping = {
+            int: cls.INTEGER,
+            float: cls.FLOAT,
+            bool: cls.BOOLEAN,
+            str: cls.STRING,
+            datetime: cls.DATETIME,
+            UUID: cls.UUID,
+        }
+
+        if type_hint in _type_mapping:
+            return _type_mapping[type_hint]  # type: ignore[index]
+
+        if get_origin(type_hint) is Annotated:
+            inner_type = get_args(type_hint)[0]
+            return cls.from_type_hint(inner_type)
+
+        origin, args = get_origin_and_args(type_hint)
+
+        if origin is list:
+            return cls._handle_list_type(args)
+
+        if origin is Literal:
+            return cls._handle_literal_type(args)
+
+        if is_optional_type(type_hint) or is_union_type(type_hint):
+            return cls._handle_union_type(args)
+
+        if isinstance(type_hint, type):
+            return cls._handle_class_type(type_hint)
+
+        return cls.STRING
+
+    @classmethod
+    def _handle_list_type(cls, args: tuple) -> "FieldType":
+        if args:
+            element_type = args[0]
+            return cls.from_type_hint(element_type)
+        return cls.STRING
+
+    @classmethod
+    def _handle_literal_type(cls, args: tuple) -> "FieldType":
+        if not args:
+            return cls.STRING
+        first_value = args[0]
+        if isinstance(first_value, bool):
+            return cls.BOOLEAN
+        if isinstance(first_value, int):
+            return cls.INTEGER
+        if isinstance(first_value, str):
+            return cls.STRING
+        if isinstance(first_value, float):
+            return cls.FLOAT
+        return cls.STRING
+
+    @classmethod
+    def _handle_union_type(cls, args: tuple) -> "FieldType":
+        non_none_types = list(filter_nonetype(args))
+        if non_none_types:
+            return cls.from_type_hint(non_none_types[0])
+        return cls.STRING
+
+    @classmethod
+    def _handle_class_type(cls, type_hint: type) -> "FieldType":
+        if issubclass(type_hint, IntEnum):
+            return cls.INTEGER
+        if issubclass(type_hint, Enum):
+            return cls.STRING
+
+        from orchestrator.domain.base import ProductBlockModel
+
+        if issubclass(type_hint, ProductBlockModel):
+            return cls.BLOCK
+
+        return cls.STRING
 
     def is_embeddable(self) -> bool:
         return self == FieldType.STRING
