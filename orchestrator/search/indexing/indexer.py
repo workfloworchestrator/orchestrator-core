@@ -81,12 +81,8 @@ class Indexer:
         self.config = config
         self.dry_run = dry_run
         self.force_index = force_index
-<<<<<<< HEAD
         self.chunk_size = chunk_size
-        self.embedding_model = app_settings.EMBEDDING_MODEL
-=======
         self.embedding_model = llm_settings.EMBEDDING_MODEL
->>>>>>> b8d031e2 (Make the LLM module more configurable and do not install all deps straight away)
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
 
     def run(self, entities: Iterable[DatabaseEntity]) -> int:

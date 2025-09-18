@@ -91,7 +91,7 @@ class OrchestratorCore(FastAPI):
         version: str = __version__,
         default_response_class: type[Response] = JSONResponse,
         base_settings: AppSettings = app_settings,
-        llm_model: OpenAIModel | None = None,
+        llm_model: OpenAIModel | str = "gpt-4o-mini",
         llm_settings: LLMSettings = llm_settings,
         agent_tools: list[FunctionToolset] | None = None,
         **kwargs: Any,

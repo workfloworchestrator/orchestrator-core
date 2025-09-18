@@ -1,3 +1,5 @@
+from typing import Any
+
 import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic_ai.ag_ui import StateDeps
@@ -24,7 +26,7 @@ def _disabled_agent_app(reason: str) -> FastAPI:
     return app
 
 
-def build_agent_app(model: str | OpenAIModel, toolsets: list[FunctionToolset] | None = None) -> ASGIApp:
+def build_agent_app(model: str | OpenAIModel, toolsets: list[FunctionToolset[Any]] | None = None) -> ASGIApp:
     try:
         toolsets = toolsets + [search_toolset] if toolsets else [search_toolset]
 
