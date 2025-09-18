@@ -118,12 +118,13 @@ class TestTraverserExceptions:
     def test_traverse_handles_computed_property_exception(self, caplog):
         """Test that traverse() handles computed property exceptions."""
         from pydantic import BaseModel, computed_field
+
         from orchestrator.search.indexing.traverse import BaseTraverser
 
         class TestModel(BaseModel):
             normal_field: str = "test_value"
 
-            @computed_field
+            @computed_field  # type:ignore[misc]
             @property
             def failing_computed_field(self) -> str:
                 raise AssertionError("Computed property failed")

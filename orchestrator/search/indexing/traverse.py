@@ -1,8 +1,9 @@
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from enum import Enum
 from typing import Any, cast, get_args
-import re
+
 import structlog
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
