@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from enum import Enum
 from typing import Any, cast, get_args
 
+from uuid import uuid4
 import structlog
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
@@ -11,7 +12,7 @@ from orchestrator.domain import (
     SUBSCRIPTION_MODEL_REGISTRY,
     SubscriptionModel,
 )
-from orchestrator.domain.base import ProductBlockModel
+from orchestrator.domain.base import ProductBlockModel, ProductModel
 from orchestrator.domain.lifecycle import (
     lookup_specialized_type,
 )
@@ -255,11 +256,41 @@ class ProductTraverser(BaseTraverser):
         except Exception:
             subscription_model_cls = domain_model_cls
 
-        # Instantiate the model using .from_product_id() to get a template subscription to traverse.
         try:
-            return subscription_model_cls.from_product_id(
-                product_id=product.product_id, customer_id="traverser_template"
+            product_model = ProductModel(
+                product_id=product.product_id,
+                name=product.name,
+                description=product.description,
+                product_type=product.product_type,
+                tag=product.tag,
+                status=product.status,
             )
+
+            # Generate a fake subscription ID for the template
+            subscription_id = uuid4()
+
+            # Get fixed inputs for the product
+            fixed_inputs = {fi.name: fi.value for fi in product.fixed_inputs}
+
+            # Initialize product blocks
+            instances = subscription_model_cls._init_instances(subscription_id)
+
+            model = subscription_model_cls(
+                product=product_model,
+                customer_id="traverser_template",
+                subscription_id=subscription_id,
+                description="Template for schema traversal",
+                status=SubscriptionLifecycle.INITIAL,
+                insync=False,
+                start_date=None,
+                end_date=None,
+                note=None,
+                version=1,
+                **fixed_inputs,
+                **instances,
+            )
+
+            return model
         except Exception:
             logger.exception("Failed to instantiate template model for product", product_name=product.name)
             return None

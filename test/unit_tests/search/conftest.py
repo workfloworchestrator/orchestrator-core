@@ -87,14 +87,20 @@ def mock_load_model():
 @pytest.fixture
 def mock_db_product() -> MagicMock:
     """Provides a mock SQLAlchemy ProductTable object that mimics a real database entity."""
+    from uuid import UUID
+    from orchestrator.domain.lifecycle import ProductLifecycle
 
-    def create_mock_db_product(product_id: str = "test-product-123", product_name: str = "TestProduct"):
+    def create_mock_db_product(
+        product_id: UUID = UUID("11111111-1111-1111-1111-111111111111"), product_name: str = "TestProduct"
+    ):
         mock_product = MagicMock()
         mock_product.product_id = product_id
         mock_product.name = product_name
+        mock_product.description = "Test Product Description"
         mock_product.product_type = "Test"
         mock_product.tag = "TEST"
-        mock_product.status = "active"
+        mock_product.status = ProductLifecycle.ACTIVE
+        mock_product.fixed_inputs = []
 
         return mock_product
 
