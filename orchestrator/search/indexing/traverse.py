@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from enum import Enum
 from typing import Any, cast, get_args
-
 from uuid import uuid4
+
 import structlog
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable
@@ -275,7 +275,7 @@ class ProductTraverser(BaseTraverser):
             # Initialize product blocks
             instances = subscription_model_cls._init_instances(subscription_id)
 
-            model = subscription_model_cls(
+            return subscription_model_cls(
                 product=product_model,
                 customer_id="traverser_template",
                 subscription_id=subscription_id,
@@ -289,8 +289,6 @@ class ProductTraverser(BaseTraverser):
                 **fixed_inputs,
                 **instances,
             )
-
-            return model
         except Exception:
             logger.exception("Failed to instantiate template model for product", product_name=product.name)
             return None
