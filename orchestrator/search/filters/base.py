@@ -45,12 +45,13 @@ class StringFilter(BaseModel):
         return self
 
 
+# Order matters! Ambiguous ops (like 'eq') are resolved by first matching filter
 FilterCondition = (
     DateFilter  # DATETIME
     | NumericFilter  # INT/FLOAT
-    | EqualityFilter  # BOOLEAN/UUID/BLOCK/RESOURCE_TYPE
-    | StringFilter  # STRING TODO: convert to hybrid search
+    | StringFilter  # STRING TODO: convert to hybrid search?
     | LtreeFilter  # Path
+    | EqualityFilter  # BOOLEAN/UUID/BLOCK/RESOURCE_TYPE - most generic, try last
 )
 
 
@@ -64,28 +65,29 @@ class PathFilter(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {
-                    "path": "subscription.status",
-                    "condition": {"op": "eq", "value": "active"},
-                },
+                {"path": "subscription.status", "condition": {"op": "eq", "value": "active"}, "value_kind": "string"},
                 {
                     "path": "subscription.customer_id",
-                    "condition": {"op": "ne", "value": "acme"},
+                    "condition": {"op": "neq", "value": "acme"},
+                    "value_kind": "string",
                 },
                 {
                     "path": "subscription.start_date",
                     "condition": {"op": "gt", "value": "2025-01-01"},
+                    "value_kind": "datetime",
                 },
                 {
                     "path": "subscription.end_date",
                     "condition": {
                         "op": "between",
-                        "value": {"from": "2025-06-01", "to": "2025-07-01"},
+                        "value": {"start": "2025-06-01", "end": "2025-07-01"},
                     },
+                    "value_kind": "datetime",
                 },
                 {
-                    "path": "subscription.*.name",
-                    "condition": {"op": "matches_lquery", "value": "*.foo_*"},
+                    "path": "subscription",
+                    "condition": {"op": "has_component", "value": "node"},
+                    "value_kind": "component",
                 },
             ]
         }
@@ -141,6 +143,14 @@ class PathFilter(BaseModel):
 
 
 class FilterTree(BaseModel):
+    op: BooleanOperator = Field(
+        description="Operator for grouping conditions in uppercase.", default=BooleanOperator.AND
+    )
+
+    children: list[FilterTree | PathFilter] = Field(min_length=1, description="Path filters or nested groups.")
+
+    MAX_DEPTH: ClassVar[int] = 5
+
     model_config = ConfigDict(
         json_schema_extra={
             "description": (
@@ -150,11 +160,11 @@ class FilterTree(BaseModel):
                 "  • Leaf (PathFilter): {'path':'<ltree>', 'condition': {...}}\n"
                 "Rules:\n"
                 "  • Do NOT put 'op' or 'children' inside a leaf 'condition'.\n"
-                "  • Max depth = 5.\n"
-                "  • Use from_flat_and() for a flat list of leaves."
+                f"  • Max depth = {MAX_DEPTH}.\n"
             ),
             "examples": [
                 {
+                    "description": "Simple filters",
                     "op": "AND",
                     "children": [
                         {"path": "subscription.status", "condition": {"op": "eq", "value": "active"}},
@@ -162,13 +172,14 @@ class FilterTree(BaseModel):
                     ],
                 },
                 {
+                    "description": "Complex filters with OR group",
                     "op": "AND",
                     "children": [
                         {"path": "subscription.start_date", "condition": {"op": "gte", "value": "2024-01-01"}},
                         {
                             "op": "OR",
                             "children": [
-                                {"path": "subscription.product_name", "condition": {"op": "like", "value": "%fiber%"}},
+                                {"path": "subscription.product.name", "condition": {"op": "like", "value": "%fiber%"}},
                                 {"path": "subscription.customer_id", "condition": {"op": "eq", "value": "Surf"}},
                             ],
                         },
@@ -177,14 +188,6 @@ class FilterTree(BaseModel):
             ],
         }
     )
-
-    op: BooleanOperator = Field(
-        description="Operator for grouping conditions in uppercase.", default=BooleanOperator.AND
-    )
-
-    children: list[FilterTree | PathFilter] = Field(min_length=1, description="Path filters or nested groups.")
-
-    MAX_DEPTH: ClassVar[int] = 5
 
     @model_validator(mode="after")
     def _validate_depth(self) -> FilterTree:

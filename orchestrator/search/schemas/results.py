@@ -39,6 +39,7 @@ class ValueSchema(BaseModel):
 class LeafInfo(BaseModel):
     name: str
     ui_types: list[UIType]
+    paths: list[str]
 
     model_config = ConfigDict(
         extra="forbid",

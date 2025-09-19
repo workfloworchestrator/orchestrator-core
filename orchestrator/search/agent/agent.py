@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import structlog
@@ -14,6 +15,9 @@ from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
 
 logger = structlog.get_logger(__name__)
+
+# Suppress noisy OpenAI client logging
+structlog.get_logger("openai").setLevel(logging.WARNING)
 
 
 def _disabled_agent_app(reason: str) -> FastAPI:
