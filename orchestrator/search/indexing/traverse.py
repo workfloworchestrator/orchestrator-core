@@ -32,7 +32,7 @@ from orchestrator.domain.lifecycle import (
 from orchestrator.schemas.process import ProcessSchema
 from orchestrator.schemas.workflow import WorkflowSchema
 from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
-from orchestrator.search.core.types import ExtractedField, FieldType, LTREE_SEPARATOR
+from orchestrator.search.core.types import LTREE_SEPARATOR, ExtractedField, FieldType
 from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)

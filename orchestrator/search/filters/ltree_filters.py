@@ -18,7 +18,7 @@ from sqlalchemy import TEXT, bindparam
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.search.core.types import FilterOp, SQLAColumn, LTREE_SEPARATOR
+from orchestrator.search.core.types import LTREE_SEPARATOR, FilterOp, SQLAColumn
 
 
 class LtreeFilter(BaseModel):
