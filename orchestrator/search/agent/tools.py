@@ -10,13 +10,15 @@ from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.toolsets import FunctionToolset
 
 from orchestrator.api.api_v1.endpoints.search import (
+    get_definitions,
+    list_paths,
     search_processes,
     search_products,
     search_subscriptions,
     search_workflows,
 )
 from orchestrator.schemas.search import SearchResultsSchema
-from orchestrator.search.core.types import ActionType, EntityType
+from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.validation import validate_filter_tree
 from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
@@ -24,6 +26,8 @@ from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearc
 from .state import SearchState
 
 logger = structlog.get_logger(__name__)
+
+
 P = TypeVar("P", bound=BaseSearchParameters)
 
 SearchFn = Callable[[P], Awaitable[SearchResultsSchema[Any]]]
@@ -53,13 +57,26 @@ async def set_search_parameters(
     entity_type: EntityType,
     action: str | ActionType = ActionType.SELECT,
 ) -> StateSnapshotEvent:
+    """Sets the initial search context, like the entity type and the user's query.
+
+    This MUST be the first tool called to start any new search.
+    Warning: Calling this tool will erase any existing filters and search results from the state.
+    """
     params = ctx.deps.state.parameters or {}
     is_new_search = params.get("entity_type") != entity_type.value
     final_query = (last_user_message(ctx) or "") if is_new_search else params.get("query", "")
 
+    logger.debug(
+        "Setting search parameters",
+        entity_type=entity_type.value,
+        action=action,
+        is_new_search=is_new_search,
+        query=final_query,
+    )
+
     ctx.deps.state.parameters = {"action": action, "entity_type": entity_type, "filters": None, "query": final_query}
     ctx.deps.state.results = []
-    logger.info(f"Set search parameters: entity_type={entity_type}, action={action}")
+    logger.debug("Search parameters set", parameters=ctx.deps.state.parameters)
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -84,16 +101,21 @@ async def set_filter_tree(
 
     entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
 
+    logger.debug(
+        "Setting filter tree",
+        entity_type=entity_type.value,
+        has_filters=filters is not None,
+        filter_summary=f"{len(filters.get_all_leaves())} filters" if filters else "no filters",
+    )
+
     try:
         await validate_filter_tree(filters, entity_type)
     except Exception as e:
+        # TODO: Define specific filter validation exceptions and catch them instructing what should change.
         raise ModelRetry(str(e))
 
-    ctx.deps.state.parameters["filters"] = None if filters is None else filters.model_dump(mode="json", by_alias=True)
-    logger.info(
-        "Set filter tree",
-        filters=None if filters is None else filters.model_dump(mode="json", by_alias=True),
-    )
+    filter_data = None if filters is None else filters.model_dump(mode="json", by_alias=True)
+    ctx.deps.state.parameters["filters"] = filter_data
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
 
@@ -112,10 +134,103 @@ async def execute_search(
         raise ValueError(f"Unknown entity type: {entity_type}")
 
     params = param_class(**ctx.deps.state.parameters)
-    logger.info("Executing database search", **params.model_dump(mode="json"))
+    logger.debug(
+        "Executing database search",
+        search_entity_type=entity_type.value,
+        limit=limit,
+        has_filters=params.filters is not None,
+        query=params.query,
+        action=params.action,
+    )
+
+    if params.filters:
+        logger.debug("Search filters", filters=params.filters)
 
     fn = SEARCH_FN_MAP[entity_type]
     search_results = await fn(params)
+
+    logger.debug(
+        "Search completed",
+        total_results=len(search_results.data) if search_results.data else 0,
+        limited_to=limit,
+    )
+
     ctx.deps.state.results = search_results.data[:limit]
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
+
+
+@search_toolset.tool
+async def discover_filter_paths(
+    ctx: RunContext[StateDeps[SearchState]],
+    field_names: list[str],
+    entity_type: EntityType | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Discovers available filter paths for a list of field names.
+
+    Returns a dictionary where each key is a field_name from the input list and
+    the value is its discovery result.
+    """
+    if not entity_type and ctx.deps.state.parameters:
+        entity_type = EntityType(ctx.deps.state.parameters.get("entity_type"))
+    if not entity_type:
+        entity_type = EntityType.SUBSCRIPTION
+
+    all_results = {}
+    for field_name in field_names:
+        paths_response = await list_paths(prefix="", q=field_name, entity_type=entity_type, limit=100)
+
+        matching_leaves = []
+        for leaf in paths_response.leaves:
+            if field_name.lower() in leaf.name.lower():
+                matching_leaves.append(
+                    {
+                        "name": leaf.name,
+                        "value_kind": leaf.ui_types,
+                        "paths": leaf.paths,
+                    }
+                )
+
+        matching_components = []
+        for comp in paths_response.components:
+            if field_name.lower() in comp.name.lower():
+                matching_components.append(
+                    {
+                        "name": comp.name,
+                        "value_kind": comp.ui_types,
+                    }
+                )
+
+        result_for_field: dict[str, Any]
+        if not matching_leaves and not matching_components:
+            result_for_field = {
+                "status": "NOT_FOUND",
+                "guidance": f"No filterable paths found containing '{field_name}'. Do not create a filter for this.",
+                "leaves": [],
+                "components": [],
+            }
+        else:
+            result_for_field = {
+                "status": "OK",
+                "guidance": f"Found {len(matching_leaves)} field(s) and {len(matching_components)} component(s) for '{field_name}'.",
+                "leaves": matching_leaves,
+                "components": matching_components,
+            }
+
+        all_results[field_name] = result_for_field
+    logger.debug("Returning found fieldname - path mapping", all_results=all_results)
+    return all_results
+
+
+@search_toolset.tool
+async def get_valid_operators() -> dict[str, list[FilterOp]]:
+    """Gets the mapping of field types to their valid filter operators."""
+    definitions = await get_definitions()
+
+    operator_map = {}
+    for ui_type, type_def in definitions.items():
+        key = ui_type.value
+
+        if hasattr(type_def, "operators"):
+            operator_map[key] = type_def.operators
+    return operator_map

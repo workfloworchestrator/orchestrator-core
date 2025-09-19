@@ -81,6 +81,7 @@ def process_path_rows(rows: Sequence[Row]) -> tuple[list[LeafInfo], list[Compone
         Processed leaves and components
     """
     leaves_dict: dict[str, set[UIType]] = defaultdict(set)
+    leaves_paths_dict: dict[str, set[str]] = defaultdict(set)
     components_set: set[str] = set()
 
     for row in rows:
@@ -97,12 +98,16 @@ def process_path_rows(rows: Sequence[Row]) -> tuple[list[LeafInfo], list[Compone
             leaf_name = clean_segments[-1]
             ui_type = UIType.from_field_type(FieldType(value_type))
             leaves_dict[leaf_name].add(ui_type)
+            leaves_paths_dict[leaf_name].add(path_str)
 
             # All segments except the first/last are components
             for component in clean_segments[1:-1]:
                 components_set.add(component)
 
-    leaves = [LeafInfo(name=leaf, ui_types=list(types)) for leaf, types in leaves_dict.items()]
+    leaves = [
+        LeafInfo(name=leaf, ui_types=list(types), paths=sorted(leaves_paths_dict[leaf]))
+        for leaf, types in leaves_dict.items()
+    ]
     components = [ComponentInfo(name=component, ui_types=[UIType.COMPONENT]) for component in sorted(components_set)]
 
     return leaves, components
