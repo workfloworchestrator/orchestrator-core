@@ -40,6 +40,8 @@ def _format_response(
 
     Args:
         db_rows (Sequence[RowMapping]): The rows returned from the executed SQLAlchemy query.
+        search_params (BaseSearchParameters): The search parameters, including query text and filters.
+        metadata (SearchMetadata): Metadata about the search execution.
 
     Returns:
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
@@ -126,6 +128,7 @@ async def execute_search(
     Args:
         search_params (BaseSearchParameters): The search parameters specifying vector, fuzzy, or filter criteria.
         db_session (Session): The active SQLAlchemy session for executing the query.
+        pagination_params (PaginationParams): Parameters controlling pagination of the search results.
         limit (int, optional): The maximum number of search results to return, by default 5.
 
     Returns:
