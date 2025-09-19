@@ -38,17 +38,12 @@ from orchestrator.search.filters import (
 def is_filter_compatible_with_field_type(filter_condition: FilterCondition, field_type: FieldType) -> bool:
     """Check whether a filter condition is compatible with a given field type.
 
-    Parameters
-    ----------
-    filter_condition : FilterCondition
-        The filter condition instance to check.
-    field_type : FieldType
-        The type of field from the index schema.
+    Args:
+        filter_condition (FilterCondition): The filter condition instance to check.
+        field_type (FieldType): The type of field from the index schema.
 
     Returns:
-    -------
-    bool
-        True if the filter condition is valid for the given field type, False otherwise.
+        bool: True if the filter condition is valid for the given field type, False otherwise.
     """
 
     match filter_condition:
@@ -75,18 +70,14 @@ def is_filter_compatible_with_field_type(filter_condition: FilterCondition, fiel
 def is_lquery_syntactically_valid(pattern: str, db_session: WrappedSession) -> bool:
     """Validate whether a string is a syntactically correct `lquery` pattern.
 
-    Parameters
-    ----------
-    pattern : str
-        The LTree lquery pattern string to validate.
-    db_session : WrappedSession
-        The database session used to test casting.
+    Args:
+        pattern (str): The LTree lquery pattern string to validate.
+        db_session (WrappedSession): The database session used to test casting.
 
     Returns:
-    -------
-    bool
-        True if the pattern is valid, False if it fails to cast in PostgreSQL.
+        bool: True if the pattern is valid, False if it fails to cast in PostgreSQL.
     """
+
     try:
         with db_session.begin_nested():
             db_session.execute(text("SELECT CAST(:pattern AS lquery)"), {"pattern": pattern})
@@ -99,10 +90,9 @@ def get_structured_filter_schema() -> dict[str, str]:
     """Retrieve all distinct filterable paths and their field types from the index.
 
     Returns:
-    -------
-    Dict[str, str]
-        Mapping of path strings to their corresponding field type values.
+        Dict[str, str]: Mapping of path strings to their corresponding field type values.
     """
+
     stmt = select(AiSearchIndex.path, AiSearchIndex.value_type).distinct().order_by(AiSearchIndex.path)
     result = db.session.execute(stmt)
     return {str(path): value_type.value for path, value_type in result}
@@ -111,16 +101,13 @@ def get_structured_filter_schema() -> dict[str, str]:
 def validate_filter_path(path: str) -> str | None:
     """Check if a given path exists in the index and return its field type.
 
-    Parameters
-    ----------
-    path : str
-        The fully qualified LTree path.
+    Args:
+        path (str): The fully qualified LTree path.
 
     Returns:
-    -------
-    Optional[str]
-        The value type of the field if found, otherwise None.
+        Optional[str]: The value type of the field if found, otherwise None.
     """
+
     stmt = select(AiSearchIndex.value_type).where(AiSearchIndex.path == Ltree(path)).limit(1)
     result = db.session.execute(stmt).scalar_one_or_none()
     return result.value if result else None
@@ -136,18 +123,14 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
     4. Filter type matches the field's value_type
     5. Path starts with the correct entity type prefix (unless wildcard)
 
-    Parameters
-    ----------
-    filter : PathFilter
-        The filter to validate.
-    entity_type : EntityType
-        The entity type being searched.
+    Args:
+        filter (PathFilter): The filter to validate.
+        entity_type (EntityType): The entity type being searched.
 
     Raises:
-    ------
-    ValueError
-        If any of the validation checks fail.
+        ValueError: If any of the validation checks fail.
     """
+
     # Ltree is a special case
     if isinstance(filter.condition, LtreeFilter):
         lquery_pattern = filter.condition.value

@@ -48,18 +48,14 @@ class Retriever(ABC):
     ) -> "Retriever":
         """Create the appropriate retriever instance from search parameters.
 
-        Parameters
-        ----------
-        params : BaseSearchParameters
-            Search parameters including vector queries, fuzzy terms, and filters.
-        pagination_params : PaginationParams
-            Pagination parameters for cursor-based paging.
+        Args:
+            params (BaseSearchParameters): Search parameters including vector queries, fuzzy terms, and filters.
+            pagination_params (PaginationParams): Pagination parameters for cursor-based paging.
 
         Returns:
-        -------
-        Retriever
-            A concrete retriever instance (semantic, fuzzy, hybrid, or structured).
+            Retriever: A concrete retriever instance (semantic, fuzzy, hybrid, or structured).
         """
+
         from .fuzzy import FuzzyRetriever
         from .hybrid import RrfHybridRetriever
         from .semantic import SemanticRetriever
@@ -106,15 +102,11 @@ class Retriever(ABC):
     def apply(self, candidate_query: Select) -> Select:
         """Apply the ranking logic to the given candidate query.
 
-        Parameters
-        ----------
-        candidate_query : Select
-            A SQLAlchemy `Select` statement returning candidate entity IDs.
+        Args:
+            candidate_query (Select): A SQLAlchemy `Select` statement returning candidate entity IDs.
 
         Returns:
-        -------
-        Select
-            A new `Select` statement with ranking expressions applied.
+            Select: A new `Select` statement with ranking expressions applied.
         """
         ...
 

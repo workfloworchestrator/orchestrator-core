@@ -136,18 +136,14 @@ class PathFilter(BaseModel):
         This method creates a type guard to ensure we only match compatible field types,
         then delegates to the specific filter condition.
 
-        Parameters
-        ----------
-        value_column : ColumnElement
-            The SQLAlchemy column element representing the value to be filtered.
-        value_type_column : ColumnElement
-            The SQLAlchemy column element representing the field type.
+        Args:
+            value_column (ColumnElement): The SQLAlchemy column element representing the value to be filtered.
+            value_type_column (ColumnElement): The SQLAlchemy column element representing the field type.
 
         Returns:
-        -------
-        ColumnElement[bool]
-            A SQLAlchemy boolean expression that can be used in a ``WHERE`` clause.
+            ColumnElement[bool]: A SQLAlchemy boolean expression that can be used in a ``WHERE`` clause.
         """
+
         # Type guard - only match compatible field types
         allowed_field_types = [ft.value for ft in FieldType if UIType.from_field_type(ft) == self.value_kind]
         type_guard = value_type_column.in_(allowed_field_types) if allowed_field_types else literal(True)
@@ -238,18 +234,14 @@ class FilterTree(BaseModel):
     ) -> ColumnElement[bool]:
         """Compile this tree into a SQLAlchemy boolean expression.
 
-        Parameters
-        ----------
-        entity_id_col : SQLAColumn
-            Column in the outer query representing the entity ID.
-        entity_type_value : str, optional
-            If provided, each subquery is additionally constrained to this entity type.
+        Args:
+            entity_id_col (SQLAColumn): Column in the outer query representing the entity ID.
+            entity_type_value (str, optional): If provided, each subquery is additionally constrained to this entity type.
 
         Returns:
-        -------
-        ColumnElement[bool]
-            A SQLAlchemy expression suitable for use in a WHERE clause.
+            ColumnElement[bool]: A SQLAlchemy expression suitable for use in a WHERE clause.
         """
+
         alias_idx = count(1)
 
         def leaf_exists(pf: PathFilter) -> ColumnElement[bool]:
