@@ -27,6 +27,8 @@ from .validators import is_bool_string, is_iso_date, is_uuid
 
 SQLAColumn: TypeAlias = ColumnElement[Any] | InstrumentedAttribute[Any]
 
+LTREE_SEPARATOR = "."
+
 
 @dataclass
 class SearchMetadata:

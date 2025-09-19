@@ -72,6 +72,6 @@ class ComponentInfo(BaseModel):
 
 class TypeDefinition(BaseModel):
     operators: list[FilterOp]
-    valueSchema: dict[FilterOp, ValueSchema]
+    value_schema: dict[FilterOp, ValueSchema]
 
     model_config = ConfigDict(use_enum_values=True)

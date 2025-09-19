@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 
 import structlog
 from litellm import aembedding as llm_aembedding
@@ -21,9 +20,6 @@ from litellm import exceptions as llm_exc
 from orchestrator.llm_settings import llm_settings
 
 logger = structlog.get_logger(__name__)
-
-# Its logging alot of noise such as embedding vectors.
-logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 
 class EmbeddingIndexer:

@@ -24,7 +24,7 @@ from orchestrator.search.schemas.results import MatchingField, SearchResponse, S
 
 from .builder import build_candidate_query
 from .pagination import PaginationParams
-from .retriever import Retriever
+from .retrievers import Retriever
 from .utils import generate_highlight_indices
 
 logger = structlog.get_logger(__name__)
@@ -59,11 +59,11 @@ def _format_response(
     for row in db_rows:
         matching_field = None
 
-        if user_query and row.get("highlight_text") and row.get("highlight_path"):
-            # Text/semantic searches
-            text = row.highlight_text
-            path = row.highlight_path
-
+        if (
+            user_query
+            and (text := row.get(Retriever.HIGHLIGHT_TEXT_LABEL))
+            and (path := row.get(Retriever.HIGHLIGHT_PATH_LABEL))
+        ):
             if not isinstance(text, str):
                 text = str(text)
             if not isinstance(path, str):
