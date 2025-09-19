@@ -36,16 +36,13 @@ def build_candidate_query(params: BaseSearchParameters) -> Select:
     from the index table for the given entity type, applying any structured
     filters from the provided search parameters.
 
-    Parameters
-    ----------
-    params : BaseSearchParameters
-        The search parameters containing the entity type and optional filters.
+    Args:
+        params (BaseSearchParameters): The search parameters containing the entity type and optional filters.
 
     Returns:
-    -------
-    Select
-        The SQLAlchemy `Select` object representing the query.
+        Select: The SQLAlchemy `Select` object representing the query.
     """
+
     stmt = select(AiSearchIndex.entity_id).where(AiSearchIndex.entity_type == params.entity_type.value).distinct()
 
     if params.filters is not None:

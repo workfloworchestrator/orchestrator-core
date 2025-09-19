@@ -38,16 +38,12 @@ def _format_response(
     Converts raw SQLAlchemy `RowMapping` objects into `SearchResult` instances,
     including highlight metadata if present in the database results.
 
-    Parameters
-    ----------
-    db_rows : Sequence[RowMapping]
-        The rows returned from the executed SQLAlchemy query.
+    Args:
+        db_rows (Sequence[RowMapping]): The rows returned from the executed SQLAlchemy query.
 
     Returns:
-    -------
-    SearchResponse
-        A list of `SearchResult` objects containing entity IDs, scores, and
-        optional highlight information.
+        SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
+        and optional highlight information.
     """
 
     if not db_rows:
@@ -127,26 +123,20 @@ async def execute_search(
     applies the appropriate ranking strategy, and executes the final ranked
     query to retrieve results.
 
-    Parameters
-    ----------
-    search_params : BaseSearchParameters
-        The search parameters specifying vector, fuzzy, or filter criteria.
-    db_session : Session
-        The active SQLAlchemy session for executing the query.
-    limit : int, optional
-        The maximum number of search results to return, by default 5.
+    Args:
+        search_params (BaseSearchParameters): The search parameters specifying vector, fuzzy, or filter criteria.
+        db_session (Session): The active SQLAlchemy session for executing the query.
+        limit (int, optional): The maximum number of search results to return, by default 5.
 
     Returns:
-    -------
-    SearchResponse
-        A list of `SearchResult` objects containing entity IDs, scores, and
-        optional highlight metadata.
+        SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
+        and optional highlight metadata.
 
     Notes:
-    -----
-    If no vector query, filters, or fuzzy term are provided, a warning is logged
-    and an empty result set is returned.
+        If no vector query, filters, or fuzzy term are provided, a warning is logged
+        and an empty result set is returned.
     """
+
     if not search_params.vector_query and not search_params.filters and not search_params.fuzzy_term:
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
         return SearchResponse(results=[], metadata=SearchMetadata.empty())
