@@ -18,7 +18,7 @@ from sqlalchemy import TEXT, bindparam
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy_utils.types.ltree import Ltree
 
-from orchestrator.search.core.types import FilterOp, SQLAColumn
+from orchestrator.search.core.types import FilterOp, SQLAColumn, LTREE_SEPARATOR
 
 
 class LtreeFilter(BaseModel):
@@ -51,6 +51,6 @@ class LtreeFilter(BaseModel):
                 ltree_value = Ltree(path)
                 return column == ltree_value
             case FilterOp.HAS_COMPONENT | FilterOp.NOT_HAS_COMPONENT:
-                return column.op("~")(bindparam(None, f"*.{self.value}.*", type_=TEXT))
+                return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}{LTREE_SEPARATOR}*", type_=TEXT))
             case FilterOp.ENDS_WITH:
-                return column.op("~")(bindparam(None, f"*.{self.value}", type_=TEXT))
+                return column.op("~")(bindparam(None, f"*{LTREE_SEPARATOR}{self.value}", type_=TEXT))

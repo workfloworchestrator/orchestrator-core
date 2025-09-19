@@ -86,7 +86,7 @@ def generate_definitions() -> dict[UIType, TypeDefinition]:
             comp_ops = component_operators()
             definitions[ui_type] = TypeDefinition(
                 operators=list(comp_ops.keys()),
-                valueSchema=comp_ops,
+                value_schema=comp_ops,
             )
         else:
             # Regular field types
@@ -101,6 +101,6 @@ def generate_definitions() -> dict[UIType, TypeDefinition]:
 
             definitions[ui_type] = TypeDefinition(
                 operators=operators_for(rep_ft),
-                valueSchema=value_schema_for(rep_ft),
+                value_schema=value_schema_for(rep_ft),
             )
     return definitions

@@ -32,7 +32,7 @@ from orchestrator.domain.lifecycle import (
 from orchestrator.schemas.process import ProcessSchema
 from orchestrator.schemas.workflow import WorkflowSchema
 from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
-from orchestrator.search.core.types import ExtractedField, FieldType
+from orchestrator.search.core.types import ExtractedField, FieldType, LTREE_SEPARATOR
 from orchestrator.types import SubscriptionLifecycle
 
 logger = structlog.get_logger(__name__)
@@ -43,7 +43,6 @@ DatabaseEntity = SubscriptionTable | ProductTable | ProcessTable | WorkflowTable
 class BaseTraverser(ABC):
     """Base class for traversing database models and extracting searchable fields."""
 
-    _LTREE_SEPARATOR = "."
     _MAX_DEPTH = 40
 
     @classmethod
@@ -75,7 +74,7 @@ class BaseTraverser(ABC):
             except Exception as e:
                 logger.error(f"Failed to access field '{name}' on {model_class.__name__}", error=str(e))
                 continue
-            new_path = f"{path}{cls._LTREE_SEPARATOR}{name}" if path else name
+            new_path = f"{path}{LTREE_SEPARATOR}{name}" if path else name
             annotation = field.annotation if hasattr(field, "annotation") else field.return_type
             yield from cls._yield_fields_for_value(value, new_path, annotation)
 
@@ -210,7 +209,7 @@ class ProductTraverser(BaseTraverser):
         fields = []
 
         # Add the block itself as a BLOCK type
-        block_name = block_path.split(cls._LTREE_SEPARATOR)[-1]
+        block_name = block_path.split(LTREE_SEPARATOR)[-1]
         fields.append(ExtractedField(path=block_path, value=block_name, value_type=FieldType.BLOCK))
 
         # Extract all field names from the block as RESOURCE_TYPE
@@ -236,7 +235,7 @@ class ProductTraverser(BaseTraverser):
                             ExtractedField(path=field_path, value=field_name, value_type=FieldType.RESOURCE_TYPE)
                         )
                         # And potentially traverse the first item for schema
-                        first_item_path = f"{field_path}{cls._LTREE_SEPARATOR}0"
+                        first_item_path = f"{field_path}{LTREE_SEPARATOR}0"
                         nested_fields = cls._extract_block_schema(field_value[0], first_item_path)
                         fields.extend(nested_fields)
                     else:

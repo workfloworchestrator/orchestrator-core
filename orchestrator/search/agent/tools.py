@@ -135,7 +135,7 @@ async def set_filter_tree(
 @search_toolset.tool
 async def execute_search(
     ctx: RunContext[StateDeps[SearchState]],
-    limit: int = 5,
+    limit: int = 10,
 ) -> StateSnapshotEvent:
     """Execute the search with the current parameters."""
     if not ctx.deps.state.parameters:
@@ -159,16 +159,17 @@ async def execute_search(
     if params.filters:
         logger.debug("Search filters", filters=params.filters)
 
+    params.limit = limit
+
     fn = SEARCH_FN_MAP[entity_type]
     search_results = await fn(params)
 
     logger.debug(
         "Search completed",
         total_results=len(search_results.data) if search_results.data else 0,
-        limited_to=limit,
     )
 
-    ctx.deps.state.results = search_results.data[:limit]
+    ctx.deps.state.results = search_results.data
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
