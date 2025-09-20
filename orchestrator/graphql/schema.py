@@ -13,7 +13,7 @@
 from collections.abc import Callable, Iterable
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Coroutine, Protocol
+from typing import Any, AsyncIterator, Coroutine, Protocol
 
 import strawberry
 import structlog
@@ -30,6 +30,7 @@ from nwastdlib.graphql.extensions.deprecation_checker_extension import make_depr
 from nwastdlib.graphql.extensions.error_handler_extension import ErrorHandlerExtension, ErrorType
 from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import authenticated_field
+from orchestrator.db import async_db
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.graphql.autoregistration import create_subscription_strawberry_type, register_domain_models
 from orchestrator.graphql.extensions.model_cache import ModelCacheExtension
@@ -156,11 +157,15 @@ def default_context_getter(
     auth_manager: AuthManager,
     graphql_models: StrawberryModelType,
     broadcast_thread: ProcessDataBroadcastThread | None = None,
-) -> Callable[[], Coroutine[Any, Any, OrchestratorContext]]:
-    async def context_getter() -> OrchestratorContext:
-        return OrchestratorContext(
-            auth_manager=auth_manager, graphql_models=graphql_models, broadcast_thread=broadcast_thread
-        )
+) -> Callable[[], AsyncIterator[OrchestratorContext]]:
+    async def context_getter() -> AsyncIterator[OrchestratorContext]:
+        async with async_db.session() as session:
+            yield OrchestratorContext(
+                auth_manager=auth_manager,
+                graphql_models=graphql_models,
+                broadcast_thread=broadcast_thread,
+                db_session=session,
+            )
 
     return context_getter
 
