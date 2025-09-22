@@ -502,6 +502,7 @@ def test_insync_invalid_tagged(seed, test_client):
         "terminate": [],
         "system": [],
         "validate": [],
+        "reconcile": [],
     }
 
 
