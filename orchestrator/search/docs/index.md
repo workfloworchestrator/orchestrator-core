@@ -1,37 +1,31 @@
-# Search Indexing CLI
+# Orchestrator Search
 
-Typer-based CLI for maintaining search indexes (subscriptions, products, processes, workflows).
+## Overview
 
-## Usage
+- [Searching](overview/searching.md): search types (semantic, fuzzy, structured, hybrid), routing rules, scoring.
+- [Filters](overview/filters.md): structured filters.
 
-Run from project root:
+---
 
-```
-dotenv run python main.py index [COMMAND] [OPTIONS]
-```
+## How-to Guides
 
-### Commands
+Step-by-step instructions for various tasks.
 
-- `subscriptions` – index `subscription_search_index`
-- `products` – index `product_search_index`
-- `processes` – index `process_search_index`
-- `workflows` – index `workflow_search_index`
+- [Run a full index](guides/running_index.md): How to run the indexing script.
+- [Run local text embedding inference](guides/running_local_text_embedding_inference.md): How to use a local embedding server.
 
-### Options
+---
 
-- `--<id>` – UUID of a specific entity (default: all)
-- `--dry-run` – no DB writes
-- `--force-index` – re-index even if unchanged
+## Architecture
 
-### Examples
+- [Indexing flow](architecture/indexing-flow.md): chunking, change detection, batching, embeddings, upsert.
 
-```
-# Index all subscriptions
-dotenv run python main.py index subscriptions
+---
 
-# Re-index all subscriptions
-dotenv run python main.py index subscriptions --force-index
+## Reference
 
-# Index a single subscription
-dotenv run python main.py index subscriptions --subscription-id=<UUID>
-```
+Details and definitions.
+
+- **[Filter operators](reference/filter-operators.md)**: Supported operators per UI type.
+
+---
