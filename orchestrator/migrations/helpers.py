@@ -155,7 +155,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
         conn: DB connection as available in migration main file.
         workflow: Dict with data for a new workflow.
             name: Name of the workflow.
-            target: Target of the workflow ("CREATE", "MODIFY", "TERMINATE", "SYSTEM")
+            target: Target of the workflow ("CREATE", "MODIFY", "RECONCILE", "TERMINATE", "SYSTEM")
             description: Description of the workflow.
             product_type: Product type to add the workflow to.
 

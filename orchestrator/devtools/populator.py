@@ -371,6 +371,22 @@ class Populator:
         self.log.info("Started modify workflow")
         return self._start_workflow(workflow_name, subscription_id=subscription_id, **kwargs)
 
+    def start_reconcile_workflow(self, workflow_name: str, subscription_id: UUIDstr | UUID, **kwargs: Any) -> UUIDstr:
+        """Start a modify workflow for the provided name and subscription_id.
+
+        Args:
+            workflow_name: workflow name
+            subscription_id: uuid of the subscription you want to modify
+            kwargs: values to be used as form input
+
+        Returns: the process_id of the workflow process
+
+        """
+        subscription_id = str(subscription_id)
+        self.log = self.log.bind(subscription_id=subscription_id)
+        self.log.info("Started reconcile workflow")
+        return self._start_workflow(workflow_name, subscription_id=subscription_id, **kwargs)
+
     def start_verify_workflow(self, workflow_name: str, subscription_id: UUIDstr | UUID) -> UUIDstr:
         subscription_id = str(subscription_id)
         self.log = self.log.bind(subscription_id=subscription_id)
