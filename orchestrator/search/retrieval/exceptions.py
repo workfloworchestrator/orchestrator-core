@@ -44,8 +44,8 @@ class PathNotFoundError(FilterValidationError):
     Examples:
         Using a non-existent filter path:
 
-        >>> raise PathNotFoundError('subscription.nonexistent.field')
-        PathNotFoundError: Path 'subscription.nonexistent.field' does not exist in the database.
+        >>> print(PathNotFoundError('subscription.nonexistent.field'))
+        Path 'subscription.nonexistent.field' does not exist in the database.
     """
 
     def __init__(self, path: str) -> None:
@@ -59,14 +59,13 @@ class IncompatibleFilterTypeError(FilterValidationError):
     Examples:
         Using a numeric comparison operator on a string field:
 
-        >>> filter_obj = PathFilter(
-        ...     path="subscription.customer_name",
-        ...     condition=NumericValueFilter(op=FilterOp.GT, value=100),
-        ...     value_kind=UIType.NUMBER
-        ... )
-        >>> await complete_filter_validation(filter_obj, EntityType.SUBSCRIPTION)
-        IncompatibleFilterTypeError: Operator 'gt' is not compatible with field type 'string'
-        for path 'subscription.customer_name'. Valid operators for 'string': [eq, neq, like]
+        >>> print(IncompatibleFilterTypeError(
+        ...     operator='gt',
+        ...     field_type='string',
+        ...     path='subscription.customer_name',
+        ...     expected_operators=[FilterOp.EQ, FilterOp.NEQ, FilterOp.LIKE],
+        ... ))
+        Operator 'gt' is not compatible with field type 'string' for path 'subscription.customer_name'. Valid operators for 'string': [eq, neq, like]
     """
 
     def __init__(self, operator: str, field_type: str, path: str, expected_operators: list[FilterOp]) -> None:
@@ -82,8 +81,8 @@ class InvalidEntityPrefixError(FilterValidationError):
     Examples:
         Using wrong entity prefix in filter path:
 
-        >>> raise InvalidEntityPrefixError('workflow.name', 'subscription.', 'SUBSCRIPTION')
-        InvalidEntityPrefixError: Filter path 'workflow.name' must start with 'subscription.' for SUBSCRIPTION searches, or use '*' for wildcard paths.
+        >>> print(InvalidEntityPrefixError('workflow.name', 'subscription.', 'SUBSCRIPTION'))
+        Filter path 'workflow.name' must start with 'subscription.' for SUBSCRIPTION searches, or use '*' for wildcard paths.
     """
 
     def __init__(self, path: str, expected_prefix: str, entity_type: str) -> None:
