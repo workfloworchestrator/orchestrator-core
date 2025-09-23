@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import assert_never
-
 from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy_utils import Ltree
@@ -21,17 +19,14 @@ from orchestrator.db import db
 from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import EntityType, FieldType
-from orchestrator.search.filters import (
-    DateRangeFilter,
-    DateValueFilter,
-    EqualityFilter,
-    FilterCondition,
-    FilterTree,
-    LtreeFilter,
-    NumericRangeFilter,
-    NumericValueFilter,
-    PathFilter,
-    StringFilter,
+from orchestrator.search.filters import FilterCondition, FilterTree, LtreeFilter, PathFilter
+from orchestrator.search.filters.definitions import operators_for
+from orchestrator.search.retrieval.exceptions import (
+    EmptyFilterPathError,
+    IncompatibleFilterTypeError,
+    InvalidEntityPrefixError,
+    InvalidLtreePatternError,
+    PathNotFoundError,
 )
 
 
@@ -46,25 +41,13 @@ def is_filter_compatible_with_field_type(filter_condition: FilterCondition, fiel
         bool: True if the filter condition is valid for the given field type, False otherwise.
     """
 
-    match filter_condition:
-        case LtreeFilter():
-            return True  # Filters for path only
-        case DateRangeFilter() | DateValueFilter():
-            return field_type == FieldType.DATETIME
-        case NumericRangeFilter() | NumericValueFilter():
-            return field_type in {FieldType.INTEGER, FieldType.FLOAT}
-        case StringFilter():
-            return field_type == FieldType.STRING
-        case EqualityFilter():
-            return field_type in {
-                FieldType.BOOLEAN,
-                FieldType.UUID,
-                FieldType.BLOCK,
-                FieldType.RESOURCE_TYPE,
-                FieldType.STRING,
-            }
-        case _:
-            assert_never(filter_condition)
+    # LtreeFilter is for path filtering only and is thus compatible with all field types.
+    if isinstance(filter_condition, LtreeFilter):
+        return True
+
+    # Get valid operators for this field type and check if the filter's operator is valid.
+    valid_operators = operators_for(field_type)
+    return filter_condition.op in valid_operators
 
 
 def is_lquery_syntactically_valid(pattern: str, db_session: WrappedSession) -> bool:
@@ -135,31 +118,30 @@ async def complete_filter_validation(filter: PathFilter, entity_type: EntityType
     if isinstance(filter.condition, LtreeFilter):
         lquery_pattern = filter.condition.value
         if not is_lquery_syntactically_valid(lquery_pattern, db.session):
-            raise ValueError(f"Ltree pattern '{lquery_pattern}' has invalid syntax.")
+            raise InvalidLtreePatternError(lquery_pattern)
         return
 
     if not filter.path or not filter.path.strip():
-        raise ValueError("Filter path cannot be empty")
+        raise EmptyFilterPathError()
 
     # 1. Check if path exists in database
     db_field_type_str = validate_filter_path(filter.path)
     if db_field_type_str is None:
-        raise ValueError(f"Path '{filter.path}' does not exist in database schema")
+        raise PathNotFoundError(filter.path)
 
     db_field_type = FieldType(db_field_type_str)
 
     # 2. Check filter compatibility with field type
     if not is_filter_compatible_with_field_type(filter.condition, db_field_type):
-        raise ValueError(
-            f"Filter '{type(filter.condition).__name__}' not compatible with field type '{db_field_type.value}'"
+        expected_operators = operators_for(db_field_type)
+        raise IncompatibleFilterTypeError(
+            filter.condition.op.value, db_field_type.value, filter.path, expected_operators
         )
 
     # 3. Check entity type prefix requirements (unless it's a wildcard path)
     expected_prefix = f"{entity_type.value.lower()}."
     if not filter.path.startswith(expected_prefix) and not filter.path.startswith("*"):
-        raise ValueError(
-            f"Filter path '{filter.path}' must start with '{expected_prefix}' for {entity_type.value} searches."
-        )
+        raise InvalidEntityPrefixError(filter.path, expected_prefix, entity_type.value)
 
 
 async def validate_filter_tree(filters: FilterTree | None, entity_type: EntityType) -> None:
