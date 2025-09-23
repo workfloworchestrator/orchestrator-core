@@ -13,7 +13,7 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "4.5.0a2"
+__version__ = "4.4.2"
 
 
 from structlog import get_logger
