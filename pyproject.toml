@@ -51,7 +51,7 @@ dependencies = [
     "pgvector>=0.4.1",
     "prometheus-client==0.22.1",
     "psycopg2-binary==2.9.10",
-    "pydantic-forms>=1.4.0,<=2.1.0",
+    "pydantic-forms>=1.4.0",
     "pydantic-settings~=2.9.1",
     "pydantic[email]~=2.11.0",
     "python-dateutil==2.8.2",
