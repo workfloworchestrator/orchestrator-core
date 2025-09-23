@@ -11,18 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from unittest.mock import patch
 
-from orchestrator.search.core.types import EntityType, FieldType, UIType, FilterOp, BooleanOperator
+import pytest
+
+from orchestrator.search.core.types import BooleanOperator, EntityType, FieldType, FilterOp, UIType
 from orchestrator.search.filters import (
+    DateValueFilter,
+    EqualityFilter,
     FilterTree,
+    LtreeFilter,
+    NumericValueFilter,
     PathFilter,
     StringFilter,
-    NumericValueFilter,
-    LtreeFilter,
-    EqualityFilter,
-    DateValueFilter,
 )
 from orchestrator.search.retrieval.exceptions import (
     EmptyFilterPathError,
@@ -33,8 +34,8 @@ from orchestrator.search.retrieval.exceptions import (
 )
 from orchestrator.search.retrieval.validation import (
     complete_filter_validation,
-    validate_filter_tree,
     is_filter_compatible_with_field_type,
+    validate_filter_tree,
 )
 
 
@@ -248,4 +249,4 @@ class TestFilterTypeCompatibility:
         unknown_filter = UnknownFilter()
 
         with pytest.raises(AttributeError):
-            is_filter_compatible_with_field_type(unknown_filter, FieldType.STRING)  # type: ignore
+            is_filter_compatible_with_field_type(unknown_filter, FieldType.STRING)

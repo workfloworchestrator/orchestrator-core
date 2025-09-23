@@ -33,8 +33,8 @@ from orchestrator.api.api_v1.endpoints.search import (
 from orchestrator.schemas.search import SearchResultsSchema
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
-from orchestrator.search.retrieval.validation import validate_filter_tree
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
+from orchestrator.search.retrieval.validation import validate_filter_tree
 from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
 
 from .state import SearchState

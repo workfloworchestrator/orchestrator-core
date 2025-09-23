@@ -23,7 +23,7 @@ class FilterValidationError(Exception):
 class InvalidLtreePatternError(FilterValidationError):
     """Raised when an ltree pattern has invalid ltree query syntax."""
 
-    def __init__(self, pattern: str):
+    def __init__(self, pattern: str) -> None:
         message = f"Ltree pattern '{pattern}' has invalid syntax. Use valid PostgreSQL ltree lquery syntax."
         super().__init__(message)
 
@@ -31,7 +31,7 @@ class InvalidLtreePatternError(FilterValidationError):
 class EmptyFilterPathError(FilterValidationError):
     """Raised when a filter path is empty or contains only whitespace."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         message = (
             "Filter path cannot be empty. Provide a valid path like 'subscription.product.name' or 'workflow.name'."
         )
@@ -48,7 +48,7 @@ class PathNotFoundError(FilterValidationError):
         PathNotFoundError: Path 'subscription.nonexistent.field' does not exist in the database.
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         message = f"Path '{path}' does not exist in the database."
         super().__init__(message)
 
@@ -69,7 +69,7 @@ class IncompatibleFilterTypeError(FilterValidationError):
         for path 'subscription.customer_name'. Valid operators for 'string': [eq, neq, like]
     """
 
-    def __init__(self, operator: str, field_type: str, path: str, expected_operators: list[FilterOp]):
+    def __init__(self, operator: str, field_type: str, path: str, expected_operators: list[FilterOp]) -> None:
         valid_ops_str = ", ".join([op.value for op in expected_operators])
         message = f"Operator '{operator}' is not compatible with field type '{field_type}' for path '{path}'. Valid operators for '{field_type}': [{valid_ops_str}]"
 
@@ -86,6 +86,6 @@ class InvalidEntityPrefixError(FilterValidationError):
         InvalidEntityPrefixError: Filter path 'workflow.name' must start with 'subscription.' for SUBSCRIPTION searches, or use '*' for wildcard paths.
     """
 
-    def __init__(self, path: str, expected_prefix: str, entity_type: str):
+    def __init__(self, path: str, expected_prefix: str, entity_type: str) -> None:
         message = f"Filter path '{path}' must start with '{expected_prefix}' for {entity_type} searches, or use '*' for wildcard paths."
         super().__init__(message)
