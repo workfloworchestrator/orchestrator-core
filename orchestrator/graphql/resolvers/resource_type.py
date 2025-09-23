@@ -1,7 +1,6 @@
 import structlog
 from sqlalchemy import func, select
 
-from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.resource_type import (
     RESOURCE_TYPE_TABLE_COLUMN_CLAUSES,
@@ -32,6 +31,7 @@ async def resolve_resource_types(
     query: str | None = None,
 ) -> Connection[ResourceType]:
     _error_handler = create_resolver_error_handler(info)
+    session = info.context.db_session
 
     pydantic_filter_by: list[Filter] = [item.to_pydantic() for item in filter_by] if filter_by else []
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
@@ -54,7 +54,7 @@ async def resolve_resource_types(
         stmt = select_stmt
 
     stmt = sort_resource_types(stmt, pydantic_sort_by, _error_handler)
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     graphql_resource_types = []
