@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -1998,7 +1998,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = "==2.9.10" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.11.0" },
     { name = "pydantic-ai-slim", marker = "extra == 'llm'", specifier = "==0.7.0" },
-    { name = "pydantic-forms", specifier = ">=1.4.0,<=2.1.0" },
+    { name = "pydantic-forms", specifier = ">=1.4.0" },
     { name = "pydantic-settings", specifier = "~=2.9.1" },
     { name = "python-dateutil", specifier = "==2.8.2" },
     { name = "python-rapidjson", specifier = ">=1.18,<1.21" },
