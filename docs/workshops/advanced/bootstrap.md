@@ -92,9 +92,10 @@ This will also enable LSO, so network devices will be actually configured. If yo
 ### Local environment
 
 The environment requires several ports to be free.
-Use `ss` to check if any are in use—no output means they're available:
+Use either command below to check if any are in use. No output means they're available:
 
 ```
+netstat -tulnp | grep -E ':80|:3000|:4000|:5432|:5678|:8000|:8001|:8080'
 ss -tulnp|grep -E ':80|:3000|:4000|:5432|:5678|:8000|:8001|:8080'
 ```
 
