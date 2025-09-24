@@ -33,6 +33,7 @@ from orchestrator.api.api_v1.endpoints.search import (
 from orchestrator.schemas.search import SearchResultsSchema
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
+from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
 from orchestrator.search.retrieval.validation import validate_filter_tree
 from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
 
@@ -123,9 +124,16 @@ async def set_filter_tree(
 
     try:
         await validate_filter_tree(filters, entity_type)
-    except Exception as e:
-        # TODO: Define specific filter validation exceptions and catch them instructing what should change.
+    except PathNotFoundError as e:
+        logger.debug(f"{PathNotFoundError.__name__}: {str(e)}")
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths tool to find valid paths.")
+    except FilterValidationError as e:
+        # ModelRetry will trigger an agent retry, containing the specific validation error.
+        logger.debug(f"Filter validation failed: {str(e)}")
         raise ModelRetry(str(e))
+    except Exception as e:
+        logger.error("Unexpected Filter validation exception", error=str(e))
+        raise ModelRetry(f"Filter validation failed: {str(e)}. Please check your filter structure and try again.")
 
     filter_data = None if filters is None else filters.model_dump(mode="json", by_alias=True)
     ctx.deps.state.parameters["filters"] = filter_data

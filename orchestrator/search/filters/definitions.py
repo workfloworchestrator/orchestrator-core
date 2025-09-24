@@ -73,6 +73,7 @@ def value_schema_for(ft: FieldType) -> dict[FilterOp, ValueSchema]:
     return {
         FilterOp.EQ: ValueSchema(kind=UIType.STRING),
         FilterOp.NEQ: ValueSchema(kind=UIType.STRING),
+        FilterOp.LIKE: ValueSchema(kind=UIType.STRING),
     }
 
 
