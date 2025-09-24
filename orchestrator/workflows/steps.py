@@ -15,9 +15,12 @@ from copy import deepcopy
 import structlog
 from pydantic import ValidationError
 
+from orchestrator import llm_settings
 from orchestrator.db import db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.search.core.types import EntityType
+from orchestrator.search.indexing import run_indexing_for_entity
 from orchestrator.services.settings import reset_search_index
 from orchestrator.services.subscriptions import get_subscription
 from orchestrator.targets import Target
@@ -141,9 +144,20 @@ def set_status(status: SubscriptionLifecycle) -> Step:
 
 
 @step("Refresh subscription search index")
-def refresh_subscription_search_index() -> State:
+def refresh_subscription_search_index(subscription: SubscriptionModel | None) -> State:
+    """Refresh subscription search index.
+
+    Args:
+        subscription: Subscription to refresh search index.
+
+    Returns:
+        State of the workflow.
+
+    """
     try:
         reset_search_index()
+        if llm_settings.LLM_ENABLED and subscription:
+            run_indexing_for_entity(EntityType.SUBSCRIPTION, str(subscription.subscription_id))
     except Exception:
         # Don't fail workflow in case of unexpected error
         logger.warning("Error updated the subscriptions search index")
