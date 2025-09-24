@@ -9,7 +9,7 @@ steps:
 
 ```python
 init
->> store_process_subscription(Target.TERMINATE)
+>> store_process_subscription()
 >> unsync
 >> deprovision_user
 >> set_status(SubscriptionLifecycle.TERMINATED)

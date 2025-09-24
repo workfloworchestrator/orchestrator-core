@@ -20,7 +20,9 @@ from uuid import UUID
 import sqlalchemy
 import structlog
 from more_itertools import first_true
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    TEXT,
     TIMESTAMP,
     Boolean,
     CheckConstraint,
@@ -29,6 +31,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     Select,
     String,
     Table,
@@ -45,10 +48,12 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
 from sqlalchemy.sql.functions import GenericFunction
-from sqlalchemy_utils import TSVectorType, UUIDType
+from sqlalchemy_utils import LtreeType, TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
+from orchestrator.llm_settings import llm_settings
+from orchestrator.search.core.types import FieldType
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
@@ -117,7 +122,7 @@ class ProcessTable(BaseModel):
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
 
     steps = relationship(
-        "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.executed_at)"
+        "ProcessStepTable", cascade="delete", passive_deletes=True, order_by="asc(ProcessStepTable.completed_at)"
     )
     input_states = relationship("InputStateTable", cascade="delete", order_by="desc(InputStateTable.input_time)")
     process_subscriptions = relationship("ProcessSubscriptionTable", back_populates="process", passive_deletes=True)
@@ -141,7 +146,8 @@ class ProcessStepTable(BaseModel):
     status = mapped_column(String(50), nullable=False)
     state = mapped_column(pg.JSONB(), nullable=False)
     created_by = mapped_column(String(255), nullable=True)
-    executed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    completed_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
+    started_at = mapped_column(UtcTimestamp, server_default=text("statement_timestamp()"), nullable=False)
     commit_hash = mapped_column(String(40), nullable=True, default=GIT_COMMIT_HASH)
 
 
@@ -154,7 +160,9 @@ class ProcessSubscriptionTable(BaseModel):
     )
     subscription_id = mapped_column(UUIDType, ForeignKey("subscriptions.subscription_id"), nullable=False, index=True)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
-    workflow_target = mapped_column(String(255), nullable=False, server_default=Target.CREATE)
+
+    # FIXME: workflow_target is already stored in the workflow table, this column should get removed in a later release.
+    workflow_target = mapped_column(String(255), nullable=True)
 
     process = relationship("ProcessTable", back_populates="process_subscriptions")
     subscription = relationship("SubscriptionTable", back_populates="processes")
@@ -682,3 +690,34 @@ class SubscriptionInstanceAsJsonFunction(GenericFunction):
 
     def __init__(self, sub_inst_id: UUID):
         super().__init__(sub_inst_id)
+
+
+class AiSearchIndex(BaseModel):
+
+    __tablename__ = "ai_search_index"
+
+    entity_type = mapped_column(
+        TEXT,
+        nullable=False,
+        index=True,
+    )
+    entity_id = mapped_column(
+        UUIDType,
+        nullable=False,
+    )
+
+    # Ltree path for hierarchical data
+    path = mapped_column(LtreeType, nullable=False, index=True)
+    value = mapped_column(TEXT, nullable=False)
+
+    value_type = mapped_column(
+        Enum(FieldType, name="field_type", values_callable=lambda obj: [e.value for e in obj]), nullable=False
+    )
+
+    # Embedding
+    embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=True)
+
+    # SHA-256
+    content_hash = mapped_column(String(64), nullable=False, index=True)
+
+    __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)

@@ -11,7 +11,6 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Divider, Label, CustomerId, MigrationSummary
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
@@ -119,6 +118,6 @@ def create_{{ product.variable }}() -> StepList:
     return (
         begin
         >> construct_{{ product.variable }}_model
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         # TODO add provision step(s)
     )

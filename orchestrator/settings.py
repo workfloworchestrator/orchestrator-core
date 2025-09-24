@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -72,7 +72,7 @@ class AppSettings(BaseSettings):
     TRACING_ENABLED: bool = False
     TRACE_HOST: str = "http://localhost:4317"
     TRANSLATIONS_DIR: Path | None = None
-    WEBSOCKET_BROADCASTER_URL: str = "memory://"
+    WEBSOCKET_BROADCASTER_URL: OrchSecretStr = "memory://"  # type: ignore
     ENABLE_WEBSOCKETS: bool = True
     DISABLE_INSYNC_CHECK: bool = False
     DEFAULT_PRODUCT_WORKFLOWS: list[str] = ["modify_note"]

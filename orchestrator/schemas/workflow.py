@@ -60,6 +60,7 @@ class SubscriptionWorkflowListsSchema(OrchestratorBaseModel):
     modify: list[WorkflowListItemSchema]
     terminate: list[WorkflowListItemSchema]
     system: list[WorkflowListItemSchema]
+    reconcile: list[WorkflowListItemSchema]
     validate_: list[WorkflowListItemSchema] = Field(default_factory=list, alias="validate")
 
 

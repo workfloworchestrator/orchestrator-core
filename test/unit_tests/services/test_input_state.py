@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -60,3 +61,21 @@ def test_store_input_state(completed_process):
 
     states = InputStateTable.query.all()
     assert len(states) == 2
+
+
+def test_retrieve_latest_input_state(completed_process):
+    process_id, _ = completed_process
+
+    user_input_1 = InputStateTable(process_id=process_id, input_state={"first": "input"}, input_type="user_input")
+    user_input_2 = InputStateTable(
+        process_id=process_id,
+        input_state={"second": "input"},
+        input_type="user_input",
+        input_time=(datetime.now(timezone.utc) + timedelta(hours=1)),
+    )
+
+    db.session.add(user_input_1)
+    db.session.add(user_input_2)
+    db.session.commit()
+    retrieved_state = retrieve_input_state(process_id, "user_input")
+    assert retrieved_state == user_input_2

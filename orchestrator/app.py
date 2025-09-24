@@ -90,6 +90,22 @@ class OrchestratorCore(FastAPI):
         base_settings: AppSettings = app_settings,
         **kwargs: Any,
     ) -> None:
+        """Initialize the Orchestrator.
+
+        Args:
+            title: Name of the application.
+            description: Description of the application.
+            openapi_url: Location of the OpenAPI endpoint.
+            docs_url: Location of the docs endpoint.
+            redoc_url: Location of the redoc endpoint.
+            version: Version of the application.
+            default_response_class: Override the default response class.
+            base_settings: Settings for the application.
+            **kwargs: Any additional keyword arguments are sent to the
+
+        Returns:
+            None
+        """
         initialise_logging(LOGGER_OVERRIDES)
         init_model_loaders()
         if base_settings.ENABLE_GRAPHQL_STATS_EXTENSION:
@@ -163,6 +179,22 @@ class OrchestratorCore(FastAPI):
         release: str | None = GIT_COMMIT_HASH,
         **sentry_kwargs: Any,
     ) -> None:
+        """Register sentry to your application.
+
+        Sentry is an application monitoring toolkit.
+
+        Args:
+            sentry_dsn: The location where sentry traces are posted to.
+            trace_sample_rate: The sample rate
+            server_name: The name of the application
+            environment: Production or development
+            release: Version of the application
+            **sentry_kwargs: Any sentry keyword arguments
+
+        Returns:
+            None
+
+        """
         logger.info("Adding Sentry middleware to app", app=self.title)
         if self.base_settings.EXECUTOR == ExecutorType.WORKER:
             from sentry_sdk.integrations.celery import CeleryIntegration

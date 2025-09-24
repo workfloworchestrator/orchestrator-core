@@ -25,6 +25,6 @@ def _format_context(context: dict) -> str:
 
 def create_resolver_error_handler(info: OrchestratorInfo) -> CallableErrorHandler:
     def handle_error(message: str, **context) -> None:  # type: ignore
-        return register_error(" ".join([message, _format_context(context)]), info, error_type=ErrorType.BAD_REQUEST)
+        return register_error(f"{message} {_format_context(context)}", info, error_type=ErrorType.BAD_REQUEST)
 
     return handle_error

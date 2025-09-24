@@ -36,6 +36,7 @@ classifiers = [
 dependencies = [
     "alembic==1.16.1",
     "anyio>=3.7.0",
+    "apscheduler>=3.11.0",
     "click==8.*",
     "deepmerge==2.0",
     "deprecated>=1.2.18",
@@ -45,18 +46,18 @@ dependencies = [
     "jinja2==3.1.6",
     "more-itertools~=10.7.0",
     "nwa-stdlib~=1.9.0",
-    "oauth2-lib~=2.4.0",
+    "oauth2-lib>=2.4.1",
     "orjson==3.10.18",
+    "pgvector>=0.4.1",
     "prometheus-client==0.22.1",
     "psycopg2-binary==2.9.10",
     "pydantic-forms>=1.4.0,<=2.1.0",
     "pydantic-settings~=2.9.1",
-    "pydantic[email]~=2.8.2",
+    "pydantic[email]~=2.11.0",
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.18,<1.21",
     "pytz==2025.2",
     "redis==5.1.1",
-    "schedule==1.1.0",
     "semver==3.0.4",
     "sentry-sdk[fastapi]~=2.29.1",
     "sqlalchemy==2.0.41",
@@ -77,6 +78,11 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 [project.optional-dependencies]
 celery = [
     "celery~=5.5.1",
+]
+llm = [
+    "pydantic-ai-slim ==0.7.0",
+    "ag-ui-protocol>=0.1.8",
+    "litellm>=1.75.7",
 ]
 
 # Local dependencies for development
@@ -105,6 +111,7 @@ dev = [
     "pyinstrument>=5.0.2",
     "pytest==8.4.1",
     "pytest-asyncio==0.21.2",
+    "pytest-celery>=1.2.1",
     "pytest-codspeed>=3.2.0",
     "pytest-cov>=6.2.1",
     "pytest-httpx>=0.29.0",
@@ -230,3 +237,6 @@ known-first-party = [
     "oauth2_lib",
     "pydantic_forms",
 ]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"

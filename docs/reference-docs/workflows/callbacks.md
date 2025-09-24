@@ -163,7 +163,7 @@ def create_l2vpn() -> StepList:
     return (
         begin
         >> construct_model
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         >> callback_interaction(call_ansible_playbook)
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )

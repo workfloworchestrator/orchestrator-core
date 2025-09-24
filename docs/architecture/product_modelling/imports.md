@@ -40,7 +40,7 @@ def create_imported_node() -> StepList:
     return (
         begin
         >> create_subscription
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         >> initialize_subscription
     )
 ```

@@ -12,10 +12,10 @@
 # limitations under the License.
 
 
-from orchestrator.schedules.scheduling import scheduler
+from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
 
 
-@scheduler(name="Resume workflows", time_unit="hour", period=1)
+@scheduler.scheduled_job(id="resume-workflows", name="Resume workflows", trigger="interval", hours=1)  # type: ignore[misc]
 def run_resume_workflows() -> None:
     start_process("task_resume_workflows")

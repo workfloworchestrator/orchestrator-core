@@ -154,7 +154,7 @@ def _generate_modify_form(workflow_target: str, workflow_name: str) -> InputForm
 
 
 def wrap_modify_initial_input_form(initial_input_form: InputStepFunc | None) -> StateInputStepFunc | None:
-    """Wrap initial input for modify and terminate workflows.
+    """Wrap initial input for modify, reconcile and terminate workflows.
 
     This is needed because the frontend expects all modify workflows to start with a page that only contains the
     subscription id. It also expects the second page to have some user visible inputs and the subscription id *again*.
@@ -265,7 +265,7 @@ def modify_workflow(
     def _modify_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription(Target.MODIFY)
+            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
@@ -311,7 +311,7 @@ def terminate_workflow(
     def _terminate_workflow(f: Callable[[], StepList]) -> Workflow:
         steplist = (
             init
-            >> store_process_subscription(Target.TERMINATE)
+            >> store_process_subscription()
             >> unsync
             >> f()
             >> (additional_steps or StepList())
@@ -348,11 +348,58 @@ def validate_workflow(description: str) -> Callable[[Callable[[], StepList]], Wo
     """
 
     def _validate_workflow(f: Callable[[], StepList]) -> Workflow:
-        steplist = init >> store_process_subscription(Target.SYSTEM) >> unsync_unchecked >> f() >> resync >> done
+        steplist = init >> store_process_subscription() >> unsync_unchecked >> f() >> resync >> done
 
         return make_workflow(f, description, validate_initial_input_form_generator, Target.VALIDATE, steplist)
 
     return _validate_workflow
+
+
+def reconcile_workflow(
+    description: str,
+    additional_steps: StepList | None = None,
+    authorize_callback: Authorizer | None = None,
+    retry_auth_callback: Authorizer | None = None,
+) -> Callable[[Callable[[], StepList]], Workflow]:
+    """Similar to a modify_workflow but without required input user input to perform a sync with external systems based on the subscriptions existing configuration.
+
+    Use this for subscription reconcile workflows.
+
+    Example::
+
+        @reconcile_workflow("Reconcile l2vpn")
+        def reconcile_l2vpn() -> StepList:
+            return (
+                begin
+                >> update_l2vpn_in_external_systems
+            )
+    """
+
+    wrapped_reconcile_initial_input_form_generator = wrap_modify_initial_input_form(None)
+
+    def _reconcile_workflow(f: Callable[[], StepList]) -> Workflow:
+        steplist = (
+            init
+            >> store_process_subscription()
+            >> unsync
+            >> f()
+            >> (additional_steps or StepList())
+            >> resync
+            >> refresh_subscription_search_index
+            >> done
+        )
+
+        return make_workflow(
+            f,
+            description,
+            wrapped_reconcile_initial_input_form_generator,
+            Target.RECONCILE,
+            steplist,
+            authorize_callback=authorize_callback,
+            retry_auth_callback=retry_auth_callback,
+        )
+
+    return _reconcile_workflow
 
 
 def ensure_provisioning_status(modify_steps: Step | StepList) -> StepList:

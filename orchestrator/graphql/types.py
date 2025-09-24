@@ -1,4 +1,4 @@
-# Copyright 2022-2023 SURF, GÉANT.
+# Copyright 2022-2025 SURF, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,7 +30,13 @@ from oauth2_lib.fastapi import AuthManager
 from oauth2_lib.strawberry import OauthContext
 from orchestrator.db.filters import Filter
 from orchestrator.db.sorting import Sort, SortOrder
-from orchestrator.graphql.loaders.subscriptions import SubsLoaderType, depends_on_subs_loader, in_use_by_subs_loader
+from orchestrator.graphql.loaders.subscriptions import (
+    LastValidationLoaderType,
+    SubsLoaderType,
+    depends_on_subs_loader,
+    in_use_by_subs_loader,
+    last_validation_datetime_loader,
+)
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 
 StrawberryPydanticModel = TypeVar("StrawberryPydanticModel", bound=StrawberryTypeFromPydantic)
@@ -60,6 +66,9 @@ class OrchestratorContext(OauthContext):
         self.graphql_models = graphql_models or {}
         self.core_in_use_by_subs_loader: SubsLoaderType = DataLoader(load_fn=in_use_by_subs_loader)
         self.core_depends_on_subs_loader: SubsLoaderType = DataLoader(load_fn=depends_on_subs_loader)
+        self.core_last_validation_datetime_loader: LastValidationLoaderType = DataLoader(
+            load_fn=last_validation_datetime_loader
+        )
         super().__init__(auth_manager)
 
 
@@ -130,6 +139,12 @@ SCALAR_OVERRIDES: ScalarOverrideType = {
     IPv6Interface: IPv6InterfaceType,
     int: IntType,
 }
+
+
+@strawberry.type(description="User permissions on a specific process")
+class FormUserPermissionsType:
+    retryAllowed: bool
+    resumeAllowed: bool
 
 
 @strawberry.type(description="Generic class to capture errors")

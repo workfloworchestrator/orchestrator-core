@@ -4,6 +4,7 @@ import os
 import typing
 from contextlib import closing
 from typing import Any, cast
+from uuid import uuid4
 
 import pytest
 import requests
@@ -14,12 +15,15 @@ from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.scoping import scoped_session
-from sqlalchemy.orm.session import sessionmaker
+from sqlalchemy.orm.session import close_all_sessions, sessionmaker
 from starlette.testclient import TestClient
 from urllib3_mock import Responses
 
 from orchestrator import OrchestratorCore
+from orchestrator.config.assignee import Assignee
 from orchestrator.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
     ProductBlockTable,
     ProductTable,
     ResourceTypeTable,
@@ -127,6 +131,10 @@ from test.unit_tests.fixtures.products.resource_types import (  # noqa: F401
     resource_type_list,
     resource_type_str,
 )
+from test.unit_tests.fixtures.workflows import (  # noqa: F401
+    sample_workflow,
+    sample_workflow_with_suspend,
+)
 from test.unit_tests.workflows import WorkflowInstanceForTests
 from test.unit_tests.workflows.shared.test_validate_subscriptions import validation_workflow
 
@@ -233,9 +241,24 @@ def database(db_uri):
     try:
         yield
     finally:
+        # Close all SQLAlchemy sessions
         db.wrapped_database.engine.dispose()
+        close_all_sessions()
+
+        # Force disconnect all sessions from the database
         with closing(engine.connect()) as conn:
             conn.execute(text("COMMIT;"))
+            conn.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid)"
+                    " FROM pg_stat_activity"
+                    " WHERE datname = :dbname"
+                    " AND pid <> pg_backend_pid()"
+                ),
+                {"dbname": db_to_create},
+            )
+            conn.execute(text("COMMIT;"))
+            # Now try to drop the database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
@@ -263,6 +286,11 @@ def db_session(database):
         try:
             yield
         finally:
+            # Ensure all connections are closed
+            try:
+                close_all_sessions()
+            except Exception:
+                logger.exception("Closing wrapped db connections failed, test teardown may fail")
             if not trans._deactivated_from_connection:
                 trans.rollback()
 
@@ -307,7 +335,11 @@ def test_client(fastapi_app):
 
 
 @pytest.fixture(autouse=True)
-def responses():
+def responses(request):
+    if request.node.get_closest_marker("noresponses"):
+        # This test doesn't want responses mocking
+        yield None
+        return
     responses_mock = Responses("requests.packages.urllib3")
 
     def _find_request(call):
@@ -717,6 +749,35 @@ def generic_subscription_2(generic_product_2, generic_product_type_2):
 def validation_workflow_instance():
     with WorkflowInstanceForTests(validation_workflow, "validation_workflow") as ctx:
         yield ctx
+
+
+@pytest.fixture
+def validation_workflow_process_instance(generic_subscription_1, validation_workflow_instance):
+    """Fixture to create a ProcessSubscriptionTable entry for testing."""
+    start_time = datetime.datetime.now(datetime.UTC)
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=validation_workflow_instance.workflow_id,
+        last_status="completed",
+        last_step="Modify",
+        started_at=start_time,
+        last_modified_at=start_time + datetime.timedelta(seconds=10),
+        assignee=Assignee.SYSTEM,
+        is_task=True,
+    )
+
+    process_subscription = ProcessSubscriptionTable(
+        subscription_id=generic_subscription_1,
+        process_id=process_id,
+        workflow_target=validation_workflow_instance.target,
+        created_at=start_time,
+    )
+
+    db.session.add(process)
+    db.session.add(process_subscription)
+    db.session.commit()
+    return process, process_subscription
 
 
 @pytest.fixture

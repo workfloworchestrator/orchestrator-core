@@ -744,18 +744,15 @@ None]
 
 Access all the scheduler functions.
 
-### force
-
-Force the execution of (a) scheduler(s) based on a keyword.
-
-Arguments
-
-keyword - [required]
-
-### run
-
-Loop eternally and run schedulers at configured times.
+::: orchestrator.cli.scheduler
+    options:
+        heading_level: 3
+        members:
+        - run
+        - force
 
 ### show-schedule
 
-Show the currently configured schedule.
+::: orchestrator.cli.scheduler.show_schedule
+    options:
+        heading_level: 4

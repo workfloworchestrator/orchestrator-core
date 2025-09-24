@@ -46,6 +46,7 @@ from orchestrator.services.settings import get_engine_settings
 from orchestrator.targets import Target
 from orchestrator.types import ErrorDict, StepFunc
 from orchestrator.utils.auth import Authorizer
+from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.docs import make_workflow_doc
 from orchestrator.utils.errors import error_state_to_dict
 from orchestrator.utils.state import form_inject_args, inject_args
@@ -381,11 +382,13 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
                 p = p.map(lambda s: s | {"__replace_last_state": True})
             return step_log_fn(step_, p)
 
+        step_group_start_time = nowtz().timestamp()
         process: Process = Success(initial_state)
         process = _exec_steps(step_list, process, dblogstep)
-
         # Add instruction to replace state of last sub step before returning process _exec_steps higher in the call tree
-        return process.map(lambda s: s | {"__replace_last_state": True})
+        return process.map(
+            lambda s: s | {"__replace_last_state": True, "__last_step_started_at": step_group_start_time}
+        )
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
@@ -549,7 +552,7 @@ class ProcessStat:
     process_id: UUID
     workflow: Workflow
     state: Process
-    log: StepList
+    log: StepList  # Remaining steps to execute
     current_user: str
     user_model: OIDCUserModel | None = None
 
@@ -594,6 +597,13 @@ class StepStatus(strEnum):
 
 
 class Process(Generic[S]):
+    """ADT base class.
+
+    This class defines an Algebraic Data Type - specifically a "sum type" - that defines the possible
+    variants of a Process. It encapsulates the state and allows to fold _instances_ of a process into
+    a single value. These instances correspond to subsequent steps of the process.
+    """
+
     def __init__(self, s: S):
         self.s = s
 
@@ -1454,6 +1464,8 @@ def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFu
                     "Not executing Step as the workflow engine is Paused. Process will remain in state 'running'"
                 )
                 return process
+
+            process = process.map(lambda s: s | {"__last_step_started_at": nowtz().timestamp()})
             step_result_process = process.execute_step(step)
         except Exception as e:
             consolelogger.error("An exception occurred while executing the workflow step.")

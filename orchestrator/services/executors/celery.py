@@ -18,18 +18,21 @@ from uuid import UUID
 import structlog
 from celery.result import AsyncResult
 from kombu.exceptions import ConnectionError, OperationalError
+from sqlalchemy import select
 
-from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator import app_settings
 from orchestrator.api.error_handling import raise_status
 from orchestrator.db import ProcessTable, db
-from orchestrator.services.input_state import store_input_state
-from orchestrator.services.processes import create_process, delete_process
+from orchestrator.services.processes import (
+    SYSTEM_USER,
+    can_be_resumed,
+    create_process,
+    delete_process,
+    set_process_status,
+)
 from orchestrator.services.workflows import get_workflow_by_name
-from orchestrator.workflows import get_workflow
+from orchestrator.workflow import ProcessStat, ProcessStatus
 from pydantic_forms.types import State
-
-SYSTEM_USER = "SYSTEM"
 
 logger = structlog.get_logger(__name__)
 
@@ -42,29 +45,17 @@ def _block_when_testing(task_result: AsyncResult) -> None:
             raise RuntimeError("Celery worker has failed to resume process")
 
 
-def _celery_start_process(
-    workflow_key: str,
-    user_inputs: list[State] | None,
-    user: str = SYSTEM_USER,
-    user_model: OIDCUserModel | None = None,
-    **kwargs: Any,
-) -> UUID:
+def _celery_start_process(pstat: ProcessStat, user: str = SYSTEM_USER, **kwargs: Any) -> UUID:
     """Client side call of Celery."""
     from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, get_celery_task
 
-    workflow = get_workflow(workflow_key)
-    if not workflow:
-        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    wf_table = get_workflow_by_name(workflow.name)
-    if not wf_table:
+    if not (wf_table := get_workflow_by_name(pstat.workflow.name)):
         raise_status(HTTPStatus.NOT_FOUND, "Workflow in Database does not exist")
 
     task_name = NEW_TASK if wf_table.is_task else NEW_WORKFLOW
     trigger_task = get_celery_task(task_name)
-    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
     try:
-        result = trigger_task.delay(pstat.process_id, workflow_key, user)
+        result = trigger_task.delay(pstat.process_id, user)
         _block_when_testing(result)
         return pstat.process_id
     except (ConnectionError, OperationalError) as e:
@@ -77,65 +68,62 @@ def _celery_start_process(
 def _celery_resume_process(
     process: ProcessTable,
     *,
-    user_inputs: list[State] | None = None,
     user: str | None = None,
     **kwargs: Any,
-) -> UUID:
+) -> bool:
     """Client side call of Celery."""
-    from orchestrator.services.processes import load_process
     from orchestrator.services.tasks import RESUME_TASK, RESUME_WORKFLOW, get_celery_task
 
-    pstat = load_process(process)
     last_process_status = process.last_status
-    workflow = pstat.workflow
 
-    wf_table = get_workflow_by_name(workflow.name)
-    if not workflow or not wf_table:
-        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    task_name = RESUME_TASK if wf_table.is_task else RESUME_WORKFLOW
+    task_name = RESUME_TASK if process.workflow.is_task else RESUME_WORKFLOW
     trigger_task = get_celery_task(task_name)
 
-    user_inputs = user_inputs or [{}]
-    store_input_state(pstat.process_id, user_inputs, "user_input")
+    _celery_set_process_status_resumed(process.process_id)
+
     try:
-        _celery_set_process_status_resumed(process)
-        result = trigger_task.delay(pstat.process_id, user)
+        result = trigger_task.delay(process.process_id, user)
         _block_when_testing(result)
 
-        return pstat.process_id
+        return process.process_id
     except (ConnectionError, OperationalError) as e:
         logger.warning(
             "Connection error when submitting task to celery. Resetting process status back",
             current_status=process.last_status,
             last_status=last_process_status,
         )
-        _celery_set_process_status(process, last_process_status)
+        set_process_status(process.process_id, last_process_status)
         raise e
 
 
-def _celery_set_process_status(process: ProcessTable, status: str) -> None:
-    process.last_status = status
-    db.session.add(process)
-    db.session.commit()
+def _celery_set_process_status_resumed(process_id: UUID) -> None:
+    """Set the process status to RESUMED to show its waiting to be picked up by a worker.
 
-
-def _celery_set_process_status_resumed(process: ProcessTable) -> None:
-    """Set the process status to RESUMED to prevent re-adding to task queue.
+    uses with_for_update to lock the subscription in a transaction, preventing other changes.
+    rolls back transation and raises an exception when it can't change to RESUMED to prevent it from being added to the queue.
 
     Args:
-        process: Process from database
+        process_id: Process ID to fetch process from DB
     """
-    from orchestrator.db import db
-    from orchestrator.workflow import ProcessStatus
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
 
-    process.last_status = ProcessStatus.RESUMED
-    db.session.add(process)
-    db.session.commit()
+    result = db.session.execute(stmt)
+    locked_process = result.scalar_one_or_none()
+
+    if not locked_process:
+        raise ValueError(f"Process not found: {process_id}")
+
+    if can_be_resumed(locked_process.last_status):
+        locked_process.last_status = ProcessStatus.RESUMED
+        db.session.commit()
+    else:
+        db.session.rollback()
+        raise ValueError(f"Process has incorrect status to resume: {locked_process.last_status}")
 
 
 def _celery_validate(validation_workflow: str, json: list[State] | None) -> None:
-    _celery_start_process(validation_workflow, user_inputs=json)
+    pstat = create_process(validation_workflow, user_inputs=json)
+    _celery_start_process(pstat)
 
 
 CELERY_EXECUTION_CONTEXT: dict[str, Callable] = {

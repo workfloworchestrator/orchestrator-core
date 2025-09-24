@@ -3,22 +3,27 @@ from http import HTTPStatus
 from threading import Event
 from time import sleep
 from unittest import mock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from pydantic_i18n import PydanticI18n
 from sqlalchemy import select
 
+from orchestrator.api.error_handling import ProblemDetailException
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessTable, db
 from orchestrator.services.processes import (
+    RESUME_WORKFLOW_REMOVED_ERROR_MSG,
     SYSTEM_USER,
     _async_resume_processes,
     _db_create_process,
     _db_log_process_ex,
     _db_log_step,
+    _get_process,
     _run_process_async,
     load_process,
+    resume_process,
     safe_logstep,
     start_process,
 )
@@ -45,8 +50,10 @@ from orchestrator.workflow import (
     step,
     workflow,
 )
+from orchestrator.workflows.removed_workflow import removed_workflow
 from pydantic_forms.core.translations import translations
 from pydantic_forms.exceptions import FormValidationError
+from test.unit_tests.fixtures.workflows import initial_input_form, step1, step2
 from test.unit_tests.workflows import WorkflowInstanceForTests, run_workflow, store_workflow
 
 
@@ -265,8 +272,8 @@ def test_process_log_db_step_waiting(simple_workflow):
     assert psteps[0].status == "waiting"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     assert pstep_state == {"class": "Exception", "error": state_data, "retries": 1}
     assert psteps[0].created_by == "user"
     assert p.last_status == ProcessStatus.WAITING
@@ -319,8 +326,8 @@ def test_process_log_db_step_failed(simple_workflow):
     assert psteps[0].status == "failed"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     del pstep_state["class"]
     assert pstep_state == {"error": "Hard failure", "retries": 1}
     assert psteps[0].created_by == "user"
@@ -375,8 +382,8 @@ def test_process_log_db_step_assertion_failed(simple_workflow):
     assert psteps[0].status == "failed"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     del pstep_state["class"]
     assert pstep_state == {"error": "Assertion failure", "retries": 1}
     assert psteps[0].created_by == "user"
@@ -431,8 +438,8 @@ def test_process_log_db_step_api_failed(simple_workflow):
     assert psteps[0].status == "failed"
     assert psteps[0].process_id == process_id
     pstep_state = psteps[0].state
-    assert len(pstep_state["executed_at"]) == 1
-    del pstep_state["executed_at"]
+    assert len(pstep_state["completed_at"]) == 1
+    del pstep_state["completed_at"]
     del pstep_state["class"]
     assert pstep_state == {
         "error": "API failure",
@@ -579,7 +586,7 @@ def test_process_log_db_step_deduplication(simple_workflow):
     _db_log_step(pstat, step1, Success({}))
     _db_log_step(pstat, step1, Failed(error_state_data))
 
-    psteps = _get_process_steps(p.process_id, order_by=ProcessStepTable.executed_at.asc())
+    psteps = _get_process_steps(p.process_id, order_by=ProcessStepTable.completed_at.asc())
 
     assert psteps[0].name == "step1"
     assert psteps[0].status == "failed"
@@ -719,7 +726,7 @@ def test_async_resume_processes(mock_resume_process, mock_get_process, caplog):
     mock_get_process.side_effect = processes
 
     # resume_process() should be called 2 times for the non-running / non-resumed processes; let 1 call fail
-    mock_resume_process.side_effect = [None, ValueError("This workflow cannot be resumed")]
+    mock_resume_process.side_effect = [None, ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)]
 
     # Don't set app_settings.TESTING=False because we want to await the result
     asyncio.run(_async_resume_processes(processes, "testusername"))
@@ -800,13 +807,23 @@ def test_run_process_async_exception(mock_db_log_process_ex):
     app_settings.TESTING = True
 
 
+@mock.patch("orchestrator.services.executors.threadpool.db")
+@mock.patch("orchestrator.services.processes._get_process")
+@mock.patch("orchestrator.services.executors.threadpool.retrieve_input_state")
 @mock.patch("orchestrator.services.processes.store_input_state")
-@mock.patch("orchestrator.services.processes._run_process_async", return_value=(mock.sentinel.process_id))
+@mock.patch("orchestrator.services.executors.threadpool._run_process_async", return_value=(mock.sentinel.process_id))
 @mock.patch("orchestrator.services.processes._db_create_process")
 @mock.patch("orchestrator.services.processes.post_form")
 @mock.patch("orchestrator.services.processes.get_workflow")
 def test_start_process(
-    mock_get_workflow, mock_post_form, mock_db_create_process, mock_run_process_async, mock_store_input_state
+    mock_get_workflow,
+    mock_post_form,
+    mock_db_create_process,
+    mock_run_process_async,
+    mock_store_input_state,
+    mock_retrieve_input_state,
+    mock_get_process,
+    mock_db,
 ):
     @step("test step")
     def test_step():
@@ -817,6 +834,8 @@ def test_start_process(
     mock_get_workflow.return_value = wf
 
     mock_post_form.return_value = {"a": 1}
+    mock_get_process.return_value = MagicMock(spec=ProcessTable)
+    mock_db.return_value = MagicMock(session=MagicMock())
 
     result = start_process(mock.sentinel.wf_name, [{"a": 2}], mock.sentinel.user)
 
@@ -828,6 +847,7 @@ def test_start_process(
         "workflow_target": Target.SYSTEM,
     }
     mock_store_input_state.assert_called_once_with(mock.ANY, initial_state, "initial_state")
+    mock_retrieve_input_state.assert_called_once_with(mock.ANY, "initial_state", False)
     pstat = mock_db_create_process.call_args[0][0]
     assert result == mock.sentinel.process_id
     assert pstat.current_user == mock.sentinel.user
@@ -851,9 +871,19 @@ def test_start_process(
         },
         [{"a": 2}],
     )
-    mock_get_workflow.assert_called_once_with(mock.sentinel.wf_name)
+    assert mock_get_workflow.call_count == 1
 
-    mock_post_form.reset_mock()
+
+@mock.patch("orchestrator.services.processes.post_form")
+@mock.patch("orchestrator.services.processes.get_workflow")
+def test_start_process_form_error(mock_get_workflow, mock_post_form):
+    @step("test step")
+    def test_step():
+        pass
+
+    wf = make_workflow(lambda: None, "description", None, Target.SYSTEM, [test_step])
+    wf.name = "name"
+    mock_get_workflow.return_value = wf
 
     class MockEmptyValidationError:
         def errors(self):
@@ -876,14 +906,92 @@ def test_start_process(
     )
 
 
-@step("Step 1")
-def step1():
-    return {"value": 1}
+@mock.patch("orchestrator.services.processes.get_workflow")
+def test_start_process_workflow_removed(mock_get_workflow):
+    mock_get_workflow.return_value = None
+
+    with pytest.raises(ProblemDetailException, match=r"Workflow does not exist"):
+        start_process(mock.sentinel.wf_name, None, mock.sentinel.user)
 
 
-@step("Step 2")
-def step2():
-    return {"value": 2}
+@mock.patch("orchestrator.services.processes.post_form")
+@mock.patch("orchestrator.services.processes.load_process")
+@mock.patch("orchestrator.services.processes.store_input_state")
+@mock.patch("orchestrator.services.processes.get_execution_context")
+def test_resume_process(mock_get_execution_context, mock_store_input_state, mock_load_process, mock_post_form):
+    wf = workflow("Workflow")(lambda: init >> step1 >> step2)
+    process_id = uuid4()
+    state = Waiting({"steps": [1]})
+    pstat = ProcessStat(process_id, wf, state, wf.steps[1:], current_user="user")
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=uuid4(),
+        last_status=ProcessStatus.SUSPENDED,
+        created_by=SYSTEM_USER,
+    )
+    user_input = {"a": 5}
+
+    mock_load_process.return_value = pstat
+    mock_post_form.return_value = user_input
+
+    resume_fn = MagicMock()
+    mock_get_execution_context.return_value = {"resume": resume_fn}
+
+    process_id = resume_process(process, user_inputs=[user_input], user=mock.sentinel.user)
+
+    mock_post_form.assert_called_once_with(
+        mock.ANY,
+        state.unwrap(),
+        user_inputs=[{"a": 5}],
+    )
+    mock_store_input_state.assert_called_once_with(mock.ANY, user_input, "user_input")
+    resume_fn.assert_called_once_with(process, user=mock.sentinel.user, broadcast_func=None)
+
+
+@mock.patch("orchestrator.services.processes.post_form")
+@mock.patch("orchestrator.services.processes.load_process")
+def test_resume_process_form_error(mock_load_process, mock_post_form):
+    wf = workflow("Workflow")(lambda: init >> step1 >> step2)
+    process_id = uuid4()
+    state = Waiting({"steps": [1]})
+    pstat = ProcessStat(process_id, wf, state, wf.steps[1:], current_user="user")
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=uuid4(),
+        last_status=ProcessStatus.SUSPENDED,
+        created_by=SYSTEM_USER,
+    )
+
+    mock_load_process.return_value = pstat
+
+    class MockEmptyValidationError:
+        def errors(self):
+            return []
+
+    tr = PydanticI18n(translations)
+    mock_post_form.side_effect = FormValidationError("", MockEmptyValidationError(), tr=tr)
+
+    with pytest.raises(FormValidationError):
+        resume_process(process, user_inputs=None, user=mock.sentinel.user)
+
+    mock_post_form.assert_called_once_with(
+        mock.ANY,
+        state.unwrap(),
+        user_inputs=[{}],
+    )
+
+
+@mock.patch("orchestrator.services.processes.load_process")
+def test_resume_process_workflow_removed(mock_load_process):
+    pstat = MagicMock(spec=ProcessStat)
+    pstat.workflow = removed_workflow
+
+    process = MagicMock(spec=ProcessTable)
+    process.last_status = ProcessStatus.SUSPENDED
+    mock_load_process.return_value = pstat
+
+    with pytest.raises(ValueError, match=RESUME_WORKFLOW_REMOVED_ERROR_MSG):
+        resume_process(process, user_inputs=None, user=mock.sentinel.user)
 
 
 def get_step_names(process):
@@ -900,10 +1008,12 @@ def get_step_names(process):
     ],
 )
 def test_load_process_with_altered_steps(num_steps_finished, step_names):
+    workflow_decorator = workflow("Test wf", initial_input_form=initial_input_form)
 
     # Run original workflow with 3 steps
-    with WorkflowInstanceForTests(workflow("Test wf")(lambda: init >> step1 >> done), "test_wf"):
-        _, p_stat, steps = run_workflow("test_wf", [{}])
+    workflow_1 = workflow_decorator(lambda: init >> step1 >> done)
+    with WorkflowInstanceForTests(workflow_1, "test_wf"):
+        _, p_stat, steps = run_workflow("test_wf", [{"test_field": "test"}])
         process_table = db.session.get(ProcessTable, p_stat.process_id)
 
         for step_fn, wf_process in steps[:num_steps_finished]:
@@ -917,11 +1027,42 @@ def test_load_process_with_altered_steps(num_steps_finished, step_names):
         assert get_step_names(process) == step_names[0]
 
     # Load process for workflow with step added at the end
-    with WorkflowInstanceForTests(workflow("Test wf")(lambda: init >> step1 >> step2 >> done), "test_wf"):
+    workflow_2 = workflow_decorator(lambda: init >> step1 >> step2 >> done)
+    with WorkflowInstanceForTests(workflow_2, "test_wf"):
         process = load_process(process_table)
         assert get_step_names(process) == step_names[1]
 
     # Load process for workflow with step removed at the end
-    with WorkflowInstanceForTests(workflow("Test wf")(lambda: init >> done), "test_wf"):
+    workflow_3 = workflow_decorator(lambda: init >> done)
+    with WorkflowInstanceForTests(workflow_3, "test_wf"):
         process = load_process(process_table)
         assert get_step_names(process) == step_names[2]
+
+
+def run_sync(process_id, fn):
+    fn()
+    return process_id
+
+
+@mock.patch("orchestrator.services.processes._run_process_async")
+def test_start_process_full_happy_flow(mock_run_process_async, sample_workflow):
+    mock_run_process_async.side_effect = run_sync
+    with mock.patch.object(db.session, "rollback"):
+        with WorkflowInstanceForTests(sample_workflow, "sample_workflow"):
+            process_id = start_process("sample_workflow", user_inputs=[{"test_field": "test input"}])
+            process = _get_process(process_id)
+            print(process.steps)
+            assert process.last_status == ProcessStatus.COMPLETED
+
+
+@mock.patch("orchestrator.services.processes._run_process_async")
+def test_resume_process_full_happy_flow(mock_run_process_async, sample_workflow_with_suspend):
+    mock_run_process_async.side_effect = run_sync
+    with mock.patch.object(db.session, "rollback"):
+        with WorkflowInstanceForTests(sample_workflow_with_suspend, "sample_workflow"):
+            process_id = start_process("sample_workflow", user_inputs=[{"test_field": "test input"}])
+            process = _get_process(process_id)
+            assert process.last_status == ProcessStatus.SUSPENDED
+            resume_process(process, user_inputs=[{"test_field_2": "test input 2"}])
+            process = _get_process(process_id)
+            assert process.last_status == ProcessStatus.COMPLETED

@@ -12,6 +12,7 @@
 # limitations under the License.
 from collections.abc import Callable, Sequence
 from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime
 from functools import partial
 from http import HTTPStatus
 from typing import Any
@@ -19,6 +20,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from deepmerge.merger import Merger
+from pytz import utc
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
@@ -49,7 +51,6 @@ from orchestrator.workflow import (
     Success,
     Workflow,
     abort_wf,
-    runwf,
 )
 from orchestrator.workflow import Process as WFProcess
 from orchestrator.workflows import get_workflow
@@ -66,12 +67,17 @@ SYSTEM_USER = "SYSTEM"
 
 _workflow_executor = None
 
+START_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be started because it has been removed"
+RESUME_WORKFLOW_REMOVED_ERROR_MSG = "This workflow cannot be resumed because it has been removed"
+
 
 def get_execution_context() -> dict[str, Callable]:
     if app_settings.EXECUTOR == ExecutorType.WORKER:
-        from orchestrator.services.celery import CELERY_EXECUTION_CONTEXT
+        from orchestrator.services.executors.celery import CELERY_EXECUTION_CONTEXT
 
         return CELERY_EXECUTION_CONTEXT
+
+    from orchestrator.services.executors.threadpool import THREADPOOL_EXECUTION_CONTEXT
 
     return THREADPOOL_EXECUTION_CONTEXT
 
@@ -206,6 +212,10 @@ def _get_current_step_to_update(
     finally:
         step_state.pop("__remove_keys", None)
 
+    # We don't have __last_step_started in __remove_keys because the way __remove_keys is populated appears like it would overwrite
+    # what's put there in the step decorator in certain cases (step groups and callback steps)
+    step_start_time = step_state.pop("__last_step_started_at", None)
+
     if process_state.isfailed() or process_state.iswaiting():
         if (
             last_db_step is not None
@@ -216,7 +226,7 @@ def _get_current_step_to_update(
         ):
             state_ex_info = {
                 "retries": last_db_step.state.get("retries", 0) + 1,
-                "executed_at": last_db_step.state.get("executed_at", []) + [str(last_db_step.executed_at)],
+                "completed_at": last_db_step.state.get("completed_at", []) + [str(last_db_step.completed_at)],
             }
 
             # write new state info and execution date
@@ -236,10 +246,13 @@ def _get_current_step_to_update(
             state=step_state,
             created_by=stat.current_user,
         )
+    # Since the Start step does not have a __last_step_started_at in it's state, we effectively assume it is instantaneous.
+    now = nowtz()
+    current_step.started_at = datetime.fromtimestamp(step_start_time or now.timestamp(), tz=utc)
 
     # Always explicitly set this instead of leaving it to the database to prevent failing tests
     # Test will fail if multiple steps have the same timestamp
-    current_step.executed_at = nowtz()
+    current_step.completed_at = now
     return current_step
 
 
@@ -440,7 +453,6 @@ def create_process(
     }
 
     try:
-
         state = post_form(workflow.initial_input_form, initial_state, user_inputs)
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
@@ -458,19 +470,6 @@ def create_process(
     _db_create_process(pstat)
     store_input_state(process_id, state | initial_state, "initial_state")
     return pstat
-
-
-def thread_start_process(
-    workflow_key: str,
-    user_inputs: list[State] | None = None,
-    user: str = SYSTEM_USER,
-    user_model: OIDCUserModel | None = None,
-    broadcast_func: BroadcastFunc | None = None,
-) -> UUID:
-    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
-
-    _safe_logstep_with_func = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_with_func))
 
 
 def start_process(
@@ -493,57 +492,47 @@ def start_process(
         process id
 
     """
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
+
     start_func = get_execution_context()["start"]
-    return start_func(
-        workflow_key, user_inputs=user_inputs, user=user, user_model=user_model, broadcast_func=broadcast_func
-    )
+    return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
 
 
-def thread_resume_process(
+def restart_process(
     process: ProcessTable,
     *,
-    user_inputs: list[State] | None = None,
     user: str | None = None,
     broadcast_func: BroadcastFunc | None = None,
 ) -> UUID:
-    # ATTENTION!! When modifying this function make sure you make similar changes to `resume_workflow` in the test code
+    """Restart a process that is stuck on status CREATED.
 
-    if user_inputs is None:
-        user_inputs = [{}]
+    Args:
+        process: Process from database
+        user: user who resumed this process
+        broadcast_func: Optional function to broadcast process data
 
+    Returns:
+        process id
+
+    """
     pstat = load_process(process)
 
-    if pstat.workflow == removed_workflow:
-        raise ValueError("This workflow cannot be resumed")
-
-    form = pstat.log[0].form
-
-    user_input = post_form(form, pstat.state.unwrap(), user_inputs)
-
-    if user:
-        pstat.update(current_user=user)
-
-    if user_input:
-        pstat.update(state=pstat.state.map(lambda state: StateMerger.merge(state, user_input)))
-    store_input_state(pstat.process_id, user_input, "user_input")
-    # enforce an update to the process status to properly show the process
-    process.last_status = ProcessStatus.RUNNING
-    db.session.add(process)
-    db.session.commit()
-
-    _safe_logstep_prep = partial(safe_logstep, broadcast_func=broadcast_func)
-    return _run_process_async(pstat.process_id, lambda: runwf(pstat, _safe_logstep_prep))
+    start_func = get_execution_context()["start"]
+    return start_func(pstat, user=user, broadcast_func=broadcast_func)
 
 
-def thread_validate_workflow(validation_workflow: str, json: list[State] | None) -> UUID:
-    return thread_start_process(validation_workflow, user_inputs=json)
+RESUMABLE_STATUSES = (
+    ProcessStatus.SUSPENDED,  # Can be resumed
+    ProcessStatus.WAITING,  # Can be retried
+    ProcessStatus.FAILED,  # Can be retried
+    ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
+    ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
+    ProcessStatus.RESUMED,  # re-resume stuck process
+)
 
 
-THREADPOOL_EXECUTION_CONTEXT: dict[str, Callable] = {
-    "start": thread_start_process,
-    "resume": thread_resume_process,
-    "validate": thread_validate_workflow,
-}
+def can_be_resumed(status: ProcessStatus) -> bool:
+    return status in RESUMABLE_STATUSES
 
 
 def resume_process(
@@ -567,14 +556,19 @@ def resume_process(
     """
     pstat = load_process(process)
 
+    if pstat.workflow == removed_workflow:
+        raise ValueError(RESUME_WORKFLOW_REMOVED_ERROR_MSG)
+
     try:
-        post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [])
+        user_input = post_form(pstat.log[0].form, pstat.state.unwrap(), user_inputs=user_inputs or [{}])
     except FormValidationError:
         logger.exception("Validation errors", user_inputs=user_inputs)
         raise
 
+    store_input_state(pstat.process_id, user_input, "user_input")
+
     resume_func = get_execution_context()["resume"]
-    return resume_func(process, user_inputs=user_inputs, user=user, broadcast_func=broadcast_func)
+    return resume_func(process, user=user, broadcast_func=broadcast_func)
 
 
 def ensure_correct_callback_token(pstat: ProcessStat, *, token: str) -> None:
@@ -739,11 +733,17 @@ def abort_process(process: ProcessTable, user: str, broadcast_func: Callable | N
 
 
 def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]:
-    # Remove all extra steps (Failed, Suspended and (A)waiting steps in db). Only keep cleared steps.
+    """Recover workflow state and remaining steps from the given 'Process step' objects.
 
-    persistent = list(
-        filter(lambda p: not (p.isfailed() or p.issuspend() or p.iswaiting() or p.isawaitingcallback()), log)
-    )
+    Returns:
+      - The state accumulated up until the last cleared (completed) step\
+      - The remaining steps to execute (including Failed, Suspended and (A)waiting steps)
+    """
+
+    def is_cleared(p: WFProcess) -> bool:
+        return not (p.isfailed() or p.issuspend() or p.iswaiting() or p.isawaitingcallback())
+
+    persistent = [p for p in log if is_cleared(p)]
     stepcount = len(persistent)
 
     if log and (log[-1].issuspend() or log[-1].isawaitingcallback()):
@@ -766,15 +766,14 @@ def _recoverwf(wf: Workflow, log: list[WFProcess]) -> tuple[WFProcess, StepList]
 
 
 def _restore_log(steps: list[ProcessStepTable]) -> list[WFProcess]:
-    result = []
-    for step in steps:
-        process = WFProcess.from_status(step.status, step.state)
+    """Deserialize ProcessStepTable objects into foldable 'Process step' objects."""
 
-        if not process:
-            raise ValueError(step.status)
+    def deserialize(step: ProcessStepTable) -> WFProcess:
+        if not (wf_process := WFProcess.from_status(step.status, step.state)):
+            raise ValueError(f"Unable to deserialize step from it's status {step.status}")
+        return wf_process
 
-        result.append(process)
-    return result
+    return [deserialize(step) for step in steps]
 
 
 def load_process(process: ProcessTable) -> ProcessStat:
@@ -800,6 +799,12 @@ def _get_running_processes() -> list[ProcessTable]:
     return list(db.session.scalars(stmt))
 
 
+def set_process_status(process: ProcessTable, status: ProcessStatus) -> None:
+    process.last_status = status
+    db.session.add(process)
+    db.session.commit()
+
+
 def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bool) -> EngineSettingsTable | None:
     """Manage processes depending on the engine status.
 
@@ -822,6 +827,7 @@ def marshall_processes(engine_settings: EngineSettingsTable, new_global_lock: bo
 
             # Resume all the running processes
             for process in _get_running_processes():
+                set_process_status(process, ProcessStatus.RESUMED)
                 resume_process(process, user=SYSTEM_USER)
 
         elif not engine_settings.global_lock and new_global_lock:

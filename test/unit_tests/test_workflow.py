@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from nwastdlib import const
+from orchestrator.api.api_v1.endpoints.processes import get_steps_to_evaluate_for_rbac
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import db
 from orchestrator.services.processes import SYSTEM_USER
@@ -143,9 +144,9 @@ def test_store_all_steps():
     runwf(pstat, store(log))
 
     assert [
-        ("Step 1", Success({"steps": [1]})),
-        ("Step 2", Success({"steps": [1, 2]})),
-        ("Step 3", Success({"steps": [1, 2, 3]})),
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"steps": [1, 2], "__last_step_started_at": mock.ANY})),
+        ("Step 3", Success({"steps": [1, 2, 3], "__last_step_started_at": mock.ANY})),
     ] == log
 
 
@@ -176,7 +177,7 @@ def test_waiting():
     assert extract_error(result) == "Failure Message"
 
     assert [
-        ("Step 1", Success({"steps": [1]})),
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
         ("Waiting step", Waiting({"class": "ValueError", "error": "Failure Message", "traceback": mock.ANY})),
     ] == log
 
@@ -202,8 +203,8 @@ def test_resume_waiting_workflow():
 
     assert_success(result)
     assert [
-        ("Waiting step", Success({"steps": [1], "some_key": True})),
-        ("Step 2", Success({"steps": [1, 2], "some_key": True})),
+        ("Waiting step", Success({"steps": [1], "some_key": True, "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"steps": [1, 2], "some_key": True, "__last_step_started_at": mock.ANY})),
     ] == log
 
 
@@ -216,7 +217,10 @@ def test_suspend():
     result = runwf(pstat, store(log))
 
     assert_suspended(result)
-    assert [("Step 1", Success({"steps": [1]})), ("Input Name", Suspend({"steps": [1]}))] == log
+    assert [
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Input Name", Suspend({"steps": [1], "__last_step_started_at": mock.ANY})),
+    ] == log
 
 
 def test_resume_suspended_workflow():
@@ -234,10 +238,10 @@ def test_resume_suspended_workflow():
     result = runwf(p, logstep=store(log))
 
     assert_success(result)
-    assert result == Success({"steps": [1, 2], "name": "Jane Doe"})
+    assert result == Success({"steps": [1, 2], "name": "Jane Doe", "__last_step_started_at": mock.ANY})
     assert [
         ("Input Name", Success({"steps": [1], "name": "Jane Doe"})),
-        ("Step 2", Success({"steps": [1, 2], "name": "Jane Doe"})),
+        ("Step 2", Success({"steps": [1, 2], "name": "Jane Doe", "__last_step_started_at": mock.ANY})),
     ] == log
 
 
@@ -262,7 +266,7 @@ def test_failed_step():
     assert_failed(result)
     assert extract_error(result) == "Failure Message"
     assert [
-        ("Start", Success({"name": "init-state"})),
+        ("Start", Success({"name": "init-state", "__last_step_started_at": mock.ANY})),
         ("Fail", Failed({"class": "ValueError", "error": "Failure Message", "traceback": mock.ANY})),
     ] == log
 
@@ -501,13 +505,14 @@ def test_step_group_basic():
     pstat = create_new_process_stat(wf, {"n": 3})
     result = runwf(pstat, store(log))
     assert_complete(result)
+
     assert log == [
-        ("Start", Success({"n": 3})),
-        ("Step 1", Success({"n": 3, "steps": [1]})),
-        ("Step 2", Success({"n": 3, "steps": [1, 2]})),
-        ("Multiple steps", Success({"n": 3, "steps": [1, 2], "x": 15})),
-        ("Step 3", Success({"n": 3, "steps": [1, 2, 3], "x": 15})),
-        ("Done", Complete({"n": 3, "steps": [1, 2, 3], "x": 15})),
+        ("Start", Success({"n": 3, "__last_step_started_at": mock.ANY})),
+        ("Step 1", Success({"n": 3, "steps": [1], "__last_step_started_at": mock.ANY})),
+        ("Step 2", Success({"n": 3, "steps": [1, 2], "__last_step_started_at": mock.ANY})),
+        ("Multiple steps", Success({"n": 3, "steps": [1, 2], "x": 15, "__last_step_started_at": mock.ANY})),
+        ("Step 3", Success({"n": 3, "steps": [1, 2, 3], "x": 15, "__last_step_started_at": mock.ANY})),
+        ("Done", Complete({"n": 3, "steps": [1, 2, 3], "x": 15, "__last_step_started_at": mock.ANY})),
     ]
 
 
@@ -526,10 +531,21 @@ def test_step_group_with_inputform_suspend():
     result = runwf(pstat, logstep=store(log))
 
     assert_suspended(result)
+
     assert log == [
-        ("Start", Success({})),
-        ("Step 1", Success({"steps": [1]})),
-        ("Multistep", Suspend({"steps": [1, 2], "__sub_step": "Input Name", "__step_group": "Multistep"})),
+        ("Start", Success({"__last_step_started_at": mock.ANY})),
+        ("Step 1", Success({"steps": [1], "__last_step_started_at": mock.ANY})),
+        (
+            "Multistep",
+            Suspend(
+                {
+                    "steps": [1, 2],
+                    "__sub_step": "Input Name",
+                    "__step_group": "Multistep",
+                    "__last_step_started_at": mock.ANY,
+                }
+            ),
+        ),
     ]
 
 
@@ -628,3 +644,22 @@ def test_list_any_arg_type_error() -> None:
                 extract_error(result)
                 == "Step function argument 'list_any' cannot be serialized from database with type 'Any'"
             )
+
+
+@pytest.mark.parametrize(
+    ["given_steps", "num_remaining_steps", "expected_steps_to_evaluate"],
+    [
+        (begin >> step1 >> step2 >> step3, 0, [step1]),
+        (begin >> step1 >> step2 >> step3, 1, [step1, step2]),
+        (begin >> step1 >> step2 >> step3, 2, [step1, step2, step3]),
+        (begin >> step1 >> step2 >> step3, 3, [step1, step2, step3]),
+    ],
+)
+def test_get_steps_to_evaluate_for_rbac(given_steps, num_remaining_steps, expected_steps_to_evaluate):
+    wf = workflow("test_get_steps_to_evaluate_for_rbac")(lambda: given_steps)
+
+    log = wf.steps[num_remaining_steps:]
+    pstat = ProcessStat(process_id=1, workflow=wf, state=Success({}), log=log, current_user="john.doe")
+
+    actual_steps = get_steps_to_evaluate_for_rbac(pstat)
+    assert actual_steps == expected_steps_to_evaluate

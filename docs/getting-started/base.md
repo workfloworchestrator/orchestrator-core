@@ -58,9 +58,9 @@ Create a `main.py` file.
 ```python
 from orchestrator import OrchestratorCore
 from orchestrator.cli.main import app as core_cli
-from orchestrator.settings import AppSettings
+from orchestrator.settings import app_settings
 
-app = OrchestratorCore(base_settings=AppSettings())
+app = OrchestratorCore(base_settings=app_settings)
 
 if __name__ == "__main__":
     core_cli()
@@ -97,3 +97,10 @@ uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 ### Step 6 - Profit :boom: :grin:
 
 Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) to view and interact with the API.
+
+
+### Next:
+
+- [Create a product.](../workshops/advanced/domain-models.md)
+- [Create a workflow for a product.](./workflows.md)
+- [Generate products and workflows](../reference-docs/cli.md#generate)

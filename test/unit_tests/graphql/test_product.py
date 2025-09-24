@@ -85,7 +85,7 @@ def get_all_product_names_query(
 query ProductQuery($filterBy: [GraphqlFilter!]) {
   products(filterBy: $filterBy) {
     page {
-      allPbNames
+      allProductBlockNames
     }
     pageInfo {
       endCursor
@@ -226,8 +226,8 @@ def test_product_query(
     }
 
 
-def test_all_product_block_names(test_client, generic_product_4):
-    filter_by = {"filter_by": {"field": "name", "value": "Product 4"}}
+def test_all_product_block_names(test_client, test_product_one_nested):
+    filter_by = {"filter_by": {"field": "name", "value": "TestProductOneNested"}}
     data = get_all_product_names_query(**filter_by)
     response: Response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -235,9 +235,9 @@ def test_all_product_block_names(test_client, generic_product_4):
     result = response.json()
     products_data = result["data"]["products"]
     products = products_data["page"]
-    names = products[0]["allPbNames"]
+    names = products[0]["allProductBlockNames"]
 
-    assert len(names) == 2
+    assert names == ["PB_Chained_1", "PB_Chained_2", "ProductBlockOneNestedForTest"]
 
 
 def test_product_has_previous_page(test_client, generic_product_1, generic_product_2, generic_product_3):

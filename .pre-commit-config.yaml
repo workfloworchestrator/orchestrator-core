@@ -60,7 +60,7 @@ repos:
       - id: mypy
         name: mypy
         language: system
-        entry: "mypy"
+        entry: "uv run mypy"
         types: [python]
         require_serial: true
         verbose: true

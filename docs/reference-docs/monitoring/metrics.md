@@ -35,6 +35,8 @@ wfo_engine_status{wfo_engine_status="RUNNING"} 1.0
 wfo_active_process_count 5.0
 ```
 
+An example Grafana dashboard that uses these metrics is given in the code repository in `grafana-example.json`.
+
 ## Adding custom metrics
 
 It's possible to add more metric collectors to your orchestrator, if there are organisation-specific metrics you want

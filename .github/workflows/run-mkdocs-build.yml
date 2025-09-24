@@ -1,0 +1,29 @@
+name: Test mkdocs build
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.8.6"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        # --no-dev: exclude group 'dev' from [dependency-groups]
+        # --group docs: include group 'dev' from [dependency-groups]
+        run: uv sync --no-dev --group docs
+
+      - name: Test mkdocs build
+        run: uv run mkdocs build

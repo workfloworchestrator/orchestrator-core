@@ -2,23 +2,23 @@ name: CodSpeed
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   codspeed:
     name: Run benchmarks
     runs-on: ubuntu-latest
     container:
-      image: python:3.13
+      image: python:3.13-bookworm
       options: --privileged
     services:
       postgres:
-        image: postgres:15-alpine
+        image: pgvector/pgvector:pg15
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
@@ -46,7 +46,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.7.13"
+          version: "0.8.6"
 
       - name: Install the project
         # --all-extras: [project.optional-dependencies]

@@ -25,7 +25,7 @@ from fastapi.param_functions import Body, Depends, Header
 from fastapi.routing import APIRouter
 from fastapi.websockets import WebSocket
 from fastapi_etag.dependency import CacheHit
-from more_itertools import chunked, last
+from more_itertools import chunked, first, last
 from sentry_sdk.tracing import trace
 from sqlalchemy import CompoundSelect, Select, select
 from sqlalchemy.orm import defer, joinedload
@@ -48,6 +48,7 @@ from orchestrator.services.processes import (
     _async_resume_processes,
     _get_process,
     abort_process,
+    can_be_resumed,
     continue_awaiting_process,
     load_process,
     resume_process,
@@ -87,11 +88,17 @@ def check_global_lock() -> None:
         )
 
 
-def get_current_steps(pstat: ProcessStat) -> StepList:
-    """Extract past and current steps from the ProcessStat."""
-    remaining_steps = pstat.log
+def get_steps_to_evaluate_for_rbac(pstat: ProcessStat) -> StepList:
+    """Extract all steps from the ProcessStat for a process that should be evaluated for a RBAC callback.
+
+    For a suspended process this includes all previously completed steps as well as the current step.
+    For a completed process this includes all steps.
+    """
+    if not (remaining_steps := pstat.log):
+        return pstat.workflow.steps
+
     past_steps = pstat.workflow.steps[: -len(remaining_steps)]
-    return StepList(past_steps + [pstat.log[0]])
+    return StepList(past_steps >> first(remaining_steps))
 
 
 def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer | None, Authorizer | None]:
@@ -118,15 +125,6 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
         filter(None, (step.retry_auth_callback or step.resume_auth_callback for step in steps)), auth_retry
     )
     return auth_resume, auth_retry
-
-
-def can_be_resumed(status: ProcessStatus) -> bool:
-    return status in (
-        ProcessStatus.SUSPENDED,  # Can be resumed
-        ProcessStatus.FAILED,  # Can be retried
-        ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
-        ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
-    )
 
 
 def resolve_user_name(
@@ -157,6 +155,9 @@ def delete(process_id: UUID) -> None:
 
     if not process:
         raise_status(HTTPStatus.NOT_FOUND)
+
+    if not process.is_task:
+        raise_status(HTTPStatus.BAD_REQUEST)
 
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
@@ -205,11 +206,11 @@ def resume_process_endpoint(
         raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
 
     pstat = load_process(process)
-    auth_resume, auth_retry = get_auth_callbacks(get_current_steps(pstat), pstat.workflow)
+    auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(pstat), pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:
         if auth_resume is not None and not auth_resume(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
-    elif process.last_status == ProcessStatus.FAILED:
+    elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
         if auth_retry is not None and not auth_retry(user_model):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 
@@ -270,7 +271,7 @@ def update_progress_on_awaiting_process_endpoint(
 @router.put(
     "/resume-all", response_model=ProcessResumeAllSchema, dependencies=[Depends(check_global_lock, use_cache=False)]
 )
-async def resume_all_processess_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
+async def resume_all_processes_endpoint(request: Request, user: str = Depends(user_name)) -> dict[str, int]:
     """Retry all task processes in status Failed, Waiting, API Unavailable or Inconsistent Data.
 
     The retry is started in the background, returning status 200 and number of processes in message.
