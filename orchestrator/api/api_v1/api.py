@@ -76,20 +76,22 @@ api_router.include_router(user.router, prefix="/user", tags=["Core", "User"], de
 api_router.include_router(
     settings.router, prefix="/settings", tags=["Core", "Settings"], dependencies=[Depends(authorize)]
 )
-api_router.include_router(settings.ws_router, prefix="/settings", tags=["Core", "Settings"])
+api_router.include_router(
+    settings.ws_router, prefix="/settings", tags=["Core", "Settings"]
+)  # Auth on the websocket is handled in the Websocket Manager
 api_router.include_router(health.router, prefix="/health", tags=["Core"])
 api_router.include_router(
     translations.router,
     prefix="/translations",
     tags=["Core", "Translations"],
 )
-api_router.include_router(ws.router, prefix="/ws", tags=["Core", "Events"])
+api_router.include_router(
+    ws.router, prefix="/ws", tags=["Core", "Events"]
+)  # Auth on the websocket is handled in the Websocket Manager
 
 if llm_settings.LLM_ENABLED:
     from orchestrator.api.api_v1.endpoints import search
 
     api_router.include_router(
-        search.router,
-        prefix="/search",
-        tags=["Core", "Search"],
+        search.router, prefix="/search", tags=["Core", "Search"], dependencies=[Depends(authorize)]
     )
