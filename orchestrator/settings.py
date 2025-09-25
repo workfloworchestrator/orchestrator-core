@@ -33,7 +33,7 @@ class ExecutorType(strEnum):
 class LifecycleValidationMode(strEnum):
     STRICT = "strict"
     LOOSE = "loose"
-    DISABLED = "disabled"
+    IGNORED = "ignored"
 
 
 class AppSettings(BaseSettings):
