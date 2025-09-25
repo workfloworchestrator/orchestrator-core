@@ -30,6 +30,12 @@ class ExecutorType(strEnum):
     THREADPOOL = "threadpool"
 
 
+class LifecycleValidationMode(strEnum):
+    STRICT = "strict"
+    LOOSE = "loose"
+    DISABLED = "disabled"
+
+
 class AppSettings(BaseSettings):
     TESTING: bool = True
     SESSION_SECRET: OrchSecretStr = "".join(secrets.choice(string.ascii_letters) for i in range(16))  # type: ignore
@@ -91,6 +97,7 @@ class AppSettings(BaseSettings):
     FILTER_BY_MODE: Literal["partial", "exact"] = "exact"
     EXPOSE_SETTINGS: bool = False
     EXPOSE_OAUTH_SETTINGS: bool = False
+    LIFECYCLE_VALIDATION_MODE: LifecycleValidationMode = LifecycleValidationMode.LOOSE
 
 
 app_settings = AppSettings()

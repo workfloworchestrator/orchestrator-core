@@ -1,6 +1,8 @@
 import pytest
 
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.domain.lifecycle import validate_subscription_lifecycle
+from orchestrator.settings import LifecycleValidationMode
 from orchestrator.types import SubscriptionLifecycle
 
 
@@ -47,3 +49,23 @@ def test_invalid_lifecycle_status_union(setup):
         class MainBlockProvisioning(MainBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
             sub_block1: SubBlockProvisioning
             sub_block2: SubBlockProvisioning | SubBlockInactive  # first lifecycle is valid, second is not
+
+
+def test_validate_subscription_lifecycle_valid(sub_one_subscription_1, caplog):
+    # Test create with wrong lifecycle, we can create
+
+    with caplog.at_level("WARNING"):
+        validate_subscription_lifecycle(sub_one_subscription_1, validation_mode=LifecycleValidationMode.STRICT)
+        # Assert no warnings or errors were logged
+        assert not caplog.records
+
+
+def test_validate_subscription_lifecycle_invalid(sub_one_subscription_1):
+    # Test create with wrong lifecycle, we can create
+    sub_one_subscription_1.status = "provisioning"
+
+    with pytest.raises(
+        ValueError,
+        match=r"Subscription of type .* should use .* for lifecycle status '.*'",
+    ):
+        validate_subscription_lifecycle(sub_one_subscription_1, validation_mode=LifecycleValidationMode.STRICT)

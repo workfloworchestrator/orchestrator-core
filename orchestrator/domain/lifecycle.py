@@ -16,11 +16,17 @@ from typing import TYPE_CHECKING, TypeVar
 import strawberry
 import structlog
 
+# from orchestrator.domain.base import DomainModel, SubscriptionModel
+from orchestrator.settings import LifecycleValidationMode
 from orchestrator.types import SubscriptionLifecycle
 from pydantic_forms.types import strEnum
 
 if TYPE_CHECKING:
-    from orchestrator.domain.base import DomainModel
+    from orchestrator.domain.base import DomainModel, SubscriptionModel
+else:
+    SubscriptionModel = None
+    DomainModel = None
+T = TypeVar("T", bound=SubscriptionModel)
 
 logger = structlog.get_logger(__name__)
 
@@ -71,9 +77,21 @@ def validate_lifecycle_status(
         )
 
 
-if TYPE_CHECKING:
-    from orchestrator.domain.base import DomainModel, SubscriptionModel
-else:
-    SubscriptionModel = None
-    DomainModel = None
-T = TypeVar("T", bound=SubscriptionModel)
+def validate_subscription_lifecycle(
+    subscription: SubscriptionModel,
+    validation_mode: LifecycleValidationMode,
+) -> None:
+    """Validate that a subscription model has been instantiated with the correct product type class."""
+
+    actual_class = subscription.__class__
+    expected_class = lookup_specialized_type(actual_class, subscription.status)
+
+    if actual_class != expected_class:
+        msg = f"Subscription of type {actual_class} should use {expected_class} for lifecycle status '{subscription.status}'"
+        if validation_mode == LifecycleValidationMode.STRICT:
+            logger.error(msg)
+            raise ValueError(msg)
+        if validation_mode == LifecycleValidationMode.LOOSE:
+            logger.warning(msg)
+        elif validation_mode == LifecycleValidationMode.DISABLED:
+            pass
