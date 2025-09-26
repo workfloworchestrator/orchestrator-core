@@ -79,6 +79,8 @@ expose_settings("my_settings", my_settings)
 
 ## Lifecycle Validation Mode
 
+The Lifecycle Validation Mode is used to validate in workflow steps that a **subscription model has been instantiated with the correct product type class for its lifecycle status**. E.g. a subscription model with a lifecycle status of `PROVISIONING` should be instantiated with a product type class that has a lifecycle status of `PROVISIONING`.
+
 You can run the application with three different lifecycle validation modes:
 
 ```Python
@@ -88,15 +90,11 @@ class LifecycleValidationMode(strEnum):
     IGNORED = "ignored"
 ```
 
-The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` environment variable. The default value is `loose`.
+The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` environment variable. The default setting is `loose`. The different modes are explained below:
 
-The Lifecycle Validation Mode setting is used to validate that a **subscription model has been instantiated with the correct product type class for its lifecycle status**. E.g. a subscription model with a lifecycle status of `PROVISIONING` should be instantiated with a product type class that has a lifecycle status of `PROVISIONING`.
-
-The different modes are explained below:
-
-- `strict`: In this mode, the application will enforce strict checks on the lifecycle status of subscription models. If any issues are found, the application will raise an error and stop running.
-- `loose`: In this mode, the application will log warnings for any issues with the lifecycle validation, but it will still run normally.
-- `ignored`: In this mode, the application will ignore all lifecycle validation issues and run normally.
+- `strict`: The application will enforce strict checks on the lifecycle status of subscription models in workflow steps. If any issues are found, the application will raise an error and stop running.
+- `loose`: The application will log warnings for any issues with the lifecycle validation in workflow steps, but it will still run normally.
+- `ignored`: The application will ignore all lifecycle validation issues and run normally.
 
 ## Masking Secrets
 
