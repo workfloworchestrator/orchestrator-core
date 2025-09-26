@@ -45,7 +45,7 @@ Set the password to something simple, like `nwa`.
 
 Ensure the application can reach the database:
 ```
-export DATABASE_URI=postgresql://nwa:nwa@localhost:5432/orchestrator-core-test
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 ```
 
 ``` shell

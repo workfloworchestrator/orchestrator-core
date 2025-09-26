@@ -76,7 +76,7 @@ jobs:
           REDIS_PORT: 6379
         run: |
           CACHE_URI=redis://redis:6379 \
-          DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB \
+          DATABASE_URI=postgresql+psycopg://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB \
           CELERY_BROKER_URL=$CELERY_BROKER_URL \
           CELERY_RESULT_BACKEND=$CELERY_RESULT_BACKEND \
           uv run pytest test/integration_test/test_with_pytest_celery.py -v

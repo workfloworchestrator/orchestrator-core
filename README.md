@@ -39,7 +39,7 @@ createdb orchestrator-core -O nwa  # set password to 'nwa'
 Configure the database URI in your local environment:
 
 ```
-export DATABASE_URI=postgresql://nwa:nwa@localhost:5432/orchestrator-core
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core
 ```
 
 ### Step 3 - Create main.py
@@ -88,7 +88,7 @@ createdb orchestrator-core-test -O nwa  # set password to 'nwa'
 # on your local machine
 git clone https://github.com/workfloworchestrator/orchestrator-core
 cd orchestrator-core
-export DATABASE_URI=postgresql://nwa:nwa@localhost:5432/orchestrator-core-test
+export DATABASE_URI=postgresql+psycopg://nwa:nwa@localhost:5432/orchestrator-core-test
 uv sync --all-extras --all-groups
 uv run pytest
 ```
