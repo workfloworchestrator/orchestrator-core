@@ -1385,7 +1385,7 @@ class SubscriptionModel(DomainModel):
 
         status = SubscriptionLifecycle(subscription.status)
 
-        if not cls.__base_type__:  # provisioning of active
+        if not cls.__base_type__:
             # Import here to prevent cyclic imports
             from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
