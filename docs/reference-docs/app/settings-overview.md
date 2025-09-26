@@ -93,7 +93,20 @@ class LifecycleValidationMode(strEnum):
 The Lifecycle Validation Mode can be set using the `LIFECYCLE_VALIDATION_MODE` environment variable. The default setting is `loose`. The different modes are explained below:
 
 - `strict`: The application will enforce strict checks on the lifecycle status of subscription models in workflow steps. If any issues are found, the application will raise an error and stop running.
+
+!!! example "Error in `strict` mode"
+    ```bash
+    2025-09-26 13:46:56 [error    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.domain.lifecycle] func=re_deploy_nso process_id=6a483f61-c21d-47be-8390-bbd608c59a77 workflow_name=create_l3vpn
+    ```
+
+!!! warning
+    A workflow failing on this error will not be recoverable, so it is advised to test this in development first.
 - `loose`: The application will log warnings for any issues with the lifecycle validation in workflow steps, but it will still run normally.
+
+!!! example "Warning in `loose` mode"
+    ```bash
+    2025-09-26 13:46:56 [warning    ] Subscription of type <class 'products.product_types.l3vpn.L3Vpn'> should use <class 'products.product_types.l3vpn.L3VpnProvisioning'> for lifecycle status 'provisioning' [orchestrator.domain.lifecycle] func=re_deploy_nso
+    ```
 - `ignored`: The application will ignore all lifecycle validation issues and run normally.
 
 ## Masking Secrets
