@@ -614,9 +614,7 @@ class ProductBlockModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(
-            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
-        )  # type: ignore
+        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1084,9 +1082,7 @@ class SubscriptionModel(DomainModel):
         product_blocks_in_model = cls._get_depends_on_product_block_types()
         product_blocks_types_in_model = get_depends_on_product_block_type_list(product_blocks_in_model)
 
-        product_blocks_in_model = set(
-            flatten(map(attrgetter("__names__"), product_blocks_types_in_model))
-        )  # type: ignore
+        product_blocks_in_model = set(flatten(map(attrgetter("__names__"), product_blocks_types_in_model)))  # type: ignore
 
         missing_product_blocks_in_db = product_blocks_in_model - product_blocks_in_db  # type: ignore
         missing_product_blocks_in_model = product_blocks_in_db - product_blocks_in_model  # type: ignore
@@ -1294,7 +1290,6 @@ class SubscriptionModel(DomainModel):
     # Some common functions shared by from_other_product and from_subscription
     @classmethod
     def _get_subscription(cls: type[S], subscription_id: UUID | UUIDstr) -> SubscriptionTable | None:
-
         if not isinstance(subscription_id, UUID | UUIDstr):
             raise TypeError(f"subscription_id is of type {type(subscription_id)} instead of UUID | UUIDstr")
 
