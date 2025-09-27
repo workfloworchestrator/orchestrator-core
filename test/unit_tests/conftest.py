@@ -197,7 +197,7 @@ def db_uri(worker_id):
         Database uri to be used in the test thread
 
     """
-    database_uri = os.environ.get("DATABASE_URI", "postgresql://nwa:nwa@localhost/orchestrator-core-test")
+    database_uri = os.environ.get("DATABASE_URI", "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core-test")
     if worker_id == "master":
         # pytest is being run without any workers
         return database_uri

@@ -73,7 +73,7 @@ Initialize the migration environment and database tables.
 <div class="termy">
 
 ```shell
-export DATABASE_URI=postgresql://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
+export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
 
 python main.py db init
 python main.py db upgrade heads
@@ -86,7 +86,7 @@ python main.py db upgrade heads
 <div class="termy">
 
 ```shell
-export DATABASE_URI=postgresql://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
+export DATABASE_URI=postgresql+psycopg://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
 export OAUTH2_ACTIVE=False
 
 uvicorn --reload --host 127.0.0.1 --port 8080 main:app

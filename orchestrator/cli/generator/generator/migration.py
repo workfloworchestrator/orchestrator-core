@@ -37,7 +37,7 @@ logger = structlog.getLogger(__name__)
 
 def create_migration_file(message: str, head: str) -> Path | None:
     if not environ.get("DATABASE_URI"):
-        environ.update({"DATABASE_URI": "postgresql://nwa:nwa@localhost/orchestrator-core"})
+        environ.update({"DATABASE_URI": "postgresql+psycopg://nwa:nwa@localhost/orchestrator-core"})
     if not environ.get("PYTHONPATH"):
         environ.update({"PYTHONPATH": "."})
     logger.info(

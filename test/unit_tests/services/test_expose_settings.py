@@ -13,7 +13,7 @@ def test_expose_settings():
         db_password: PydanticSecretStr = "test_password"  # noqa: S105
         debug_mode: bool = True
         secret_test: str = "test_secret"  # noqa: S105
-        uri: PostgresDsn = "postgresql://user:password@localhost/dbname"
+        uri: PostgresDsn = "postgresql+psycopg://user:password@localhost/dbname"
         cache_uri: RedisDsn = "rediss://user:password@localhost/dbname"
 
     my_settings = MySettings()
