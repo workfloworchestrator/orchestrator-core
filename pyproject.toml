@@ -40,19 +40,20 @@ dependencies = [
     "click==8.*",
     "deepmerge==2.0",
     "deprecated>=1.2.18",
-    "fastapi~=0.115.2",
+    "fastapi~=0.115.14",
     "fastapi-etag==0.4.0",
     "itsdangerous>=2.2.0",
     "jinja2==3.1.6",
     "more-itertools~=10.7.0",
-    "nwa-stdlib~=1.9.0",
-    "oauth2-lib~=2.4.0",
+    "nwa-stdlib~=1.9.2",
+    "oauth2-lib>=2.4.1",
     "orjson==3.10.18",
+    "pgvector>=0.4.1",
     "prometheus-client==0.22.1",
     "psycopg2-binary==2.9.10",
-    "pydantic-forms>=1.4.0,<=2.1.0",
+    "pydantic-forms>=1.4.0",
     "pydantic-settings~=2.9.1",
-    "pydantic[email]~=2.8.2",
+    "pydantic[email]~=2.11.7",
     "python-dateutil==2.8.2",
     "python-rapidjson>=1.18,<1.21",
     "pytz==2025.2",
@@ -61,7 +62,7 @@ dependencies = [
     "sentry-sdk[fastapi]~=2.29.1",
     "sqlalchemy==2.0.41",
     "sqlalchemy-utils==0.41.2",
-    "strawberry-graphql>=0.246.2",
+    "strawberry-graphql>=0.281.0",
     "structlog>=25.4.0",
     "tabulate==0.9.0",
     "typer==0.15.4",
@@ -77,6 +78,11 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 [project.optional-dependencies]
 celery = [
     "celery~=5.5.1",
+]
+llm = [
+    "pydantic-ai-slim ==0.7.0",
+    "ag-ui-protocol>=0.1.8",
+    "litellm>=1.75.7",
 ]
 
 # Local dependencies for development

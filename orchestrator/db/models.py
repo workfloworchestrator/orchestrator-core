@@ -20,7 +20,9 @@ from uuid import UUID
 import sqlalchemy
 import structlog
 from more_itertools import first_true
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    TEXT,
     TIMESTAMP,
     Boolean,
     CheckConstraint,
@@ -29,6 +31,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     Select,
     String,
     Table,
@@ -45,10 +48,12 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import Mapped, deferred, mapped_column, object_session, relationship, undefer
 from sqlalchemy.sql.functions import GenericFunction
-from sqlalchemy_utils import TSVectorType, UUIDType
+from sqlalchemy_utils import LtreeType, TSVectorType, UUIDType
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db.database import BaseModel, SearchQuery
+from orchestrator.llm_settings import llm_settings
+from orchestrator.search.core.types import FieldType
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
@@ -685,3 +690,34 @@ class SubscriptionInstanceAsJsonFunction(GenericFunction):
 
     def __init__(self, sub_inst_id: UUID):
         super().__init__(sub_inst_id)
+
+
+class AiSearchIndex(BaseModel):
+
+    __tablename__ = "ai_search_index"
+
+    entity_type = mapped_column(
+        TEXT,
+        nullable=False,
+        index=True,
+    )
+    entity_id = mapped_column(
+        UUIDType,
+        nullable=False,
+    )
+
+    # Ltree path for hierarchical data
+    path = mapped_column(LtreeType, nullable=False, index=True)
+    value = mapped_column(TEXT, nullable=False)
+
+    value_type = mapped_column(
+        Enum(FieldType, name="field_type", values_callable=lambda obj: [e.value for e in obj]), nullable=False
+    )
+
+    # Embedding
+    embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=True)
+
+    # SHA-256
+    content_hash = mapped_column(String(64), nullable=False, index=True)
+
+    __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)

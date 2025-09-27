@@ -90,6 +90,17 @@ COMPOSE_PROFILES=lso docker compose up
 This will also enable LSO, so network devices will be actually configured. If you don't want this, just use:
 
 ### Local environment
+
+The environment requires several ports to be free.
+Use either command below to check if any are in use. No output means they're available:
+
+```
+netstat -tulnp | grep -E ':80|:3000|:4000|:5432|:5678|:8000|:8001|:8080'
+ss -tulnp|grep -E ':80|:3000|:4000|:5432|:5678|:8000|:8001|:8080'
+```
+
+Start the containers:
+
 ```
 docker compose up -d
 ```

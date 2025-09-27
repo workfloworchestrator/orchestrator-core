@@ -25,7 +25,7 @@ jobs:
     container: ubuntu:latest
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}-alpine
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
         # Provide the password for postgres
         env:
           POSTGRES_PASSWORD: nwa
