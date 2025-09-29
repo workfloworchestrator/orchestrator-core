@@ -21,7 +21,7 @@ from orchestrator.db import (
 from orchestrator.security import authenticate
 from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, can_be_resumed, shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
-from orchestrator.services.tasks import RESUME_TASK
+from orchestrator.services.tasks import RESUME_WORKFLOW
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import (
@@ -813,24 +813,23 @@ class FakeResult:
 @mock.patch("orchestrator.services.tasks.get_celery_task")
 @mock.patch("orchestrator.db")
 @mock.patch.object(app_settings, "EXECUTOR", "celery")
-def test_continue_awaiting_process_endpoint(mock_get_celery_task, mock_db, test_client, process_on_await_callback):
+def test_continue_awaiting_process_endpoint(mock_db, mock_get_celery_task, test_client, process_on_await_callback):
     trigger_task = mock.MagicMock()
     trigger_task.delay.get.return_value = uuid4()
     mock_get_celery_task.return_value = trigger_task
 
     fake_result = mock.MagicMock()
-    fake_result.configure_mock(last_status="AWAIT_CALLBACK")
+    fake_result.last_status = "AWAIT_CALLBACK"
     mock_db.session.execute.return_value.scalar_one_or_none.return_value = fake_result
 
     response = test_client.post(
         f"/api/processes/{process_on_await_callback}/callback/{callback_key}", json={"callback_response": True}
     )
     assert response.status_code == HTTPStatus.OK
-    mock_get_celery_task.assert_called_once_with(RESUME_TASK)
+    mock_get_celery_task.assert_called_once_with(RESUME_WORKFLOW)
 
 
 def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, process_on_resume):
-    app_settings.EXECUTOR = "celery"
     response = test_client.post(
         f"/api/processes/{process_on_resume}/callback/{callback_key}", json={"callback_response": True}
     )
