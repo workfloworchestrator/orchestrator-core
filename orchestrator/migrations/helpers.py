@@ -173,6 +173,9 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
     if not workflow.get("is_task", False):
         workflow["is_task"] = False
 
+    if not workflow.get("product_tag"):
+        workflow["product_tag"] = None
+
     if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
         query = """
                 WITH new_workflow AS (
@@ -187,7 +190,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
                 FROM products AS p
                          CROSS JOIN new_workflow AS nw
                 WHERE p.product_type = :product_type
-                AND p.tag = :product_tag
+                AND (:product_tag IS NULL OR p.tag = :product_tag)
                 ON CONFLICT DO NOTHING
                 """
     else:
@@ -205,7 +208,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
                 FROM products AS p
                          CROSS JOIN new_workflow AS nw
                 WHERE p.product_type = :product_type
-                AND p.tag = :product_tag
+                AND (:product_tag IS NULL OR p.tag = :product_tag)
                 ON CONFLICT DO NOTHING
                 """
 
