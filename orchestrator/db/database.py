@@ -21,7 +21,7 @@ import structlog
 from pydantic import PostgresDsn
 from sqlalchemy import create_engine
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Session, as_declarative, scoped_session, sessionmaker
 from sqlalchemy.sql.schema import MetaData
@@ -128,7 +128,7 @@ class _Base:
         return {key: getattr(self, key) for key in keys}
 
 
-class BaseModel(_Base):
+class BaseModel(_Base, AsyncAttrs):
     """Separate BaseModel class to be able to include mixins and to Fix typing.
 
     This should be used instead of Base.

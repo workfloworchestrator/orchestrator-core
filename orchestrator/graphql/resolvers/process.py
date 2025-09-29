@@ -10,12 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import cast
 from uuid import UUID
 
 import structlog
 from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Load, selectinload
 
 from orchestrator.db import ProcessTable
 from orchestrator.db.filters import Filter
@@ -47,6 +48,17 @@ simple_props = tuple([to_lower_camel(key) for key in ProcessType.__annotations__
 
 _is_process_detailed = is_query_detailed(simple_props)
 
+# Hardcoded loaders required for _enrich_process
+DEFAULT_LOADERS = [
+    selectinload(ProcessTable.process_subscriptions)
+    .selectinload(ProcessSubscriptionTable.subscription)
+    .selectinload(SubscriptionTable.product),
+    selectinload(ProcessTable.workflow),
+    selectinload(ProcessTable.steps),
+]
+
+EXCLUDE_PATHS = ["processSubscriptions", "workflow", "subscriptions"]
+
 
 def _enrich_process(process: ProcessTable, with_details: bool = False) -> ProcessSchema:
     pstat = load_process(process) if with_details else None
@@ -56,7 +68,10 @@ def _enrich_process(process: ProcessTable, with_details: bool = False) -> Proces
 
 async def resolve_process(info: OrchestratorInfo, process_id: UUID) -> ProcessType | None:
     session = info.context.db_session
-    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info)
+    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info, exclude_paths=EXCLUDE_PATHS + ["steps"])
+    for loader in DEFAULT_LOADERS:
+        if loader not in query_loaders:
+            query_loaders.append(cast(Load, loader))
     stmt = select(ProcessTable).options(*query_loaders).where(ProcessTable.process_id == process_id)
     if process := await session.scalar(stmt):
         is_detailed = _is_process_detailed(info)
@@ -78,13 +93,10 @@ async def resolve_processes(
     pydantic_sort_by: list[Sort] = [item.to_pydantic() for item in sort_by] if sort_by else []
     logger.debug("resolve_processes() called", range=[after, after + first], sort=sort_by, filter=pydantic_filter_by)
 
-    # Hardcoded loaders required for _enrich_process
-    default_loaders = [
-        selectinload(ProcessTable.process_subscriptions)
-        .selectinload(ProcessSubscriptionTable.subscription)
-        .joinedload(SubscriptionTable.product)
-    ]
-    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info) or default_loaders
+    query_loaders = get_query_loaders_for_gql_fields(ProcessTable, info, exclude_paths=EXCLUDE_PATHS)
+    for loader in DEFAULT_LOADERS:
+        if loader not in query_loaders:
+            query_loaders.append(cast(Load, loader))
     select_stmt = select(ProcessTable).options(*query_loaders)
     select_stmt = filter_processes(select_stmt, pydantic_filter_by, _error_handler)
     if query is not None:
@@ -104,7 +116,7 @@ async def resolve_processes(
 
     graphql_processes = []
     if is_querying_page_data(info):
-        processes = rows_from_statement(stmt, ProcessTable, loaders=query_loaders)
+        processes = await rows_from_statement(stmt, ProcessTable, session=session, loaders=query_loaders)
         is_detailed = _is_process_detailed(info)
         graphql_processes = [ProcessType.from_pydantic(_enrich_process(process, is_detailed)) for process in processes]
     return to_graphql_result_page(

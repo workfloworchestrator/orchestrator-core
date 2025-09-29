@@ -51,7 +51,7 @@ def _set_process_status_running(process_id: UUID) -> None:
     Args:
         process_id: Process ID to fetch process from DB
     """
-    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update()
+    stmt = select(ProcessTable).where(ProcessTable.process_id == process_id).with_for_update(of=ProcessTable)
 
     result = db.session.execute(stmt)
     locked_process = result.scalar_one_or_none()

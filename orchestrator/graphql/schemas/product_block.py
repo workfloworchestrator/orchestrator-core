@@ -27,7 +27,8 @@ class ProductBlock:
 
     @strawberry.field(description="Return all product blocks that this product block depends on")  # type: ignore
     async def depends_on(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:
-        return [ProductBlock.from_pydantic(product_block) for product_block in self._original_model.depends_on]  # type: ignore
+        depends_on = await self._original_model.depends_on  # type: ignore
+        return [ProductBlock.from_pydantic(product_block) for product_block in depends_on]  # type: ignore
 
     @strawberry.field(description="Return all product blocks that uses this product block")  # type: ignore
     async def in_use_by(self) -> list[Annotated["ProductBlock", strawberry.lazy(".product_block")]]:

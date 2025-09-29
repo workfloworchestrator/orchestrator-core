@@ -13,6 +13,11 @@
 import json
 from http import HTTPStatus
 
+from sqlalchemy import select
+
+from orchestrator.db import db
+from orchestrator.db.models import ProcessTable
+
 
 def build_simple_query(process_id):
     q = """
@@ -35,8 +40,17 @@ def build_simple_query(process_id):
 
 def test_process(test_client, mocked_processes):
     process_id = mocked_processes[0]
+    for pid in mocked_processes:
+        print(f"### MOCKED PROCESS {pid}")
+    print(f"### MOCKED PROCESSES[0] {str(mocked_processes[0])}")
+    pfromdb = db.session.execute(
+        select(ProcessTable).where(ProcessTable.process_id == str(process_id))
+    ).scalar_one_or_none()
+    print(f"### FROM DB: {pfromdb}")
     test_query = build_simple_query(process_id)
+    print(f"### QUERY {test_query}")
 
     response = test_client.post("/api/graphql", content=test_query, headers={"Content-Type": "application/json"})
+    print(f"### RESPONSE {json.dumps(response.json(), indent=2)}")
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"data": {"process": {"processId": str(process_id)}}}

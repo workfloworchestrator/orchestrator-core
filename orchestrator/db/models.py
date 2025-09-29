@@ -130,10 +130,6 @@ class ProcessTable(BaseModel):
 
     subscriptions = association_proxy("process_subscriptions", "subscription")
 
-    @property
-    def workflow_name(self) -> Column:
-        return self.workflow.name
-
 
 class ProcessStepTable(BaseModel):
     __tablename__ = "process_steps"

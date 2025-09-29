@@ -55,7 +55,7 @@ async def resolve_workflows(
 
     graphql_workflows = []
     if is_querying_page_data(info):
-        workflows = rows_from_statement(stmt, WorkflowTable, unique=True, loaders=query_loaders)
+        workflows = await rows_from_statement(stmt, WorkflowTable, unique=True, loaders=query_loaders)
         graphql_workflows = [Workflow.from_pydantic(p) for p in workflows]
     return to_graphql_result_page(
         graphql_workflows, first, after, total, workflow_sort_fields(), workflow_filter_fields()

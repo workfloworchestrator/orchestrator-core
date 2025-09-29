@@ -40,6 +40,7 @@ async def resolve_product_blocks(
     )
 
     query_loaders = get_query_loaders_for_gql_fields(ProductBlockTable, info)
+    logger.debug("### QUERY LOADERS product_blocks", loaders=[str(loader.path) for loader in query_loaders])
     select_stmt = select(ProductBlockTable)
     select_stmt = filter_product_blocks(select_stmt, pydantic_filter_by, _error_handler)
 
@@ -60,7 +61,7 @@ async def resolve_product_blocks(
 
     graphql_product_blocks = []
     if is_querying_page_data(info):
-        product_blocks = rows_from_statement(stmt, ProductBlockTable, loaders=query_loaders)
+        product_blocks = await rows_from_statement(stmt, ProductBlockTable, loaders=query_loaders, session=session)
         graphql_product_blocks = [ProductBlock.from_pydantic(p) for p in product_blocks]
     return to_graphql_result_page(
         graphql_product_blocks, first, after, total, product_block_sort_fields(), product_block_filter_fields()

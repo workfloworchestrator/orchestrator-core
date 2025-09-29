@@ -226,7 +226,7 @@ def database(db_uri):
         url = url.set(database="postgres")
     else:
         url.database = "postgres"
-    engine = create_engine(url)
+    engine = create_engine(url, connect_args={"autocommit": True})
     with closing(engine.connect()) as conn:
         conn.execute(text("COMMIT;"))
         conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))

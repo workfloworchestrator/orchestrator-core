@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 import pytz
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
@@ -176,5 +176,8 @@ def mocked_processes_resumeall(test_workflow, generic_subscription_1, generic_su
         mock_process(None, "running", first_datetime + timedelta(days=4), is_task=True),
         mock_process(None, "resumed", first_datetime + timedelta(days=5), is_task=True),
     ]
+    processes = db.session.execute(select(ProcessTable)).scalars()
+    for p in processes:
+        print(f"### Process PID {p.process_id} - {p.workflow.name}")
     yield mock_processes
     db.session.execute(delete(ProcessTable).where(ProcessTable.process_id.in_(mock_processes)))

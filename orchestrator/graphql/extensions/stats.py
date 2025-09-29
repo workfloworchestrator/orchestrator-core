@@ -34,7 +34,8 @@ class StatsExtension(SchemaExtension):
         if self.after is None or self.before is None:
             return {}
 
-        estimated_queries = self.after["queries_completed"] - self.before.get("queries_completed", 0)
+        # queries_completed might not exist in async context
+        estimated_queries = self.after.get("queries_completed", 0) - self.before.get("queries_completed", 0)
         estimated_query_time = self.after["query_time_spent"] - self.before.get("query_time_spent", 0.0)
         operation_time = self.end - self.start if (self.start is not None and self.end is not None) else "n/a"
 
