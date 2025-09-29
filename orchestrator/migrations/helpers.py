@@ -166,6 +166,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
             "is_task": False,
             "description": "workflow description",
             "product_type": "product_type",
+            "product_tag": "product_tag",
         }
         >>> create_workflow(conn, workflow)
     """
@@ -186,6 +187,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
                 FROM products AS p
                          CROSS JOIN new_workflow AS nw
                 WHERE p.product_type = :product_type
+                AND p.tag = :product_tag
                 ON CONFLICT DO NOTHING
                 """
     else:
@@ -203,6 +205,7 @@ def create_workflow(conn: sa.engine.Connection, workflow: dict) -> None:
                 FROM products AS p
                          CROSS JOIN new_workflow AS nw
                 WHERE p.product_type = :product_type
+                AND p.tag = :product_tag
                 ON CONFLICT DO NOTHING
                 """
 
