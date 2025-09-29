@@ -26,6 +26,7 @@ from structlog import get_logger
 from orchestrator.app import OrchestratorCore
 from orchestrator.cli.main import app as cli_app
 from orchestrator.llm_settings import LLMSettings, llm_settings
+from orchestrator.search.llm_migration import run_migration
 
 logger = get_logger(__name__)
 
@@ -59,8 +60,33 @@ class AgenticOrchestratorCore(OrchestratorCore):
 
         super().__init__(*args, **kwargs)
 
-        logger.info("Mounting the agent")
+        logger.info("Initializing LLM features")
+        self._run_llm_migration()
         self.register_llm_integration()
+
+    def _run_llm_migration(self) -> None:
+        """Run LLM-specific database migration.
+
+        This method sets up the database schema required for LLM functionality,
+        including the ai_search_index table and PostgreSQL extensions (such as pgvector).
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the migration fails, typically due to missing pgvector extension
+        """
+
+        logger.info("Running LLM migration")
+        try:
+            from orchestrator.db import db
+
+            with db.engine.connect() as connection:
+                run_migration(connection)
+
+        except Exception as e:
+            logger.error("Failed to run LLM migration. Please ensure pgvector extension is installed.", error=str(e))
+            raise
 
     def register_llm_integration(self) -> None:
         """Register the Agent endpoint.
