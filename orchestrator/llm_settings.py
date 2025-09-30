@@ -18,7 +18,10 @@ logger = get_logger(__name__)
 
 
 class LLMSettings(BaseSettings):
-    LLM_ENABLED: bool = False  # Default to false
+    # Feature flags for LLM functionality
+    SEARCH_ENABLED: bool = False  # Enable search/indexing with embeddings
+    AGENT_ENABLED: bool = False  # Enable agentic functionality
+
     # Pydantic-ai Agent settings
     AGENT_MODEL: str = "gpt-4o-mini"  # See pydantic-ai docs for supported models.
     AGENT_MODEL_VERSION: str = "2025-01-01-preview"

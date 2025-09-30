@@ -25,9 +25,8 @@ app.add_typer(scheduler.app, name="scheduler", help="Access all the scheduler fu
 app.add_typer(database.app, name="db", help="Interact with the application database")
 app.add_typer(generate.app, name="generate", help="Generate products, workflows and other artifacts")
 
-if llm_settings.LLM_ENABLED:
+if llm_settings.SEARCH_ENABLED:
     from orchestrator.cli import search
-
     search.register_commands(app)
 
 

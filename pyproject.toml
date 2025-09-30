@@ -79,7 +79,10 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 celery = [
     "celery~=5.5.1",
 ]
-llm = [
+search = [
+    "litellm>=1.75.7",
+]
+agent = [
     "pydantic-ai-slim ==0.7.0",
     "ag-ui-protocol>=0.1.8",
     "litellm>=1.75.7",

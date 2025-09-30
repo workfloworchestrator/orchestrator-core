@@ -89,7 +89,7 @@ api_router.include_router(
     ws.router, prefix="/ws", tags=["Core", "Events"]
 )  # Auth on the websocket is handled in the Websocket Manager
 
-if llm_settings.LLM_ENABLED:
+if llm_settings.SEARCH_ENABLED:
     from orchestrator.api.api_v1.endpoints import search
 
     api_router.include_router(
