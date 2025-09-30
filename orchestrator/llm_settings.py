@@ -30,7 +30,7 @@ class LLMSettings(BaseSettings):
         0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
     )
 
-    # The following settings are only needed for local models.
+    # The following settings are only needed for local models or system constraints.
     # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
     OPENAI_BASE_URL: str | None = None
     EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512

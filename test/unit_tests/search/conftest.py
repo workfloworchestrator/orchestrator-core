@@ -42,6 +42,19 @@ from .fixtures.subscriptions import (
     SimpleSubscription,
 )
 
+# Mark all tests in this directory with the llm marker
+pytestmark = pytest.mark.llm
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Ignore collecting tests from this directory when LLM is disabled."""
+    from orchestrator.llm_settings import llm_settings
+
+    # Skip this entire directory if LLM is disabled
+    if not llm_settings.LLM_ENABLED:
+        return True
+    return False
+
 
 def pytest_addoption(parser):
     parser.addoption(
