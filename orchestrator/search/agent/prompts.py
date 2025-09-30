@@ -62,7 +62,7 @@ async def get_base_instructions() -> str:
         ---
         ### 4. Critical Rules
 
-        - **NEVER GUESS PATHS**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you must inform the user and not include it in the `FilterTree`.
+        - **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you may attempt to map the question on an existing paths that are valid and available from `discover_filter_paths`. If you cannot infer a match, inform the user and do not include it in the `FilterTree`.
         - **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool.
         - **MATCH OPERATORS**: Only use operators that are compatible with the field type as confirmed by `get_filter_operators`.
         """

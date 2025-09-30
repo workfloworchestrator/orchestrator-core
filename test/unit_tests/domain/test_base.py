@@ -170,7 +170,7 @@ def test_subscription_model_registry(clean_registry):
         try:
             SUBSCRIPTION_MODEL_REGISTRY.update({name: model})
         except TypeError:
-            pytest.fail(f"Subscription {model.__name__} registered as " f"{name} should be valid but raised TypeError.")
+            pytest.fail(f"Subscription {model.__name__} registered as {name} should be valid but raised TypeError.")
 
     # Test every signature the update method takes and reset using clear
     try:

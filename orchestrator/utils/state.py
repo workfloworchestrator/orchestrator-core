@@ -19,6 +19,7 @@ from typing import Any, cast, get_args
 from uuid import UUID
 
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.domain.lifecycle import validate_subscription_model_product_type
 from orchestrator.types import StepFunc, is_list_type, is_optional_type
 from orchestrator.utils.functional import logger
 from pydantic_forms.types import (
@@ -135,7 +136,7 @@ def _save_models(state: State) -> None:
 def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # noqa: C901
     """Build actual arguments based on step function signature and state.
 
-    What the step function requests in its function signature it what this function retrieves from the state or DB.
+    What the step function requests in its function signature is what this function retrieves from the state or DB.
     Domain models are retrieved from the DB (after `subscription_id` lookup in the state). Everything else is
     retrieved from the state.
 
@@ -186,6 +187,7 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
             subscription_id = _get_sub_id(state.get(name))
             if subscription_id:
                 sub_mod = param.annotation.from_subscription(subscription_id)
+                validate_subscription_model_product_type(sub_mod)
                 arguments.append(sub_mod)
             else:
                 logger.error("Could not find key in state.", key=name, state=state)
@@ -198,12 +200,15 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
                     f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'"
                 )
             subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
+            for sub_mod in subscriptions:
+                validate_subscription_model_product_type(sub_mod)
             arguments.append(subscriptions)
         elif is_optional_type(param.annotation, SubscriptionModel):
             subscription_id = _get_sub_id(state.get(name))
             if subscription_id:
                 # Actual type is first argument from optional type
                 sub_mod = get_args(param.annotation)[0].from_subscription(subscription_id)
+                validate_subscription_model_product_type(sub_mod)
                 arguments.append(sub_mod)
             else:
                 arguments.append(None)

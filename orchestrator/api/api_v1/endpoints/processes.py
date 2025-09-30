@@ -244,6 +244,8 @@ def continue_awaiting_process_endpoint(
         continue_awaiting_process(process, token=token, input_data=json_data, broadcast_func=broadcast_func)
     except AssertionError as e:
         raise_status(HTTPStatus.NOT_FOUND, str(e))
+    except ValueError as e:
+        raise_status(HTTPStatus.BAD_REQUEST, str(e))
 
 
 @router.post(

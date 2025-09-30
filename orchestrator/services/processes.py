@@ -524,6 +524,7 @@ def restart_process(
 RESUMABLE_STATUSES = (
     ProcessStatus.SUSPENDED,  # Can be resumed
     ProcessStatus.WAITING,  # Can be retried
+    ProcessStatus.AWAITING_CALLBACK,  # Can be resumed
     ProcessStatus.FAILED,  # Can be retried
     ProcessStatus.API_UNAVAILABLE,  # subtype of FAILED
     ProcessStatus.INCONSISTENT_DATA,  # subtype of FAILED
