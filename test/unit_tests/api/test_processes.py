@@ -21,9 +21,11 @@ from orchestrator.db import (
 from orchestrator.security import authenticate
 from orchestrator.services.processes import RESUME_WORKFLOW_REMOVED_ERROR_MSG, can_be_resumed, shutdown_thread_pool
 from orchestrator.services.settings import get_engine_settings
+from orchestrator.services.tasks import RESUME_WORKFLOW
 from orchestrator.settings import app_settings
 from orchestrator.targets import Target
 from orchestrator.workflow import (
+    CALLBACK_TOKEN_KEY,
     ProcessStatus,
     StepList,
     StepStatus,
@@ -39,6 +41,7 @@ from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
 
 test_condition = Condition()
+callback_key = "lgjyjNvu-C6vMbaUmjPZPxoJ1t8yS_41ottoe64qP5A"
 
 
 @pytest.fixture
@@ -780,3 +783,54 @@ def test_get_auth_callbacks(policies, decisions):
     got_auth, got_retry = get_auth_callbacks(steps, workflow)
     assert got_auth == want_auth
     assert got_retry == want_retry
+
+
+@pytest.fixture
+def process_on_await_callback(authorize_resume_workflow):
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_resume_workflow.workflow_id,
+        last_status=ProcessStatus.AWAITING_CALLBACK,
+        last_step="Action step",
+    )
+    init_step = ProcessStepTable(
+        process_id=process_id, name="Action step", status=StepStatus.SUCCESS, state={CALLBACK_TOKEN_KEY: callback_key}
+    )
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.commit()
+
+    return process_id
+
+
+@mock.patch("orchestrator.services.tasks.get_celery_task")
+@mock.patch("orchestrator.db")
+@mock.patch.object(app_settings, "EXECUTOR", "celery")
+def test_continue_awaiting_process_endpoint(mock_db, mock_get_celery_task, test_client, process_on_await_callback):
+    trigger_task = mock.MagicMock()
+    trigger_task.delay.get.return_value = uuid4()
+    mock_get_celery_task.return_value = trigger_task
+
+    fake_result = mock.MagicMock()
+    fake_result.last_status = "AWAIT_CALLBACK"
+    mock_db.session.execute.return_value.scalar_one_or_none.return_value = fake_result
+
+    response = test_client.post(
+        f"/api/processes/{process_on_await_callback}/callback/{callback_key}", json={"callback_response": True}
+    )
+    assert response.status_code == HTTPStatus.OK
+    mock_get_celery_task.assert_called_once_with(RESUME_WORKFLOW)
+
+
+def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, process_on_resume):
+    response = test_client.post(
+        f"/api/processes/{process_on_resume}/callback/{callback_key}", json={"callback_response": True}
+    )
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json() == {
+        "detail": "This process is not in an awaiting state.",
+        "status": 409,
+        "title": "Conflict",
+    }
