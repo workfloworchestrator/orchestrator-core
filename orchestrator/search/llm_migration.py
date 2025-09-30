@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Simple LLM migration function that runs when LLM_ENABLED = True."""
+"""Simple search migration function that runs when SEARCH_ENABLED = True."""
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection

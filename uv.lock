@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -1911,13 +1911,16 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-celery = [
-    { name = "celery" },
-]
-llm = [
+agent = [
     { name = "ag-ui-protocol" },
     { name = "litellm" },
     { name = "pydantic-ai-slim" },
+]
+celery = [
+    { name = "celery" },
+]
+search = [
+    { name = "litellm" },
 ]
 
 [package.dev-dependencies]
@@ -1976,7 +1979,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ag-ui-protocol", marker = "extra == 'llm'", specifier = ">=0.1.8" },
+    { name = "ag-ui-protocol", marker = "extra == 'agent'", specifier = ">=0.1.8" },
     { name = "alembic", specifier = "==1.16.1" },
     { name = "anyio", specifier = ">=3.7.0" },
     { name = "apscheduler", specifier = ">=3.11.0" },
@@ -1988,7 +1991,8 @@ requires-dist = [
     { name = "fastapi-etag", specifier = "==0.4.0" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = "==3.1.6" },
-    { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.75.7" },
+    { name = "litellm", marker = "extra == 'agent'", specifier = ">=1.75.7" },
+    { name = "litellm", marker = "extra == 'search'", specifier = ">=1.75.7" },
     { name = "more-itertools", specifier = "~=10.7.0" },
     { name = "nwa-stdlib", specifier = "~=1.9.2" },
     { name = "oauth2-lib", specifier = ">=2.4.1" },
@@ -1997,7 +2001,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.22.1" },
     { name = "psycopg2-binary", specifier = "==2.9.10" },
     { name = "pydantic", extras = ["email"], specifier = "~=2.11.7" },
-    { name = "pydantic-ai-slim", marker = "extra == 'llm'", specifier = "==0.7.0" },
+    { name = "pydantic-ai-slim", marker = "extra == 'agent'", specifier = "==0.7.0" },
     { name = "pydantic-forms", specifier = ">=1.4.0" },
     { name = "pydantic-settings", specifier = "~=2.9.1" },
     { name = "python-dateutil", specifier = "==2.8.2" },
@@ -2014,7 +2018,7 @@ requires-dist = [
     { name = "typer", specifier = "==0.15.4" },
     { name = "uvicorn", extras = ["standard"], specifier = "~=0.34.0" },
 ]
-provides-extras = ["celery", "llm"]
+provides-extras = ["agent", "celery", "search"]
 
 [package.metadata.requires-dev]
 dev = [
