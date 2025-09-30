@@ -805,11 +805,6 @@ def process_on_await_callback(authorize_resume_workflow):
     return process_id
 
 
-class FakeResult:
-    def __init__(self):
-        self.last_status = "AWAIT_CALLBACK"
-
-
 @mock.patch("orchestrator.services.tasks.get_celery_task")
 @mock.patch("orchestrator.db")
 @mock.patch.object(app_settings, "EXECUTOR", "celery")
