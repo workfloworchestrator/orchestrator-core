@@ -42,6 +42,18 @@ from .fixtures.subscriptions import (
     SimpleSubscription,
 )
 
+# Mark all tests in this directory with the search marker
+pytestmark = pytest.mark.search
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--record",
+        action="store_true",
+        default=False,
+        help="Record SQL snapshots for retriever tests.",
+    )
+
 
 @pytest.fixture
 def subscription_uuid() -> UUID:
