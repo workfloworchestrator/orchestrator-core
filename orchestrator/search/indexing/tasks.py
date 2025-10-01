@@ -15,10 +15,10 @@ import structlog
 from sqlalchemy.orm import Query
 
 from orchestrator.db import db
+from orchestrator.domain.context_cache import cache_subscription_models
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.indexer import Indexer
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.domain.context_cache import cache_subscription_models
 
 logger = structlog.get_logger(__name__)
 
