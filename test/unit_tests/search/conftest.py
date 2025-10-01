@@ -42,9 +42,6 @@ from .fixtures.subscriptions import (
     SimpleSubscription,
 )
 
-# Mark all tests in this directory with the search marker
-pytestmark = pytest.mark.search
-
 
 def pytest_addoption(parser):
     parser.addoption(
