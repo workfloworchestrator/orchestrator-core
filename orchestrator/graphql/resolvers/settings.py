@@ -4,6 +4,7 @@ from redis.asyncio import Redis as AIORedis
 
 from oauth2_lib.strawberry import authenticated_mutation_field
 from orchestrator.api.api_v1.endpoints.settings import generate_engine_status_response
+from orchestrator.graphql.resolvers.helpers import make_async
 from orchestrator.graphql.schemas.errors import Error
 from orchestrator.graphql.schemas.settings import (
     CACHE_FLUSH_OPTIONS,
@@ -27,6 +28,7 @@ logger = structlog.get_logger(__name__)
 
 
 # Queries
+@make_async
 def resolve_settings(info: OrchestratorInfo) -> StatusType:
     selected_fields = get_selected_fields(info)
 

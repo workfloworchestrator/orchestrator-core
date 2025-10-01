@@ -13,7 +13,7 @@ from orchestrator.db.range import apply_range_to_statement
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.resource_type import resource_type_sort_fields, sort_resource_types
 from orchestrator.graphql.pagination import Connection
-from orchestrator.graphql.resolvers.helpers import rows_from_statement
+from orchestrator.graphql.resolvers.helpers import make_async, rows_from_statement
 from orchestrator.graphql.schemas.resource_type import ResourceType
 from orchestrator.graphql.types import GraphqlFilter, GraphqlSort, OrchestratorInfo
 from orchestrator.graphql.utils import create_resolver_error_handler, is_querying_page_data, to_graphql_result_page
@@ -23,7 +23,8 @@ from orchestrator.utils.search_query import create_sqlalchemy_select
 logger = structlog.get_logger(__name__)
 
 
-async def resolve_resource_types(
+@make_async
+def resolve_resource_types(
     info: OrchestratorInfo,
     filter_by: list[GraphqlFilter] | None = None,
     sort_by: list[GraphqlSort] | None = None,
