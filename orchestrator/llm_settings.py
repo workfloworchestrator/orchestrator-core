@@ -37,7 +37,7 @@ class LLMSettings(BaseSettings):
     # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
     OPENAI_BASE_URL: str | None = None
     EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
-    EMBEDDING_MAX_BATCH_SIZE: int | None = 32
+    EMBEDDING_MAX_BATCH_SIZE: int | None = None
 
     # General LiteLLM settings
     LLM_MAX_RETRIES: int = 3
