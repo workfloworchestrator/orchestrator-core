@@ -24,6 +24,7 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.domain.base import SubscriptionModel
+from orchestrator.domain.context_cache import cache_subscription_models
 from orchestrator.schemas.search import (
     PageInfoSchema,
     PathsResponse,
@@ -192,17 +193,22 @@ async def search_subscriptions(
     page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
     search_info_map = {res.entity_id: res for res in search_response.results}
-    results_data = []
-    for sub_id, search_info in search_info_map.items():
-        subscription_model = SubscriptionModel.from_subscription(sub_id)
-        sub_data = subscription_model.model_dump(exclude_unset=False)
-        search_result_item = SubscriptionSearchResult(
-            subscription=format_special_types(sub_data),
+
+    with cache_subscription_models():
+        subscriptions_data = {
+            sub_id: SubscriptionModel.from_subscription(sub_id).model_dump(exclude_unset=False)
+            for sub_id in search_info_map
+        }
+
+    results_data = [
+        SubscriptionSearchResult(
+            subscription=format_special_types(subscriptions_data[sub_id]),
             score=search_info.score,
             perfect_match=search_info.perfect_match,
             matching_field=search_info.matching_field,
         )
-        results_data.append(search_result_item)
+        for sub_id, search_info in search_info_map.items()
+    ]
 
     return SearchResultsSchema(data=results_data, page_info=page_info, search_metadata=search_response.metadata)
 

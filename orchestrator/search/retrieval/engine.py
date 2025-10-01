@@ -86,11 +86,7 @@ def _format_response(
 
 
 def _extract_matching_field_from_filters(filters: FilterTree) -> MatchingField | None:
-    """Extract the first path filter to use as matching field for structured searches.
-
-    TODO: Should we allow a list of matched fields in the MatchingField model?
-    We need a different approach, probably a cross join in StructuredRetriever.
-    """
+    """Extract the first path filter to use as matching field for structured searches."""
     leaves = filters.get_all_leaves()
     if len(leaves) != 1:
         return None
