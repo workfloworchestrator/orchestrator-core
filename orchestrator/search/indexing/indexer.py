@@ -226,9 +226,7 @@ class Indexer:
         safe_margin = int(max_ctx * llm_settings.EMBEDDING_SAFE_MARGIN_PERCENT)
         token_budget = max(1, max_ctx - safe_margin)
 
-        max_batch_size = None
-        if llm_settings.OPENAI_BASE_URL:  # We are using a local model
-            max_batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE
+        max_batch_size = llm_settings.EMBEDDING_MAX_BATCH_SIZE
 
         for entity_id, field in fields_to_upsert:
             if field.value_type.is_embeddable(field.value):

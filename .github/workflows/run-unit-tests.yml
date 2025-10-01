@@ -65,6 +65,7 @@ jobs:
           POSTGRES_PASSWORD: nwa
           POSTGRES_HOST: postgres
           ENVIRONMENT: TESTING
+          SEARCH_ENABLED: true
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3

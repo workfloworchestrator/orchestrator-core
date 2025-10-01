@@ -156,7 +156,7 @@ def refresh_subscription_search_index(subscription: SubscriptionModel | None) ->
     """
     try:
         reset_search_index()
-        if llm_settings.LLM_ENABLED and subscription:
+        if llm_settings.SEARCH_ENABLED and subscription:
             run_indexing_for_entity(EntityType.SUBSCRIPTION, str(subscription.subscription_id))
     except Exception:
         # Don't fail workflow in case of unexpected error

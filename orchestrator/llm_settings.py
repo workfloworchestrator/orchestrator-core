@@ -18,7 +18,10 @@ logger = get_logger(__name__)
 
 
 class LLMSettings(BaseSettings):
-    LLM_ENABLED: bool = False  # Default to false
+    # Feature flags for LLM functionality
+    SEARCH_ENABLED: bool = False  # Enable search/indexing with embeddings
+    AGENT_ENABLED: bool = False  # Enable agentic functionality
+
     # Pydantic-ai Agent settings
     AGENT_MODEL: str = "gpt-4o-mini"  # See pydantic-ai docs for supported models.
     AGENT_MODEL_VERSION: str = "2025-01-01-preview"
@@ -30,11 +33,11 @@ class LLMSettings(BaseSettings):
         0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
     )
 
-    # The following settings are only needed for local models.
+    # The following settings are only needed for local models or system constraints.
     # By default, they are set conservative assuming a small model like All-MiniLM-L6-V2.
     OPENAI_BASE_URL: str | None = None
     EMBEDDING_FALLBACK_MAX_TOKENS: int | None = 512
-    EMBEDDING_MAX_BATCH_SIZE: int | None = 32
+    EMBEDDING_MAX_BATCH_SIZE: int | None = None
 
     # General LiteLLM settings
     LLM_MAX_RETRIES: int = 3
