@@ -63,18 +63,21 @@ class AgenticOrchestratorCore(OrchestratorCore):
         self.register_llm_integration()
 
     def register_llm_integration(self) -> None:
-        """Mount the Agent endpoint.
+        """Register the Agent endpoint.
 
-        This helper mounts the agent endpoint on the application.
+        This helper includes the agent router on the application with auth dependencies.
 
         Returns:
             None
 
         """
-        from orchestrator.search.agent import build_agent_app
+        from fastapi import Depends
 
-        agent_app = build_agent_app(self.llm_model, self.agent_tools)
-        self.mount("/agent", agent_app)
+        from orchestrator.search.agent import build_agent_router
+        from orchestrator.security import authorize
+
+        agent_router = build_agent_router(self.llm_model, self.agent_tools)
+        self.include_router(agent_router, prefix="/agent", dependencies=[Depends(authorize)])
 
 
 main_typer_app = typer.Typer()
