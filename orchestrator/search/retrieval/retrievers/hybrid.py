@@ -11,14 +11,113 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import TypedDict
+
 from sqlalchemy import BindParameter, Select, and_, bindparam, case, cast, func, literal, or_, select
-from sqlalchemy.sql.expression import ColumnElement
+from sqlalchemy.sql.expression import ColumnElement, Label
+from sqlalchemy.types import TypeEngine
 
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import SearchMetadata
 
 from ..pagination import PaginationParams
 from .base import Retriever
+
+
+class RrfScoreSqlComponents(TypedDict):
+    """SQL expression components of the RRF hybrid score calculation."""
+
+    rrf_num: ColumnElement
+    perfect: Label
+    beta: ColumnElement
+    rrf_max: ColumnElement
+    fused_num: ColumnElement
+    normalized_score: ColumnElement
+
+
+def compute_rrf_hybrid_score_sql(
+    sem_rank_col: ColumnElement,
+    fuzzy_rank_col: ColumnElement,
+    avg_fuzzy_score_col: ColumnElement,
+    k: int,
+    perfect_threshold: float,
+    n_sources: int = 2,
+    margin_factor: float = 0.05,
+    score_numeric_type: TypeEngine | None = None,
+) -> RrfScoreSqlComponents:
+    """Compute RRF (Reciprocal Rank Fusion) hybrid score as SQL expressions for database execution.
+
+    This function implements the core scoring logic for hybrid search combining semantic
+    and fuzzy ranking. It computes:
+    1. Base RRF score from both ranks
+    2. Perfect match detection and boosting
+    3. Dynamic beta parameter based on k and n_sources
+    4. Normalized final score in [0, 1] range
+
+    Args:
+        sem_rank_col: SQLAlchemy column expression for semantic rank
+        fuzzy_rank_col: SQLAlchemy column expression for fuzzy rank
+        avg_fuzzy_score_col: SQLAlchemy column expression for average fuzzy score
+        k: RRF constant controlling rank influence (typically 60)
+        perfect_threshold: Threshold for perfect match boost (typically 0.9)
+        n_sources: Number of ranking sources being fused (default: 2 for semantic + fuzzy)
+        margin_factor: Margin above rrf_max as fraction (default: 0.05 = 5%)
+        score_numeric_type: SQLAlchemy numeric type for casting scores
+
+    Returns:
+        RrfScoreSqlComponents: Dictionary of SQL expressions for score components
+            - rrf_num: Raw RRF score (cast to numeric type if provided)
+            - perfect: Perfect match flag (1 if avg_fuzzy_score >= threshold, else 0)
+            - beta: Boost amount for perfect matches
+            - rrf_max: Maximum possible RRF score
+            - fused_num: RRF + perfect boost
+            - normalized_score: Final score normalized to [0, 1]
+
+    Note:
+        -   Keep margin_factor small to avoid compressing perfects near 1 after normalization.
+
+        -   The `beta` boost is calculated to be greater than the maximum possible standard
+            RRF score (`rrf_max`). This guarantees that any item flagged as a "perfect" match
+            will always rank above any non-perfect match.
+
+        -   This function assumes that rank columns do not
+            contain `NULL` values. A `NULL` in any rank column will result in a `NULL` final score
+            for that item.
+    """
+    # RRF (rank-based): sum of 1/(k + rank_i) for each ranking source
+    rrf_raw = (1.0 / (k + sem_rank_col)) + (1.0 / (k + fuzzy_rank_col))
+    rrf_num = cast(rrf_raw, score_numeric_type) if score_numeric_type else rrf_raw
+
+    # Perfect flag to boost near perfect fuzzy matches
+    perfect = case((avg_fuzzy_score_col >= perfect_threshold, 1), else_=0).label("perfect_match")
+
+    # Dynamic beta based on k and number of sources
+    # rrf_max = n_sources / (k + 1)
+    k_num = literal(float(k), type_=score_numeric_type) if score_numeric_type else literal(float(k))
+    n_sources_lit = (
+        literal(float(n_sources), type_=score_numeric_type) if score_numeric_type else literal(float(n_sources))
+    )
+    rrf_max = n_sources_lit / (k_num + literal(1.0, type_=score_numeric_type if score_numeric_type else None))
+
+    margin = rrf_max * literal(margin_factor, type_=score_numeric_type if score_numeric_type else None)
+    beta = rrf_max + margin
+
+    # Fused score: RRF + perfect match boost
+    perfect_casted = cast(perfect, score_numeric_type) if score_numeric_type else perfect
+    fused_num = rrf_num + beta * perfect_casted
+
+    # Normalize to [0,1] via the theoretical max (beta + rrf_max)
+    norm_den = beta + rrf_max
+    normalized_score = fused_num / norm_den
+
+    return RrfScoreSqlComponents(
+        rrf_num=rrf_num,
+        perfect=perfect,
+        beta=beta,
+        rrf_max=rrf_max,
+        fused_num=fused_num,
+        normalized_score=normalized_score,
+    )
 
 
 class RrfHybridRetriever(Retriever):
@@ -122,30 +221,20 @@ class RrfHybridRetriever(Retriever):
             )
         ).cte("ranked_results")
 
-        # RRF (rank-based)
-        rrf_raw = (1.0 / (self.k + ranked.c.sem_rank)) + (1.0 / (self.k + ranked.c.fuzzy_rank))
-        rrf_num = cast(rrf_raw, self.SCORE_NUMERIC_TYPE)
+        # Compute RRF hybrid score
+        score_components = compute_rrf_hybrid_score_sql(
+            sem_rank_col=ranked.c.sem_rank,
+            fuzzy_rank_col=ranked.c.fuzzy_rank,
+            avg_fuzzy_score_col=ranked.c.avg_fuzzy_score,
+            k=self.k,
+            perfect_threshold=0.9,
+            score_numeric_type=self.SCORE_NUMERIC_TYPE,
+        )
 
-        # Perfect flag to boost near perfect fuzzy matches as this most likely indicates the desired record.
-        perfect = case((ranked.c.avg_fuzzy_score >= 0.9, 1), else_=0).label("perfect_match")
+        perfect = score_components["perfect"]
+        normalized_score = score_components["normalized_score"]
 
-        # Dynamic beta based on k (and number of sources)
-        # rrf_max = n_sources / (k + 1)
-        k_num = literal(float(self.k), type_=self.SCORE_NUMERIC_TYPE)
-        n_sources = literal(2.0, type_=self.SCORE_NUMERIC_TYPE)  # semantic + fuzzy
-        rrf_max = n_sources / (k_num + literal(1.0, type_=self.SCORE_NUMERIC_TYPE))
-
-        # Choose a small positive margin above rrf_max to ensure strict separation
-        # Keep it small to avoid compressing perfects near 1 after normalization
-        margin = rrf_max * literal(0.05, type_=self.SCORE_NUMERIC_TYPE)  # 5% above bound
-        beta = rrf_max + margin
-
-        fused_num = rrf_num + beta * cast(perfect, self.SCORE_NUMERIC_TYPE)
-
-        # Normalize to [0,1] via the theoretical max (beta + rrf_max)
-        norm_den = beta + rrf_max
-        normalized_score = fused_num / norm_den
-
+        # Round to configured precision
         score = cast(
             func.round(cast(normalized_score, self.SCORE_NUMERIC_TYPE), self.SCORE_PRECISION),
             self.SCORE_NUMERIC_TYPE,

@@ -43,6 +43,15 @@ from .fixtures.subscriptions import (
 )
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--record",
+        action="store_true",
+        default=False,
+        help="Record SQL snapshots for retriever tests.",
+    )
+
+
 @pytest.fixture
 def subscription_uuid() -> UUID:
     return UUID("00000003-0000-0000-0000-000000000003")

@@ -15,6 +15,7 @@ import structlog
 from sqlalchemy.orm import Query
 
 from orchestrator.db import db
+from orchestrator.domain.context_cache import cache_subscription_models
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.indexer import Indexer
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
@@ -63,4 +64,6 @@ def run_indexing_for_entity(
     entities = db.session.execute(stmt).scalars()
 
     indexer = Indexer(config=config, dry_run=dry_run, force_index=force_index, chunk_size=chunk_size)
-    indexer.run(entities)
+
+    with cache_subscription_models():
+        indexer.run(entities)

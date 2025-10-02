@@ -112,7 +112,8 @@ class Retriever(ABC):
 
     def _quantize_score_for_pagination(self, score_value: float) -> BindParameter[Decimal]:
         """Convert score value to properly quantized Decimal parameter for pagination."""
-        pas_dec = Decimal(str(score_value)).quantize(Decimal("0.000000000001"))
+        quantizer = Decimal(1).scaleb(-self.SCORE_PRECISION)
+        pas_dec = Decimal(str(score_value)).quantize(quantizer)
         return literal(pas_dec, type_=self.SCORE_NUMERIC_TYPE)
 
     @property
