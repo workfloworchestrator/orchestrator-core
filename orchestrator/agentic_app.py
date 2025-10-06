@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """The main application module.
 
-This module contains the main `AgenticOrchestratorCore` class for the `FastAPI` backend and
-provides the ability to run the CLI.
+This module contains the main `LLMOrchestratorCore` class for the `FastAPI` backend and
+provides the ability to run the CLI with LLM features (search and/or agent).
 """
 # Copyright 2019-2025 SURF
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,68 +16,84 @@ provides the ability to run the CLI.
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
-from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai.toolsets import FunctionToolset
 from structlog import get_logger
 
 from orchestrator.app import OrchestratorCore
 from orchestrator.cli.main import app as cli_app
 from orchestrator.llm_settings import LLMSettings, llm_settings
 
+if TYPE_CHECKING:
+    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.toolsets import FunctionToolset
+
 logger = get_logger(__name__)
 
 
-class AgenticOrchestratorCore(OrchestratorCore):
+class LLMOrchestratorCore(OrchestratorCore):
     def __init__(
         self,
         *args: Any,
-        llm_model: OpenAIModel | str = "gpt-4o-mini",
         llm_settings: LLMSettings = llm_settings,
-        agent_tools: list[FunctionToolset] | None = None,
+        agent_model: "OpenAIModel | str | None" = None,
+        agent_tools: "list[FunctionToolset] | None" = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize the `AgenticOrchestratorCore` class.
+        """Initialize the `LLMOrchestratorCore` class.
 
-        This class takes the same arguments as the `OrchestratorCore` class.
+        This class extends `OrchestratorCore` with LLM features (search and agent).
+        It runs the search migration and mounts the agent endpoint based on feature flags.
 
         Args:
             *args: All the normal arguments passed to the `OrchestratorCore` class.
-            llm_model: An OpenAI model class or string, not limited to OpenAI models (gpt-4o-mini etc)
             llm_settings: A class of settings for the LLM
+            agent_model: Override the agent model (defaults to llm_settings.AGENT_MODEL)
             agent_tools: A list of tools that can be used by the agent
             **kwargs: Additional arguments passed to the `OrchestratorCore` class.
 
         Returns:
             None
         """
-        self.llm_model = llm_model
-        self.agent_tools = agent_tools
         self.llm_settings = llm_settings
+        self.agent_model = agent_model or llm_settings.AGENT_MODEL
+        self.agent_tools = agent_tools
 
         super().__init__(*args, **kwargs)
 
-        logger.info("Mounting the agent")
-        self.register_llm_integration()
+        # Run search migration if search or agent is enabled
+        if self.llm_settings.SEARCH_ENABLED or self.llm_settings.AGENT_ENABLED:
+            logger.info("Running search migration")
+            try:
+                from orchestrator.db import db
+                from orchestrator.search.llm_migration import run_migration
 
-    def register_llm_integration(self) -> None:
-        """Register the Agent endpoint.
+                with db.engine.begin() as connection:
+                    run_migration(connection)
+            except ImportError as e:
+                logger.error(
+                    "Unable to run search migration. Please install search dependencies: "
+                    "`pip install orchestrator-core[search]`",
+                    error=str(e),
+                )
+                raise
 
-        This helper includes the agent router on the application with auth dependencies.
+        # Mount agent endpoint if agent is enabled
+        if self.llm_settings.AGENT_ENABLED:
+            logger.info("Initializing agent features", model=self.agent_model)
+            try:
+                from orchestrator.search.agent import build_agent_router
 
-        Returns:
-            None
-
-        """
-        from fastapi import Depends
-
-        from orchestrator.search.agent import build_agent_router
-        from orchestrator.security import authorize
-
-        agent_router = build_agent_router(self.llm_model, self.agent_tools)
-        self.include_router(agent_router, prefix="/agent", dependencies=[Depends(authorize)])
+                agent_app = build_agent_router(self.agent_model, self.agent_tools)
+                self.mount("/agent", agent_app)
+            except ImportError as e:
+                logger.error(
+                    "Unable to initialize agent features. Please install agent dependencies: "
+                    "`pip install orchestrator-core[agent]`",
+                    error=str(e),
+                )
+                raise
 
 
 main_typer_app = typer.Typer()

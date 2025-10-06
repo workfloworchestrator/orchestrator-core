@@ -42,6 +42,19 @@ from .fixtures.subscriptions import (
     SimpleSubscription,
 )
 
+# Mark all tests in this directory with the search marker
+pytestmark = pytest.mark.search
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Ignore collecting tests from this directory when search is disabled."""
+    from orchestrator.llm_settings import llm_settings
+
+    # Skip this entire directory if search is disabled
+    if not llm_settings.SEARCH_ENABLED:
+        return True
+    return False
+
 
 def pytest_addoption(parser):
     parser.addoption(

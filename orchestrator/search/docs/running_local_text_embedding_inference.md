@@ -18,6 +18,7 @@ Point your backend to the local endpoint and declare the new vector size:
 ```env
 OPENAI_BASE_URL=http://localhost:8080/v1
 EMBEDDING_DIMENSION=384
+EMBEDDING_MAX_BATCH_SIZE=32 # Not required when using OpenAI embeddings
 ```
 
 Depending on the model, you might want to change the `EMBEDDING_FALLBACK_MAX_TOKENS` and `EMBEDDING_MAX_BATCH_SIZE` settings, which are set conservatively and according to the requirements of the setup used in this example.
