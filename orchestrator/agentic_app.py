@@ -83,8 +83,9 @@ class LLMOrchestratorCore(OrchestratorCore):
         if self.llm_settings.AGENT_ENABLED:
             logger.info("Initializing agent features", model=self.agent_model)
             try:
-                from orchestrator.search.agent import build_agent_app
-                agent_app = build_agent_app(self.agent_model, self.agent_tools)
+                from orchestrator.search.agent import build_agent_router
+
+                agent_app = build_agent_router(self.agent_model, self.agent_tools)
                 self.mount("/agent", agent_app)
             except ImportError as e:
                 logger.error(
