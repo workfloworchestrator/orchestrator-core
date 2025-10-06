@@ -43,6 +43,9 @@ class LLMSettings(BaseSettings):
     LLM_MAX_RETRIES: int = 3
     LLM_TIMEOUT: int = 30
 
+    # Toggle creation of extensions
+    LLM_FORCE_EXTENTION_MIGRATION: bool = False
+
     @field_validator("EMBEDDING_MODEL")
     def validate_embedding_model_format(cls, v: str) -> str:
         """Validate that embedding model is in 'vendor/model' format."""

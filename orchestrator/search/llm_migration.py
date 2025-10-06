@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from structlog import get_logger
 
+from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.types import FieldType
 
 logger = get_logger(__name__)
@@ -30,11 +31,16 @@ def run_migration(connection: Connection) -> None:
     logger.info("Running LLM migration")
 
     try:
-        # Create PostgreSQL extensions
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS ltree;"))
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+        # Test to see if the extenstion exists and then skip the migration; Needed for certain situations where db user
+        # has insufficient priviledges to run the `CREATE EXTENSION ...` command.
+        res = connection.execute(text("SELECT * FROM pg_extension where extname = 'vector';"))
+        if llm_settings.LLM_FORCE_EXTENTION_MIGRATION or res.rowcount == 0:
+            # Create PostgreSQL extensions
+            logger.info("Attempting to run the extention creation;")
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS ltree;"))
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
         # Create field_type enum
         field_type_values = "', '".join([ft.value for ft in FieldType])
