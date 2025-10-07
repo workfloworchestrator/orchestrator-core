@@ -58,6 +58,11 @@ async def get_base_instructions() -> str:
                 c. **Set Filters**: Call `set_filter_tree`.
         3.  **Execute**: Call `execute_search`. This is done for both filtered and non-filtered searches.
         4.  **Report**: Answer the users' question directly and summarize when appropiate.
+        5.  **Export (if requested)**: If the user asks to export, download, or save results as CSV/file:
+            - **IMPORTANT**: Export is ONLY available for SELECT actions (not COUNT or AGGREGATE)
+            - Call `prepare_export` to generate an export token
+            - The UI will automatically display a download button - you don't need to mention URLs or tokens
+            - Simply confirm to the user that the export is ready
 
         ---
         ### 4. Critical Rules
@@ -65,6 +70,7 @@ async def get_base_instructions() -> str:
         - **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you may attempt to map the question on an existing paths that are valid and available from `discover_filter_paths`. If you cannot infer a match, inform the user and do not include it in the `FilterTree`.
         - **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool.
         - **MATCH OPERATORS**: Only use operators that are compatible with the field type as confirmed by `get_filter_operators`.
+        - **EXPORT RECOGNITION**: When users say things like "export this", "download as CSV", "save these results", "export to file", or similar phrases, they are requesting an export. Call `prepare_export` to handle this.
         """
     )
 
@@ -73,11 +79,18 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     """Dynamically provides 'next step' coaching based on the current state."""
     state = ctx.deps.state
     param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
+    results_count = len(state.results) if state.results else 0
 
     next_step_guidance = ""
     if not state.parameters or not state.parameters.get("entity_type"):
         next_step_guidance = (
             "INSTRUCTION: The search context is not set. Your next action is to call `set_search_parameters`."
+        )
+    elif results_count > 0:
+        next_step_guidance = (
+            f"INSTRUCTION: Search completed with {results_count} results. "
+            "You can answer the user's question with these results. "
+            "If the user requests an export/download, call `prepare_export`."
         )
     else:
         next_step_guidance = (
@@ -94,6 +107,8 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
         ```json
         {param_state_str}
         ```
+
+        **Current Results Count:** {results_count}
 
         **{next_step_guidance}**
         """
