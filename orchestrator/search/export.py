@@ -82,7 +82,7 @@ class ExportData(BaseModel):
         obj = cls.model_validate_json(export_data_json)
         return obj.model_copy(update={"token": token})
 
-    async def save_to_redis(self, redis_client: Redis, ttl: int | None = 300) -> None:
+    async def save_to_redis(self, redis_client: "Redis", ttl: int | None = 300) -> None:
         """Persist payload without token."""
         await redis_client.set(self.redis_key, self.model_dump_json(), ex=ttl)
 
