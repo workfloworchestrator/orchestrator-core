@@ -326,7 +326,7 @@ async def prepare_export(
     async with create_redis_asyncio_client(app_settings.CACHE_URI) as redis_client:
         await export_data.save_to_redis(redis_client, ttl=3000)
 
-    download_url = f"{ctx.deps.state.base_url}/api/search/export/{export_token}"
+    download_url = f"http://localhost:8080/api/search/export/{export_token}"
 
     # Update state with export data so frontend can render the download button
     ctx.deps.state.export_data = {
