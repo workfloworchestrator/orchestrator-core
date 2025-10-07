@@ -98,8 +98,8 @@ The array of _lexemes_ makes up the tsvector document that we store in `subsript
 We'll demonstrate how this works through a few examples. You can follow along in any  postgres shell (v14 or above). If you have Docker installed, run these commands in separate shells.
 
 ```sh
-docker run --rm -e POSTGRES_HOST_AUTH_METHOD=trust --name pg15 postgres:15
-docker exec -i -t pg15 su - postgres -c psql
+docker run --rm -e POSTGRES_HOST_AUTH_METHOD=trust --name pg17 pgvector/pgvector:pg17
+docker exec -i -t pg17 su - postgres -c psql
 ```
 
 Translating the input text `'color:Light_Blue count:4'` to a tsvector:

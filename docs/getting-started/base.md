@@ -46,7 +46,7 @@ Choose a password and remember it for later steps.
 As an example, you can run these docker commands in separate shells to start a temporary postgres instance:
 
 ```shell
-docker run --rm --name temp-orch-db -e POSTGRES_PASSWORD=rootpassword -p 5432:5432 postgres:15
+docker run --rm --name temp-orch-db -e POSTGRES_PASSWORD=rootpassword -p 5432:5432 pgvector/pgvector:pg17
 
 docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb orchestrator-core -O nwa'
 ```
