@@ -492,7 +492,7 @@ def start_process(
         process id
 
     """
-    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user)
+    pstat = create_process(workflow_key, user_inputs=user_inputs, user=user, user_model=user_model)
 
     start_func = get_execution_context()["start"]
     return start_func(pstat, user=user, user_model=user_model, broadcast_func=broadcast_func)
