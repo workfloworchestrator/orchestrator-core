@@ -13,6 +13,7 @@
 
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
+from uuid import uuid4
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
@@ -32,10 +33,13 @@ from orchestrator.api.api_v1.endpoints.search import (
 )
 from orchestrator.schemas.search import SearchResultsSchema
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
+from orchestrator.search.export import ExportData
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
 from orchestrator.search.retrieval.validation import validate_filter_tree
 from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
+from orchestrator.settings import app_settings
+from orchestrator.utils.redis_client import create_redis_asyncio_client
 
 from .state import SearchState
 
@@ -256,3 +260,84 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
         if hasattr(type_def, "operators"):
             operator_map[key] = type_def.operators
     return operator_map
+
+
+@search_toolset.tool
+async def prepare_export(
+    ctx: RunContext[StateDeps[SearchState]],
+    max_results: int = 1000,
+) -> StateSnapshotEvent:
+    """Executes the search with the current parameters, collects up to max_results entity IDs, stores them in Redis with a temporary token, and returns the token for export."""
+    if not ctx.deps.state.parameters:
+        raise ValueError("No search parameters set. Run a search first to see what will be exported.")
+
+    # Validate that export is only available for SELECT actions
+    action = ctx.deps.state.parameters.get("action", ActionType.SELECT)
+    if action != ActionType.SELECT:
+        raise ValueError(
+            f"Export is only available for SELECT actions. Current action is '{action}'. "
+            "Please run a SELECT search first."
+        )
+
+    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
+    param_class = PARAMETER_REGISTRY.get(entity_type)
+    if not param_class:
+        raise ValueError(f"Unknown entity type: {entity_type}")
+
+    # Cap at 1000 results ()
+    export_limit = min(max_results, 1000)
+
+    params = param_class(**ctx.deps.state.parameters)
+    params.limit = export_limit
+
+    logger.debug(
+        "Preparing export",
+        entity_type=entity_type.value,
+        limit=export_limit,
+        has_filters=params.filters is not None,
+    )
+
+    fn = SEARCH_FN_MAP[entity_type]
+    search_results = await fn(params)
+
+    if not search_results.data:
+        raise ValueError("No results found to export. Try adjusting your search criteria.")
+
+    entity_ids = []
+    for result in search_results.data:
+        if entity_type == EntityType.SUBSCRIPTION:
+            entity_ids.append(str(result.subscription["subscription_id"]))
+        elif entity_type == EntityType.WORKFLOW:
+            entity_ids.append(str(result.workflow.name))
+        elif entity_type == EntityType.PRODUCT:
+            entity_ids.append(str(result.product.product_id))
+        elif entity_type == EntityType.PROCESS:
+            entity_ids.append(str(result.process.process_id))
+
+    # Generate export token and create export data model
+    export_token = str(uuid4())
+    export_data = ExportData(
+        entity_type=entity_type,
+        entity_ids=entity_ids,
+        token=export_token,
+    )
+
+    # Store in Redis with TTL
+    async with create_redis_asyncio_client(app_settings.CACHE_URI) as redis_client:
+        await export_data.save_to_redis(redis_client, ttl=3000)
+
+    download_url = f"{ctx.deps.state.base_url}/api/search/export/{export_token}"
+
+    # Update state with export data so frontend can render the download button
+    ctx.deps.state.export_data = {
+        "action": "export",
+        "token": export_token,
+        "count": len(entity_ids),
+        "entity_type": entity_type.value,
+        "download_url": download_url,
+        "message": f"Found {len(entity_ids)} {entity_type.value.lower()}(s).",
+    }
+
+    logger.debug("Export data set in state", export_data=ctx.deps.state.export_data)
+
+    return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
