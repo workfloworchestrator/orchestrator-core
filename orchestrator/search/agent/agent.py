@@ -48,8 +48,7 @@ def build_agent_router(model: str | OpenAIModel, toolsets: list[FunctionToolset[
 
         @router.post("/")
         async def agent_endpoint(request: Request) -> Response:
-            base_url = str(request.base_url).rstrip("/")
-            initial_state = SearchState(base_url=base_url)
+            initial_state = SearchState()
             return await handle_ag_ui_request(agent, request, deps=StateDeps(initial_state))
 
         return router
