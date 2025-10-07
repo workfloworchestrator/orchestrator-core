@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # folders for generated code
 export PRODUCT_TYPES_PATH="products/product_types"
 export PRODUCT_BLOCKS_PATH="products/product_blocks"
