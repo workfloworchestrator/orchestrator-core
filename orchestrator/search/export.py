@@ -13,8 +13,6 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, Field
-from pydantic.config import ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -26,76 +24,6 @@ from orchestrator.db import (
     db,
 )
 from orchestrator.search.core.types import EntityType
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from redis.asyncio.client import Redis
-
-# Redis namespace for export data
-EXPORT_REDIS_NAMESPACE = "orchestrator:export"
-
-
-class ExportData(BaseModel):
-    """Model for export data stored in Redis.
-
-    Attributes:
-        entity_type: The type of entities being exported
-        entity_ids: List of entity IDs/names to export
-        token: Unique export token for this data
-    """
-
-    model_config = ConfigDict(use_enum_values=True)
-
-    entity_type: EntityType
-    entity_ids: list[str]
-    token: str | None = Field(default=None, exclude=True)
-
-    @property
-    def redis_key(self) -> str:
-        """Redis key for storing this export data.
-
-        Returns:
-            Redis key string
-        """
-        return f"{EXPORT_REDIS_NAMESPACE}:{self.token}"
-
-    @classmethod
-    async def from_redis(cls, token: str, redis_client: "Redis") -> "ExportData":
-        """Load export data from Redis using a token.
-
-        Args:
-            token: Export token
-            redis_client: Redis client instance
-
-        Returns:
-            ExportData instance
-
-        Raises:
-            ValueError: If token not found in Redis
-        """
-        redis_key = f"{EXPORT_REDIS_NAMESPACE}:{token}"
-        export_data_json = await redis_client.get(redis_key)
-
-        if not export_data_json:
-            raise ValueError(f"Export token '{token}' not found or expired")
-
-        obj = cls.model_validate_json(export_data_json)
-        return obj.model_copy(update={"token": token})
-
-    async def save_to_redis(self, redis_client: "Redis", ttl: int | None = 300) -> None:
-        """Persist payload without token."""
-        await redis_client.set(self.redis_key, self.model_dump_json(), ex=ttl)
-
-    def fetch_records(self) -> list[dict]:
-        """Fetch the actual export records for this export data.
-
-        Returns:
-            List of flattened entity records
-
-        Raises:
-            ValueError: If entity type is not supported
-        """
-        return fetch_export_data(self.entity_type, self.entity_ids)
 
 
 def fetch_subscription_export_data(entity_ids: list[str]) -> list[dict]:

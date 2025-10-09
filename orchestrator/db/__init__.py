@@ -17,6 +17,8 @@ from structlog import get_logger
 from orchestrator.db.database import BaseModel as DbBaseModel
 from orchestrator.db.database import Database, transactional
 from orchestrator.db.models import (  # noqa: F401
+    AgentQueryTable,
+    AgentRunTable,
     EngineSettingsTable,
     FixedInputTable,
     InputStateTable,
@@ -74,6 +76,8 @@ def init_database(settings: AppSettings) -> Database:
 
 __all__ = [
     "transactional",
+    "AgentQueryTable",
+    "AgentRunTable",
     "SubscriptionTable",
     "ProcessSubscriptionTable",
     "ProcessTable",
@@ -97,6 +101,8 @@ __all__ = [
 ]
 
 ALL_DB_MODELS: list[type[DbBaseModel]] = [
+    AgentQueryTable,
+    AgentRunTable,
     FixedInputTable,
     ProcessStepTable,
     ProcessSubscriptionTable,
