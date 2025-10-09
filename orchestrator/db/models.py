@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy
@@ -57,6 +58,9 @@ from orchestrator.search.core.types import FieldType
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
+
+if TYPE_CHECKING:
+    from orchestrator.search.schemas.parameters import AgentQueryState
 
 logger = structlog.get_logger(__name__)
 
@@ -672,6 +676,59 @@ class SubscriptionSearchView(BaseModel):
     tsv = deferred(mapped_column(TSVectorType))
 
     subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
+
+
+class AgentRunTable(BaseModel):
+    """Agent conversation/session tracking."""
+
+    __tablename__ = "agent_runs"
+
+    run_id = mapped_column("run_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    agent_type = mapped_column(String(50), nullable=False)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    queries = relationship("AgentQueryTable", back_populates="run", cascade="delete", passive_deletes=True)
+
+    __table_args__ = (Index("ix_agent_runs_created_at", "created_at"),)
+
+
+class AgentQueryTable(BaseModel):
+    """Individual query execution within an agent run."""
+
+    __tablename__ = "agent_queries"
+
+    query_id = mapped_column("query_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    run_id = mapped_column(
+        "run_id", UUIDType, ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    query_number = mapped_column(Integer, nullable=False)
+
+    # Search parameters as JSONB (maps to BaseSearchParameters subclasses)
+    parameters = mapped_column(pg.JSONB, nullable=False)
+
+    # Query embedding for semantic search (pgvector)
+    query_embedding = mapped_column(Vector(1536), nullable=True)
+
+    executed_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    run = relationship("AgentRunTable", back_populates="queries")
+
+    __table_args__ = (
+        Index("ix_agent_queries_run_id", "run_id"),
+        Index("ix_agent_queries_executed_at", "executed_at"),
+        UniqueConstraint("run_id", "query_number", name="uq_run_query_number"),
+    )
+
+    def get_state(self) -> "AgentQueryState":
+        """Reconstruct complete query state including parameters and embedding.
+
+        Returns:
+            AgentQueryState with typed parameters and embedding vector.
+
+        """
+        from orchestrator.search.schemas.parameters import AgentQueryState
+
+        return AgentQueryState.model_validate(self)
 
 
 class EngineSettingsTable(BaseModel):

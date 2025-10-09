@@ -95,3 +95,8 @@ if llm_settings.SEARCH_ENABLED:
     api_router.include_router(
         search.router, prefix="/search", tags=["Core", "Search"], dependencies=[Depends(authorize)]
     )
+
+if llm_settings.AGENT_ENABLED:
+    from orchestrator.api.api_v1.endpoints import agent
+
+    api_router.include_router(agent.router, prefix="/agent", tags=["Core", "Agent"], dependencies=[Depends(authorize)])

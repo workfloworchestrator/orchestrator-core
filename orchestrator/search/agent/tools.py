@@ -35,7 +35,7 @@ from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
 from orchestrator.search.retrieval.validation import validate_filter_tree
-from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
+from orchestrator.search.schemas.parameters import BaseSearchParameters
 
 from .state import SearchState
 
@@ -149,15 +149,10 @@ async def execute_search(
     if not ctx.deps.state.parameters:
         raise ValueError("No search parameters set")
 
-    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
-    param_class = PARAMETER_REGISTRY.get(entity_type)
-    if not param_class:
-        raise ValueError(f"Unknown entity type: {entity_type}")
-
-    params = param_class(**ctx.deps.state.parameters)
+    params = BaseSearchParameters.create(**ctx.deps.state.parameters)
     logger.debug(
         "Executing database search",
-        search_entity_type=entity_type.value,
+        search_entity_type=params.entity_type.value,
         limit=limit,
         has_filters=params.filters is not None,
         query=params.query,
@@ -169,7 +164,7 @@ async def execute_search(
 
     params.limit = limit
 
-    fn = SEARCH_FN_MAP[entity_type]
+    fn = SEARCH_FN_MAP[params.entity_type]
     search_results = await fn(params)
 
     logger.debug(
@@ -256,3 +251,73 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
         if hasattr(type_def, "operators"):
             operator_map[key] = type_def.operators
     return operator_map
+
+
+@search_toolset.tool
+async def prepare_export(
+    ctx: RunContext[StateDeps[SearchState]],
+    max_results: int = 1000,
+) -> StateSnapshotEvent:
+    """Saves the current search query to the database and returns run_id/query_id for export."""
+    if not ctx.deps.state.parameters:
+        raise ValueError("No search parameters set. Run a search first to see what will be exported.")
+
+    # Validate that export is only available for SELECT actions
+    action = ctx.deps.state.parameters.get("action", ActionType.SELECT)
+    if action != ActionType.SELECT:
+        raise ValueError(
+            f"Export is only available for SELECT actions. Current action is '{action}'. "
+            "Please run a SELECT search first."
+        )
+
+    from orchestrator.db import AgentQueryTable, AgentRunTable, db
+
+    # Ensure we have a run_id
+    if not ctx.deps.state.run_id:
+        # Create a new agent run
+        agent_run = AgentRunTable(agent_type="search")
+        db.session.add(agent_run)
+        db.session.commit()
+        db.session.refresh(agent_run)
+        ctx.deps.state.run_id = agent_run.run_id
+        logger.debug("Created new agent run", run_id=str(agent_run.run_id))
+
+    query_number = db.session.query(AgentQueryTable).filter_by(run_id=ctx.deps.state.run_id).count() + 1
+
+    export_limit = min(max_results, BaseSearchParameters.export_limit)
+    params_dict = ctx.deps.state.parameters.copy()
+    params_dict["export_limit"] = export_limit
+
+    agent_query = AgentQueryTable(
+        run_id=ctx.deps.state.run_id,
+        query_number=query_number,
+        parameters=params_dict,
+        query_embedding=None,  # TODO: We need to save the embeddding here.
+    )
+    db.session.add(agent_query)
+    db.session.commit()
+    db.session.refresh(agent_query)
+
+    logger.debug(
+        "Saved query for export",
+        run_id=str(ctx.deps.state.run_id),
+        query_id=str(agent_query.query_id),
+        query_number=query_number,
+    )
+
+    # Build export URL using run_id and query_id
+    base_url = ctx.deps.state.base_url or "http://localhost:8080"
+    download_url = f"{base_url}/api/agent/runs/{ctx.deps.state.run_id}/queries/{agent_query.query_id}/export"
+
+    # Update state with export data so frontend can render the download button
+    ctx.deps.state.export_data = {
+        "action": "export",
+        "run_id": str(ctx.deps.state.run_id),
+        "query_id": str(agent_query.query_id),
+        "download_url": download_url,
+        "message": f"Export ready for download (up to {export_limit} results).",
+    }
+
+    logger.debug("Export data set in state", export_data=ctx.deps.state.export_data)
+
+    return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())

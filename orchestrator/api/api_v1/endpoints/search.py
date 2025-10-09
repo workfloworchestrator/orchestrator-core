@@ -131,11 +131,7 @@ async def _perform_search_and_fetch(
     except InvalidCursorError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
 
-    search_response = await execute_search(
-        search_params=search_params,
-        db_session=db.session,
-        pagination_params=pagination_params,
-    )
+    search_response = await execute_search(search_params, db.session, pagination_params)
     if not search_response.results:
         return SearchResultsSchema(search_metadata=search_response.metadata)
 
@@ -179,11 +175,7 @@ async def search_subscriptions(
     except InvalidCursorError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
 
-    search_response = await execute_search(
-        search_params=search_params,
-        db_session=db.session,
-        pagination_params=pagination_params,
-    )
+    search_response = await execute_search(search_params, db.session, pagination_params)
 
     if not search_response.results:
         return SearchResultsSchema(search_metadata=search_response.metadata)

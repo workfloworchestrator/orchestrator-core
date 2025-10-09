@@ -110,32 +110,23 @@ def _extract_matching_field_from_filters(filters: FilterTree) -> MatchingField |
     return MatchingField(text=text, path=pf.path, highlight_indices=[(0, len(text))])
 
 
-async def execute_search(
+async def _execute_search_internal(
     search_params: BaseSearchParameters,
     db_session: Session,
+    limit: int,
     pagination_params: PaginationParams | None = None,
 ) -> SearchResponse:
-    """Execute a hybrid search and return ranked results.
-
-    Builds a candidate entity query based on the given search parameters,
-    applies the appropriate ranking strategy, and executes the final ranked
-    query to retrieve results.
+    """Internal function to execute search with specified parameters.
 
     Args:
-        search_params (BaseSearchParameters): The search parameters specifying vector, fuzzy, or filter criteria.
-        db_session (Session): The active SQLAlchemy session for executing the query.
-        pagination_params (PaginationParams): Parameters controlling pagination of the search results.
-        limit (int, optional): The maximum number of search results to return, by default 5.
+        search_params: The search parameters specifying vector, fuzzy, or filter criteria.
+        db_session: The active SQLAlchemy session for executing the query.
+        limit: Maximum number of results to return.
+        pagination_params: Optional pagination parameters.
 
     Returns:
-        SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
-        and optional highlight metadata.
-
-    Notes:
-        If no vector query, filters, or fuzzy term are provided, a warning is logged
-        and an empty result set is returned.
+        SearchResponse with results, or empty response if no search criteria provided.
     """
-
     if not search_params.vector_query and not search_params.filters and not search_params.fuzzy_term:
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
         return SearchResponse(results=[], metadata=SearchMetadata.empty())
@@ -147,8 +138,39 @@ async def execute_search(
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
     final_stmt = retriever.apply(candidate_query)
-    final_stmt = final_stmt.limit(search_params.limit)
+    final_stmt = final_stmt.limit(limit)
     logger.debug(final_stmt)
     result = db_session.execute(final_stmt).mappings().all()
 
     return _format_response(result, search_params, retriever.metadata)
+
+
+async def execute_search(
+    search_params: BaseSearchParameters,
+    db_session: Session,
+    pagination_params: PaginationParams | None = None,
+) -> SearchResponse:
+    """Execute a search and return ranked results."""
+    return await _execute_search_internal(search_params, db_session, search_params.limit, pagination_params)
+
+
+async def execute_search_for_export(
+    search_params: BaseSearchParameters,
+    db_session: Session,
+    pagination_params: PaginationParams | None = None,
+) -> SearchResponse:
+    """Execute a search for export purposes.
+
+    Similar to execute_search but uses export_limit instead of limit.
+    The pagination_params is primarily used to pass q_vec_override to ensure
+    the export uses the same embedding as the original search.
+
+    Args:
+        search_params: The search parameters specifying vector, fuzzy, or filter criteria.
+        db_session: The active SQLAlchemy session for executing the query.
+        pagination_params: Optional pagination parameters (primarily for q_vec_override).
+
+    Returns:
+        SearchResponse with results up to export_limit.
+    """
+    return await _execute_search_internal(search_params, db_session, search_params.export_limit, pagination_params)
