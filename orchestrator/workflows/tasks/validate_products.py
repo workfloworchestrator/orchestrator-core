@@ -16,6 +16,7 @@ from typing import Any
 from more_itertools.more import one
 from more_itertools.recipes import first_true
 from pydantic import ValidationError
+from pydantic_forms.types import State
 from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
@@ -30,7 +31,6 @@ from orchestrator.targets import Target
 from orchestrator.utils.errors import ProcessFailureError
 from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflow import StepList, done, init, step, workflow
-from pydantic_forms.types import State
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
 
@@ -105,7 +105,7 @@ def check_that_products_have_create_modify_and_terminate_workflows() -> State:
     product_data = get_products(filters=[ProductTable.status == "active"])
 
     workflows_not_complete: list = []
-    targets = ["CREATE", "TERMINATE", "MODIFY", "RECONCILE", "VALIDATE"]
+    targets = ["CREATE", "TERMINATE", "MODIFY", "VALIDATE"]
     for product in product_data:
         workflows = {c.target for c in product.workflows if c.target in targets and c.name != "modify_note"}
         if len(workflows) < len(targets):
