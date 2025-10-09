@@ -44,7 +44,7 @@ class LLMOrchestratorCore(OrchestratorCore):
         """Initialize the `LLMOrchestratorCore` class.
 
         This class extends `OrchestratorCore` with LLM features (search and agent).
-        It runs the search migration and mounts the agent endpoint based on feature flags.
+        It runs the search migration based on feature flags.
 
         Args:
             *args: All the normal arguments passed to the `OrchestratorCore` class.
@@ -75,22 +75,6 @@ class LLMOrchestratorCore(OrchestratorCore):
                 logger.error(
                     "Unable to run search migration. Please install search dependencies: "
                     "`pip install orchestrator-core[search]`",
-                    error=str(e),
-                )
-                raise
-
-        # Mount agent endpoint if agent is enabled
-        if self.llm_settings.AGENT_ENABLED:
-            logger.info("Initializing agent features", model=self.agent_model)
-            try:
-                from orchestrator.search.agent import build_agent_router
-
-                agent_app = build_agent_router(self.agent_model, self.agent_tools)
-                self.mount("/agent", agent_app)
-            except ImportError as e:
-                logger.error(
-                    "Unable to initialize agent features. Please install agent dependencies: "
-                    "`pip install orchestrator-core[agent]`",
                     error=str(e),
                 )
                 raise

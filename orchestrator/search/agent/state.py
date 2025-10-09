@@ -12,11 +12,13 @@
 # limitations under the License.
 
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class SearchState(BaseModel):
+    run_id: UUID | None = None
     parameters: dict[str, Any] | None = None
     results: list[dict[str, Any]] = Field(default_factory=list)
     export_data: dict[str, Any] | None = None

@@ -14,13 +14,11 @@
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
-from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
+from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.agent import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import FunctionToolset
-from starlette.responses import Response
 
 from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic_instructions
 from orchestrator.search.agent.state import SearchState
@@ -29,35 +27,32 @@ from orchestrator.search.agent.tools import search_toolset
 logger = structlog.get_logger(__name__)
 
 
-def build_agent_router(model: str | OpenAIModel, toolsets: list[FunctionToolset[Any]] | None = None) -> APIRouter:
-    router = APIRouter()
+def build_agent_instance(
+    model: str | OpenAIModel, agent_tools: list[FunctionToolset[Any]] | None = None
+) -> Agent[StateDeps[SearchState], str]:
+    """Build and configure the search agent instance.
 
-    try:
-        toolsets = toolsets + [search_toolset] if toolsets else [search_toolset]
+    Args:
+        model: The LLM model to use (string or OpenAIModel instance)
+        agent_tools: Optional list of additional toolsets to include
 
-        agent = Agent(
-            model=model,
-            deps_type=StateDeps[SearchState],
-            model_settings=ModelSettings(
-                parallel_tool_calls=False,
-            ),  # https://github.com/pydantic/pydantic-ai/issues/562
-            toolsets=toolsets,
-        )
-        agent.instructions(get_base_instructions)
-        agent.instructions(get_dynamic_instructions)
+    Returns:
+        Configured Agent instance with StateDeps[SearchState] dependencies
 
-        @router.post("/")
-        async def agent_endpoint(request: Request) -> Response:
-            initial_state = SearchState()
-            return await handle_ag_ui_request(agent, request, deps=StateDeps(initial_state))
+    Raises:
+        Exception: If agent initialization fails
+    """
+    toolsets = agent_tools + [search_toolset] if agent_tools else [search_toolset]
 
-        return router
-    except Exception as e:
-        logger.error("Agent init failed; serving disabled stub.", error=str(e))
-        error_msg = f"Agent disabled: {str(e)}"
+    agent = Agent(
+        model=model,
+        deps_type=StateDeps[SearchState],
+        model_settings=ModelSettings(
+            parallel_tool_calls=False,
+        ),  # https://github.com/pydantic/pydantic-ai/issues/562
+        toolsets=toolsets,
+    )
+    agent.instructions(get_base_instructions)
+    agent.instructions(get_dynamic_instructions)
 
-        @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
-        async def _disabled(path: str) -> None:
-            raise HTTPException(status_code=503, detail=error_msg)
-
-        return router
+    return agent

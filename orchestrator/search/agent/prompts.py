@@ -60,9 +60,9 @@ async def get_base_instructions() -> str:
         4.  **Report**: Answer the users' question directly and summarize when appropiate.
         5.  **Export (if requested)**: If the user asks to export, download, or save results as CSV/file:
             - **IMPORTANT**: Export is ONLY available for SELECT actions (not COUNT or AGGREGATE)
-            - Call `prepare_export` to generate an export token
-            - The UI will automatically display a download button - you don't need to mention URLs or tokens
-            - Simply confirm to the user that the export is ready
+            - Call `prepare_export` to save the query and generate a download URL
+            - The UI will automatically display a download button - you don't need to mention URLs or IDs
+            - Simply confirm to the user that the export is ready for download
 
         ---
         ### 4. Critical Rules

@@ -14,6 +14,7 @@
 import uuid
 from typing import Any, Literal
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.search.core.types import ActionType, EntityType
@@ -33,14 +34,13 @@ class BaseSearchParameters(BaseModel):
     )
 
     limit: int = Field(default=10, ge=1, le=30, description="Maximum number of search results to return.")
+    export_limit: int = Field(default=1000, ge=1, le=10000, description="Maximum number of results to export.")
     model_config = ConfigDict(extra="forbid")
 
     @classmethod
     def create(cls, entity_type: EntityType, **kwargs: Any) -> "BaseSearchParameters":
-        try:
-            return PARAMETER_REGISTRY[entity_type](entity_type=entity_type, **kwargs)
-        except KeyError:
-            raise ValueError(f"No search parameter class found for entity type: {entity_type.value}")
+        """Create the correct search parameter subclass instance."""
+        return cls.model_validate({"entity_type": entity_type, **kwargs})
 
     @property
     def vector_query(self) -> str | None:
@@ -121,9 +121,19 @@ class ProcessSearchParameters(BaseSearchParameters):
     )
 
 
-PARAMETER_REGISTRY: dict[EntityType, type[BaseSearchParameters]] = {
-    EntityType.SUBSCRIPTION: SubscriptionSearchParameters,
-    EntityType.PRODUCT: ProductSearchParameters,
-    EntityType.WORKFLOW: WorkflowSearchParameters,
-    EntityType.PROCESS: ProcessSearchParameters,
-}
+SearchParameters = (
+    SubscriptionSearchParameters | ProductSearchParameters | WorkflowSearchParameters | ProcessSearchParameters
+)
+
+
+class AgentQueryState(BaseModel):
+    """Complete state of an agent query including parameters and embedding.
+
+    This model combines the search parameters with the query embedding,
+    providing a complete snapshot of what was searched and how.
+    """
+
+    parameters: SearchParameters = Field(discriminator="entity_type")
+    query_embedding: np.ndarray | None = Field(default=None, description="The embedding vector for semantic search")
+
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
