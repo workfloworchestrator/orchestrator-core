@@ -16,7 +16,6 @@ from typing import Any
 from more_itertools.more import one
 from more_itertools.recipes import first_true
 from pydantic import ValidationError
-from pydantic_forms.types import State
 from sqlalchemy import not_, select
 from sqlalchemy.orm import joinedload
 
@@ -31,6 +30,7 @@ from orchestrator.targets import Target
 from orchestrator.utils.errors import ProcessFailureError
 from orchestrator.utils.fixed_inputs import fixed_input_configuration as fi_configuration
 from orchestrator.workflow import StepList, done, init, step, workflow
+from pydantic_forms.types import State
 
 # Since these errors are probably programming failures we should not throw AssertionErrors
 
