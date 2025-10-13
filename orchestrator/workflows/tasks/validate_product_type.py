@@ -16,7 +16,7 @@ from typing import Any
 import structlog
 
 from orchestrator.db import ProductTable
-from orchestrator.forms import FormPage
+from orchestrator.forms import SubmitFormPage
 from orchestrator.forms.validators import Choice
 from orchestrator.services.subscriptions import (
     get_subscriptions_on_product_table_in_sync,
@@ -32,7 +32,7 @@ from pydantic_forms.types import FormGenerator, State
 logger = structlog.get_logger(__name__)
 
 
-def create_select_product_type_form() -> type[FormPage]:
+def create_select_product_type_form() -> type[SubmitFormPage]:
     """Get and create the choices form for the product type."""
 
     @cache
@@ -41,7 +41,7 @@ def create_select_product_type_form() -> type[FormPage]:
 
     ProductTypeChoices = Choice.__call__("Product Type", get_product_type_choices())
 
-    class SelectProductTypeForm(FormPage):
+    class SelectProductTypeForm(SubmitFormPage):
         product_type: ProductTypeChoices  # type: ignore
 
     return SelectProductTypeForm
