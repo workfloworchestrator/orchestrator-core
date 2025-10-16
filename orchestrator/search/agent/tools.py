@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
@@ -25,33 +24,17 @@ from pydantic_ai.toolsets import FunctionToolset
 from orchestrator.api.api_v1.endpoints.search import (
     get_definitions,
     list_paths,
-    search_processes,
-    search_products,
-    search_subscriptions,
-    search_workflows,
 )
-from orchestrator.schemas.search import SearchResultsSchema
+from orchestrator.db import AgentRunTable, SearchQueryTable, db
+from orchestrator.search.agent.state import ExportData, SearchResultsData, SearchState
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
 from orchestrator.search.retrieval.validation import validate_filter_tree
-from orchestrator.search.schemas.parameters import BaseSearchParameters
-
-from .state import SearchState
+from orchestrator.search.schemas.parameters import BaseSearchParameters, SearchQueryState
+from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
-
-
-P = TypeVar("P", bound=BaseSearchParameters)
-
-SearchFn = Callable[[P], Awaitable[SearchResultsSchema[Any]]]
-
-SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
-    EntityType.SUBSCRIPTION: search_subscriptions,
-    EntityType.WORKFLOW: search_workflows,
-    EntityType.PRODUCT: search_products,
-    EntityType.PROCESS: search_processes,
-}
 
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
@@ -89,7 +72,7 @@ async def set_search_parameters(
     )
 
     ctx.deps.state.parameters = {"action": action, "entity_type": entity_type, "filters": None, "query": final_query}
-    ctx.deps.state.results = []
+    ctx.deps.state.results_data = None
     logger.debug("Search parameters set", parameters=ctx.deps.state.parameters)
 
     return StateSnapshotEvent(
@@ -145,7 +128,7 @@ async def execute_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
 ) -> StateSnapshotEvent:
-    """Execute the search with the current parameters."""
+    """Execute the search with the current parameters and save to database."""
     if not ctx.deps.state.parameters:
         raise ValueError("No search parameters set")
 
@@ -164,15 +147,46 @@ async def execute_search(
 
     params.limit = limit
 
-    fn = SEARCH_FN_MAP[params.entity_type]
-    search_results = await fn(params)
+    if not ctx.deps.state.run_id:
+        agent_run = AgentRunTable(agent_type="search")
+        db.session.add(agent_run)
+        db.session.commit()
+        ctx.deps.state.run_id = agent_run.run_id
+        logger.debug("Created new agent run", run_id=str(agent_run.run_id))
+
+    # Get query with embedding and save to DB
+    from orchestrator.search.retrieval.engine import execute_search
+
+    search_response = await execute_search(params, db.session)
+    query_embedding = search_response.query_embedding
+    query_state = SearchQueryState(parameters=params, query_embedding=query_embedding)
+    query_number = db.session.query(SearchQueryTable).filter_by(run_id=ctx.deps.state.run_id).count() + 1
+    search_query = SearchQueryTable.from_state(
+        state=query_state,
+        run_id=ctx.deps.state.run_id,
+        query_number=query_number,
+    )
+    db.session.add(search_query)
+    db.session.commit()
+    ctx.deps.state.query_id = search_query.query_id
+    logger.debug("Saved search query", query_id=str(search_query.query_id), query_number=query_number)
 
     logger.debug(
         "Search completed",
-        total_results=len(search_results.data) if search_results.data else 0,
+        total_results=len(search_response.results),
     )
 
-    ctx.deps.state.results = search_results.data
+    # Store results metadata for frontend display
+    # Frontend may call search endpoints with query_id parameter
+    entity_type = params.entity_type.value
+    results_url = f"{app_settings.BASE_URL}/api/search/{entity_type}s?query_id={ctx.deps.state.query_id}"
+
+    ctx.deps.state.results_data = SearchResultsData(
+        query_id=str(ctx.deps.state.query_id),
+        results_url=results_url,
+        total_count=len(search_response.results),
+        message=f"Found {len(search_response.results)} results.",
+    )
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
@@ -258,9 +272,12 @@ async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
     max_results: int = 1000,
 ) -> StateSnapshotEvent:
-    """Saves the current search query to the database and returns run_id/query_id for export."""
+    """Prepares export URL using the last executed search query."""
+    if not ctx.deps.state.query_id or not ctx.deps.state.run_id:
+        raise ValueError("No search has been executed yet. Run a search first before exporting.")
+
     if not ctx.deps.state.parameters:
-        raise ValueError("No search parameters set. Run a search first to see what will be exported.")
+        raise ValueError("No search parameters found. Run a search first before exporting.")
 
     # Validate that export is only available for SELECT actions
     action = ctx.deps.state.parameters.get("action", ActionType.SELECT)
@@ -270,54 +287,33 @@ async def prepare_export(
             "Please run a SELECT search first."
         )
 
-    from orchestrator.db import AgentQueryTable, AgentRunTable, db
+    # Retrieve the saved query to update export_limit if needed
+    agent_query = db.session.query(SearchQueryTable).filter_by(query_id=ctx.deps.state.query_id).first()
+    if not agent_query:
+        raise ValueError("Query not found in database")
 
-    # Ensure we have a run_id
-    if not ctx.deps.state.run_id:
-        # Create a new agent run
-        agent_run = AgentRunTable(agent_type="search")
-        db.session.add(agent_run)
-        db.session.commit()
-        db.session.refresh(agent_run)
-        ctx.deps.state.run_id = agent_run.run_id
-        logger.debug("Created new agent run", run_id=str(agent_run.run_id))
+    export_limit = min(max_results, BaseSearchParameters.DEFAULT_EXPORT_LIMIT)
 
-    query_number = db.session.query(AgentQueryTable).filter_by(run_id=ctx.deps.state.run_id).count() + 1
-
-    export_limit = min(max_results, BaseSearchParameters.export_limit)
-    params_dict = ctx.deps.state.parameters.copy()
+    # Update the parameters with export_limit
+    params_dict = agent_query.parameters.copy()
     params_dict["export_limit"] = export_limit
-
-    agent_query = AgentQueryTable(
-        run_id=ctx.deps.state.run_id,
-        query_number=query_number,
-        parameters=params_dict,
-        query_embedding=None,  # TODO: We need to save the embeddding here.
-    )
-    db.session.add(agent_query)
+    agent_query.parameters = params_dict
     db.session.commit()
-    db.session.refresh(agent_query)
 
     logger.debug(
-        "Saved query for export",
-        run_id=str(ctx.deps.state.run_id),
-        query_id=str(agent_query.query_id),
-        query_number=query_number,
+        "Prepared query for export",
+        query_id=str(ctx.deps.state.query_id),
+        export_limit=export_limit,
     )
 
-    # Build export URL using run_id and query_id
-    base_url = ctx.deps.state.base_url or "http://localhost:8080"
-    download_url = f"{base_url}/api/agent/runs/{ctx.deps.state.run_id}/queries/{agent_query.query_id}/export"
+    download_url = f"{app_settings.BASE_URL}/api/agent/queries/{ctx.deps.state.query_id}/export"
 
-    # Update state with export data so frontend can render the download button
-    ctx.deps.state.export_data = {
-        "action": "export",
-        "run_id": str(ctx.deps.state.run_id),
-        "query_id": str(agent_query.query_id),
-        "download_url": download_url,
-        "message": f"Export ready for download (up to {export_limit} results).",
-    }
+    ctx.deps.state.export_data = ExportData(
+        query_id=str(ctx.deps.state.query_id),
+        download_url=download_url,
+        message=f"Export ready for download (up to {export_limit} results).",
+    )
 
-    logger.debug("Export data set in state", export_data=ctx.deps.state.export_data)
+    logger.debug("Export data set in state", export_data=ctx.deps.state.export_data.model_dump())
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())

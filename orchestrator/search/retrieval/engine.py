@@ -74,9 +74,15 @@ def _format_response(
             # Structured search (filter-only)
             matching_field = _extract_matching_field_from_filters(search_params.filters)
 
+        entity_title = row.get("entity_title", "")
+        if not isinstance(entity_title, str):
+            entity_title = str(entity_title) if entity_title is not None else ""
+
         results.append(
             SearchResult(
                 entity_id=str(row.entity_id),
+                entity_type=search_params.entity_type,
+                title=entity_title,
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,
@@ -125,7 +131,7 @@ async def _execute_search_internal(
         pagination_params: Optional pagination parameters.
 
     Returns:
-        SearchResponse with results, or empty response if no search criteria provided.
+        SearchResponse with results and embedding (for internal use).
     """
     if not search_params.vector_query and not search_params.filters and not search_params.fuzzy_term:
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
@@ -134,6 +140,15 @@ async def _execute_search_internal(
     candidate_query = build_candidate_query(search_params)
 
     pagination_params = pagination_params or PaginationParams()
+
+    if search_params.vector_query and not pagination_params.q_vec_override:
+        from orchestrator.search.core.embedding import QueryEmbedder
+
+        q_vec = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
+        if q_vec:
+            pagination_params.q_vec_override = q_vec
+            logger.debug("Generated embedding for vector query")
+
     retriever = await Retriever.from_params(search_params, pagination_params)
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
@@ -142,7 +157,10 @@ async def _execute_search_internal(
     logger.debug(final_stmt)
     result = db_session.execute(final_stmt).mappings().all()
 
-    return _format_response(result, search_params, retriever.metadata)
+    response = _format_response(result, search_params, retriever.metadata)
+    # Store embedding in response for agent to save to DB
+    response.query_embedding = pagination_params.q_vec_override
+    return response
 
 
 async def execute_search(

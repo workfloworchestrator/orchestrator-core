@@ -13,7 +13,7 @@
 
 from sqlalchemy import Select, literal, select
 
-from orchestrator.search.core.types import SearchMetadata
+from orchestrator.search.core.types import EntityType, SearchMetadata
 
 from ..pagination import PaginationParams
 from .base import Retriever
@@ -22,12 +22,13 @@ from .base import Retriever
 class StructuredRetriever(Retriever):
     """Applies a dummy score for purely structured searches with no text query."""
 
-    def __init__(self, pagination_params: PaginationParams) -> None:
+    def __init__(self, pagination_params: PaginationParams, entity_type: EntityType) -> None:
         self.page_after_id = pagination_params.page_after_id
+        self.entity_type = entity_type
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
-        stmt = select(cand.c.entity_id, literal(1.0).label("score")).select_from(cand)
+        stmt = select(cand.c.entity_id, cand.c.entity_title, literal(1.0).label("score")).select_from(cand)
 
         if self.page_after_id:
             stmt = stmt.where(cand.c.entity_id > self.page_after_id)

@@ -16,6 +16,7 @@ from typing import Sequence
 
 from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.engine import Row
+from sqlalchemy_utils import Ltree
 
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import EntityType, FieldType, FilterOp, UIType
@@ -43,7 +44,36 @@ def build_candidate_query(params: BaseSearchParameters) -> Select:
         Select: The SQLAlchemy `Select` object representing the query.
     """
 
-    stmt = select(AiSearchIndex.entity_id).where(AiSearchIndex.entity_type == params.entity_type.value).distinct()
+    # Define title paths based on entity type
+    title_path_map = {
+        EntityType.SUBSCRIPTION: "subscription.description",
+        EntityType.PRODUCT: "product.description",
+        EntityType.WORKFLOW: "workflow.description",
+        EntityType.PROCESS: "process.workflowName",
+    }
+
+    title_path = title_path_map.get(params.entity_type)
+
+    # Subquery to get title value for each entity
+    title_subquery = (
+        select(
+            AiSearchIndex.entity_id.label("title_entity_id"),
+            AiSearchIndex.value.label("entity_title"),
+        )
+        .where(
+            AiSearchIndex.entity_type == params.entity_type.value,
+            AiSearchIndex.path == Ltree(title_path),
+        )
+        .subquery()
+    )
+
+    stmt = (
+        select(AiSearchIndex.entity_id, title_subquery.c.entity_title)
+        .select_from(AiSearchIndex)
+        .outerjoin(title_subquery, AiSearchIndex.entity_id == title_subquery.c.title_entity_id)
+        .where(AiSearchIndex.entity_type == params.entity_type.value)
+        .distinct()
+    )
 
     if params.filters is not None:
         entity_id_col = AiSearchIndex.entity_id

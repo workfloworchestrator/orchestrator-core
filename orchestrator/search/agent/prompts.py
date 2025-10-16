@@ -79,7 +79,7 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     """Dynamically provides 'next step' coaching based on the current state."""
     state = ctx.deps.state
     param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
-    results_count = len(state.results) if state.results else 0
+    results_count = state.results_data.total_count if state.results_data else 0
 
     next_step_guidance = ""
     if not state.parameters or not state.parameters.get("entity_type"):

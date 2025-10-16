@@ -15,7 +15,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from orchestrator.search.core.types import FilterOp, SearchMetadata, UIType
+from orchestrator.search.core.types import EntityType, FilterOp, SearchMetadata, UIType
 
 
 class MatchingField(BaseModel):
@@ -30,6 +30,8 @@ class SearchResult(BaseModel):
     """Represents a single search result item."""
 
     entity_id: str
+    entity_type: EntityType
+    title: str
     score: float
     perfect_match: int = 0
     matching_field: MatchingField | None = None
@@ -40,6 +42,7 @@ class SearchResponse(BaseModel):
 
     results: list[SearchResult]
     metadata: SearchMetadata
+    query_embedding: list[float] | None = None
 
 
 class ValueSchema(BaseModel):
