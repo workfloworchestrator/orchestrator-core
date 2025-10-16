@@ -15,9 +15,11 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import BindParameter, Numeric, Select, literal
+from sqlalchemy import BindParameter, Numeric, Select, literal, select
+from sqlalchemy_utils import Ltree
 
-from orchestrator.search.core.types import FieldType, SearchMetadata
+from orchestrator.db.models import AiSearchIndex
+from orchestrator.search.core.types import EntityType, FieldType, SearchMetadata
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 
 from ..pagination import PaginationParams
@@ -70,33 +72,28 @@ class Retriever(ABC):
             fallback_fuzzy_term = params.query
 
         if q_vec is not None and fallback_fuzzy_term is not None:
-            return RrfHybridRetriever(q_vec, fallback_fuzzy_term, pagination_params)
+            return RrfHybridRetriever(q_vec, fallback_fuzzy_term, pagination_params, params.entity_type)
         if q_vec is not None:
-            return SemanticRetriever(q_vec, pagination_params)
+            return SemanticRetriever(q_vec, pagination_params, params.entity_type)
         if fallback_fuzzy_term is not None:
-            return FuzzyRetriever(fallback_fuzzy_term, pagination_params)
+            return FuzzyRetriever(fallback_fuzzy_term, pagination_params, params.entity_type)
 
-        return StructuredRetriever(pagination_params)
+        return StructuredRetriever(pagination_params, params.entity_type)
 
     @classmethod
     async def _get_query_vector(
         cls, vector_query: str | None, q_vec_override: list[float] | None
     ) -> list[float] | None:
-        """Get query vector either from override or by generating from text."""
+        """Get query vector from override (provided by engine.py)."""
         if q_vec_override:
             return q_vec_override
 
-        if not vector_query:
-            return None
+        if vector_query:
+            logger.warning(
+                "vector_query present but no q_vec_override provided - embedding should be generated in engine.py"
+            )
 
-        from orchestrator.search.core.embedding import QueryEmbedder
-
-        q_vec = await QueryEmbedder.generate_for_text_async(vector_query)
-        if not q_vec:
-            logger.warning("Embedding generation failed; using non-semantic retriever")
-            return None
-
-        return q_vec
+        return None
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:
@@ -115,6 +112,53 @@ class Retriever(ABC):
         quantizer = Decimal(1).scaleb(-self.SCORE_PRECISION)
         pas_dec = Decimal(str(score_value)).quantize(quantizer)
         return literal(pas_dec, type_=self.SCORE_NUMERIC_TYPE)
+
+    @staticmethod
+    def add_title_to_query(stmt: Select, entity_type: EntityType) -> Select:
+        """Add title column to a query by joining with the index table."""
+        # Define title paths based on entity type
+        title_path_map = {
+            EntityType.SUBSCRIPTION: "subscription.description",
+            EntityType.PRODUCT: "product.description",
+            EntityType.WORKFLOW: "workflow.description",
+            EntityType.PROCESS: "process.workflowName",
+        }
+
+        title_path = title_path_map.get(entity_type)
+        if not title_path:
+            # If no title path defined, return original statement
+            return stmt
+
+        # Create subquery from the original statement
+        ranked = stmt.subquery("ranked")
+
+        # Subquery to get title value for each entity
+        # Use a distinct label to avoid any column name conflicts
+        title_subquery = (
+            select(
+                AiSearchIndex.entity_id.label("title_entity_id"),
+                AiSearchIndex.value.label("entity_title"),
+            )
+            .where(
+                AiSearchIndex.entity_type == entity_type.value,
+                AiSearchIndex.path == Ltree(title_path),
+            )
+            .subquery("titles")
+        )
+
+        # Build explicit column list to preserve order
+        columns = [ranked.c.entity_id, title_subquery.c.entity_title]
+
+        # Add remaining columns in their original order
+        for col in ranked.c:
+            if col.name != "entity_id":
+                columns.append(col)
+
+        return (
+            select(*columns)
+            .select_from(ranked)
+            .outerjoin(title_subquery, ranked.c.entity_id == title_subquery.c.title_entity_id)
+        )
 
     @property
     @abstractmethod

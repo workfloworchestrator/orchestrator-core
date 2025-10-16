@@ -12,10 +12,9 @@
 # limitations under the License.
 
 import uuid
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterTree
@@ -23,6 +22,9 @@ from orchestrator.search.filters import FilterTree
 
 class BaseSearchParameters(BaseModel):
     """Base model with common search parameters."""
+
+    DEFAULT_EXPORT_LIMIT: ClassVar[int] = 1000
+    MAX_EXPORT_LIMIT: ClassVar[int] = 10000
 
     action: ActionType = Field(default=ActionType.SELECT, description="The action to perform.")
     entity_type: EntityType
@@ -34,13 +36,18 @@ class BaseSearchParameters(BaseModel):
     )
 
     limit: int = Field(default=10, ge=1, le=30, description="Maximum number of search results to return.")
-    export_limit: int = Field(default=1000, ge=1, le=10000, description="Maximum number of results to export.")
+    export_limit: int = Field(
+        default=DEFAULT_EXPORT_LIMIT, ge=1, le=MAX_EXPORT_LIMIT, description="Maximum number of results to export."
+    )
     model_config = ConfigDict(extra="forbid")
 
     @classmethod
-    def create(cls, entity_type: EntityType, **kwargs: Any) -> "BaseSearchParameters":
-        """Create the correct search parameter subclass instance."""
-        return cls.model_validate({"entity_type": entity_type, **kwargs})
+    def create(cls, **kwargs: Any) -> "SearchParameters":
+        """Create the correct search parameter subclass instance based on entity_type."""
+        from orchestrator.search.schemas.parameters import SearchParameters
+
+        adapter: TypeAdapter = TypeAdapter(SearchParameters)
+        return adapter.validate_python(kwargs)
 
     @property
     def vector_query(self) -> str | None:
@@ -126,14 +133,15 @@ SearchParameters = (
 )
 
 
-class AgentQueryState(BaseModel):
-    """Complete state of an agent query including parameters and embedding.
+class SearchQueryState(BaseModel):
+    """Complete state of a search query including parameters and embedding.
 
     This model combines the search parameters with the query embedding,
     providing a complete snapshot of what was searched and how.
+    Used for both agent and regular API searches.
     """
 
     parameters: SearchParameters = Field(discriminator="entity_type")
-    query_embedding: np.ndarray | None = Field(default=None, description="The embedding vector for semantic search")
+    query_embedding: list[float] | None = Field(default=None, description="The embedding vector for semantic search")
 
-    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(from_attributes=True)

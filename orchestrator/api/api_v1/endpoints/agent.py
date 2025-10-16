@@ -12,15 +12,15 @@
 # limitations under the License.
 
 from functools import cache
-from structlog import get_logger
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
 from pydantic_ai.agent import Agent
 from starlette.responses import Response
+from structlog import get_logger
 
-from orchestrator.db import AgentQueryTable, db
+from orchestrator.db import SearchQueryTable, db
 from orchestrator.llm_settings import llm_settings
 from orchestrator.search.agent import build_agent_instance
 from orchestrator.search.agent.state import SearchState
@@ -53,24 +53,21 @@ async def agent_conversation(
 
 
 @router.get(
-    "/runs/{run_id}/queries/{query_id}/export",
-    summary="Export query results by run_id and query_id",
+    "/queries/{query_id}/export",
+    summary="Export query results by query_id",
     response_model=dict[str, Any],
 )
-async def export_by_query_id(run_id: str, query_id: str) -> dict[str, Any]:
-    """Export search results using run_id and query_id.
+async def export_by_query_id(query_id: str) -> dict[str, Any]:
+    """Export search results using query_id.
 
     The query is retrieved from the database, re-executed, and results are returned
     as flattened records suitable for CSV download.
 
     Args:
-        run_id: Agent run UUID
         query_id: Query UUID
 
     Returns:
         Dictionary containing 'page' with an array of flattened entity records.
-        Each record contains snake_case field names from the database with nested
-        relationships flattened (e.g., product_name instead of product.name).
 
     Raises:
         HTTPException: 404 if query not found, 400 if invalid data
@@ -81,30 +78,27 @@ async def export_by_query_id(run_id: str, query_id: str) -> dict[str, Any]:
 
     try:
         query_uuid = UUID(query_id)
-        run_uuid = UUID(run_id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid run_id or query_id format",
+            detail="Invalid query_id format",
         )
 
-    agent_query = db.session.query(AgentQueryTable).filter_by(query_id=query_uuid, run_id=run_uuid).first()
+    agent_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
 
     if not agent_query:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Query {query_id} not found in run {run_id}",
+            detail=f"Query {query_id} not found",
         )
     try:
         from orchestrator.search.retrieval.pagination import PaginationParams
 
         # Get the full query state including the embedding that was used
-        query_state = agent_query.get_state()
+        query_state = agent_query.to_state()
 
         # Create pagination params with the saved embedding to ensure consistent results
-        pagination_params = PaginationParams(
-            q_vec_override=query_state.query_embedding.tolist() if query_state.query_embedding is not None else None
-        )
+        pagination_params = PaginationParams(q_vec_override=query_state.query_embedding)
 
         search_response = await execute_search_for_export(query_state.parameters, db.session, pagination_params)
         entity_ids = [res.entity_id for res in search_response.results]
