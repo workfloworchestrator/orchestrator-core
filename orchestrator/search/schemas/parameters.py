@@ -131,17 +131,3 @@ class ProcessSearchParameters(BaseSearchParameters):
 SearchParameters = (
     SubscriptionSearchParameters | ProductSearchParameters | WorkflowSearchParameters | ProcessSearchParameters
 )
-
-
-class SearchQueryState(BaseModel):
-    """Complete state of a search query including parameters and embedding.
-
-    This model combines the search parameters with the query embedding,
-    providing a complete snapshot of what was searched and how.
-    Used for both agent and regular API searches.
-    """
-
-    parameters: SearchParameters = Field(discriminator="entity_type")
-    query_embedding: list[float] | None = Field(default=None, description="The embedding vector for semantic search")
-
-    model_config = ConfigDict(from_attributes=True)

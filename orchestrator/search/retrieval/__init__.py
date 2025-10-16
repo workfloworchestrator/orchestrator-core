@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .engine import execute_search, execute_search_for_export, get_query_state
+from .engine import execute_search, execute_search_for_export
+from .query_state import SearchQueryState
 
-__all__ = ["execute_search", "execute_search_for_export", "get_query_state"]
+__all__ = ["execute_search", "execute_search_for_export", "SearchQueryState"]
