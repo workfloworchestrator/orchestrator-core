@@ -16,6 +16,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from orchestrator.search.schemas.results import SearchResult
+
 
 class ExportData(BaseModel):
     """Export metadata for download."""
@@ -27,13 +29,14 @@ class ExportData(BaseModel):
 
 
 class SearchResultsData(BaseModel):
-    """Search results metadata for frontend display."""
+    """Search results data for frontend display and agent context."""
 
     action: str = "view_results"
     query_id: str
     results_url: str
     total_count: int
     message: str
+    results: list[SearchResult] = []
 
 
 class SearchState(BaseModel):
