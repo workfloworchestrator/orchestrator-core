@@ -54,17 +54,19 @@ async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[
 async def run_single_query(query: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
     search_params = BaseSearchParameters(entity_type=EntityType.SUBSCRIPTION, query=query, limit=30)
 
+    pagination_params = PaginationParams()
+    query_embedding = None
+
     if is_uuid(query):
-        pagination_params = PaginationParams()
         logger.debug("Using fuzzy-only ranking for full UUID", query=query)
     else:
-
-        cached_embedding = embedding_lookup[query]
-        pagination_params = PaginationParams(q_vec_override=cached_embedding)
+        query_embedding = embedding_lookup[query]
 
     with db.session as session:
         start_time = time.perf_counter()
-        response = await execute_search(search_params, session, pagination_params=pagination_params)
+        response = await execute_search(
+            search_params, session, pagination_params=pagination_params, query_embedding=query_embedding
+        )
         end_time = time.perf_counter()
 
         return {

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from functools import cache
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
@@ -20,13 +20,13 @@ from pydantic_ai.agent import Agent
 from starlette.responses import Response
 from structlog import get_logger
 
-from orchestrator.db import SearchQueryTable, db
+from orchestrator.db import db
 from orchestrator.llm_settings import llm_settings
 from orchestrator.schemas.search import ExportResponse
 from orchestrator.search.agent import build_agent_instance
 from orchestrator.search.agent.state import SearchState
-from orchestrator.search.retrieval import execute_search_for_export
-from orchestrator.search.retrieval.pagination import PaginationParams
+from orchestrator.search.core.exceptions import QueryStateNotFoundError
+from orchestrator.search.retrieval import execute_search_for_export, get_query_state
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -74,40 +74,15 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
     Raises:
         HTTPException: 404 if query not found, 400 if invalid data
     """
-    from uuid import UUID
-
-    from orchestrator.search.export import fetch_export_data
-
     try:
-        query_uuid = UUID(query_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid query_id format",
-        )
-
-    agent_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
-
-    if not agent_query:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Query {query_id} not found",
-        )
-    try:
-
-        # Get the full query state including the embedding that was used
-        query_state = agent_query.to_state()
-
-        # Create pagination params with the saved embedding to ensure consistent results
-        pagination_params = PaginationParams(q_vec_override=query_state.query_embedding)
-
-        search_response = await execute_search_for_export(query_state.parameters, db.session, pagination_params)
-        entity_ids = [res.entity_id for res in search_response.results]
-
-        export_records = fetch_export_data(query_state.parameters.entity_type, entity_ids)
-
+        query_state = get_query_state(query_id)
+        export_records = await execute_search_for_export(query_state, db.session)
         return ExportResponse(page=export_records)
 
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(e)
         raise HTTPException(

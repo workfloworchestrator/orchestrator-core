@@ -41,57 +41,48 @@ class Retriever(ABC):
     ]
 
     @classmethod
-    async def from_params(
+    async def route(
         cls,
         params: BaseSearchParameters,
         pagination_params: PaginationParams,
+        query_embedding: list[float] | None = None,
     ) -> "Retriever":
-        """Create the appropriate retriever instance from search parameters.
+        """Route to the appropriate retriever instance based on search parameters.
+
+        Selects the retriever type based on available search criteria:
+        - Hybrid: both embedding and fuzzy term available
+        - Semantic: only embedding available
+        - Fuzzy: only text term available (or fallback when embedding generation fails)
+        - Structured: only filters available
 
         Args:
-            params (BaseSearchParameters): Search parameters including vector queries, fuzzy terms, and filters.
-            pagination_params (PaginationParams): Pagination parameters for cursor-based paging.
+            params: Search parameters including vector queries, fuzzy terms, and filters
+            pagination_params: Pagination parameters for cursor-based paging
+            query_embedding: Query embedding for semantic search, or None if not available
 
         Returns:
-            Retriever: A concrete retriever instance (semantic, fuzzy, hybrid, or structured).
+            A concrete retriever instance based on available search criteria
         """
-
         from .fuzzy import FuzzyRetriever
         from .hybrid import RrfHybridRetriever
         from .semantic import SemanticRetriever
         from .structured import StructuredRetriever
 
         fuzzy_term = params.fuzzy_term
-        q_vec = await cls._get_query_vector(params.vector_query, pagination_params.q_vec_override)
 
-        # If semantic search was attempted but failed, fall back to fuzzy with the full query
-        fallback_fuzzy_term = fuzzy_term
-        if q_vec is None and params.vector_query is not None and params.query is not None:
-            fallback_fuzzy_term = params.query
+        # If vector_query exists but embedding generation failed, fall back to fuzzy search with full query
+        if query_embedding is None and params.vector_query is not None and params.query is not None:
+            fuzzy_term = params.query
 
-        if q_vec is not None and fallback_fuzzy_term is not None:
-            return RrfHybridRetriever(q_vec, fallback_fuzzy_term, pagination_params)
-        if q_vec is not None:
-            return SemanticRetriever(q_vec, pagination_params)
-        if fallback_fuzzy_term is not None:
-            return FuzzyRetriever(fallback_fuzzy_term, pagination_params)
+        # Select retriever based on available search criteria
+        if query_embedding is not None and fuzzy_term is not None:
+            return RrfHybridRetriever(query_embedding, fuzzy_term, pagination_params)
+        if query_embedding is not None:
+            return SemanticRetriever(query_embedding, pagination_params)
+        if fuzzy_term is not None:
+            return FuzzyRetriever(fuzzy_term, pagination_params)
 
         return StructuredRetriever(pagination_params)
-
-    @classmethod
-    async def _get_query_vector(
-        cls, vector_query: str | None, q_vec_override: list[float] | None
-    ) -> list[float] | None:
-        """Get query vector from override (provided by engine.py)."""
-        if q_vec_override:
-            return q_vec_override
-
-        if vector_query:
-            logger.warning(
-                "vector_query present but no q_vec_override provided - embedding should be generated in engine.py"
-            )
-
-        return None
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:
