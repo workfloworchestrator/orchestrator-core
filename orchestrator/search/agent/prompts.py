@@ -50,13 +50,13 @@ async def get_base_instructions() -> str:
 
         Follow these steps in strict order:
 
-        1.  **Set Context**: Always begin by calling `set_search_parameters`.
+        1.  **Set Context**: If the user is asking for a NEW search, call `start_new_search`. If the user is asking a question about EXISTING results shown in the "Current Search Results" section, skip to step 4 (Report) and answer using the data provided.
         2.  **Analyze for Filters**: Based on the user's request, decide if specific filters are necessary.
             - **If filters ARE required**, follow these sub-steps:
                 a. **Gather Intel**: Identify all needed field names, then call `discover_filter_paths` and `get_valid_operators` **once each** to get all required information.
                 b. **Construct FilterTree**: Build the `FilterTree` object.
                 c. **Set Filters**: Call `set_filter_tree`.
-        3.  **Execute**: Call `execute_search`. This is done for both filtered and non-filtered searches.
+        3.  **Execute**: Call `run_search`. This is done for both filtered and non-filtered searches.
         4.  **Report**: Answer the users' question directly and summarize when appropiate.
         5.  **Export (if requested)**: If the user asks to export, download, or save results as CSV/file:
             - **IMPORTANT**: Export is ONLY available for SELECT actions (not COUNT or AGGREGATE)
@@ -82,22 +82,31 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     results_count = state.results_data.total_count if state.results_data else 0
 
     next_step_guidance = ""
+    results_section = ""
+
     if not state.parameters or not state.parameters.get("entity_type"):
         next_step_guidance = (
-            "INSTRUCTION: The search context is not set. Your next action is to call `set_search_parameters`."
+            "INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`."
         )
     elif results_count > 0:
         next_step_guidance = (
-            f"INSTRUCTION: Search completed with {results_count} results. "
-            "You can answer the user's question with these results. "
+            f"INSTRUCTION: Search completed with {results_count} results shown below. "
+            "Answer the user's question using the actual result data provided. "
             "If the user requests an export/download, call `prepare_export`."
         )
+
+        # Include results data in the prompt
+        if state.results_data and state.results_data.results:
+            results_section = "\n\n**Current Search Results:**\n"
+            for idx, result in enumerate(state.results_data.results, 1):
+                results_section += f"{idx}. **{result.entity_title}** (ID: {result.entity_id}, Score: {result.score:.2f})\n"
     else:
         next_step_guidance = (
             "INSTRUCTION: Context is set. Now, analyze the user's request. "
             "If specific filters ARE required, use the information-gathering tools to build a `FilterTree` and call `set_filter_tree`. "
-            "If no specific filters are needed, you can proceed directly to `execute_search`."
+            "If no specific filters are needed, you can proceed directly to `run_search`."
         )
+
     return dedent(
         f"""
         ---
@@ -110,6 +119,6 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
 
         **Current Results Count:** {results_count}
 
-        **{next_step_guidance}**
+        **{next_step_guidance}**{results_section}
         """
     )

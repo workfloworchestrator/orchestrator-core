@@ -11,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 
 from orchestrator.db import db
 from orchestrator.schemas.search import (
+    ExportResponse,
     PageInfoSchema,
     PathsResponse,
     SearchResultsSchema,
@@ -22,7 +24,7 @@ from orchestrator.schemas.search import (
 from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
-from orchestrator.search.retrieval import SearchQueryState, execute_search
+from orchestrator.search.retrieval import SearchQueryState, execute_search, execute_search_for_export
 from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
 from orchestrator.search.retrieval.pagination import (
     PaginationParams,
@@ -40,6 +42,7 @@ from orchestrator.search.schemas.parameters import (
 from orchestrator.search.schemas.results import SearchResult, TypeDefinition
 
 router = APIRouter()
+logger = structlog.get_logger(__name__)
 
 
 async def _perform_search_and_fetch(
@@ -175,9 +178,45 @@ async def get_definitions() -> dict[UIType, TypeDefinition]:
     response_model=SearchResultsSchema[SearchResult],
     summary="Retrieve saved search results by query_id",
 )
-async def get_query_results(
+async def get_by_query_id(
     query_id: str,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
     """Retrieve and execute a saved search by query_id."""
     return await _perform_search_and_fetch(query_id=query_id, cursor=cursor)
+
+
+@router.get(
+    "/queries/{query_id}/export",
+    summary="Export query results by query_id",
+    response_model=ExportResponse,
+)
+async def export_by_query_id(query_id: str) -> ExportResponse:
+    """Export search results using query_id.
+
+    The query is retrieved from the database, re-executed, and results are returned
+    as flattened records suitable for CSV download.
+
+    Args:
+        query_id: Query UUID
+
+    Returns:
+        ExportResponse containing 'page' with an array of flattened entity records.
+
+    Raises:
+        HTTPException: 404 if query not found, 400 if invalid data
+    """
+    try:
+        query_state = SearchQueryState.load_from_id(query_id)
+        export_records = await execute_search_for_export(query_state, db.session)
+        return ExportResponse(page=export_records)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing export: {str(e)}",
+        )
