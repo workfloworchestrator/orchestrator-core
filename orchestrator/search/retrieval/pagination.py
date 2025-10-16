@@ -11,42 +11,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import array
 import base64
-from dataclasses import dataclass
+from uuid import UUID
 
 from pydantic import BaseModel
 
+from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.exceptions import InvalidCursorError
-from orchestrator.search.schemas.parameters import BaseSearchParameters
-from orchestrator.search.schemas.results import SearchResult
+from orchestrator.search.schemas.parameters import SearchParameters
+from orchestrator.search.schemas.results import SearchResponse
 
 
-@dataclass
-class PaginationParams:
+class PaginationParams(BaseModel):
     """Parameters for pagination in search queries."""
 
     page_after_score: float | None = None
     page_after_id: str | None = None
-    q_vec_override: list[float] | None = None
-
-
-def floats_to_b64(v: list[float]) -> str:
-    a = array.array("f", v)
-    return base64.urlsafe_b64encode(a.tobytes()).decode("ascii")
-
-
-def b64_to_floats(s: str) -> list[float]:
-    raw = base64.urlsafe_b64decode(s.encode("ascii"))
-    a = array.array("f")
-    a.frombytes(raw)
-    return list(a)
+    query_id: UUID | None = None  # None only for first page, always set when cursor exists
 
 
 class PageCursor(BaseModel):
     score: float
     id: str
-    q_vec_b64: str
+    query_id: UUID
 
     def encode(self) -> str:
         """Encode the cursor data into a URL-safe Base64 string."""
@@ -63,34 +50,65 @@ class PageCursor(BaseModel):
             raise InvalidCursorError("Invalid pagination cursor") from e
 
 
-async def process_pagination_cursor(cursor: str | None, search_params: BaseSearchParameters) -> PaginationParams:
-    """Process pagination cursor and return pagination parameters."""
-    if cursor:
-        c = PageCursor.decode(cursor)
-        return PaginationParams(
-            page_after_score=c.score,
-            page_after_id=c.id,
-            q_vec_override=b64_to_floats(c.q_vec_b64),
-        )
-    if search_params.vector_query:
-        from orchestrator.search.core.embedding import QueryEmbedder
+async def process_pagination_cursor(cursor: str) -> PaginationParams:
+    """Decode pagination cursor and extract pagination parameters.
 
-        q_vec_override = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
-        return PaginationParams(q_vec_override=q_vec_override)
-    return PaginationParams()
+    Args:
+        cursor: Base64-encoded cursor
+
+    Returns:
+        PaginationParams containing page position and query_id from the cursor
+
+    Raises:
+        InvalidCursorError: If cursor cannot be decoded
+    """
+    page_cursor = PageCursor.decode(cursor)
+    return PaginationParams(
+        page_after_score=page_cursor.score,
+        page_after_id=page_cursor.id,
+        query_id=page_cursor.query_id,
+    )
 
 
 def create_next_page_cursor(
-    search_results: list[SearchResult], pagination_params: PaginationParams, limit: int
+    search_response: SearchResponse,
+    pagination_params: PaginationParams,
+    search_params: SearchParameters,
 ) -> str | None:
-    """Create next page cursor if there are more results."""
-    has_next_page = len(search_results) == limit and limit > 0
-    if has_next_page:
-        last_item = search_results[-1]
-        cursor_data = PageCursor(
-            score=float(last_item.score),
-            id=last_item.entity_id,
-            q_vec_b64=floats_to_b64(pagination_params.q_vec_override or []),
-        )
-        return cursor_data.encode()
-    return None
+    """Create next page cursor if there are more results.
+
+    On first page, saves the query to database and includes query_id in cursor
+    for subsequent pages to ensure consistent parameters across pagination.
+
+    Args:
+        search_response: SearchResponse containing results and query_embedding
+        pagination_params: Current pagination parameters (may have query_id if not first page)
+        search_params: Search parameters to save for pagination consistency
+
+    Returns:
+        Encoded cursor for next page, or None if no more results
+    """
+    from orchestrator.search.retrieval.query_state import SearchQueryState
+
+    has_next_page = len(search_response.results) == search_params.limit and search_params.limit > 0
+    if not has_next_page:
+        return None
+
+    # If this is the first page, save query state to database
+    if not pagination_params.query_id:
+        query_state = SearchQueryState(parameters=search_params, query_embedding=search_response.query_embedding)
+        search_query = SearchQueryTable.from_state(state=query_state)
+
+        db.session.add(search_query)
+        db.session.commit()
+        query_id = search_query.query_id
+    else:
+        query_id = pagination_params.query_id
+
+    last_item = search_response.results[-1]
+    cursor_data = PageCursor(
+        score=float(last_item.score),
+        id=last_item.entity_id,
+        query_id=query_id,
+    )
+    return cursor_data.encode()

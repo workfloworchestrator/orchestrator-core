@@ -34,3 +34,9 @@ class InvalidCursorError(SearchUtilsError):
     """Raised when cursor cannot be decoded."""
 
     pass
+
+
+class QueryStateNotFoundError(SearchUtilsError):
+    """Raised when a query state cannot be found in the database."""
+
+    pass

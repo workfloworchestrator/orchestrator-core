@@ -43,7 +43,11 @@ def build_candidate_query(params: BaseSearchParameters) -> Select:
         Select: The SQLAlchemy `Select` object representing the query.
     """
 
-    stmt = select(AiSearchIndex.entity_id).where(AiSearchIndex.entity_type == params.entity_type.value).distinct()
+    stmt = (
+        select(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
+        .where(AiSearchIndex.entity_type == params.entity_type.value)
+        .distinct()
+    )
 
     if params.filters is not None:
         entity_id_col = AiSearchIndex.entity_id

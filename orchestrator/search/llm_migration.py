@@ -64,6 +64,7 @@ def run_migration(connection: Connection) -> None:
             CREATE TABLE IF NOT EXISTS {TABLE} (
                 entity_type TEXT NOT NULL,
                 entity_id UUID NOT NULL,
+                entity_title TEXT,
                 path LTREE NOT NULL,
                 value TEXT NOT NULL,
                 embedding VECTOR({TARGET_DIM}),
@@ -77,6 +78,23 @@ def run_migration(connection: Connection) -> None:
 
         # Drop default
         connection.execute(text(f"ALTER TABLE {TABLE} ALTER COLUMN value_type DROP DEFAULT;"))
+
+        # Add entity_title column if it doesn't exist (for existing installations)
+        connection.execute(
+            text(
+                f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = '{TABLE}' AND column_name = 'entity_title'
+                ) THEN
+                    ALTER TABLE {TABLE} ADD COLUMN entity_title TEXT;
+                END IF;
+            END $$;
+        """
+            )
+        )
 
         # Create indexes with IF NOT EXISTS
         connection.execute(text(f"CREATE INDEX IF NOT EXISTS ix_ai_search_index_entity_id ON {TABLE} (entity_id);"))

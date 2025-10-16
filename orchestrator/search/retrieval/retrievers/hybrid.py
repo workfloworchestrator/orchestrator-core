@@ -154,6 +154,7 @@ class RrfHybridRetriever(Retriever):
         field_candidates = (
             select(
                 AiSearchIndex.entity_id,
+                AiSearchIndex.entity_title,
                 AiSearchIndex.path,
                 AiSearchIndex.value,
                 sem_val,
@@ -178,9 +179,10 @@ class RrfHybridRetriever(Retriever):
         entity_scores = (
             select(
                 field_candidates.c.entity_id,
+                field_candidates.c.entity_title,
                 func.avg(field_candidates.c.semantic_distance).label("avg_semantic_distance"),
                 func.avg(field_candidates.c.fuzzy_score).label("avg_fuzzy_score"),
-            ).group_by(field_candidates.c.entity_id)
+            ).group_by(field_candidates.c.entity_id, field_candidates.c.entity_title)
         ).cte("entity_scores")
 
         entity_highlights = (
@@ -204,6 +206,7 @@ class RrfHybridRetriever(Retriever):
         ranked = (
             select(
                 entity_scores.c.entity_id,
+                entity_scores.c.entity_title,
                 entity_scores.c.avg_semantic_distance,
                 entity_scores.c.avg_fuzzy_score,
                 entity_highlights.c.highlight_text,
@@ -242,6 +245,7 @@ class RrfHybridRetriever(Retriever):
 
         stmt = select(
             ranked.c.entity_id,
+            ranked.c.entity_title,
             score,
             ranked.c.highlight_text,
             ranked.c.highlight_path,

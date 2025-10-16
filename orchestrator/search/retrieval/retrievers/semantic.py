@@ -49,6 +49,7 @@ class SemanticRetriever(Retriever):
         combined_query = (
             select(
                 AiSearchIndex.entity_id,
+                AiSearchIndex.entity_title,
                 score,
                 func.first_value(AiSearchIndex.value)
                 .over(partition_by=AiSearchIndex.entity_id, order_by=[dist.asc(), AiSearchIndex.path.asc()])
@@ -60,12 +61,13 @@ class SemanticRetriever(Retriever):
             .select_from(AiSearchIndex)
             .join(cand, cand.c.entity_id == AiSearchIndex.entity_id)
             .where(AiSearchIndex.embedding.isnot(None))
-            .distinct(AiSearchIndex.entity_id)
+            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
         )
         final_query = combined_query.subquery("ranked_semantic")
 
         stmt = select(
             final_query.c.entity_id,
+            final_query.c.entity_title,
             final_query.c.score,
             final_query.c.highlight_text,
             final_query.c.highlight_path,

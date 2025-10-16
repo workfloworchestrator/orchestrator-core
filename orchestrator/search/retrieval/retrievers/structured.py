@@ -27,7 +27,7 @@ class StructuredRetriever(Retriever):
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
-        stmt = select(cand.c.entity_id, literal(1.0).label("score")).select_from(cand)
+        stmt = select(cand.c.entity_id, cand.c.entity_title, literal(1.0).label("score")).select_from(cand)
 
         if self.page_after_id:
             stmt = stmt.where(cand.c.entity_id > self.page_after_id)

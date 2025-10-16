@@ -96,6 +96,7 @@ class Indexer:
         self.chunk_size = chunk_size
         self.embedding_model = llm_settings.EMBEDDING_MODEL
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
+        self._entity_titles: dict[str, str] = {}
 
     def run(self, entities: Iterable[DatabaseEntity]) -> int:
         """Orchestrates the entire indexing process."""
@@ -138,6 +139,8 @@ class Indexer:
         if not entity_chunk:
             return 0, 0
 
+        self._entity_titles.clear()
+
         fields_to_upsert, paths_to_delete, identical_count = self._determine_changes(entity_chunk, session)
 
         if paths_to_delete and session is not None:
@@ -174,12 +177,15 @@ class Indexer:
                 entity, pk_name=self.config.pk_name, root_name=self.config.root_name
             )
 
+            entity_title = self.config.get_title_from_fields(current_fields)
+            self._entity_titles[entity_id] = entity_title
+
             entity_hashes = existing_hashes.get(entity_id, {})
             current_paths = set()
 
             for field in current_fields:
                 current_paths.add(field.path)
-                current_hash = self._compute_content_hash(field.path, field.value, field.value_type)
+                current_hash = self._compute_content_hash(field.path, field.value, field.value_type, entity_title)
                 if field.path not in entity_hashes or entity_hashes[field.path] != current_hash:
                     fields_to_upsert.append((entity_id, field))
                 else:
@@ -301,21 +307,23 @@ class Indexer:
         return f"{field.path}: {str(field.value)}"
 
     @staticmethod
-    def _compute_content_hash(path: str, value: Any, value_type: Any) -> str:
+    def _compute_content_hash(path: str, value: Any, value_type: Any, entity_title: str = "") -> str:
         v = "" if value is None else str(value)
-        content = f"{path}:{v}:{value_type}"
+        content = f"{path}:{v}:{value_type}:{entity_title}"
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def _make_indexable_record(
         self, field: ExtractedField, entity_id: str, embedding: list[float] | None
     ) -> IndexableRecord:
+        entity_title = self._entity_titles[entity_id]
         return IndexableRecord(
             entity_id=entity_id,
             entity_type=self.config.entity_kind.value,
+            entity_title=entity_title,
             path=Ltree(field.path),
             value=field.value,
             value_type=field.value_type,
-            content_hash=self._compute_content_hash(field.path, field.value, field.value_type),
+            content_hash=self._compute_content_hash(field.path, field.value, field.value_type, entity_title),
             embedding=embedding if embedding else None,
         )
 
@@ -326,6 +334,7 @@ class Indexer:
         return stmt.on_conflict_do_update(
             index_elements=[AiSearchIndex.entity_id, AiSearchIndex.path],
             set_={
+                AiSearchIndex.entity_title: stmt.excluded.entity_title,
                 AiSearchIndex.value: stmt.excluded.value,
                 AiSearchIndex.value_type: stmt.excluded.value_type,
                 AiSearchIndex.content_hash: stmt.excluded.content_hash,

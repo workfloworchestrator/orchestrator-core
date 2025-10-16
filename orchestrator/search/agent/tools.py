@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
@@ -25,33 +24,19 @@ from pydantic_ai.toolsets import FunctionToolset
 from orchestrator.api.api_v1.endpoints.search import (
     get_definitions,
     list_paths,
-    search_processes,
-    search_products,
-    search_subscriptions,
-    search_workflows,
 )
-from orchestrator.schemas.search import SearchResultsSchema
+from orchestrator.db import AgentRunTable, SearchQueryTable, db
+from orchestrator.search.agent.state import ExportData, SearchResultsData, SearchState
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
+from orchestrator.search.retrieval.engine import execute_search
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
+from orchestrator.search.retrieval.query_state import SearchQueryState
 from orchestrator.search.retrieval.validation import validate_filter_tree
-from orchestrator.search.schemas.parameters import PARAMETER_REGISTRY, BaseSearchParameters
-
-from .state import SearchState
+from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
-
-
-P = TypeVar("P", bound=BaseSearchParameters)
-
-SearchFn = Callable[[P], Awaitable[SearchResultsSchema[Any]]]
-
-SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
-    EntityType.SUBSCRIPTION: search_subscriptions,
-    EntityType.WORKFLOW: search_workflows,
-    EntityType.PRODUCT: search_products,
-    EntityType.PROCESS: search_processes,
-}
 
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
@@ -65,32 +50,82 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
     return None
 
 
+def _set_parameters(
+    ctx: RunContext[StateDeps[SearchState]],
+    entity_type: EntityType,
+    action: str | ActionType,
+    query: str,
+    filters: Any | None,
+) -> None:
+    """Internal helper to set parameters."""
+    ctx.deps.state.parameters = {
+        "action": action,
+        "entity_type": entity_type,
+        "filters": filters,
+        "query": query,
+    }
+
+
+@search_toolset.tool
+async def start_new_search(
+    ctx: RunContext[StateDeps[SearchState]],
+    entity_type: EntityType,
+    action: str | ActionType = ActionType.SELECT,
+) -> StateSnapshotEvent:
+    """Starts a completely new search, clearing all previous state.
+
+    This MUST be the first tool called when the user asks for a NEW search.
+    Warning: This will erase any existing filters, results, and search state.
+    """
+    final_query = last_user_message(ctx) or ""
+
+    logger.debug(
+        "Starting new search",
+        entity_type=entity_type.value,
+        action=action,
+        query=final_query,
+    )
+
+    # Clear all state
+    ctx.deps.state.results_data = None
+    ctx.deps.state.export_data = None
+
+    # Set fresh parameters with no filters
+    _set_parameters(ctx, entity_type, action, final_query, None)
+
+    logger.debug("New search started", parameters=ctx.deps.state.parameters)
+
+    return StateSnapshotEvent(
+        type=EventType.STATE_SNAPSHOT,
+        snapshot=ctx.deps.state.model_dump(),
+    )
+
+
 @search_toolset.tool
 async def set_search_parameters(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
     action: str | ActionType = ActionType.SELECT,
 ) -> StateSnapshotEvent:
-    """Sets the initial search context, like the entity type and the user's query.
+    """Updates search parameters without clearing filters or results.
 
-    This MUST be the first tool called to start any new search.
-    Warning: Calling this tool will erase any existing filters and search results from the state.
+    Use this to modify the entity type or action while preserving existing filters.
+    For a completely new search, use start_new_search instead.
     """
     params = ctx.deps.state.parameters or {}
-    is_new_search = params.get("entity_type") != entity_type.value
-    final_query = (last_user_message(ctx) or "") if is_new_search else params.get("query", "")
+    existing_filters = params.get("filters")
+    existing_query = params.get("query", "")
 
     logger.debug(
-        "Setting search parameters",
+        "Updating search parameters",
         entity_type=entity_type.value,
         action=action,
-        is_new_search=is_new_search,
-        query=final_query,
+        preserving_filters=existing_filters is not None,
     )
 
-    ctx.deps.state.parameters = {"action": action, "entity_type": entity_type, "filters": None, "query": final_query}
-    ctx.deps.state.results = []
-    logger.debug("Search parameters set", parameters=ctx.deps.state.parameters)
+    _set_parameters(ctx, entity_type, action, existing_query, existing_filters)
+
+    logger.debug("Search parameters updated", parameters=ctx.deps.state.parameters)
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -141,23 +176,18 @@ async def set_filter_tree(
 
 
 @search_toolset.tool
-async def execute_search(
+async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
 ) -> StateSnapshotEvent:
-    """Execute the search with the current parameters."""
+    """Execute the search with the current parameters and save to database."""
     if not ctx.deps.state.parameters:
         raise ValueError("No search parameters set")
 
-    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
-    param_class = PARAMETER_REGISTRY.get(entity_type)
-    if not param_class:
-        raise ValueError(f"Unknown entity type: {entity_type}")
-
-    params = param_class(**ctx.deps.state.parameters)
+    params = BaseSearchParameters.create(**ctx.deps.state.parameters)
     logger.debug(
         "Executing database search",
-        search_entity_type=entity_type.value,
+        search_entity_type=params.entity_type.value,
         limit=limit,
         has_filters=params.filters is not None,
         query=params.query,
@@ -169,15 +199,43 @@ async def execute_search(
 
     params.limit = limit
 
-    fn = SEARCH_FN_MAP[entity_type]
-    search_results = await fn(params)
+    if not ctx.deps.state.run_id:
+        agent_run = AgentRunTable(agent_type="search")
+        db.session.add(agent_run)
+        db.session.commit()
+        ctx.deps.state.run_id = agent_run.run_id
+        logger.debug("Created new agent run", run_id=str(agent_run.run_id))
+
+    # Get query with embedding and save to DB
+    search_response = await execute_search(params, db.session)
+    query_embedding = search_response.query_embedding
+    query_state = SearchQueryState(parameters=params, query_embedding=query_embedding)
+    query_number = db.session.query(SearchQueryTable).filter_by(run_id=ctx.deps.state.run_id).count() + 1
+    search_query = SearchQueryTable.from_state(
+        state=query_state,
+        run_id=ctx.deps.state.run_id,
+        query_number=query_number,
+    )
+    db.session.add(search_query)
+    db.session.commit()
+    ctx.deps.state.query_id = search_query.query_id
+    logger.debug("Saved search query", query_id=str(search_query.query_id), query_number=query_number)
 
     logger.debug(
         "Search completed",
-        total_results=len(search_results.data) if search_results.data else 0,
+        total_results=len(search_response.results),
     )
 
-    ctx.deps.state.results = search_results.data
+    # Store results data for both frontend display and agent context
+    results_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}"
+
+    ctx.deps.state.results_data = SearchResultsData(
+        query_id=str(ctx.deps.state.query_id),
+        results_url=results_url,
+        total_count=len(search_response.results),
+        message=f"Found {len(search_response.results)} results.",
+        results=search_response.results,  # Include actual results in state
+    )
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
@@ -256,3 +314,40 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
         if hasattr(type_def, "operators"):
             operator_map[key] = type_def.operators
     return operator_map
+
+
+@search_toolset.tool
+async def prepare_export(
+    ctx: RunContext[StateDeps[SearchState]],
+) -> StateSnapshotEvent:
+    """Prepares export URL using the last executed search query."""
+    if not ctx.deps.state.query_id or not ctx.deps.state.run_id:
+        raise ValueError("No search has been executed yet. Run a search first before exporting.")
+
+    if not ctx.deps.state.parameters:
+        raise ValueError("No search parameters found. Run a search first before exporting.")
+
+    # Validate that export is only available for SELECT actions
+    action = ctx.deps.state.parameters.get("action", ActionType.SELECT)
+    if action != ActionType.SELECT:
+        raise ValueError(
+            f"Export is only available for SELECT actions. Current action is '{action}'. "
+            "Please run a SELECT search first."
+        )
+
+    logger.debug(
+        "Prepared query for export",
+        query_id=str(ctx.deps.state.query_id),
+    )
+
+    download_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}/export"
+
+    ctx.deps.state.export_data = ExportData(
+        query_id=str(ctx.deps.state.query_id),
+        download_url=download_url,
+        message="Export ready for download.",
+    )
+
+    logger.debug("Export data set in state", export_data=ctx.deps.state.export_data.model_dump())
+
+    return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())

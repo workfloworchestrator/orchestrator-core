@@ -12,10 +12,36 @@
 # limitations under the License.
 
 from typing import Any
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from orchestrator.search.schemas.results import SearchResult
+
+
+class ExportData(BaseModel):
+    """Export metadata for download."""
+
+    action: str = "export"
+    query_id: str
+    download_url: str
+    message: str
+
+
+class SearchResultsData(BaseModel):
+    """Search results data for frontend display and agent context."""
+
+    action: str = "view_results"
+    query_id: str
+    results_url: str
+    total_count: int
+    message: str
+    results: list[SearchResult] = []
 
 
 class SearchState(BaseModel):
+    run_id: UUID | None = None
+    query_id: UUID | None = None
     parameters: dict[str, Any] | None = None
-    results: list[dict[str, Any]] = Field(default_factory=list)
+    results_data: SearchResultsData | None = None
+    export_data: ExportData | None = None

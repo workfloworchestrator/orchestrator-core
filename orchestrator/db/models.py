@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy
@@ -57,6 +58,9 @@ from orchestrator.search.core.types import FieldType
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
+
+if TYPE_CHECKING:
+    from orchestrator.search.retrieval.query_state import SearchQueryState
 
 logger = structlog.get_logger(__name__)
 
@@ -674,6 +678,76 @@ class SubscriptionSearchView(BaseModel):
     subscription = relationship("SubscriptionTable", foreign_keys=[subscription_id])
 
 
+class AgentRunTable(BaseModel):
+    """Agent conversation/session tracking."""
+
+    __tablename__ = "agent_runs"
+
+    run_id = mapped_column("run_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    agent_type = mapped_column(String(50), nullable=False)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    queries = relationship("SearchQueryTable", back_populates="run", cascade="delete", passive_deletes=True)
+
+    __table_args__ = (Index("ix_agent_runs_created_at", "created_at"),)
+
+
+class SearchQueryTable(BaseModel):
+    """Search query execution - used by both agent runs and regular API searches.
+
+    When run_id is NULL: standalone API search query
+    When run_id is NOT NULL: query belongs to an agent conversation run
+    """
+
+    __tablename__ = "search_queries"
+
+    query_id = mapped_column("query_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    run_id = mapped_column(
+        "run_id", UUIDType, ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    query_number = mapped_column(Integer, nullable=False)
+
+    # Search parameters as JSONB (maps to BaseSearchParameters subclasses)
+    parameters = mapped_column(pg.JSONB, nullable=False)
+
+    # Query embedding for semantic search (pgvector)
+    query_embedding = mapped_column(Vector(1536), nullable=True)
+
+    executed_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    run = relationship("AgentRunTable", back_populates="queries")
+
+    __table_args__ = (
+        Index("ix_search_queries_run_id", "run_id"),
+        Index("ix_search_queries_executed_at", "executed_at"),
+        Index("ix_search_queries_query_id", "query_id"),
+    )
+
+    @classmethod
+    def from_state(
+        cls,
+        state: "SearchQueryState",
+        run_id: "UUID | None" = None,
+        query_number: int = 1,
+    ) -> "SearchQueryTable":
+        """Create a SearchQueryTable instance from a SearchQueryState.
+
+        Args:
+            state: The search query state with parameters and embedding
+            run_id: Optional agent run ID (NULL for regular API searches)
+            query_number: Query number within the run (default=1)
+
+        Returns:
+            SearchQueryTable instance ready to be added to the database.
+        """
+        return cls(
+            run_id=run_id,
+            query_number=query_number,
+            parameters=state.parameters.model_dump(),
+            query_embedding=state.query_embedding,
+        )
+
+
 class EngineSettingsTable(BaseModel):
     __tablename__ = "engine_settings"
     global_lock = mapped_column(Boolean(), default=False, nullable=False, primary_key=True)
@@ -705,6 +779,7 @@ class AiSearchIndex(BaseModel):
         UUIDType,
         nullable=False,
     )
+    entity_title = mapped_column(TEXT, nullable=True)
 
     # Ltree path for hierarchical data
     path = mapped_column(LtreeType, nullable=False, index=True)
