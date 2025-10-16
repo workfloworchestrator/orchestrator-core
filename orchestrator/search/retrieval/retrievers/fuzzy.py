@@ -42,7 +42,7 @@ class FuzzyRetriever(Retriever):
         combined_query = (
             select(
                 AiSearchIndex.entity_id,
-                cand.c.entity_title,
+                AiSearchIndex.entity_title,
                 score,
                 func.first_value(AiSearchIndex.value)
                 .over(partition_by=AiSearchIndex.entity_id, order_by=[similarity_expr.desc(), AiSearchIndex.path.asc()])
@@ -59,7 +59,7 @@ class FuzzyRetriever(Retriever):
                     literal(self.fuzzy_term).op("<%")(AiSearchIndex.value),
                 )
             )
-            .distinct(AiSearchIndex.entity_id)
+            .distinct(AiSearchIndex.entity_id, AiSearchIndex.entity_title)
         )
         final_query = combined_query.subquery("ranked_fuzzy")
 
