@@ -17,8 +17,8 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from orchestrator.db import SearchQueryTable, db
-from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
-from orchestrator.search.schemas.parameters import SearchParameters, SearchQueryState
+from orchestrator.search.core.exceptions import InvalidCursorError
+from orchestrator.search.schemas.parameters import SearchParameters
 from orchestrator.search.schemas.results import SearchResponse
 
 
@@ -70,33 +70,6 @@ async def process_pagination_cursor(cursor: str) -> PaginationParams:
     )
 
 
-def get_query_state(query_id: UUID | str) -> SearchQueryState:
-    """Retrieve query state from database by query_id.
-
-    Args:
-        query_id: UUID or string UUID of the saved query
-
-    Returns:
-        SearchQueryState loaded from database
-
-    Raises:
-        ValueError: If query_id string format is invalid
-        QueryStateNotFoundError: If query not found in database
-    """
-
-    if not isinstance(query_id, UUID):
-        try:
-            query_id = UUID(query_id)
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"Invalid query_id format: {query_id}") from e
-
-    search_query = db.session.query(SearchQueryTable).filter_by(query_id=query_id).first()
-    if not search_query:
-        raise QueryStateNotFoundError(f"Query {query_id} not found in database")
-
-    return search_query.to_state()
-
-
 def create_next_page_cursor(
     search_response: SearchResponse,
     pagination_params: PaginationParams,
@@ -115,6 +88,8 @@ def create_next_page_cursor(
     Returns:
         Encoded cursor for next page, or None if no more results
     """
+    from orchestrator.search.retrieval.query_state import SearchQueryState
+
     has_next_page = len(search_response.results) == search_params.limit and search_params.limit > 0
     if not has_next_page:
         return None

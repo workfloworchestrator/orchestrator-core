@@ -30,8 +30,9 @@ from orchestrator.search.agent.state import ExportData, SearchResultsData, Searc
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
+from orchestrator.search.retrieval.query_state import SearchQueryState
 from orchestrator.search.retrieval.validation import validate_filter_tree
-from orchestrator.search.schemas.parameters import BaseSearchParameters, SearchQueryState
+from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
@@ -177,9 +178,8 @@ async def execute_search(
     )
 
     # Store results metadata for frontend display
-    # Frontend may call search endpoints with query_id parameter
-    entity_type = params.entity_type.value
-    results_url = f"{app_settings.BASE_URL}/api/search/{entity_type}s?query_id={ctx.deps.state.query_id}"
+    # Frontend calls the queries endpoint to retrieve saved search results
+    results_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}"
 
     ctx.deps.state.results_data = SearchResultsData(
         query_id=str(ctx.deps.state.query_id),

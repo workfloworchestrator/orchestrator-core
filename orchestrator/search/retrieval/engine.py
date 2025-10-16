@@ -12,22 +12,20 @@
 # limitations under the License.
 
 from collections.abc import Sequence
-from uuid import UUID
 
 import structlog
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import Session
 
-from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.embedding import QueryEmbedder
-from orchestrator.search.core.exceptions import QueryStateNotFoundError
 from orchestrator.search.core.types import FilterOp, SearchMetadata
 from orchestrator.search.filters import FilterTree, LtreeFilter
-from orchestrator.search.schemas.parameters import BaseSearchParameters, SearchQueryState
+from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
 from .builder import build_candidate_query
 from .pagination import PaginationParams
+from .query_state import SearchQueryState
 from .retrievers import Retriever
 from .utils import generate_highlight_indices
 
@@ -175,34 +173,6 @@ async def execute_search(
     return await _execute_search_internal(
         search_params, db_session, search_params.limit, pagination_params, query_embedding
     )
-
-
-def get_query_state(query_id: UUID | str) -> SearchQueryState:
-    """Retrieve query state from database by query_id.
-
-    Args:
-        query_id: UUID or string UUID of the saved query
-
-    Returns:
-        SearchQueryState loaded from database
-
-    Raises:
-        ValueError: If query_id format is invalid
-        QueryStateNotFoundError: If query not found in database
-    """
-    if isinstance(query_id, UUID):
-        query_uuid = query_id
-    else:
-        try:
-            query_uuid = UUID(query_id)
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"Invalid query_id format: {query_id}") from e
-
-    search_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
-    if not search_query:
-        raise QueryStateNotFoundError(f"Query {query_uuid} not found in database")
-
-    return search_query.to_state()
 
 
 async def execute_search_for_export(

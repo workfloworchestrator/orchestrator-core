@@ -60,7 +60,7 @@ from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
 
 if TYPE_CHECKING:
-    from orchestrator.search.schemas.parameters import SearchQueryState
+    from orchestrator.search.retrieval.query_state import SearchQueryState
 
 logger = structlog.get_logger(__name__)
 
@@ -746,17 +746,6 @@ class SearchQueryTable(BaseModel):
             parameters=state.parameters.model_dump(),
             query_embedding=state.query_embedding,
         )
-
-    def to_state(self) -> "SearchQueryState":
-        """Convert database model to SearchQueryState.
-
-        Returns:
-            SearchQueryState with typed parameters and embedding vector.
-
-        """
-        from orchestrator.search.schemas.parameters import SearchQueryState
-
-        return SearchQueryState.model_validate(self)
 
 
 class EngineSettingsTable(BaseModel):

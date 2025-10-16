@@ -22,7 +22,7 @@ from orchestrator.schemas.search import (
 from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
-from orchestrator.search.retrieval import execute_search, get_query_state
+from orchestrator.search.retrieval import SearchQueryState, execute_search
 from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
 from orchestrator.search.retrieval.pagination import (
     PaginationParams,
@@ -43,51 +43,56 @@ router = APIRouter()
 
 
 async def _perform_search_and_fetch(
-    search_params: SearchParameters,
+    search_params: SearchParameters | None = None,
     cursor: str | None = None,
+    query_id: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    """Execute search and return results.
+    """Execute search with optional pagination.
 
     Args:
-        search_params: Search parameters
-        cursor: Pagination cursor
+        search_params: Search parameters for new search
+        cursor: Pagination cursor (loads saved query state)
+        query_id: Saved query ID to retrieve and execute
 
     Returns:
         Search results with entity_id, score, and matching_field.
     """
     try:
+        # Default pagination for first page
+        pagination_params = PaginationParams()
+
         if cursor:
-            try:
-                pagination_params = await process_pagination_cursor(cursor)
-                if pagination_params.query_id is None:
-                    raise InvalidCursorError("Cursor missing query_id")
-            except InvalidCursorError as e:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-
-            try:
-                query_state = get_query_state(pagination_params.query_id)
-            except QueryStateNotFoundError as e:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-            search_params = query_state.parameters
-            query_embedding = query_state.query_embedding
+            pagination_params = await process_pagination_cursor(cursor)
+            if pagination_params.query_id is None:
+                raise InvalidCursorError("Cursor missing query_id")
+            query_state = SearchQueryState.load_from_id(pagination_params.query_id)
+        elif query_id:
+            query_state = SearchQueryState.load_from_id(query_id)
+        elif search_params:
+            query_state = SearchQueryState(parameters=search_params, query_embedding=None)
         else:
-            pagination_params = PaginationParams()
-            query_embedding = None
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either search_params, cursor, or query_id must be provided",
+            )
 
-        search_response = await execute_search(search_params, db.session, pagination_params, query_embedding)
+        search_response = await execute_search(
+            query_state.parameters, db.session, pagination_params, query_state.query_embedding
+        )
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = create_next_page_cursor(search_response, pagination_params, search_params)
+        next_page_cursor = create_next_page_cursor(search_response, pagination_params, query_state.parameters)
         has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
         return SearchResultsSchema(
             data=search_response.results, page_info=page_info, search_metadata=search_response.metadata
         )
-    except HTTPException:
-        raise
+    except (InvalidCursorError, ValueError) as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -163,3 +168,16 @@ async def list_paths(
 async def get_definitions() -> dict[UIType, TypeDefinition]:
     """Provide a static definition of operators and schemas for each UI type."""
     return generate_definitions()
+
+
+@router.get(
+    "/queries/{query_id}",
+    response_model=SearchResultsSchema[SearchResult],
+    summary="Retrieve saved search results by query_id",
+)
+async def get_query_results(
+    query_id: str,
+    cursor: str | None = None,
+) -> SearchResultsSchema[SearchResult]:
+    """Retrieve and execute a saved search by query_id."""
+    return await _perform_search_and_fetch(query_id=query_id, cursor=cursor)

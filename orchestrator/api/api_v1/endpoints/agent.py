@@ -26,7 +26,7 @@ from orchestrator.schemas.search import ExportResponse
 from orchestrator.search.agent import build_agent_instance
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.search.retrieval import execute_search_for_export, get_query_state
+from orchestrator.search.retrieval import SearchQueryState, execute_search_for_export
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -75,11 +75,10 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
         HTTPException: 404 if query not found, 400 if invalid data
     """
     try:
-        query_state = get_query_state(query_id)
+        query_state = SearchQueryState.load_from_id(query_id)
         export_records = await execute_search_for_export(query_state, db.session)
         return ExportResponse(page=export_records)
-
-    except (ValueError, TypeError) as e:
+    except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except QueryStateNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
