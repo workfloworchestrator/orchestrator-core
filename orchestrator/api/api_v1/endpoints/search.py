@@ -19,10 +19,10 @@ from orchestrator.schemas.search import (
     PathsResponse,
     SearchResultsSchema,
 )
-from orchestrator.search.core.exceptions import InvalidCursorError
+from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
-from orchestrator.search.retrieval import execute_search
+from orchestrator.search.retrieval import execute_search, get_query_state
 from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
 from orchestrator.search.retrieval.pagination import (
     PaginationParams,
@@ -45,97 +45,86 @@ router = APIRouter()
 async def _perform_search_and_fetch(
     search_params: SearchParameters,
     cursor: str | None = None,
-    query_id: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
     """Execute search and return results.
 
     Args:
         search_params: Search parameters
         cursor: Pagination cursor
-        query_id: Optional saved query ID to use for embedding retrieval
 
     Returns:
         Search results with entity_id, score, and matching_field.
     """
-    # If query_id provided, retrieve saved embedding
-    if query_id and not cursor:
-        from uuid import UUID
+    try:
+        if cursor:
+            try:
+                pagination_params = await process_pagination_cursor(cursor)
+                if pagination_params.query_id is None:
+                    raise InvalidCursorError("Cursor missing query_id")
+            except InvalidCursorError as e:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-        from orchestrator.db import SearchQueryTable
+            try:
+                query_state = get_query_state(pagination_params.query_id)
+            except QueryStateNotFoundError as e:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-        try:
-            query_uuid = UUID(query_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid query_id format: {query_id}",
-            )
+            search_params = query_state.parameters
+            query_embedding = query_state.query_embedding
+        else:
+            pagination_params = PaginationParams()
+            query_embedding = None
 
-        search_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
-        if not search_query:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Query {query_id} not found",
-            )
+        search_response = await execute_search(search_params, db.session, pagination_params, query_embedding)
+        if not search_response.results:
+            return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        query_state = search_query.to_state()
-        search_params = query_state.parameters
-        pagination_params = PaginationParams(q_vec_override=query_state.query_embedding)
-    else:
-        try:
-            pagination_params = await process_pagination_cursor(cursor, search_params)
-        except InvalidCursorError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
+        next_page_cursor = create_next_page_cursor(search_response, pagination_params, search_params)
+        has_next_page = next_page_cursor is not None
+        page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
-    search_response = await execute_search(search_params, db.session, pagination_params)
-    if not search_response.results:
-        return SearchResultsSchema(search_metadata=search_response.metadata)
-
-    next_page_cursor = create_next_page_cursor(
-        search_response.results, pagination_params, search_params.limit, search_params
-    )
-    has_next_page = next_page_cursor is not None
-    page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
-
-    return SearchResultsSchema(
-        data=search_response.results, page_info=page_info, search_metadata=search_response.metadata
-    )
+        return SearchResultsSchema(
+            data=search_response.results, page_info=page_info, search_metadata=search_response.metadata
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}",
+        )
 
 
 @router.post("/subscriptions", response_model=SearchResultsSchema[SearchResult])
 async def search_subscriptions(
     search_params: SubscriptionSearchParameters,
     cursor: str | None = None,
-    query_id: str | None = Query(None, description="Optional saved query ID for embedding retrieval"),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor, query_id)
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
 @router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
 async def search_workflows(
     search_params: WorkflowSearchParameters,
     cursor: str | None = None,
-    query_id: str | None = Query(None, description="Optional saved query ID for embedding retrieval"),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor, query_id)
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
 async def search_products(
     search_params: ProductSearchParameters,
     cursor: str | None = None,
-    query_id: str | None = Query(None, description="Optional saved query ID for embedding retrieval"),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor, query_id)
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
 async def search_processes(
     search_params: ProcessSearchParameters,
     cursor: str | None = None,
-    query_id: str | None = Query(None, description="Optional saved query ID for embedding retrieval"),
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor, query_id)
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
 @router.get(

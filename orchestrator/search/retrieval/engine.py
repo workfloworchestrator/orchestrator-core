@@ -12,14 +12,18 @@
 # limitations under the License.
 
 from collections.abc import Sequence
+from uuid import UUID
 
 import structlog
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import Session
 
+from orchestrator.db import SearchQueryTable, db
+from orchestrator.search.core.embedding import QueryEmbedder
+from orchestrator.search.core.exceptions import QueryStateNotFoundError
 from orchestrator.search.core.types import FilterOp, SearchMetadata
 from orchestrator.search.filters import FilterTree, LtreeFilter
-from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.search.schemas.parameters import BaseSearchParameters, SearchQueryState
 from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
 from .builder import build_candidate_query
@@ -121,6 +125,7 @@ async def _execute_search_internal(
     db_session: Session,
     limit: int,
     pagination_params: PaginationParams | None = None,
+    query_embedding: list[float] | None = None,
 ) -> SearchResponse:
     """Internal function to execute search with specified parameters.
 
@@ -129,6 +134,7 @@ async def _execute_search_internal(
         db_session: The active SQLAlchemy session for executing the query.
         limit: Maximum number of results to return.
         pagination_params: Optional pagination parameters.
+        query_embedding: Optional pre-computed query embedding to use instead of generating a new one.
 
     Returns:
         SearchResponse with results and embedding (for internal use).
@@ -141,15 +147,11 @@ async def _execute_search_internal(
 
     pagination_params = pagination_params or PaginationParams()
 
-    if search_params.vector_query and not pagination_params.q_vec_override:
-        from orchestrator.search.core.embedding import QueryEmbedder
+    if search_params.vector_query and not query_embedding:
 
-        q_vec = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
-        if q_vec:
-            pagination_params.q_vec_override = q_vec
-            logger.debug("Generated embedding for vector query")
+        query_embedding = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
 
-    retriever = await Retriever.from_params(search_params, pagination_params)
+    retriever = await Retriever.route(search_params, pagination_params, query_embedding)
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
     final_stmt = retriever.apply(candidate_query)
@@ -159,7 +161,7 @@ async def _execute_search_internal(
 
     response = _format_response(result, search_params, retriever.metadata)
     # Store embedding in response for agent to save to DB
-    response.query_embedding = pagination_params.q_vec_override
+    response.query_embedding = query_embedding
     return response
 
 
@@ -167,28 +169,63 @@ async def execute_search(
     search_params: BaseSearchParameters,
     db_session: Session,
     pagination_params: PaginationParams | None = None,
+    query_embedding: list[float] | None = None,
 ) -> SearchResponse:
     """Execute a search and return ranked results."""
-    return await _execute_search_internal(search_params, db_session, search_params.limit, pagination_params)
+    return await _execute_search_internal(
+        search_params, db_session, search_params.limit, pagination_params, query_embedding
+    )
+
+
+def get_query_state(query_id: UUID | str) -> SearchQueryState:
+    """Retrieve query state from database by query_id.
+
+    Args:
+        query_id: UUID or string UUID of the saved query
+
+    Returns:
+        SearchQueryState loaded from database
+
+    Raises:
+        ValueError: If query_id format is invalid
+        QueryStateNotFoundError: If query not found in database
+    """
+    if isinstance(query_id, UUID):
+        query_uuid = query_id
+    else:
+        try:
+            query_uuid = UUID(query_id)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid query_id format: {query_id}") from e
+
+    search_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
+    if not search_query:
+        raise QueryStateNotFoundError(f"Query {query_uuid} not found in database")
+
+    return search_query.to_state()
 
 
 async def execute_search_for_export(
-    search_params: BaseSearchParameters,
+    query_state: SearchQueryState,
     db_session: Session,
-    pagination_params: PaginationParams | None = None,
-) -> SearchResponse:
-    """Execute a search for export purposes.
-
-    Similar to execute_search but uses export_limit instead of limit.
-    The pagination_params is primarily used to pass q_vec_override to ensure
-    the export uses the same embedding as the original search.
+) -> list[dict]:
+    """Execute a search for export and fetch flattened entity data.
 
     Args:
-        search_params: The search parameters specifying vector, fuzzy, or filter criteria.
+        query_state: Query state containing parameters and query_embedding.
         db_session: The active SQLAlchemy session for executing the query.
-        pagination_params: Optional pagination parameters (primarily for q_vec_override).
 
     Returns:
-        SearchResponse with results up to export_limit.
+        List of flattened entity records suitable for export.
     """
-    return await _execute_search_internal(search_params, db_session, search_params.export_limit, pagination_params)
+    from orchestrator.search.export import fetch_export_data
+
+    search_response = await _execute_search_internal(
+        search_params=query_state.parameters,
+        db_session=db_session,
+        limit=query_state.parameters.export_limit,
+        query_embedding=query_state.query_embedding,
+    )
+
+    entity_ids = [res.entity_id for res in search_response.results]
+    return fetch_export_data(query_state.parameters.entity_type, entity_ids)
