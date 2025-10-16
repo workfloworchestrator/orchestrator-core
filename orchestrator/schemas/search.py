@@ -45,3 +45,9 @@ class PathsResponse(BaseModel):
     components: list[ComponentInfo]
 
     model_config = ConfigDict(extra="forbid", use_enum_values=True)
+
+
+class ExportResponse(BaseModel):
+    page: list[dict]
+
+    model_config = ConfigDict(extra="forbid")

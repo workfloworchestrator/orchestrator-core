@@ -22,9 +22,11 @@ from structlog import get_logger
 
 from orchestrator.db import SearchQueryTable, db
 from orchestrator.llm_settings import llm_settings
+from orchestrator.schemas.search import ExportResponse
 from orchestrator.search.agent import build_agent_instance
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.retrieval import execute_search_for_export
+from orchestrator.search.retrieval.pagination import PaginationParams
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -55,9 +57,9 @@ async def agent_conversation(
 @router.get(
     "/queries/{query_id}/export",
     summary="Export query results by query_id",
-    response_model=dict[str, Any],
+    response_model=ExportResponse,
 )
-async def export_by_query_id(query_id: str) -> dict[str, Any]:
+async def export_by_query_id(query_id: str) -> ExportResponse:
     """Export search results using query_id.
 
     The query is retrieved from the database, re-executed, and results are returned
@@ -67,7 +69,7 @@ async def export_by_query_id(query_id: str) -> dict[str, Any]:
         query_id: Query UUID
 
     Returns:
-        Dictionary containing 'page' with an array of flattened entity records.
+        ExportResponse containing 'page' with an array of flattened entity records.
 
     Raises:
         HTTPException: 404 if query not found, 400 if invalid data
@@ -92,7 +94,6 @@ async def export_by_query_id(query_id: str) -> dict[str, Any]:
             detail=f"Query {query_id} not found",
         )
     try:
-        from orchestrator.search.retrieval.pagination import PaginationParams
 
         # Get the full query state including the embedding that was used
         query_state = agent_query.to_state()
@@ -105,7 +106,7 @@ async def export_by_query_id(query_id: str) -> dict[str, Any]:
 
         export_records = fetch_export_data(query_state.parameters.entity_type, entity_ids)
 
-        return {"page": export_records}
+        return ExportResponse(page=export_records)
 
     except Exception as e:
         logger.error(e)
