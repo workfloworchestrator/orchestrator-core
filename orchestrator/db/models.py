@@ -790,6 +790,7 @@ class AiSearchIndex(BaseModel):
         UUIDType,
         nullable=False,
     )
+    entity_title = mapped_column(TEXT, nullable=True)
 
     # Ltree path for hierarchical data
     path = mapped_column(LtreeType, nullable=False, index=True)

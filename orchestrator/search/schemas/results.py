@@ -31,7 +31,7 @@ class SearchResult(BaseModel):
 
     entity_id: str
     entity_type: EntityType
-    title: str
+    entity_title: str
     score: float
     perfect_match: int = 0
     matching_field: MatchingField | None = None
