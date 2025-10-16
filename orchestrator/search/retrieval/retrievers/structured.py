@@ -13,7 +13,7 @@
 
 from sqlalchemy import Select, literal, select
 
-from orchestrator.search.core.types import EntityType, SearchMetadata
+from orchestrator.search.core.types import SearchMetadata
 
 from ..pagination import PaginationParams
 from .base import Retriever
@@ -22,9 +22,8 @@ from .base import Retriever
 class StructuredRetriever(Retriever):
     """Applies a dummy score for purely structured searches with no text query."""
 
-    def __init__(self, pagination_params: PaginationParams, entity_type: EntityType) -> None:
+    def __init__(self, pagination_params: PaginationParams) -> None:
         self.page_after_id = pagination_params.page_after_id
-        self.entity_type = entity_type
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()

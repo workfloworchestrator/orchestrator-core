@@ -18,7 +18,7 @@ from sqlalchemy.sql.expression import ColumnElement, Label
 from sqlalchemy.types import TypeEngine
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityType, SearchMetadata
+from orchestrator.search.core.types import SearchMetadata
 
 from ..pagination import PaginationParams
 from .base import Retriever
@@ -128,7 +128,6 @@ class RrfHybridRetriever(Retriever):
         q_vec: list[float],
         fuzzy_term: str,
         pagination_params: PaginationParams,
-        entity_type: "EntityType",
         k: int = 60,
         field_candidates_limit: int = 100,
     ) -> None:
@@ -136,7 +135,6 @@ class RrfHybridRetriever(Retriever):
         self.fuzzy_term = fuzzy_term
         self.page_after_score = pagination_params.page_after_score
         self.page_after_id = pagination_params.page_after_id
-        self.entity_type = entity_type
         self.k = k
         self.field_candidates_limit = field_candidates_limit
 

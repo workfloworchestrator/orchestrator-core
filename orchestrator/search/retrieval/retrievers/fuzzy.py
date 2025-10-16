@@ -15,7 +15,7 @@ from sqlalchemy import Select, and_, cast, func, literal, or_, select
 from sqlalchemy.sql.expression import ColumnElement
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import EntityType, SearchMetadata
+from orchestrator.search.core.types import SearchMetadata
 
 from ..pagination import PaginationParams
 from .base import Retriever
@@ -24,11 +24,10 @@ from .base import Retriever
 class FuzzyRetriever(Retriever):
     """Ranks results based on the max of fuzzy text similarity scores."""
 
-    def __init__(self, fuzzy_term: str, pagination_params: PaginationParams, entity_type: EntityType) -> None:
+    def __init__(self, fuzzy_term: str, pagination_params: PaginationParams) -> None:
         self.fuzzy_term = fuzzy_term
         self.page_after_score = pagination_params.page_after_score
         self.page_after_id = pagination_params.page_after_id
-        self.entity_type = entity_type
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
