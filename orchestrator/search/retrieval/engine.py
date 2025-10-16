@@ -82,7 +82,7 @@ def _format_response(
             SearchResult(
                 entity_id=str(row.entity_id),
                 entity_type=search_params.entity_type,
-                title=entity_title,
+                entity_title=entity_title,
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,

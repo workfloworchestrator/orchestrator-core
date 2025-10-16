@@ -289,6 +289,7 @@ class ExtractedField(NamedTuple):
 class IndexableRecord(TypedDict):
     entity_id: str
     entity_type: str
+    entity_title: str
     path: Ltree
     value: Any
     value_type: Any
