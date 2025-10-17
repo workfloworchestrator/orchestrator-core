@@ -1,6 +1,8 @@
 import json
 from http import HTTPStatus
 
+from orchestrator.schedules.scheduler import get_scheduler
+
 
 def get_scheduled_tasks_query(
     first: int = 10,
@@ -44,6 +46,9 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
 
 
 def test_scheduled_tasks_query(test_client):
+    with get_scheduler():
+        pass
+
     data = get_scheduled_tasks_query(first=2)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
