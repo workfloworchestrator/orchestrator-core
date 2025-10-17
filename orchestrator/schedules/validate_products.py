@@ -13,7 +13,7 @@
 from sqlalchemy import func, select
 
 from orchestrator.db import db
-from orchestrator.db.models import ProcessTable
+from orchestrator.db.models import ProcessTable, WorkflowTable
 from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
 
@@ -29,7 +29,8 @@ def validate_products() -> None:
     uncompleted_products = db.session.scalar(
         select(func.count())
         .select_from(ProcessTable)
-        .filter(ProcessTable.workflow.name == "validate_products", ProcessTable.last_status != "completed")
+        .join(ProcessTable.workflow)
+        .filter(WorkflowTable.name == "validate_products", ProcessTable.last_status != "completed")
     )
     if not uncompleted_products:
         start_process("task_validate_products")
