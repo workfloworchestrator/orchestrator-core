@@ -12,16 +12,14 @@
 # limitations under the License.
 
 
-import logging
 import time
 
 import typer
 
 from orchestrator.schedules.scheduler import (
-    get_paused_scheduler,
+    get_scheduler,
+    get_scheduler_store,
 )
-
-log = logging.getLogger(__name__)
 
 app: typer.Typer = typer.Typer()
 
@@ -29,9 +27,7 @@ app: typer.Typer = typer.Typer()
 @app.command()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
-    with get_paused_scheduler() as scheduler:
-        scheduler.resume()
-
+    with get_scheduler():
         while True:
             time.sleep(1)
 
@@ -42,8 +38,8 @@ def show_schedule() -> None:
 
     in cli underscore is replaced by a dash `show-schedule`
     """
-    with get_paused_scheduler() as scheduler:
-        jobs = scheduler.get_jobs()
+    scheduler_store = get_scheduler_store()
+    jobs = scheduler_store.get_all_jobs()
 
     for job in jobs:
         typer.echo(f"[{job.id}] Next run: {job.next_run_time} | Trigger: {job.trigger}")
@@ -52,8 +48,8 @@ def show_schedule() -> None:
 @app.command()
 def force(job_id: str) -> None:
     """Force the execution of (a) scheduler(s) based on a job_id."""
-    with get_paused_scheduler() as scheduler:
-        job = scheduler.get_job(job_id)
+    scheduler_store = get_scheduler_store()
+    job = scheduler_store.lookup_job(job_id)
 
     if not job:
         typer.echo(f"Job '{job_id}' not found.")

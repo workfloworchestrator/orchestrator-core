@@ -22,11 +22,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from more_itertools import partition
 from pydantic import BaseModel
 
+from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.filters import CallableErrorHandler
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.sorting import SortOrder
-from orchestrator.settings import app_settings
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 
 executors = {
@@ -39,19 +39,23 @@ job_defaults = {
 scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 
 
+def get_scheduler_store() -> SQLAlchemyJobStore:
+    return SQLAlchemyJobStore(engine=db.engine)
+
+
 @contextmanager
-def get_paused_scheduler() -> Generator[BackgroundScheduler, Any, None]:
+def get_scheduler(paused: bool = False) -> Generator[BackgroundScheduler, Any, None]:
+    store = get_scheduler_store()
     try:
-        scheduler.add_jobstore(SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI)))
+        scheduler.add_jobstore(store)
     except ValueError:
         pass
-    scheduler.start(paused=True)
+    scheduler.start(paused=paused)
 
     try:
         yield scheduler
     finally:
         scheduler.shutdown()
-        scheduler._jobstores["default"].engine.dispose()
 
 
 class ScheduledTask(BaseModel):
@@ -149,8 +153,8 @@ def get_scheduler_tasks(
     sort_by: list[Sort] | None = None,
     error_handler: CallableErrorHandler = default_error_handler,
 ) -> tuple[list[ScheduledTask], int]:
-    with get_paused_scheduler() as pauzed_scheduler:
-        scheduled_tasks = pauzed_scheduler.get_jobs()
+    scheduler_store = get_scheduler_store()
+    scheduled_tasks = scheduler_store.get_all_jobs()
 
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)

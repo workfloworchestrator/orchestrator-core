@@ -35,6 +35,7 @@ from orchestrator.db import (
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
@@ -864,3 +865,9 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
         yield monitor_queries
     else:
         yield noop
+
+
+@pytest.fixture(autouse=True)
+def load_scheduled_tasks():
+    with get_scheduler():
+        pass

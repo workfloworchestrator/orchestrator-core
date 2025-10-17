@@ -7,26 +7,22 @@ from orchestrator.cli.scheduler import app
 runner = CliRunner()
 
 
-@mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")
-def test_run_scheduler(mock_get_paused_scheduler):
-    mock_scheduler = mock.MagicMock()
-    mock_scheduler.resume.side_effect = KeyboardInterrupt
-    mock_get_paused_scheduler.return_value.__enter__.return_value = mock_scheduler
+@mock.patch("orchestrator.schedules.scheduler.scheduler")
+def test_run_scheduler(mock_scheduler):
+    mock_scheduler.start.side_effect = KeyboardInterrupt
 
     result = runner.invoke(app, ["run"])
     assert result.exit_code == 130
 
 
-@mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")
-def test_show_schedule_command(mock_get_paused_scheduler):
+@mock.patch("orchestrator.cli.scheduler.get_scheduler_store")
+def test_show_schedule_command(mock_get_scheduler_store):
     mock_job = mock.MagicMock()
     mock_job.id = "job1"
     mock_job.next_run_time = "2025-08-05 12:00:00"
     mock_job.trigger = "trigger_info"
 
-    mock_scheduler = mock.MagicMock()
-    mock_scheduler.get_jobs.return_value = [mock_job]
-    mock_get_paused_scheduler.return_value.__enter__.return_value = mock_scheduler
+    mock_get_scheduler_store.return_value.get_all_jobs.return_value = [mock_job]
 
     result = runner.invoke(app, ["show-schedule"])
     assert result.exit_code == 0
@@ -35,15 +31,13 @@ def test_show_schedule_command(mock_get_paused_scheduler):
     assert "trigger_info" in result.output
 
 
-@mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")
-def test_force_command(mock_get_paused_scheduler):
+@mock.patch("orchestrator.cli.scheduler.get_scheduler_store")
+def test_force_command(mock_get_scheduler_store):
     mock_job = mock.MagicMock()
     mock_job.id = "job1"
     mock_job.func = mock.MagicMock()
 
-    mock_scheduler = mock.MagicMock()
-    mock_scheduler.get_job.return_value = mock_job
-    mock_get_paused_scheduler.return_value.__enter__.return_value = mock_scheduler
+    mock_get_scheduler_store.return_value.lookup_job.return_value = mock_job
 
     result = runner.invoke(app, ["force", "job1"])
     assert result.exit_code == 0
@@ -52,19 +46,17 @@ def test_force_command(mock_get_paused_scheduler):
     assert "Job executed successfully" in result.output
 
 
-@mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")
-def test_force_command_job_not_found(mock_get_paused_scheduler):
-    mock_scheduler = mock.MagicMock()
-    mock_scheduler.get_job.return_value = None
-    mock_get_paused_scheduler.return_value.__enter__.return_value = mock_scheduler
+@mock.patch("orchestrator.cli.scheduler.get_scheduler_store")
+def test_force_command_job_not_found(mock_get_scheduler_store):
+    mock_get_scheduler_store.return_value.lookup_job.return_value = None
 
     result = runner.invoke(app, ["force", "missing_job"])
     assert result.exit_code == 1
     assert "Job 'missing_job' not found" in result.output
 
 
-@mock.patch("orchestrator.cli.scheduler.get_paused_scheduler")
-def test_force_command_job_raises_exception(mock_get_paused_scheduler):
+@mock.patch("orchestrator.cli.scheduler.get_scheduler_store")
+def test_force_command_job_raises_exception(mock_get_scheduler_store):
     def raise_exc(*args, **kwargs):
         raise RuntimeError("fail")
 
@@ -74,9 +66,7 @@ def test_force_command_job_raises_exception(mock_get_paused_scheduler):
     mock_job.args = ()
     mock_job.kwargs = {}
 
-    mock_scheduler = mock.MagicMock()
-    mock_scheduler.get_job.return_value = mock_job
-    mock_get_paused_scheduler.return_value.__enter__.return_value = mock_scheduler
+    mock_get_scheduler_store.return_value.lookup_job.return_value = mock_job
 
     result = runner.invoke(app, ["force", "job1"])
     assert result.exit_code == 1
