@@ -72,6 +72,10 @@
         ]
       },
       {
+        "tab": "Swagger docs",
+        "openapi": "api-reference/openapi.json"
+      },
+      {
         "tab": "Examples",
         "groups": [
           {
