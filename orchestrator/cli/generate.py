@@ -14,6 +14,7 @@
 # ruff: noqa: S603
 import subprocess
 from pathlib import Path
+from typing import Callable
 
 import structlog
 import typer
@@ -78,7 +79,7 @@ def ruff(content: str) -> str:
     return content
 
 
-def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
+def create_writer(dryrun: bool = False, force: bool = False) -> Callable[..., None]:
     def writer(path: Path, content: str, append: bool = False) -> None:
         content = ruff(content) if path.suffix == ".py" else content
         if dryrun:
@@ -88,9 +89,15 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
         else:
             write_file(path, content, append=append, force=force)
 
-    search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
-    environment = Environment(loader=FileSystemLoader(search_path), autoescape=True, keep_trailing_newline=True)
+    return writer
 
+
+def get_template_environment() -> Environment:
+    search_path = (settings.CUSTOM_TEMPLATES, Path(__file__).parent / "generator" / "templates")
+    return Environment(loader=FileSystemLoader(search_path), autoescape=True, keep_trailing_newline=True)
+
+
+def create_context(config_file: Path, dryrun: bool, force: bool, python_version: str, tdd: bool | None = False) -> dict:
     config = read_config(config_file)
     config["variable"] = get_variable(config)
     for pb in config["product_blocks"]:
@@ -98,10 +105,10 @@ def create_context(config_file: Path, dryrun: bool, force: bool, python_version:
 
     return {
         "config": config,
-        "environment": environment,
+        "environment": get_template_environment(),
         "python_version": python_version,
         "tdd": tdd,
-        "writer": writer,
+        "writer": create_writer(dryrun=dryrun, force=force),
     }
 
 

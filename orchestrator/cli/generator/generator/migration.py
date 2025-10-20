@@ -79,6 +79,12 @@ def create_data_head(context: dict, depends_on: str) -> None:
     writer(path, content)
 
 
+def create_data_head_if_not_exists(context: dict) -> None:
+    heads = get_heads()
+    if "data" not in heads:
+        create_data_head(context=context, depends_on=heads["schema"])
+
+
 def extract_revision_info(content: list[str]) -> dict:
     def process() -> Generator:
         for line in content:
@@ -136,9 +142,7 @@ def generate_product_migration(context: dict) -> None:
     environment = context["environment"]
     writer = context["writer"]
 
-    heads = get_heads()
-    if "data" not in heads:
-        create_data_head(context=context, depends_on=heads["schema"])
+    create_data_head_if_not_exists(context=context)
 
     if not (migration_file := create_migration_file(message=f"add {config['name']}", head="data")):
         logger.error("Could not create migration file")
