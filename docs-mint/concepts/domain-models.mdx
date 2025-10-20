@@ -1,0 +1,381 @@
+---
+title: "Domain Models"
+description: "Understanding domain models - the foundation of service definitions in Workflow Orchestrator"
+---
+
+## What are Domain Models?
+
+Domain Models are **Pydantic-based classes** that represent your business entities and their relationships. They serve as the single source of truth for your service definitions, providing type safety, validation, and clear structure to your orchestration logic.
+
+<Note>
+Domain Models in Workflow Orchestrator follow **Domain-Driven Design (DDD)** principles, ensuring your code reflects your business domain accurately.
+</Note>
+
+## Core Components
+
+### SubscriptionModel
+
+Represents a customer's subscription to a service, containing all configuration and state information.
+
+```python
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.types import SubscriptionLifecycle
+
+class InternetServiceInactive(SubscriptionModel, is_base=True):
+    """Base model for internet service subscriptions."""
+    customer_id: str
+    service_type: str
+    bandwidth: BandwidthBlock
+
+class InternetServiceActive(InternetServiceInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active internet service with all required fields."""
+    bandwidth: BandwidthBlockActive  # More restrictive validation
+    installation_date: datetime
+```
+
+### ProductBlockModel
+
+Represents configurable components that make up your services.
+
+```python
+from orchestrator.domain.base import ProductBlockModel
+
+class BandwidthBlockInactive(ProductBlockModel, product_block_name="Bandwidth"):
+    """Bandwidth allocation block."""
+    speed_mbps: Optional[int] = None
+    burst_limit: Optional[int] = None
+    traffic_class: Optional[str] = None
+
+class BandwidthBlockActive(BandwidthBlockInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active bandwidth with required configuration."""
+    speed_mbps: int  # Required when active
+    burst_limit: int
+    traffic_class: str
+```
+
+## Lifecycle Management
+
+Domain models support **lifecycle-specific validation** where different states have different requirements:
+
+<Tabs>
+  <Tab title="INITIAL/INACTIVE">
+    ```python
+    class ServiceInactive(SubscriptionModel, is_base=True):
+        # Most fields optional for initial configuration
+        bandwidth: Optional[BandwidthBlock] = None
+        customer_notes: Optional[str] = None
+    ```
+  </Tab>
+
+  <Tab title="PROVISIONING">
+    ```python
+    class ServiceProvisioning(ServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+        # Some fields become required during provisioning
+        bandwidth: BandwidthBlock  # Now required
+        provisioning_date: datetime
+    ```
+  </Tab>
+
+  <Tab title="ACTIVE">
+    ```python
+    class ServiceActive(ServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+        # All fields validated and required for active services
+        bandwidth: BandwidthBlockActive
+        activation_date: datetime
+        service_id: str
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+Lifecycle validation ensures that services can only transition to valid states with proper configuration. This prevents incomplete or invalid service activations.
+</Warning>
+
+## Hierarchical Structure
+
+Product blocks can contain other product blocks, creating a hierarchical service structure:
+
+```python
+class NetworkConnectionBlock(ProductBlockModel, product_block_name="NetworkConnection"):
+    """High-level network connection."""
+    bandwidth: BandwidthBlock
+    ip_addresses: List[IPAddressBlock] = []
+    vlans: List[VLANBlock] = []
+
+class IPAddressBlock(ProductBlockModel, product_block_name="IPAddress"):
+    """IP address allocation."""
+    address: Optional[IPv4Address] = None
+    subnet_mask: Optional[int] = None
+    gateway: Optional[IPv4Address] = None
+
+class VLANBlock(ProductBlockModel, product_block_name="VLAN"):
+    """VLAN configuration."""
+    vlan_id: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+```
+
+## Advanced Features
+
+### Computed Fields
+
+Add calculated properties to your models:
+
+```python
+from pydantic import computed_field
+
+class BandwidthBlock(ProductBlockModel, product_block_name="Bandwidth"):
+    speed_mbps: int
+    burst_multiplier: float = 1.5
+
+    @computed_field
+    @property
+    def burst_speed_mbps(self) -> int:
+        """Calculate burst speed based on base speed and multiplier."""
+        return int(self.speed_mbps * self.burst_multiplier)
+
+    @computed_field
+    @property
+    def monthly_cost(self) -> Decimal:
+        """Calculate monthly cost based on speed tier."""
+        if self.speed_mbps <= 100:
+            return Decimal("29.99")
+        elif self.speed_mbps <= 500:
+            return Decimal("59.99")
+        else:
+            return Decimal("99.99")
+```
+
+### Custom Validation
+
+Add business logic validation:
+
+```python
+from pydantic import field_validator, model_validator
+
+class BandwidthBlock(ProductBlockModel, product_block_name="Bandwidth"):
+    speed_mbps: int
+    burst_limit: Optional[int] = None
+
+    @field_validator('speed_mbps')
+    @classmethod
+    def validate_speed(cls, v):
+        """Ensure speed is within acceptable ranges."""
+        if v <= 0:
+            raise ValueError('Speed must be positive')
+        if v > 10000:
+            raise ValueError('Speed cannot exceed 10Gbps')
+        return v
+
+    @model_validator(mode='after')
+    def validate_burst_limit(self):
+        """Ensure burst limit is reasonable compared to base speed."""
+        if self.burst_limit and self.burst_limit < self.speed_mbps:
+            raise ValueError('Burst limit cannot be less than base speed')
+        return self
+```
+
+### Enums and Constraints
+
+Use enums and constraints for controlled values:
+
+```python
+from enum import StrEnum
+from pydantic import Field
+
+class ServiceTier(StrEnum):
+    BASIC = "basic"
+    PREMIUM = "premium"
+    ENTERPRISE = "enterprise"
+
+class TrafficClass(StrEnum):
+    BEST_EFFORT = "best_effort"
+    ASSURED = "assured"
+    EXPEDITED = "expedited"
+
+class BandwidthBlock(ProductBlockModel, product_block_name="Bandwidth"):
+    speed_mbps: int = Field(ge=1, le=10000, description="Speed in Mbps")
+    service_tier: ServiceTier = ServiceTier.BASIC
+    traffic_class: TrafficClass = TrafficClass.BEST_EFFORT
+    sla_uptime: float = Field(ge=95.0, le=99.99, description="SLA uptime percentage")
+```
+
+## Database Integration
+
+Domain models automatically map to database tables:
+
+```python
+# Domain model definition
+class ServiceSubscription(SubscriptionModel, is_base=True):
+    bandwidth: BandwidthBlock
+    customer_notes: Optional[str] = None
+
+# Automatically creates/manages these database relationships:
+# - SubscriptionTable (main subscription record)
+# - SubscriptionInstanceTable (product block instances)
+# - SubscriptionInstanceValueTable (field values)
+# - SubscriptionInstanceRelationTable (block relationships)
+```
+
+<Info>
+The framework handles all database operations automatically. You work with Python objects, and the ORM manages persistence.
+</Info>
+
+## Registry Pattern
+
+Domain models are automatically registered for dynamic lookup:
+
+```python
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+
+# Models are automatically registered by name
+SUBSCRIPTION_MODEL_REGISTRY["Internet Service"] = InternetServiceActive
+
+# Dynamic model loading based on product name
+def load_subscription(subscription_id: UUID):
+    subscription = get_subscription_from_db(subscription_id)
+    model_class = SUBSCRIPTION_MODEL_REGISTRY[subscription.product.name]
+    return model_class.from_subscription(subscription_id)
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Naming Conventions">
+    - Use descriptive names that reflect business concepts
+    - Suffix with lifecycle state: `ServiceInactive`, `ServiceActive`
+    - Product blocks should be nouns: `BandwidthBlock`, `IPAddressBlock`
+    - Use consistent naming across related models
+  </Accordion>
+
+  <Accordion title="Field Organization">
+    - Group related fields together
+    - Use optional fields for configuration that may not be available initially
+    - Make fields required in later lifecycle states when they become mandatory
+    - Use clear, business-friendly field names
+  </Accordion>
+
+  <Accordion title="Validation Strategy">
+    - Add validation at the field level for simple constraints
+    - Use model validators for cross-field validation
+    - Keep validation logic close to the domain model
+    - Provide clear, user-friendly error messages
+  </Accordion>
+
+  <Accordion title="Lifecycle Design">
+    - Start with a base inactive model with optional fields
+    - Add lifecycle-specific models with increasing constraints
+    - Ensure smooth transitions between lifecycle states
+    - Document state transition requirements clearly
+  </Accordion>
+</AccordionGroup>
+
+## Example: Complete Network Service
+
+Here's a complete example of a network service domain model:
+
+<CodeGroup>
+
+```python Subscription Model
+class NetworkServiceInactive(SubscriptionModel, is_base=True):
+    """Network connectivity service for business customers."""
+
+    # Customer information
+    customer_id: str
+    site_name: str
+    contact_email: EmailStr
+
+    # Service configuration
+    connection: NetworkConnectionBlock
+    support_level: SupportLevel = SupportLevel.STANDARD
+
+    # Optional during initial setup
+    installation_notes: Optional[str] = None
+    special_requirements: List[str] = []
+
+class NetworkServiceActive(NetworkServiceInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active network service with complete configuration."""
+
+    # Required when active
+    connection: NetworkConnectionBlockActive
+    service_id: str = Field(description="Unique service identifier")
+    activation_date: datetime
+    next_billing_date: datetime
+
+    @computed_field
+    @property
+    def monthly_recurring_cost(self) -> Decimal:
+        """Calculate total monthly cost including all components."""
+        base_cost = self.connection.monthly_cost
+        support_cost = self.support_level.monthly_cost
+        return base_cost + support_cost
+```
+
+```python Product Blocks
+class NetworkConnectionBlock(ProductBlockModel, product_block_name="NetworkConnection"):
+    """Primary network connection configuration."""
+
+    bandwidth: BandwidthBlock
+    ip_config: IPConfigurationBlock
+    redundancy: RedundancyBlock
+
+    @computed_field
+    @property
+    def monthly_cost(self) -> Decimal:
+        """Calculate total connection cost."""
+        return (
+            self.bandwidth.monthly_cost +
+            self.ip_config.monthly_cost +
+            self.redundancy.monthly_cost
+        )
+
+class BandwidthBlock(ProductBlockModel, product_block_name="Bandwidth"):
+    """Bandwidth allocation and traffic management."""
+
+    committed_speed_mbps: int = Field(ge=1, le=10000)
+    burst_speed_mbps: Optional[int] = Field(default=None, ge=1, le=10000)
+    traffic_class: TrafficClass = TrafficClass.BEST_EFFORT
+
+    @field_validator('burst_speed_mbps')
+    @classmethod
+    def validate_burst_speed(cls, v, info):
+        if v and info.data.get('committed_speed_mbps'):
+            if v < info.data['committed_speed_mbps']:
+                raise ValueError('Burst speed must be >= committed speed')
+        return v
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Your First Product"
+    icon="plus"
+    href="/getting-started/first-product"
+  >
+    Build a domain model for your service
+  </Card>
+  <Card
+    title="Learn About Workflows"
+    icon="workflow"
+    href="/concepts/workflows"
+  >
+    Understand how workflows use domain models
+  </Card>
+  <Card
+    title="Products Overview"
+    icon="cube"
+    href="/concepts/products"
+  >
+    Learn about product definitions
+  </Card>
+  <Card
+    title="Subscriptions Overview"
+    icon="cycle"
+    href="/concepts/subscriptions"
+  >
+    Master subscription lifecycle patterns
+  </Card>
+</CardGroup>

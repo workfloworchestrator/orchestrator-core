@@ -1,0 +1,151 @@
+---
+title: "API Explorer"
+description: "Interactive API documentation with Swagger UI"
+openapi: "api-reference/openapi.json"
+---
+
+## Interactive API Documentation
+
+Explore and test the Workflow Orchestrator API endpoints directly in your browser using the interactive Swagger UI below.
+
+<Note>
+This interactive documentation is generated from the OpenAPI specification and allows you to test API endpoints with real requests.
+</Note>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Try It Out" icon="play">
+    Execute API calls directly from the documentation
+  </Card>
+  <Card title="Request Examples" icon="code">
+    See example requests and responses for each endpoint
+  </Card>
+  <Card title="Schema Validation" icon="shield">
+    Validate request and response schemas automatically
+  </Card>
+  <Card title="Authentication" icon="key">
+    Test with your own authentication tokens
+  </Card>
+</CardGroup>
+
+## API Explorer
+
+<Note>
+The interactive API documentation below is automatically generated from the OpenAPI specification. You can test endpoints directly from this interface.
+</Note>
+
+<OpenApi />
+
+## Alternative Access
+
+You can also access the interactive API documentation at these endpoints when running the orchestrator locally:
+
+<CardGroup cols={3}>
+  <Card title="Swagger UI" icon="code">
+    `http://localhost:8080/docs`
+  </Card>
+  <Card title="ReDoc" icon="book">
+    `http://localhost:8080/redoc`
+  </Card>
+  <Card title="OpenAPI JSON" icon="file">
+    `http://localhost:8080/openapi.json`
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+1. **Authentication**: If authentication is enabled, click the "Authorize" button and enter your Bearer token
+2. **Explore Endpoints**: Browse the available API endpoints organized by category
+3. **Try Requests**: Click "Try it out" on any endpoint to test it with sample data
+4. **View Responses**: See the actual API responses and status codes
+
+## Common Endpoints
+
+<AccordionGroup>
+  <Accordion title="Processes">
+    - `GET /api/processes` - List all workflow processes
+    - `POST /api/processes/{workflow_key}` - Start a new workflow
+    - `GET /api/processes/{process_id}` - Get process details
+    - `DELETE /api/processes/{process_id}` - Delete a process
+  </Accordion>
+
+  <Accordion title="Subscriptions">
+    - `GET /api/subscriptions` - List all subscriptions
+    - `POST /api/subscriptions` - Create a new subscription
+    - `GET /api/subscriptions/{subscription_id}` - Get subscription details
+    - `PUT /api/subscriptions/{subscription_id}` - Update subscription
+  </Accordion>
+
+  <Accordion title="Products">
+    - `GET /api/products` - List all products
+    - `GET /api/products/{product_id}` - Get product details
+    - `GET /api/products/{product_id}/workflows` - Get product workflows
+  </Accordion>
+
+  <Accordion title="GraphQL">
+    - `POST /api/graphql` - Execute GraphQL queries
+    - `GET /api/graphql` - GraphQL playground (development)
+  </Accordion>
+</AccordionGroup>
+
+## Tips for Using the API Explorer
+
+<AccordionGroup>
+  <Accordion title="Authentication">
+    - Use the "Authorize" button to set your Bearer token
+    - The token will be automatically included in all requests
+    - Test with different user roles to see authorization in action
+  </Accordion>
+
+  <Accordion title="Testing Workflows">
+    - Start with simple workflows like service creation
+    - Monitor process status using the processes endpoints
+    - Use the process ID from creation responses to check status
+  </Accordion>
+
+  <Accordion title="Error Handling">
+    - Pay attention to error response schemas
+    - Common status codes: 401 (Unauthorized), 403 (Forbidden), 422 (Validation Error)
+    - Error responses include detailed messages for debugging
+  </Accordion>
+
+  <Accordion title="Data Formats">
+    - All timestamps use ISO 8601 format
+    - UUIDs are used for resource identifiers
+    - JSON is the primary content type for requests and responses
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Authentication Guide"
+    icon="key"
+    href="/api-reference/authentication"
+  >
+    Learn how to authenticate with the API
+  </Card>
+  <Card
+    title="API Introduction"
+    icon="book"
+    href="/api-reference/introduction"
+  >
+    Read the API overview and concepts
+  </Card>
+  <Card
+    title="Workflow Examples"
+    icon="workflow"
+    href="/examples/overview"
+  >
+    See real-world API usage examples
+  </Card>
+  <Card
+    title="Getting Started"
+    icon="rocket"
+    href="/getting-started/setup"
+  >
+    Set up your development environment
+  </Card>
+</CardGroup>

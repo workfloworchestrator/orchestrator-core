@@ -1,0 +1,449 @@
+---
+title: "Set Up the UI"
+description: "Install and configure the Workflow Orchestrator UI for complete service management"
+---
+
+## Overview
+
+The Workflow Orchestrator UI provides a modern web interface for managing subscriptions, executing workflows, and monitoring your services. This guide will help you set up the UI alongside your orchestrator backend.
+
+<Note>
+The UI is a separate React application that communicates with the orchestrator backend via REST and GraphQL APIs.
+</Note>
+
+## Prerequisites
+
+Before setting up the UI, ensure you have:
+
+- **Orchestrator Backend**: Running on `http://localhost:8080`
+- **Node.js 18+**: For running the React application
+- **npm or yarn**: Package manager for JavaScript dependencies
+
+## Step 1: Install the UI
+
+<Tabs>
+  <Tab title="Using npm">
+    ```bash
+    # Install the orchestrator UI package
+    npm install -g @workfloworchestrator/orchestrator-ui
+
+    # Create a new UI project
+    npx create-orchestrator-ui my-orchestrator-ui
+    cd my-orchestrator-ui
+
+    # Install dependencies
+    npm install
+    ```
+  </Tab>
+
+  <Tab title="Clone from GitHub">
+    ```bash
+    # Clone the UI repository
+    git clone https://github.com/workfloworchestrator/orchestrator-ui-frontend
+    cd orchestrator-ui-frontend
+
+    # Install dependencies
+    npm install
+
+    # Copy example configuration
+    cp .env.example .env
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    ```bash
+    # Run UI with Docker
+    docker run -d \
+      --name orchestrator-ui \
+      -p 3000:3000 \
+      -e REACT_APP_ORCHESTRATOR_API_URL=http://localhost:8080 \
+      workfloworchestrator/orchestrator-ui:latest
+    ```
+  </Tab>
+</Tabs>
+
+## Step 2: Configure the UI
+
+Create or update your `.env` file:
+
+```bash .env
+# Backend API configuration
+REACT_APP_ORCHESTRATOR_API_URL=http://localhost:8080
+REACT_APP_GRAPHQL_ENDPOINT=http://localhost:8080/api/graphql
+
+# Authentication (if OAuth is enabled)
+REACT_APP_OAUTH_ENABLED=false
+REACT_APP_OAUTH_CLIENT_ID=orchestrator-ui
+REACT_APP_OAUTH_AUTHORIZATION_URL=https://auth.example.com/oauth2/authorize
+REACT_APP_OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+
+# UI Configuration
+REACT_APP_ORGANIZATION_NAME=Your Organization
+REACT_APP_THEME_PRIMARY_COLOR=#0D9373
+REACT_APP_LOGO_URL=/logo.png
+
+# Feature flags
+REACT_APP_ENABLE_GRAPHQL_PLAYGROUND=true
+REACT_APP_ENABLE_WORKFLOW_BUILDER=true
+REACT_APP_ENABLE_SUBSCRIPTION_SEARCH=true
+```
+
+## Step 3: Start the UI
+
+```bash
+# Development mode with hot reload
+npm start
+
+# Production build
+npm run build
+npm run serve
+```
+
+The UI will be available at `http://localhost:3000`.
+
+## Step 4: Configure Backend for UI
+
+Update your orchestrator backend to support the UI:
+
+```python main.py
+"""Updated main.py with UI support."""
+
+from orchestrator import OrchestratorCore
+from orchestrator.cli.main import app as core_cli
+from orchestrator.settings import app_settings
+
+# Configure CORS for UI
+app_settings.CORS_ORIGINS = [
+    "http://localhost:3000",  # Development UI
+    "https://orchestrator.example.com"  # Production UI
+]
+app_settings.CORS_ALLOW_CREDENTIALS = True
+
+# Enable GraphQL playground in development
+app_settings.GRAPHQL_PLAYGROUND_ENABLED = True
+
+# Initialize orchestrator with UI support
+app = OrchestratorCore(
+    base_settings=app_settings,
+    enable_graphql=True,  # Required for UI
+    enable_websockets=True  # For real-time updates
+)
+
+if __name__ == "__main__":
+    core_cli()
+```
+
+## Step 5: Verify Integration
+
+### Check API Connectivity
+
+1. **Open the UI**: Navigate to `http://localhost:3000`
+2. **Check Health**: The UI should show a green status indicator
+3. **View Subscriptions**: Navigate to the subscriptions page
+4. **Test GraphQL**: Open the GraphQL playground at `/graphql`
+
+### Test Workflow Execution
+
+1. **Navigate to Workflows**: Click on "Workflows" in the sidebar
+2. **Select Workflow**: Choose "Create Internet Service"
+3. **Fill Form**: Complete the service creation form
+4. **Execute**: Click "Start Workflow" and monitor progress
+5. **View Result**: Check the created subscription in the subscriptions list
+
+## UI Features
+
+### Dashboard
+
+The main dashboard provides:
+
+<CardGroup cols={2}>
+  <Card title="Service Overview" icon="chart-pie">
+    Real-time metrics on active services and subscriptions
+  </Card>
+  <Card title="Workflow Status" icon="workflow">
+    Current workflow executions and their status
+  </Card>
+  <Card title="System Health" icon="heart">
+    Backend health checks and system status
+  </Card>
+  <Card title="Recent Activity" icon="clock">
+    Latest subscription changes and workflow executions
+  </Card>
+</CardGroup>
+
+### Subscription Management
+
+- **Search and Filter**: Find subscriptions by customer, product, or status
+- **Subscription Details**: View complete configuration and history
+- **Lifecycle Management**: Execute workflows to modify or terminate services
+- **Audit Trail**: Complete history of changes and workflow executions
+
+### Workflow Management
+
+- **Workflow Library**: Browse available workflows by category
+- **Execution Monitoring**: Real-time workflow progress tracking
+- **Form Builder**: Dynamic forms based on workflow definitions
+- **Error Handling**: View and retry failed workflow steps
+
+### Product Catalog
+
+- **Product Browser**: Explore available products and their configurations
+- **Product Details**: View product blocks, fixed inputs, and workflows
+- **Lifecycle Status**: See which products are active, deprecated, or in development
+
+## Customization
+
+### Branding and Theming
+
+```typescript src/config/theme.ts
+// Custom theme configuration
+export const theme = {
+  colors: {
+    primary: '#0D9373',
+    secondary: '#07C983',
+    background: '#ffffff',
+    surface: '#f8f9fa',
+    text: '#212529'
+  },
+  typography: {
+    fontFamily: 'Inter, sans-serif',
+    fontSize: {
+      small: '0.875rem',
+      medium: '1rem',
+      large: '1.25rem'
+    }
+  },
+  layout: {
+    sidebarWidth: '280px',
+    headerHeight: '64px',
+    borderRadius: '8px'
+  }
+};
+```
+
+### Custom Components
+
+```typescript src/components/CustomSubscriptionCard.tsx
+import React from 'react';
+import { Subscription } from '../types';
+
+interface CustomSubscriptionCardProps {
+  subscription: Subscription;
+  onEdit: (id: string) => void;
+}
+
+export const CustomSubscriptionCard: React.FC<CustomSubscriptionCardProps> = ({
+  subscription,
+  onEdit
+}) => {
+  return (
+    <div className="subscription-card">
+      <div className="card-header">
+        <h3>{subscription.description}</h3>
+        <span className={`status ${subscription.status}`}>
+          {subscription.status}
+        </span>
+      </div>
+
+      <div className="card-body">
+        <p><strong>Customer:</strong> {subscription.customer_id}</p>
+        <p><strong>Product:</strong> {subscription.product.name}</p>
+        <p><strong>Created:</strong> {subscription.start_date}</p>
+      </div>
+
+      <div className="card-actions">
+        <button onClick={() => onEdit(subscription.subscription_id)}>
+          Edit Service
+        </button>
+      </div>
+    </div>
+  );
+};
+```
+
+### Navigation Customization
+
+```typescript src/config/navigation.ts
+// Custom navigation menu
+export const navigationConfig = {
+  sections: [
+    {
+      title: 'Services',
+      items: [
+        { label: 'Subscriptions', path: '/subscriptions', icon: 'users' },
+        { label: 'Products', path: '/products', icon: 'box' },
+        { label: 'Customers', path: '/customers', icon: 'user' }
+      ]
+    },
+    {
+      title: 'Operations',
+      items: [
+        { label: 'Workflows', path: '/workflows', icon: 'workflow' },
+        { label: 'Tasks', path: '/tasks', icon: 'list' },
+        { label: 'Reports', path: '/reports', icon: 'chart-bar' }
+      ]
+    },
+    {
+      title: 'Administration',
+      items: [
+        { label: 'Users', path: '/admin/users', icon: 'users-cog' },
+        { label: 'Settings', path: '/admin/settings', icon: 'cog' },
+        { label: 'Logs', path: '/admin/logs', icon: 'file-text' }
+      ]
+    }
+  ]
+};
+```
+
+## Production Deployment
+
+### Build for Production
+
+```bash
+# Create production build
+npm run build
+
+# The build folder contains static files ready for deployment
+ls -la build/
+```
+
+### Nginx Configuration
+
+```nginx nginx.conf
+server {
+    listen 80;
+    server_name orchestrator-ui.example.com;
+
+    root /var/www/orchestrator-ui/build;
+    index index.html;
+
+    # Handle React Router
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API proxy to backend
+    location /api/ {
+        proxy_pass http://orchestrator-backend:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket support for real-time updates
+    location /ws {
+        proxy_pass http://orchestrator-backend:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Static assets caching
+    location /static/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+### Docker Deployment
+
+```dockerfile Dockerfile.ui
+FROM node:18-alpine as builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="UI Cannot Connect to Backend">
+    **Symptoms**: UI shows "Backend Unavailable" message
+
+    **Solutions**:
+    - Verify backend is running on correct port
+    - Check CORS configuration in backend
+    - Ensure `REACT_APP_ORCHESTRATOR_API_URL` is correct
+    - Check browser console for network errors
+  </Accordion>
+
+  <Accordion title="Authentication Issues">
+    **Symptoms**: Login fails or redirects incorrectly
+
+    **Solutions**:
+    - Verify OAuth configuration matches backend
+    - Check redirect URI is registered with OAuth provider
+    - Ensure `REACT_APP_OAUTH_REDIRECT_URI` matches actual URL
+    - Check browser cookies and local storage
+  </Accordion>
+
+  <Accordion title="GraphQL Errors">
+    **Symptoms**: Data not loading, GraphQL errors in console
+
+    **Solutions**:
+    - Verify GraphQL endpoint is accessible
+    - Check GraphQL playground at `/api/graphql`
+    - Ensure backend has GraphQL enabled
+    - Check authentication headers for GraphQL requests
+  </Accordion>
+
+  <Accordion title="Build Errors">
+    **Symptoms**: `npm run build` fails
+
+    **Solutions**:
+    - Clear node_modules and reinstall: `rm -rf node_modules && npm install`
+    - Check Node.js version compatibility
+    - Verify all environment variables are set
+    - Check for TypeScript errors: `npm run type-check`
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Workflows"
+    icon="workflow"
+    href="/workflows/creating-workflows"
+  >
+    Build custom workflows for your services
+  </Card>
+  <Card
+    title="Domain Models"
+    icon="cube"
+    href="/concepts/domain-models"
+  >
+    Learn about service modeling
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore the complete API
+  </Card>
+  <Card
+    title="Production Deployment"
+    icon="rocket"
+    href="/advanced/deployment"
+  >
+    Deploy to production
+  </Card>
+</CardGroup>
+
+<Check>
+**UI Setup Complete!** You now have a fully functional web interface for managing your orchestrator services. The UI provides intuitive access to subscriptions, workflows, and system monitoring.
+</Check>

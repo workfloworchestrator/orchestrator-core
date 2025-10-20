@@ -1,0 +1,599 @@
+---
+title: "Workflows"
+description: "Learn how to create and manage automated business processes with Workflow Orchestrator"
+---
+
+## What are Workflows?
+
+**Workflows** are Python functions that define automated business processes for managing service lifecycles. They orchestrate the steps needed to create, modify, validate, or terminate services, providing a clear, auditable path from request to completion.
+
+<Note>
+Workflows in the Workflow Orchestrator are designed to be **simple Python functions** that are easy to read, write, and maintain. No complex XML or YAML configurations required!
+</Note>
+
+## Basic Workflow Structure
+
+Every workflow follows the same simple pattern:
+
+```python
+from orchestrator.workflow import workflow
+from orchestrator.workflows.steps import init, done
+
+@workflow("Workflow Name", initial_input_form=input_form_generator)
+def my_workflow():
+    return (
+        init
+        >> step_1
+        >> step_2
+        >> step_3
+        >> done
+    )
+```
+
+The `>>` operator chains workflow steps together, creating a clear execution flow.
+
+## Workflow Types
+
+The orchestrator supports several types of workflows for different purposes:
+
+<Tabs>
+  <Tab title="Create Workflows">
+    **Purpose**: Provision new services for customers
+
+    ```python
+    @workflow("Create Internet Service", initial_input_form=create_internet_form)
+    def create_internet_service():
+        return (
+            init
+            >> validate_customer_eligibility
+            >> allocate_bandwidth
+            >> assign_ip_address
+            >> configure_network_equipment
+            >> activate_service
+            >> send_welcome_email
+            >> done
+        )
+    ```
+  </Tab>
+
+  <Tab title="Modify Workflows">
+    **Purpose**: Change existing service configurations
+
+    ```python
+    @workflow("Modify Bandwidth", initial_input_form=modify_bandwidth_form)
+    def modify_bandwidth():
+        return (
+            init
+            >> validate_bandwidth_change
+            >> check_network_capacity
+            >> update_configuration
+            >> apply_changes
+            >> update_billing
+            >> notify_customer
+            >> done
+        )
+    ```
+  </Tab>
+
+  <Tab title="Terminate Workflows">
+    **Purpose**: Safely decommission services
+
+    ```python
+    @workflow("Terminate Service", initial_input_form=terminate_form)
+    def terminate_service():
+        return (
+            init
+            >> validate_termination_request
+            >> backup_configuration
+            >> disconnect_service
+            >> release_resources
+            >> final_billing
+            >> send_confirmation
+            >> done
+        )
+    ```
+  </Tab>
+
+  <Tab title="Validation Workflows">
+    **Purpose**: Verify service health and compliance
+
+    ```python
+    @workflow("Validate Network Service")
+    def validate_network_service():
+        return (
+            init
+            >> check_connectivity
+            >> verify_bandwidth
+            >> validate_configuration
+            >> test_redundancy
+            >> generate_report
+            >> done
+        )
+    ```
+  </Tab>
+</Tabs>
+
+## Workflow Steps
+
+Individual workflow steps are Python functions that perform specific tasks:
+
+### Basic Step Function
+
+```python
+from orchestrator.workflows import StepList, State
+
+def allocate_bandwidth(state: State) -> State:
+    """Allocate bandwidth for the service."""
+
+    # Get subscription model from state
+    subscription = state.subscription
+
+    # Perform business logic
+    bandwidth_allocation = bandwidth_service.allocate(
+        speed=subscription.bandwidth.speed_mbps,
+        customer_id=subscription.customer_id
+    )
+
+    # Update subscription model
+    subscription.bandwidth.allocation_id = bandwidth_allocation.id
+    subscription.bandwidth.allocated_date = datetime.now()
+
+    # Return updated state
+    return {**state, "subscription": subscription}
+```
+
+### Step with External System Integration
+
+```python
+import httpx
+from orchestrator.workflows import StepList, State
+
+def configure_network_equipment(state: State) -> State:
+    """Configure network equipment for the service."""
+
+    subscription = state.subscription
+
+    # Call external network management system
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{NETWORK_API_URL}/configure",
+            json={
+                "customer_id": subscription.customer_id,
+                "bandwidth": subscription.bandwidth.speed_mbps,
+                "vlan_id": subscription.vlan.vlan_id,
+                "ip_address": str(subscription.ip_address.address)
+            }
+        )
+        response.raise_for_status()
+
+    config_result = response.json()
+
+    # Update subscription with configuration details
+    subscription.network_config = NetworkConfig(
+        device_id=config_result["device_id"],
+        port_id=config_result["port_id"],
+        configuration_id=config_result["config_id"]
+    )
+
+    return {**state, "subscription": subscription}
+```
+
+### Conditional Steps
+
+```python
+def check_credit_approval(state: State) -> State:
+    """Check if customer credit approval is needed."""
+
+    subscription = state.subscription
+
+    # Check if service cost requires credit approval
+    monthly_cost = subscription.monthly_recurring_cost
+
+    if monthly_cost > 1000:  # High-value services need approval
+        # Set flag for manual approval step
+        return {
+            **state,
+            "requires_credit_approval": True,
+            "approval_amount": monthly_cost
+        }
+    else:
+        # Auto-approve lower cost services
+        return {
+            **state,
+            "requires_credit_approval": False,
+            "credit_approved": True
+        }
+
+def manual_credit_approval(state: State) -> State:
+    """Manual credit approval step (only if required)."""
+
+    if not state.get("requires_credit_approval", False):
+        # Skip this step if not required
+        return state
+
+    # This step will pause for manual approval
+    # The workflow engine will wait for operator input
+    return {
+        **state,
+        "awaiting_approval": True,
+        "approval_type": "credit_check"
+    }
+```
+
+## Input Forms
+
+Workflows can collect input from users through dynamic forms:
+
+```python
+from orchestrator.forms import FormPage, ReadOnlyField
+from pydantic import BaseModel
+
+class CreateServiceForm(BaseModel):
+    customer_id: str
+    service_type: str
+    bandwidth_mbps: int
+    installation_address: str
+    contact_email: str
+
+def create_service_form_generator(subscription_id: UUID) -> FormPage:
+    """Generate input form for service creation."""
+
+    # If modifying existing subscription, pre-populate fields
+    if subscription_id:
+        subscription = SubscriptionModel.from_subscription(subscription_id)
+        return FormPage(
+            form=CreateServiceForm(
+                customer_id=subscription.customer_id,
+                service_type=subscription.service_type,
+                bandwidth_mbps=subscription.bandwidth.speed_mbps,
+                installation_address=subscription.installation_address,
+                contact_email=subscription.contact_email
+            )
+        )
+
+    # For new subscriptions, return empty form
+    return FormPage(form=CreateServiceForm)
+
+@workflow("Create Internet Service", initial_input_form=create_service_form_generator)
+def create_internet_service():
+    return (
+        init
+        >> validate_input
+        >> provision_service
+        >> done
+    )
+```
+
+## Error Handling
+
+Workflows include built-in error handling and retry mechanisms:
+
+```python
+from orchestrator.workflows import StepList, State
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+def provision_external_service(state: State) -> State:
+    """Provision service with external provider."""
+
+    try:
+        # Attempt to provision service
+        result = external_api.provision_service(
+            customer_id=state.subscription.customer_id,
+            service_config=state.subscription.to_dict()
+        )
+
+        return {
+            **state,
+            "external_service_id": result.service_id,
+            "provisioning_status": "completed"
+        }
+
+    except ExternalAPIException as e:
+        # Log error and set retry flag
+        logger.error(f"External provisioning failed: {e}")
+
+        # This will cause the workflow to retry this step
+        raise WorkflowStepException(
+            f"Failed to provision external service: {e}",
+            retry_after=300  # Retry after 5 minutes
+        )
+
+    except Exception as e:
+        # For unexpected errors, fail the workflow
+        logger.exception("Unexpected error in provisioning")
+        raise WorkflowStepException(
+            f"Unexpected provisioning error: {e}",
+            retry=False  # Don't retry unexpected errors
+        )
+```
+
+## Workflow State Management
+
+The workflow engine automatically manages state between steps:
+
+```python
+def step_1(state: State) -> State:
+    """First step adds data to state."""
+    return {
+        **state,
+        "allocated_bandwidth": 1000,
+        "vlan_id": 100
+    }
+
+def step_2(state: State) -> State:
+    """Second step can access data from previous steps."""
+    bandwidth = state["allocated_bandwidth"]  # From step_1
+    vlan_id = state["vlan_id"]  # From step_1
+
+    # Configure service using previous step data
+    service_config = configure_service(bandwidth, vlan_id)
+
+    return {
+        **state,
+        "service_configuration": service_config
+    }
+```
+
+<Warning>
+State is automatically persisted between steps, so workflows can be paused, resumed, and survive system restarts.
+</Warning>
+
+## Advanced Features
+
+### Parallel Execution
+
+Execute multiple steps in parallel for better performance:
+
+```python
+from orchestrator.workflows import ParallelStep
+
+@workflow("Provision Complex Service")
+def provision_complex_service():
+    return (
+        init
+        >> validate_request
+        >> ParallelStep(
+            allocate_bandwidth,
+            assign_ip_addresses,
+            create_vlans,
+            setup_monitoring
+        )
+        >> configure_routing
+        >> activate_service
+        >> done
+    )
+```
+
+### Conditional Branching
+
+Use conditional logic to handle different scenarios:
+
+```python
+from orchestrator.workflows import ConditionalStep
+
+def choose_provisioning_path(state: State) -> str:
+    """Determine which provisioning path to take."""
+    service_type = state.subscription.service_type
+
+    if service_type == "enterprise":
+        return "enterprise_provisioning"
+    elif service_type == "premium":
+        return "premium_provisioning"
+    else:
+        return "standard_provisioning"
+
+@workflow("Adaptive Provisioning")
+def adaptive_provisioning():
+    return (
+        init
+        >> validate_service_type
+        >> ConditionalStep(
+            condition=choose_provisioning_path,
+            branches={
+                "enterprise_provisioning": enterprise_provision_steps,
+                "premium_provisioning": premium_provision_steps,
+                "standard_provisioning": standard_provision_steps
+            }
+        )
+        >> finalize_service
+        >> done
+    )
+```
+
+### Rollback and Compensation
+
+Handle failures with automatic rollback:
+
+```python
+from orchestrator.workflows import CompensatableStep
+
+def allocate_resources(state: State) -> State:
+    """Allocate resources with rollback capability."""
+
+    # Perform allocation
+    allocation = resource_manager.allocate(
+        customer_id=state.subscription.customer_id,
+        resources=state.requested_resources
+    )
+
+    # Store rollback information
+    return {
+        **state,
+        "resource_allocation": allocation,
+        "rollback_allocation_id": allocation.id
+    }
+
+def rollback_allocation(state: State) -> State:
+    """Rollback resource allocation if workflow fails."""
+
+    allocation_id = state.get("rollback_allocation_id")
+    if allocation_id:
+        resource_manager.deallocate(allocation_id)
+        logger.info(f"Rolled back allocation {allocation_id}")
+
+    return state
+
+@workflow("Provision with Rollback")
+def provision_with_rollback():
+    return (
+        init
+        >> CompensatableStep(
+            forward=allocate_resources,
+            compensate=rollback_allocation
+        )
+        >> configure_service
+        >> done
+    )
+```
+
+## Testing Workflows
+
+Workflows can be easily tested using the built-in testing framework:
+
+```python
+import pytest
+from orchestrator.workflows.testing import WorkflowTester
+
+def test_create_internet_service():
+    """Test the internet service creation workflow."""
+
+    # Setup test data
+    initial_state = {
+        "subscription": InternetServiceInactive(
+            customer_id="CUST123",
+            service_type="internet",
+            bandwidth=BandwidthBlock(speed_mbps=100)
+        )
+    }
+
+    # Run workflow in test mode
+    tester = WorkflowTester(create_internet_service)
+    result = tester.run(initial_state)
+
+    # Verify results
+    assert result.status == "completed"
+    assert result.subscription.status == SubscriptionLifecycle.ACTIVE
+    assert result.subscription.bandwidth.allocation_id is not None
+
+def test_workflow_error_handling():
+    """Test workflow behavior when external services fail."""
+
+    # Mock external service to fail
+    with patch('external_api.provision_service') as mock_provision:
+        mock_provision.side_effect = ExternalAPIException("Service unavailable")
+
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state)
+
+        # Verify error handling
+        assert result.status == "failed"
+        assert "Service unavailable" in result.error_message
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Steps Focused">
+    Each step should have a single, clear responsibility. This makes workflows easier to understand, test, and maintain.
+
+    ```python
+    # Good: Single responsibility
+    def allocate_bandwidth(state: State) -> State:
+        """Allocate bandwidth for the service."""
+        # Only handles bandwidth allocation
+
+    # Avoid: Multiple responsibilities
+    def setup_everything(state: State) -> State:
+        """Setup bandwidth, IP, VLAN, and routing."""
+        # Too many responsibilities in one step
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Errors Gracefully">
+    Always anticipate and handle potential failures, especially when integrating with external systems.
+
+    ```python
+    def external_integration_step(state: State) -> State:
+        try:
+            # External API call
+            result = external_api.call()
+            return {**state, "result": result}
+        except APIException as e:
+            # Handle expected errors
+            raise WorkflowStepException(f"API error: {e}", retry_after=60)
+        except Exception as e:
+            # Handle unexpected errors
+            logger.exception("Unexpected error")
+            raise WorkflowStepException(f"Unexpected error: {e}", retry=False)
+    ```
+  </Accordion>
+
+  <Accordion title="Use Meaningful Names">
+    Choose descriptive names for workflows and steps that clearly indicate their purpose.
+
+    ```python
+    # Good: Clear, descriptive names
+    @workflow("Provision Enterprise Internet Service")
+    def provision_enterprise_internet_service():
+        return (
+            init
+            >> validate_enterprise_customer
+            >> allocate_dedicated_bandwidth
+            >> configure_redundant_connections
+            >> setup_priority_support
+            >> done
+        )
+    ```
+  </Accordion>
+
+  <Accordion title="Document Complex Logic">
+    Add docstrings and comments to explain business logic and integration points.
+
+    ```python
+    def calculate_service_cost(state: State) -> State:
+        """Calculate total service cost including all components.
+
+        Cost calculation includes:
+        - Base service fee based on bandwidth tier
+        - Installation charges for new customers
+        - Premium support fees if selected
+        - Regulatory fees and taxes
+
+        Returns updated state with cost breakdown.
+        """
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Your First Workflow"
+    icon="plus"
+    href="/getting-started/first-workflow"
+  >
+    Build a workflow for your service
+  </Card>
+  <Card
+    title="Workflow Testing"
+    icon="flask"
+    href="/workflows/testing"
+  >
+    Learn how to test your workflows
+  </Card>
+  <Card
+    title="Workflow Steps"
+    icon="list"
+    href="/workflows/workflow-steps"
+  >
+    Understand individual workflow steps
+  </Card>
+  <Card
+    title="Examples"
+    icon="book"
+    href="/examples/overview"
+  >
+    See real-world examples
+  </Card>
+</CardGroup>

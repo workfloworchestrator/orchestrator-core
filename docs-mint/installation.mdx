@@ -1,0 +1,358 @@
+---
+title: "Installation"
+description: "Detailed installation guide for Workflow Orchestrator in different environments"
+---
+
+## System Requirements
+
+Before installing Workflow Orchestrator, ensure your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Python" icon="python">
+    **Version**: 3.11 or higher
+
+    **Recommended**: 3.12 for best performance
+  </Card>
+  <Card title="Database" icon="database">
+    **PostgreSQL**: 13 or higher
+
+    **Extensions**: pgvector (recommended)
+  </Card>
+  <Card title="Memory" icon="memory">
+    **Minimum**: 2GB RAM
+
+    **Recommended**: 4GB+ for production
+  </Card>
+  <Card title="Storage" icon="hard-drive">
+    **Minimum**: 1GB free space
+
+    **Recommended**: 10GB+ for production
+  </Card>
+</CardGroup>
+
+## Installation Methods
+
+Choose the installation method that best fits your environment:
+
+<Tabs>
+  <Tab title="pip (Recommended)">
+    ### Using pip
+
+    The simplest way to install Workflow Orchestrator:
+
+    ```bash
+    # Create and activate virtual environment
+    python -m venv orchestrator-env
+    source orchestrator-env/bin/activate  # On Windows: orchestrator-env\Scripts\activate
+
+    # Install orchestrator-core
+    pip install orchestrator-core
+
+    # Verify installation
+    python -c "import orchestrator; print(orchestrator.__version__)"
+    ```
+
+    <Note>
+    Always use a virtual environment to avoid conflicts with other Python packages.
+    </Note>
+  </Tab>
+
+  <Tab title="Docker">
+    ### Using Docker
+
+    For containerized deployment:
+
+    ```bash
+    # Clone the example repository
+    git clone https://github.com/workfloworchestrator/example-orchestrator
+    cd example-orchestrator
+
+    # Start with Docker Compose
+    docker-compose up -d
+
+    # Check status
+    docker-compose ps
+    ```
+
+    This includes:
+    - Orchestrator application
+    - PostgreSQL database
+    - Redis (for caching)
+    - Example configurations
+  </Tab>
+
+  <Tab title="Development">
+    ### Development Installation
+
+    For contributing or development:
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/workfloworchestrator/orchestrator-core
+    cd orchestrator-core
+
+    # Install in development mode
+    pip install -e ".[dev,test]"
+
+    # Install pre-commit hooks
+    pre-commit install
+
+    # Run tests to verify setup
+    pytest
+    ```
+  </Tab>
+</Tabs>
+
+## Database Setup
+
+### PostgreSQL Installation
+
+<Tabs>
+  <Tab title="Ubuntu/Debian">
+    ```bash
+    # Update package list
+    sudo apt update
+
+    # Install PostgreSQL
+    sudo apt install postgresql postgresql-contrib
+
+    # Start PostgreSQL service
+    sudo systemctl start postgresql
+    sudo systemctl enable postgresql
+
+    # Create orchestrator user and database
+    sudo -u postgres createuser -sP nwa
+    sudo -u postgres createdb orchestrator-core -O nwa
+    ```
+  </Tab>
+
+  <Tab title="macOS">
+    ```bash
+    # Using Homebrew
+    brew install postgresql
+    brew services start postgresql
+
+    # Create user and database
+    createuser -sP nwa
+    createdb orchestrator-core -O nwa
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    ```bash
+    # Start PostgreSQL container
+    docker run --name orchestrator-db \
+      -e POSTGRES_PASSWORD=rootpassword \
+      -p 5432:5432 \
+      -d pgvector/pgvector:pg17
+
+    # Create user and database
+    docker exec -it orchestrator-db su - postgres -c \
+      'createuser -sP nwa && createdb orchestrator-core -O nwa'
+    ```
+  </Tab>
+</Tabs>
+
+### Database Configuration
+
+Set up your database connection:
+
+```bash
+# Set database URI
+export DATABASE_URI=postgresql://nwa:YOUR_PASSWORD@localhost:5432/orchestrator-core
+
+# For production, also consider:
+export DATABASE_POOL_SIZE=20
+export DATABASE_MAX_OVERFLOW=30
+```
+
+<Warning>
+Store sensitive database credentials in environment variables or secure configuration files, never in your code.
+</Warning>
+
+## Environment Configuration
+
+### Required Environment Variables
+
+```bash
+# Database connection
+export DATABASE_URI=postgresql://nwa:password@localhost:5432/orchestrator-core
+
+# Authentication (disable for development)
+export OAUTH2_ACTIVE=False
+
+# Optional: Redis for caching
+export CACHE_URI=redis://localhost:6379/0
+```
+
+### Optional Configuration
+
+```bash
+# Logging level
+export LOG_LEVEL=INFO
+
+# API settings
+export API_PREFIX=/api
+export CORS_ORIGINS=["http://localhost:3000"]
+
+# Worker settings
+export WORKER_PROCESSES=4
+export WORKER_TIMEOUT=300
+```
+
+<Tip>
+Create a `.env` file in your project directory to store environment variables for local development.
+</Tip>
+
+## Application Setup
+
+### 1. Create Application File
+
+Create `main.py`:
+
+```python main.py
+from orchestrator import OrchestratorCore
+from orchestrator.cli.main import app as core_cli
+from orchestrator.settings import app_settings
+
+# Initialize the orchestrator application
+app = OrchestratorCore(base_settings=app_settings)
+
+# CLI interface
+if __name__ == "__main__":
+    core_cli()
+```
+
+### 2. Initialize Database
+
+```bash
+# Initialize migration environment
+python main.py db init
+
+# Run database migrations
+python main.py db upgrade heads
+
+# Optional: Load sample data
+python main.py db seed
+```
+
+### 3. Start Application
+
+<Tabs>
+  <Tab title="Development">
+    ```bash
+    # Start with auto-reload
+    uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+    ```
+  </Tab>
+
+  <Tab title="Production">
+    ```bash
+    # Start with Gunicorn
+    gunicorn -w 4 -k uvicorn.workers.UvicornWorker \
+      --bind 0.0.0.0:8080 main:app
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    ```dockerfile
+    FROM python:3.12-slim
+
+    WORKDIR /app
+    COPY requirements.txt .
+    RUN pip install -r requirements.txt
+
+    COPY . .
+    EXPOSE 8080
+
+    CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", \
+         "--bind", "0.0.0.0:8080", "main:app"]
+    ```
+  </Tab>
+</Tabs>
+
+## Verification
+
+### Health Check
+
+Verify your installation by checking the health endpoint:
+
+```bash
+curl http://localhost:8080/api/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "database": "connected",
+  "timestamp": "2024-01-01T12:00:00Z"
+}
+```
+
+### API Documentation
+
+Access the interactive API documentation:
+
+- **Swagger UI**: http://localhost:8080/api/docs
+- **ReDoc**: http://localhost:8080/api/redoc
+- **GraphQL**: http://localhost:8080/api/graphql
+
+<Check>
+If all endpoints are accessible, your installation is successful!
+</Check>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Import Errors">
+    **Problem**: `ModuleNotFoundError: No module named 'orchestrator'`
+
+    **Solution**:
+    - Ensure you're in the correct virtual environment
+    - Reinstall with `pip install orchestrator-core`
+    - Check Python version compatibility
+  </Accordion>
+
+  <Accordion title="Database Connection Errors">
+    **Problem**: `could not connect to server`
+
+    **Solution**:
+    - Verify PostgreSQL is running: `sudo systemctl status postgresql`
+    - Check connection string format
+    - Ensure database and user exist
+    - Verify network connectivity and firewall settings
+  </Accordion>
+
+  <Accordion title="Permission Errors">
+    **Problem**: `permission denied for database`
+
+    **Solution**:
+    - Grant proper permissions: `GRANT ALL PRIVILEGES ON DATABASE "orchestrator-core" TO nwa;`
+    - Ensure user has createdb permissions
+    - Check PostgreSQL authentication configuration
+  </Accordion>
+
+  <Accordion title="Port Conflicts">
+    **Problem**: `Address already in use`
+
+    **Solution**:
+    - Use a different port: `--port 8081`
+    - Kill existing processes: `lsof -ti:8080 | xargs kill`
+    - Check for other services using the port
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+After successful installation:
+
+1. **[Create your first product](/getting-started/first-product)** - Define your service offerings
+2. **[Build workflows](/getting-started/first-workflow)** - Automate service lifecycle management
+3. **[Set up the UI](/getting-started/ui-setup)** - Install the web interface
+4. **[Deploy to production](/advanced/deployment)** - Scale your orchestrator for production use
+
+<Info>
+For production deployments, consider additional components like Redis for caching, monitoring tools, and load balancers for high availability.
+</Info>

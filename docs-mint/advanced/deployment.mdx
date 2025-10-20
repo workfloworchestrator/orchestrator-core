@@ -1,0 +1,1013 @@
+---
+title: "Production Deployment"
+description: "Deploy Workflow Orchestrator to production environments with best practices"
+---
+
+## Deployment Overview
+
+Deploying Workflow Orchestrator to production requires careful consideration of scalability, security, monitoring, and reliability. This guide covers deployment patterns from small single-server setups to large-scale distributed deployments.
+
+<Warning>
+Production deployments require additional security, monitoring, and backup considerations beyond development setups. Always review security requirements with your organization.
+</Warning>
+
+## Architecture Options
+
+<Tabs>
+  <Tab title="Single Server">
+    **Best for**: Small teams, development, staging environments
+
+    ```mermaid
+    graph TD
+        A[Load Balancer] --> B[Orchestrator App]
+        B --> C[PostgreSQL]
+        B --> D[Redis]
+        B --> E[File Storage]
+    ```
+
+    **Pros**: Simple setup, low cost, easy maintenance
+    **Cons**: Single point of failure, limited scalability
+  </Tab>
+
+  <Tab title="High Availability">
+    **Best for**: Production workloads, business-critical services
+
+    ```mermaid
+    graph TD
+        A[Load Balancer] --> B[Orchestrator App 1]
+        A --> C[Orchestrator App 2]
+        A --> D[Orchestrator App 3]
+        B --> E[PostgreSQL Primary]
+        C --> E
+        D --> E
+        E --> F[PostgreSQL Replica]
+        B --> G[Redis Cluster]
+        C --> G
+        D --> G
+    ```
+
+    **Pros**: No single point of failure, horizontal scaling
+    **Cons**: More complex, higher cost
+  </Tab>
+
+  <Tab title="Microservices">
+    **Best for**: Large organizations, multiple teams, complex integrations
+
+    ```mermaid
+    graph TD
+        A[API Gateway] --> B[Orchestrator Core]
+        A --> C[Workflow Engine]
+        A --> D[Notification Service]
+        B --> E[Shared Database]
+        C --> E
+        D --> F[Message Queue]
+        B --> G[External APIs]
+    ```
+
+    **Pros**: Service isolation, independent scaling, team autonomy
+    **Cons**: Operational complexity, network overhead
+  </Tab>
+</Tabs>
+
+## Container Deployment
+
+### Docker Configuration
+
+Create production-ready Docker images:
+
+```dockerfile Dockerfile
+FROM python:3.12-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Create app user
+RUN groupadd -r app && useradd -r -g app app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN python -m venv .venv && \
+    .venv/bin/pip install --upgrade pip && \
+    .venv/bin/pip install -r requirements.txt
+
+# Copy application code
+COPY --chown=app:app . .
+
+# Switch to app user
+USER app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/api/health || exit 1
+
+# Expose port
+EXPOSE 8080
+
+# Run application
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--access-logfile", "-", "--error-logfile", "-", \
+     "main:app"]
+```
+
+### Docker Compose for Production
+
+```yaml docker-compose.prod.yml
+version: '3.8'
+
+services:
+  orchestrator:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URI=postgresql://orchestrator:${DB_PASSWORD}@db:5432/orchestrator
+      - REDIS_URI=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - OAUTH2_ACTIVE=true
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=orchestrator
+      - POSTGRES_USER=orchestrator
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orchestrator"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+## Kubernetes Deployment
+
+### Namespace and ConfigMap
+
+```yaml k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orchestrator
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrator-config
+  namespace: orchestrator
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  OAUTH2_ACTIVE: "true"
+  API_PREFIX: "/api"
+  CORS_ORIGINS: '["https://orchestrator.example.com"]'
+```
+
+### Secrets Management
+
+```yaml k8s/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: orchestrator-secrets
+  namespace: orchestrator
+type: Opaque
+stringData:
+  DATABASE_URI: "postgresql://orchestrator:PASSWORD@postgres:5432/orchestrator"
+  REDIS_URI: "redis://:PASSWORD@redis:6379/0"
+  JWT_SECRET_KEY: "your-jwt-secret-key"
+  OAUTH2_CLIENT_SECRET: "your-oauth2-client-secret"
+```
+
+### Application Deployment
+
+```yaml k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: orchestrator
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+    spec:
+      containers:
+      - name: orchestrator
+        image: your-registry/orchestrator:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DATABASE_URI
+          valueFrom:
+            secretKeyRef:
+              name: orchestrator-secrets
+              key: DATABASE_URI
+        - name: REDIS_URI
+          valueFrom:
+            secretKeyRef:
+              name: orchestrator-secrets
+              key: REDIS_URI
+        envFrom:
+        - configMapRef:
+            name: orchestrator-config
+        - secretRef:
+            name: orchestrator-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-service
+  namespace: orchestrator
+spec:
+  selector:
+    app: orchestrator
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+```
+
+### Ingress Configuration
+
+```yaml k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orchestrator-ingress
+  namespace: orchestrator
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  tls:
+  - hosts:
+    - orchestrator.example.com
+    secretName: orchestrator-tls
+  rules:
+  - host: orchestrator.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: orchestrator-service
+            port:
+              number: 80
+```
+
+## Database Configuration
+
+### Production PostgreSQL Setup
+
+```sql
+-- Create dedicated database and user
+CREATE DATABASE orchestrator_prod;
+CREATE USER orchestrator_prod WITH PASSWORD 'secure_password';
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON DATABASE orchestrator_prod TO orchestrator_prod;
+ALTER USER orchestrator_prod CREATEDB;  -- For running migrations
+
+-- Enable required extensions
+\c orchestrator_prod;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "vector";  -- If using vector search
+
+-- Configure connection limits
+ALTER USER orchestrator_prod CONNECTION LIMIT 50;
+```
+
+### Database Optimization
+
+```python config/database.py
+"""Production database configuration."""
+
+from orchestrator.settings import app_settings
+
+# Connection pool settings
+app_settings.DATABASE_POOL_SIZE = 20
+app_settings.DATABASE_MAX_OVERFLOW = 30
+app_settings.DATABASE_POOL_TIMEOUT = 30
+app_settings.DATABASE_POOL_RECYCLE = 3600
+
+# Query optimization
+app_settings.DATABASE_ECHO = False  # Disable SQL logging in production
+app_settings.DATABASE_QUERY_TIMEOUT = 30
+
+# Connection string with SSL
+DATABASE_URI = (
+    "postgresql://orchestrator_prod:password@db-host:5432/orchestrator_prod"
+    "?sslmode=require&sslcert=/path/to/client-cert.pem"
+    "&sslkey=/path/to/client-key.pem&sslrootcert=/path/to/ca-cert.pem"
+)
+```
+
+### Backup Strategy
+
+```bash backup.sh
+#!/bin/bash
+# Automated database backup script
+
+set -e
+
+# Configuration
+DB_HOST="your-db-host"
+DB_NAME="orchestrator_prod"
+DB_USER="orchestrator_prod"
+BACKUP_DIR="/backups"
+RETENTION_DAYS=30
+
+# Create backup filename with timestamp
+BACKUP_FILE="orchestrator_backup_$(date +%Y%m%d_%H%M%S).sql.gz"
+
+# Create backup
+pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME | gzip > "$BACKUP_DIR/$BACKUP_FILE"
+
+# Verify backup
+if [ $? -eq 0 ]; then
+    echo "Backup created successfully: $BACKUP_FILE"
+
+    # Upload to cloud storage (example with AWS S3)
+    aws s3 cp "$BACKUP_DIR/$BACKUP_FILE" s3://your-backup-bucket/orchestrator/
+
+    # Clean up old backups
+    find $BACKUP_DIR -name "orchestrator_backup_*.sql.gz" -mtime +$RETENTION_DAYS -delete
+else
+    echo "Backup failed!"
+    exit 1
+fi
+```
+
+## Security Configuration
+
+### Authentication and Authorization
+
+```python config/security.py
+"""Production security configuration."""
+
+from orchestrator.settings import app_settings
+
+# OAuth2 Configuration
+app_settings.OAUTH2_ACTIVE = True
+app_settings.OAUTH2_AUTHORIZATION_URL = "https://auth.example.com/oauth2/authorize"
+app_settings.OAUTH2_TOKEN_URL = "https://auth.example.com/oauth2/token"
+app_settings.OAUTH2_CLIENT_ID = "orchestrator-client"
+app_settings.OAUTH2_SCOPES = ["openid", "profile", "email", "orchestrator:admin"]
+
+# JWT Configuration
+app_settings.JWT_ALGORITHM = "RS256"
+app_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 60
+app_settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# CORS Configuration
+app_settings.CORS_ORIGINS = [
+    "https://orchestrator.example.com",
+    "https://admin.example.com"
+]
+app_settings.CORS_ALLOW_CREDENTIALS = True
+app_settings.CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+
+# Security Headers
+app_settings.SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'"
+}
+```
+
+### SSL/TLS Configuration
+
+```nginx nginx.conf
+events {
+    worker_connections 1024;
+}
+
+http {
+    # SSL Configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Security Headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    upstream orchestrator {
+        server orchestrator:8080;
+    }
+
+    server {
+        listen 80;
+        server_name orchestrator.example.com;
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name orchestrator.example.com;
+
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
+
+        client_max_body_size 50M;
+
+        location / {
+            proxy_pass http://orchestrator;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # WebSocket support
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        # Health check endpoint
+        location /api/health {
+            proxy_pass http://orchestrator;
+            access_log off;
+        }
+    }
+}
+```
+
+## Monitoring and Observability
+
+### Application Metrics
+
+```python config/monitoring.py
+"""Production monitoring configuration."""
+
+from prometheus_client import Counter, Histogram, Gauge
+from orchestrator.monitoring import setup_metrics
+
+# Custom metrics
+workflow_executions = Counter(
+    'orchestrator_workflow_executions_total',
+    'Total workflow executions',
+    ['workflow_name', 'status']
+)
+
+workflow_duration = Histogram(
+    'orchestrator_workflow_duration_seconds',
+    'Workflow execution duration',
+    ['workflow_name']
+)
+
+active_subscriptions = Gauge(
+    'orchestrator_active_subscriptions',
+    'Number of active subscriptions',
+    ['product_type']
+)
+
+# Setup monitoring
+setup_metrics(
+    enable_prometheus=True,
+    enable_jaeger=True,
+    jaeger_endpoint="http://jaeger:14268/api/traces"
+)
+```
+
+### Health Checks
+
+```python monitoring/health.py
+"""Comprehensive health checks."""
+
+from datetime import datetime, timedelta
+from orchestrator.db import db
+from orchestrator.monitoring.health import HealthCheck
+
+class DatabaseHealthCheck(HealthCheck):
+    """Check database connectivity and performance."""
+
+    def check(self) -> dict:
+        try:
+            start_time = datetime.now()
+            result = db.session.execute("SELECT 1").scalar()
+            duration = (datetime.now() - start_time).total_seconds()
+
+            return {
+                "status": "healthy" if result == 1 else "unhealthy",
+                "response_time_ms": duration * 1000,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+
+class WorkflowEngineHealthCheck(HealthCheck):
+    """Check workflow engine status."""
+
+    def check(self) -> dict:
+        try:
+            # Check for stuck workflows
+            stuck_workflows = db.session.execute("""
+                SELECT COUNT(*) FROM workflow_executions
+                WHERE status = 'running'
+                AND updated_at < NOW() - INTERVAL '1 hour'
+            """).scalar()
+
+            return {
+                "status": "healthy" if stuck_workflows == 0 else "degraded",
+                "stuck_workflows": stuck_workflows,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+```
+
+### Logging Configuration
+
+```python config/logging.py
+"""Production logging configuration."""
+
+import logging.config
+
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "class": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "format": "%(asctime)s %(name)s %(levelname)s %(message)s"
+        },
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "json",
+            "stream": "ext://sys.stdout"
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "DEBUG",
+            "formatter": "json",
+            "filename": "/var/log/orchestrator/app.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5
+        },
+        "error_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "ERROR",
+            "formatter": "json",
+            "filename": "/var/log/orchestrator/error.log",
+            "maxBytes": 10485760,
+            "backupCount": 5
+        }
+    },
+    "loggers": {
+        "orchestrator": {
+            "level": "DEBUG",
+            "handlers": ["console", "file", "error_file"],
+            "propagate": False
+        },
+        "sqlalchemy": {
+            "level": "WARNING",
+            "handlers": ["console"],
+            "propagate": False
+        }
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"]
+    }
+}
+
+logging.config.dictConfig(LOGGING_CONFIG)
+```
+
+## Deployment Automation
+
+### CI/CD Pipeline (GitHub Actions)
+
+```yaml .github/workflows/deploy.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+
+    - name: Run tests
+      run: |
+        pytest --cov=orchestrator --cov-report=xml
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ secrets.REGISTRY_URL }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ secrets.REGISTRY_URL }}/orchestrator:latest
+          ${{ secrets.REGISTRY_URL }}/orchestrator:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Deploy to Kubernetes
+      uses: azure/k8s-deploy@v1
+      with:
+        manifests: |
+          k8s/deployment.yaml
+          k8s/service.yaml
+          k8s/ingress.yaml
+        images: |
+          ${{ secrets.REGISTRY_URL }}/orchestrator:${{ github.sha }}
+        kubectl-version: 'latest'
+```
+
+### Infrastructure as Code (Terraform)
+
+```hcl infrastructure/main.tf
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+# VPC and Networking
+resource "aws_vpc" "orchestrator" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name = "orchestrator-vpc"
+  }
+}
+
+# EKS Cluster
+resource "aws_eks_cluster" "orchestrator" {
+  name     = "orchestrator-cluster"
+  role_arn = aws_iam_role.eks_cluster.arn
+  version  = "1.27"
+
+  vpc_config {
+    subnet_ids = [
+      aws_subnet.private_1.id,
+      aws_subnet.private_2.id
+    ]
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster_policy
+  ]
+}
+
+# RDS Database
+resource "aws_db_instance" "orchestrator" {
+  identifier = "orchestrator-db"
+
+  engine         = "postgres"
+  engine_version = "15.4"
+  instance_class = "db.r6g.large"
+
+  allocated_storage     = 100
+  max_allocated_storage = 1000
+  storage_type         = "gp3"
+  storage_encrypted    = true
+
+  db_name  = "orchestrator"
+  username = "orchestrator"
+  password = var.db_password
+
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.orchestrator.name
+
+  backup_retention_period = 7
+  backup_window          = "03:00-04:00"
+  maintenance_window     = "sun:04:00-sun:05:00"
+
+  skip_final_snapshot = false
+  final_snapshot_identifier = "orchestrator-final-snapshot"
+
+  tags = {
+    Name = "orchestrator-database"
+  }
+}
+
+# ElastiCache Redis
+resource "aws_elasticache_subnet_group" "orchestrator" {
+  name       = "orchestrator-cache-subnet"
+  subnet_ids = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+}
+
+resource "aws_elasticache_replication_group" "orchestrator" {
+  replication_group_id       = "orchestrator-redis"
+  description                = "Redis cluster for orchestrator"
+
+  node_type                  = "cache.r6g.large"
+  port                       = 6379
+  parameter_group_name       = "default.redis7"
+
+  num_cache_clusters         = 2
+  automatic_failover_enabled = true
+  multi_az_enabled          = true
+
+  subnet_group_name = aws_elasticache_subnet_group.orchestrator.name
+  security_group_ids = [aws_security_group.redis.id]
+
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
+  auth_token                = var.redis_auth_token
+
+  tags = {
+    Name = "orchestrator-redis"
+  }
+}
+```
+
+## Performance Optimization
+
+### Application Tuning
+
+```python config/performance.py
+"""Production performance configuration."""
+
+from orchestrator.settings import app_settings
+
+# Worker Configuration
+app_settings.WORKER_PROCESSES = 4
+app_settings.WORKER_THREADS = 2
+app_settings.WORKER_TIMEOUT = 300
+app_settings.WORKER_MAX_REQUESTS = 1000
+app_settings.WORKER_MAX_REQUESTS_JITTER = 100
+
+# Database Connection Pool
+app_settings.DATABASE_POOL_SIZE = 20
+app_settings.DATABASE_MAX_OVERFLOW = 30
+app_settings.DATABASE_POOL_TIMEOUT = 30
+app_settings.DATABASE_POOL_RECYCLE = 3600
+
+# Caching Configuration
+app_settings.CACHE_ENABLED = True
+app_settings.CACHE_DEFAULT_TIMEOUT = 300
+app_settings.CACHE_KEY_PREFIX = "orchestrator:"
+
+# Async Configuration
+app_settings.ASYNC_POOL_SIZE = 100
+app_settings.ASYNC_TIMEOUT = 30
+```
+
+### Database Indexing
+
+```sql
+-- Performance indexes for production
+CREATE INDEX CONCURRENTLY idx_subscriptions_customer_id ON subscriptions(customer_id);
+CREATE INDEX CONCURRENTLY idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX CONCURRENTLY idx_subscriptions_product_id ON subscriptions(product_id);
+CREATE INDEX CONCURRENTLY idx_subscription_instances_subscription_id ON subscription_instances(subscription_id);
+CREATE INDEX CONCURRENTLY idx_workflow_executions_status ON workflow_executions(status);
+CREATE INDEX CONCURRENTLY idx_workflow_executions_created_at ON workflow_executions(created_at);
+
+-- Partial indexes for active records
+CREATE INDEX CONCURRENTLY idx_active_subscriptions ON subscriptions(customer_id) WHERE status = 'active';
+CREATE INDEX CONCURRENTLY idx_running_workflows ON workflow_executions(created_at) WHERE status = 'running';
+```
+
+## Disaster Recovery
+
+### Backup and Restore Procedures
+
+```bash scripts/restore.sh
+#!/bin/bash
+# Disaster recovery restore script
+
+set -e
+
+BACKUP_FILE=$1
+DB_HOST="your-db-host"
+DB_NAME="orchestrator_prod"
+DB_USER="orchestrator_prod"
+
+if [ -z "$BACKUP_FILE" ]; then
+    echo "Usage: $0 <backup_file>"
+    exit 1
+fi
+
+echo "Starting disaster recovery restore..."
+
+# Stop application
+kubectl scale deployment orchestrator --replicas=0 -n orchestrator
+
+# Restore database
+echo "Restoring database from $BACKUP_FILE..."
+gunzip -c "$BACKUP_FILE" | psql -h $DB_HOST -U $DB_USER -d $DB_NAME
+
+# Run any necessary migrations
+echo "Running database migrations..."
+kubectl run migration-job --image=your-registry/orchestrator:latest \
+    --restart=Never --rm -i --tty \
+    --env="DATABASE_URI=postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:5432/$DB_NAME" \
+    -- python main.py db upgrade heads
+
+# Restart application
+echo "Restarting application..."
+kubectl scale deployment orchestrator --replicas=3 -n orchestrator
+
+# Wait for deployment to be ready
+kubectl rollout status deployment orchestrator -n orchestrator
+
+echo "Disaster recovery restore completed successfully!"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Your First Product"
+    icon="plus"
+    href="/getting-started/first-product"
+  >
+    Build your first service offering
+  </Card>
+  <Card
+    title="Build Workflows"
+    icon="workflow"
+    href="/workflows/creating-workflows"
+  >
+    Create automated business processes
+  </Card>
+  <Card
+    title="API Documentation"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore the complete API reference
+  </Card>
+  <Card
+    title="Examples"
+    icon="book"
+    href="/examples/overview"
+  >
+    See real-world implementations
+  </Card>
+</CardGroup>
+
+<Check>
+**Production Ready!** You now have a comprehensive deployment strategy for Workflow Orchestrator that covers security, scalability, monitoring, and disaster recovery requirements for production environments.
+</Check>

@@ -1,0 +1,765 @@
+---
+title: "Create Your First Product"
+description: "Build your first domain model and product definition step by step"
+---
+
+## Overview
+
+In this guide, you'll create a complete product definition for a business internet service. This includes defining domain models, product blocks, and database configuration. By the end, you'll have a working product that customers can subscribe to.
+
+<Note>
+We'll build a "Business Internet Service" product that includes bandwidth allocation, IP address assignment, and support levels - common components in network services.
+</Note>
+
+## Step 1: Plan Your Product
+
+Before writing code, let's define what our Business Internet Service includes:
+
+**Service Components**:
+- **Bandwidth**: Configurable download/upload speeds
+- **IP Address**: Static IP address allocation
+- **Support Level**: Different tiers of customer support
+- **Installation**: Professional installation service
+
+**Lifecycle Requirements**:
+- **Initial**: Basic customer info, optional technical details
+- **Provisioning**: All technical details required
+- **Active**: Service fully configured and operational
+
+## Step 2: Create Product Blocks
+
+Product blocks are reusable components. Let's create them in `products/blocks/`:
+
+### Bandwidth Block
+
+```python products/blocks/bandwidth.py
+"""Bandwidth allocation product block."""
+
+from decimal import Decimal
+from enum import StrEnum
+from typing import Optional
+
+from pydantic import Field, computed_field, field_validator
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SubscriptionLifecycle
+
+
+class BandwidthTier(StrEnum):
+    """Available bandwidth tiers."""
+    BASIC = "basic"          # Up to 100 Mbps
+    BUSINESS = "business"    # Up to 500 Mbps
+    ENTERPRISE = "enterprise" # Up to 1000+ Mbps
+
+
+class BandwidthBlockInactive(ProductBlockModel, product_block_name="Bandwidth"):
+    """Bandwidth allocation for internet services."""
+
+    # Optional during initial setup
+    download_speed_mbps: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10000,
+        description="Download speed in Mbps"
+    )
+    upload_speed_mbps: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10000,
+        description="Upload speed in Mbps"
+    )
+    tier: Optional[BandwidthTier] = None
+    burst_allowance_percent: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=200,
+        description="Burst allowance as percentage of base speed"
+    )
+
+    @computed_field
+    @property
+    def is_symmetric(self) -> bool:
+        """Check if upload and download speeds are equal."""
+        if self.download_speed_mbps and self.upload_speed_mbps:
+            return self.download_speed_mbps == self.upload_speed_mbps
+        return False
+
+    @computed_field
+    @property
+    def monthly_cost(self) -> Decimal:
+        """Calculate monthly cost based on speed and tier."""
+        if not self.download_speed_mbps:
+            return Decimal("0.00")
+
+        base_cost = Decimal("49.99")
+
+        # Tier-based pricing
+        if self.tier == BandwidthTier.ENTERPRISE:
+            multiplier = Decimal("3.0")
+        elif self.tier == BandwidthTier.BUSINESS:
+            multiplier = Decimal("2.0")
+        else:
+            multiplier = Decimal("1.0")
+
+        # Speed-based pricing
+        if self.download_speed_mbps >= 1000:
+            speed_multiplier = Decimal("4.0")
+        elif self.download_speed_mbps >= 500:
+            speed_multiplier = Decimal("2.5")
+        elif self.download_speed_mbps >= 100:
+            speed_multiplier = Decimal("1.5")
+        else:
+            speed_multiplier = Decimal("1.0")
+
+        return base_cost * multiplier * speed_multiplier
+
+
+class BandwidthBlockProvisioning(BandwidthBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    """Bandwidth block during provisioning - speeds required."""
+
+    download_speed_mbps: int
+    upload_speed_mbps: int
+    tier: BandwidthTier
+
+    @field_validator('upload_speed_mbps')
+    @classmethod
+    def validate_upload_speed(cls, v, info):
+        """Ensure upload speed is reasonable compared to download."""
+        download_speed = info.data.get('download_speed_mbps')
+        if download_speed and v > download_speed:
+            raise ValueError('Upload speed cannot exceed download speed')
+        return v
+
+
+class BandwidthBlockActive(BandwidthBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active bandwidth block - all configuration required."""
+
+    # Additional fields required when active
+    allocated_date: datetime
+    circuit_id: str = Field(description="Network circuit identifier")
+
+    @computed_field
+    @property
+    def burst_speed_mbps(self) -> int:
+        """Calculate burst speed if burst allowance is configured."""
+        if self.burst_allowance_percent:
+            return int(self.download_speed_mbps * (1 + self.burst_allowance_percent / 100))
+        return self.download_speed_mbps
+```
+
+### IP Address Block
+
+```python products/blocks/ip_address.py
+"""IP address allocation product block."""
+
+from ipaddress import IPv4Address, IPv4Network
+from typing import Optional
+from datetime import datetime
+
+from pydantic import Field, computed_field
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SubscriptionLifecycle
+
+
+class IPAddressBlockInactive(ProductBlockModel, product_block_name="IPAddress"):
+    """IP address allocation for internet services."""
+
+    # Optional during setup
+    ip_address: Optional[IPv4Address] = None
+    subnet_mask: Optional[int] = Field(default=None, ge=8, le=30)
+    gateway: Optional[IPv4Address] = None
+    dns_servers: list[IPv4Address] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def network(self) -> Optional[IPv4Network]:
+        """Calculate network from IP and subnet mask."""
+        if self.ip_address and self.subnet_mask:
+            return IPv4Network(f"{self.ip_address}/{self.subnet_mask}", strict=False)
+        return None
+
+    @computed_field
+    @property
+    def monthly_cost(self) -> Decimal:
+        """Static IP addresses have a monthly fee."""
+        return Decimal("15.00") if self.ip_address else Decimal("0.00")
+
+
+class IPAddressBlockProvisioning(IPAddressBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    """IP address block during provisioning."""
+
+    # IP allocation required during provisioning
+    ip_address: IPv4Address
+    subnet_mask: int = 30  # Default for point-to-point
+    gateway: IPv4Address
+
+
+class IPAddressBlockActive(IPAddressBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active IP address block."""
+
+    # Additional tracking when active
+    allocated_date: datetime
+    dhcp_reservation_id: Optional[str] = None
+    reverse_dns: Optional[str] = None
+```
+
+### Support Level Block
+
+```python products/blocks/support.py
+"""Customer support level product block."""
+
+from decimal import Decimal
+from enum import StrEnum
+from typing import Optional
+
+from pydantic import computed_field
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SubscriptionLifecycle
+
+
+class SupportTier(StrEnum):
+    """Available support tiers."""
+    BASIC = "basic"
+    BUSINESS = "business"
+    PREMIUM = "premium"
+    ENTERPRISE = "enterprise"
+
+
+class SupportLevelBlockInactive(ProductBlockModel, product_block_name="SupportLevel"):
+    """Customer support level configuration."""
+
+    tier: Optional[SupportTier] = SupportTier.BASIC
+    business_hours_only: bool = True
+    dedicated_account_manager: bool = False
+
+    @computed_field
+    @property
+    def response_time_hours(self) -> int:
+        """Expected response time based on tier."""
+        response_times = {
+            SupportTier.BASIC: 48,
+            SupportTier.BUSINESS: 24,
+            SupportTier.PREMIUM: 4,
+            SupportTier.ENTERPRISE: 1
+        }
+        return response_times.get(self.tier, 48)
+
+    @computed_field
+    @property
+    def monthly_cost(self) -> Decimal:
+        """Monthly cost for support tier."""
+        costs = {
+            SupportTier.BASIC: Decimal("0.00"),
+            SupportTier.BUSINESS: Decimal("25.00"),
+            SupportTier.PREMIUM: Decimal("75.00"),
+            SupportTier.ENTERPRISE: Decimal("200.00")
+        }
+        return costs.get(self.tier, Decimal("0.00"))
+
+
+class SupportLevelBlockProvisioning(SupportLevelBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    """Support level during provisioning."""
+
+    tier: SupportTier  # Required during provisioning
+
+
+class SupportLevelBlockActive(SupportLevelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active support level."""
+
+    # Additional fields when active
+    account_manager_name: Optional[str] = None
+    support_phone: Optional[str] = None
+    support_email: Optional[str] = None
+```
+
+## Step 3: Create Subscription Model
+
+Now create the main subscription model in `products/models/`:
+
+```python products/models/business_internet.py
+"""Business Internet Service subscription model."""
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import Field, computed_field, EmailStr
+from orchestrator.domain.base import SubscriptionModel
+from orchestrator.types import SubscriptionLifecycle
+
+from ..blocks.bandwidth import (
+    BandwidthBlockInactive,
+    BandwidthBlockProvisioning,
+    BandwidthBlockActive
+)
+from ..blocks.ip_address import (
+    IPAddressBlockInactive,
+    IPAddressBlockProvisioning,
+    IPAddressBlockActive
+)
+from ..blocks.support import (
+    SupportLevelBlockInactive,
+    SupportLevelBlockProvisioning,
+    SupportLevelBlockActive
+)
+
+
+class BusinessInternetInactive(SubscriptionModel, is_base=True):
+    """Business Internet Service subscription."""
+
+    # Fixed inputs (from product definition)
+    service_level_agreement: str = "99.9% uptime"
+    installation_type: str = "professional"
+    contract_term_months: int = 12
+
+    # Product blocks
+    bandwidth: BandwidthBlockInactive
+    ip_address: IPAddressBlockInactive
+    support: SupportLevelBlockInactive
+
+    # Customer information
+    customer_id: str
+    site_name: str = Field(description="Customer site name")
+    installation_address: str
+    technical_contact_name: str
+    technical_contact_email: EmailStr
+    billing_contact_name: str
+    billing_contact_email: EmailStr
+
+    # Optional during initial setup
+    installation_notes: Optional[str] = None
+    special_requirements: list[str] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def monthly_recurring_cost(self) -> Decimal:
+        """Calculate total monthly cost."""
+        return (
+            self.bandwidth.monthly_cost +
+            self.ip_address.monthly_cost +
+            self.support.monthly_cost
+        )
+
+    @computed_field
+    @property
+    def service_summary(self) -> str:
+        """Generate human-readable service summary."""
+        speed = self.bandwidth.download_speed_mbps or "TBD"
+        return f"{speed}Mbps Business Internet at {self.site_name}"
+
+
+class BusinessInternetProvisioning(BusinessInternetInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    """Business Internet during provisioning."""
+
+    # More restrictive product blocks
+    bandwidth: BandwidthBlockProvisioning
+    ip_address: IPAddressBlockProvisioning
+    support: SupportLevelBlockProvisioning
+
+    # Required during provisioning
+    installation_date: datetime
+    technician_assigned: str
+    estimated_completion: datetime
+
+
+class BusinessInternetActive(BusinessInternetProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active Business Internet service."""
+
+    # Fully configured product blocks
+    bandwidth: BandwidthBlockActive
+    ip_address: IPAddressBlockActive
+    support: SupportLevelBlockActive
+
+    # Required when active
+    service_id: str = Field(description="Unique service identifier")
+    activation_date: datetime
+    next_billing_date: datetime
+
+    # Optional operational fields
+    last_speed_test_date: Optional[datetime] = None
+    last_speed_test_result_mbps: Optional[int] = None
+
+    @computed_field
+    @property
+    def days_since_activation(self) -> int:
+        """Calculate days since service activation."""
+        if self.activation_date:
+            return (datetime.now() - self.activation_date).days
+        return 0
+
+    @computed_field
+    @property
+    def contract_end_date(self) -> datetime:
+        """Calculate when contract expires."""
+        return self.activation_date + timedelta(days=30 * self.contract_term_months)
+```
+
+## Step 4: Register Your Model
+
+Register the subscription model so the orchestrator can find it:
+
+```python products/__init__.py
+"""Product model registration."""
+
+from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+from .models.business_internet import BusinessInternetActive
+
+# Register the model with the product name
+SUBSCRIPTION_MODEL_REGISTRY["Business Internet Service"] = BusinessInternetActive
+```
+
+## Step 5: Create Database Schema
+
+Create the database product and product blocks:
+
+```python migrations/create_business_internet_product.py
+"""Create Business Internet Service product and blocks."""
+
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+from uuid import uuid4
+
+def upgrade():
+    """Create product blocks and product."""
+
+    # Create product blocks
+    bandwidth_block_id = str(uuid4())
+    ip_address_block_id = str(uuid4())
+    support_block_id = str(uuid4())
+
+    # Insert product blocks
+    op.execute(f"""
+        INSERT INTO product_blocks (product_block_id, name, description, tag, status)
+        VALUES
+        ('{bandwidth_block_id}', 'Bandwidth', 'Bandwidth allocation for internet services', 'BANDWIDTH', 'active'),
+        ('{ip_address_block_id}', 'IPAddress', 'Static IP address allocation', 'IP_ADDR', 'active'),
+        ('{support_block_id}', 'SupportLevel', 'Customer support level', 'SUPPORT', 'active')
+    """)
+
+    # Create resource types for each block
+    op.execute(f"""
+        INSERT INTO resource_types (resource_type, description, product_block_id)
+        VALUES
+        -- Bandwidth block resource types
+        ('download_speed_mbps', 'Download speed in Mbps', '{bandwidth_block_id}'),
+        ('upload_speed_mbps', 'Upload speed in Mbps', '{bandwidth_block_id}'),
+        ('tier', 'Bandwidth tier', '{bandwidth_block_id}'),
+        ('burst_allowance_percent', 'Burst allowance percentage', '{bandwidth_block_id}'),
+        ('allocated_date', 'Date bandwidth was allocated', '{bandwidth_block_id}'),
+        ('circuit_id', 'Network circuit identifier', '{bandwidth_block_id}'),
+
+        -- IP Address block resource types
+        ('ip_address', 'Static IP address', '{ip_address_block_id}'),
+        ('subnet_mask', 'Subnet mask', '{ip_address_block_id}'),
+        ('gateway', 'Gateway IP address', '{ip_address_block_id}'),
+        ('dns_servers', 'DNS server addresses', '{ip_address_block_id}'),
+        ('allocated_date', 'Date IP was allocated', '{ip_address_block_id}'),
+        ('dhcp_reservation_id', 'DHCP reservation ID', '{ip_address_block_id}'),
+        ('reverse_dns', 'Reverse DNS name', '{ip_address_block_id}'),
+
+        -- Support block resource types
+        ('tier', 'Support tier level', '{support_block_id}'),
+        ('business_hours_only', 'Business hours only support', '{support_block_id}'),
+        ('dedicated_account_manager', 'Has dedicated account manager', '{support_block_id}'),
+        ('account_manager_name', 'Account manager name', '{support_block_id}'),
+        ('support_phone', 'Support phone number', '{support_block_id}'),
+        ('support_email', 'Support email address', '{support_block_id}')
+    """)
+
+    # Create main product
+    product_id = str(uuid4())
+    op.execute(f"""
+        INSERT INTO products (product_id, name, description, product_type, tag, status)
+        VALUES ('{product_id}', 'Business Internet Service', 'High-speed internet connectivity for business customers', 'Internet', 'BIZ_INTERNET', 'active')
+    """)
+
+    # Link product blocks to product
+    op.execute(f"""
+        INSERT INTO product_product_blocks (product_id, product_block_id)
+        VALUES
+        ('{product_id}', '{bandwidth_block_id}'),
+        ('{product_id}', '{ip_address_block_id}'),
+        ('{product_id}', '{support_block_id}')
+    """)
+
+    # Add fixed inputs
+    op.execute(f"""
+        INSERT INTO fixed_inputs (name, value, product_id)
+        VALUES
+        ('service_level_agreement', '99.9% uptime', '{product_id}'),
+        ('installation_type', 'professional', '{product_id}'),
+        ('contract_term_months', '12', '{product_id}')
+    """)
+
+def downgrade():
+    """Remove Business Internet Service product."""
+    op.execute("DELETE FROM products WHERE name = 'Business Internet Service'")
+    op.execute("DELETE FROM product_blocks WHERE name IN ('Bandwidth', 'IPAddress', 'SupportLevel')")
+```
+
+Run the migration:
+
+```bash
+# Create migration file
+python main.py db revision -m "Create Business Internet Service product"
+
+# Edit the generated file with the above content, then run:
+python main.py db upgrade heads
+```
+
+## Step 6: Test Your Product
+
+Create a test to verify everything works:
+
+```python tests/test_business_internet.py
+"""Test Business Internet Service product."""
+
+import pytest
+from datetime import datetime
+from ipaddress import IPv4Address
+
+from products.models.business_internet import (
+    BusinessInternetInactive,
+    BusinessInternetProvisioning,
+    BusinessInternetActive
+)
+from products.blocks.bandwidth import BandwidthTier
+from products.blocks.support import SupportTier
+
+
+def test_create_inactive_subscription():
+    """Test creating an inactive subscription."""
+
+    subscription = BusinessInternetInactive(
+        customer_id="CUST123",
+        site_name="Main Office",
+        installation_address="123 Business Blvd, Tech City, CA 90210",
+        technical_contact_name="John Doe",
+        technical_contact_email="john@example.com",
+        billing_contact_name="Jane Smith",
+        billing_contact_email="jane@example.com",
+        bandwidth={
+            "download_speed_mbps": None,  # Optional in inactive state
+            "upload_speed_mbps": None,
+            "tier": None
+        },
+        ip_address={
+            "ip_address": None,  # Optional in inactive state
+        },
+        support={
+            "tier": SupportTier.BASIC
+        }
+    )
+
+    assert subscription.customer_id == "CUST123"
+    assert subscription.service_summary == "TBD Mbps Business Internet at Main Office"
+    assert subscription.monthly_recurring_cost == 0  # No configured services yet
+
+
+def test_provision_subscription():
+    """Test transitioning to provisioning state."""
+
+    # Start with inactive subscription
+    inactive = BusinessInternetInactive(
+        customer_id="CUST123",
+        site_name="Main Office",
+        installation_address="123 Business Blvd",
+        technical_contact_name="John Doe",
+        technical_contact_email="john@example.com",
+        billing_contact_name="Jane Smith",
+        billing_contact_email="jane@example.com",
+        bandwidth={},
+        ip_address={},
+        support={}
+    )
+
+    # Transition to provisioning with required fields
+    provisioning = BusinessInternetProvisioning(
+        **inactive.model_dump(exclude={'bandwidth', 'ip_address', 'support'}),
+        bandwidth={
+            "download_speed_mbps": 500,
+            "upload_speed_mbps": 100,
+            "tier": BandwidthTier.BUSINESS
+        },
+        ip_address={
+            "ip_address": IPv4Address("192.168.1.100"),
+            "subnet_mask": 30,
+            "gateway": IPv4Address("192.168.1.1")
+        },
+        support={
+            "tier": SupportTier.BUSINESS
+        },
+        installation_date=datetime.now(),
+        technician_assigned="TECH001",
+        estimated_completion=datetime.now()
+    )
+
+    assert provisioning.bandwidth.download_speed_mbps == 500
+    assert provisioning.bandwidth.tier == BandwidthTier.BUSINESS
+    assert provisioning.ip_address.ip_address == IPv4Address("192.168.1.100")
+    assert provisioning.monthly_recurring_cost > 0
+
+
+def test_activate_subscription():
+    """Test transitioning to active state."""
+
+    # Create active subscription with all required fields
+    active = BusinessInternetActive(
+        customer_id="CUST123",
+        site_name="Main Office",
+        installation_address="123 Business Blvd",
+        technical_contact_name="John Doe",
+        technical_contact_email="john@example.com",
+        billing_contact_name="Jane Smith",
+        billing_contact_email="jane@example.com",
+        bandwidth={
+            "download_speed_mbps": 500,
+            "upload_speed_mbps": 100,
+            "tier": BandwidthTier.BUSINESS,
+            "allocated_date": datetime.now(),
+            "circuit_id": "CKT123456"
+        },
+        ip_address={
+            "ip_address": IPv4Address("192.168.1.100"),
+            "subnet_mask": 30,
+            "gateway": IPv4Address("192.168.1.1"),
+            "allocated_date": datetime.now()
+        },
+        support={
+            "tier": SupportTier.BUSINESS,
+            "account_manager_name": "Alice Johnson",
+            "support_phone": "+1-555-0123",
+            "support_email": "support@example.com"
+        },
+        installation_date=datetime.now(),
+        technician_assigned="TECH001",
+        estimated_completion=datetime.now(),
+        service_id="SVC789",
+        activation_date=datetime.now(),
+        next_billing_date=datetime.now()
+    )
+
+    assert active.service_id == "SVC789"
+    assert active.bandwidth.circuit_id == "CKT123456"
+    assert active.support.account_manager_name == "Alice Johnson"
+    assert active.service_summary == "500Mbps Business Internet at Main Office"
+
+
+def test_computed_properties():
+    """Test computed properties work correctly."""
+
+    subscription = BusinessInternetInactive(
+        customer_id="CUST123",
+        site_name="Test Site",
+        installation_address="123 Test St",
+        technical_contact_name="Test User",
+        technical_contact_email="test@example.com",
+        billing_contact_name="Test Billing",
+        billing_contact_email="billing@example.com",
+        bandwidth={
+            "download_speed_mbps": 1000,
+            "upload_speed_mbps": 1000,
+            "tier": BandwidthTier.ENTERPRISE,
+            "burst_allowance_percent": 50
+        },
+        ip_address={
+            "ip_address": IPv4Address("10.0.0.1"),
+            "subnet_mask": 24
+        },
+        support={
+            "tier": SupportTier.PREMIUM
+        }
+    )
+
+    # Test bandwidth properties
+    assert subscription.bandwidth.is_symmetric == True
+    assert subscription.bandwidth.monthly_cost > 0
+
+    # Test IP address properties
+    assert str(subscription.ip_address.network) == "10.0.0.0/24"
+
+    # Test support properties
+    assert subscription.support.response_time_hours == 4
+    assert subscription.support.monthly_cost > 0
+
+    # Test subscription properties
+    assert subscription.monthly_recurring_cost > 0
+    assert "1000Mbps" in subscription.service_summary
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
+```
+
+Run the tests:
+
+```bash
+pytest tests/test_business_internet.py -v
+```
+
+## Step 7: Verify in API
+
+Start your application and test the product via API:
+
+```bash
+# Start the application
+uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+```
+
+Test creating a subscription:
+
+```bash
+# Create a new subscription
+curl -X POST http://localhost:8080/api/subscriptions/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": "YOUR_PRODUCT_ID",
+    "customer_id": "CUST123",
+    "description": "New business internet service"
+  }'
+
+# Get subscription details
+curl http://localhost:8080/api/subscriptions/{subscription_id}
+
+# View available products
+curl http://localhost:8080/api/products/
+```
+
+## Next Steps
+
+Congratulations! You've created your first complete product. Here's what to do next:
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Workflows"
+    icon="workflow"
+    href="/getting-started/first-workflow"
+  >
+    Build workflows to manage your product lifecycle
+  </Card>
+  <Card
+    title="Add More Products"
+    icon="plus"
+    href="/concepts/products"
+  >
+    Create additional products and product variants
+  </Card>
+  <Card
+    title="Domain Models"
+    icon="cube"
+    href="/concepts/domain-models"
+  >
+    Learn more about domain modeling
+  </Card>
+  <Card
+    title="Workflow Testing"
+    icon="flask"
+    href="/workflows/testing"
+  >
+    Learn workflow testing patterns
+  </Card>
+</CardGroup>
+
+<Check>
+**Product Created Successfully!** You now have a complete Business Internet Service product with proper domain models, lifecycle management, and database integration. The product is ready for workflow automation and customer subscriptions.
+</Check>

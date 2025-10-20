@@ -1,0 +1,720 @@
+---
+title: "Workflow Steps"
+description: "Deep dive into creating and managing individual workflow steps"
+---
+
+## Step Fundamentals
+
+Workflow steps are the building blocks of your business processes. Each step is a Python function that performs a specific operation and returns an updated state. Understanding how to design effective steps is crucial for building reliable workflows.
+
+## Step Function Signature
+
+Every workflow step follows the same function signature:
+
+```python
+from orchestrator.workflows import State
+
+def my_workflow_step(state: State) -> State:
+    """Perform a specific business operation."""
+
+    # Access input data
+    input_data = state["user_input"]
+    subscription = state.get("subscription")
+
+    # Perform business logic
+    result = perform_operation(input_data)
+
+    # Return updated state
+    return {
+        **state,
+        "operation_result": result,
+        "step_completed": True
+    }
+```
+
+<Note>
+The `State` type is a dictionary that carries data between workflow steps. Always use the spread operator (`**state`) to preserve existing state when returning updates.
+</Note>
+
+## Step Categories
+
+### Input Processing Steps
+
+Handle and validate user input from workflow forms:
+
+```python
+from pydantic import ValidationError
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+def validate_service_request(state: State) -> State:
+    """Validate and normalize service request data."""
+
+    form_data = state["user_input"]
+
+    try:
+        # Validate required fields
+        required_fields = ["customer_id", "service_type", "bandwidth_mbps"]
+        missing_fields = [field for field in required_fields if not form_data.get(field)]
+
+        if missing_fields:
+            raise WorkflowStepException(
+                f"Missing required fields: {', '.join(missing_fields)}",
+                retry=False
+            )
+
+        # Normalize data
+        normalized_data = {
+            "customer_id": form_data["customer_id"].upper().strip(),
+            "service_type": form_data["service_type"].lower(),
+            "bandwidth_mbps": int(form_data["bandwidth_mbps"]),
+            "installation_address": form_data["installation_address"].strip()
+        }
+
+        # Business validation
+        if normalized_data["bandwidth_mbps"] < 10:
+            raise WorkflowStepException(
+                "Minimum bandwidth is 10 Mbps",
+                retry=False
+            )
+
+        return {
+            **state,
+            "validated_input": normalized_data,
+            "validation_passed": True
+        }
+
+    except ValidationError as e:
+        raise WorkflowStepException(
+            f"Input validation failed: {e}",
+            retry=False
+        )
+```
+
+### External API Integration Steps
+
+Interact with external systems and services:
+
+```python
+import httpx
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+async def provision_network_service(state: State) -> State:
+    """Provision service via external network management API."""
+
+    validated_input = state["validated_input"]
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Prepare API request
+            api_request = {
+                "customer_id": validated_input["customer_id"],
+                "service_type": validated_input["service_type"],
+                "bandwidth": validated_input["bandwidth_mbps"],
+                "location": validated_input["installation_address"]
+            }
+
+            # Call external API
+            response = await client.post(
+                f"{settings.NETWORK_API_URL}/services",
+                json=api_request,
+                headers={
+                    "Authorization": f"Bearer {settings.NETWORK_API_TOKEN}",
+                    "Content-Type": "application/json"
+                }
+            )
+
+            # Handle response
+            if response.status_code == 201:
+                service_data = response.json()
+                return {
+                    **state,
+                    "external_service_id": service_data["service_id"],
+                    "circuit_id": service_data["circuit_id"],
+                    "provisioning_status": "completed"
+                }
+            elif response.status_code == 409:
+                # Conflict - service already exists
+                raise WorkflowStepException(
+                    "Service already exists for this customer",
+                    retry=False
+                )
+            else:
+                # Temporary error - retry
+                raise WorkflowStepException(
+                    f"API error: {response.status_code} - {response.text}",
+                    retry_after=300,  # Retry after 5 minutes
+                    max_retries=3
+                )
+
+    except httpx.TimeoutException:
+        raise WorkflowStepException(
+            "Network API timeout",
+            retry_after=60,
+            max_retries=5
+        )
+    except httpx.RequestError as e:
+        raise WorkflowStepException(
+            f"Network error: {e}",
+            retry_after=120,
+            max_retries=3
+        )
+```
+
+### Database Operations Steps
+
+Create, update, or query database records:
+
+```python
+from orchestrator.db import db
+from orchestrator.workflows.exceptions import WorkflowStepException
+from products.models.business_internet import BusinessInternetActive
+
+def create_subscription_record(state: State) -> State:
+    """Create subscription record in database."""
+
+    validated_input = state["validated_input"]
+    external_service_id = state["external_service_id"]
+    circuit_id = state["circuit_id"]
+
+    try:
+        # Create subscription instance
+        subscription = BusinessInternetActive(
+            customer_id=validated_input["customer_id"],
+            site_name=validated_input.get("site_name", "Main Site"),
+            installation_address=validated_input["installation_address"],
+
+            # Technical details
+            bandwidth={
+                "download_speed_mbps": validated_input["bandwidth_mbps"],
+                "upload_speed_mbps": validated_input["bandwidth_mbps"] // 4,  # 4:1 ratio
+                "tier": "business",
+                "circuit_id": circuit_id,
+                "allocated_date": datetime.now()
+            },
+
+            # Service details
+            service_id=external_service_id,
+            activation_date=datetime.now(),
+            status=SubscriptionLifecycle.ACTIVE
+        )
+
+        # Save to database
+        subscription.save()
+        db.session.commit()
+
+        return {
+            **state,
+            "subscription": subscription,
+            "subscription_id": subscription.subscription_id,
+            "database_record_created": True
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        raise WorkflowStepException(
+            f"Database error: {e}",
+            retry_after=30,
+            max_retries=2
+        )
+```
+
+### Resource Allocation Steps
+
+Manage finite resources like IP addresses, VLANs, or bandwidth:
+
+```python
+from ipaddress import IPv4Network
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+def allocate_ip_resources(state: State) -> State:
+    """Allocate IP address and VLAN for service."""
+
+    customer_id = state["validated_input"]["customer_id"]
+
+    try:
+        # Allocate IP address from pool
+        ip_pool = IPv4Network("192.168.0.0/16")
+        allocated_ip = None
+
+        # Find available IP (simplified logic)
+        for ip in ip_pool.hosts():
+            if not is_ip_allocated(ip):
+                allocated_ip = ip
+                mark_ip_allocated(ip, customer_id)
+                break
+
+        if not allocated_ip:
+            raise WorkflowStepException(
+                "No IP addresses available in pool",
+                retry_after=3600,  # Retry after 1 hour
+                max_retries=24
+            )
+
+        # Allocate VLAN
+        allocated_vlan = allocate_vlan_from_pool(customer_id)
+        if not allocated_vlan:
+            # Rollback IP allocation
+            mark_ip_released(allocated_ip)
+            raise WorkflowStepException(
+                "No VLANs available",
+                retry_after=1800,
+                max_retries=12
+            )
+
+        return {
+            **state,
+            "allocated_resources": {
+                "ip_address": str(allocated_ip),
+                "subnet_mask": 30,
+                "gateway": str(list(ip_pool.hosts())[0]),
+                "vlan_id": allocated_vlan
+            },
+            "resource_allocation_completed": True
+        }
+
+    except Exception as e:
+        # Cleanup any partial allocations
+        if 'allocated_ip' in locals() and allocated_ip:
+            mark_ip_released(allocated_ip)
+        if 'allocated_vlan' in locals() and allocated_vlan:
+            release_vlan_to_pool(allocated_vlan)
+
+        raise WorkflowStepException(
+            f"Resource allocation failed: {e}",
+            retry_after=300,
+            max_retries=3
+        )
+```
+
+### Notification Steps
+
+Send notifications to customers, operators, or external systems:
+
+```python
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import smtplib
+
+def send_service_notifications(state: State) -> State:
+    """Send service activation notifications."""
+
+    subscription = state["subscription"]
+    allocated_resources = state["allocated_resources"]
+
+    try:
+        # Prepare notification data
+        notification_data = {
+            "customer_id": subscription.customer_id,
+            "service_id": subscription.service_id,
+            "bandwidth": subscription.bandwidth.download_speed_mbps,
+            "ip_address": allocated_resources["ip_address"],
+            "activation_date": subscription.activation_date.strftime("%Y-%m-%d %H:%M"),
+            "monthly_cost": float(subscription.monthly_recurring_cost)
+        }
+
+        # Send email notification
+        email_sent = send_email_notification(
+            to_email=subscription.technical_contact_email,
+            template="service_activation",
+            data=notification_data
+        )
+
+        # Send SMS notification (if phone number available)
+        sms_sent = False
+        if hasattr(subscription, 'contact_phone') and subscription.contact_phone:
+            sms_sent = send_sms_notification(
+                phone_number=subscription.contact_phone,
+                message=f"Service {subscription.service_id} activated successfully"
+            )
+
+        # Create support ticket for follow-up
+        ticket_created = create_support_ticket(
+            customer_id=subscription.customer_id,
+            subject=f"Service Activation: {subscription.service_id}",
+            description="New service activated - follow up in 24 hours",
+            priority="low"
+        )
+
+        return {
+            **state,
+            "notifications": {
+                "email_sent": email_sent,
+                "sms_sent": sms_sent,
+                "support_ticket": ticket_created
+            },
+            "notifications_completed": True
+        }
+
+    except Exception as e:
+        # Don't fail workflow for notification errors
+        logger.warning(f"Notification failed: {e}")
+        return {
+            **state,
+            "notifications": {
+                "email_sent": False,
+                "sms_sent": False,
+                "error": str(e)
+            },
+            "notifications_completed": False
+        }
+```
+
+## Advanced Step Patterns
+
+### Conditional Logic Steps
+
+Implement branching logic within steps:
+
+```python
+def determine_provisioning_method(state: State) -> State:
+    """Determine how to provision service based on requirements."""
+
+    validated_input = state["validated_input"]
+    bandwidth = validated_input["bandwidth_mbps"]
+    service_type = validated_input["service_type"]
+
+    # Determine provisioning method
+    if bandwidth >= 1000 and service_type == "enterprise":
+        provisioning_method = "dedicated_fiber"
+        estimated_time = timedelta(days=14)
+        requires_site_survey = True
+    elif bandwidth >= 500:
+        provisioning_method = "business_fiber"
+        estimated_time = timedelta(days=7)
+        requires_site_survey = True
+    elif service_type == "residential":
+        provisioning_method = "dsl_or_cable"
+        estimated_time = timedelta(days=3)
+        requires_site_survey = False
+    else:
+        provisioning_method = "standard_business"
+        estimated_time = timedelta(days=5)
+        requires_site_survey = False
+
+    return {
+        **state,
+        "provisioning_config": {
+            "method": provisioning_method,
+            "estimated_completion": datetime.now() + estimated_time,
+            "requires_site_survey": requires_site_survey,
+            "priority": "high" if bandwidth >= 1000 else "normal"
+        }
+    }
+```
+
+### Parallel Processing Steps
+
+Execute multiple operations concurrently:
+
+```python
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+async def setup_service_components(state: State) -> State:
+    """Set up multiple service components in parallel."""
+
+    subscription = state["subscription"]
+    allocated_resources = state["allocated_resources"]
+
+    async def setup_monitoring():
+        """Set up service monitoring."""
+        return await monitoring_api.create_service_monitor(
+            service_id=subscription.service_id,
+            ip_address=allocated_resources["ip_address"],
+            bandwidth=subscription.bandwidth.download_speed_mbps
+        )
+
+    async def setup_billing():
+        """Set up recurring billing."""
+        return await billing_api.create_recurring_charge(
+            customer_id=subscription.customer_id,
+            service_id=subscription.service_id,
+            amount=subscription.monthly_recurring_cost,
+            start_date=subscription.activation_date
+        )
+
+    async def setup_support():
+        """Set up customer support profile."""
+        return await support_api.create_customer_profile(
+            customer_id=subscription.customer_id,
+            service_id=subscription.service_id,
+            support_tier=subscription.support.tier
+        )
+
+    try:
+        # Execute all setup tasks in parallel
+        monitoring_result, billing_result, support_result = await asyncio.gather(
+            setup_monitoring(),
+            setup_billing(),
+            setup_support(),
+            return_exceptions=True
+        )
+
+        # Check for failures
+        setup_results = {
+            "monitoring": {
+                "success": not isinstance(monitoring_result, Exception),
+                "result": monitoring_result if not isinstance(monitoring_result, Exception) else str(monitoring_result)
+            },
+            "billing": {
+                "success": not isinstance(billing_result, Exception),
+                "result": billing_result if not isinstance(billing_result, Exception) else str(billing_result)
+            },
+            "support": {
+                "success": not isinstance(support_result, Exception),
+                "result": support_result if not isinstance(support_result, Exception) else str(support_result)
+            }
+        }
+
+        # Determine if any critical failures occurred
+        critical_failures = [
+            name for name, result in setup_results.items()
+            if not result["success"] and name in ["monitoring", "billing"]
+        ]
+
+        if critical_failures:
+            raise WorkflowStepException(
+                f"Critical setup failures: {critical_failures}",
+                retry_after=300,
+                max_retries=2
+            )
+
+        return {
+            **state,
+            "service_setup": setup_results,
+            "setup_completed": True
+        }
+
+    except Exception as e:
+        raise WorkflowStepException(
+            f"Service setup failed: {e}",
+            retry_after=600,
+            max_retries=3
+        )
+```
+
+### Rollback and Cleanup Steps
+
+Handle cleanup when workflows fail:
+
+```python
+def cleanup_failed_provisioning(state: State) -> State:
+    """Clean up resources when provisioning fails."""
+
+    cleanup_results = []
+
+    try:
+        # Release allocated IP address
+        if "allocated_resources" in state:
+            ip_address = state["allocated_resources"].get("ip_address")
+            if ip_address:
+                release_ip_address(ip_address)
+                cleanup_results.append(f"Released IP address: {ip_address}")
+
+        # Cancel external service
+        if "external_service_id" in state:
+            external_service_id = state["external_service_id"]
+            cancel_external_service(external_service_id)
+            cleanup_results.append(f"Cancelled external service: {external_service_id}")
+
+        # Remove database records
+        if "subscription_id" in state:
+            subscription_id = state["subscription_id"]
+            delete_subscription_record(subscription_id)
+            cleanup_results.append(f"Removed subscription record: {subscription_id}")
+
+        # Notify operations team
+        send_cleanup_notification(
+            message=f"Cleaned up failed provisioning: {cleanup_results}",
+            severity="info"
+        )
+
+        return {
+            **state,
+            "cleanup_completed": True,
+            "cleanup_actions": cleanup_results
+        }
+
+    except Exception as e:
+        # Log cleanup failure but don't fail the workflow
+        logger.error(f"Cleanup failed: {e}")
+        return {
+            **state,
+            "cleanup_completed": False,
+            "cleanup_error": str(e)
+        }
+```
+
+## Step Testing
+
+### Unit Testing Individual Steps
+
+```python
+import pytest
+from unittest.mock import patch, MagicMock
+
+def test_validate_service_request_success():
+    """Test successful service request validation."""
+
+    # Setup test state
+    state = {
+        "user_input": {
+            "customer_id": "CUST123",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        }
+    }
+
+    # Execute step
+    result = validate_service_request(state)
+
+    # Verify results
+    assert result["validation_passed"] == True
+    assert result["validated_input"]["customer_id"] == "CUST123"
+    assert result["validated_input"]["bandwidth_mbps"] == 500
+
+def test_validate_service_request_missing_fields():
+    """Test validation with missing required fields."""
+
+    state = {
+        "user_input": {
+            "customer_id": "CUST123"
+            # Missing service_type and bandwidth_mbps
+        }
+    }
+
+    with pytest.raises(WorkflowStepException) as exc_info:
+        validate_service_request(state)
+
+    assert "Missing required fields" in str(exc_info.value)
+    assert exc_info.value.retry == False
+
+@pytest.mark.asyncio
+async def test_provision_network_service_success():
+    """Test successful network service provisioning."""
+
+    state = {
+        "validated_input": {
+            "customer_id": "CUST123",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        }
+    }
+
+    with patch('httpx.AsyncClient') as mock_client:
+        # Mock successful API response
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {
+            "service_id": "SVC123",
+            "circuit_id": "CKT456"
+        }
+
+        mock_client.return_value.__aenter__.return_value.post.return_value = mock_response
+
+        # Execute step
+        result = await provision_network_service(state)
+
+        # Verify results
+        assert result["external_service_id"] == "SVC123"
+        assert result["circuit_id"] == "CKT456"
+        assert result["provisioning_status"] == "completed"
+```
+
+### Integration Testing with Dependencies
+
+```python
+def test_create_subscription_record_integration(test_db):
+    """Test subscription creation with real database."""
+
+    state = {
+        "validated_input": {
+            "customer_id": "CUST123",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        },
+        "external_service_id": "SVC123",
+        "circuit_id": "CKT456"
+    }
+
+    # Execute step
+    result = create_subscription_record(state)
+
+    # Verify database record was created
+    subscription = BusinessInternetActive.from_subscription(
+        result["subscription_id"]
+    )
+
+    assert subscription.customer_id == "CUST123"
+    assert subscription.service_id == "SVC123"
+    assert subscription.bandwidth.circuit_id == "CKT456"
+    assert subscription.status == SubscriptionLifecycle.ACTIVE
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Error Handling">
+    - **Specific Exceptions**: Use `WorkflowStepException` with appropriate retry settings
+    - **Cleanup on Failure**: Always clean up partial state when a step fails
+    - **Logging**: Log detailed error information for debugging
+    - **User-Friendly Messages**: Provide clear error messages for operators
+  </Accordion>
+
+  <Accordion title="State Management">
+    - **Immutable Updates**: Always return new state, don't modify input state
+    - **Minimal State**: Only store what's needed for subsequent steps
+    - **Clear Naming**: Use descriptive keys for state data
+    - **State Validation**: Validate expected state structure in critical steps
+  </Accordion>
+
+  <Accordion title="External Integration">
+    - **Timeout Handling**: Set appropriate timeouts for external calls
+    - **Retry Logic**: Implement exponential backoff for retries
+    - **Circuit Breakers**: Fail fast when external systems are consistently down
+    - **Idempotency**: Ensure steps can be safely retried
+  </Accordion>
+
+  <Accordion title="Performance">
+    - **Async Operations**: Use async/await for I/O bound operations
+    - **Parallel Execution**: Run independent operations concurrently
+    - **Resource Pooling**: Reuse connections and expensive resources
+    - **Caching**: Cache frequently accessed data appropriately
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Workflow Forms"
+    icon="form"
+    href="/workflows/forms"
+  >
+    Learn how to create dynamic input forms
+  </Card>
+  <Card
+    title="Workflow Testing"
+    icon="flask"
+    href="/workflows/testing"
+  >
+    Master comprehensive testing strategies
+  </Card>
+  <Card
+    title="Creating Workflows"
+    icon="plus"
+    href="/workflows/creating-workflows"
+  >
+    Build complete workflow implementations
+  </Card>
+  <Card
+    title="Examples Overview"
+    icon="book"
+    href="/examples/overview"
+  >
+    See real-world workflow examples
+  </Card>
+</CardGroup>

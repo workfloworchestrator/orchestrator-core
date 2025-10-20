@@ -1,0 +1,449 @@
+---
+title: "Authentication & Authorization"
+description: "Comprehensive guide to authentication and authorization in Workflow Orchestrator"
+---
+
+## Overview
+
+The Workflow Orchestrator incorporates a robust security framework, utilizing OpenID Connect (OIDC) for authentication and Open Policy Agent (OPA) for authorization. This flexible system ensures secure access, allowing you to tailor the authorization components to best fit your application's specific requirements.
+
+<Note>
+WFO can be run with or without authentication. With authentication turned on, authorization logic can be provided that uses user privileges to control access to resources.
+</Note>
+
+## Authentication Modes
+
+<Tabs>
+  <Tab title="Without Authentication">
+    **Development and Testing Mode**
+
+    Without authentication, WFO allows all users access to all resources.
+
+    **Backend Configuration:**
+    ```bash
+    OAUTH2_ACTIVE=false
+    ```
+
+    **Frontend Configuration:**
+    ```bash
+    OAUTH2_ACTIVE=false
+    ```
+  </Tab>
+
+  <Tab title="With Authentication">
+    **Production Mode with OIDC**
+
+    WFO provides authentication based on an OIDC provider that must be configured with:
+    - An authentication endpoint
+    - A tenant
+    - A client ID
+    - A client secret
+  </Tab>
+</Tabs>
+
+## Frontend Authentication
+
+The WFO frontend uses [NextAuth](https://next-auth.js.org/) to handle authentication. Authentication configuration can be found in `pages/api/auth/[...nextauth].ts`.
+
+### Environment Variables
+
+These variables need to be set for authentication to work on the frontend:
+
+```bash
+# Auth variables
+OAUTH2_ACTIVE=true
+OAUTH2_CLIENT_ID="orchestrator-client"        # OIDC client ID
+OAUTH2_CLIENT_SECRET=[SECRET]                 # OIDC client secret
+
+NEXTAUTH_PROVIDER_ID="keycloak"               # OIDC provider identifier
+NEXTAUTH_PROVIDER_NAME="Keycloak"             # Provider display name
+NEXTAUTH_AUTHORIZATION_SCOPE_OVERRIDE="openid profile"  # Optional scope override
+
+# Required by NextAuth middleware
+NEXTAUTH_URL=[DOMAIN]/api/auth                # Path to [...nextauth].js file
+NEXTAUTH_SECRET=[SECRET]                      # JWT encryption secret
+```
+
+### Frontend Authorization
+
+Authorization on the frontend determines if pages, actions, or navigation items are shown to users. This uses an `isAllowedHandler` function passed into the `WfoAuth` component:
+
+```typescript
+// _app.tsx
+<WfoAuth isAllowedHandler={customAuthFunction}>
+  {/* Your app components */}
+</WfoAuth>
+```
+
+The authorization function signature is:
+```typescript
+(routerPath: string, resource?: string) => boolean
+```
+
+### Policy Resources
+
+The authorization function is called for various UI elements:
+
+```typescript
+export enum PolicyResource {
+  NAVIGATION_METADATA = '/orchestrator/metadata/',
+  NAVIGATION_SETTINGS = '/orchestrator/settings/',
+  NAVIGATION_SUBSCRIPTIONS = '/orchestrator/subscriptions/',
+  NAVIGATION_TASKS = '/orchestrator/tasks/',
+  NAVIGATION_WORKFLOWS = '/orchestrator/processes/',
+  PROCESS_ABORT = '/orchestrator/processes/abort/',
+  PROCESS_DELETE = '/orchestrator/processes/delete/',
+  PROCESS_DETAILS = '/orchestrator/processes/details/',
+  PROCESS_RETRY = '/orchestrator/processes/retry/',
+  SUBSCRIPTION_CREATE = '/orchestrator/processes/create/process/menu',
+  SUBSCRIPTION_MODIFY = '/orchestrator/subscriptions/modify/',
+  SUBSCRIPTION_TERMINATE = '/orchestrator/subscriptions/terminate/',
+  SUBSCRIPTION_VALIDATE = '/orchestrator/subscriptions/validate/',
+  TASKS_CREATE = '/orchestrator/processes/create/task',
+  SETTINGS_FLUSH_CACHE = '/orchestrator/settings/flush-cache',
+  SET_IN_SYNC = '/orchestrator/subscriptions/set-in-sync',
+}
+```
+
+<Warning>
+Frontend authorization only controls UI visibility. Components hidden for unauthorized users are still part of the application. Backend authorization is required for actual security.
+</Warning>
+
+## Backend Authentication
+
+### Environment Variables
+
+These variables need to be set for authentication to work on the backend:
+
+```bash
+# OIDC settings
+OAUTH2_ACTIVE=true
+OAUTH2_AUTHORIZATION_ACTIVE=true
+OAUTH2_RESOURCE_SERVER_ID=""
+OAUTH2_RESOURCE_SERVER_SECRET=""
+OAUTH2_TOKEN_URL=""
+OIDC_BASE_URL=""
+OIDC_CONF_URL=""
+
+# Optional OPA settings
+OPA_URL=""
+```
+
+With these variables configured, requests to endpoints will return:
+- **403 error codes** for users that are not logged in
+- **401 error codes** for users that are not authorized
+
+### AuthManager Architecture
+
+`AuthManager` serves as the central unit for managing both authentication and authorization mechanisms. It provides three key methods:
+
+<CardGroup cols={3}>
+  <Card title="Authentication" icon="key">
+    Returns the OIDC user from the introspection endpoint
+  </Card>
+  <Card title="Authorization" icon="shield">
+    Applies authorization decisions to HTTP requests using OPA
+  </Card>
+  <Card title="GraphQL Authorization" icon="code">
+    Specialized authorization for GraphQL operations
+  </Card>
+</CardGroup>
+
+### Authorization Payload
+
+The default authorization method uses OPA and sends this payload for decisions:
+
+```json
+{
+  "input": {
+    "user_info": { /* User information from OIDC */ },
+    "resource": "/api/subscriptions",
+    "method": "GET",
+    "arguments": {
+      "path": { /* Path parameters */ },
+      "query": { /* Query parameters */ },
+      "json": { /* Request body */ }
+    }
+  }
+}
+```
+
+## Custom Authentication & Authorization
+
+### Custom Authentication
+
+Create a custom authentication class by extending the abstract `Authentication` class:
+
+```python
+from abc import ABC, abstractmethod
+from starlette.requests import HTTPConnection
+
+class CustomAuthentication(Authentication):
+    async def authenticate(self, request: HTTPConnection, token: str | None = None) -> dict | None:
+        """Custom authentication logic."""
+        # Implement your authentication logic here
+        if not token:
+            return None
+
+        # Validate token and return user info
+        user_info = await self.validate_token(token)
+        return user_info
+```
+
+### Custom Authorization
+
+Create custom authorization logic:
+
+```python
+from oauth2_lib.fastapi import Authorization, OIDCUserModel
+from starlette.requests import HTTPConnection
+
+class CustomAuthorization(Authorization):
+    async def authorize(self, request: HTTPConnection, user: OIDCUserModel) -> bool | None:
+        """Custom authorization logic."""
+        # Example: Allow admins access to everything
+        if user.email.endswith("@admin.company.com"):
+            return True
+
+        # Example: Restrict access based on request path
+        if request.url.path.startswith("/api/admin/"):
+            return False
+
+        return True
+```
+
+### Custom GraphQL Authorization
+
+```python
+from oauth2_lib.fastapi import GraphqlAuthorization, RequestPath, OIDCUserModel
+
+class CustomGraphqlAuthorization(GraphqlAuthorization):
+    async def authorize(self, request: RequestPath, user: OIDCUserModel) -> bool | None:
+        """Custom GraphQL authorization logic."""
+        # Implement GraphQL-specific authorization
+        return True
+```
+
+### Registration Example
+
+```python
+from orchestrator import OrchestratorCore, app_settings
+from oauth2_lib.fastapi import OIDCAuth, OIDCUserModel
+from oauth2_lib.settings import oauth2lib_settings
+
+# Create custom instances
+oidc_instance = CustomOIDCAuth(
+    openid_url=oauth2lib_settings.OIDC_BASE_URL,
+    openid_config_url=oauth2lib_settings.OIDC_CONF_URL,
+    resource_server_id=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_ID,
+    resource_server_secret=oauth2lib_settings.OAUTH2_RESOURCE_SERVER_SECRET,
+    oidc_user_model_cls=OIDCUserModel,
+)
+
+authorization_instance = CustomAuthorization()
+graphql_authorization_instance = CustomGraphqlAuthorization()
+
+# Register with the app
+app = OrchestratorCore(base_settings=app_settings)
+app.register_authentication(oidc_instance)
+app.register_authorization(authorization_instance)
+app.register_graphql_authorization(graphql_authorization_instance)
+```
+
+## Workflow Authorization
+
+<Warning>
+Role-based access control for workflows is currently in beta. Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
+</Warning>
+
+### Workflow Decorators
+
+The `@workflow` decorator accepts optional authorization parameters:
+
+```python
+from typing import Callable
+from oauth2_lib.fastapi import OIDCUserModel
+
+type Authorizer = Callable[[OIDCUserModel], bool]
+
+@workflow("Create Service", auth=allow_admin, retry_auth=allow_ops)
+def create_service():
+    return init >> validate >> provision >> activate >> done
+```
+
+**Parameters:**
+- `auth`: Determines authorization to start the workflow
+- `retry_auth`: Determines authorization to retry failed workflows
+
+### Input Step Authorization
+
+The `@inputstep` decorator accepts:
+
+```python
+@inputstep("Approval", resume_auth=allow_finance, retry_auth=allow_ops)
+def approval_step(state: State) -> State:
+    # Step implementation
+    return state
+```
+
+**Parameters:**
+- `resume_auth`: Authorization to resume when suspended at this step
+- `retry_auth`: Authorization to retry from failed steps after this input step
+
+### Authorization Examples
+
+#### Role-Based Authorization Helper
+
+```python
+def allow_roles(*roles) -> Callable[[OIDCUserModel | None], bool]:
+    def authorize_user(user: OIDCUserModel) -> bool:
+        if is_admin(user):  # Admin override
+            return True
+
+        for role in roles:
+            if has_role(user, role):
+                return True
+
+        return False
+
+    return authorize_user
+```
+
+#### Rubber Stamp Model
+
+Workflow requires ops to start, finance to approve:
+
+```python
+@workflow("Expensive Workflow", auth=allow_roles("ops"))
+def expensive_workflow():
+    return (
+        init
+        >> validate_request
+        >> notify_finance
+        >> approval
+        >> provision_resources
+        >> done
+    )
+
+@inputstep("Financial Approval",
+          resume_auth=allow_roles("finance"),
+          retry_auth=allow_roles("ops"))
+def approval(state: State) -> State:
+    # Approval logic
+    return state
+```
+
+#### Hand-off Model
+
+Dev starts workflow, Platform takes over at handoff:
+
+```python
+@workflow("Development Handoff", auth=allow_roles("dev"))
+def dev_handoff_workflow():
+    return (
+        init
+        >> dev_validation
+        >> notify_platform
+        >> handoff
+        >> platform_deployment
+        >> done
+    )
+
+@inputstep("Platform Handoff", resume_auth=allow_roles("platform"))
+def handoff(state: State) -> State:
+    # Handoff logic
+    return state
+```
+
+#### Restricted Retries Model
+
+Anyone can run, only admins can retry:
+
+```python
+@workflow("User Workflow", retry_auth=allow_roles("admin"))
+def user_workflow():
+    return (
+        init
+        >> user_validation
+        >> sensitive_operation
+        >> completion
+        >> done
+    )
+```
+
+## Authorization Policy Matrix
+
+| Workflow Config | InputStep Config | Before InputStep | At InputStep & After |
+|----------------|------------------|------------------|---------------------|
+| `auth=A` | `resume_auth=C` | start: A, retry: A | resume: C, retry: C |
+| `auth=A, retry_auth=B` | `resume_auth=C, retry_auth=D` | start: A, retry: B | resume: C, retry: D |
+| `auth=None` | `resume_auth=C` | start: Anyone, retry: Anyone | resume: C, retry: C |
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Security">
+    - Always use HTTPS in production
+    - Store secrets securely (never in code)
+    - Implement proper token rotation
+    - Use least-privilege principle for authorization
+    - Monitor authentication failures
+  </Accordion>
+
+  <Accordion title="Development">
+    - Use separate OIDC applications for different environments
+    - Never use production credentials in development
+    - Test with expired tokens
+    - Implement proper error handling
+    - Log authentication events for debugging
+  </Accordion>
+
+  <Accordion title="Authorization">
+    - Implement authorization at both frontend and backend
+    - Use consistent role definitions across systems
+    - Document authorization policies clearly
+    - Test authorization edge cases
+    - Provide meaningful error messages
+  </Accordion>
+
+  <Accordion title="Workflow Security">
+    - Design workflows with security in mind
+    - Use appropriate authorization for sensitive operations
+    - Document workflow authorization requirements
+    - Test authorization scenarios thoroughly
+    - Consider audit logging for sensitive workflows
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore the complete API documentation
+  </Card>
+  <Card
+    title="Workflow Authorization"
+    icon="shield"
+    href="/workflows/overview"
+  >
+    Learn about workflow-specific authorization
+  </Card>
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/advanced/deployment"
+  >
+    Deploy with proper security configuration
+  </Card>
+  <Card
+    title="Examples"
+    icon="book"
+    href="/examples/overview"
+  >
+    See authentication in real-world scenarios
+  </Card>
+</CardGroup>

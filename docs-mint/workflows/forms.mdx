@@ -1,0 +1,716 @@
+---
+title: "Workflow Forms"
+description: "Create dynamic input forms for workflow user interfaces"
+---
+
+## Overview
+
+Workflow forms provide the user interface for collecting input data when executing workflows. They are dynamically generated based on Pydantic models and can include validation, conditional fields, and custom components.
+
+<Note>
+Forms are automatically rendered in the orchestrator UI and can be customized for different user roles and workflow contexts.
+</Note>
+
+## Basic Form Structure
+
+Forms are defined using Pydantic models with the pydantic-forms library. Here's a real example from the pydantic-forms-ui repository:
+
+```python
+from typing import Annotated, ClassVar
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_forms.core import FormPage as PydanticFormsFormPage
+from pydantic_forms.types import JSON, State
+from pydantic_forms.validators import Predicate
+from annotated_types import Ge, Le, MultipleOf
+
+class FormPage(PydanticFormsFormPage):
+    meta__: ClassVar[JSON] = {"hasNext": True}
+
+class SubmitFormPage(FormPage):
+    meta__: ClassVar[JSON] = {"hasNext": False}
+
+# Define validated types with constraints
+StringExample = Annotated[
+    str,
+    Field(min_length=2, max_length=10),
+    Predicate(lambda val: val != "Karel" or ValueError("No not Karel!"))
+]
+
+NumberExample = Annotated[
+    int,
+    Ge(18),
+    Le(99),
+    MultipleOf(multiple_of=3),
+    Predicate(lambda val: val != 9 or ValueError("Value cannot be 9"))
+]
+
+class NameForm(FormPage):
+    model_config = ConfigDict(title="Demo form step 1")
+    name: str
+
+class NameValidationForm(FormPage):
+    model_config = ConfigDict(title="Name with validation")
+    name_with_validation: StringExample
+```
+
+## Form Components
+
+### Field Types
+
+Different field types provide appropriate UI components:
+
+```python
+from datetime import datetime, date
+from enum import StrEnum
+from ipaddress import IPv4Address
+from pydantic import Field
+
+class ServiceTier(StrEnum):
+    BASIC = "basic"
+    PREMIUM = "premium"
+    ENTERPRISE = "enterprise"
+
+class AdvancedServiceForm(BaseModel):
+    # Text inputs
+    customer_name: str = Field(description="Customer name")
+    site_description: str = Field(description="Site description")
+
+    # Email and URL
+    contact_email: EmailStr = Field(description="Contact email")
+    support_url: Optional[HttpUrl] = Field(default=None, description="Support portal URL")
+
+    # Numeric inputs
+    bandwidth_mbps: int = Field(ge=1, le=10000, description="Bandwidth (Mbps)")
+    monthly_cost: float = Field(ge=0, description="Monthly cost")
+
+    # Date and time
+    installation_date: date = Field(description="Preferred installation date")
+    maintenance_window: datetime = Field(description="Maintenance window start")
+
+    # Boolean checkbox
+    requires_backup: bool = Field(default=False, description="Requires backup connection")
+
+    # Dropdown/Select
+    service_tier: ServiceTier = Field(description="Service tier")
+
+    # IP Address
+    gateway_ip: Optional[IPv4Address] = Field(default=None, description="Gateway IP address")
+
+    # List/Array
+    dns_servers: list[IPv4Address] = Field(default_factory=list, description="DNS servers")
+
+    # Text area
+    special_requirements: Optional[str] = Field(
+        default=None,
+        description="Special installation requirements",
+        json_schema_extra={"widget": "textarea"}
+    )
+```
+
+### Field Validation
+
+Use annotated types with validators for robust field validation. Examples from pydantic-forms-ui:
+
+```python
+from typing import Annotated
+from annotated_types import Ge, Le, MultipleOf, Predicate
+from pydantic import Field
+from pydantic_forms.validators import unique_conlist
+
+# Custom validation functions
+def example_backend_validation(val: int) -> bool:
+    if val == 9:
+        raise ValueError("Value cannot be 9")
+    return True
+
+def name_validation(val: str) -> bool:
+    if val == "Karel":
+        raise ValueError("No not Karel!")
+    return True
+
+# Annotated types with multiple constraints
+NumberExample = Annotated[
+    int,
+    Ge(18),                                    # Minimum value
+    Le(99),                                    # Maximum value
+    MultipleOf(multiple_of=3),                 # Must be divisible by 3
+    Predicate(example_backend_validation),     # Custom validation
+]
+
+StringExample = Annotated[
+    str,
+    Field(min_length=2, max_length=10),        # Length constraints
+    Predicate(name_validation),                # Custom validation
+]
+
+# Validated lists with constraints
+TestExampleNumberList = Annotated[
+    unique_conlist(NumberExample, min_items=2, max_items=5),
+    Predicate(lambda val: True),  # Additional list validation
+]
+
+# Usage in forms
+class ValidatedForm(FormPage):
+    model_config = ConfigDict(title="Validated Form")
+
+    # These fields automatically get validation from the annotated types
+    age: NumberExample = 21  # Default value that satisfies constraints
+    name: StringExample = "John"
+    numbers: TestExampleNumberList = [21, 24]  # Valid default list
+
+    # Nested objects with validation
+    class Person(BaseModel):
+        name: StringExample
+        age: NumberExample
+
+    person: Person
+    people_list: unique_conlist(Person, min_items=1, max_items=3)
+```
+
+### Conditional Fields
+
+Show/hide fields based on other field values:
+
+```python
+from orchestrator.forms import ConditionalField
+
+class ConditionalServiceForm(BaseModel):
+    service_type: str = Field(description="Service type")
+
+    # Only show for enterprise services
+    dedicated_support: Optional[bool] = ConditionalField(
+        default=None,
+        condition="service_type == 'enterprise'",
+        description="Dedicated account manager"
+    )
+
+    # Only show if dedicated support is selected
+    account_manager_name: Optional[str] = ConditionalField(
+        default=None,
+        condition="dedicated_support == true",
+        description="Preferred account manager"
+    )
+
+    # Show different fields based on service type
+    residential_package: Optional[str] = ConditionalField(
+        default=None,
+        condition="service_type == 'residential'",
+        description="Residential package type"
+    )
+
+    business_sla: Optional[str] = ConditionalField(
+        default=None,
+        condition="service_type in ['business', 'enterprise']",
+        description="Service level agreement"
+    )
+```
+
+## Dynamic Form Generation
+
+### Context-Aware Forms
+
+Generate different forms based on context:
+
+```python
+def dynamic_service_form(
+    subscription_id: Optional[UUID] = None,
+    user_role: str = "customer",
+    operation: str = "create"
+) -> FormPage:
+    """Generate context-aware service form."""
+
+    if operation == "create":
+        # New service form
+        if user_role == "admin":
+            form_class = AdminServiceCreationForm
+            title = "Create Service (Admin)"
+        else:
+            form_class = CustomerServiceRequestForm
+            title = "Request New Service"
+
+    elif operation == "modify":
+        # Modification form with pre-populated data
+        if subscription_id:
+            subscription = load_subscription(subscription_id)
+
+            if user_role == "admin":
+                form_class = AdminServiceModificationForm
+                initial_data = subscription.to_admin_dict()
+            else:
+                form_class = CustomerServiceModificationForm
+                initial_data = subscription.to_customer_dict()
+
+            return FormPage(
+                form=form_class(**initial_data),
+                title=f"Modify Service {subscription.service_id}",
+                description=f"Update configuration for {subscription.description}"
+            )
+
+    return FormPage(
+        form=form_class(),
+        title=title,
+        description="Configure service parameters"
+    )
+```
+
+### Multi-Step Forms
+
+Create wizard-style multi-step forms using generators. Here's a real example from the pydantic-forms-ui repository:
+
+```python
+from pydantic_forms.core import post_form
+from pydantic_forms.validators import unique_conlist
+
+def form_generator(state: State):
+    """Multi-step form generator using yield statements."""
+
+    # Step 1: Basic name input
+    class NameForm(FormPage):
+        model_config = ConfigDict(title="Demo form step 1")
+        name: str
+
+    name_form_data = yield NameForm
+
+    # Step 2: Name with validation
+    class NameValidationForm(FormPage):
+        model_config = ConfigDict(title="Name with validation")
+        name_with_validation: StringExample
+
+    name_validation_form_data = yield NameValidationForm
+
+    # Step 3: Name and age together
+    class NameAgeForm(FormPage):
+        model_config = ConfigDict(title="Personal Information")
+        name: StringExample
+        age: NumberExample
+
+    name_age_form_data = yield NameAgeForm
+
+    # Step 4: Complex object form
+    class PersonObjectForm(FormPage):
+        class Person(BaseModel):
+            name: StringExample
+            age: NumberExample
+
+        model_config = ConfigDict(title="Person Object Form")
+        person: Person
+
+    person_object_form_data = yield PersonObjectForm
+
+    # Step 5: Array of objects
+    class PersonArrayForm(FormPage):
+        class Person(BaseModel):
+            name: StringExample
+            age: NumberExample
+
+        model_config = ConfigDict(title="Multiple People")
+        PersonList: unique_conlist(Person, min_items=1, max_items=3)
+
+    person_array_form_data = yield PersonArrayForm
+
+    # Combine all form data
+    return (
+        name_form_data.model_dump()
+        | name_validation_form_data.model_dump()
+        | name_age_form_data.model_dump()
+        | person_object_form_data.model_dump()
+        | person_array_form_data.model_dump()
+    )
+
+# Usage in FastAPI endpoint
+@app.post("/form")
+async def form(form_data: list[dict] = []):
+    result = post_form(form_generator, state={}, user_inputs=form_data)
+    return "OK!"
+```
+
+## Form Customization
+
+### Custom Widgets
+
+Define custom UI widgets for specific field types:
+
+```python
+from orchestrator.forms.widgets import CustomWidget
+
+class IPAddressRangeWidget(CustomWidget):
+    """Custom widget for IP address range selection."""
+
+    widget_type = "ip_range_selector"
+
+    def render_config(self) -> dict:
+        return {
+            "available_ranges": [
+                "192.168.1.0/24",
+                "192.168.2.0/24",
+                "10.0.0.0/16"
+            ],
+            "allow_custom": True,
+            "validation_pattern": r"^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$"
+        }
+
+class ServiceConfigForm(BaseModel):
+    customer_network: str = Field(
+        description="Customer network range",
+        json_schema_extra={
+            "widget": IPAddressRangeWidget()
+        }
+    )
+```
+
+### Form Styling
+
+Customize form appearance and layout:
+
+```python
+def styled_service_form() -> FormPage:
+    """Create a styled service form."""
+
+    return FormPage(
+        form=ServiceRequestForm(),
+        title="Premium Service Request",
+        description="Configure your premium internet service",
+        styling={
+            "theme": "premium",
+            "layout": "two_column",
+            "field_spacing": "large",
+            "button_style": "primary",
+            "show_progress": True
+        },
+        sections=[
+            {
+                "title": "Customer Information",
+                "fields": ["customer_id", "contact_name", "contact_email"],
+                "collapsible": False
+            },
+            {
+                "title": "Service Configuration",
+                "fields": ["service_type", "bandwidth_mbps", "installation_date"],
+                "collapsible": True,
+                "default_collapsed": False
+            },
+            {
+                "title": "Additional Options",
+                "fields": ["backup_connection", "monitoring", "support_tier"],
+                "collapsible": True,
+                "default_collapsed": True
+            }
+        ]
+    )
+```
+
+## Form Validation
+
+### Client-Side Validation
+
+Add immediate feedback for form fields:
+
+```python
+class ValidatedForm(BaseModel):
+    email: EmailStr = Field(
+        description="Email address",
+        json_schema_extra={
+            "validation": {
+                "client_side": True,
+                "debounce_ms": 500,
+                "error_message": "Please enter a valid email address"
+            }
+        }
+    )
+
+    bandwidth: int = Field(
+        ge=10, le=10000,
+        description="Bandwidth in Mbps",
+        json_schema_extra={
+            "validation": {
+                "client_side": True,
+                "error_message": "Bandwidth must be between 10 and 10,000 Mbps"
+            }
+        }
+    )
+```
+
+### Server-Side Validation
+
+Implement complex business logic validation:
+
+```python
+from orchestrator.forms.validation import FormValidator
+
+class ServiceFormValidator(FormValidator):
+    """Custom validator for service forms."""
+
+    def validate_customer_eligibility(self, customer_id: str) -> bool:
+        """Check if customer is eligible for service."""
+        customer = get_customer(customer_id)
+        if not customer:
+            self.add_error("customer_id", "Customer not found")
+            return False
+
+        if customer.status != "active":
+            self.add_error("customer_id", "Customer account is not active")
+            return False
+
+        return True
+
+    def validate_service_availability(self, address: str, service_type: str) -> bool:
+        """Check service availability at address."""
+        availability = check_service_availability(address, service_type)
+        if not availability.available:
+            self.add_error(
+                "installation_address",
+                f"Service not available at this address: {availability.reason}"
+            )
+            return False
+
+        return True
+
+    def validate_form(self, form_data: dict) -> bool:
+        """Validate complete form."""
+        valid = True
+
+        valid &= self.validate_customer_eligibility(form_data["customer_id"])
+        valid &= self.validate_service_availability(
+            form_data["installation_address"],
+            form_data["service_type"]
+        )
+
+        return valid
+
+# Use validator in form generator
+def validated_service_form() -> FormPage:
+    return FormPage(
+        form=ServiceRequestForm(),
+        title="Service Request",
+        validator=ServiceFormValidator()
+    )
+```
+
+## Integration with Workflows
+
+### Form Data in Workflow Steps
+
+Access form data in workflow steps:
+
+```python
+def process_service_request(state: State) -> State:
+    """Process service request from form data."""
+
+    # Form data is available in state["user_input"]
+    form_data = state["user_input"]
+
+    # Access individual fields
+    customer_id = form_data["customer_id"]
+    bandwidth = form_data["bandwidth_mbps"]
+    service_type = form_data["service_type"]
+
+    # Validate and process
+    if bandwidth > 1000:
+        priority = "high"
+        provisioning_time = timedelta(days=14)
+    else:
+        priority = "normal"
+        provisioning_time = timedelta(days=7)
+
+    return {
+        **state,
+        "processing_priority": priority,
+        "estimated_completion": datetime.now() + provisioning_time,
+        "validated_request": {
+            "customer_id": customer_id,
+            "service_config": {
+                "type": service_type,
+                "bandwidth": bandwidth
+            }
+        }
+    }
+```
+
+### Form Pre-population
+
+Pre-populate forms with existing data:
+
+```python
+def modify_service_form(subscription_id: UUID) -> FormPage:
+    """Generate form pre-populated with existing service data."""
+
+    # Load existing subscription
+    subscription = BusinessInternetActive.from_subscription(subscription_id)
+
+    # Create form with existing data
+    form_data = ModifyServiceForm(
+        customer_id=subscription.customer_id,
+        current_bandwidth=subscription.bandwidth.download_speed_mbps,
+        new_bandwidth=subscription.bandwidth.download_speed_mbps,  # Default to current
+        service_tier=subscription.bandwidth.tier,
+        support_level=subscription.support.tier,
+        modification_reason="",  # User must specify
+        effective_date=datetime.now() + timedelta(days=1)  # Default to tomorrow
+    )
+
+    return FormPage(
+        form=form_data,
+        title=f"Modify Service {subscription.service_id}",
+        description=f"Update configuration for {subscription.description}",
+        readonly_fields=["customer_id", "current_bandwidth"],  # Can't change these
+        context={
+            "subscription_id": subscription_id,
+            "current_monthly_cost": subscription.monthly_recurring_cost,
+            "service_history": subscription.get_change_history()
+        }
+    )
+```
+
+## Testing Forms
+
+### Form Validation Testing
+
+```python
+import pytest
+from pydantic import ValidationError
+
+def test_service_form_validation():
+    """Test form field validation."""
+
+    # Valid form data
+    valid_data = {
+        "customer_id": "CUST1234",
+        "bandwidth_mbps": 500,
+        "contact_email": "test@example.com",
+        "service_type": "business"
+    }
+
+    form = ServiceRequestForm(**valid_data)
+    assert form.customer_id == "CUST1234"
+    assert form.bandwidth_mbps == 500
+
+    # Invalid email
+    with pytest.raises(ValidationError) as exc_info:
+        ServiceRequestForm(
+            **{**valid_data, "contact_email": "invalid-email"}
+        )
+
+    assert "email" in str(exc_info.value).lower()
+
+    # Invalid bandwidth
+    with pytest.raises(ValidationError) as exc_info:
+        ServiceRequestForm(
+            **{**valid_data, "bandwidth_mbps": 5}  # Below minimum
+        )
+
+    assert "bandwidth" in str(exc_info.value).lower()
+
+def test_form_generator():
+    """Test form generator function."""
+
+    form_page = service_request_form_generator()
+
+    assert form_page.title == "Request New Service"
+    assert isinstance(form_page.form, ServiceRequestForm)
+
+    # Test with existing subscription
+    subscription_id = uuid4()
+    modify_form = modify_service_form(subscription_id)
+
+    assert "Modify Service" in modify_form.title
+    assert modify_form.context["subscription_id"] == subscription_id
+```
+
+### UI Integration Testing
+
+```python
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+
+def test_form_ui_interaction():
+    """Test form interaction in browser."""
+
+    driver = webdriver.Chrome()
+    driver.get("http://localhost:3000/workflows/create-service")
+
+    try:
+        # Fill form fields
+        driver.find_element(By.NAME, "customer_id").send_keys("CUST1234")
+        driver.find_element(By.NAME, "bandwidth_mbps").send_keys("500")
+        driver.find_element(By.NAME, "contact_email").send_keys("test@example.com")
+
+        # Select dropdown
+        service_type_dropdown = driver.find_element(By.NAME, "service_type")
+        service_type_dropdown.send_keys("business")
+
+        # Submit form
+        submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+        submit_button.click()
+
+        # Verify workflow started
+        success_message = driver.find_element(By.CSS_SELECTOR, ".success-message")
+        assert "Workflow started" in success_message.text
+
+    finally:
+        driver.quit()
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Form Design">
+    - **Clear Labels**: Use descriptive field labels and help text
+    - **Logical Grouping**: Group related fields into sections
+    - **Progressive Disclosure**: Use conditional fields to reduce complexity
+    - **Validation Feedback**: Provide immediate, clear error messages
+  </Accordion>
+
+  <Accordion title="User Experience">
+    - **Default Values**: Provide sensible defaults where possible
+    - **Field Ordering**: Order fields logically (general to specific)
+    - **Required Fields**: Clearly mark required vs optional fields
+    - **Save Progress**: Allow saving partial forms for complex workflows
+  </Accordion>
+
+  <Accordion title="Validation Strategy">
+    - **Client-Side First**: Provide immediate feedback for simple validation
+    - **Server-Side Security**: Always validate on server for security
+    - **Business Rules**: Implement complex business logic server-side
+    - **Error Recovery**: Allow users to easily correct validation errors
+  </Accordion>
+
+  <Accordion title="Performance">
+    - **Lazy Loading**: Load form options dynamically when needed
+    - **Debounced Validation**: Avoid excessive validation calls while typing
+    - **Caching**: Cache form schemas and validation rules
+    - **Progressive Enhancement**: Ensure forms work without JavaScript
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Workflow Testing"
+    icon="flask"
+    href="/workflows/testing"
+  >
+    Learn how to test workflows and forms
+  </Card>
+  <Card
+    title="UI Customization"
+    icon="palette"
+    href="/getting-started/ui-setup"
+  >
+    Customize the orchestrator UI
+  </Card>
+  <Card
+    title="Domain Models"
+    icon="cube"
+    href="/concepts/domain-models"
+  >
+    Learn about validation patterns
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore the complete API
+  </Card>
+</CardGroup>

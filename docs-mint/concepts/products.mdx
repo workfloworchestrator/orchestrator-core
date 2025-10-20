@@ -1,0 +1,590 @@
+---
+title: "Products"
+description: "Understanding products - the service offerings that customers can subscribe to"
+---
+
+## What are Products?
+
+**Products** define the service offerings that you provide to customers. They specify what components (product blocks) make up a service, what configuration options are available, and how the service should behave throughout its lifecycle.
+
+<Note>
+Products act as **templates** for subscriptions. When a customer subscribes to a product, they get a subscription instance with the product's structure and constraints.
+</Note>
+
+## Product Structure
+
+Products are composed of several key elements:
+
+<CardGroup cols={2}>
+  <Card title="Product Blocks" icon="cube">
+    Reusable components that define service capabilities (bandwidth, IP addresses, VLANs, etc.)
+  </Card>
+  <Card title="Fixed Inputs" icon="settings">
+    Static configuration values that apply to all subscriptions of this product
+  </Card>
+  <Card title="Resource Types" icon="list">
+    Data fields that can be configured per subscription (speeds, addresses, names, etc.)
+  </Card>
+  <Card title="Workflows" icon="workflow">
+    Business processes for creating, modifying, and terminating subscriptions
+  </Card>
+</CardGroup>
+
+## Product Definition
+
+Products are typically defined in your database and referenced by domain models:
+
+### Database Product Configuration
+
+```json
+{
+  "name": "Business Internet Service",
+  "description": "High-speed internet connectivity for business customers",
+  "product_type": "Internet",
+  "tag": "BIZ_INTERNET",
+  "status": "active",
+  "product_blocks": [
+    "Bandwidth",
+    "IPAddress",
+    "NetworkConnection",
+    "SupportLevel"
+  ],
+  "fixed_inputs": [
+    {
+      "name": "service_level_agreement",
+      "value": "99.9% uptime"
+    },
+    {
+      "name": "installation_type",
+      "value": "professional"
+    }
+  ]
+}
+```
+
+### Corresponding Domain Model
+
+```python
+from orchestrator.domain.base import SubscriptionModel
+
+class BusinessInternetInactive(SubscriptionModel, is_base=True):
+    """Business internet service subscription."""
+
+    # Fixed inputs from product definition
+    service_level_agreement: str = "99.9% uptime"
+    installation_type: str = "professional"
+
+    # Product blocks
+    bandwidth: BandwidthBlock
+    ip_address: IPAddressBlock
+    connection: NetworkConnectionBlock
+    support: SupportLevelBlock
+
+    # Customer-specific fields
+    customer_id: str
+    site_name: str
+    billing_contact: str
+
+class BusinessInternetActive(BusinessInternetInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active business internet with all required configuration."""
+
+    bandwidth: BandwidthBlockActive
+    ip_address: IPAddressBlockActive
+    connection: NetworkConnectionBlockActive
+    support: SupportLevelBlockActive
+
+    # Required when active
+    service_id: str
+    activation_date: datetime
+```
+
+## Product Hierarchies
+
+Products can be organized in hierarchies to support different service tiers:
+
+### Base Product
+
+```python
+class InternetServiceBase(SubscriptionModel, is_base=True):
+    """Base internet service with common components."""
+
+    customer_id: str
+    bandwidth: BandwidthBlock
+    connection: NetworkConnectionBlock
+```
+
+### Product Variants
+
+```python
+class ResidentialInternet(InternetServiceBase):
+    """Residential internet service."""
+
+    # Residential-specific configuration
+    wifi_included: bool = True
+    parental_controls: bool = False
+    data_cap_gb: Optional[int] = None
+
+class BusinessInternet(InternetServiceBase):
+    """Business internet service."""
+
+    # Business-specific components
+    static_ip: IPAddressBlock
+    support: SupportLevelBlock
+    sla_uptime: float = 99.9
+
+class EnterpriseInternet(BusinessInternet):
+    """Enterprise internet with premium features."""
+
+    # Enterprise additions
+    redundant_connection: NetworkConnectionBlock
+    dedicated_support: bool = True
+    priority_routing: bool = True
+```
+
+## Product Blocks in Detail
+
+Product blocks are the building blocks of your products:
+
+### Simple Product Block
+
+```python
+class BandwidthBlock(ProductBlockModel, product_block_name="Bandwidth"):
+    """Bandwidth allocation for internet services."""
+
+    # Resource types (configurable per subscription)
+    download_speed_mbps: int
+    upload_speed_mbps: int
+    burst_allowance: Optional[int] = None
+
+    # Business logic
+    @computed_field
+    @property
+    def is_symmetric(self) -> bool:
+        """Check if upload and download speeds are equal."""
+        return self.download_speed_mbps == self.upload_speed_mbps
+
+    @computed_field
+    @property
+    def monthly_cost(self) -> Decimal:
+        """Calculate monthly cost based on speed tier."""
+        base_cost = Decimal("29.99")
+
+        # Tiered pricing
+        if self.download_speed_mbps >= 1000:
+            return base_cost * 4
+        elif self.download_speed_mbps >= 500:
+            return base_cost * 2
+        elif self.download_speed_mbps >= 100:
+            return base_cost * 1.5
+        else:
+            return base_cost
+```
+
+### Composite Product Block
+
+```python
+class NetworkConnectionBlock(ProductBlockModel, product_block_name="NetworkConnection"):
+    """Complete network connection configuration."""
+
+    # Nested product blocks
+    primary_link: NetworkLinkBlock
+    backup_link: Optional[NetworkLinkBlock] = None
+
+    # Connection settings
+    connection_type: ConnectionType
+    redundancy_level: RedundancyLevel
+
+    @computed_field
+    @property
+    def is_redundant(self) -> bool:
+        """Check if connection has redundancy."""
+        return self.backup_link is not None
+
+    @computed_field
+    @property
+    def total_bandwidth(self) -> int:
+        """Calculate total available bandwidth."""
+        total = self.primary_link.bandwidth.download_speed_mbps
+
+        if self.backup_link and self.redundancy_level == RedundancyLevel.ACTIVE_ACTIVE:
+            total += self.backup_link.bandwidth.download_speed_mbps
+
+        return total
+```
+
+## Product Lifecycle
+
+Products have their own lifecycle separate from subscriptions:
+
+<Tabs>
+  <Tab title="Development">
+    ```python
+    # Product in development - not available to customers
+    {
+      "name": "Next-Gen Fiber Service",
+      "status": "development",
+      "available_for_sale": false
+    }
+    ```
+  </Tab>
+
+  <Tab title="Active">
+    ```python
+    # Product available for new subscriptions
+    {
+      "name": "Business Internet Pro",
+      "status": "active",
+      "available_for_sale": true,
+      "end_of_sale_date": null
+    }
+    ```
+  </Tab>
+
+  <Tab title="End of Sale">
+    ```python
+    # No new subscriptions, existing ones continue
+    {
+      "name": "Legacy DSL Service",
+      "status": "end_of_sale",
+      "available_for_sale": false,
+      "end_of_sale_date": "2024-01-01",
+      "end_of_life_date": "2025-01-01"
+    }
+    ```
+  </Tab>
+
+  <Tab title="End of Life">
+    ```python
+    # Product discontinued, subscriptions must migrate
+    {
+      "name": "Old Copper Service",
+      "status": "end_of_life",
+      "available_for_sale": false,
+      "end_of_life_date": "2024-06-01",
+      "migration_product": "Fiber Service"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Product Validation
+
+Products include validation rules to ensure consistent service delivery:
+
+### Field Validation
+
+```python
+class BandwidthBlock(ProductBlockModel, product_block_name="Bandwidth"):
+    download_speed_mbps: int = Field(ge=1, le=10000, description="Download speed in Mbps")
+    upload_speed_mbps: int = Field(ge=1, le=10000, description="Upload speed in Mbps")
+
+    @field_validator('upload_speed_mbps')
+    @classmethod
+    def validate_upload_speed(cls, v, info):
+        """Ensure upload speed doesn't exceed download speed."""
+        download_speed = info.data.get('download_speed_mbps')
+        if download_speed and v > download_speed:
+            raise ValueError('Upload speed cannot exceed download speed')
+        return v
+```
+
+### Business Rule Validation
+
+```python
+class EnterpriseInternetService(SubscriptionModel, is_base=True):
+    bandwidth: BandwidthBlock
+    support: SupportLevelBlock
+
+    @model_validator(mode='after')
+    def validate_enterprise_requirements(self):
+        """Ensure enterprise services meet minimum requirements."""
+
+        # Enterprise services require minimum bandwidth
+        if self.bandwidth.download_speed_mbps < 100:
+            raise ValueError('Enterprise services require minimum 100 Mbps')
+
+        # Enterprise services require premium support
+        if self.support.level != SupportLevel.PREMIUM:
+            raise ValueError('Enterprise services require premium support')
+
+        return self
+```
+
+## Product Pricing
+
+Products can include sophisticated pricing models:
+
+```python
+class ProductPricing:
+    """Pricing calculator for products."""
+
+    def __init__(self, product: SubscriptionModel):
+        self.product = product
+
+    @property
+    def monthly_recurring_cost(self) -> Decimal:
+        """Calculate total monthly cost."""
+        total = Decimal("0.00")
+
+        # Add component costs
+        total += self.product.bandwidth.monthly_cost
+        total += self.product.connection.monthly_cost
+        total += self.product.support.monthly_cost
+
+        # Apply discounts
+        total = self._apply_volume_discounts(total)
+        total = self._apply_contract_discounts(total)
+
+        return total
+
+    def _apply_volume_discounts(self, base_cost: Decimal) -> Decimal:
+        """Apply volume-based discounts."""
+        if self.product.bandwidth.download_speed_mbps >= 1000:
+            return base_cost * Decimal("0.9")  # 10% discount for 1Gbps+
+        return base_cost
+
+    def _apply_contract_discounts(self, base_cost: Decimal) -> Decimal:
+        """Apply contract term discounts."""
+        contract_months = getattr(self.product, 'contract_term_months', 12)
+
+        if contract_months >= 36:
+            return base_cost * Decimal("0.85")  # 15% discount for 3+ year contracts
+        elif contract_months >= 24:
+            return base_cost * Decimal("0.92")  # 8% discount for 2+ year contracts
+
+        return base_cost
+```
+
+## Product Catalog Management
+
+Manage your product catalog programmatically:
+
+```python
+from orchestrator.db import ProductTable, ProductBlockTable, FixedInputTable
+
+class ProductCatalogManager:
+    """Manage product catalog operations."""
+
+    def create_product(
+        self,
+        name: str,
+        description: str,
+        product_blocks: List[str],
+        fixed_inputs: Dict[str, str]
+    ) -> ProductTable:
+        """Create a new product in the catalog."""
+
+        # Create product record
+        product = ProductTable(
+            name=name,
+            description=description,
+            product_type=self._determine_product_type(name),
+            status="development"  # Start in development
+        )
+
+        # Add product blocks
+        for block_name in product_blocks:
+            block = self._get_product_block(block_name)
+            product.product_blocks.append(block)
+
+        # Add fixed inputs
+        for input_name, input_value in fixed_inputs.items():
+            fixed_input = FixedInputTable(
+                name=input_name,
+                value=input_value
+            )
+            product.fixed_inputs.append(fixed_input)
+
+        db.session.add(product)
+        db.session.commit()
+
+        return product
+
+    def activate_product(self, product_id: UUID) -> None:
+        """Make product available for sale."""
+        product = db.session.get(ProductTable, product_id)
+
+        # Validate product is ready for activation
+        self._validate_product_completeness(product)
+
+        product.status = "active"
+        product.available_for_sale = True
+
+        db.session.commit()
+
+    def end_of_sale_product(self, product_id: UUID, end_date: datetime) -> None:
+        """Mark product as end of sale."""
+        product = db.session.get(ProductTable, product_id)
+
+        product.status = "end_of_sale"
+        product.available_for_sale = False
+        product.end_of_sale_date = end_date
+
+        db.session.commit()
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Product Design">
+    - **Start simple**: Begin with basic products and add complexity gradually
+    - **Reuse components**: Design product blocks for reuse across multiple products
+    - **Clear naming**: Use descriptive names that customers and staff understand
+    - **Logical grouping**: Group related products into families or categories
+  </Accordion>
+
+  <Accordion title="Pricing Strategy">
+    - **Transparent costs**: Make pricing calculations clear and auditable
+    - **Flexible models**: Support different pricing models (flat rate, usage-based, tiered)
+    - **Discount handling**: Build discount logic into the product model
+    - **Currency support**: Consider multi-currency requirements early
+  </Accordion>
+
+  <Accordion title="Lifecycle Management">
+    - **Staged rollout**: Use development → active → end-of-sale → end-of-life progression
+    - **Migration paths**: Plan migration routes for end-of-life products
+    - **Backward compatibility**: Ensure existing subscriptions continue to work
+    - **Documentation**: Maintain clear product documentation and change logs
+  </Accordion>
+
+  <Accordion title="Validation Rules">
+    - **Business constraints**: Encode business rules as validation logic
+    - **Error messages**: Provide clear, actionable error messages
+    - **Performance**: Keep validation efficient for large-scale operations
+    - **Testing**: Thoroughly test validation rules with edge cases
+  </Accordion>
+</AccordionGroup>
+
+## Example: Complete Product Definition
+
+Here's a complete example of a network service product:
+
+<CodeGroup>
+
+```python Domain Model
+class ManagedNetworkServiceInactive(SubscriptionModel, is_base=True):
+    """Managed network service for enterprise customers."""
+
+    # Fixed inputs (from product configuration)
+    service_level_agreement: str = "99.95% uptime"
+    managed_service_included: bool = True
+
+    # Product blocks
+    primary_connection: NetworkConnectionBlock
+    backup_connection: Optional[NetworkConnectionBlock] = None
+    ip_allocation: IPAllocationBlock
+    security: SecurityServicesBlock
+    monitoring: MonitoringBlock
+
+    # Customer configuration
+    customer_id: str
+    site_name: str
+    technical_contact: str
+    billing_contact: str
+
+    @computed_field
+    @property
+    def is_redundant(self) -> bool:
+        return self.backup_connection is not None
+
+    @computed_field
+    @property
+    def total_monthly_cost(self) -> Decimal:
+        """Calculate total service cost."""
+        cost = (
+            self.primary_connection.monthly_cost +
+            self.ip_allocation.monthly_cost +
+            self.security.monthly_cost +
+            self.monitoring.monthly_cost
+        )
+
+        if self.backup_connection:
+            cost += self.backup_connection.monthly_cost
+
+        return cost
+
+class ManagedNetworkServiceActive(ManagedNetworkServiceInactive, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active managed network service."""
+
+    primary_connection: NetworkConnectionBlockActive
+    backup_connection: Optional[NetworkConnectionBlockActive] = None
+    ip_allocation: IPAllocationBlockActive
+    security: SecurityServicesBlockActive
+    monitoring: MonitoringBlockActive
+
+    # Required when active
+    service_id: str
+    activation_date: datetime
+    next_maintenance_window: datetime
+```
+
+```json Product Configuration
+{
+  "name": "Managed Network Service",
+  "description": "Enterprise-grade managed network connectivity with 24/7 monitoring and support",
+  "product_type": "ManagedNetwork",
+  "tag": "MGD_NET",
+  "status": "active",
+  "available_for_sale": true,
+  "product_blocks": [
+    "NetworkConnection",
+    "IPAllocation",
+    "SecurityServices",
+    "Monitoring"
+  ],
+  "fixed_inputs": [
+    {
+      "name": "service_level_agreement",
+      "value": "99.95% uptime"
+    },
+    {
+      "name": "managed_service_included",
+      "value": "true"
+    },
+    {
+      "name": "support_level",
+      "value": "enterprise"
+    }
+  ],
+  "pricing": {
+    "model": "tiered",
+    "base_cost": 299.99,
+    "currency": "USD"
+  }
+}
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Your First Product"
+    icon="plus"
+    href="/getting-started/first-product"
+  >
+    Build a product definition for your service
+  </Card>
+  <Card
+    title="Domain Models"
+    icon="cube"
+    href="/concepts/domain-models"
+  >
+    Learn about domain model patterns
+  </Card>
+  <Card
+    title="Workflows"
+    icon="workflow"
+    href="/concepts/workflows"
+  >
+    Create workflows for your products
+  </Card>
+  <Card
+    title="Examples"
+    icon="book"
+    href="/examples/overview"
+  >
+    See real-world implementations
+  </Card>
+</CardGroup>

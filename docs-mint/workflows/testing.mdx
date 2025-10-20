@@ -1,0 +1,873 @@
+---
+title: "Workflow Testing"
+description: "Comprehensive testing strategies for workflows and business processes"
+---
+
+## Testing Strategy Overview
+
+Testing workflows requires a multi-layered approach covering unit tests, integration tests, and end-to-end scenarios. Proper testing ensures your business processes are reliable, maintainable, and perform well under various conditions.
+
+<Note>
+The Workflow Orchestrator provides built-in testing utilities that make it easy to test workflows in isolation and with external dependencies.
+</Note>
+
+## Testing Pyramid
+
+```mermaid
+graph TD
+    A[End-to-End Tests] --> B[Integration Tests]
+    B --> C[Unit Tests]
+
+    style A fill:#ff6b6b
+    style B fill:#4ecdc4
+    style C fill:#45b7d1
+```
+
+<CardGroup cols={3}>
+  <Card title="Unit Tests" icon="microscope">
+    Test individual workflow steps in isolation with mocked dependencies
+  </Card>
+  <Card title="Integration Tests" icon="link">
+    Test complete workflows with real database but mocked external services
+  </Card>
+  <Card title="End-to-End Tests" icon="globe">
+    Test complete user journeys with all systems integrated
+  </Card>
+</CardGroup>
+
+## Unit Testing Workflow Steps
+
+### Basic Step Testing
+
+Test individual workflow steps in isolation:
+
+```python
+import pytest
+from unittest.mock import patch, MagicMock
+from datetime import datetime
+
+from workflows.steps.validation import validate_service_request
+from workflows.steps.allocation import allocate_bandwidth
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+def test_validate_service_request_success():
+    """Test successful service request validation."""
+
+    state = {
+        "user_input": {
+            "customer_id": "CUST1234",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St, City, State"
+        }
+    }
+
+    result = validate_service_request(state)
+
+    assert result["validation_passed"] == True
+    assert result["validated_input"]["customer_id"] == "CUST1234"
+    assert result["validated_input"]["bandwidth_mbps"] == 500
+
+def test_validate_service_request_invalid_customer():
+    """Test validation with invalid customer ID."""
+
+    state = {
+        "user_input": {
+            "customer_id": "INVALID",  # Doesn't start with CUST
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        }
+    }
+
+    with pytest.raises(WorkflowStepException) as exc_info:
+        validate_service_request(state)
+
+    assert "Invalid customer ID format" in str(exc_info.value)
+    assert exc_info.value.retry == False
+
+def test_validate_service_request_missing_fields():
+    """Test validation with missing required fields."""
+
+    state = {
+        "user_input": {
+            "customer_id": "CUST1234"
+            # Missing other required fields
+        }
+    }
+
+    with pytest.raises(WorkflowStepException) as exc_info:
+        validate_service_request(state)
+
+    assert "Missing required fields" in str(exc_info.value)
+```
+
+### Testing Steps with External Dependencies
+
+Mock external services for isolated testing:
+
+```python
+@pytest.mark.asyncio
+async def test_provision_network_service_success():
+    """Test successful network service provisioning."""
+
+    state = {
+        "validated_input": {
+            "customer_id": "CUST1234",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        }
+    }
+
+    with patch('services.network_api.NetworkAPI') as mock_api:
+        # Mock successful API response
+        mock_api.provision_service.return_value = {
+            "service_id": "SVC123456",
+            "circuit_id": "CKT789012",
+            "status": "provisioned"
+        }
+
+        from workflows.steps.provisioning import provision_network_service
+        result = await provision_network_service(state)
+
+        # Verify API was called correctly
+        mock_api.provision_service.assert_called_once_with(
+            customer_id="CUST1234",
+            service_type="business",
+            bandwidth=500,
+            location="123 Main St"
+        )
+
+        # Verify result
+        assert result["external_service_id"] == "SVC123456"
+        assert result["circuit_id"] == "CKT789012"
+        assert result["provisioning_status"] == "completed"
+
+@pytest.mark.asyncio
+async def test_provision_network_service_api_error():
+    """Test handling of API errors."""
+
+    state = {
+        "validated_input": {
+            "customer_id": "CUST1234",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        }
+    }
+
+    with patch('services.network_api.NetworkAPI') as mock_api:
+        # Mock API error
+        mock_api.provision_service.side_effect = Exception("Network API unavailable")
+
+        from workflows.steps.provisioning import provision_network_service
+
+        with pytest.raises(WorkflowStepException) as exc_info:
+            await provision_network_service(state)
+
+        assert "Network API unavailable" in str(exc_info.value)
+        assert exc_info.value.retry_after > 0  # Should retry
+```
+
+### Testing Database Operations
+
+Test steps that interact with the database:
+
+```python
+def test_create_subscription_record(test_db):
+    """Test subscription record creation."""
+
+    state = {
+        "validated_input": {
+            "customer_id": "CUST1234",
+            "service_type": "business",
+            "bandwidth_mbps": 500,
+            "installation_address": "123 Main St"
+        },
+        "external_service_id": "SVC123456",
+        "circuit_id": "CKT789012"
+    }
+
+    from workflows.steps.database import create_subscription_record
+    result = create_subscription_record(state)
+
+    # Verify subscription was created
+    assert result["subscription_id"] is not None
+    assert result["database_record_created"] == True
+
+    # Verify in database
+    subscription = BusinessInternetActive.from_subscription(
+        result["subscription_id"]
+    )
+    assert subscription.customer_id == "CUST1234"
+    assert subscription.service_id == "SVC123456"
+    assert subscription.bandwidth.circuit_id == "CKT789012"
+
+def test_create_subscription_record_duplicate(test_db):
+    """Test handling of duplicate subscription creation."""
+
+    # Create initial subscription
+    existing_subscription = create_test_subscription(
+        customer_id="CUST1234",
+        service_id="SVC123456"
+    )
+
+    state = {
+        "validated_input": {"customer_id": "CUST1234"},
+        "external_service_id": "SVC123456",  # Same service ID
+        "circuit_id": "CKT789012"
+    }
+
+    from workflows.steps.database import create_subscription_record
+
+    with pytest.raises(WorkflowStepException) as exc_info:
+        create_subscription_record(state)
+
+    assert "already exists" in str(exc_info.value).lower()
+```
+
+## Integration Testing Workflows
+
+### Complete Workflow Testing
+
+Test entire workflows with the WorkflowTester:
+
+```python
+from orchestrator.workflows.testing import WorkflowTester
+from workflows.create.internet_service import create_internet_service
+
+def test_create_internet_service_workflow_success(test_db):
+    """Test complete internet service creation workflow."""
+
+    initial_state = {
+        "user_input": {
+            "customer_id": "CUST1234",
+            "site_name": "Main Office",
+            "installation_address": "123 Business Blvd",
+            "technical_contact_name": "John Doe",
+            "technical_contact_email": "john@example.com",
+            "billing_contact_name": "Jane Smith",
+            "billing_contact_email": "jane@example.com",
+            "download_speed_mbps": 500,
+            "upload_speed_mbps": 100,
+            "bandwidth_tier": "business",
+            "support_level": "business"
+        }
+    }
+
+    # Mock external services
+    with patch('services.network_api.NetworkAPI') as mock_network, \
+         patch('services.billing_api.BillingAPI') as mock_billing, \
+         patch('services.notification_service.NotificationService') as mock_notify:
+
+        # Setup mocks
+        mock_network.provision_service.return_value = {
+            "service_id": "SVC123456",
+            "circuit_id": "CKT789012"
+        }
+        mock_billing.create_recurring_charge.return_value = {"charge_id": "CHG123"}
+        mock_notify.send_email.return_value = True
+
+        # Execute workflow
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state)
+
+        # Verify success
+        assert result.status == "completed"
+        assert result.subscription is not None
+        assert result.subscription.service_id == "SVC123456"
+        assert result.subscription.status == SubscriptionLifecycle.ACTIVE
+
+        # Verify external service calls
+        mock_network.provision_service.assert_called_once()
+        mock_billing.create_recurring_charge.assert_called_once()
+        mock_notify.send_email.assert_called()
+
+def test_create_internet_service_workflow_failure_rollback(test_db):
+    """Test workflow failure and rollback behavior."""
+
+    initial_state = {
+        "user_input": {
+            "customer_id": "CUST1234",
+            "service_type": "business",
+            "bandwidth_mbps": 500
+            # ... other required fields
+        }
+    }
+
+    with patch('services.network_api.NetworkAPI') as mock_network, \
+         patch('services.resource_manager.ResourceManager') as mock_resources:
+
+        # Setup successful resource allocation
+        mock_resources.allocate_bandwidth.return_value = {"allocation_id": "ALLOC123"}
+        mock_resources.allocate_ip.return_value = {"ip_address": "192.168.1.100"}
+
+        # Setup network API failure
+        mock_network.provision_service.side_effect = Exception("Network provisioning failed")
+
+        # Execute workflow
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state)
+
+        # Verify failure
+        assert result.status == "failed"
+        assert "Network provisioning failed" in result.error_message
+
+        # Verify rollback occurred
+        mock_resources.release_bandwidth.assert_called_with("ALLOC123")
+        mock_resources.release_ip.assert_called_with("192.168.1.100")
+```
+
+### Testing Workflow State Persistence
+
+Verify that workflow state is properly maintained:
+
+```python
+def test_workflow_state_persistence(test_db):
+    """Test that workflow state persists between steps."""
+
+    initial_state = {"user_input": {"customer_id": "CUST1234"}}
+
+    tester = WorkflowTester(create_internet_service)
+
+    # Execute workflow step by step
+    result = tester.run_until_step(initial_state, "allocate_bandwidth")
+
+    # Verify intermediate state
+    assert result.state["validation_passed"] == True
+    assert result.state["validated_input"]["customer_id"] == "CUST1234"
+
+    # Continue execution
+    final_result = tester.continue_from_step("configure_equipment")
+
+    # Verify final state includes all intermediate data
+    assert final_result.state["validation_passed"] == True
+    assert final_result.state["bandwidth_allocation"] is not None
+    assert final_result.state["equipment_config"] is not None
+```
+
+## Performance Testing
+
+### Load Testing Workflows
+
+Test workflow performance under load:
+
+```python
+import asyncio
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+async def test_workflow_performance_load():
+    """Test workflow performance under concurrent load."""
+
+    async def execute_single_workflow():
+        """Execute a single workflow instance."""
+        state = {
+            "user_input": {
+                "customer_id": f"CUST{random.randint(1000, 9999)}",
+                "bandwidth_mbps": random.choice([100, 250, 500, 1000]),
+                "service_type": "business"
+            }
+        }
+
+        start_time = time.time()
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(state)
+        execution_time = time.time() - start_time
+
+        return {
+            "success": result.status == "completed",
+            "execution_time": execution_time,
+            "customer_id": state["user_input"]["customer_id"]
+        }
+
+    # Execute 50 concurrent workflows
+    tasks = [execute_single_workflow() for _ in range(50)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Analyze results
+    successful = [r for r in results if not isinstance(r, Exception) and r["success"]]
+    failed = [r for r in results if isinstance(r, Exception) or not r.get("success", False)]
+
+    execution_times = [r["execution_time"] for r in successful]
+    avg_time = sum(execution_times) / len(execution_times) if execution_times else 0
+    max_time = max(execution_times) if execution_times else 0
+
+    print(f"Load test results:")
+    print(f"  Successful: {len(successful)}")
+    print(f"  Failed: {len(failed)}")
+    print(f"  Success rate: {len(successful) / len(results) * 100:.1f}%")
+    print(f"  Average execution time: {avg_time:.2f}s")
+    print(f"  Maximum execution time: {max_time:.2f}s")
+
+    # Assert performance requirements
+    assert len(successful) / len(results) >= 0.95  # 95% success rate
+    assert avg_time < 10.0  # Average under 10 seconds
+    assert max_time < 30.0  # No execution over 30 seconds
+
+def test_workflow_memory_usage():
+    """Test workflow memory usage and cleanup."""
+
+    import psutil
+    import gc
+
+    process = psutil.Process()
+    initial_memory = process.memory_info().rss
+
+    # Execute multiple workflows
+    for i in range(100):
+        state = {"user_input": {"customer_id": f"CUST{i:04d}"}}
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(state)
+
+        # Force garbage collection every 10 iterations
+        if i % 10 == 0:
+            gc.collect()
+
+    final_memory = process.memory_info().rss
+    memory_increase = final_memory - initial_memory
+
+    # Memory increase should be reasonable (less than 100MB)
+    assert memory_increase < 100 * 1024 * 1024, f"Memory increased by {memory_increase / 1024 / 1024:.1f}MB"
+```
+
+### Database Performance Testing
+
+Test database operations under load:
+
+```python
+def test_database_performance(test_db):
+    """Test database performance with concurrent operations."""
+
+    import threading
+    import time
+
+    results = []
+
+    def create_subscription_thread(thread_id):
+        """Create subscription in separate thread."""
+        try:
+            start_time = time.time()
+
+            subscription = BusinessInternetActive(
+                customer_id=f"CUST{thread_id:04d}",
+                service_id=f"SVC{thread_id:04d}",
+                # ... other required fields
+            )
+            subscription.save()
+
+            execution_time = time.time() - start_time
+            results.append({
+                "thread_id": thread_id,
+                "success": True,
+                "execution_time": execution_time
+            })
+
+        except Exception as e:
+            results.append({
+                "thread_id": thread_id,
+                "success": False,
+                "error": str(e)
+            })
+
+    # Create 20 concurrent threads
+    threads = []
+    for i in range(20):
+        thread = threading.Thread(target=create_subscription_thread, args=(i,))
+        threads.append(thread)
+        thread.start()
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+    # Analyze results
+    successful = [r for r in results if r["success"]]
+    failed = [r for r in results if not r["success"]]
+
+    execution_times = [r["execution_time"] for r in successful]
+    avg_time = sum(execution_times) / len(execution_times) if execution_times else 0
+
+    print(f"Database performance test:")
+    print(f"  Successful operations: {len(successful)}")
+    print(f"  Failed operations: {len(failed)}")
+    print(f"  Average execution time: {avg_time:.3f}s")
+
+    # Assert performance requirements
+    assert len(successful) == 20  # All should succeed
+    assert avg_time < 1.0  # Average under 1 second
+```
+
+## End-to-End Testing
+
+### Browser-Based Testing
+
+Test complete user workflows through the UI:
+
+```python
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+class TestWorkflowE2E:
+    """End-to-end workflow testing."""
+
+    @pytest.fixture
+    def browser(self):
+        """Setup browser for testing."""
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless")  # Run headless in CI
+        driver = webdriver.Chrome(options=options)
+        driver.implicitly_wait(10)
+        yield driver
+        driver.quit()
+
+    def test_create_service_e2e(self, browser):
+        """Test complete service creation through UI."""
+
+        # Navigate to workflow page
+        browser.get("http://localhost:3000/workflows/create-internet-service")
+
+        # Fill out form
+        browser.find_element(By.NAME, "customer_id").send_keys("CUST1234")
+        browser.find_element(By.NAME, "site_name").send_keys("Test Site")
+        browser.find_element(By.NAME, "installation_address").send_keys("123 Test St")
+        browser.find_element(By.NAME, "technical_contact_name").send_keys("John Doe")
+        browser.find_element(By.NAME, "technical_contact_email").send_keys("john@example.com")
+        browser.find_element(By.NAME, "billing_contact_name").send_keys("Jane Smith")
+        browser.find_element(By.NAME, "billing_contact_email").send_keys("jane@example.com")
+        browser.find_element(By.NAME, "download_speed_mbps").send_keys("500")
+        browser.find_element(By.NAME, "upload_speed_mbps").send_keys("100")
+
+        # Select dropdown values
+        bandwidth_tier = browser.find_element(By.NAME, "bandwidth_tier")
+        bandwidth_tier.send_keys("business")
+
+        support_level = browser.find_element(By.NAME, "support_level")
+        support_level.send_keys("business")
+
+        # Submit form
+        submit_button = browser.find_element(By.CSS_SELECTOR, "button[type='submit']")
+        submit_button.click()
+
+        # Wait for workflow to start
+        WebDriverWait(browser, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".workflow-started"))
+        )
+
+        # Verify workflow execution
+        workflow_id = browser.find_element(By.CSS_SELECTOR, ".workflow-id").text
+        assert workflow_id.startswith("WF-")
+
+        # Wait for completion (or timeout)
+        WebDriverWait(browser, 60).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".workflow-completed"))
+        )
+
+        # Verify success message
+        success_message = browser.find_element(By.CSS_SELECTOR, ".success-message")
+        assert "Service created successfully" in success_message.text
+
+        # Navigate to subscription and verify
+        service_id = browser.find_element(By.CSS_SELECTOR, ".service-id").text
+        browser.get(f"http://localhost:3000/subscriptions/{service_id}")
+
+        # Verify subscription details
+        assert browser.find_element(By.CSS_SELECTOR, ".customer-id").text == "CUST1234"
+        assert browser.find_element(By.CSS_SELECTOR, ".status").text == "ACTIVE"
+```
+
+### API Integration Testing
+
+Test workflows through API endpoints:
+
+```python
+import requests
+
+def test_workflow_api_integration():
+    """Test workflow execution through API."""
+
+    base_url = "http://localhost:8080/api"
+
+    # Start workflow
+    workflow_data = {
+        "customer_id": "CUST1234",
+        "site_name": "API Test Site",
+        "installation_address": "456 API Street",
+        "technical_contact_name": "API User",
+        "technical_contact_email": "api@example.com",
+        "billing_contact_name": "API Billing",
+        "billing_contact_email": "billing@example.com",
+        "download_speed_mbps": 1000,
+        "upload_speed_mbps": 250,
+        "bandwidth_tier": "enterprise",
+        "support_level": "premium"
+    }
+
+    response = requests.post(
+        f"{base_url}/workflows/create-internet-service",
+        json=workflow_data,
+        headers={"Content-Type": "application/json"}
+    )
+
+    assert response.status_code == 202  # Accepted
+    workflow_execution = response.json()
+    workflow_id = workflow_execution["workflow_id"]
+
+    # Poll for completion
+    max_attempts = 60
+    for attempt in range(max_attempts):
+        status_response = requests.get(f"{base_url}/workflows/{workflow_id}/status")
+        assert status_response.status_code == 200
+
+        status_data = status_response.json()
+        if status_data["status"] == "completed":
+            break
+        elif status_data["status"] == "failed":
+            pytest.fail(f"Workflow failed: {status_data.get('error_message')}")
+
+        time.sleep(1)
+    else:
+        pytest.fail("Workflow did not complete within timeout")
+
+    # Verify subscription was created
+    subscription_id = status_data["result"]["subscription_id"]
+    subscription_response = requests.get(f"{base_url}/subscriptions/{subscription_id}")
+    assert subscription_response.status_code == 200
+
+    subscription_data = subscription_response.json()
+    assert subscription_data["customer_id"] == "CUST1234"
+    assert subscription_data["status"] == "active"
+    assert subscription_data["bandwidth"]["download_speed_mbps"] == 1000
+```
+
+## Test Data Management
+
+### Test Fixtures
+
+Create reusable test data:
+
+```python
+@pytest.fixture
+def sample_customer():
+    """Create sample customer data."""
+    return {
+        "customer_id": "CUST1234",
+        "name": "Test Customer Inc.",
+        "email": "test@customer.com",
+        "phone": "+1-555-0123",
+        "address": "123 Customer Street, Test City, TC 12345",
+        "status": "active"
+    }
+
+@pytest.fixture
+def sample_service_request(sample_customer):
+    """Create sample service request data."""
+    return {
+        "customer_id": sample_customer["customer_id"],
+        "site_name": "Main Office",
+        "installation_address": "123 Business Blvd, Test City, TC 12345",
+        "technical_contact_name": "John Doe",
+        "technical_contact_email": "john@customer.com",
+        "billing_contact_name": "Jane Smith",
+        "billing_contact_email": "jane@customer.com",
+        "download_speed_mbps": 500,
+        "upload_speed_mbps": 100,
+        "bandwidth_tier": "business",
+        "support_level": "business",
+        "installation_notes": "Ground floor installation preferred"
+    }
+
+@pytest.fixture
+def mock_external_services():
+    """Mock all external services."""
+    with patch('services.network_api.NetworkAPI') as mock_network, \
+         patch('services.billing_api.BillingAPI') as mock_billing, \
+         patch('services.notification_service.NotificationService') as mock_notify:
+
+        # Setup default successful responses
+        mock_network.provision_service.return_value = {
+            "service_id": "SVC123456",
+            "circuit_id": "CKT789012",
+            "status": "provisioned"
+        }
+
+        mock_billing.create_recurring_charge.return_value = {
+            "charge_id": "CHG123456",
+            "status": "active"
+        }
+
+        mock_notify.send_email.return_value = True
+
+        yield {
+            "network": mock_network,
+            "billing": mock_billing,
+            "notification": mock_notify
+        }
+```
+
+### Database Test Setup
+
+```python
+@pytest.fixture(scope="function")
+def test_db():
+    """Setup test database for each test."""
+
+    # Create test database connection
+    test_engine = create_engine("postgresql://test:test@localhost:5432/test_orchestrator")
+
+    # Create all tables
+    from orchestrator.db import Base
+    Base.metadata.create_all(test_engine)
+
+    # Setup session
+    TestSession = sessionmaker(bind=test_engine)
+    session = TestSession()
+
+    # Replace app session
+    from orchestrator.db import db
+    original_session = db.session
+    db.session = session
+
+    yield session
+
+    # Cleanup
+    session.close()
+    Base.metadata.drop_all(test_engine)
+    db.session = original_session
+```
+
+## Continuous Integration
+
+### GitHub Actions Workflow Testing
+
+```yaml .github/workflows/test.yml
+name: Test Workflows
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_orchestrator
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ -v --cov=workflows --cov-report=xml
+      env:
+        DATABASE_URI: postgresql://postgres:postgres@localhost:5432/test_orchestrator
+
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ -v
+      env:
+        DATABASE_URI: postgresql://postgres:postgres@localhost:5432/test_orchestrator
+
+    - name: Run workflow tests
+      run: |
+        pytest tests/workflows/ -v --timeout=300
+      env:
+        DATABASE_URI: postgresql://postgres:postgres@localhost:5432/test_orchestrator
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Test Organization">
+    - **Separate by Type**: Keep unit, integration, and e2e tests in separate directories
+    - **Naming Convention**: Use descriptive test names that explain the scenario
+    - **Test Data**: Use fixtures and factories for consistent test data
+    - **Cleanup**: Always clean up resources after tests
+  </Accordion>
+
+  <Accordion title="Mocking Strategy">
+    - **External Services**: Always mock external API calls in unit tests
+    - **Database**: Use real database for integration tests, mock for unit tests
+    - **Time**: Mock datetime.now() for predictable time-based testing
+    - **Random Data**: Use fixed seeds for reproducible random data
+  </Accordion>
+
+  <Accordion title="Performance Testing">
+    - **Load Testing**: Test with realistic concurrent load
+    - **Memory Testing**: Monitor memory usage and cleanup
+    - **Timeout Testing**: Verify timeouts and retry behavior
+    - **Resource Limits**: Test behavior under resource constraints
+  </Accordion>
+
+  <Accordion title="CI/CD Integration">
+    - **Automated Testing**: Run all tests on every commit
+    - **Parallel Execution**: Run test suites in parallel when possible
+    - **Test Reports**: Generate and store test coverage reports
+    - **Failure Analysis**: Provide clear failure messages and logs
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Workflow Steps"
+    icon="list"
+    href="/workflows/workflow-steps"
+  >
+    Learn about individual workflow steps
+  </Card>
+  <Card
+    title="Workflow Forms"
+    icon="form"
+    href="/workflows/forms"
+  >
+    Master form creation and validation
+  </Card>
+  <Card
+    title="Production Deployment"
+    icon="rocket"
+    href="/advanced/deployment"
+  >
+    Deploy to production environments
+  </Card>
+  <Card
+    title="Examples Overview"
+    icon="book"
+    href="/examples/overview"
+  >
+    See real-world examples
+  </Card>
+</CardGroup>

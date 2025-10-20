@@ -1,0 +1,439 @@
+---
+title: "Create Your First Workflow"
+description: "Build your first workflow to automate service provisioning"
+---
+
+## Overview
+
+In this guide, you'll create a complete workflow to provision the Business Internet Service we built in the previous tutorial. This workflow will automate the entire process from customer request to service activation.
+
+<Note>
+This tutorial builds on the Business Internet Service product created in the [Create Your First Product](/getting-started/first-product) guide.
+</Note>
+
+## Step 1: Plan Your Workflow
+
+Our internet service provisioning workflow will include these steps:
+
+1. **Validate Request** - Check customer eligibility and service availability
+2. **Allocate Resources** - Reserve bandwidth and IP addresses
+3. **Configure Equipment** - Set up network devices
+4. **Activate Service** - Enable the service and update billing
+5. **Notify Customer** - Send confirmation and service details
+
+## Step 2: Create Workflow Steps
+
+Create the workflow steps in `workflows/create/steps/`:
+
+### Validation Step
+
+```python workflows/create/steps/validation.py
+"""Validation steps for internet service creation."""
+
+from orchestrator.workflows import State
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+def validate_service_request(state: State) -> State:
+    """Validate customer eligibility and service availability."""
+
+    form_data = state["user_input"]
+    customer_id = form_data["customer_id"]
+
+    # Check customer exists and is active
+    # (In real implementation, call customer service API)
+    if not customer_id.startswith("CUST"):
+        raise WorkflowStepException(
+            f"Invalid customer ID format: {customer_id}",
+            retry=False
+        )
+
+    # Check service availability at address
+    address = form_data["installation_address"]
+    # (In real implementation, call network availability API)
+
+    return {
+        **state,
+        "validation_passed": True,
+        "validated_at": datetime.now()
+    }
+```
+
+### Resource Allocation Step
+
+```python workflows/create/steps/allocation.py
+"""Resource allocation steps."""
+
+from datetime import datetime
+from orchestrator.workflows import State
+
+def allocate_service_resources(state: State) -> State:
+    """Allocate bandwidth and IP resources."""
+
+    form_data = state["user_input"]
+
+    # Simulate bandwidth allocation
+    bandwidth_allocation = {
+        "allocation_id": f"BW-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "speed_mbps": form_data["download_speed_mbps"],
+        "circuit_id": f"CKT-{form_data['customer_id']}-001"
+    }
+
+    # Simulate IP allocation
+    ip_allocation = {
+        "allocation_id": f"IP-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "ip_address": "192.168.1.100",
+        "gateway": "192.168.1.1",
+        "subnet_mask": 30
+    }
+
+    return {
+        **state,
+        "bandwidth_allocation": bandwidth_allocation,
+        "ip_allocation": ip_allocation,
+        "resources_allocated": True
+    }
+```
+
+### Configuration Step
+
+```python workflows/create/steps/configuration.py
+"""Equipment configuration steps."""
+
+from datetime import datetime
+from orchestrator.workflows import State
+
+def configure_network_equipment(state: State) -> State:
+    """Configure network equipment for the service."""
+
+    bandwidth_allocation = state["bandwidth_allocation"]
+    ip_allocation = state["ip_allocation"]
+
+    # Simulate equipment configuration
+    equipment_config = {
+        "device_id": "ROUTER-001",
+        "port_id": "GE-0/0/1",
+        "vlan_id": 100,
+        "bandwidth_limit": bandwidth_allocation["speed_mbps"],
+        "ip_config": {
+            "address": ip_allocation["ip_address"],
+            "gateway": ip_allocation["gateway"],
+            "netmask": ip_allocation["subnet_mask"]
+        },
+        "configured_at": datetime.now()
+    }
+
+    return {
+        **state,
+        "equipment_config": equipment_config,
+        "configuration_completed": True
+    }
+```
+
+### Activation Step
+
+```python workflows/create/steps/activation.py
+"""Service activation steps."""
+
+from datetime import datetime, timedelta
+from orchestrator.workflows import State
+from orchestrator.types import SubscriptionLifecycle
+
+from products.models.business_internet import BusinessInternetActive
+
+def activate_internet_service(state: State) -> State:
+    """Activate the internet service and create subscription."""
+
+    form_data = state["user_input"]
+    bandwidth_allocation = state["bandwidth_allocation"]
+    ip_allocation = state["ip_allocation"]
+    equipment_config = state["equipment_config"]
+
+    # Generate service ID
+    service_id = f"INT-{form_data['customer_id']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    # Create active subscription
+    subscription = BusinessInternetActive(
+        customer_id=form_data["customer_id"],
+        site_name=form_data["site_name"],
+        installation_address=form_data["installation_address"],
+        technical_contact_name=form_data["technical_contact_name"],
+        technical_contact_email=form_data["technical_contact_email"],
+        billing_contact_name=form_data["billing_contact_name"],
+        billing_contact_email=form_data["billing_contact_email"],
+
+        # Bandwidth configuration
+        bandwidth={
+            "download_speed_mbps": form_data["download_speed_mbps"],
+            "upload_speed_mbps": form_data["upload_speed_mbps"],
+            "tier": form_data["bandwidth_tier"],
+            "allocated_date": datetime.now(),
+            "circuit_id": bandwidth_allocation["circuit_id"]
+        },
+
+        # IP configuration
+        ip_address={
+            "ip_address": ip_allocation["ip_address"],
+            "subnet_mask": ip_allocation["subnet_mask"],
+            "gateway": ip_allocation["gateway"],
+            "allocated_date": datetime.now()
+        },
+
+        # Support configuration
+        support={
+            "tier": form_data["support_level"],
+            "support_phone": "+1-555-SUPPORT",
+            "support_email": "support@example.com"
+        },
+
+        # Service details
+        service_id=service_id,
+        activation_date=datetime.now(),
+        next_billing_date=datetime.now() + timedelta(days=30),
+        status=SubscriptionLifecycle.ACTIVE,
+
+        # Installation details
+        installation_date=form_data.get("preferred_installation_date", datetime.now()),
+        technician_assigned="AUTO-PROVISION",
+        estimated_completion=datetime.now()
+    )
+
+    # Save subscription
+    subscription.save()
+
+    return {
+        **state,
+        "subscription": subscription,
+        "service_activated": True
+    }
+```
+
+### Notification Step
+
+```python workflows/create/steps/notification.py
+"""Customer notification steps."""
+
+from orchestrator.workflows import State
+
+def send_service_notifications(state: State) -> State:
+    """Send activation notifications to customer."""
+
+    subscription = state["subscription"]
+
+    # Simulate sending welcome email
+    email_sent = {
+        "to": subscription.technical_contact_email,
+        "subject": f"Service Activated: {subscription.service_id}",
+        "template": "service_welcome",
+        "sent_at": datetime.now()
+    }
+
+    # Simulate sending billing notification
+    billing_notification = {
+        "to": subscription.billing_contact_email,
+        "subject": f"Billing Setup Complete: {subscription.service_id}",
+        "template": "billing_setup",
+        "sent_at": datetime.now()
+    }
+
+    return {
+        **state,
+        "welcome_email": email_sent,
+        "billing_notification": billing_notification,
+        "notifications_sent": True
+    }
+```
+
+## Step 3: Create Input Form
+
+```python workflows/create/forms.py
+"""Forms for internet service creation workflow."""
+
+from datetime import datetime, timedelta
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field, EmailStr
+from orchestrator.forms import FormPage
+
+from products.blocks.bandwidth import BandwidthTier
+from products.blocks.support import SupportTier
+
+class CreateInternetServiceForm(BaseModel):
+    """Form for creating internet service."""
+
+    customer_id: str = Field(description="Customer identifier")
+    site_name: str = Field(description="Installation site name")
+    installation_address: str = Field(description="Full installation address")
+
+    technical_contact_name: str
+    technical_contact_email: EmailStr
+    billing_contact_name: str
+    billing_contact_email: EmailStr
+
+    download_speed_mbps: int = Field(ge=10, le=10000, description="Download speed in Mbps")
+    upload_speed_mbps: int = Field(ge=10, le=10000, description="Upload speed in Mbps")
+    bandwidth_tier: BandwidthTier = Field(description="Service tier level")
+    support_level: SupportTier = Field(default=SupportTier.BUSINESS)
+
+    preferred_installation_date: Optional[datetime] = Field(
+        default_factory=lambda: datetime.now() + timedelta(days=7)
+    )
+    installation_notes: Optional[str] = None
+
+def create_internet_service_form(subscription_id: Optional[UUID] = None) -> FormPage:
+    """Generate form for internet service creation."""
+
+    return FormPage(
+        form=CreateInternetServiceForm(),
+        title="Create Internet Service",
+        description="Configure a new business internet service"
+    )
+```
+
+## Step 4: Define the Main Workflow
+
+```python workflows/create/internet_service.py
+"""Internet service creation workflow."""
+
+from orchestrator.workflow import workflow
+from orchestrator.workflows.steps import init, done
+
+from .forms import create_internet_service_form
+from .steps.validation import validate_service_request
+from .steps.allocation import allocate_service_resources
+from .steps.configuration import configure_network_equipment
+from .steps.activation import activate_internet_service
+from .steps.notification import send_service_notifications
+
+@workflow(
+    "Create Internet Service",
+    initial_input_form=create_internet_service_form
+)
+def create_internet_service():
+    """Create a new internet service for a customer."""
+    return (
+        init
+        >> validate_service_request
+        >> allocate_service_resources
+        >> configure_network_equipment
+        >> activate_internet_service
+        >> send_service_notifications
+        >> done
+    )
+```
+
+## Step 5: Test Your Workflow
+
+```python tests/workflows/test_create_internet_service.py
+"""Test internet service creation workflow."""
+
+import pytest
+from datetime import datetime
+
+from orchestrator.workflows.testing import WorkflowTester
+from workflows.create.internet_service import create_internet_service
+from products.blocks.bandwidth import BandwidthTier
+from products.blocks.support import SupportTier
+
+def test_successful_workflow_execution():
+    """Test complete successful workflow execution."""
+
+    form_data = {
+        "customer_id": "CUST123",
+        "site_name": "Main Office",
+        "installation_address": "123 Business Blvd, Tech City, CA 90210",
+        "technical_contact_name": "John Doe",
+        "technical_contact_email": "john@example.com",
+        "billing_contact_name": "Jane Smith",
+        "billing_contact_email": "jane@example.com",
+        "download_speed_mbps": 500,
+        "upload_speed_mbps": 100,
+        "bandwidth_tier": BandwidthTier.BUSINESS,
+        "support_level": SupportTier.BUSINESS,
+        "preferred_installation_date": datetime.now(),
+        "installation_notes": "Ground floor installation"
+    }
+
+    initial_state = {"user_input": form_data}
+
+    # Run workflow
+    tester = WorkflowTester(create_internet_service)
+    result = tester.run(initial_state)
+
+    # Verify success
+    assert result.status == "completed"
+    assert result.subscription.service_id.startswith("INT-CUST123-")
+    assert result.subscription.bandwidth.download_speed_mbps == 500
+    assert result.notifications_sent == True
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+```
+
+## Step 6: Register and Run
+
+Register your workflow:
+
+```python workflows/__init__.py
+"""Workflow registration."""
+
+from .create.internet_service import create_internet_service
+
+__all__ = ["create_internet_service"]
+```
+
+Run your workflow:
+
+```bash
+# Start the orchestrator
+uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+
+# Test via API
+curl -X POST http://localhost:8080/api/workflows/create-internet-service \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "CUST123",
+    "site_name": "Main Office",
+    "download_speed_mbps": 500,
+    "upload_speed_mbps": 100,
+    "bandwidth_tier": "business",
+    "support_level": "business"
+  }'
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Workflow Testing"
+    icon="flask"
+    href="/workflows/testing"
+  >
+    Learn comprehensive testing strategies
+  </Card>
+  <Card
+    title="Advanced Workflows"
+    icon="rocket"
+    href="/workflows/workflow-steps"
+  >
+    Explore advanced workflow patterns
+  </Card>
+  <Card
+    title="Set Up UI"
+    icon="desktop"
+    href="/getting-started/ui-setup"
+  >
+    Install the orchestrator UI
+  </Card>
+  <Card
+    title="Production Deployment"
+    icon="cloud"
+    href="/advanced/deployment"
+  >
+    Deploy to production
+  </Card>
+</CardGroup>
+
+<Check>
+**Workflow Created!** You now have a complete workflow that automates internet service provisioning from customer request to activation. The workflow handles validation, resource allocation, equipment configuration, and customer notifications.
+</Check>

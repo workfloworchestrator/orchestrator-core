@@ -1,0 +1,96 @@
+---
+title: "API Reference"
+description: "Complete API documentation for Workflow Orchestrator"
+---
+
+## Overview
+
+The Workflow Orchestrator provides a comprehensive REST API for managing subscriptions, workflows, and products. The API is built on FastAPI and provides automatic OpenAPI documentation, request validation, and async support.
+
+## Base URL
+
+```
+https://your-orchestrator.example.com/api
+```
+
+## Authentication
+
+<Tabs>
+  <Tab title="OAuth2">
+    ```bash
+    # Get access token
+    curl -X POST /api/auth/token \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=your-username&password=your-password"
+
+    # Use token in requests
+    curl -H "Authorization: Bearer YOUR_TOKEN" /api/subscriptions/
+    ```
+  </Tab>
+
+  <Tab title="Development">
+    ```bash
+    # For development with OAUTH2_ACTIVE=False
+    curl /api/subscriptions/
+    ```
+  </Tab>
+</Tabs>
+
+## Core Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Subscriptions" icon="users">
+    Manage customer service subscriptions via REST API
+  </Card>
+  <Card title="Workflows" icon="workflow">
+    Execute and monitor business processes
+  </Card>
+  <Card title="Products" icon="box">
+    Manage service offerings and catalog
+  </Card>
+  <Card title="GraphQL" icon="code">
+    Query data with GraphQL at `/api/graphql`
+  </Card>
+</CardGroup>
+
+## Response Format
+
+All API responses follow a consistent format:
+
+```json
+{
+  "data": { ... },
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "per_page": 20
+  },
+  "links": {
+    "self": "/api/subscriptions?page=1",
+    "next": "/api/subscriptions?page=2"
+  }
+}
+```
+
+## Error Handling
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid input data",
+    "details": [
+      {
+        "field": "bandwidth.speed_mbps",
+        "message": "Must be greater than 0"
+      }
+    ]
+  }
+}
+```
+
+## Interactive Documentation
+
+- **Swagger UI**: `/api/docs`
+- **ReDoc**: `/api/redoc`
+- **OpenAPI Schema**: `/api/openapi.json`

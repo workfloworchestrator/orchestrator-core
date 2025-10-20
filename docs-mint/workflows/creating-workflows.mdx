@@ -1,0 +1,806 @@
+---
+title: "Creating Workflows"
+description: "Step-by-step guide to building workflows in Workflow Orchestrator"
+---
+
+## Workflow Basics
+
+Creating a workflow involves three main components:
+1. **Workflow function** - The main orchestration logic
+2. **Workflow steps** - Individual business operations
+3. **Input forms** - User interface for collecting data
+
+Let's build a complete workflow for provisioning an internet service.
+
+## Step 1: Define the Workflow
+
+Start with the main workflow function:
+
+```python workflows/create/internet_service.py
+"""Internet service creation workflow."""
+
+from orchestrator.workflow import workflow
+from orchestrator.workflows.steps import init, done
+from orchestrator.workflows import State
+
+from .forms import create_internet_service_form
+from .steps import (
+    validate_customer_eligibility,
+    allocate_bandwidth,
+    assign_ip_address,
+    configure_network_equipment,
+    activate_service,
+    send_welcome_email
+)
+
+@workflow(
+    "Create Internet Service",
+    initial_input_form=create_internet_service_form
+)
+def create_internet_service():
+    """Create a new internet service for a customer."""
+    return (
+        init
+        >> validate_customer_eligibility
+        >> allocate_bandwidth
+        >> assign_ip_address
+        >> configure_network_equipment
+        >> activate_service
+        >> send_welcome_email
+        >> done
+    )
+```
+
+<Note>
+The `>>` operator chains steps together. Each step receives the output state from the previous step and returns an updated state.
+</Note>
+
+## Step 2: Create Input Forms
+
+Define forms to collect user input:
+
+```python workflows/create/forms.py
+"""Forms for internet service creation workflow."""
+
+from datetime import datetime, timedelta
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field, EmailStr
+from orchestrator.forms import FormPage, ReadOnlyField
+from orchestrator.forms.validators import Choice
+
+from products.models.business_internet import BusinessInternetInactive
+from products.blocks.bandwidth import BandwidthTier
+from products.blocks.support import SupportTier
+
+
+class CreateInternetServiceForm(BaseModel):
+    """Form for creating internet service."""
+
+    # Customer information
+    customer_id: str = Field(description="Customer identifier")
+    site_name: str = Field(description="Installation site name")
+    installation_address: str = Field(description="Full installation address")
+
+    # Technical contacts
+    technical_contact_name: str
+    technical_contact_email: EmailStr
+    billing_contact_name: str
+    billing_contact_email: EmailStr
+
+    # Service configuration
+    download_speed_mbps: int = Field(
+        ge=10, le=10000,
+        description="Desired download speed in Mbps"
+    )
+    upload_speed_mbps: int = Field(
+        ge=10, le=10000,
+        description="Desired upload speed in Mbps"
+    )
+    bandwidth_tier: BandwidthTier = Field(
+        description="Service tier level"
+    )
+    support_level: SupportTier = Field(
+        default=SupportTier.BUSINESS,
+        description="Customer support level"
+    )
+
+    # Installation preferences
+    preferred_installation_date: datetime = Field(
+        default_factory=lambda: datetime.now() + timedelta(days=7),
+        description="Preferred installation date"
+    )
+    installation_notes: Optional[str] = Field(
+        default=None,
+        description="Special installation requirements"
+    )
+
+
+def create_internet_service_form(subscription_id: Optional[UUID] = None) -> FormPage:
+    """Generate form for internet service creation."""
+
+    if subscription_id:
+        # Editing existing subscription
+        subscription = BusinessInternetInactive.from_subscription(subscription_id)
+
+        form_data = CreateInternetServiceForm(
+            customer_id=subscription.customer_id,
+            site_name=subscription.site_name,
+            installation_address=subscription.installation_address,
+            technical_contact_name=subscription.technical_contact_name,
+            technical_contact_email=subscription.technical_contact_email,
+            billing_contact_name=subscription.billing_contact_name,
+            billing_contact_email=subscription.billing_contact_email,
+            download_speed_mbps=subscription.bandwidth.download_speed_mbps or 100,
+            upload_speed_mbps=subscription.bandwidth.upload_speed_mbps or 20,
+            bandwidth_tier=subscription.bandwidth.tier or BandwidthTier.BUSINESS,
+            support_level=subscription.support.tier or SupportTier.BUSINESS,
+            installation_notes=subscription.installation_notes
+        )
+
+        return FormPage(
+            form=form_data,
+            title="Modify Internet Service",
+            description="Update internet service configuration"
+        )
+
+    # New subscription
+    return FormPage(
+        form=CreateInternetServiceForm(),
+        title="Create Internet Service",
+        description="Configure a new business internet service"
+    )
+```
+
+## Step 3: Implement Workflow Steps
+
+Create individual step functions:
+
+### Validation Step
+
+```python workflows/create/steps/validation.py
+"""Validation steps for internet service creation."""
+
+from orchestrator.workflows import State
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+from services.customer_service import CustomerService
+from services.network_service import NetworkService
+
+
+def validate_customer_eligibility(state: State) -> State:
+    """Validate customer is eligible for internet service."""
+
+    form_data = state["user_input"]
+    customer_id = form_data["customer_id"]
+
+    # Check customer exists and is active
+    customer = CustomerService.get_customer(customer_id)
+    if not customer:
+        raise WorkflowStepException(
+            f"Customer {customer_id} not found",
+            retry=False
+        )
+
+    if customer.status != "active":
+        raise WorkflowStepException(
+            f"Customer {customer_id} is not active (status: {customer.status})",
+            retry=False
+        )
+
+    # Check service availability at location
+    address = form_data["installation_address"]
+    availability = NetworkService.check_service_availability(address)
+
+    if not availability.internet_available:
+        raise WorkflowStepException(
+            f"Internet service not available at {address}",
+            retry=False
+        )
+
+    # Check bandwidth availability
+    requested_speed = form_data["download_speed_mbps"]
+    if requested_speed > availability.max_speed_mbps:
+        raise WorkflowStepException(
+            f"Requested speed {requested_speed}Mbps exceeds available {availability.max_speed_mbps}Mbps",
+            retry=False
+        )
+
+    return {
+        **state,
+        "customer": customer,
+        "service_availability": availability,
+        "validation_passed": True
+    }
+```
+
+### Resource Allocation Step
+
+```python workflows/create/steps/allocation.py
+"""Resource allocation steps."""
+
+from datetime import datetime
+from orchestrator.workflows import State
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+from services.bandwidth_service import BandwidthService
+from services.ip_service import IPService
+
+
+def allocate_bandwidth(state: State) -> State:
+    """Allocate bandwidth for the service."""
+
+    form_data = state["user_input"]
+    customer = state["customer"]
+
+    try:
+        # Allocate bandwidth
+        allocation = BandwidthService.allocate(
+            customer_id=customer.id,
+            download_speed_mbps=form_data["download_speed_mbps"],
+            upload_speed_mbps=form_data["upload_speed_mbps"],
+            tier=form_data["bandwidth_tier"],
+            location=form_data["installation_address"]
+        )
+
+        return {
+            **state,
+            "bandwidth_allocation": allocation,
+            "allocated_at": datetime.now()
+        }
+
+    except BandwidthService.AllocationError as e:
+        raise WorkflowStepException(
+            f"Failed to allocate bandwidth: {e}",
+            retry_after=300,  # Retry after 5 minutes
+            max_retries=3
+        )
+
+
+def assign_ip_address(state: State) -> State:
+    """Assign static IP address for the service."""
+
+    customer = state["customer"]
+    bandwidth_allocation = state["bandwidth_allocation"]
+
+    try:
+        # Assign IP address
+        ip_assignment = IPService.assign_static_ip(
+            customer_id=customer.id,
+            allocation_id=bandwidth_allocation.id,
+            subnet_size=30  # Point-to-point connection
+        )
+
+        return {
+            **state,
+            "ip_assignment": ip_assignment
+        }
+
+    except IPService.AssignmentError as e:
+        # If IP assignment fails, we should rollback bandwidth allocation
+        BandwidthService.release(bandwidth_allocation.id)
+
+        raise WorkflowStepException(
+            f"Failed to assign IP address: {e}",
+            retry_after=60,
+            max_retries=2
+        )
+```
+
+### Configuration Step
+
+```python workflows/create/steps/configuration.py
+"""Network configuration steps."""
+
+import asyncio
+from orchestrator.workflows import State
+from orchestrator.workflows.exceptions import WorkflowStepException
+
+from services.network_api import NetworkAPI
+from services.monitoring_service import MonitoringService
+
+
+async def configure_network_equipment(state: State) -> State:
+    """Configure network equipment for the service."""
+
+    customer = state["customer"]
+    bandwidth_allocation = state["bandwidth_allocation"]
+    ip_assignment = state["ip_assignment"]
+
+    try:
+        # Configure network equipment
+        config_tasks = [
+            NetworkAPI.configure_port(
+                allocation_id=bandwidth_allocation.id,
+                speed_mbps=bandwidth_allocation.speed_mbps,
+                vlan_id=bandwidth_allocation.vlan_id
+            ),
+            NetworkAPI.configure_ip_routing(
+                ip_address=ip_assignment.ip_address,
+                gateway=ip_assignment.gateway,
+                subnet_mask=ip_assignment.subnet_mask
+            ),
+            MonitoringService.setup_service_monitoring(
+                customer_id=customer.id,
+                service_type="internet",
+                ip_address=ip_assignment.ip_address
+            )
+        ]
+
+        # Execute configurations in parallel
+        results = await asyncio.gather(*config_tasks, return_exceptions=True)
+
+        # Check for failures
+        failures = [r for r in results if isinstance(r, Exception)]
+        if failures:
+            raise WorkflowStepException(
+                f"Configuration failed: {failures[0]}",
+                retry_after=120,
+                max_retries=2
+            )
+
+        port_config, routing_config, monitoring_config = results
+
+        return {
+            **state,
+            "network_configuration": {
+                "port_config": port_config,
+                "routing_config": routing_config,
+                "monitoring_config": monitoring_config
+            },
+            "configuration_completed_at": datetime.now()
+        }
+
+    except Exception as e:
+        # Rollback on configuration failure
+        await rollback_network_configuration(state)
+
+        raise WorkflowStepException(
+            f"Network configuration failed: {e}",
+            retry=False  # Don't retry after rollback
+        )
+
+
+async def rollback_network_configuration(state: State) -> None:
+    """Rollback network configuration on failure."""
+
+    bandwidth_allocation = state.get("bandwidth_allocation")
+    ip_assignment = state.get("ip_assignment")
+
+    rollback_tasks = []
+
+    if bandwidth_allocation:
+        rollback_tasks.append(
+            NetworkAPI.remove_port_config(bandwidth_allocation.id)
+        )
+
+    if ip_assignment:
+        rollback_tasks.append(
+            NetworkAPI.remove_ip_routing(ip_assignment.ip_address)
+        )
+        rollback_tasks.append(
+            IPService.release(ip_assignment.id)
+        )
+
+    if rollback_tasks:
+        await asyncio.gather(*rollback_tasks, return_exceptions=True)
+```
+
+### Service Activation Step
+
+```python workflows/create/steps/activation.py
+"""Service activation steps."""
+
+from datetime import datetime
+from orchestrator.workflows import State
+from orchestrator.types import SubscriptionLifecycle
+
+from products.models.business_internet import BusinessInternetActive
+from services.billing_service import BillingService
+
+
+def activate_service(state: State) -> State:
+    """Activate the internet service."""
+
+    form_data = state["user_input"]
+    customer = state["customer"]
+    bandwidth_allocation = state["bandwidth_allocation"]
+    ip_assignment = state["ip_assignment"]
+    network_config = state["network_configuration"]
+
+    # Generate service ID
+    service_id = f"INT-{customer.id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    # Create active subscription
+    subscription = BusinessInternetActive(
+        customer_id=customer.id,
+        site_name=form_data["site_name"],
+        installation_address=form_data["installation_address"],
+        technical_contact_name=form_data["technical_contact_name"],
+        technical_contact_email=form_data["technical_contact_email"],
+        billing_contact_name=form_data["billing_contact_name"],
+        billing_contact_email=form_data["billing_contact_email"],
+
+        # Bandwidth configuration
+        bandwidth={
+            "download_speed_mbps": bandwidth_allocation.download_speed_mbps,
+            "upload_speed_mbps": bandwidth_allocation.upload_speed_mbps,
+            "tier": form_data["bandwidth_tier"],
+            "allocated_date": state["allocated_at"],
+            "circuit_id": bandwidth_allocation.circuit_id
+        },
+
+        # IP configuration
+        ip_address={
+            "ip_address": ip_assignment.ip_address,
+            "subnet_mask": ip_assignment.subnet_mask,
+            "gateway": ip_assignment.gateway,
+            "allocated_date": datetime.now()
+        },
+
+        # Support configuration
+        support={
+            "tier": form_data["support_level"],
+            "support_phone": "+1-555-SUPPORT",
+            "support_email": "support@example.com"
+        },
+
+        # Service details
+        service_id=service_id,
+        activation_date=datetime.now(),
+        next_billing_date=datetime.now().replace(day=1) + timedelta(days=32),
+        status=SubscriptionLifecycle.ACTIVE,
+
+        # Installation details
+        installation_date=form_data["preferred_installation_date"],
+        technician_assigned="AUTO-PROVISION",
+        estimated_completion=datetime.now()
+    )
+
+    # Save subscription
+    subscription.save()
+
+    # Setup billing
+    BillingService.create_recurring_charge(
+        customer_id=customer.id,
+        subscription_id=subscription.subscription_id,
+        amount=subscription.monthly_recurring_cost,
+        billing_cycle="monthly",
+        start_date=subscription.next_billing_date
+    )
+
+    return {
+        **state,
+        "subscription": subscription,
+        "service_activated": True,
+        "activation_completed_at": datetime.now()
+    }
+```
+
+### Notification Step
+
+```python workflows/create/steps/notification.py
+"""Customer notification steps."""
+
+from orchestrator.workflows import State
+from services.notification_service import NotificationService
+
+
+def send_welcome_email(state: State) -> State:
+    """Send welcome email to customer."""
+
+    subscription = state["subscription"]
+
+    # Prepare email content
+    email_data = {
+        "customer_name": subscription.technical_contact_name,
+        "service_id": subscription.service_id,
+        "site_name": subscription.site_name,
+        "download_speed": subscription.bandwidth.download_speed_mbps,
+        "upload_speed": subscription.bandwidth.upload_speed_mbps,
+        "ip_address": str(subscription.ip_address.ip_address),
+        "activation_date": subscription.activation_date.strftime("%Y-%m-%d"),
+        "monthly_cost": float(subscription.monthly_recurring_cost),
+        "support_phone": subscription.support.support_phone,
+        "support_email": subscription.support.support_email
+    }
+
+    # Send welcome email
+    NotificationService.send_email(
+        to_email=subscription.technical_contact_email,
+        template="internet_service_welcome",
+        data=email_data
+    )
+
+    # Send billing notification
+    NotificationService.send_email(
+        to_email=subscription.billing_contact_email,
+        template="service_billing_setup",
+        data=email_data
+    )
+
+    return {
+        **state,
+        "welcome_email_sent": True,
+        "notifications_completed": True
+    }
+```
+
+## Step 4: Register the Workflow
+
+Make the workflow available to the orchestrator:
+
+```python workflows/__init__.py
+"""Workflow registration."""
+
+from .create.internet_service import create_internet_service
+
+# Workflows are automatically discovered by the orchestrator
+# when imported in this module
+
+__all__ = [
+    "create_internet_service"
+]
+```
+
+## Step 5: Test the Workflow
+
+Create comprehensive tests:
+
+```python tests/workflows/test_create_internet_service.py
+"""Test internet service creation workflow."""
+
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+from datetime import datetime
+
+from orchestrator.workflows.testing import WorkflowTester
+from workflows.create.internet_service import create_internet_service
+from products.blocks.bandwidth import BandwidthTier
+from products.blocks.support import SupportTier
+
+
+@pytest.fixture
+def sample_form_data():
+    """Sample form data for testing."""
+    return {
+        "customer_id": "CUST123",
+        "site_name": "Main Office",
+        "installation_address": "123 Business Blvd, Tech City, CA 90210",
+        "technical_contact_name": "John Doe",
+        "technical_contact_email": "john@example.com",
+        "billing_contact_name": "Jane Smith",
+        "billing_contact_email": "jane@example.com",
+        "download_speed_mbps": 500,
+        "upload_speed_mbps": 100,
+        "bandwidth_tier": BandwidthTier.BUSINESS,
+        "support_level": SupportTier.BUSINESS,
+        "preferred_installation_date": datetime.now(),
+        "installation_notes": "Ground floor installation"
+    }
+
+
+def test_successful_workflow_execution(sample_form_data):
+    """Test complete successful workflow execution."""
+
+    initial_state = {"user_input": sample_form_data}
+
+    with patch('services.customer_service.CustomerService') as mock_customer, \
+         patch('services.network_service.NetworkService') as mock_network, \
+         patch('services.bandwidth_service.BandwidthService') as mock_bandwidth, \
+         patch('services.ip_service.IPService') as mock_ip, \
+         patch('services.network_api.NetworkAPI') as mock_api, \
+         patch('services.billing_service.BillingService') as mock_billing, \
+         patch('services.notification_service.NotificationService') as mock_notify:
+
+        # Setup mocks
+        mock_customer.get_customer.return_value = MagicMock(
+            id="CUST123", status="active"
+        )
+        mock_network.check_service_availability.return_value = MagicMock(
+            internet_available=True, max_speed_mbps=1000
+        )
+        mock_bandwidth.allocate.return_value = MagicMock(
+            id="ALLOC123", circuit_id="CKT456"
+        )
+        mock_ip.assign_static_ip.return_value = MagicMock(
+            id="IP123", ip_address="192.168.1.100"
+        )
+
+        # Mock async network API calls
+        mock_api.configure_port = AsyncMock(return_value={"status": "success"})
+        mock_api.configure_ip_routing = AsyncMock(return_value={"status": "success"})
+
+        # Run workflow
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state)
+
+        # Verify success
+        assert result.status == "completed"
+        assert result.subscription.service_id.startswith("INT-CUST123-")
+        assert result.subscription.bandwidth.download_speed_mbps == 500
+
+        # Verify service calls
+        mock_customer.get_customer.assert_called_once_with("CUST123")
+        mock_bandwidth.allocate.assert_called_once()
+        mock_ip.assign_static_ip.assert_called_once()
+        mock_billing.create_recurring_charge.assert_called_once()
+        mock_notify.send_email.assert_called()
+
+
+def test_customer_validation_failure(sample_form_data):
+    """Test workflow failure when customer validation fails."""
+
+    initial_state = {"user_input": sample_form_data}
+
+    with patch('services.customer_service.CustomerService') as mock_customer:
+        # Customer not found
+        mock_customer.get_customer.return_value = None
+
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state)
+
+        # Verify failure
+        assert result.status == "failed"
+        assert "Customer CUST123 not found" in result.error_message
+
+
+def test_bandwidth_allocation_failure_with_retry(sample_form_data):
+    """Test workflow retry behavior on bandwidth allocation failure."""
+
+    initial_state = {"user_input": sample_form_data}
+
+    with patch('services.customer_service.CustomerService') as mock_customer, \
+         patch('services.network_service.NetworkService') as mock_network, \
+         patch('services.bandwidth_service.BandwidthService') as mock_bandwidth:
+
+        # Setup successful validation
+        mock_customer.get_customer.return_value = MagicMock(
+            id="CUST123", status="active"
+        )
+        mock_network.check_service_availability.return_value = MagicMock(
+            internet_available=True, max_speed_mbps=1000
+        )
+
+        # Bandwidth allocation fails first time, succeeds second time
+        mock_bandwidth.allocate.side_effect = [
+            BandwidthService.AllocationError("Temporary capacity issue"),
+            MagicMock(id="ALLOC123", circuit_id="CKT456")
+        ]
+
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state, max_retries=2)
+
+        # Should succeed after retry
+        assert result.status == "completed"
+        assert mock_bandwidth.allocate.call_count == 2
+
+
+def test_network_configuration_rollback():
+    """Test rollback behavior when network configuration fails."""
+
+    initial_state = {"user_input": sample_form_data}
+
+    with patch('services.customer_service.CustomerService') as mock_customer, \
+         patch('services.network_service.NetworkService') as mock_network, \
+         patch('services.bandwidth_service.BandwidthService') as mock_bandwidth, \
+         patch('services.ip_service.IPService') as mock_ip, \
+         patch('services.network_api.NetworkAPI') as mock_api:
+
+        # Setup successful steps until configuration
+        mock_customer.get_customer.return_value = MagicMock(
+            id="CUST123", status="active"
+        )
+        mock_network.check_service_availability.return_value = MagicMock(
+            internet_available=True, max_speed_mbps=1000
+        )
+        mock_bandwidth.allocate.return_value = MagicMock(
+            id="ALLOC123", circuit_id="CKT456"
+        )
+        mock_ip.assign_static_ip.return_value = MagicMock(
+            id="IP123", ip_address="192.168.1.100"
+        )
+
+        # Network configuration fails
+        mock_api.configure_port = AsyncMock(
+            side_effect=Exception("Equipment configuration failed")
+        )
+        mock_api.remove_port_config = AsyncMock()
+        mock_api.remove_ip_routing = AsyncMock()
+
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run(initial_state)
+
+        # Verify failure and rollback
+        assert result.status == "failed"
+        assert "Equipment configuration failed" in result.error_message
+
+        # Verify rollback calls
+        mock_api.remove_port_config.assert_called_once()
+        mock_ip.release.assert_called_once()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+```
+
+## Step 6: Run and Monitor
+
+Execute your workflow:
+
+```bash
+# Start the orchestrator
+uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+
+# Trigger workflow via API
+curl -X POST http://localhost:8080/api/workflows/create-internet-service \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "CUST123",
+    "site_name": "Main Office",
+    "download_speed_mbps": 500,
+    ...
+  }'
+
+# Monitor workflow execution
+curl http://localhost:8080/api/workflows/{workflow_id}/status
+```
+
+## Best Practices Summary
+
+<AccordionGroup>
+  <Accordion title="Workflow Design">
+    - **Clear Purpose**: Each workflow should have a single, well-defined business purpose
+    - **Logical Flow**: Steps should follow a natural business process sequence
+    - **Error Handling**: Plan for failures at each step with appropriate retry strategies
+    - **State Management**: Keep workflow state minimal but sufficient for recovery
+  </Accordion>
+
+  <Accordion title="Step Implementation">
+    - **Idempotent Operations**: Steps should be safe to retry without side effects
+    - **Atomic Actions**: Each step should complete fully or fail cleanly
+    - **External Dependencies**: Handle external service failures gracefully
+    - **Resource Cleanup**: Always clean up resources on failure
+  </Accordion>
+
+  <Accordion title="Testing Strategy">
+    - **Unit Tests**: Test individual steps in isolation
+    - **Integration Tests**: Test complete workflow execution paths
+    - **Failure Scenarios**: Test error handling and rollback behavior
+    - **Performance Tests**: Verify workflows handle expected load
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Workflow Steps Deep Dive"
+    icon="list"
+    href="/workflows/workflow-steps"
+  >
+    Learn advanced step patterns and techniques
+  </Card>
+  <Card
+    title="Forms and Input Handling"
+    icon="form"
+    href="/workflows/forms"
+  >
+    Master user input collection and validation
+  </Card>
+  <Card
+    title="Testing Workflows"
+    icon="flask"
+    href="/workflows/testing"
+  >
+    Comprehensive testing strategies and tools
+  </Card>
+  <Card
+    title="Examples Overview"
+    icon="book"
+    href="/examples/overview"
+  >
+    See real-world implementations
+  </Card>
+</CardGroup>

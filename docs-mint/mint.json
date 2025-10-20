@@ -1,0 +1,124 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Workflow Orchestrator",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "https://discord.gg/QkQn5ajFR"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://demo.workfloworchestrator.org"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "Examples",
+      "url": "examples"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Documentation",
+      "icon": "book-open-cover",
+      "url": "https://workfloworchestrator.org"
+    },
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://discord.gg/QkQn5ajFR"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/workfloworchestrator/orchestrator-core"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "installation"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/overview",
+        "concepts/domain-models",
+        "concepts/workflows",
+        "concepts/products",
+        "concepts/subscriptions"
+      ]
+    },
+    {
+      "group": "Getting Started",
+      "pages": [
+        "getting-started/setup",
+        "getting-started/first-product",
+        "getting-started/first-workflow",
+        "getting-started/ui-setup"
+      ]
+    },
+    {
+      "group": "Domain Models",
+      "pages": [
+        "domain-models/overview"
+      ]
+    },
+    {
+      "group": "Workflows",
+      "pages": [
+        "workflows/overview",
+        "workflows/creating-workflows",
+        "workflows/workflow-steps",
+        "workflows/forms",
+        "workflows/testing"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/introduction",
+        "api-reference/authentication",
+        "api-reference/swagger"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/overview"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/workfloworchestrator/orchestrator-core",
+    "discord": "https://discord.gg/QkQn5ajFR"
+  },
+  "analytics": {
+    "gtm": {
+      "tagId": "GTM-XXXXXXX"
+    }
+  },
+  "openapi": "api-reference/openapi.json"
+}

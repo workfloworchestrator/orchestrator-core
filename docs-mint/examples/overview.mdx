@@ -1,0 +1,499 @@
+---
+title: "Examples Overview"
+description: "Real-world examples and use cases for Workflow Orchestrator"
+---
+
+## Example Categories
+
+This section provides comprehensive, real-world examples of how to use Workflow Orchestrator across different industries and use cases. Each example includes complete code, configuration, and deployment guidance.
+
+<CardGroup cols={2}>
+  <Card
+    title="Network Services"
+    icon="network-wired"
+  >
+    Internet, VPN, and network connectivity services
+  </Card>
+  <Card
+    title="Cloud Resources"
+    icon="cloud"
+  >
+    Virtual machines, storage, and cloud infrastructure
+  </Card>
+  <Card
+    title="Telecommunications"
+    icon="phone"
+  >
+    Voice, SMS, and communication services
+  </Card>
+  <Card
+    title="IoT Management"
+    icon="microchip"
+  >
+    Device provisioning and IoT platform management
+  </Card>
+</CardGroup>
+
+## Industry Use Cases
+
+### Network Service Providers
+
+**Common Services**:
+- Business Internet (Fiber, DSL, Wireless)
+- VPN and MPLS connections
+- Dedicated circuits and wavelengths
+- Network security services
+
+**Key Features**:
+- Complex resource allocation (IP addresses, VLANs, bandwidth)
+- Integration with network management systems
+- SLA monitoring and compliance
+- Multi-vendor equipment support
+
+### Cloud Service Providers
+
+**Common Services**:
+- Virtual machines and containers
+- Storage and backup services
+- Database as a Service
+- Load balancers and CDN
+
+**Key Features**:
+- Auto-scaling and resource optimization
+- Multi-cloud and hybrid deployments
+- Cost tracking and billing integration
+- Security and compliance automation
+
+### Telecommunications Operators
+
+**Common Services**:
+- Mobile phone plans
+- Voice and messaging services
+- Enterprise communication platforms
+- Network slicing for 5G
+
+**Key Features**:
+- Number porting and provisioning
+- Real-time billing and charging
+- Regulatory compliance
+- Quality of Service management
+
+### Enterprise IT
+
+**Common Services**:
+- Employee onboarding/offboarding
+- Software license management
+- Infrastructure provisioning
+- Security policy enforcement
+
+**Key Features**:
+- Identity and access management integration
+- Approval workflows and governance
+- Asset lifecycle management
+- Compliance reporting
+
+## Example Structure
+
+Each example in this section follows a consistent structure:
+
+### 1. Business Context
+- **Industry background** and common challenges
+- **Service requirements** and customer expectations
+- **Integration points** with existing systems
+
+### 2. Domain Model Design
+- **Product definitions** and service catalog
+- **Subscription models** with lifecycle states
+- **Product blocks** for reusable components
+- **Validation rules** and business constraints
+
+### 3. Workflow Implementation
+- **Creation workflows** for service provisioning
+- **Modification workflows** for service changes
+- **Termination workflows** for service cleanup
+- **Validation workflows** for health checks
+
+### 4. Integration Patterns
+- **External system APIs** and protocols
+- **Error handling** and retry strategies
+- **Monitoring** and observability
+- **Security** considerations
+
+### 5. Deployment Guide
+- **Infrastructure requirements**
+- **Configuration examples**
+- **Testing strategies**
+- **Production considerations**
+
+## Quick Start Examples
+
+### Simple Internet Service
+
+A basic business internet service with bandwidth allocation:
+
+```python
+class InternetServiceInactive(SubscriptionModel, is_base=True):
+    customer_id: str
+    bandwidth: BandwidthBlock
+    installation_address: str
+
+@workflow("Create Internet Service")
+def create_internet_service():
+    return (
+        init
+        >> validate_customer
+        >> allocate_bandwidth
+        >> configure_equipment
+        >> activate_service
+        >> done
+    )
+```
+
+### Cloud Virtual Machine
+
+A cloud VM service with auto-scaling capabilities:
+
+```python
+class VMServiceInactive(SubscriptionModel, is_base=True):
+    customer_id: str
+    compute: ComputeBlock
+    storage: StorageBlock
+    network: NetworkBlock
+
+@workflow("Provision Virtual Machine")
+def provision_vm():
+    return (
+        init
+        >> validate_quota
+        >> allocate_compute_resources
+        >> create_storage_volumes
+        >> configure_networking
+        >> deploy_vm_instance
+        >> setup_monitoring
+        >> done
+    )
+```
+
+### Mobile Phone Service
+
+A mobile service with number porting:
+
+```python
+class MobileServiceInactive(SubscriptionModel, is_base=True):
+    customer_id: str
+    phone_number: PhoneNumberBlock
+    plan: ServicePlanBlock
+    device: Optional[DeviceBlock] = None
+
+@workflow("Activate Mobile Service")
+def activate_mobile_service():
+    return (
+        init
+        >> validate_customer_eligibility
+        >> port_phone_number
+        >> provision_sim_card
+        >> configure_service_plan
+        >> activate_device
+        >> send_welcome_message
+        >> done
+    )
+```
+
+## Integration Examples
+
+### Network Management Systems
+
+Common integrations with network equipment and management platforms:
+
+<Tabs>
+  <Tab title="Cisco NSO">
+    ```python
+    async def configure_cisco_device(state: State) -> State:
+        """Configure Cisco device via NSO."""
+
+        nso_client = CiscoNSOClient(
+            url=settings.NSO_URL,
+            username=settings.NSO_USERNAME,
+            password=settings.NSO_PASSWORD
+        )
+
+        service_config = {
+            "device": state["allocated_device"],
+            "interface": state["allocated_interface"],
+            "bandwidth": state.subscription.bandwidth.speed_mbps,
+            "vlan": state["allocated_vlan"]
+        }
+
+        result = await nso_client.configure_service(
+            service_name="internet-service",
+            config=service_config
+        )
+
+        return {**state, "nso_service_id": result.service_id}
+    ```
+  </Tab>
+
+  <Tab title="Juniper Contrail">
+    ```python
+    async def configure_contrail_network(state: State) -> State:
+        """Configure virtual network in Juniper Contrail."""
+
+        contrail_client = ContrailClient(
+            api_server=settings.CONTRAIL_API_SERVER,
+            auth_token=settings.CONTRAIL_AUTH_TOKEN
+        )
+
+        virtual_network = await contrail_client.create_virtual_network(
+            name=f"customer-{state.subscription.customer_id}",
+            subnet=state["allocated_subnet"],
+            route_targets=state["route_targets"]
+        )
+
+        return {**state, "virtual_network_id": virtual_network.uuid}
+    ```
+  </Tab>
+
+  <Tab title="OpenStack">
+    ```python
+    async def provision_openstack_resources(state: State) -> State:
+        """Provision resources in OpenStack."""
+
+        nova_client = NovaClient(session=openstack_session)
+        neutron_client = NeutronClient(session=openstack_session)
+
+        # Create network resources
+        network = await neutron_client.create_network(
+            name=f"customer-{state.subscription.customer_id}-net"
+        )
+
+        subnet = await neutron_client.create_subnet(
+            network_id=network.id,
+            cidr=state["allocated_cidr"]
+        )
+
+        # Launch VM instance
+        instance = await nova_client.create_server(
+            name=f"customer-{state.subscription.customer_id}-vm",
+            image=state.subscription.compute.image_id,
+            flavor=state.subscription.compute.flavor_id,
+            networks=[{"uuid": network.id}]
+        )
+
+        return {
+            **state,
+            "network_id": network.id,
+            "subnet_id": subnet.id,
+            "instance_id": instance.id
+        }
+    ```
+  </Tab>
+</Tabs>
+
+### Billing and CRM Systems
+
+Integration patterns for customer management and billing:
+
+<Tabs>
+  <Tab title="Salesforce">
+    ```python
+    def sync_customer_to_salesforce(state: State) -> State:
+        """Sync customer data to Salesforce CRM."""
+
+        sf_client = SalesforceClient(
+            username=settings.SF_USERNAME,
+            password=settings.SF_PASSWORD,
+            security_token=settings.SF_SECURITY_TOKEN
+        )
+
+        # Create or update account
+        account_data = {
+            "Name": state.subscription.customer_name,
+            "Phone": state.subscription.contact_phone,
+            "BillingStreet": state.subscription.billing_address,
+            "Customer_ID__c": state.subscription.customer_id
+        }
+
+        account = sf_client.upsert_account(
+            external_id_field="Customer_ID__c",
+            external_id=state.subscription.customer_id,
+            data=account_data
+        )
+
+        return {**state, "salesforce_account_id": account.id}
+    ```
+  </Tab>
+
+  <Tab title="Zuora Billing">
+    ```python
+    def setup_zuora_billing(state: State) -> State:
+        """Setup recurring billing in Zuora."""
+
+        zuora_client = ZuoraClient(
+            tenant=settings.ZUORA_TENANT,
+            username=settings.ZUORA_USERNAME,
+            password=settings.ZUORA_PASSWORD
+        )
+
+        # Create subscription in Zuora
+        subscription_data = {
+            "accountKey": state.subscription.customer_id,
+            "contractEffectiveDate": state.subscription.start_date,
+            "serviceActivationDate": state.subscription.activation_date,
+            "subscribeToRatePlans": [
+                {
+                    "productRatePlanId": state.subscription.rate_plan_id,
+                    "chargeOverrides": [
+                        {
+                            "productRatePlanChargeId": "bandwidth_charge",
+                            "price": float(state.subscription.monthly_cost)
+                        }
+                    ]
+                }
+            ]
+        }
+
+        result = zuora_client.create_subscription(subscription_data)
+
+        return {**state, "zuora_subscription_id": result.subscriptionId}
+    ```
+  </Tab>
+</Tabs>
+
+## Testing Patterns
+
+### Integration Testing
+
+```python
+class TestNetworkServiceIntegration:
+    """Integration tests for network service workflows."""
+
+    @pytest.fixture
+    def mock_network_api(self):
+        """Mock external network API."""
+        with patch('services.network_api.NetworkAPI') as mock:
+            mock.allocate_bandwidth.return_value = MagicMock(
+                id="BW123", circuit_id="CKT456"
+            )
+            mock.configure_port.return_value = {"status": "success"}
+            yield mock
+
+    def test_complete_service_provisioning(self, mock_network_api):
+        """Test end-to-end service provisioning."""
+
+        # Setup test subscription
+        subscription = InternetServiceInactive(
+            customer_id="TEST123",
+            bandwidth=BandwidthBlock(speed_mbps=500),
+            installation_address="123 Test St"
+        )
+
+        # Run workflow
+        tester = WorkflowTester(create_internet_service)
+        result = tester.run({"subscription": subscription})
+
+        # Verify success
+        assert result.status == "completed"
+        assert result.subscription.status == SubscriptionLifecycle.ACTIVE
+
+        # Verify external API calls
+        mock_network_api.allocate_bandwidth.assert_called_once()
+        mock_network_api.configure_port.assert_called_once()
+```
+
+### Load Testing
+
+```python
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+async def load_test_workflow_execution():
+    """Load test workflow execution."""
+
+    async def execute_workflow():
+        """Execute single workflow instance."""
+        subscription = create_test_subscription()
+        tester = WorkflowTester(create_internet_service)
+        return tester.run({"subscription": subscription})
+
+    # Execute 100 concurrent workflows
+    tasks = [execute_workflow() for _ in range(100)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Analyze results
+    successful = sum(1 for r in results if not isinstance(r, Exception))
+    failed = len(results) - successful
+
+    print(f"Load test results: {successful} successful, {failed} failed")
+
+    return {
+        "total_executions": len(results),
+        "successful": successful,
+        "failed": failed,
+        "success_rate": successful / len(results) * 100
+    }
+```
+
+## Best Practices Summary
+
+<AccordionGroup>
+  <Accordion title="Domain Model Design">
+    - **Start Simple**: Begin with basic models and add complexity gradually
+    - **Business Focus**: Model real business concepts, not technical implementation
+    - **Lifecycle Awareness**: Design for different subscription states and transitions
+    - **Validation Strategy**: Implement comprehensive validation at appropriate lifecycle stages
+  </Accordion>
+
+  <Accordion title="Workflow Implementation">
+    - **Single Responsibility**: Each workflow should have one clear business purpose
+    - **Error Handling**: Plan for failures and implement appropriate retry strategies
+    - **External Integration**: Handle external service failures gracefully with circuit breakers
+    - **State Management**: Keep workflow state minimal but sufficient for recovery
+  </Accordion>
+
+  <Accordion title="Integration Patterns">
+    - **API Design**: Use consistent patterns for external API integration
+    - **Authentication**: Implement secure authentication for all external services
+    - **Monitoring**: Add comprehensive monitoring for external service health
+    - **Caching**: Cache external data appropriately to improve performance
+  </Accordion>
+
+  <Accordion title="Testing Strategy">
+    - **Unit Tests**: Test individual components in isolation
+    - **Integration Tests**: Test complete workflows with mocked external services
+    - **Contract Tests**: Verify external API contracts and expectations
+    - **Load Tests**: Validate performance under expected production load
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Your First Product"
+    icon="plus"
+    href="/getting-started/first-product"
+  >
+    Build your first service offering
+  </Card>
+  <Card
+    title="Build Workflows"
+    icon="workflow"
+    href="/workflows/creating-workflows"
+  >
+    Create automated business processes
+  </Card>
+  <Card
+    title="Domain Models"
+    icon="cube"
+    href="/concepts/domain-models"
+  >
+    Learn about service modeling
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore the complete API
+  </Card>
+</CardGroup>

@@ -1,0 +1,685 @@
+---
+title: "Environment Setup"
+description: "Set up your development environment for building with Workflow Orchestrator"
+---
+
+## Development Environment
+
+Setting up a proper development environment is crucial for productive work with Workflow Orchestrator. This guide will help you configure everything you need to build, test, and deploy orchestrator applications.
+
+## Prerequisites
+
+Ensure you have the following tools installed:
+
+<CardGroup cols={2}>
+  <Card title="Python 3.11+" icon="python">
+    **Required**: Python 3.11 or higher
+
+    **Check version**: `python --version`
+
+    **Install**: [python.org](https://python.org) or use pyenv
+  </Card>
+  <Card title="PostgreSQL 13+" icon="database">
+    **Required**: PostgreSQL 13 or higher
+
+    **Extensions**: pgvector (recommended)
+
+    **Install**: [postgresql.org](https://postgresql.org)
+  </Card>
+  <Card title="Git" icon="git-branch">
+    **Required**: For version control
+
+    **Check**: `git --version`
+
+    **Install**: [git-scm.com](https://git-scm.com)
+  </Card>
+  <Card title="Docker (Optional)" icon="docker">
+    **Optional**: For containerized development
+
+    **Install**: [docker.com](https://docker.com)
+
+    **Useful for**: Database, Redis, testing
+  </Card>
+</CardGroup>
+
+## Project Structure
+
+Create a well-organized project structure for your orchestrator application:
+
+```bash
+mkdir my-orchestrator
+cd my-orchestrator
+
+# Create directory structure
+mkdir -p {
+  products,
+  workflows,
+  tests,
+  migrations,
+  config,
+  docs
+}
+
+# Create main files
+touch main.py
+touch requirements.txt
+touch .env
+touch .gitignore
+```
+
+Your project should look like this:
+
+```
+my-orchestrator/
+├── main.py                 # Application entry point
+├── requirements.txt        # Python dependencies
+├── .env                   # Environment variables
+├── .gitignore            # Git ignore rules
+├── products/             # Domain models and products
+│   ├── __init__.py
+│   ├── models/           # Domain models
+│   └── blocks/           # Product blocks
+├── workflows/            # Workflow definitions
+│   ├── __init__.py
+│   ├── create/           # Creation workflows
+│   ├── modify/           # Modification workflows
+│   └── terminate/        # Termination workflows
+├── tests/                # Test files
+│   ├── __init__.py
+│   ├── unit/
+│   └── integration/
+├── migrations/           # Database migrations
+├── config/              # Configuration files
+└── docs/               # Project documentation
+```
+
+## Virtual Environment
+
+Always use a virtual environment to isolate your project dependencies:
+
+<Tabs>
+  <Tab title="venv (Built-in)">
+    ```bash
+    # Create virtual environment
+    python -m venv .venv
+
+    # Activate (Linux/Mac)
+    source .venv/bin/activate
+
+    # Activate (Windows)
+    .venv\Scripts\activate
+
+    # Verify activation
+    which python  # Should point to .venv/bin/python
+    ```
+  </Tab>
+
+  <Tab title="pyenv + virtualenv">
+    ```bash
+    # Install specific Python version
+    pyenv install 3.12.0
+
+    # Create virtual environment
+    pyenv virtualenv 3.12.0 my-orchestrator
+
+    # Activate
+    pyenv activate my-orchestrator
+
+    # Auto-activate in project directory
+    echo "my-orchestrator" > .python-version
+    ```
+  </Tab>
+
+  <Tab title="conda">
+    ```bash
+    # Create environment
+    conda create -n my-orchestrator python=3.12
+
+    # Activate
+    conda activate my-orchestrator
+
+    # Install pip packages
+    conda install pip
+    ```
+  </Tab>
+</Tabs>
+
+## Dependencies
+
+Create a comprehensive `requirements.txt` file:
+
+```txt requirements.txt
+# Core orchestrator
+orchestrator-core>=2.0.0
+
+# Development tools
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# Additional tools
+pre-commit>=3.0.0
+alembic>=1.12.0
+httpx>=0.24.0
+pydantic>=2.0.0
+
+# Optional: UI development
+# orchestrator-ui-backend
+# orchestrator-ui-frontend
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Database Setup
+
+### Local PostgreSQL
+
+<Tabs>
+  <Tab title="Ubuntu/Debian">
+    ```bash
+    # Install PostgreSQL
+    sudo apt update
+    sudo apt install postgresql postgresql-contrib
+
+    # Start service
+    sudo systemctl start postgresql
+    sudo systemctl enable postgresql
+
+    # Create user and database
+    sudo -u postgres createuser -sP orchestrator
+    sudo -u postgres createdb orchestrator_dev -O orchestrator
+
+    # Test connection
+    psql -h localhost -U orchestrator -d orchestrator_dev
+    ```
+  </Tab>
+
+  <Tab title="macOS">
+    ```bash
+    # Install with Homebrew
+    brew install postgresql
+    brew services start postgresql
+
+    # Create user and database
+    createuser -sP orchestrator
+    createdb orchestrator_dev -O orchestrator
+
+    # Test connection
+    psql -h localhost -U orchestrator -d orchestrator_dev
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    ```bash
+    # Start PostgreSQL container
+    docker run --name orchestrator-db \
+      -e POSTGRES_USER=orchestrator \
+      -e POSTGRES_PASSWORD=orchestrator \
+      -e POSTGRES_DB=orchestrator_dev \
+      -p 5432:5432 \
+      -d postgres:15
+
+    # Test connection
+    docker exec -it orchestrator-db psql -U orchestrator -d orchestrator_dev
+    ```
+  </Tab>
+</Tabs>
+
+### Environment Configuration
+
+Create a `.env` file for local development:
+
+```bash .env
+# Database
+DATABASE_URI=postgresql://orchestrator:orchestrator@localhost:5432/orchestrator_dev
+
+# Development settings
+ENVIRONMENT=development
+LOG_LEVEL=DEBUG
+OAUTH2_ACTIVE=False
+
+# Optional: Redis for caching
+CACHE_URI=redis://localhost:6379/0
+
+# Optional: External service URLs
+NETWORK_API_URL=http://localhost:8001
+BILLING_API_URL=http://localhost:8002
+
+# Security (generate secure values for production)
+SECRET_KEY=your-secret-key-here
+JWT_SECRET_KEY=your-jwt-secret-here
+```
+
+<Warning>
+Never commit `.env` files to version control. Add `.env` to your `.gitignore` file.
+</Warning>
+
+## Application Setup
+
+Create your main application file:
+
+```python main.py
+"""Main application entry point."""
+
+import os
+from pathlib import Path
+
+from orchestrator import OrchestratorCore
+from orchestrator.cli.main import app as core_cli
+from orchestrator.settings import app_settings
+
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
+# Configure application
+app_settings.CORS_ORIGINS = ["http://localhost:3000"]  # For UI development
+app_settings.CORS_ALLOW_CREDENTIALS = True
+
+# Initialize orchestrator
+app = OrchestratorCore(
+    base_settings=app_settings,
+    # Add your custom modules here
+    # workflow_modules=["workflows"],
+    # domain_modules=["products.models"],
+)
+
+# CLI interface
+if __name__ == "__main__":
+    core_cli()
+```
+
+## Database Initialization
+
+Initialize your database schema:
+
+```bash
+# Set environment variables
+export DATABASE_URI=postgresql://orchestrator:orchestrator@localhost:5432/orchestrator_dev
+
+# Initialize migration environment
+python main.py db init
+
+# Run initial migrations
+python main.py db upgrade heads
+
+# Optional: Load sample data
+python main.py db seed
+```
+
+## Development Tools
+
+### Code Quality Tools
+
+Set up code formatting and linting:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Create .pre-commit-config.yaml
+cat > .pre-commit-config.yaml << EOF
+repos:
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        language_version: python3.12
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=88", "--extend-ignore=E203,W503"]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [pydantic, sqlalchemy]
+EOF
+```
+
+### Testing Setup
+
+Create a test configuration:
+
+```python tests/conftest.py
+"""Test configuration and fixtures."""
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from orchestrator.db import db
+from orchestrator.settings import app_settings
+
+# Test database URL
+TEST_DATABASE_URI = "postgresql://orchestrator:orchestrator@localhost:5432/orchestrator_test"
+
+@pytest.fixture(scope="session")
+def test_engine():
+    """Create test database engine."""
+    engine = create_engine(TEST_DATABASE_URI)
+    return engine
+
+@pytest.fixture(scope="function")
+def test_db(test_engine):
+    """Create test database session."""
+    connection = test_engine.connect()
+    transaction = connection.begin()
+
+    # Configure session
+    Session = sessionmaker(bind=connection)
+    session = Session()
+
+    # Replace app session
+    original_session = db.session
+    db.session = session
+
+    yield session
+
+    # Cleanup
+    session.close()
+    transaction.rollback()
+    connection.close()
+    db.session = original_session
+
+@pytest.fixture
+def sample_customer():
+    """Create sample customer data."""
+    return {
+        "customer_id": "CUST123",
+        "name": "Test Customer",
+        "email": "test@example.com"
+    }
+```
+
+Run tests:
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=products --cov=workflows
+
+# Run specific test file
+pytest tests/test_products.py
+
+# Run with verbose output
+pytest -v
+```
+
+## IDE Configuration
+
+### VS Code
+
+Create `.vscode/settings.json`:
+
+```json
+{
+  "python.defaultInterpreterPath": "./.venv/bin/python",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": true,
+  "python.formatting.provider": "black",
+  "python.sortImports.args": ["--profile", "black"],
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".pytest_cache": true,
+    ".coverage": true
+  }
+}
+```
+
+### PyCharm
+
+1. **Interpreter**: Set Python interpreter to `.venv/bin/python`
+2. **Code Style**: Configure Black formatter in Settings → Tools → External Tools
+3. **Database**: Add PostgreSQL data source for easy database management
+4. **Run Configurations**: Create run configurations for main.py and tests
+
+## Git Configuration
+
+Create a comprehensive `.gitignore`:
+
+```gitignore .gitignore
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+migrations/versions/*.py  # Only if using auto-generated migrations
+config/local_settings.py
+```
+
+## Development Workflow
+
+### Daily Development
+
+1. **Start development session**:
+   ```bash
+   # Activate environment
+   source .venv/bin/activate
+
+   # Pull latest changes
+   git pull origin main
+
+   # Install any new dependencies
+   pip install -r requirements.txt
+
+   # Run database migrations
+   python main.py db upgrade heads
+   ```
+
+2. **Start the application**:
+   ```bash
+   # Start orchestrator
+   uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+
+   # In another terminal, start UI (if using)
+   cd orchestrator-ui
+   npm start
+   ```
+
+3. **Development cycle**:
+   ```bash
+   # Make changes to code
+   # Run tests
+   pytest tests/
+
+   # Format code
+   black .
+   isort .
+
+   # Check linting
+   flake8 .
+
+   # Type checking
+   mypy .
+   ```
+
+### Creating Features
+
+1. **Create feature branch**:
+   ```bash
+   git checkout -b feature/new-product-type
+   ```
+
+2. **Implement changes**:
+   - Add domain models in `products/models/`
+   - Create workflows in `workflows/`
+   - Add tests in `tests/`
+
+3. **Test thoroughly**:
+   ```bash
+   # Unit tests
+   pytest tests/unit/
+
+   # Integration tests
+   pytest tests/integration/
+
+   # Manual testing via API
+   curl http://localhost:8080/api/health
+   ```
+
+4. **Commit and push**:
+   ```bash
+   git add .
+   git commit -m "Add new product type with workflows"
+   git push origin feature/new-product-type
+   ```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database Connection Issues">
+    **Symptoms**: `could not connect to server` errors
+
+    **Solutions**:
+    - Check PostgreSQL is running: `sudo systemctl status postgresql`
+    - Verify connection string in `.env`
+    - Test direct connection: `psql -h localhost -U orchestrator -d orchestrator_dev`
+    - Check firewall settings
+  </Accordion>
+
+  <Accordion title="Import Errors">
+    **Symptoms**: `ModuleNotFoundError` when importing orchestrator modules
+
+    **Solutions**:
+    - Verify virtual environment is activated
+    - Check orchestrator-core installation: `pip list | grep orchestrator`
+    - Reinstall if needed: `pip install --upgrade orchestrator-core`
+    - Verify Python path includes project directory
+  </Accordion>
+
+  <Accordion title="Migration Errors">
+    **Symptoms**: Database migration failures
+
+    **Solutions**:
+    - Check database permissions
+    - Verify migration files in `migrations/versions/`
+    - Reset migrations if needed: `python main.py db downgrade base`
+    - Recreate migration environment: `rm -rf migrations && python main.py db init`
+  </Accordion>
+
+  <Accordion title="Performance Issues">
+    **Symptoms**: Slow application startup or response times
+
+    **Solutions**:
+    - Check database query performance
+    - Enable query logging: `LOG_LEVEL=DEBUG`
+    - Use database connection pooling
+    - Add appropriate database indexes
+    - Consider Redis for caching
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Your First Product"
+    icon="plus"
+    href="/getting-started/first-product"
+  >
+    Build your first domain model and product definition
+  </Card>
+  <Card
+    title="Build Your First Workflow"
+    icon="workflow"
+    href="/getting-started/first-workflow"
+  >
+    Create workflows to manage your product lifecycle
+  </Card>
+  <Card
+    title="Set Up UI"
+    icon="desktop"
+    href="/getting-started/ui-setup"
+  >
+    Install and configure the orchestrator UI
+  </Card>
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/advanced/deployment"
+  >
+    Deploy your orchestrator to production
+  </Card>
+</CardGroup>
+
+<Check>
+**Environment Ready!** You now have a complete development environment set up for building with Workflow Orchestrator. You can create products, build workflows, and test your applications locally.
+</Check>

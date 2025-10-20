@@ -1,0 +1,206 @@
+---
+title: "Quick Start"
+description: "Get up and running with Workflow Orchestrator in under 10 minutes"
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Python 3.11+**: The orchestrator requires Python 3.11 or higher
+- **PostgreSQL**: A PostgreSQL database for storing orchestrator data
+- **Git**: For cloning repositories (optional)
+
+<Note>
+We recommend using a virtual environment to isolate your orchestrator installation from other Python projects.
+</Note>
+
+## Step 1: Install the Package
+
+Create a virtual environment and install the orchestrator-core package:
+
+<CodeGroup>
+
+```bash Terminal
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install orchestrator-core
+```
+
+```bash Docker Alternative
+# If you prefer Docker, you can use our example repository
+git clone https://github.com/workfloworchestrator/example-orchestrator
+cd example-orchestrator
+docker-compose up -d
+```
+
+</CodeGroup>
+
+## Step 2: Setup Database
+
+Create a PostgreSQL database for the orchestrator:
+
+<CodeGroup>
+
+```bash Local PostgreSQL
+createuser -sP nwa
+createdb orchestrator-core -O nwa
+# Enter password when prompted (remember it for step 4)
+```
+
+```bash Docker PostgreSQL
+# Start a temporary PostgreSQL instance
+docker run --rm --name temp-orch-db \
+  -e POSTGRES_PASSWORD=rootpassword \
+  -p 5432:5432 \
+  pgvector/pgvector:pg17
+
+# In another terminal, create user and database
+docker exec -it temp-orch-db su - postgres -c \
+  'createuser -sP nwa && createdb orchestrator-core -O nwa'
+```
+
+</CodeGroup>
+
+<Warning>
+Make sure to remember the password you set for the `nwa` user - you'll need it in the next steps.
+</Warning>
+
+## Step 3: Create Application
+
+Create a `main.py` file in your project directory:
+
+```python main.py
+from orchestrator import OrchestratorCore
+from orchestrator.cli.main import app as core_cli
+from orchestrator.settings import app_settings
+
+app = OrchestratorCore(base_settings=app_settings)
+
+if __name__ == "__main__":
+    core_cli()
+```
+
+<Tip>
+This minimal setup creates a fully functional orchestrator application with all core features enabled.
+</Tip>
+
+## Step 4: Initialize Database
+
+Set up your database connection and run migrations:
+
+```bash
+export DATABASE_URI=postgresql://nwa:YOUR_PASSWORD@localhost:5432/orchestrator-core
+
+python main.py db init
+python main.py db upgrade heads
+```
+
+<Note>
+Replace `YOUR_PASSWORD` with the password you set for the `nwa` user in Step 2.
+</Note>
+
+## Step 5: Start the Application
+
+Launch your orchestrator application:
+
+```bash
+export DATABASE_URI=postgresql://nwa:YOUR_PASSWORD@localhost:5432/orchestrator-core
+export OAUTH2_ACTIVE=False  # Disable OAuth for development
+
+uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+```
+
+## Step 6: Explore Your Application
+
+Your orchestrator is now running! You can explore it through several interfaces:
+
+<CardGroup cols={2}>
+  <Card
+    title="API Documentation"
+    icon="book"
+    href="http://127.0.0.1:8080/api/docs"
+  >
+    Interactive OpenAPI documentation (Swagger UI)
+  </Card>
+  <Card
+    title="ReDoc Documentation"
+    icon="file-text"
+    href="http://127.0.0.1:8080/api/redoc"
+  >
+    Alternative API documentation interface
+  </Card>
+  <Card
+    title="GraphQL Playground"
+    icon="code"
+    href="http://127.0.0.1:8080/api/graphql"
+  >
+    Interactive GraphQL query interface
+  </Card>
+  <Card
+    title="Health Check"
+    icon="heart"
+    href="http://127.0.0.1:8080/api/health"
+  >
+    Application health and status endpoint
+  </Card>
+</CardGroup>
+
+## What's Next?
+
+Congratulations! You now have a running Workflow Orchestrator instance. Here's what you can do next:
+
+<Steps>
+  <Step title="Create Your First Product">
+    Learn how to define products and their configurations using domain models.
+
+    [Create a Product →](/getting-started/first-product)
+  </Step>
+
+  <Step title="Build Your First Workflow">
+    Create workflows to manage the lifecycle of your products.
+
+    [Build a Workflow →](/getting-started/first-workflow)
+  </Step>
+
+  <Step title="Set Up the UI">
+    Install and configure the orchestrator UI for a complete management interface.
+
+    [Setup UI →](/getting-started/ui-setup)
+  </Step>
+
+  <Step title="Explore Examples">
+    Check out real-world examples and use cases.
+
+    [View Examples →](/examples)
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database Connection Issues">
+    - Ensure PostgreSQL is running and accessible
+    - Verify the DATABASE_URI format: `postgresql://user:password@host:port/database`
+    - Check that the `nwa` user has the correct permissions
+  </Accordion>
+
+  <Accordion title="Port Already in Use">
+    If port 8080 is already in use, change it in the uvicorn command:
+    ```bash
+    uvicorn --reload --host 127.0.0.1 --port 8081 main:app
+    ```
+  </Accordion>
+
+  <Accordion title="Python Version Issues">
+    Ensure you're using Python 3.11 or higher:
+    ```bash
+    python --version
+    ```
+    If needed, install a newer Python version or use pyenv to manage multiple versions.
+  </Accordion>
+</AccordionGroup>
+
+<Check>
+**Success!** You now have a fully functional Workflow Orchestrator running locally. The application includes a REST API, GraphQL endpoint, and is ready for you to define products and workflows.
+</Check>
