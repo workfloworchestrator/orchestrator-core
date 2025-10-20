@@ -17,8 +17,9 @@ import time
 import typer
 
 from orchestrator.schedules.scheduler import (
+    get_all_scheduler_tasks,
     get_scheduler,
-    get_scheduler_store,
+    get_scheduler_task,
 )
 
 app: typer.Typer = typer.Typer()
@@ -38,27 +39,23 @@ def show_schedule() -> None:
 
     in cli underscore is replaced by a dash `show-schedule`
     """
-    scheduler_store = get_scheduler_store()
-    jobs = scheduler_store.get_all_jobs()
-
-    for job in jobs:
-        typer.echo(f"[{job.id}] Next run: {job.next_run_time} | Trigger: {job.trigger}")
+    for task in get_all_scheduler_tasks():
+        typer.echo(f"[{task.id}] Next run: {task.next_run_time} | Trigger: {task.trigger}")
 
 
 @app.command()
-def force(job_id: str) -> None:
-    """Force the execution of (a) scheduler(s) based on a job_id."""
-    scheduler_store = get_scheduler_store()
-    job = scheduler_store.lookup_job(job_id)
+def force(task_id: str) -> None:
+    """Force the execution of (a) scheduler(s) based on a task_id."""
+    task = get_scheduler_task(task_id)
 
-    if not job:
-        typer.echo(f"Job '{job_id}' not found.")
+    if not task:
+        typer.echo(f"Task '{task_id}' not found.")
         raise typer.Exit(code=1)
 
-    typer.echo(f"Running job [{job.id}] now...")
+    typer.echo(f"Running Task [{task.id}] now...")
     try:
-        job.func(*job.args or (), **job.kwargs or {})
-        typer.echo("Job executed successfully.")
+        task.func(*task.args or (), **task.kwargs or {})
+        typer.echo("Task executed successfully.")
     except Exception as e:
-        typer.echo(f"Job execution failed: {e}")
+        typer.echo(f"Task execution failed: {e}")
         raise typer.Exit(code=1)
