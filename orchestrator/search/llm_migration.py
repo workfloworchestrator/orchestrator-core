@@ -37,6 +37,7 @@ def run_migration(connection: Connection) -> None:
         if llm_settings.LLM_FORCE_EXTENTION_MIGRATION or res.rowcount == 0:
             # Create PostgreSQL extensions
             logger.info("Attempting to run the extention creation;")
+            connection.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS ltree;"))
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
@@ -113,6 +114,42 @@ def run_migration(connection: Connection) -> None:
                 f"CREATE INDEX IF NOT EXISTS ix_flat_embed_hnsw ON {TABLE} USING HNSW (embedding vector_l2_ops) WITH (m = 16, ef_construction = 64);"
             )
         )
+
+        # Create agent_runs table
+        connection.execute(
+            text(
+                """
+            CREATE TABLE IF NOT EXISTS agent_runs (
+                run_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                agent_type VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+            );
+        """
+            )
+        )
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_runs_created_at ON agent_runs (created_at);"))
+
+        # Create search_queries table
+        connection.execute(
+            text(
+                f"""
+            CREATE TABLE IF NOT EXISTS search_queries (
+                query_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                run_id UUID,
+                query_number INTEGER NOT NULL,
+                parameters JSONB NOT NULL,
+                query_embedding VECTOR({TARGET_DIM}),
+                executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                CONSTRAINT fk_search_queries_run_id FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
+            );
+        """
+            )
+        )
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_search_queries_run_id ON search_queries (run_id);"))
+        connection.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_search_queries_executed_at ON search_queries (executed_at);")
+        )
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_search_queries_query_id ON search_queries (query_id);"))
 
         connection.commit()
         logger.info("LLM migration completed successfully")
