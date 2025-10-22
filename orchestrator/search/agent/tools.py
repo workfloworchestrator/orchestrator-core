@@ -11,10 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any
 
 import structlog
-from ag_ui.core import EventType, StateSnapshotEvent
+from ag_ui.core import EventType, StateDeltaEvent, StateSnapshotEvent
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -26,8 +27,10 @@ from orchestrator.api.api_v1.endpoints.search import (
     list_paths,
 )
 from orchestrator.db import AgentRunTable, SearchQueryTable, db
+from orchestrator.search.agent.json_patch import JSONPatchOp
 from orchestrator.search.agent.state import ExportData, SearchResultsData, SearchState
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
+from orchestrator.search.export import fetch_export_data
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.engine import execute_search
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
@@ -106,7 +109,7 @@ async def set_search_parameters(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
     action: str | ActionType = ActionType.SELECT,
-) -> StateSnapshotEvent:
+) -> StateDeltaEvent:
     """Updates search parameters without clearing filters or results.
 
     Use this to modify the entity type or action while preserving existing filters.
@@ -127,9 +130,15 @@ async def set_search_parameters(
 
     logger.debug("Search parameters updated", parameters=ctx.deps.state.parameters)
 
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
+    return StateDeltaEvent(
+        type=EventType.STATE_DELTA,
+        delta=[
+            JSONPatchOp.upsert(
+                path="/parameters",
+                value=ctx.deps.state.parameters,
+                existed=bool(params),
+            )
+        ],
     )
 
 
@@ -137,7 +146,7 @@ async def set_search_parameters(
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
-) -> StateSnapshotEvent:
+) -> StateDeltaEvent:
     """Replace current filters atomically with a full FilterTree, or clear with None.
 
     Requirements:
@@ -171,15 +180,25 @@ async def set_filter_tree(
         raise ModelRetry(f"Filter validation failed: {str(e)}. Please check your filter structure and try again.")
 
     filter_data = None if filters is None else filters.model_dump(mode="json", by_alias=True)
+    filters_existed = "filters" in ctx.deps.state.parameters
     ctx.deps.state.parameters["filters"] = filter_data
-    return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
+    return StateDeltaEvent(
+        type=EventType.STATE_DELTA,
+        delta=[
+            JSONPatchOp.upsert(
+                path="/parameters/filters",
+                value=filter_data,
+                existed=filters_existed,
+            )
+        ],
+    )
 
 
 @search_toolset.tool
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
-) -> StateSnapshotEvent:
+) -> StateDeltaEvent:
     """Execute the search with the current parameters and save to database."""
     if not ctx.deps.state.parameters:
         raise ValueError("No search parameters set")
@@ -199,12 +218,15 @@ async def run_search(
 
     params.limit = limit
 
+    changes: list[JSONPatchOp] = []
+
     if not ctx.deps.state.run_id:
         agent_run = AgentRunTable(agent_type="search")
         db.session.add(agent_run)
         db.session.commit()
         ctx.deps.state.run_id = agent_run.run_id
         logger.debug("Created new agent run", run_id=str(agent_run.run_id))
+        changes.append(JSONPatchOp(op="add", path="/run_id", value=str(ctx.deps.state.run_id)))
 
     # Get query with embedding and save to DB
     search_response = await execute_search(params, db.session)
@@ -218,8 +240,10 @@ async def run_search(
     )
     db.session.add(search_query)
     db.session.commit()
+    query_id_existed = ctx.deps.state.query_id is not None
     ctx.deps.state.query_id = search_query.query_id
     logger.debug("Saved search query", query_id=str(search_query.query_id), query_number=query_number)
+    changes.append(JSONPatchOp.upsert(path="/query_id", value=str(ctx.deps.state.query_id), existed=query_id_existed))
 
     logger.debug(
         "Search completed",
@@ -229,6 +253,7 @@ async def run_search(
     # Store results data for both frontend display and agent context
     results_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}"
 
+    results_data_existed = ctx.deps.state.results_data is not None
     ctx.deps.state.results_data = SearchResultsData(
         query_id=str(ctx.deps.state.query_id),
         results_url=results_url,
@@ -236,8 +261,13 @@ async def run_search(
         message=f"Found {len(search_response.results)} results.",
         results=search_response.results,  # Include actual results in state
     )
+    changes.append(
+        JSONPatchOp.upsert(
+            path="/results_data", value=ctx.deps.state.results_data.model_dump(), existed=results_data_existed
+        )
+    )
 
-    return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
+    return StateDeltaEvent(type=EventType.STATE_DELTA, delta=changes)
 
 
 @search_toolset.tool
@@ -317,6 +347,48 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
 
 
 @search_toolset.tool
+async def fetch_entity_details(
+    ctx: RunContext[StateDeps[SearchState]],
+    limit: int = 10,
+) -> str:
+    """Fetch detailed entity information to answer user questions.
+
+    Use this tool when you need detailed information about entities from the search results
+    to answer the user's question. This provides the same detailed data that would be
+    included in an export (e.g., subscription status, product details, workflow info, etc.).
+
+    Args:
+        ctx: Runtime context for agent (injected).
+        limit: Maximum number of entities to fetch details for (default 10).
+
+    Returns:
+        JSON string containing detailed entity information.
+
+    Raises:
+        ValueError: If no search results are available.
+    """
+    if not ctx.deps.state.results_data or not ctx.deps.state.results_data.results:
+        raise ValueError("No search results available. Run a search first before fetching entity details.")
+
+    if not ctx.deps.state.parameters:
+        raise ValueError("No search parameters found.")
+
+    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
+
+    entity_ids = [r.entity_id for r in ctx.deps.state.results_data.results[:limit]]
+
+    logger.debug(
+        "Fetching detailed entity data",
+        entity_type=entity_type.value,
+        entity_count=len(entity_ids),
+    )
+
+    detailed_data = fetch_export_data(entity_type, entity_ids)
+
+    return json.dumps(detailed_data, indent=2)
+
+
+@search_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
 ) -> StateSnapshotEvent:
@@ -350,4 +422,9 @@ async def prepare_export(
 
     logger.debug("Export data set in state", export_data=ctx.deps.state.export_data.model_dump())
 
-    return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
+    # Should use StateDelta here? Use snapshot to workaround state persistence issue
+    # TODO: Fix root cause; state is empty on frontend when it should have data from run_search
+    return StateSnapshotEvent(
+        type=EventType.STATE_SNAPSHOT,
+        snapshot=ctx.deps.state.model_dump(),
+    )

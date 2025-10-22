@@ -27,7 +27,6 @@ from orchestrator.llm_settings import LLMSettings, llm_settings
 
 if TYPE_CHECKING:
     from pydantic_ai.models.openai import OpenAIModel
-    from pydantic_ai.toolsets import FunctionToolset
 
 logger = get_logger(__name__)
 
@@ -38,7 +37,6 @@ class LLMOrchestratorCore(OrchestratorCore):
         *args: Any,
         llm_settings: LLMSettings = llm_settings,
         agent_model: "OpenAIModel | str | None" = None,
-        agent_tools: "list[FunctionToolset] | None" = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the `LLMOrchestratorCore` class.
@@ -50,7 +48,6 @@ class LLMOrchestratorCore(OrchestratorCore):
             *args: All the normal arguments passed to the `OrchestratorCore` class.
             llm_settings: A class of settings for the LLM
             agent_model: Override the agent model (defaults to llm_settings.AGENT_MODEL)
-            agent_tools: A list of tools that can be used by the agent
             **kwargs: Additional arguments passed to the `OrchestratorCore` class.
 
         Returns:
@@ -58,7 +55,6 @@ class LLMOrchestratorCore(OrchestratorCore):
         """
         self.llm_settings = llm_settings
         self.agent_model = agent_model or llm_settings.AGENT_MODEL
-        self.agent_tools = agent_tools
 
         super().__init__(*args, **kwargs)
 

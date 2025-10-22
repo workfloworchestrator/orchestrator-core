@@ -15,22 +15,22 @@ from sqlalchemy import Select, literal, select
 
 from orchestrator.search.core.types import SearchMetadata
 
-from ..pagination import PaginationParams
+from ..pagination import PageCursor
 from .base import Retriever
 
 
 class StructuredRetriever(Retriever):
     """Applies a dummy score for purely structured searches with no text query."""
 
-    def __init__(self, pagination_params: PaginationParams) -> None:
-        self.page_after_id = pagination_params.page_after_id
+    def __init__(self, cursor: PageCursor | None) -> None:
+        self.cursor = cursor
 
     def apply(self, candidate_query: Select) -> Select:
         cand = candidate_query.subquery()
         stmt = select(cand.c.entity_id, cand.c.entity_title, literal(1.0).label("score")).select_from(cand)
 
-        if self.page_after_id:
-            stmt = stmt.where(cand.c.entity_id > self.page_after_id)
+        if self.cursor is not None:
+            stmt = stmt.where(cand.c.entity_id > self.cursor.id)
 
         return stmt.order_by(cand.c.entity_id.asc())
 

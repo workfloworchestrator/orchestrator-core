@@ -14,7 +14,7 @@
 from functools import cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request
 from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
 from pydantic_ai.agent import Agent
 from starlette.responses import Response
@@ -34,7 +34,7 @@ def get_agent() -> Agent[StateDeps[SearchState], str]:
 
     The agent is built once and cached for the lifetime of the application.
     """
-    return build_agent_instance(llm_settings.AGENT_MODEL, agent_tools=None)
+    return build_agent_instance(llm_settings.AGENT_MODEL)
 
 
 @router.post("/")

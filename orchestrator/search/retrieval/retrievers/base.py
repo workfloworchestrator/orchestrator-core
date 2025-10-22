@@ -20,7 +20,7 @@ from sqlalchemy import BindParameter, Numeric, Select, literal
 from orchestrator.search.core.types import FieldType, SearchMetadata
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 
-from ..pagination import PaginationParams
+from ..pagination import PageCursor
 
 logger = structlog.get_logger(__name__)
 
@@ -44,7 +44,7 @@ class Retriever(ABC):
     async def route(
         cls,
         params: BaseSearchParameters,
-        pagination_params: PaginationParams,
+        cursor: PageCursor | None,
         query_embedding: list[float] | None = None,
     ) -> "Retriever":
         """Route to the appropriate retriever instance based on search parameters.
@@ -57,7 +57,7 @@ class Retriever(ABC):
 
         Args:
             params: Search parameters including vector queries, fuzzy terms, and filters
-            pagination_params: Pagination parameters for cursor-based paging
+            cursor: Pagination cursor for cursor-based paging
             query_embedding: Query embedding for semantic search, or None if not available
 
         Returns:
@@ -76,13 +76,13 @@ class Retriever(ABC):
 
         # Select retriever based on available search criteria
         if query_embedding is not None and fuzzy_term is not None:
-            return RrfHybridRetriever(query_embedding, fuzzy_term, pagination_params)
+            return RrfHybridRetriever(query_embedding, fuzzy_term, cursor)
         if query_embedding is not None:
-            return SemanticRetriever(query_embedding, pagination_params)
+            return SemanticRetriever(query_embedding, cursor)
         if fuzzy_term is not None:
-            return FuzzyRetriever(fuzzy_term, pagination_params)
+            return FuzzyRetriever(fuzzy_term, cursor)
 
-        return StructuredRetriever(pagination_params)
+        return StructuredRetriever(cursor)
 
     @abstractmethod
     def apply(self, candidate_query: Select) -> Select:
