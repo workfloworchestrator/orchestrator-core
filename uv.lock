@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -2009,7 +2009,7 @@ requires-dist = [
     { name = "pytz", specifier = "==2025.2" },
     { name = "redis", specifier = "==5.1.1" },
     { name = "semver", specifier = "==3.0.4" },
-    { name = "sentry-sdk", extras = ["fastapi"], specifier = "~=2.29.1" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
     { name = "sqlalchemy", specifier = "==2.0.41" },
     { name = "sqlalchemy-utils", specifier = "==0.41.2" },
     { name = "strawberry-graphql", specifier = ">=0.281.0" },
