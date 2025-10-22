@@ -24,7 +24,7 @@ from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
 from .builder import build_candidate_query
-from .pagination import PaginationParams
+from .pagination import PageCursor
 from .query_state import SearchQueryState
 from .retrievers import Retriever
 from .utils import generate_highlight_indices
@@ -122,7 +122,7 @@ async def _execute_search_internal(
     search_params: BaseSearchParameters,
     db_session: Session,
     limit: int,
-    pagination_params: PaginationParams | None = None,
+    cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
 ) -> SearchResponse:
     """Internal function to execute search with specified parameters.
@@ -131,7 +131,7 @@ async def _execute_search_internal(
         search_params: The search parameters specifying vector, fuzzy, or filter criteria.
         db_session: The active SQLAlchemy session for executing the query.
         limit: Maximum number of results to return.
-        pagination_params: Optional pagination parameters.
+        cursor: Optional pagination cursor.
         query_embedding: Optional pre-computed query embedding to use instead of generating a new one.
 
     Returns:
@@ -143,13 +143,11 @@ async def _execute_search_internal(
 
     candidate_query = build_candidate_query(search_params)
 
-    pagination_params = pagination_params or PaginationParams()
-
     if search_params.vector_query and not query_embedding:
 
         query_embedding = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
 
-    retriever = await Retriever.route(search_params, pagination_params, query_embedding)
+    retriever = await Retriever.route(search_params, cursor, query_embedding)
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
     final_stmt = retriever.apply(candidate_query)
@@ -166,13 +164,11 @@ async def _execute_search_internal(
 async def execute_search(
     search_params: BaseSearchParameters,
     db_session: Session,
-    pagination_params: PaginationParams | None = None,
+    cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
 ) -> SearchResponse:
     """Execute a search and return ranked results."""
-    return await _execute_search_internal(
-        search_params, db_session, search_params.limit, pagination_params, query_embedding
-    )
+    return await _execute_search_internal(search_params, db_session, search_params.limit, cursor, query_embedding)
 
 
 async def execute_search_for_export(

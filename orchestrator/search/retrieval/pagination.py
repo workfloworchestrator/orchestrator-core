@@ -22,14 +22,6 @@ from orchestrator.search.schemas.parameters import SearchParameters
 from orchestrator.search.schemas.results import SearchResponse
 
 
-class PaginationParams(BaseModel):
-    """Parameters for pagination in search queries."""
-
-    page_after_score: float | None = None
-    page_after_id: str | None = None
-    query_id: UUID | None = None  # None only for first page, always set when cursor exists
-
-
 class PageCursor(BaseModel):
     score: float
     id: str
@@ -50,29 +42,9 @@ class PageCursor(BaseModel):
             raise InvalidCursorError("Invalid pagination cursor") from e
 
 
-async def process_pagination_cursor(cursor: str) -> PaginationParams:
-    """Decode pagination cursor and extract pagination parameters.
-
-    Args:
-        cursor: Base64-encoded cursor
-
-    Returns:
-        PaginationParams containing page position and query_id from the cursor
-
-    Raises:
-        InvalidCursorError: If cursor cannot be decoded
-    """
-    page_cursor = PageCursor.decode(cursor)
-    return PaginationParams(
-        page_after_score=page_cursor.score,
-        page_after_id=page_cursor.id,
-        query_id=page_cursor.query_id,
-    )
-
-
-def create_next_page_cursor(
+def encode_next_page_cursor(
     search_response: SearchResponse,
-    pagination_params: PaginationParams,
+    cursor: PageCursor | None,
     search_params: SearchParameters,
 ) -> str | None:
     """Create next page cursor if there are more results.
@@ -82,7 +54,7 @@ def create_next_page_cursor(
 
     Args:
         search_response: SearchResponse containing results and query_embedding
-        pagination_params: Current pagination parameters (may have query_id if not first page)
+        cursor: Current page cursor (None for first page, PageCursor for subsequent pages)
         search_params: Search parameters to save for pagination consistency
 
     Returns:
@@ -95,7 +67,7 @@ def create_next_page_cursor(
         return None
 
     # If this is the first page, save query state to database
-    if not pagination_params.query_id:
+    if cursor is None:
         query_state = SearchQueryState(parameters=search_params, query_embedding=search_response.query_embedding)
         search_query = SearchQueryTable.from_state(state=query_state)
 
@@ -103,7 +75,7 @@ def create_next_page_cursor(
         db.session.commit()
         query_id = search_query.query_id
     else:
-        query_id = pagination_params.query_id
+        query_id = cursor.query_id
 
     last_item = search_response.results[-1]
     cursor_data = PageCursor(

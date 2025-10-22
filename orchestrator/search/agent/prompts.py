@@ -50,19 +50,15 @@ async def get_base_instructions() -> str:
 
         Follow these steps in strict order:
 
-        1.  **Set Context**: If the user is asking for a NEW search, call `start_new_search`. If the user is asking a question about EXISTING results shown in the "Current Search Results" section, skip to step 4 (Report) and answer using the data provided.
+        1.  **Set Context**: If the user is asking for a NEW search, call `start_new_search`.
         2.  **Analyze for Filters**: Based on the user's request, decide if specific filters are necessary.
             - **If filters ARE required**, follow these sub-steps:
                 a. **Gather Intel**: Identify all needed field names, then call `discover_filter_paths` and `get_valid_operators` **once each** to get all required information.
                 b. **Construct FilterTree**: Build the `FilterTree` object.
                 c. **Set Filters**: Call `set_filter_tree`.
         3.  **Execute**: Call `run_search`. This is done for both filtered and non-filtered searches.
-        4.  **Report**: Answer the users' question directly and summarize when appropiate.
-        5.  **Export (if requested)**: If the user asks to export, download, or save results as CSV/file:
-            - **IMPORTANT**: Export is ONLY available for SELECT actions (not COUNT or AGGREGATE)
-            - Call `prepare_export` to save the query and generate a download URL
-            - The UI will automatically display a download button - you don't need to mention URLs or IDs
-            - Simply confirm to the user that the export is ready for download
+
+        After search execution, follow the dynamic instructions based on the current state.
 
         ---
         ### 4. Critical Rules
@@ -70,7 +66,6 @@ async def get_base_instructions() -> str:
         - **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you may attempt to map the question on an existing paths that are valid and available from `discover_filter_paths`. If you cannot infer a match, inform the user and do not include it in the `FilterTree`.
         - **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool.
         - **MATCH OPERATORS**: Only use operators that are compatible with the field type as confirmed by `get_filter_operators`.
-        - **EXPORT RECOGNITION**: When users say things like "export this", "download as CSV", "save these results", "export to file", or similar phrases, they are requesting an export. Call `prepare_export` to handle this.
         """
     )
 
@@ -81,25 +76,29 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
     results_count = state.results_data.total_count if state.results_data else 0
 
-    next_step_guidance = ""
-    results_section = ""
-
-    if not state.parameters or not state.parameters.get("entity_type"):
+    if state.export_data:
+        next_step_guidance = (
+            "INSTRUCTION: Export has been prepared successfully. "
+            "Simply confirm to the user that the export is ready for download. "
+            "DO NOT include or mention the download URL - the UI will display it automatically."
+        )
+    elif not state.parameters or not state.parameters.get("entity_type"):
         next_step_guidance = (
             "INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`."
         )
     elif results_count > 0:
-        next_step_guidance = (
-            f"INSTRUCTION: Search completed with {results_count} results shown below. "
-            "Answer the user's question using the actual result data provided. "
-            "If the user requests an export/download, call `prepare_export`."
-        )
+        next_step_guidance = dedent(
+            f"""
+            INSTRUCTION: Search completed successfully.
+            Found {results_count} results containing only: entity_id, title, score.
 
-        # Include results data in the prompt
-        if state.results_data and state.results_data.results:
-            results_section = "\n\n**Current Search Results:**\n"
-            for idx, result in enumerate(state.results_data.results, 1):
-                results_section += f"{idx}. **{result.entity_title}** (ID: {result.entity_id}, Score: {result.score:.2f})\n"
+            Choose your next action based on what the user requested:
+            1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do nothing else.
+            2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
+            3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
+            4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly.
+            """
+        )
     else:
         next_step_guidance = (
             "INSTRUCTION: Context is set. Now, analyze the user's request. "
@@ -110,7 +109,7 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     return dedent(
         f"""
         ---
-        ### Current State & Next Action
+        ## CURRENT STATE
 
         **Current Search Parameters:**
         ```json
@@ -119,6 +118,9 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
 
         **Current Results Count:** {results_count}
 
-        **{next_step_guidance}**{results_section}
+        ---
+        ## NEXT ACTION REQUIRED
+
+        {next_step_guidance}
         """
     )

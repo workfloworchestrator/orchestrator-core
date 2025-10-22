@@ -20,7 +20,7 @@ from sqlalchemy.types import TypeEngine
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import SearchMetadata
 
-from ..pagination import PaginationParams
+from ..pagination import PageCursor
 from .base import Retriever
 
 
@@ -127,14 +127,13 @@ class RrfHybridRetriever(Retriever):
         self,
         q_vec: list[float],
         fuzzy_term: str,
-        pagination_params: PaginationParams,
+        cursor: PageCursor | None,
         k: int = 60,
         field_candidates_limit: int = 100,
     ) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
-        self.page_after_score = pagination_params.page_after_score
-        self.page_after_id = pagination_params.page_after_id
+        self.cursor = cursor
         self.k = k
         self.field_candidates_limit = field_candidates_limit
 
@@ -266,12 +265,12 @@ class RrfHybridRetriever(Retriever):
         entity_id_column: ColumnElement,
     ) -> Select:
         """Keyset paginate by fused score + id."""
-        if self.page_after_score is not None and self.page_after_id is not None:
-            score_param = self._quantize_score_for_pagination(self.page_after_score)
+        if self.cursor is not None:
+            score_param = self._quantize_score_for_pagination(self.cursor.score)
             stmt = stmt.where(
                 or_(
                     score_column < score_param,
-                    and_(score_column == score_param, entity_id_column > self.page_after_id),
+                    and_(score_column == score_param, entity_id_column > self.cursor.id),
                 )
             )
         return stmt

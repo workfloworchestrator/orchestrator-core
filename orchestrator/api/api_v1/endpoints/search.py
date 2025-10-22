@@ -26,11 +26,7 @@ from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
 from orchestrator.search.retrieval import SearchQueryState, execute_search, execute_search_for_export
 from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
-from orchestrator.search.retrieval.pagination import (
-    PaginationParams,
-    create_next_page_cursor,
-    process_pagination_cursor,
-)
+from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 from orchestrator.search.retrieval.validation import is_lquery_syntactically_valid
 from orchestrator.search.schemas.parameters import (
     ProcessSearchParameters,
@@ -61,14 +57,11 @@ async def _perform_search_and_fetch(
         Search results with entity_id, score, and matching_field.
     """
     try:
-        # Default pagination for first page
-        pagination_params = PaginationParams()
+        page_cursor: PageCursor | None = None
 
         if cursor:
-            pagination_params = await process_pagination_cursor(cursor)
-            if pagination_params.query_id is None:
-                raise InvalidCursorError("Cursor missing query_id")
-            query_state = SearchQueryState.load_from_id(pagination_params.query_id)
+            page_cursor = PageCursor.decode(cursor)
+            query_state = SearchQueryState.load_from_id(page_cursor.query_id)
         elif query_id:
             query_state = SearchQueryState.load_from_id(query_id)
         elif search_params:
@@ -80,12 +73,12 @@ async def _perform_search_and_fetch(
             )
 
         search_response = await execute_search(
-            query_state.parameters, db.session, pagination_params, query_state.query_embedding
+            query_state.parameters, db.session, page_cursor, query_state.query_embedding
         )
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = create_next_page_cursor(search_response, pagination_params, query_state.parameters)
+        next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query_state.parameters)
         has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
