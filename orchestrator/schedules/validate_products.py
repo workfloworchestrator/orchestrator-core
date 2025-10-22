@@ -29,7 +29,7 @@ def validate_products() -> None:
     uncompleted_products = db.session.scalar(
         select(func.count())
         .select_from(ProcessTable)
-        .filter(ProcessTable.workflow.name == "validate_products", ProcessTable.last_status != "completed")
+        .filter(ProcessTable.workflow.has(name="validate_products"), ProcessTable.last_status != "completed")
     )
     if not uncompleted_products:
         start_process("task_validate_products")
