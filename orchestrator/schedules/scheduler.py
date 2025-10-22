@@ -44,7 +44,7 @@ def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
     store = SQLAlchemyJobStore(engine=db.engine)
     try:
         yield store
-    except ValueError:
+    finally:
         store.shutdown()
 
 

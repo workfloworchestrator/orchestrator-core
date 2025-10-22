@@ -263,6 +263,12 @@ def database(db_uri):
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
 
 
+@pytest.fixture(scope="session")
+def load_scheduled_tasks(database):
+    with get_scheduler():
+        pass
+
+
 @pytest.fixture(autouse=True)
 def db_session(database):
     """Ensure tests are run in a transaction with automatic rollback.
@@ -865,9 +871,3 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
         yield monitor_queries
     else:
         yield noop
-
-
-@pytest.fixture(autouse=True)
-def load_scheduled_tasks():
-    with get_scheduler():
-        pass
