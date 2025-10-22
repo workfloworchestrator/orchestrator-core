@@ -104,44 +104,6 @@ async def start_new_search(
     )
 
 
-@search_toolset.tool
-async def set_search_parameters(
-    ctx: RunContext[StateDeps[SearchState]],
-    entity_type: EntityType,
-    action: str | ActionType = ActionType.SELECT,
-) -> StateDeltaEvent:
-    """Updates search parameters without clearing filters or results.
-
-    Use this to modify the entity type or action while preserving existing filters.
-    For a completely new search, use start_new_search instead.
-    """
-    params = ctx.deps.state.parameters or {}
-    existing_filters = params.get("filters")
-    existing_query = params.get("query", "")
-
-    logger.debug(
-        "Updating search parameters",
-        entity_type=entity_type.value,
-        action=action,
-        preserving_filters=existing_filters is not None,
-    )
-
-    _set_parameters(ctx, entity_type, action, existing_query, existing_filters)
-
-    logger.debug("Search parameters updated", parameters=ctx.deps.state.parameters)
-
-    return StateDeltaEvent(
-        type=EventType.STATE_DELTA,
-        delta=[
-            JSONPatchOp.upsert(
-                path="/parameters",
-                value=ctx.deps.state.parameters,
-                existed=bool(params),
-            )
-        ],
-    )
-
-
 @search_toolset.tool(retries=2)
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
@@ -155,7 +117,7 @@ async def set_filter_tree(
     - See the FilterTree schema examples for the exact shape.
     """
     if ctx.deps.state.parameters is None:
-        raise ModelRetry("Search parameters are not initialized. Call set_search_parameters first.")
+        raise ModelRetry("Search parameters are not initialized. Call start_new_search first.")
 
     entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
 
