@@ -147,7 +147,7 @@ The application flow looks like this when EXECUTOR = "celery" (and websockets ar
 - FastAPI application grabs this information and publishes it to the client websocket connection.
 
 A celery worker container will start by calling this module instead of `main.py` like so:
-    celery -A esnetorch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
+    celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 
 * `-A` points to this module where the worker class is defined
 * `-E` sends task-related events (capturable and monitorable)
@@ -170,7 +170,7 @@ from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflows import ALL_WORKFLOWS
 from structlog import get_logger
 
-from esnetorch.settings import app_settings
+from your_orch.settings import app_settings
 
 
 logger = get_logger(__name__)
@@ -197,8 +197,8 @@ class OrchestratorWorker(Celery):
         self.process_broadcast_fn = process_broadcast_fn
 
         # Load the products and load the workflows
-        import esnetorch.products  # noqa: F401  Side-effects
-        import esnetorch.workflows  # noqa: F401  Side-effects
+        import your_orch.products  # noqa: F401  Side-effects
+        import your_orch.workflows  # noqa: F401  Side-effects
 
         logger.info(
             "Loaded the workflows and products",
