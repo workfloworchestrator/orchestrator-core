@@ -2,22 +2,41 @@
 
 This document covers the moving parts needed to schedule jobs in the orchestrator.
 
+In short, the scheduler is simply an additional process that adds Tasks to the queue.
+A Task is just a workflow that isn't tied to a specific product.
+Tasks are created in the same way as workflows, but with the `"system"` target, i.e.
+
+```python
+@workflow("Some task", target=Target.SYSTEM)`
+def some_task() -> State:
+    pass
+```
+
+Such a workflow will be flagged as a task in the database, and will not have a relation defined connecting it to a specific product.
+
 ## The task file
 
-Tasks have a lot in common with regular workflows.
+Let's step through a more complete example.
+Four things need to happen to register a task:
+
+1. Defining the task via `@workflow`
+2. Registering the task via `LazyWorkflowInstance` in your workflows module
+3. Writing or generating a migration file
+4. Adding a translation for the frontend (necessary for the task to show in the UI)
 
 ### Task code
 
-The task code modules are located in `orchestrator/orchestrator/server/workflows/tasks/`. Here is a very bare-bones task file:
+Here is a very bare-bones task file:
 
 ```python
-import time
+# workflows/tasks/nightly_sync.py
 
 import structlog
+import time
 
-from server.targets import Target
-from server.types import State
-from server.workflow import StepList, done, init, step, workflow
+from orchestrator.targets import Target
+from orchestrator.types import State
+from orchestrator.workflow import StepList, done, init, step, workflow
 
 logger = structlog.get_logger(__name__)
 
@@ -34,16 +53,20 @@ def task_sync_from() -> StepList:
     return init >> nso_calls >> done
 ```
 
-Basically just a workflow with `target=Target.SYSTEM` - and like a workflow it will need to be registered in  `orchestrator/server/workflows/__init__.py`:
+Again, the task is basically a workflow with `target=Target.SYSTEM`.
+
+And like a workflow, it will need to be registered in your workflows module:
 
 ```python
+# workflows/__init__.py
+
 # Tasks
 LazyWorkflowInstance(".tasks.nightly_sync", "task_sync_from")
 ```
 
 ### The task migration
 
-And also like a workflow, a migration will need to introduce it to the system. It's a stripped down version of the "subscription" workflow migrations:
+And also like a workflow, a migration is needed to introduce it to the system. It's a stripped down version of the "subscription" workflow migrations:
 
 ```python
 params = dict(
@@ -68,16 +91,26 @@ def upgrade() -> None:
     pass
 ```
 
-This just needs to add an entry in the workflows table. No relations with other tables like how the workflow id gets a relation in the products table and etc.
+Note that, unlike a normal workflow:
+
+* `is_task` is set to `True`.
+* No relations with other tables are created. (For example, a normal workflow id gets a relation in the products table, etc.)
 
 ### Running the task in the UI
 
-After the migration is applied, the new task will surface in the UI under the tasks tab.
-It can be manually executed that way. Even if the task does not have any form input, an entry will still need to be made in `orchestrator-client/src/locale/en.ts` or an error will occur.
+After the migration is applied, the new task will surface in the UI under the Tasks tab.
+It can be manually executed that way.
+Even if the task does not have any form input, an entry will still need to be made in `translations/en-GB.json`.
 
-```ts
-// ESnet
-task_sync_from: "Verify and NSO sync",
+```json
+// translations/en-GB.json
+{
+  ...
+  "workflows": {
+    ...
+    "task_sync_from": "Verify and NSO sync",
+  }
+}
 ```
 
 ## The schedule file
@@ -85,9 +118,11 @@ task_sync_from: "Verify and NSO sync",
 > from `4.3.0` we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and schedule tasks from the API.
 
 The schedule file is essentially the crontab associated with the task.
-They are located in `orchestrator/server/schedules/` - a sample schedule file:
+Continuing with our previous example:
 
 ```python
+# schedules/nightly_sync.py
+
 from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
 
@@ -100,7 +135,7 @@ def run_nightly_sync() -> None:
 
 This schedule will start the `task_sync_from` task every day at 01:00.
 
-There are multiple triggers that can be used: [data from docs]
+There are multiple triggers that can be used ([trigger docs]):
 
 - [IntervalTrigger]: use when you want to run the task at fixed intervals of time.
 - [CronTrigger]: use when you want to run the task periodically at certain time(s) of day.
@@ -114,7 +149,7 @@ For detailed configuration options, see the [APScheduler scheduling docs].
 The scheduler automatically loads any schedules that are imported before the scheduler starts.
 To keep things organized and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a `/schedules/__init__.py`.
 
-> `ALL_SCHEDULERS` (Backwards Compatibility)  
+> `ALL_SCHEDULERS` (Backwards Compatibility)
 > In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
 > This is no longer required, but ALL_SCHEDULERS is still supported for backwards compatibility.
 
@@ -130,7 +165,8 @@ docker exec -it backend /bin/bash
 ./bin/scheduling force run_nightly_sync
 ```
 
-Where `run_nightly_sync` is the name defined in the schedule file - not the name of the task. Not necessary to run the UI and you can get the logging output.
+Where `run_nightly_sync` is the name defined in the schedule file - not the name of the task.
+This doesn't depend on the UI being up, and you can get the logging output.
 
 ### Scheduled execution
 
@@ -142,7 +178,8 @@ USER www-data:www-data
 CMD /usr/src/app/bin/server
 # Comment out the previous command and uncomment the
 # following lines to build a version that runs the
-# backend and scheduer in the same container.
+# backend and scheduler in the same container.
+# (These are all generated when initializing your repository.)
 # COPY ./bin/server ./bin/server
 # COPY ./bin/scheduling ./bin/scheduling
 # COPY ./bin/wrapper ./bin/wrapper
@@ -184,4 +221,4 @@ def run_nightly_sync() -> None:
 [AndTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.AndTrigger
 [OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
-[data from docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
+[trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers

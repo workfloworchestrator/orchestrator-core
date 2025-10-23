@@ -4,16 +4,17 @@ By default the Orchestrator is capable to handle a reasonable amount of workflow
 distributed workload we introduced the [Celery library](https://docs.celeryq.dev/en/stable/).
 
 This document describes the two modes in which an Orchestrator instance can run and what you need to configure:
-1. running tasks an workflows in a threadpool (default)
+
+1. running tasks and workflows in a threadpool (default)
 2. running the Orchestrator with a number of workflow workers
 
 ## Running workflows or tasks within a threadpool
 
-This is the default configuration. workflows and tasks are both scheduled by the same threadpool with equal priority.
-If you need to have tasks with a lower priority, you can for example use a scheduler and run them during a quiet
+This is the default configuration. Workflows and tasks are both scheduled by the same threadpool with equal priority.
+If you need to have tasks with a lower priority, you can for example [use a scheduler](orchestrator-core/architecture/application/tasks/#the-schedule-file) and run them during a quiet
 period.
 
-In AppSettings you will notice the default:
+In AppSettings you will notice the default `"threadpool"`, which can be updated to `"celery"`.
 
 ```python
 class AppSettings(BaseSettings):
@@ -26,7 +27,7 @@ class AppSettings(BaseSettings):
 
 ## Running workflows or tasks using a worker
 
-Celery concepts are introduced in the [Documentation](https://docs.celeryq.dev/en/stable/getting-started/introduction.html).
+Celery concepts are introduced in its [documentation](https://docs.celeryq.dev/en/stable/getting-started/introduction.html).
 
 When using Celery, the Orchestrator is split into two parts:
 
@@ -42,6 +43,7 @@ The orchestrator-worker has additional dependencies which can be installed with 
 pip install orchestrator-core[celery]
 ```
 
+TODO link to notes on how many instances to run of each
 
 ### Queues
 
@@ -58,9 +60,15 @@ about implementing on how to change this behaviour.
 
 ### Implementing the worker
 
-The orchestrator-core needs to know what workflows a user has defined. This information is only available in the
-actual application using the orchestrator-core. Here we will use an example as used withing SURF. The file is
-called tasks.py. First we define our own class derived from the Celery base class:
+The orchestrator-core needs to know what workflows a user has defined.
+After creating workflows, you should have
+[registered them](https://workfloworchestrator.org/orchestrator-core/getting-started/workflows/#register-workflows).
+For the default threadpool executor, these are exposed to the application by importing them in `main.py`
+to ensure the registration calls are made.
+
+When using the celery executor, you'll need to do this again for the worker instance(s) to run those registrations.
+Here is an example of how this is done at SURF.
+First, we define our own class derived from the Celery base class in a file called `celery-worker.py`:
 
 ```python
 class OrchestratorCelery(Celery):
@@ -71,9 +79,7 @@ class OrchestratorCelery(Celery):
         init_app(app)  # This will load the workflows
 ```
 
-The `init_app` should be replaced by your own function that at least makes sure that all the workflows are imported
-(which make sure that the are registered) so that the worker can recognize them. This is the minimum implementation
-you need, but you might want to add other initialisation that is needed to execute workflows.
+The `init_app` function should be replaced by whatever code you need to load your workflows.
 
 Next we instantiate Celery using our own `OrchestratorCelery` class:
 
@@ -88,7 +94,7 @@ celery = OrchestratorCelery(
 celery.conf.update(result_expires=3600)
 ```
 
-As you can see in the code above we are using Redis as broker. You can of course replace this by RabbitMQ or
+As you can see in the code above, we are using Redis as a broker. You can of course replace this by RabbitMQ or
 another broker of your choice. See the Celery documentation for more details.
 
 `"orchestrator.services.tasks" ` is the namespace in orchestrator-core where the Celery tasks can be found. At the
@@ -113,9 +119,9 @@ def init_celery() -> None:
 init_celery()
 ```
 
-The code above sets our local Celery instance (which initializes the workflows) as the celery instance that is
-going to be used by the orchestrator-core. Without this code, the orchestrator-core would be only aware of a limited
-set of workflows that are part of orchestrator-core itself.
+In summary, this code has directed orchestrator-core to use our local Celery instance,
+and ensured the instance of orchestrator-core running in the Celery worker can find our workflows.
+(Otherwise, it would only be aware of a limited set of workflows that part of orchestrator-core itself.)
 
 ### An example implementation
 
@@ -131,7 +137,7 @@ celery task queue.
 Celery's task queue enables features like nightly validations by providing a task queue and workers to execute
 workflows that are all started in parallel, which would crash a single-threaded orchestrator-core.
 
-The application flow looks like this when "celery" is the executor (and websockets are enabled):
+The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
 
 - FastAPI application validates form input, and places a task on celery queue (create new process).
   - If websockets are enabled, a connection should exist already b/t the client and backend.
@@ -203,12 +209,18 @@ class OrchestratorWorker(Celery):
     def close(self) -> None:
         super().close()
 
+# These could normally live in app_settings
+broker = f"redis://{AppSettings().CACHE_URI}"
+backend = f"rpc://{AppSettings().CACHE_URI}/0"
 
+# TODO How is the default celery backend set up?
 celery = OrchestratorWorker(
-    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI), include=["orchestrator.services.tasks"]
+    f"{app_settings.SERVICE_NAME}-worker", broker=broker, include=["orchestrator.services.tasks"]
 )
 
 if app_settings.TESTING:
+    #TODO Should this not be the `backend` from above, i.e. rpc://CACHE_URI/0?
+    # Use Redis for ephemeral task result storage under test.
     celery.conf.update(backend=str(app_settings.CACHE_URI), task_ignore_result=False)
 else:
     celery.conf.update(task_ignore_result=True)

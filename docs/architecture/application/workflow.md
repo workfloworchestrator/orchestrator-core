@@ -76,6 +76,7 @@ Workflows are categorized based on the operations they perform on a subscription
     - Only one reconcile workflow should exist per product.
 
 
+
 ### Default Workflows
 
 Registering a _Default Workflow_ attaches a given workflow to all Products.
@@ -83,8 +84,12 @@ To ensure this, modify the `DEFAULT_PRODUCT_WORKFLOWS` environment variable and 
 
 By default, `DEFAULT_PRODUCT_WORKFLOWS` is set to `['modify_note']`.
 
-More about registering workflows can be found [here][registering-workflows]
+More about registering workflows can be found [here][registering-workflows].
 
+### Tasks
+
+Tasks are workflows that aren't associated with any subscriptions, and can be run by the Orchestrator's scheduler.
+Learn about tasks and scheduling [here][tasks-and-scheduling].
 
 ## Workflow Steps
 
@@ -198,3 +203,4 @@ Now this particular modify workflow can be run on subscriptions that are not in 
 [functional docs for callback_step]: ../../reference-docs/workflows/callbacks.md
 [Reusable step functions and singledispatch usage]: ../../reference-docs/workflows/workflow-steps.md#reusable-workflow-steps-in-orchestrator-core
 [registering-workflows]: ../../getting-started/workflows#register-workflows
+[tasks-and-scheduling]: ../application/tasks.md
