@@ -35,6 +35,7 @@ from orchestrator.db import (
 from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseModel, Database, SearchQuery
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
@@ -260,6 +261,12 @@ def database(db_uri):
             conn.execute(text("COMMIT;"))
             # Now try to drop the database
             conn.execute(text(f'DROP DATABASE IF EXISTS "{db_to_create}";'))
+
+
+@pytest.fixture(scope="session")
+def load_scheduled_tasks(database):
+    with get_scheduler():
+        pass
 
 
 @pytest.fixture(autouse=True)
