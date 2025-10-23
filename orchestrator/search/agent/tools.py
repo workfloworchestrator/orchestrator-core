@@ -184,8 +184,11 @@ async def run_search(
 
     if not ctx.deps.state.run_id:
         agent_run = AgentRunTable(agent_type="search")
+
         db.session.add(agent_run)
         db.session.commit()
+        db.session.expire_all()  # Release connection to prevent stacking while agent runs
+
         ctx.deps.state.run_id = agent_run.run_id
         logger.debug("Created new agent run", run_id=str(agent_run.run_id))
         changes.append(JSONPatchOp(op="add", path="/run_id", value=str(ctx.deps.state.run_id)))
@@ -202,6 +205,8 @@ async def run_search(
     )
     db.session.add(search_query)
     db.session.commit()
+    db.session.expire_all()
+
     query_id_existed = ctx.deps.state.query_id is not None
     ctx.deps.state.query_id = search_query.query_id
     logger.debug("Saved search query", query_id=str(search_query.query_id), query_number=query_number)
