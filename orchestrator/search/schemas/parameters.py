@@ -12,9 +12,9 @@
 # limitations under the License.
 
 import uuid
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterTree
@@ -22,6 +22,9 @@ from orchestrator.search.filters import FilterTree
 
 class BaseSearchParameters(BaseModel):
     """Base model with common search parameters."""
+
+    DEFAULT_EXPORT_LIMIT: ClassVar[int] = 1000
+    MAX_EXPORT_LIMIT: ClassVar[int] = 10000
 
     action: ActionType = Field(default=ActionType.SELECT, description="The action to perform.")
     entity_type: EntityType
@@ -33,14 +36,18 @@ class BaseSearchParameters(BaseModel):
     )
 
     limit: int = Field(default=10, ge=1, le=30, description="Maximum number of search results to return.")
+    export_limit: int = Field(
+        default=DEFAULT_EXPORT_LIMIT, ge=1, le=MAX_EXPORT_LIMIT, description="Maximum number of results to export."
+    )
     model_config = ConfigDict(extra="forbid")
 
     @classmethod
-    def create(cls, entity_type: EntityType, **kwargs: Any) -> "BaseSearchParameters":
-        try:
-            return PARAMETER_REGISTRY[entity_type](entity_type=entity_type, **kwargs)
-        except KeyError:
-            raise ValueError(f"No search parameter class found for entity type: {entity_type.value}")
+    def create(cls, **kwargs: Any) -> "SearchParameters":
+        """Create the correct search parameter subclass instance based on entity_type."""
+        from orchestrator.search.schemas.parameters import SearchParameters
+
+        adapter: TypeAdapter = TypeAdapter(SearchParameters)
+        return adapter.validate_python(kwargs)
 
     @property
     def vector_query(self) -> str | None:
@@ -121,9 +128,6 @@ class ProcessSearchParameters(BaseSearchParameters):
     )
 
 
-PARAMETER_REGISTRY: dict[EntityType, type[BaseSearchParameters]] = {
-    EntityType.SUBSCRIPTION: SubscriptionSearchParameters,
-    EntityType.PRODUCT: ProductSearchParameters,
-    EntityType.WORKFLOW: WorkflowSearchParameters,
-    EntityType.PROCESS: ProcessSearchParameters,
-}
+SearchParameters = (
+    SubscriptionSearchParameters | ProductSearchParameters | WorkflowSearchParameters | ProcessSearchParameters
+)

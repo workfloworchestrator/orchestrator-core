@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from orchestrator.db import db
-from orchestrator.db.models import AiSearchIndex
+from orchestrator.db.models import AiSearchIndex, SearchQueryTable
 from orchestrator.llm_settings import llm_settings
 
 logger = structlog.get_logger(__name__)
@@ -40,17 +40,20 @@ def get_current_embedding_dimension() -> int | None:
         return None
 
 
-def drop_all_embeddings() -> int:
-    """Drop all records from the ai_search_index table.
+def drop_all_embeddings() -> tuple[int, int]:
+    """Drop all records from ai_search_index and search_queries tables.
 
     Returns:
-        Number of records deleted
+        Tuple of (ai_search_index records deleted, search_queries records deleted)
     """
     try:
-        result = db.session.query(AiSearchIndex).delete()
+        index_deleted = db.session.query(AiSearchIndex).delete()
+        query_deleted = db.session.query(SearchQueryTable).delete()
         db.session.commit()
-        logger.info(f"Deleted {result} records from ai_search_index")
-        return result
+        logger.info(
+            f"Deleted {index_deleted} records from ai_search_index and {query_deleted} records from search_queries"
+        )
+        return index_deleted, query_deleted
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -59,34 +62,34 @@ def drop_all_embeddings() -> int:
 
 
 def alter_embedding_column_dimension(new_dimension: int) -> None:
-    """Alter the embedding column to use the new dimension size.
+    """Alter the embedding columns in both ai_search_index and search_queries tables.
 
     Args:
         new_dimension: New vector dimension size
     """
     try:
-        drop_query = text("ALTER TABLE ai_search_index DROP COLUMN IF EXISTS embedding")
-        db.session.execute(drop_query)
+        db.session.execute(text("ALTER TABLE ai_search_index DROP COLUMN IF EXISTS embedding"))
+        db.session.execute(text(f"ALTER TABLE ai_search_index ADD COLUMN embedding vector({new_dimension})"))
 
-        add_query = text(f"ALTER TABLE ai_search_index ADD COLUMN embedding vector({new_dimension})")
-        db.session.execute(add_query)
+        db.session.execute(text("ALTER TABLE search_queries DROP COLUMN IF EXISTS query_embedding"))
+        db.session.execute(text(f"ALTER TABLE search_queries ADD COLUMN query_embedding vector({new_dimension})"))
 
         db.session.commit()
-        logger.info(f"Altered embedding column to dimension {new_dimension}")
+        logger.info(f"Altered embedding columns to dimension {new_dimension} in ai_search_index and search_queries")
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        logger.error("Failed to alter embedding column dimension", error=str(e))
+        logger.error("Failed to alter embedding column dimensions", error=str(e))
         raise
 
 
 @app.command("resize")
 def resize_embeddings_command() -> None:
-    """Resize vector dimensions of the ai_search_index embedding column.
+    """Resize vector dimensions of embedding columns in ai_search_index and search_queries tables.
 
     Compares the current embedding dimension in the database with the configured
-    dimension in llm_settings. If they differ, drops all records and alters the
-    column to match the new dimension.
+    dimension in llm_settings. If they differ, drops all records and alters both
+    embedding columns to match the new dimension.
     """
     new_dimension = llm_settings.EMBEDDING_DIMENSION
 
@@ -107,22 +110,25 @@ def resize_embeddings_command() -> None:
 
     logger.info("Dimension mismatch detected", current_dimension=current_dimension, new_dimension=new_dimension)
 
-    if not typer.confirm("This will DELETE ALL RECORDS from ai_search_index and alter the embedding column. Continue?"):
+    if not typer.confirm(
+        "This will DELETE ALL RECORDS from ai_search_index and search_queries tables and alter embedding columns. Continue?"
+    ):
         logger.info("Operation cancelled by user")
         return
 
     try:
         # Drop all records first.
         logger.info("Dropping all embedding records...")
-        deleted_count = drop_all_embeddings()
+        index_deleted, query_deleted = drop_all_embeddings()
 
-        # Then alter column dimension.
-        logger.info(f"Altering embedding column to dimension {new_dimension}...")
+        # Then alter column dimensions.
+        logger.info(f"Altering embedding columns to dimension {new_dimension}...")
         alter_embedding_column_dimension(new_dimension)
 
         logger.info(
             "Embedding dimension resize completed successfully",
-            records_deleted=deleted_count,
+            index_records_deleted=index_deleted,
+            query_records_deleted=query_deleted,
             new_dimension=new_dimension,
         )
 

@@ -11,251 +11,121 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Literal, overload
-
+import structlog
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import case, select
-from sqlalchemy.orm import selectinload
 
-from orchestrator.db import (
-    ProcessTable,
-    ProductTable,
-    WorkflowTable,
-    db,
-)
-from orchestrator.domain.base import SubscriptionModel
-from orchestrator.domain.context_cache import cache_subscription_models
+from orchestrator.db import db
 from orchestrator.schemas.search import (
+    ExportResponse,
     PageInfoSchema,
     PathsResponse,
-    ProcessSearchResult,
-    ProcessSearchSchema,
-    ProductSearchResult,
-    ProductSearchSchema,
     SearchResultsSchema,
-    SubscriptionSearchResult,
-    WorkflowSearchResult,
-    WorkflowSearchSchema,
 )
-from orchestrator.search.core.exceptions import InvalidCursorError
+from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.search.core.types import EntityType, UIType
 from orchestrator.search.filters.definitions import generate_definitions
-from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.retrieval import execute_search
+from orchestrator.search.retrieval import SearchQueryState, execute_search, execute_search_for_export
 from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
-from orchestrator.search.retrieval.pagination import (
-    create_next_page_cursor,
-    process_pagination_cursor,
-)
+from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
 from orchestrator.search.retrieval.validation import is_lquery_syntactically_valid
 from orchestrator.search.schemas.parameters import (
-    BaseSearchParameters,
     ProcessSearchParameters,
     ProductSearchParameters,
+    SearchParameters,
     SubscriptionSearchParameters,
     WorkflowSearchParameters,
 )
 from orchestrator.search.schemas.results import SearchResult, TypeDefinition
-from orchestrator.services.subscriptions import format_special_types
 
 router = APIRouter()
-
-
-def _create_search_result_item(
-    entity: WorkflowTable | ProductTable | ProcessTable, entity_type: EntityType, search_info: SearchResult
-) -> WorkflowSearchResult | ProductSearchResult | ProcessSearchResult | None:
-    match entity_type:
-        case EntityType.WORKFLOW:
-            workflow_data = WorkflowSearchSchema.model_validate(entity)
-            return WorkflowSearchResult(
-                workflow=workflow_data,
-                score=search_info.score,
-                perfect_match=search_info.perfect_match,
-                matching_field=search_info.matching_field,
-            )
-        case EntityType.PRODUCT:
-            product_data = ProductSearchSchema.model_validate(entity)
-            return ProductSearchResult(
-                product=product_data,
-                score=search_info.score,
-                perfect_match=search_info.perfect_match,
-                matching_field=search_info.matching_field,
-            )
-        case EntityType.PROCESS:
-            process_data = ProcessSearchSchema.model_validate(entity)
-            return ProcessSearchResult(
-                process=process_data,
-                score=search_info.score,
-                perfect_match=search_info.perfect_match,
-                matching_field=search_info.matching_field,
-            )
-        case _:
-            return None
-
-
-@overload
-async def _perform_search_and_fetch(
-    search_params: BaseSearchParameters,
-    entity_type: Literal[EntityType.WORKFLOW],
-    eager_loads: list[Any],
-    cursor: str | None = None,
-) -> SearchResultsSchema[WorkflowSearchResult]: ...
-
-
-@overload
-async def _perform_search_and_fetch(
-    search_params: BaseSearchParameters,
-    entity_type: Literal[EntityType.PRODUCT],
-    eager_loads: list[Any],
-    cursor: str | None = None,
-) -> SearchResultsSchema[ProductSearchResult]: ...
-
-
-@overload
-async def _perform_search_and_fetch(
-    search_params: BaseSearchParameters,
-    entity_type: Literal[EntityType.PROCESS],
-    eager_loads: list[Any],
-    cursor: str | None = None,
-) -> SearchResultsSchema[ProcessSearchResult]: ...
+logger = structlog.get_logger(__name__)
 
 
 async def _perform_search_and_fetch(
-    search_params: BaseSearchParameters,
-    entity_type: EntityType,
-    eager_loads: list[Any],
+    search_params: SearchParameters | None = None,
     cursor: str | None = None,
-) -> SearchResultsSchema[Any]:
+    query_id: str | None = None,
+) -> SearchResultsSchema[SearchResult]:
+    """Execute search with optional pagination.
+
+    Args:
+        search_params: Search parameters for new search
+        cursor: Pagination cursor (loads saved query state)
+        query_id: Saved query ID to retrieve and execute
+
+    Returns:
+        Search results with entity_id, score, and matching_field.
+    """
     try:
-        pagination_params = await process_pagination_cursor(cursor, search_params)
-    except InvalidCursorError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
+        page_cursor: PageCursor | None = None
 
-    search_response = await execute_search(
-        search_params=search_params,
-        db_session=db.session,
-        pagination_params=pagination_params,
-    )
-    if not search_response.results:
-        return SearchResultsSchema(search_metadata=search_response.metadata)
+        if cursor:
+            page_cursor = PageCursor.decode(cursor)
+            query_state = SearchQueryState.load_from_id(page_cursor.query_id)
+        elif query_id:
+            query_state = SearchQueryState.load_from_id(query_id)
+        elif search_params:
+            query_state = SearchQueryState(parameters=search_params, query_embedding=None)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either search_params, cursor, or query_id must be provided",
+            )
 
-    next_page_cursor = create_next_page_cursor(search_response.results, pagination_params, search_params.limit)
-    has_next_page = next_page_cursor is not None
-    page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
+        search_response = await execute_search(
+            query_state.parameters, db.session, page_cursor, query_state.query_embedding
+        )
+        if not search_response.results:
+            return SearchResultsSchema(search_metadata=search_response.metadata)
 
-    config = ENTITY_CONFIG_REGISTRY[entity_type]
-    entity_ids = [res.entity_id for res in search_response.results]
-    pk_column = getattr(config.table, config.pk_name)
-    ordering_case = case({entity_id: i for i, entity_id in enumerate(entity_ids)}, value=pk_column)
+        next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query_state.parameters)
+        has_next_page = next_page_cursor is not None
+        page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
-    stmt = select(config.table).options(*eager_loads).filter(pk_column.in_(entity_ids)).order_by(ordering_case)
-    entities = db.session.scalars(stmt).all()
-
-    search_info_map = {res.entity_id: res for res in search_response.results}
-    data = []
-    for entity in entities:
-        entity_id = getattr(entity, config.pk_name)
-        search_info = search_info_map.get(str(entity_id))
-        if not search_info:
-            continue
-
-        search_result_item = _create_search_result_item(entity, entity_type, search_info)
-        if search_result_item:
-            data.append(search_result_item)
-
-    return SearchResultsSchema(data=data, page_info=page_info, search_metadata=search_response.metadata)
+        return SearchResultsSchema(
+            data=search_response.results, page_info=page_info, search_metadata=search_response.metadata
+        )
+    except (InvalidCursorError, ValueError) as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}",
+        )
 
 
-@router.post(
-    "/subscriptions",
-    response_model=SearchResultsSchema[SubscriptionSearchResult],
-)
+@router.post("/subscriptions", response_model=SearchResultsSchema[SearchResult])
 async def search_subscriptions(
     search_params: SubscriptionSearchParameters,
     cursor: str | None = None,
-) -> SearchResultsSchema[SubscriptionSearchResult]:
-    try:
-        pagination_params = await process_pagination_cursor(cursor, search_params)
-    except InvalidCursorError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor")
-
-    search_response = await execute_search(
-        search_params=search_params,
-        db_session=db.session,
-        pagination_params=pagination_params,
-    )
-
-    if not search_response.results:
-        return SearchResultsSchema(search_metadata=search_response.metadata)
-
-    next_page_cursor = create_next_page_cursor(search_response.results, pagination_params, search_params.limit)
-    has_next_page = next_page_cursor is not None
-    page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
-
-    search_info_map = {res.entity_id: res for res in search_response.results}
-
-    with cache_subscription_models():
-        subscriptions_data = {
-            sub_id: SubscriptionModel.from_subscription(sub_id).model_dump(exclude_unset=False)
-            for sub_id in search_info_map
-        }
-
-    results_data = [
-        SubscriptionSearchResult(
-            subscription=format_special_types(subscriptions_data[sub_id]),
-            score=search_info.score,
-            perfect_match=search_info.perfect_match,
-            matching_field=search_info.matching_field,
-        )
-        for sub_id, search_info in search_info_map.items()
-    ]
-
-    return SearchResultsSchema(data=results_data, page_info=page_info, search_metadata=search_response.metadata)
+) -> SearchResultsSchema[SearchResult]:
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
-@router.post("/workflows", response_model=SearchResultsSchema[WorkflowSearchResult])
+@router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
 async def search_workflows(
     search_params: WorkflowSearchParameters,
     cursor: str | None = None,
-) -> SearchResultsSchema[WorkflowSearchResult]:
-    return await _perform_search_and_fetch(
-        search_params=search_params,
-        entity_type=EntityType.WORKFLOW,
-        eager_loads=[selectinload(WorkflowTable.products)],
-        cursor=cursor,
-    )
+) -> SearchResultsSchema[SearchResult]:
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
-@router.post("/products", response_model=SearchResultsSchema[ProductSearchResult])
+@router.post("/products", response_model=SearchResultsSchema[SearchResult])
 async def search_products(
     search_params: ProductSearchParameters,
     cursor: str | None = None,
-) -> SearchResultsSchema[ProductSearchResult]:
-    return await _perform_search_and_fetch(
-        search_params=search_params,
-        entity_type=EntityType.PRODUCT,
-        eager_loads=[
-            selectinload(ProductTable.workflows),
-            selectinload(ProductTable.fixed_inputs),
-            selectinload(ProductTable.product_blocks),
-        ],
-        cursor=cursor,
-    )
+) -> SearchResultsSchema[SearchResult]:
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
-@router.post("/processes", response_model=SearchResultsSchema[ProcessSearchResult])
+@router.post("/processes", response_model=SearchResultsSchema[SearchResult])
 async def search_processes(
     search_params: ProcessSearchParameters,
     cursor: str | None = None,
-) -> SearchResultsSchema[ProcessSearchResult]:
-    return await _perform_search_and_fetch(
-        search_params=search_params,
-        entity_type=EntityType.PROCESS,
-        eager_loads=[
-            selectinload(ProcessTable.workflow),
-        ],
-        cursor=cursor,
-    )
+) -> SearchResultsSchema[SearchResult]:
+    return await _perform_search_and_fetch(search_params, cursor)
 
 
 @router.get(
@@ -294,3 +164,52 @@ async def list_paths(
 async def get_definitions() -> dict[UIType, TypeDefinition]:
     """Provide a static definition of operators and schemas for each UI type."""
     return generate_definitions()
+
+
+@router.get(
+    "/queries/{query_id}",
+    response_model=SearchResultsSchema[SearchResult],
+    summary="Retrieve saved search results by query_id",
+)
+async def get_by_query_id(
+    query_id: str,
+    cursor: str | None = None,
+) -> SearchResultsSchema[SearchResult]:
+    """Retrieve and execute a saved search by query_id."""
+    return await _perform_search_and_fetch(query_id=query_id, cursor=cursor)
+
+
+@router.get(
+    "/queries/{query_id}/export",
+    summary="Export query results by query_id",
+    response_model=ExportResponse,
+)
+async def export_by_query_id(query_id: str) -> ExportResponse:
+    """Export search results using query_id.
+
+    The query is retrieved from the database, re-executed, and results are returned
+    as flattened records suitable for CSV download.
+
+    Args:
+        query_id: Query UUID
+
+    Returns:
+        ExportResponse containing 'page' with an array of flattened entity records.
+
+    Raises:
+        HTTPException: 404 if query not found, 400 if invalid data
+    """
+    try:
+        query_state = SearchQueryState.load_from_id(query_id)
+        export_records = await execute_search_for_export(query_state, db.session)
+        return ExportResponse(page=export_records)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except QueryStateNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing export: {str(e)}",
+        )

@@ -50,14 +50,15 @@ async def get_base_instructions() -> str:
 
         Follow these steps in strict order:
 
-        1.  **Set Context**: Always begin by calling `set_search_parameters`.
+        1.  **Set Context**: If the user is asking for a NEW search, call `start_new_search`.
         2.  **Analyze for Filters**: Based on the user's request, decide if specific filters are necessary.
             - **If filters ARE required**, follow these sub-steps:
                 a. **Gather Intel**: Identify all needed field names, then call `discover_filter_paths` and `get_valid_operators` **once each** to get all required information.
                 b. **Construct FilterTree**: Build the `FilterTree` object.
                 c. **Set Filters**: Call `set_filter_tree`.
-        3.  **Execute**: Call `execute_search`. This is done for both filtered and non-filtered searches.
-        4.  **Report**: Answer the users' question directly and summarize when appropiate.
+        3.  **Execute**: Call `run_search`. This is done for both filtered and non-filtered searches.
+
+        After search execution, follow the dynamic instructions based on the current state.
 
         ---
         ### 4. Critical Rules
@@ -73,28 +74,53 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     """Dynamically provides 'next step' coaching based on the current state."""
     state = ctx.deps.state
     param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
+    results_count = state.results_data.total_count if state.results_data else 0
 
-    next_step_guidance = ""
-    if not state.parameters or not state.parameters.get("entity_type"):
+    if state.export_data:
         next_step_guidance = (
-            "INSTRUCTION: The search context is not set. Your next action is to call `set_search_parameters`."
+            "INSTRUCTION: Export has been prepared successfully. "
+            "Simply confirm to the user that the export is ready for download. "
+            "DO NOT include or mention the download URL - the UI will display it automatically."
+        )
+    elif not state.parameters or not state.parameters.get("entity_type"):
+        next_step_guidance = (
+            "INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`."
+        )
+    elif results_count > 0:
+        next_step_guidance = dedent(
+            f"""
+            INSTRUCTION: Search completed successfully.
+            Found {results_count} results containing only: entity_id, title, score.
+
+            Choose your next action based on what the user requested:
+            1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do nothing else.
+            2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
+            3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
+            4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly.
+            """
         )
     else:
         next_step_guidance = (
             "INSTRUCTION: Context is set. Now, analyze the user's request. "
             "If specific filters ARE required, use the information-gathering tools to build a `FilterTree` and call `set_filter_tree`. "
-            "If no specific filters are needed, you can proceed directly to `execute_search`."
+            "If no specific filters are needed, you can proceed directly to `run_search`."
         )
+
     return dedent(
         f"""
         ---
-        ### Current State & Next Action
+        ## CURRENT STATE
 
         **Current Search Parameters:**
         ```json
         {param_state_str}
         ```
 
-        **{next_step_guidance}**
+        **Current Results Count:** {results_count}
+
+        ---
+        ## NEXT ACTION REQUIRED
+
+        {next_step_guidance}
         """
     )

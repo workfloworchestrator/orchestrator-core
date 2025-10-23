@@ -11,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+
 import pytest
 from sqlalchemy import literal, select
 from sqlalchemy.dialects import postgresql
 
 from orchestrator.db import db
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.retrieval.pagination import PaginationParams
+from orchestrator.search.retrieval.pagination import PageCursor
 from orchestrator.search.retrieval.retrievers.fuzzy import FuzzyRetriever
 from orchestrator.search.retrieval.retrievers.hybrid import RrfHybridRetriever, compute_rrf_hybrid_score_sql
 from orchestrator.search.retrieval.retrievers.semantic import SemanticRetriever
@@ -34,8 +36,16 @@ def compile_query_to_sql(query) -> str:
 
 @pytest.fixture
 def candidate_query():
-    """Basic candidate query that returns entity IDs."""
-    return select(AiSearchIndex.entity_id.label("entity_id")).distinct()
+    """Basic candidate query that returns entity IDs and titles."""
+    return select(
+        AiSearchIndex.entity_id.label("entity_id"), AiSearchIndex.entity_title.label("entity_title")
+    ).distinct()
+
+
+@pytest.fixture
+def query_id():
+    """Fixed query_id for pagination tests."""
+    return uuid.uuid4()
 
 
 class TestStructuredRetriever:
@@ -43,18 +53,17 @@ class TestStructuredRetriever:
 
     def test_basic_query_structure(self, candidate_query, request):
         """Test basic structured retrieval query structure."""
-        pagination_params = PaginationParams()
-        retriever = StructuredRetriever(pagination_params)
+        retriever = StructuredRetriever(cursor=None)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
 
         assert_sql_matches_snapshot("StructuredRetriever.test_basic_query_structure", sql, request)
 
-    def test_pagination_structure(self, candidate_query, request):
+    def test_pagination_structure(self, candidate_query, query_id, request):
         """Test pagination adds WHERE clause with correct comparison operator."""
-        pagination_params = PaginationParams(page_after_id="test-id-123")
-        retriever = StructuredRetriever(pagination_params)
+        cursor = PageCursor(score=1.0, id="test-id-123", query_id=query_id)
+        retriever = StructuredRetriever(cursor=cursor)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
@@ -63,8 +72,7 @@ class TestStructuredRetriever:
 
     def test_metadata(self):
         """Test metadata returns correct search type."""
-        pagination_params = PaginationParams()
-        retriever = StructuredRetriever(pagination_params)
+        retriever = StructuredRetriever(cursor=None)
 
         metadata = retriever.metadata
 
@@ -76,18 +84,17 @@ class TestFuzzyRetriever:
 
     def test_basic_query_structure(self, candidate_query, request):
         """Test fuzzy retrieval query structure with all components."""
-        pagination_params = PaginationParams()
-        retriever = FuzzyRetriever("test query", pagination_params)
+        retriever = FuzzyRetriever("test query", cursor=None)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
 
         assert_sql_matches_snapshot("FuzzyRetriever.test_basic_query_structure", sql, request)
 
-    def test_pagination_structure(self, candidate_query, request):
+    def test_pagination_structure(self, candidate_query, query_id, request):
         """Test pagination with score and id adds correct WHERE clause."""
-        pagination_params = PaginationParams(page_after_score=0.85, page_after_id="entity-123")
-        retriever = FuzzyRetriever("test", pagination_params)
+        cursor = PageCursor(score=0.85, id="entity-123", query_id=query_id)
+        retriever = FuzzyRetriever("test", cursor=cursor)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
@@ -96,8 +103,7 @@ class TestFuzzyRetriever:
 
     def test_metadata(self):
         """Test metadata returns correct search type."""
-        pagination_params = PaginationParams()
-        retriever = FuzzyRetriever("test", pagination_params)
+        retriever = FuzzyRetriever("test", cursor=None)
 
         metadata = retriever.metadata
 
@@ -109,20 +115,19 @@ class TestSemanticRetriever:
 
     def test_basic_query_structure(self, candidate_query, request):
         """Test semantic retrieval query structure with all components."""
-        pagination_params = PaginationParams()
         query_vector = [0.1, 0.2, 0.3]
-        retriever = SemanticRetriever(query_vector, pagination_params)
+        retriever = SemanticRetriever(query_vector, cursor=None)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
 
         assert_sql_matches_snapshot("SemanticRetriever.test_basic_query_structure", sql, request)
 
-    def test_pagination_structure(self, candidate_query, request):
+    def test_pagination_structure(self, candidate_query, query_id, request):
         """Test pagination with score and id adds correct WHERE clause."""
-        pagination_params = PaginationParams(page_after_score=0.92, page_after_id="entity-456")
+        cursor = PageCursor(score=0.92, id="entity-456", query_id=query_id)
         query_vector = [0.1, 0.2, 0.3]
-        retriever = SemanticRetriever(query_vector, pagination_params)
+        retriever = SemanticRetriever(query_vector, cursor=cursor)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
@@ -131,9 +136,8 @@ class TestSemanticRetriever:
 
     def test_metadata(self):
         """Test metadata returns correct search type."""
-        pagination_params = PaginationParams()
         query_vector = [0.1, 0.2, 0.3]
-        retriever = SemanticRetriever(query_vector, pagination_params)
+        retriever = SemanticRetriever(query_vector, cursor=None)
 
         metadata = retriever.metadata
 
@@ -145,20 +149,19 @@ class TestRrfHybridRetriever:
 
     def test_basic_query_structure(self, candidate_query, request):
         """Test hybrid RRF query structure with all CTEs."""
-        pagination_params = PaginationParams()
         query_vector = [0.1, 0.2, 0.3]
-        retriever = RrfHybridRetriever(query_vector, "test", pagination_params)
+        retriever = RrfHybridRetriever(query_vector, "test", cursor=None)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
 
         assert_sql_matches_snapshot("RrfHybridRetriever.test_basic_query_structure", sql, request)
 
-    def test_pagination_structure(self, candidate_query, request):
+    def test_pagination_structure(self, candidate_query, query_id, request):
         """Test that pagination adds score and entity_id comparison logic."""
-        pagination_params = PaginationParams(page_after_score=0.95, page_after_id="entity-789")
+        cursor = PageCursor(score=0.95, id="entity-789", query_id=query_id)
         query_vector = [0.1, 0.2, 0.3]
-        retriever = RrfHybridRetriever(query_vector, "test", pagination_params)
+        retriever = RrfHybridRetriever(query_vector, "test", cursor=cursor)
 
         query = retriever.apply(candidate_query)
         sql = compile_query_to_sql(query)
@@ -167,9 +170,8 @@ class TestRrfHybridRetriever:
 
     def test_metadata(self):
         """Test metadata returns correct search type."""
-        pagination_params = PaginationParams()
         query_vector = [0.1, 0.2, 0.3]
-        retriever = RrfHybridRetriever(query_vector, "test", pagination_params)
+        retriever = RrfHybridRetriever(query_vector, "test", cursor=None)
 
         metadata = retriever.metadata
 

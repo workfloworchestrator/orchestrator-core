@@ -17,13 +17,15 @@ import structlog
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import Session
 
+from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import FilterOp, SearchMetadata
 from orchestrator.search.filters import FilterTree, LtreeFilter
 from orchestrator.search.schemas.parameters import BaseSearchParameters
 from orchestrator.search.schemas.results import MatchingField, SearchResponse, SearchResult
 
 from .builder import build_candidate_query
-from .pagination import PaginationParams
+from .pagination import PageCursor
+from .query_state import SearchQueryState
 from .retrievers import Retriever
 from .utils import generate_highlight_indices
 
@@ -74,9 +76,15 @@ def _format_response(
             # Structured search (filter-only)
             matching_field = _extract_matching_field_from_filters(search_params.filters)
 
+        entity_title = row.get("entity_title", "")
+        if not isinstance(entity_title, str):
+            entity_title = str(entity_title) if entity_title is not None else ""
+
         results.append(
             SearchResult(
                 entity_id=str(row.entity_id),
+                entity_type=search_params.entity_type,
+                entity_title=entity_title,
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
                 matching_field=matching_field,
@@ -110,45 +118,80 @@ def _extract_matching_field_from_filters(filters: FilterTree) -> MatchingField |
     return MatchingField(text=text, path=pf.path, highlight_indices=[(0, len(text))])
 
 
-async def execute_search(
+async def _execute_search_internal(
     search_params: BaseSearchParameters,
     db_session: Session,
-    pagination_params: PaginationParams | None = None,
+    limit: int,
+    cursor: PageCursor | None = None,
+    query_embedding: list[float] | None = None,
 ) -> SearchResponse:
-    """Execute a hybrid search and return ranked results.
-
-    Builds a candidate entity query based on the given search parameters,
-    applies the appropriate ranking strategy, and executes the final ranked
-    query to retrieve results.
+    """Internal function to execute search with specified parameters.
 
     Args:
-        search_params (BaseSearchParameters): The search parameters specifying vector, fuzzy, or filter criteria.
-        db_session (Session): The active SQLAlchemy session for executing the query.
-        pagination_params (PaginationParams): Parameters controlling pagination of the search results.
-        limit (int, optional): The maximum number of search results to return, by default 5.
+        search_params: The search parameters specifying vector, fuzzy, or filter criteria.
+        db_session: The active SQLAlchemy session for executing the query.
+        limit: Maximum number of results to return.
+        cursor: Optional pagination cursor.
+        query_embedding: Optional pre-computed query embedding to use instead of generating a new one.
 
     Returns:
-        SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
-        and optional highlight metadata.
-
-    Notes:
-        If no vector query, filters, or fuzzy term are provided, a warning is logged
-        and an empty result set is returned.
+        SearchResponse with results and embedding (for internal use).
     """
-
     if not search_params.vector_query and not search_params.filters and not search_params.fuzzy_term:
         logger.warning("No search criteria provided (vector_query, fuzzy_term, or filters).")
         return SearchResponse(results=[], metadata=SearchMetadata.empty())
 
     candidate_query = build_candidate_query(search_params)
 
-    pagination_params = pagination_params or PaginationParams()
-    retriever = await Retriever.from_params(search_params, pagination_params)
+    if search_params.vector_query and not query_embedding:
+
+        query_embedding = await QueryEmbedder.generate_for_text_async(search_params.vector_query)
+
+    retriever = await Retriever.route(search_params, cursor, query_embedding)
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
     final_stmt = retriever.apply(candidate_query)
-    final_stmt = final_stmt.limit(search_params.limit)
+    final_stmt = final_stmt.limit(limit)
     logger.debug(final_stmt)
     result = db_session.execute(final_stmt).mappings().all()
 
-    return _format_response(result, search_params, retriever.metadata)
+    response = _format_response(result, search_params, retriever.metadata)
+    # Store embedding in response for agent to save to DB
+    response.query_embedding = query_embedding
+    return response
+
+
+async def execute_search(
+    search_params: BaseSearchParameters,
+    db_session: Session,
+    cursor: PageCursor | None = None,
+    query_embedding: list[float] | None = None,
+) -> SearchResponse:
+    """Execute a search and return ranked results."""
+    return await _execute_search_internal(search_params, db_session, search_params.limit, cursor, query_embedding)
+
+
+async def execute_search_for_export(
+    query_state: SearchQueryState,
+    db_session: Session,
+) -> list[dict]:
+    """Execute a search for export and fetch flattened entity data.
+
+    Args:
+        query_state: Query state containing parameters and query_embedding.
+        db_session: The active SQLAlchemy session for executing the query.
+
+    Returns:
+        List of flattened entity records suitable for export.
+    """
+    from orchestrator.search.export import fetch_export_data
+
+    search_response = await _execute_search_internal(
+        search_params=query_state.parameters,
+        db_session=db_session,
+        limit=query_state.parameters.export_limit,
+        query_embedding=query_state.query_embedding,
+    )
+
+    entity_ids = [res.entity_id for res in search_response.results]
+    return fetch_export_data(query_state.parameters.entity_type, entity_ids)

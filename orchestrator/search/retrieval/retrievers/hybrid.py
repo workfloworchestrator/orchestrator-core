@@ -20,7 +20,7 @@ from sqlalchemy.types import TypeEngine
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import SearchMetadata
 
-from ..pagination import PaginationParams
+from ..pagination import PageCursor
 from .base import Retriever
 
 
@@ -127,14 +127,13 @@ class RrfHybridRetriever(Retriever):
         self,
         q_vec: list[float],
         fuzzy_term: str,
-        pagination_params: PaginationParams,
+        cursor: PageCursor | None,
         k: int = 60,
         field_candidates_limit: int = 100,
     ) -> None:
         self.q_vec = q_vec
         self.fuzzy_term = fuzzy_term
-        self.page_after_score = pagination_params.page_after_score
-        self.page_after_id = pagination_params.page_after_id
+        self.cursor = cursor
         self.k = k
         self.field_candidates_limit = field_candidates_limit
 
@@ -154,6 +153,7 @@ class RrfHybridRetriever(Retriever):
         field_candidates = (
             select(
                 AiSearchIndex.entity_id,
+                AiSearchIndex.entity_title,
                 AiSearchIndex.path,
                 AiSearchIndex.value,
                 sem_val,
@@ -178,9 +178,10 @@ class RrfHybridRetriever(Retriever):
         entity_scores = (
             select(
                 field_candidates.c.entity_id,
+                field_candidates.c.entity_title,
                 func.avg(field_candidates.c.semantic_distance).label("avg_semantic_distance"),
                 func.avg(field_candidates.c.fuzzy_score).label("avg_fuzzy_score"),
-            ).group_by(field_candidates.c.entity_id)
+            ).group_by(field_candidates.c.entity_id, field_candidates.c.entity_title)
         ).cte("entity_scores")
 
         entity_highlights = (
@@ -204,6 +205,7 @@ class RrfHybridRetriever(Retriever):
         ranked = (
             select(
                 entity_scores.c.entity_id,
+                entity_scores.c.entity_title,
                 entity_scores.c.avg_semantic_distance,
                 entity_scores.c.avg_fuzzy_score,
                 entity_highlights.c.highlight_text,
@@ -242,6 +244,7 @@ class RrfHybridRetriever(Retriever):
 
         stmt = select(
             ranked.c.entity_id,
+            ranked.c.entity_title,
             score,
             ranked.c.highlight_text,
             ranked.c.highlight_path,
@@ -262,12 +265,12 @@ class RrfHybridRetriever(Retriever):
         entity_id_column: ColumnElement,
     ) -> Select:
         """Keyset paginate by fused score + id."""
-        if self.page_after_score is not None and self.page_after_id is not None:
-            score_param = self._quantize_score_for_pagination(self.page_after_score)
+        if self.cursor is not None:
+            score_param = self._quantize_score_for_pagination(self.cursor.score)
             stmt = stmt.where(
                 or_(
                     score_column < score_param,
-                    and_(score_column == score_param, entity_id_column > self.page_after_id),
+                    and_(score_column == score_param, entity_id_column > self.cursor.id),
                 )
             )
         return stmt
