@@ -42,7 +42,7 @@ class EmbeddingIndexer:
                 max_retries=llm_settings.LLM_MAX_RETRIES,
             )
             data = sorted(resp.data, key=lambda e: e["index"])
-            return [row["embedding"] for row in data]
+            return [row["embedding"] for row in data][: llm_settings.EMBEDDING_DIMENSION]
         except (llm_exc.APIError, llm_exc.APIConnectionError, llm_exc.RateLimitError, llm_exc.Timeout) as e:
             logger.error("Embedding request failed", error=str(e))
             return [[] for _ in texts]
