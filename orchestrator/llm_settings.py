@@ -22,7 +22,7 @@ EMBEDDING_DIMENSION_MIN = 200
 EMBEDDING_DIMENSION_MAX = 2000
 EMBEDDING_DIMENSION_DEFAULT = 1536
 
-EMBEDDING_DIMENSION = Annotated[
+EMBEDDING_DIMENSION_FIELD = Annotated[
     int, Field(ge=EMBEDDING_DIMENSION_MIN, le=EMBEDDING_DIMENSION_MAX, default=EMBEDDING_DIMENSION_DEFAULT)
 ]
 
@@ -38,7 +38,7 @@ class LLMSettings(BaseSettings):
     AGENT_MODEL_VERSION: str = "2025-01-01-preview"
     OPENAI_API_KEY: str = ""  # Change per provider (Azure, etc).
     # Embedding settings
-    EMBEDDING_DIMENSION: EMBEDDING_DIMENSION = 1536
+    EMBEDDING_DIMENSION: EMBEDDING_DIMENSION_FIELD = 1536
     EMBEDDING_MODEL: str = "openai/text-embedding-3-small"  # See litellm docs for supported models.
     EMBEDDING_SAFE_MARGIN_PERCENT: float = Field(
         0.1, description="Safety margin as a percentage (e.g., 0.1 for 10%) for token budgeting.", ge=0, le=1
