@@ -7,12 +7,15 @@ A Task is just a workflow that isn't tied to a specific product.
 Tasks are created in the same way as workflows, but with the `"system"` target, i.e.
 
 ```python
-@workflow("Some task", target=Target.SYSTEM)`
-def some_task() -> State:
-    pass
+@workflow("Some task", target=Target.SYSTEM)
+def some_task() -> StepList:
+    return init >> foo >> done
 ```
 
 Such a workflow will be flagged as a task in the database, and will not have a relation defined connecting it to a specific product.
+
+Note that `@workflow` is a lower-level call than, say, `@create_workflow`.
+So we instead of `return begin >> foo`, we need to use `return init >> foo >> done` to instantiate a `StepList`.
 
 ## The task file
 
@@ -66,35 +69,31 @@ LazyWorkflowInstance(".tasks.nightly_sync", "task_sync_from")
 
 ### The task migration
 
-And also like a workflow, a migration is needed to introduce it to the system. It's a stripped down version of the "subscription" workflow migrations:
+Like other workflows, a task needs to be [registered in the database][registering-workflows]
+in addition to being defined in the code.
+However, instead of `create_workflow`, simply use the `create_task` helper instead.
 
 ```python
-params = dict(
-    name="task_sync_from",
-    target="SYSTEM",
-    description="Nightly validate and NSO sync",
-    is_task=True
-)
+from orchestrator.migrations.helpers import create_task, delete_workflow
 
+new_tasks = [
+    {
+        "name": "task_sync_from",
+        "description": "Nightly validate and NSO sync",
+    }
+]
 
 def upgrade() -> None:
     conn = op.get_bind()
-    conn.execute(
-        sa.text(
-            """
-            INSERT INTO workflows(name, target, description, is_task)
-                VALUES (:name, :target, :description, true)
-            """
-        ),
-        params,
-    )
-    pass
+    for task in new_tasks:
+        create_task(conn, task)
+
+
+def downgrade() -> None:
+    conn = op.get_bind()
+    for task in new_tasks:
+        delete_workflow(conn, task["name"])
 ```
-
-Note that, unlike a normal workflow:
-
-* `is_task` is set to `True`.
-* No relations with other tables are created. (For example, a normal workflow id gets a relation in the products table, etc.)
 
 ### Running the task in the UI
 
@@ -222,3 +221,4 @@ def run_nightly_sync() -> None:
 [OrTrigger]: https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.combining.OrTrigger
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
+[registering-workflows]: ../../../getting-started/workflows#register-workflows

@@ -62,7 +62,7 @@ about implementing on how to change this behaviour.
 
 The orchestrator-core needs to know what workflows a user has defined.
 After creating workflows, you should have
-[registered them](https://workfloworchestrator.org/orchestrator-core/getting-started/workflows/#register-workflows).
+[registered them][registering-workflows].
 For the default threadpool executor, these are exposed to the application by importing them in `main.py`
 to ensure the registration calls are made.
 
@@ -209,18 +209,12 @@ class OrchestratorWorker(Celery):
     def close(self) -> None:
         super().close()
 
-# These could normally live in app_settings
-broker = f"redis://{AppSettings().CACHE_URI}"
-backend = f"rpc://{AppSettings().CACHE_URI}/0"
 
-# TODO How is the default celery backend set up?
 celery = OrchestratorWorker(
-    f"{app_settings.SERVICE_NAME}-worker", broker=broker, include=["orchestrator.services.tasks"]
+    f"{app_settings.SERVICE_NAME}-worker", broker=str(app_settings.CACHE_URI), include=["orchestrator.services.tasks"]
 )
 
 if app_settings.TESTING:
-    #TODO Should this not be the `backend` from above, i.e. rpc://CACHE_URI/0?
-    # Use Redis for ephemeral task result storage under test.
     celery.conf.update(backend=str(app_settings.CACHE_URI), task_ignore_result=False)
 else:
     celery.conf.update(task_ignore_result=True)
@@ -275,3 +269,5 @@ It's created to show the reason why a workflow/task can get stuck on `CREATED` o
 All step statuses are shown in UPPERCASE for clarity.
 
 ![Celery Workflow/Task flow](celery-flow.drawio.png)
+
+[registering-workflows]: ../../../getting-started/workflows#register-workflows
