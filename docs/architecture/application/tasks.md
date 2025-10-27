@@ -152,40 +152,66 @@ To keep things organized and consistent (similar to how workflows are handled), 
 > In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
 > This is no longer required, but ALL_SCHEDULERS is still supported for backwards compatibility.
 
+## The scheduler
 
-## Executing the task
+The scheduler is invoked via `python main.py scheduler`.
+Try `--help` or review the [CLI docs][cli-docs] to learn more.
 
-### Manually / development
+### Manually executing tasks
 
-When doing development, it is possible to manually make the scheduler run your task even if your Orchestrator instance is not in "scheduler mode." Shell into your running instance and run the following:
+When doing development, it is possible to manually make the scheduler run your task even if your Orchestrator instance is not in "scheduler mode."
+
+Shell into your running instance and run the following:
 
 ```shell
 docker exec -it backend /bin/bash
-./bin/scheduling force run_nightly_sync
+python main.py scheduler force run_nightly_sync
 ```
 
-Where `run_nightly_sync` is the name defined in the schedule file - not the name of the task.
+...where `run_nightly_sync` is the job defined in the schedule file - not the name of the task.
 This doesn't depend on the UI being up, and you can get the logging output.
 
-### Scheduled execution
+### Starting the scheduler
 
-The scheduler is a separate process - it isn't just a feature in the backend that gets toggled on. It is possible to run them both in a single container. It's a matter of modifying the Dockerfile to use a wrapper script to start the backend (which also runs the migrations) and then invoking the scheduler.
+The scheduler runs as a separate process - it isn't just a feature in the backend that gets toggled on.
+In short, the scheduler is started by calling `python main.py scheduler run`.
+The scheduler will then run the jobs as they have been scheduled in the schedule files - and they will also be available to be run manually on an ad hoc basis in the UI.
 
+When running Orchestrator in Docker, you can run the scheduler in its own container,
+or you can fork it from the main process of your backend in a pinch.
+
+The first option can be accomplished by re-using your Orchestrator image with a new entrypoint and command:
 ```docker
-EXPOSE 8080
-USER www-data:www-data
-CMD /usr/src/app/bin/server
-# Comment out the previous command and uncomment the
-# following lines to build a version that runs the
-# backend and scheduler in the same container.
-# (These are all generated when initializing your repository.)
-# COPY ./bin/server ./bin/server
-# COPY ./bin/scheduling ./bin/scheduling
-# COPY ./bin/wrapper ./bin/wrapper
-# CMD /usr/src/app/bin/wrapper
+# Dockerfile for scheduler image
+FROM your-orchestrator
+ENTRYPOINT ["python", "main.py"]
+CMD ["scheduler", "run"]
 ```
 
-The scheduler will then run the jobs as they have been scheduled in the schedule files - and they will also be available to be run manually on an ad hoc basis in the UI.
+For the second option: suppose you start your app with a script, `bin/server`, that handles your migrations, kicks off uvicorn, etc.
+You can then replace your backend's Docker entrypoint with a script like this, `bin/wrapper`:
+
+```sh
+#!/bin/sh
+# bin/wrapper
+
+# Start the scheduler.
+python main.py scheduler run &
+status=$?
+if [ $status -ne 0 ]; then
+  echo "Failed to start scheduler: $status"
+  exit $status
+fi
+
+# Start the server backend process in the background.
+/usr/src/app/bin/server
+status=$?
+if [ $status -ne 0 ]; then
+  echo "Failed to start backend: $status"
+  exit $status
+fi
+```
+
 
 ## Developer notes
 
@@ -222,3 +248,4 @@ def run_nightly_sync() -> None:
 [APScheduler scheduling docs]: https://apscheduler.readthedocs.io/en/master/userguide.html#scheduling-tasks
 [trigger docs]: https://apscheduler.readthedocs.io/en/master/api.html#triggers
 [registering-workflows]: ../../../getting-started/workflows#register-workflows
+[cli-docs]: ../../../reference-docs/cli/#orchestrator.cli.scheduler.show_schedule
