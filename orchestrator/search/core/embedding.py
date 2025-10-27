@@ -67,7 +67,7 @@ class QueryEmbedder:
                 timeout=5.0,
                 max_retries=0,  # No retries, prioritize speed.
             )
-            return resp.data[0]["embedding"]
+            return resp.data[0]["embedding"][: llm_settings.EMBEDDING_DIMENSION]
         except Exception as e:
             logger.error("Async embedding generation failed", error=str(e))
             return []
