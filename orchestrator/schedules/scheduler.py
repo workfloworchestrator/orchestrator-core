@@ -17,16 +17,16 @@ from datetime import datetime
 from typing import Any, Generator
 
 from apscheduler.executors.pool import ThreadPoolExecutor
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.jobstores.sqlalchemy import Job, SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from more_itertools import partition
 from pydantic import BaseModel
 
+from orchestrator.db import db
 from orchestrator.db.filters import Filter
 from orchestrator.db.filters.filters import CallableErrorHandler
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.sorting import SortOrder
-from orchestrator.settings import app_settings
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 
 executors = {
@@ -40,18 +40,37 @@ scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 
 
 @contextmanager
-def get_paused_scheduler() -> Generator[BackgroundScheduler, Any, None]:
+def get_scheduler_store() -> Generator[SQLAlchemyJobStore, Any, None]:
+    store = SQLAlchemyJobStore(engine=db.engine)
     try:
-        scheduler.add_jobstore(SQLAlchemyJobStore(url=str(app_settings.DATABASE_URI)))
-    except ValueError:
-        pass
-    scheduler.start(paused=True)
-
-    try:
-        yield scheduler
+        yield store
     finally:
-        scheduler.shutdown()
-        scheduler._jobstores["default"].engine.dispose()
+        store.shutdown()
+
+
+def get_all_scheduler_tasks() -> list[Job]:
+    with get_scheduler_store() as scheduler_store:
+        return scheduler_store.get_all_jobs()
+
+
+def get_scheduler_task(job_id: str) -> Job | None:
+    with get_scheduler_store() as scheduler_store:
+        return scheduler_store.lookup_job(job_id)
+
+
+@contextmanager
+def get_scheduler(paused: bool = False) -> Generator[BackgroundScheduler, Any, None]:
+    with get_scheduler_store() as store:
+        try:
+            scheduler.add_jobstore(store)
+        except ValueError:
+            pass
+        scheduler.start(paused=paused)
+
+        try:
+            yield scheduler
+        finally:
+            scheduler.shutdown()
 
 
 class ScheduledTask(BaseModel):
@@ -149,9 +168,7 @@ def get_scheduler_tasks(
     sort_by: list[Sort] | None = None,
     error_handler: CallableErrorHandler = default_error_handler,
 ) -> tuple[list[ScheduledTask], int]:
-    with get_paused_scheduler() as pauzed_scheduler:
-        scheduled_tasks = pauzed_scheduler.get_jobs()
-
+    scheduled_tasks = get_all_scheduler_tasks()
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
 
