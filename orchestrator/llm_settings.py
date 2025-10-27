@@ -23,7 +23,13 @@ EMBEDDING_DIMENSION_MAX = 2000
 EMBEDDING_DIMENSION_DEFAULT = 1536
 
 EMBEDDING_DIMENSION_FIELD = Annotated[
-    int, Field(ge=EMBEDDING_DIMENSION_MIN, le=EMBEDDING_DIMENSION_MAX, default=EMBEDDING_DIMENSION_DEFAULT)
+    int,
+    Field(
+        ge=EMBEDDING_DIMENSION_MIN,
+        le=EMBEDDING_DIMENSION_MAX,
+        default=EMBEDDING_DIMENSION_DEFAULT,
+        description="Embedding dimension: when embeddings are generated at a higher resolution than this setting, the least significant numbers will be truncated",
+    ),
 ]
 
 
