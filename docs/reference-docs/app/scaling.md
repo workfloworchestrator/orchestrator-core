@@ -229,7 +229,7 @@ For example:
 Start the orchestrator api:
 
 ```bash
-EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 Notice that we are setting `EXECUTOR` to `celery`. Without that variable the api resorts to the default threadpool.
