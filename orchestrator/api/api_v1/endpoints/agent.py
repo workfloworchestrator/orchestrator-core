@@ -20,7 +20,6 @@ from pydantic_ai.agent import Agent
 from starlette.responses import Response
 from structlog import get_logger
 
-from orchestrator.llm_settings import llm_settings
 from orchestrator.search.agent import build_agent_instance
 from orchestrator.search.agent.state import SearchState
 
@@ -29,12 +28,12 @@ logger = get_logger(__name__)
 
 
 @cache
-def get_agent() -> Agent[StateDeps[SearchState], str]:
+def get_agent(request: Request) -> Agent[StateDeps[SearchState], str]:
     """Dependency to provide the agent instance.
 
     The agent is built once and cached for the lifetime of the application.
     """
-    return build_agent_instance(llm_settings.AGENT_MODEL)
+    return build_agent_instance(request.app.agent_model)
 
 
 @router.post("/")

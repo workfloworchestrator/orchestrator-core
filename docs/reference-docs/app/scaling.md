@@ -232,7 +232,7 @@ For example:
 Start the orchestrator API with Celery as the executor:
 
 ```bash
-EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 Start a single worker that listens both on the `tasks` and `workflows` queue (indicated by the `-Q` flag):
