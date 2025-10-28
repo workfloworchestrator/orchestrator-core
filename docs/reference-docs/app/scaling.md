@@ -11,10 +11,9 @@ This document describes the two modes in which an Orchestrator instance can run 
 ## Running workflows or tasks within a threadpool
 
 This is the default configuration. Workflows and tasks are both scheduled by the same threadpool with equal priority.
-If you need to have tasks with a lower priority, you can for example [use a scheduler](orchestrator-core/architecture/application/tasks/#the-schedule-file) and run them during a quiet
-period.
+If you need to have tasks with a lower priority, you can for example [use a scheduler][use-a-scheduler] and run them during a quiet period.
 
-In AppSettings you will notice the default `"threadpool"`, which can be updated to `"celery"`.
+In AppSettings you will notice the default `"threadpool"`, which can be updated to `"celery"` directly or overridden via the `EXECUTOR` environment variable.
 
 ```python
 class AppSettings(BaseSettings):
@@ -27,7 +26,10 @@ class AppSettings(BaseSettings):
 
 ## Running workflows or tasks using a worker
 
-Celery concepts are introduced in its [documentation](https://docs.celeryq.dev/en/stable/getting-started/introduction.html).
+When the orchestrator-core's process executor is specified as `"celery"`, the FastAPI
+application registers Celery-specific task functions, and `start_process` and `resume_process` now defer to the Celery task queue.
+
+For those new to Celery, we recommend [the Celery introduction][celery-intro].
 
 When using Celery, the Orchestrator is split into two parts:
 
@@ -43,20 +45,86 @@ The orchestrator-worker has additional dependencies which can be installed with 
 pip install orchestrator-core[celery]
 ```
 
-TODO link to notes on how many instances to run of each
+Celery's task queue enables features like nightly validations by providing a task queue and workers to execute
+workflows that are all started in parallel, which would crash a single-threaded orchestrator-core.
+
+The application flow looks like this when `EXECUTOR = "celery"` and websockets are enabled:
+
+- FastAPI application validates form input and places a task on Celery queue (`tasks.new_workflow`)
+    - If websockets are enabled, a connection should exist already between the client and backend.
+- FastAPI application begins watching Redis pubsub channel for process updates from Celery.
+- Celery worker picks up task from queue and begins executing.
+- On each step completion, it publishes state information to the Redis pubsub channel.
+- FastAPI application grabs this information and publishes it to the client websocket connection.
+
+By default, [Redis](https://redis.io/) is used for the Celery broker and backend, but these [can be overridden][celery-backends-and-brokers].
+
+### Invoking Celery
+
+A Celery worker must start by calling your worker module instead of `main.py`, like so:
+
+```sh
+celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
+```
+
+* `-A` points to this module where the worker class is defined
+* `-E` sends task-related events (capturable and monitorable)
+* `-l` is the short flag for `--loglevel`
+* `-Q` specifies the queues which the worker should watch for new tasks
 
 ### Queues
 
-Tasks and workflows are submitted on different queues. This allows for independent scaling of
-workers that handle low priority tasks and high priority tasks simply by letting the workers listen
-to different queues. Currently, there are two queues defined:
+Tasks and workflows are submitted on different queues:
 
-- workflows: starting or resuming workflows
-- tasks: starting or resuming tasks
+- `tasks`: starting or resuming tasks
+- `workflows`: starting or resuming workflows
 
-By default, [Redis](https://redis.io/) is used for the Celery Broker and Backend. See the next chapter
-about implementing on how to change this behaviour.
+This allows for independent scaling of workers that handle low priority tasks and high priority workflows simply by letting the workers listen to different queues.
+For example, a user starting a CREATE workflow expects timely resolution, and shouldn't have to wait for a scheduled validation to complete in order to start their workflow.
 
+`"orchestrator.services.tasks"` is the namespace in orchestrator-core where the Celery tasks (i.e. Celery jobs, not Orchestrator tasks) can be found.
+At the moment 4 Celery tasks are defined:
+
+1. `tasks.new_task`: start a new task (delivered on the Task queue)
+2. `tasks.new_workflow`: start a new workflow (delivered on the Workflow queue)
+3. `tasks.resume_task`: resume an existing task (delivered on the Task queue)
+4. `tasks.resume_workflow`: resume an existing workflow (delivered on the Workflow queue)
+
+To handle the Tasks and Workflows queues independently, use the `-Q` option described above.
+That is, kick off one worker with
+
+```sh
+celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks
+```
+
+and the other with
+
+```sh
+celery -A your_orch.celery_worker worker -E -l INFO -Q new_workflows,resume_workflows
+```
+
+The queues are defined in the Celery config in `services/tasks.py`:
+
+```python
+celery.conf.task_routes = {
+    NEW_TASK: {"queue": "tasks"},
+    NEW_WORKFLOW: {"queue": "workflows"},
+    RESUME_TASK: {"queue": "tasks"},
+    RESUME_WORKFLOW: {"queue": "workflows"},
+}
+```
+
+If you decide to override the queue names in this configuration, you must also update the names accordingly after the `-Q` flag.
+
+### Worker Count
+
+How many workers one needs for each queue depends on the number of subscriptions they have, what resources (mostly RAM) they have available, and how demanding their workflows/tasks are on external systems.
+
+Advanced deployments can involve auto-scaling the number of workers.
+For example, SURF runs 1 worker per queue by default.
+As the queue grows or shrinks, Kubernetes will add or remove worker instances, up to a cap of 12.
+To accomplish this, Kubernetes is given monitoring access to Celery metrics.
+This provides sufficient throughput for intensive scenarios like "validating all subscriptions."
 
 ### Implementing the worker
 
@@ -65,96 +133,21 @@ After creating workflows, you should have
 [registered them][registering-workflows].
 For the default threadpool executor, these are exposed to the application by importing them in `main.py`
 to ensure the registration calls are made.
-
 When using the celery executor, you'll need to do this again for the worker instance(s) to run those registrations.
-Here is an example of how this is done at SURF.
-First, we define our own class derived from the Celery base class in a file called `celery-worker.py`:
 
-```python
-class OrchestratorCelery(Celery):
-    def on_init(self) -> None:
-        from orchestrator import OrchestratorCore
-
-        app = OrchestratorCore(base_settings=AppSettings())
-        init_app(app)  # This will load the workflows
-```
-
-The `init_app` function should be replaced by whatever code you need to load your workflows.
-
-Next we instantiate Celery using our own `OrchestratorCelery` class:
-
-```python
-broker = f"redis://{AppSettings().CACHE_URI}"
-backend = f"rpc://{AppSettings().CACHE_URI}/0"
-
-celery = OrchestratorCelery(
-    "proj", broker=broker, backend=backend, include=["orchestrator.services.tasks"]
-)
-
-celery.conf.update(result_expires=3600)
-```
-
-As you can see in the code above, we are using Redis as a broker. You can of course replace this by RabbitMQ or
-another broker of your choice. See the Celery documentation for more details.
-
-`"orchestrator.services.tasks" ` is the namespace in orchestrator-core where the Celery tasks can be found. At the
-moment 4 tasks are defined:
-
-1. `tasks.new_task`: start a new task (delivered on the Task queue)
-2. `tasks.new_workflow`: start a new workflow (delivered on the Workflow queue)
-3. `tasks.resume_task`: resume an existing task (delivered on the Task queue)
-4. `tasks.resume_workflow`: resume an existing workflow (delivered on the Workflow queue)
-
-
-Finally, we initialise the orchestrator core:
-
-```python
-def init_celery() -> None:
-    from orchestrator.services.tasks import initialise_celery
-
-    initialise_celery(celery)
-
-
-# Needed if we load this as a Celery worker because in that case, the application is not started with a user-specified top-level `__main__` module
-init_celery()
-```
-
-In summary, this code has directed orchestrator-core to use our local Celery instance,
-and ensured the instance of orchestrator-core running in the Celery worker can find our workflows.
-(Otherwise, it would only be aware of a limited set of workflows that part of orchestrator-core itself.)
-
-### An example implementation
-
-When using Celery and Websockets you can use the following example and change it to your needs.
+Below is an example implementation of a Celery worker with Websocket support, which can be updated to your project's needs.
 
 ```python
 """This module contains functions and classes necessary for celery worker processes.
-
-When the orchestrator-core's thread process executor is specified as "celery", the `OrchestratorCore` FastAPI
-application registers celery-specific task functions and `start_process` and `resume_process` now defer to the
-celery task queue.
-
-Celery's task queue enables features like nightly validations by providing a task queue and workers to execute
-workflows that are all started in parallel, which would crash a single-threaded orchestrator-core.
 
 The application flow looks like this when EXECUTOR = "celery" (and websockets are enabled):
 
 - FastAPI application validates form input, and places a task on celery queue (create new process).
   - If websockets are enabled, a connection should exist already b/t the client and backend.
-- FastAPI application begins watching redis pubsub channel for process updates from celery.
+- FastAPI application begins watching Redis pubsub channel for process updates from celery.
 - Celery worker picks up task from queue and begins executing.
-- On each step completion, it publishes state information to redis pubsub channel.
+- On each step completion, it publishes state information to Redis pubsub channel.
 - FastAPI application grabs this information and publishes it to the client websocket connection.
-
-A celery worker container will start by calling this module instead of `main.py` like so:
-    celery -A your_orch.celery_worker worker -E -l INFO -Q new_tasks,resume_tasks,new_workflows,resume_workflows
-
-* `-A` points to this module where the worker class is defined
-* `-E` sends task-related events (capturable and monitorable)
-* `-l` is the short flag for --loglevel
-* `-Q` specifies the queues which the worker should watch for new tasks
-
-See https://workfloworchestrator.org/orchestrator-core/reference-docs/app/scaling for more information.
 """
 
 from uuid import UUID
@@ -170,6 +163,11 @@ from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflows import ALL_WORKFLOWS
 from structlog import get_logger
 
+# Substitute your_orch with your org's Orchestrator instance.
+# class AppSettings(OrchSettings):
+#     ...
+#
+# app_settings = AppSettings()
 from your_orch.settings import app_settings
 
 
@@ -196,15 +194,10 @@ class OrchestratorWorker(Celery):
         self.websocket_manager = init_websocket_manager(app_settings)
         self.process_broadcast_fn = process_broadcast_fn
 
-        # Load the products and load the workflows
-        import your_orch.products  # noqa: F401  Side-effects
-        import your_orch.workflows  # noqa: F401  Side-effects
+        # Load the product and workflow modules to register them with the application
+        import your_orch.products
+        import your_orch.workflows
 
-        logger.info(
-            "Loaded the workflows and products",
-            workflows=len(ALL_WORKFLOWS.values()),
-            products=len(SUBSCRIPTION_MODEL_REGISTRY.values()),
-        )
 
     def close(self) -> None:
         super().close()
@@ -227,18 +220,20 @@ celery.conf.update(
 )
 ```
 
+As you can see in the code above, we are using Redis as a broker.
+You can of course replace this by RabbitMQ or another broker of your choice.
+See the Celery documentation for more details.
+
 ### Running locally
 
 If you want to test your application locally you have to start both the orchestrator-api and one or more workers.
 For example:
 
-Start the orchestrator api:
+Start the orchestrator API with Celery as the executor:
 
 ```bash
 EXECUTOR="celery" uvicorn --reload --host 127.0.0.1 --port 8080 main:app
 ```
-
-Notice that we are setting `EXECUTOR` to `celery`. Without that variable the api resorts to the default threadpool.
 
 Start a single worker that listens both on the `tasks` and `workflows` queue (indicated by the `-Q` flag):
 
@@ -246,21 +241,8 @@ Start a single worker that listens both on the `tasks` and `workflows` queue (in
 celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workflows,resume_workflows
 ```
 
-Notice that `-A surf.tasks` indicates the module that contains your 'celery.Celery' instance.
+Notice that `-A surf.tasks` indicates the module that contains your `celery.Celery` instance.
 
-The queues are defined in the celery config (see in services/tasks.py):
-
-```python
-celery.conf.task_routes = {
-    NEW_TASK: {"queue": "tasks"},
-    NEW_WORKFLOW: {"queue": "workflows"},
-    RESUME_TASK: {"queue": "tasks"},
-    RESUME_WORKFLOW: {"queue": "workflows"},
-}
-```
-
-If you decide to override the queue names in this configuration, you also have to make sure that you also
-update the names accordingly after the `-Q` flag.
 
 ### Celery Workflow/Task flow
 
@@ -271,3 +253,7 @@ All step statuses are shown in UPPERCASE for clarity.
 ![Celery Workflow/Task flow](celery-flow.drawio.png)
 
 [registering-workflows]: ../../../getting-started/workflows#register-workflows
+
+[use-a-scheduler]: orchestrator-core/architecture/application/tasks/#the-schedule-file
+[celery-intro]: https://docs.celeryq.dev/en/stable/getting-started/introduction.html
+[celery-backends-and-brokers]: https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html
