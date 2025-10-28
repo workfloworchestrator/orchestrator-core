@@ -83,7 +83,7 @@ This allows for independent scaling of workers that handle low priority tasks an
 For example, a user starting a CREATE workflow expects timely resolution, and shouldn't have to wait for a scheduled validation to complete in order to start their workflow.
 
 `"orchestrator.services.tasks"` is the namespace in orchestrator-core where the Celery tasks (i.e. Celery jobs, not Orchestrator tasks) can be found.
-At the moment 4 Celery tasks are defined:
+At the moment, 4 Celery tasks are defined as constants in `services/tasks.py`:
 
 1. `tasks.new_task`: start a new task (delivered on the Task queue)
 2. `tasks.new_workflow`: start a new workflow (delivered on the Workflow queue)
@@ -107,24 +107,20 @@ The queues are defined in the Celery config in `services/tasks.py`:
 
 ```python
 celery.conf.task_routes = {
-    NEW_TASK: {"queue": "tasks"},
-    NEW_WORKFLOW: {"queue": "workflows"},
-    RESUME_TASK: {"queue": "tasks"},
-    RESUME_WORKFLOW: {"queue": "workflows"},
+    NEW_TASK: {"queue": "new_tasks"},
+    NEW_WORKFLOW: {"queue": "new_workflows"},
+    RESUME_TASK: {"queue": "resume_tasks"},
+    RESUME_WORKFLOW: {"queue": "resume_workflows"},
 }
 ```
 
 If you decide to override the queue names in this configuration, you must also update the names accordingly after the `-Q` flag.
 
-### Worker Count
+### Worker count
 
 How many workers one needs for each queue depends on the number of subscriptions they have, what resources (mostly RAM) they have available, and how demanding their workflows/tasks are on external systems.
 
-Advanced deployments can involve auto-scaling the number of workers.
-For example, SURF runs 1 worker per queue by default.
-As the queue grows or shrinks, Kubernetes will add or remove worker instances, up to a cap of 12.
-To accomplish this, Kubernetes is given monitoring access to Celery metrics.
-This provides sufficient throughput for intensive scenarios like "validating all subscriptions."
+Currently, SURF recommends 1 worker per queue by default. You can then scale those up after observing which queues experience the most contention for your workflows.
 
 ### Implementing the worker
 
@@ -133,7 +129,7 @@ After creating workflows, you should have
 [registered them][registering-workflows].
 For the default threadpool executor, these are exposed to the application by importing them in `main.py`
 to ensure the registration calls are made.
-When using the celery executor, you'll need to do this again for the worker instance(s) to run those registrations.
+When using the Celery executor, you'll need to do this again for the worker instance(s) to run those registrations.
 
 Below is an example implementation of a Celery worker with Websocket support, which can be updated to your project's needs.
 
@@ -244,7 +240,7 @@ celery -A surf.tasks  worker --loglevel=info -Q new_tasks,resume_tasks,new_workf
 Notice that `-A surf.tasks` indicates the module that contains your `celery.Celery` instance.
 
 
-### Celery Workflow/Task flow
+### Celery workflow/task flow
 
 This diagram shows the current flow of how we execute a workflow or task with celery.
 It's created to show the reason why a workflow/task can get stuck on `CREATED` or `RESUMED` and what we've done to fix it.

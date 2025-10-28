@@ -15,7 +15,7 @@ def some_task() -> StepList:
 Such a workflow will be flagged as a task in the database, and will not have a relation defined connecting it to a specific product.
 
 Note that `@workflow` is a lower-level call than, say, `@create_workflow`.
-So we instead of `return begin >> foo`, we need to use `return init >> foo >> done` to instantiate a `StepList`.
+So instead of `return begin >> foo`, we need to use `return init >> foo >> done` to instantiate a `StepList`.
 
 ## The task file
 
