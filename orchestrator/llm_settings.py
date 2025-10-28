@@ -18,7 +18,7 @@ from structlog import get_logger
 
 logger = get_logger(__name__)
 
-EMBEDDING_DIMENSION_MIN = 200
+EMBEDDING_DIMENSION_MIN = 100
 EMBEDDING_DIMENSION_MAX = 2000
 EMBEDDING_DIMENSION_DEFAULT = 1536
 
