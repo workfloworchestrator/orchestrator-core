@@ -146,10 +146,12 @@ The application flow looks like this when EXECUTOR = "celery" (and websockets ar
 - FastAPI application grabs this information and publishes it to the client websocket connection.
 """
 
+from structlog import get_logger
 from uuid import UUID
 
 from celery import Celery
 from celery.signals import worker_shutting_down
+from nwastdlib.debugging import start_debugger
 from orchestrator.db import init_database
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.services.tasks import initialise_celery
@@ -157,7 +159,6 @@ from orchestrator.types import BroadcastFunc
 from orchestrator.websocket import broadcast_process_update_to_websocket, init_websocket_manager
 from orchestrator.websocket.websocket_manager import WebSocketManager
 from orchestrator.workflows import ALL_WORKFLOWS
-from structlog import get_logger
 
 # Substitute your_orch with your org's Orchestrator instance.
 # class AppSettings(OrchSettings):
@@ -183,6 +184,10 @@ class OrchestratorWorker(Celery):
     process_broadcast_fn: BroadcastFunc
 
     def on_init(self) -> None:
+        # Depending on how you gate your debug settings, you can do something like this:
+        # if app_settings.DEBUG:
+        #     start_debugger()
+
         init_database(app_settings)
 
         # Prepare the wrapped_websocket_manager
