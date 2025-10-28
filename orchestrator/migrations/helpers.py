@@ -237,7 +237,7 @@ def create_task(conn: sa.engine.Connection, task: dict) -> None:
             "name": "task_name",
             "description": "task description",
         }
-        >>> create_workflow(conn, task)
+        >>> create_task(conn, task)
     """
     if has_table_column(table_name="workflows", column_name="is_task", conn=conn):
         query = """
