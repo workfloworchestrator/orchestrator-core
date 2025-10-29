@@ -14,17 +14,15 @@
 import structlog
 from sqlalchemy.orm import Session
 
-from sqlalchemy import Select
-
 from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import ActionType, SearchMetadata
-from orchestrator.search.retrieval.pagination import PageCursor
 from orchestrator.search.query.results import (
     AggregationResponse,
     SearchResponse,
     format_aggregation_response,
     format_search_response,
 )
+from orchestrator.search.retrieval.pagination import PageCursor
 
 from .builder import build_aggregation_query, build_candidate_query
 from .models import BaseQuery
@@ -97,10 +95,11 @@ async def execute_search(
     Returns:
         SearchResponse with ranked results
     """
-    assert search_params.action == ActionType.SELECT, (
-        f"execute_search only handles SELECT actions. "
-        f"Got '{search_params.action}'. Use execute_aggregation for COUNT/AGGREGATE."
-    )
+    if search_params.action != ActionType.SELECT:
+        raise ValueError(
+            f"execute_search only handles SELECT actions. "
+            f"Got '{search_params.action}'. Use execute_aggregation for COUNT/AGGREGATE."
+        )
 
     return await _execute_search_internal(search_params, db_session, search_params.limit, cursor, query_embedding)
 

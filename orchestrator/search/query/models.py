@@ -16,7 +16,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from orchestrator.search.aggregations import Aggregation, TemporalGrouping, TemporalPeriod
+from orchestrator.search.aggregations import Aggregation, TemporalGrouping
 from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterTree
 

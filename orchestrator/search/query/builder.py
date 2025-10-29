@@ -15,7 +15,7 @@ from collections import defaultdict
 from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Select, String, cast, case, func, select
+from sqlalchemy import Select, String, case, cast, func, select
 from sqlalchemy.engine import Row
 from sqlalchemy.sql.elements import Label
 from sqlalchemy.sql.selectable import CTE

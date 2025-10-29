@@ -12,13 +12,13 @@
 # limitations under the License.
 
 from uuid import UUID
-import structlog
 
+import structlog
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.search.query.models import QueryTypes, BaseQuery
+from orchestrator.search.query.models import BaseQuery, QueryTypes
 
 logger = structlog.get_logger(__name__)
 

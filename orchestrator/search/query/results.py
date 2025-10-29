@@ -19,8 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine.row import RowMapping
 
 from orchestrator.search.core.types import EntityType, FilterOp, SearchMetadata
-from .models import BaseQuery
 from orchestrator.search.filters import FilterTree
+
+from .models import BaseQuery
 
 
 class MatchingField(BaseModel):
@@ -156,7 +157,6 @@ def format_search_response(
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
         and optional highlight information.
     """
-    from orchestrator.search.filters import FilterTree, LtreeFilter
     from orchestrator.search.retrieval.retrievers import Retriever
 
     if not db_rows:

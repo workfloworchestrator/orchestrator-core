@@ -54,7 +54,8 @@ async def execute_search_with_persistence(
         run_id = agent_run.run_id
         logger.debug("Created new agent run", run_id=str(run_id))
 
-    assert run_id is not None
+    if run_id is None:
+        raise ValueError("run_id should not be None here")
 
     # Execute search
     search_response = await engine.execute_search(params, db_session)
@@ -108,7 +109,8 @@ async def execute_aggregation_with_persistence(
         run_id = agent_run.run_id
         logger.debug("Created new agent run", run_id=str(run_id))
 
-    assert run_id is not None
+    if run_id is None:
+        raise ValueError("run_id should not be None here")
 
     # Execute aggregation
     aggregation_response = await engine.execute_aggregation(params, db_session)
