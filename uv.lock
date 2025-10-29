@@ -1908,7 +1908,6 @@ dependencies = [
     { name = "fastapi-etag" },
     { name = "itsdangerous" },
     { name = "jinja2" },
-    { name = "mkdocs-redirects" },
     { name = "more-itertools" },
     { name = "nwa-stdlib" },
     { name = "oauth2-lib" },
@@ -1998,6 +1997,7 @@ docs = [
     { name = "mkdocs-macros-plugin" },
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-open-in-new-tab" },
+    { name = "mkdocs-redirects" },
     { name = "mkdocs-render-swagger-plugin" },
     { name = "mkdocstrings", extra = ["python"] },
 ]
@@ -2018,7 +2018,6 @@ requires-dist = [
     { name = "jinja2", specifier = "==3.1.6" },
     { name = "litellm", marker = "extra == 'agent'", specifier = ">=1.75.7" },
     { name = "litellm", marker = "extra == 'search'", specifier = ">=1.75.7" },
-    { name = "mkdocs-redirects", specifier = ">=1.2.2" },
     { name = "more-itertools", specifier = "~=10.7.0" },
     { name = "nwa-stdlib", specifier = "~=1.9.2" },
     { name = "oauth2-lib", specifier = "==2.4.2" },
@@ -2096,6 +2095,7 @@ docs = [
     { name = "mkdocs-macros-plugin", specifier = ">=1.3.7" },
     { name = "mkdocs-material", extras = ["imaging"], specifier = ">=9.6.14" },
     { name = "mkdocs-open-in-new-tab", specifier = ">=1.0.8" },
+    { name = "mkdocs-redirects", specifier = ">=1.2.2" },
     { name = "mkdocs-render-swagger-plugin", specifier = ">=0.1.2" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.29.1" },
 ]
