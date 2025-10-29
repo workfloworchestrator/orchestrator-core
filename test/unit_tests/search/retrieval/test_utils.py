@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from orchestrator.search.retrieval.utils import generate_highlight_indices
+from orchestrator.search.query.results import generate_highlight_indices
 
 
 class TestGenerateHighlightIndices:

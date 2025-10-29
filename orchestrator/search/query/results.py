@@ -130,13 +130,11 @@ def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
         word_matches = list(re.finditer(word_boundary_pattern, text, re.IGNORECASE))
         all_matches.extend([(m.start(), m.end()) for m in word_matches])
 
-        # Then find substring matches (case-insensitive)
-        if not word_matches:
-            substring_pattern = re.escape(word)
-            substring_matches = list(re.finditer(substring_pattern, text, re.IGNORECASE))
-            all_matches.extend([(m.start(), m.end()) for m in substring_matches])
+        # Then find all substring matches
+        substring_pattern = re.escape(word)
+        substring_matches = list(re.finditer(substring_pattern, text, re.IGNORECASE))
+        all_matches.extend([(m.start(), m.end()) for m in substring_matches])
 
-    # Sort and deduplicate matches
     return sorted(set(all_matches))
 
 
