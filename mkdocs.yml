@@ -61,6 +61,16 @@ plugins:
                       unwrap_annotated: true
                       docstring_options:
                           trim_doctest_flags: true
+    - redirects:
+        redirect_maps:
+          'architecture/product_modelling/imports.md': 'guides/product-modeling/imports.md'
+          'architecture/product_modelling/backfilling.md': 'guides/product-modeling/backfilling.md'
+          'architecture/application/tasks.md': 'guides/tasks.md'
+          'reference-docs/app/scaling.md': 'guides/scaling.md'
+          'reference-docs/app/pause-and-resume.md': 'guides/pause-and-resume.md'
+          'migration-guide/2.0.md': 'guides/upgrading/2.0.md'
+          'migration-guide/3.0.md': 'guides/upgrading/3.0.md'
+          'migration-guide/4.0.md': 'guides/upgrading/4.0.md'
 copyright: Copyright &copy; 2018 - 2024 Workflow Orchestrator Programme
 extra:
     generator: false
@@ -128,10 +138,8 @@ nav:
                 - Architecture; TL;DR: architecture/tldr.md
                 - Orchestration Philosophy: architecture/orchestration/philosophy.md
                 - Domain Models: architecture/application/domainmodels.md
-                - Internals:
-                      - How do Workflows work?: architecture/application/workflow.md
-                      - What are tasks?: architecture/application/tasks.md
-                - Advanced - Product modelling:
+                - How do Workflows work?: architecture/application/workflow.md
+                - Product modeling:
                       - Introduction: architecture/product_modelling/introduction.md
                       - Standards: architecture/product_modelling/standards.md
                       - Modelling: architecture/product_modelling/modelling.md
@@ -144,19 +152,33 @@ nav:
                             - L2 VPN: architecture/product_modelling/l2_vpn.md
                             - IP Static: architecture/product_modelling/ip_static.md
                       - Product Block Graph: architecture/product_modelling/product_block_graph.md
-                      - Importing Existing Products: architecture/product_modelling/imports.md
-                      - Backfilling Existing Subscriptions: architecture/product_modelling/backfilling.md
-    - Getting Started:
-          - Prerequisites: getting-started/versions.md
-          - Application:
-                - Preparing source folder: getting-started/prepare-source-folder.md
-                - Base application: getting-started/base.md
-                - Agentic application: getting-started/agentic.md
-          - Workflows:
-                - Creating a workflow: getting-started/workflows.md
-                - Registering a workflow: getting-started/workflows#register-workflows
-          - Docker: getting-started/docker.md
-          - Orchestrator UI: getting-started/orchestration-ui.md
+    - Guides:
+          - Getting Started:
+                - Prerequisites: getting-started/versions.md
+                - Application:
+                      - Preparing source folder: getting-started/prepare-source-folder.md
+                      - Base application: getting-started/base.md
+                      - Agentic application: getting-started/agentic.md
+                - Workflows:
+                      - Creating a workflow: getting-started/workflows.md
+                      - Registering a workflow: getting-started/workflows#register-workflows
+                - Docker: getting-started/docker.md
+                - Orchestrator UI: getting-started/orchestration-ui.md
+          - Product Modeling:
+                - Importing Existing Products: guides/product-modeling/imports.md
+                - Backfilling Existing Subscriptions: guides/product-modeling/backfilling.md
+          - Creating Tasks and Schedules: guides/tasks.md
+          - Scaling the Orchestrator: guides/scaling.md
+          - Pausing the Orchestrator: guides/pause-and-resume.md
+          # These would ideally go here:
+          # - Migrations:
+          #       - Subscriptions
+          #       - Workflows
+          #       - Tasks
+          - Upgrade Guides:
+                - 2.x: guides/upgrading/2.0.md
+                - 3.x: guides/upgrading/3.0.md
+                - 4.x: guides/upgrading/4.0.md
     - Reference Documentation:
           - TL;DR: reference-docs/tldr.md
           - API docs:
@@ -186,24 +208,20 @@ nav:
                 - App.py: reference-docs/app/app.md
                 - Agentic App.py: reference-docs/app/agentic-app.md
                 - Python Version: reference-docs/python.md
-                - Scaling: reference-docs/app/scaling.md
                 - Settings: reference-docs/app/settings-overview.md
-                - Pausing the Orchestrator: reference-docs/app/pause-and-resume.md
           # - Tasks:  reference-docs/tasks.md
           # - Tests: reference-docs/tests.md
           - Workflows:
                 - Workflows: reference-docs/workflows/workflows.md
                 - Workflow Steps: reference-docs/workflows/workflow-steps.md
                 - Callback step: reference-docs/workflows/callbacks.md
+                # Recommend a non-guide doc answering "What are tasks?"
+                # - Tasks:
           - Websockets: reference-docs/websockets.md
           - Search: reference-docs/search.md
           - Monitoring:
               - Error Tracking: reference-docs/monitoring/error-tracking.md
               - Metrics: reference-docs/monitoring/metrics.md
-          - Migration guides:
-                - 2.x: migration-guide/2.0.md
-                - 3.x: migration-guide/3.0.md
-                - 4.x: migration-guide/4.0.md
 
     - Workshops:
           # - Beginner:
