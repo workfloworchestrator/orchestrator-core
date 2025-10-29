@@ -41,13 +41,13 @@ class Retriever(ABC):
     ]
 
     @classmethod
-    async def route(
+    def route(
         cls,
-        params: BaseQuery,
+        query: BaseQuery,
         cursor: PageCursor | None,
         query_embedding: list[float] | None = None,
     ) -> "Retriever":
-        """Route to the appropriate retriever instance based on search parameters.
+        """Route to the appropriate retriever instance based on query plan.
 
         Selects the retriever type based on available search criteria:
         - Hybrid: both embedding and fuzzy term available
@@ -56,7 +56,7 @@ class Retriever(ABC):
         - Structured: only filters available
 
         Args:
-            params: Search parameters including vector queries, fuzzy terms, and filters
+            query: Query plan including vector queries, fuzzy terms, and filters
             cursor: Pagination cursor for cursor-based paging
             query_embedding: QueryTypes embedding for semantic search, or None if not available
 
@@ -68,11 +68,11 @@ class Retriever(ABC):
         from .semantic import SemanticRetriever
         from .structured import StructuredRetriever
 
-        fuzzy_term = params.fuzzy_term
+        fuzzy_term = query.fuzzy_term
 
-        # If vector_query exists but embedding generation failed, fall back to fuzzy search with full query
-        if query_embedding is None and params.vector_query is not None and params.query is not None:
-            fuzzy_term = params.query
+        # If vector_query exists but embedding generation failed, fall back to fuzzy search with full query text
+        if query_embedding is None and query.vector_query is not None and query.query_text is not None:
+            fuzzy_term = query.query_text
 
         # Select retriever based on available search criteria
         if query_embedding is not None and fuzzy_term is not None:

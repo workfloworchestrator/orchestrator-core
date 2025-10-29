@@ -42,14 +42,14 @@ logger = structlog.get_logger(__name__)
 
 
 async def _perform_search_and_fetch(
-    search_params: QueryTypes | None = None,
+    query: QueryTypes | None = None,
     cursor: str | None = None,
     query_id: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
     """Execute search with optional pagination.
 
     Args:
-        search_params: Search parameters for new search
+        query: Query plan for new search
         cursor: Pagination cursor (loads saved query state)
         query_id: Saved query ID to retrieve and execute
 
@@ -64,12 +64,12 @@ async def _perform_search_and_fetch(
             query_state = QueryState.load_from_id(page_cursor.query_id)
         elif query_id:
             query_state = QueryState.load_from_id(query_id)
-        elif search_params:
-            query_state = QueryState(parameters=search_params, query_embedding=None)
+        elif query:
+            query_state = QueryState(parameters=query, query_embedding=None)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either search_params, cursor, or query_id must be provided",
+                detail="Either query, cursor, or query_id must be provided",
             )
 
         search_response = await engine.execute_search(
@@ -98,34 +98,34 @@ async def _perform_search_and_fetch(
 
 @router.post("/subscriptions", response_model=SearchResultsSchema[SearchResult])
 async def search_subscriptions(
-    search_params: SubscriptionQuery,
+    query: SubscriptionQuery,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(query, cursor)
 
 
 @router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
 async def search_workflows(
-    search_params: WorkflowQuery,
+    query: WorkflowQuery,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(query, cursor)
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
 async def search_products(
-    search_params: ProductQuery,
+    query: ProductQuery,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(query, cursor)
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
 async def search_processes(
-    search_params: ProcessQuery,
+    query: ProcessQuery,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(query, cursor)
 
 
 @router.get(

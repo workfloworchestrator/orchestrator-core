@@ -41,8 +41,8 @@ class BaseQuery(BaseModel):
 
     filters: FilterTree | None = Field(default=None, description="A list of structured filters to apply to the search.")
 
-    query: str | None = Field(
-        default=None, description="Unified search query - will be processed into vector_query and/or fuzzy_term"
+    query_text: str | None = Field(
+        default=None, description="Unified search query text - will be processed into vector_query and/or fuzzy_term"
     )
 
     limit: int = Field(default=10, ge=1, le=MAX_LIMIT, description="Maximum number of search results to return.")
@@ -101,25 +101,25 @@ class BaseQuery(BaseModel):
 
     @property
     def vector_query(self) -> str | None:
-        """Extract vector query from unified query field."""
-        if not self.query:
+        """Extract vector query from unified query text field."""
+        if not self.query_text:
             return None
         try:
-            uuid.UUID(self.query)
+            uuid.UUID(self.query_text)
             return None  # It's a UUID, so disable vector search.
         except ValueError:
-            return self.query
+            return self.query_text
 
     @property
     def fuzzy_term(self) -> str | None:
-        """Extract fuzzy term from unified query field."""
-        if not self.query:
+        """Extract fuzzy term from unified query text field."""
+        if not self.query_text:
             return None
 
-        words = self.query.split()
+        words = self.query_text.split()
         # Only use fuzzy for single words
         # otherwise, trigram operator filters out too much.
-        return self.query if len(words) == 1 else None
+        return self.query_text if len(words) == 1 else None
 
     def get_pivot_fields(self) -> list[str]:
         """Collect all fields that need pivoting from EAV to columns.

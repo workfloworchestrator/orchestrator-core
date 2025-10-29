@@ -45,7 +45,7 @@ class PageCursor(BaseModel):
 def encode_next_page_cursor(
     search_response: SearchResponse,
     cursor: PageCursor | None,
-    search_params: QueryTypes,
+    query: QueryTypes,
 ) -> str | None:
     """Create next page cursor if there are more results.
 
@@ -55,20 +55,20 @@ def encode_next_page_cursor(
     Args:
         search_response: SearchResponse containing results and query_embedding
         cursor: Current page cursor (None for first page, PageCursor for subsequent pages)
-        search_params: Search parameters to save for pagination consistency
+        query: Query plan to save for pagination consistency
 
     Returns:
         Encoded cursor for next page, or None if no more results
     """
     from orchestrator.search.query.state import QueryState
 
-    has_next_page = len(search_response.results) == search_params.limit and search_params.limit > 0
+    has_next_page = len(search_response.results) == query.limit and query.limit > 0
     if not has_next_page:
         return None
 
     # If this is the first page, save query state to database
     if cursor is None:
-        query_state = QueryState(parameters=search_params, query_embedding=search_response.query_embedding)
+        query_state = QueryState(parameters=query, query_embedding=search_response.query_embedding)
         search_query = SearchQueryTable.from_state(state=query_state)
 
         db.session.add(search_query)

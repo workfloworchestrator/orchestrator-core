@@ -31,14 +31,14 @@ logger = structlog.get_logger(__name__)
 
 
 async def execute_search_with_persistence(
-    params: QueryTypes,
+    query: QueryTypes,
     db_session: WrappedSession,
     run_id: UUID | None,
 ) -> tuple[SearchResponse, UUID, UUID]:
     """Execute search, persist to DB, return response and IDs.
 
     Args:
-        params: Search parameters
+        query: Query plan
         db_session: Database session
         run_id: Existing run ID or None to create new one
 
@@ -58,11 +58,11 @@ async def execute_search_with_persistence(
         raise ValueError("run_id should not be None here")
 
     # Execute search
-    search_response = await engine.execute_search(params, db_session)
+    search_response = await engine.execute_search(query, db_session)
 
     # Save to database
     query_embedding = search_response.query_embedding
-    query_state = QueryState(parameters=params, query_embedding=query_embedding)
+    query_state = QueryState(parameters=query, query_embedding=query_embedding)
     query_number = db_session.query(SearchQueryTable).filter_by(run_id=run_id).count() + 1
     search_query = SearchQueryTable.from_state(
         state=query_state,
@@ -86,14 +86,14 @@ async def execute_search_with_persistence(
 
 
 async def execute_aggregation_with_persistence(
-    params: QueryTypes,
+    query: QueryTypes,
     db_session: WrappedSession,
     run_id: UUID | None,
 ) -> tuple[AggregationResponse, UUID, UUID]:
     """Execute aggregation, persist to DB, return response and IDs.
 
     Args:
-        params: Aggregation parameters
+        query: Query plan
         db_session: Database session
         run_id: Existing run ID or None to create new one
 
@@ -113,10 +113,10 @@ async def execute_aggregation_with_persistence(
         raise ValueError("run_id should not be None here")
 
     # Execute aggregation
-    aggregation_response = await engine.execute_aggregation(params, db_session)
+    aggregation_response = await engine.execute_aggregation(query, db_session)
 
     # Save to database
-    query_state = QueryState(parameters=params, query_embedding=None)
+    query_state = QueryState(parameters=query, query_embedding=None)
     query_number = db_session.query(SearchQueryTable).filter_by(run_id=run_id).count() + 1
     search_query = SearchQueryTable.from_state(
         state=query_state,

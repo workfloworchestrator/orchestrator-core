@@ -27,9 +27,7 @@ from orchestrator.search.query.results import SearchResult
 logger = structlog.get_logger(__name__)
 
 
-def display_filtered_paths_only(
-    results: list[SearchResult], search_params: BaseQuery, db_session: WrappedSession
-) -> None:
+def display_filtered_paths_only(results: list[SearchResult], query: BaseQuery, db_session: WrappedSession) -> None:
     """Display only the paths that were searched for in the results."""
     if not results:
         logger.info("No results found.")
@@ -37,7 +35,7 @@ def display_filtered_paths_only(
 
     logger.info("--- Search Results ---")
 
-    searched_paths = search_params.filters.get_all_paths() if search_params.filters else []
+    searched_paths = query.filters.get_all_paths() if query.filters else []
     if not searched_paths:
         return
 

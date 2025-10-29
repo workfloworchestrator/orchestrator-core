@@ -197,7 +197,7 @@ async def run_aggregation(
         "Executing aggregation",
         search_entity_type=params.entity_type.value,
         has_filters=params.filters is not None,
-        query=params.query,
+        query_text=params.query_text,
         action=params.action,
     )
 

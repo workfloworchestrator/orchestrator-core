@@ -73,14 +73,14 @@ class AggregationResponse(BaseModel):
 def format_aggregation_response(
     result_rows: Sequence[RowMapping],
     group_column_names: list[str],
-    params: BaseQuery,
+    query: BaseQuery,
 ) -> AggregationResponse:
     """Format raw aggregation query results into AggregationResponse.
 
     Args:
         result_rows: Raw database result rows
         group_column_names: List of column names that are grouping columns
-        params: Query parameters for metadata
+        query: Query plan for metadata
 
     Returns:
         AggregationResponse with formatted results and metadata
@@ -104,7 +104,7 @@ def format_aggregation_response(
 
     metadata = SearchMetadata(
         search_type="aggregation",
-        description=f"Aggregation query with {len(params.group_by or [])} grouping dimension(s)",
+        description=f"Aggregation query with {len(query.group_by or [])} grouping dimension(s)",
     )
 
     return AggregationResponse(
@@ -139,7 +139,7 @@ def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
 
 
 def format_search_response(
-    db_rows: Sequence[RowMapping], search_params: "BaseQuery", metadata: SearchMetadata
+    db_rows: Sequence[RowMapping], query: "BaseQuery", metadata: SearchMetadata
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
@@ -147,9 +147,9 @@ def format_search_response(
     including highlight metadata if present in the database results.
 
     Args:
-        db_rows (Sequence[RowMapping]): The rows returned from the executed SQLAlchemy query.
-        search_params (BaseQuery): The search parameters, including query text and filters.
-        metadata (SearchMetadata): Metadata about the search execution.
+        db_rows: The rows returned from the executed SQLAlchemy query.
+        query: The query plan, including query text and filters.
+        metadata: Metadata about the search execution.
 
     Returns:
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
@@ -160,7 +160,7 @@ def format_search_response(
     if not db_rows:
         return SearchResponse(results=[], metadata=metadata)
 
-    user_query = search_params.query
+    user_query = query.query_text
 
     results = []
     for row in db_rows:
@@ -179,9 +179,9 @@ def format_search_response(
             highlight_indices = generate_highlight_indices(text, user_query) or None
             matching_field = MatchingField(text=text, path=path, highlight_indices=highlight_indices)
 
-        elif not user_query and search_params.filters and metadata.search_type == "structured":
+        elif not user_query and query.filters and metadata.search_type == "structured":
             # Structured search (filter-only)
-            matching_field = _extract_matching_field_from_filters(search_params.filters)
+            matching_field = _extract_matching_field_from_filters(query.filters)
 
         entity_title = row.get("entity_title", "")
         if not isinstance(entity_title, str):
@@ -190,7 +190,7 @@ def format_search_response(
         results.append(
             SearchResult(
                 entity_id=str(row.entity_id),
-                entity_type=search_params.entity_type,
+                entity_type=query.entity_type,
                 entity_title=entity_title,
                 score=row.score,
                 perfect_match=row.get("perfect_match", 0),
