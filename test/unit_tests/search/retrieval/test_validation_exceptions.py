@@ -25,14 +25,14 @@ from orchestrator.search.filters import (
     PathFilter,
     StringFilter,
 )
-from orchestrator.search.retrieval.exceptions import (
+from orchestrator.search.query.exceptions import (
     EmptyFilterPathError,
     IncompatibleFilterTypeError,
     InvalidEntityPrefixError,
     InvalidLtreePatternError,
     PathNotFoundError,
 )
-from orchestrator.search.retrieval.validation import (
+from orchestrator.search.query.validation import (
     complete_filter_validation,
     is_filter_compatible_with_field_type,
     validate_filter_tree,

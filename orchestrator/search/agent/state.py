@@ -16,7 +16,18 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from orchestrator.search.schemas.results import SearchResult
+from orchestrator.search.query.results import AggregationResult, SearchResult
+
+
+class AggregationResultsData(BaseModel):
+    """Aggregation results data for frontend display and agent context."""
+
+    action: str = "view_aggregation"
+    query_id: str
+    results_url: str
+    total_groups: int
+    message: str
+    results: list[AggregationResult] = []
 
 
 class ExportData(BaseModel):
@@ -44,4 +55,5 @@ class SearchState(BaseModel):
     query_id: UUID | None = None
     parameters: dict[str, Any] | None = None
     results_data: SearchResultsData | None = None
+    aggregation_data: AggregationResultsData | None = None
     export_data: ExportData | None = None

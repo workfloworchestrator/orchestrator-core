@@ -12,8 +12,8 @@ from orchestrator.db import db
 from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.core.validators import is_uuid
-from orchestrator.search.retrieval.engine import execute_search
-from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.search.query import engine
+from orchestrator.search.query.models import BaseQuery
 
 logger = structlog.get_logger(__name__)
 console = Console()
@@ -51,7 +51,7 @@ async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[
 
 
 async def run_single_query(query: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
-    search_params = BaseSearchParameters(entity_type=EntityType.SUBSCRIPTION, query=query, limit=30)
+    search_params = BaseQuery(entity_type=EntityType.SUBSCRIPTION, query=query, limit=30)
 
     query_embedding = None
 
@@ -62,7 +62,7 @@ async def run_single_query(query: str, embedding_lookup: dict[str, list[float]])
 
     with db.session as session:
         start_time = time.perf_counter()
-        response = await execute_search(search_params, session, cursor=None, query_embedding=query_embedding)
+        response = await engine.execute_search(search_params, session, cursor=None, query_embedding=query_embedding)
         end_time = time.perf_counter()
 
         return {

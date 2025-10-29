@@ -13,6 +13,7 @@
 
 """Simple search migration function that runs when SEARCH_ENABLED = True."""
 
+import pydantic_ai
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from structlog import get_logger
@@ -28,7 +29,7 @@ TARGET_DIM = 1536
 
 def run_migration(connection: Connection) -> None:
     """Run LLM migration with ON CONFLICT DO NOTHING pattern."""
-    logger.info("Running LLM migration")
+    logger.info("Running LLM migration", pydantic_ai_version=pydantic_ai.__version__)
 
     try:
         # Test to see if the extenstion exists and then skip the migration; Needed for certain situations where db user

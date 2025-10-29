@@ -18,12 +18,15 @@ from sqlalchemy_utils import Ltree
 from orchestrator.db import db
 from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
+from orchestrator.search.aggregations import AggregationType
 from orchestrator.search.core.types import EntityType, FieldType
 from orchestrator.search.filters import FilterCondition, FilterTree, LtreeFilter, PathFilter
 from orchestrator.search.filters.definitions import operators_for
-from orchestrator.search.retrieval.exceptions import (
+from orchestrator.search.query.exceptions import (
     EmptyFilterPathError,
+    IncompatibleAggregationTypeError,
     IncompatibleFilterTypeError,
+    IncompatibleTemporalGroupingTypeError,
     InvalidEntityPrefixError,
     InvalidLtreePatternError,
     PathNotFoundError,
@@ -150,3 +153,57 @@ async def validate_filter_tree(filters: FilterTree | None, entity_type: EntityTy
         return
     for leaf in filters.get_all_leaves():
         await complete_filter_validation(leaf, entity_type)
+
+
+def validate_aggregation_field(agg_type: AggregationType, field_path: str) -> None:
+    """Validate that an aggregation field exists and is compatible with the aggregation type.
+
+    Note: Only for FieldAggregations (SUM, AVG, MIN, MAX). COUNT does not require field validation.
+
+    Args:
+        agg_type: The aggregation type enum
+        field_path: The field path to validate
+
+    Raises:
+        PathNotFoundError: If the field doesn't exist in the database.
+        IncompatibleAggregationTypeError: If the field type is incompatible with the aggregation type.
+    """
+    # Check if field exists in database
+    field_type_str = validate_filter_path(field_path)
+    if field_type_str is None:
+        raise PathNotFoundError(field_path)
+
+    # Validate field type compatibility with aggregation type
+    if agg_type in (AggregationType.SUM, AggregationType.AVG):
+        if field_type_str not in (FieldType.INTEGER.value, FieldType.FLOAT.value):
+            raise IncompatibleAggregationTypeError(
+                agg_type.value, field_type_str, field_path, [FieldType.INTEGER.value, FieldType.FLOAT.value]
+            )
+    elif agg_type in (AggregationType.MIN, AggregationType.MAX):
+        if field_type_str not in (FieldType.INTEGER.value, FieldType.FLOAT.value, FieldType.DATETIME.value):
+            raise IncompatibleAggregationTypeError(
+                agg_type.value,
+                field_type_str,
+                field_path,
+                [FieldType.INTEGER.value, FieldType.FLOAT.value, FieldType.DATETIME.value],
+            )
+
+
+def validate_temporal_grouping_field(field_path: str) -> None:
+    """Validate that a field exists and is a datetime type for temporal grouping.
+
+    Args:
+        field_path: The field path to validate
+
+    Raises:
+        PathNotFoundError: If the field doesn't exist in the database
+        IncompatibleTemporalGroupingTypeError: If the field is not a datetime type
+    """
+    # Check if field exists in database
+    field_type_str = validate_filter_path(field_path)
+    if field_type_str is None:
+        raise PathNotFoundError(field_path)
+
+    # Validate field type is datetime
+    if field_type_str != FieldType.DATETIME.value:
+        raise IncompatibleTemporalGroupingTypeError(field_path, field_type_str)

@@ -12,35 +12,38 @@
 # limitations under the License.
 
 from uuid import UUID
+import structlog
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.search.schemas.parameters import SearchParameters
+from orchestrator.search.query.models import QueryTypes, BaseQuery
+
+logger = structlog.get_logger(__name__)
 
 
-class SearchQueryState(BaseModel):
-    """State of a search query including parameters and embedding.
+class QueryState(BaseModel):
+    """State of a query including parameters and embedding.
 
-    This model provides a complete snapshot of what was searched and how.
-    Used for both agent and regular API searches.
+    This model provides a complete snapshot of what was queried and how.
+    Used for both agent and regular API queries.
     """
 
-    parameters: SearchParameters = Field(discriminator="entity_type")
+    parameters: QueryTypes = Field(discriminator="entity_type")
     query_embedding: list[float] | None = Field(default=None, description="The embedding vector for semantic search")
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def load_from_id(cls, query_id: UUID | str) -> "SearchQueryState":
+    def load_from_id(cls, query_id: UUID | str) -> "QueryState":
         """Load query state from database by query_id.
 
         Args:
             query_id: UUID or string UUID of the saved query
 
         Returns:
-            SearchQueryState loaded from database
+            QueryState loaded from database
 
         Raises:
             ValueError: If query_id format is invalid
@@ -57,5 +60,15 @@ class SearchQueryState(BaseModel):
         search_query = db.session.query(SearchQueryTable).filter_by(query_id=query_uuid).first()
         if not search_query:
             raise QueryStateNotFoundError(f"Query {query_uuid} not found in database")
+
+        # Clamp limit to valid range to handle legacy queries outside the current limits
+        if "limit" in search_query.parameters and search_query.parameters["limit"] > BaseQuery.MAX_LIMIT:
+            logger.warning(
+                "Loaded query limit exceeds maximum, clamping to MAX_LIMIT",
+                query_id=query_uuid,
+                original_limit=search_query.parameters["limit"],
+                clamped_to=BaseQuery.MAX_LIMIT,
+            )
+            search_query.parameters["limit"] = BaseQuery.MAX_LIMIT
 
         return cls.model_validate(search_query)

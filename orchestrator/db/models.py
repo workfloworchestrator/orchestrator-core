@@ -60,7 +60,7 @@ from orchestrator.utils.datetime import nowtz
 from orchestrator.version import GIT_COMMIT_HASH
 
 if TYPE_CHECKING:
-    from orchestrator.search.retrieval.query_state import SearchQueryState
+    from orchestrator.search.query.state import QueryState
 
 logger = structlog.get_logger(__name__)
 
@@ -707,7 +707,7 @@ class SearchQueryTable(BaseModel):
     )
     query_number = mapped_column(Integer, nullable=False)
 
-    # Search parameters as JSONB (maps to BaseSearchParameters subclasses)
+    # Search parameters as JSONB (maps to BaseQuery subclasses)
     parameters = mapped_column(pg.JSONB, nullable=False)
 
     # Query embedding for semantic search (pgvector)
@@ -726,16 +726,16 @@ class SearchQueryTable(BaseModel):
     @classmethod
     def from_state(
         cls,
-        state: "SearchQueryState",
+        state: "QueryState",
         run_id: "UUID | None" = None,
         query_number: int = 1,
     ) -> "SearchQueryTable":
-        """Create a SearchQueryTable instance from a SearchQueryState.
+        """Create a SearchQueryTable instance from a QueryState.
 
         Args:
             state: The search query state with parameters and embedding
             run_id: Optional agent run ID (NULL for regular API searches)
-            query_number: Query number within the run (default=1)
+            query_number: QueryTypes number within the run (default=1)
 
         Returns:
             SearchQueryTable instance ready to be added to the database.

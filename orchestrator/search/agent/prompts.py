@@ -19,6 +19,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 
 from orchestrator.search.agent.state import SearchState
+from orchestrator.search.core.types import ActionType
 
 logger = structlog.get_logger(__name__)
 
@@ -33,7 +34,6 @@ async def get_base_instructions() -> str:
 
         Your ultimate goal is to **find information** that answers the user's request.
 
-        To do this, you will perform either a broad search or a filtered search.
         For **filtered searches**, your primary method is to **construct a valid `FilterTree` object**.
         To do this correctly, you must infer the exact structure, operators, and nesting rules from the Pydantic schema of the `set_filter_tree` tool itself.
 
@@ -48,15 +48,19 @@ async def get_base_instructions() -> str:
         ---
         ### 3. Execution Workflow
 
-        Follow these steps in strict order:
+        Follow these steps:
 
-        1.  **Set Context**: If the user is asking for a NEW search, call `start_new_search`.
-        2.  **Analyze for Filters**: Based on the user's request, decide if specific filters are necessary.
-            - **If filters ARE required**, follow these sub-steps:
-                a. **Gather Intel**: Identify all needed field names, then call `discover_filter_paths` and `get_valid_operators` **once each** to get all required information.
-                b. **Construct FilterTree**: Build the `FilterTree` object.
-                c. **Set Filters**: Call `set_filter_tree`.
-        3.  **Execute**: Call `run_search`. This is done for both filtered and non-filtered searches.
+        1.  **Set Context**: Call `start_new_search` with appropriate entity_type and action
+        2.  **Set Filters** (if needed): Discover paths, build FilterTree, call `set_filter_tree`
+            - IMPORTANT: Temporal constraints like "in 2025", "in January", "between X and Y" require filters on datetime fields
+            - Filters restrict WHICH records to include; grouping controls HOW to aggregate them
+        3.  **Set Grouping/Aggregations** (for COUNT/AGGREGATE):
+            - For temporal grouping (per month, per year, per day, etc.): Use `set_temporal_grouping`
+            - For regular grouping (by status, by name, etc.): Use `set_grouping`
+            - For aggregations: Use `set_aggregations`
+        4.  **Execute**:
+            - For SELECT action: Call `run_search()`
+            - For COUNT/AGGREGATE actions: Call `run_aggregation()`
 
         After search execution, follow the dynamic instructions based on the current state.
 
@@ -75,6 +79,8 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     state = ctx.deps.state
     param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
     results_count = state.results_data.total_count if state.results_data else 0
+    aggregation_groups = state.aggregation_data.total_groups if state.aggregation_data else 0
+    action = state.parameters.get("action", ActionType.SELECT) if state.parameters else ActionType.SELECT
 
     if state.export_data:
         next_step_guidance = (
@@ -84,7 +90,19 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
         )
     elif not state.parameters or not state.parameters.get("entity_type"):
         next_step_guidance = (
-            "INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`."
+            f"INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`. "
+            f"For counting or aggregation queries, set action='{ActionType.COUNT.value}' or action='{ActionType.AGGREGATE.value}'."
+        )
+    elif aggregation_groups > 0:
+        # Aggregation results available
+        next_step_guidance = dedent(
+            f"""
+            INSTRUCTION: Aggregation completed successfully.
+            Found {aggregation_groups} groups with computed aggregations.
+
+            The aggregation_data contains group_values and aggregations for each group.
+            Answer the user's question using this aggregated data directly.
+            """
         )
     elif results_count > 0:
         next_step_guidance = dedent(
@@ -99,12 +117,27 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
             4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly.
             """
         )
+    elif action in (ActionType.COUNT, ActionType.AGGREGATE):
+        # COUNT or AGGREGATE action but no results yet
+        next_step_guidance = (
+            "INSTRUCTION: Aggregation context is set. "
+            "For temporal queries (per month, per year, over time): call `set_temporal_grouping` with datetime field and period. "
+            "For regular grouping: call `set_grouping` with paths to group by. "
+            f"For {ActionType.AGGREGATE.value.upper()}: call `set_aggregations` with aggregation specs. "
+            "Then call `run_aggregation`."
+        )
     else:
         next_step_guidance = (
             "INSTRUCTION: Context is set. Now, analyze the user's request. "
             "If specific filters ARE required, use the information-gathering tools to build a `FilterTree` and call `set_filter_tree`. "
             "If no specific filters are needed, you can proceed directly to `run_search`."
         )
+
+    status_summary = (
+        f"Results: {results_count}"
+        if results_count > 0
+        else f"Aggregation Groups: {aggregation_groups}" if aggregation_groups > 0 else "No results yet"
+    )
 
     return dedent(
         f"""
@@ -116,7 +149,7 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
         {param_state_str}
         ```
 
-        **Current Results Count:** {results_count}
+        **Status:** {status_summary}
 
         ---
         ## NEXT ACTION REQUIRED

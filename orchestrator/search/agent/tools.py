@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from ag_ui.core import EventType, StateDeltaEvent, StateSnapshotEvent
@@ -26,17 +26,27 @@ from orchestrator.api.api_v1.endpoints.search import (
     get_definitions,
     list_paths,
 )
-from orchestrator.db import AgentRunTable, SearchQueryTable, db
-from orchestrator.search.agent.json_patch import JSONPatchOp
-from orchestrator.search.agent.state import ExportData, SearchResultsData, SearchState
+from orchestrator.db import db
+from orchestrator.search.agent.handlers import (
+    build_state_changes_for_aggregation,
+    build_state_changes_for_search,
+    execute_aggregation_with_persistence,
+    execute_search_with_persistence,
+)
+from orchestrator.search.agent.state import ExportData, SearchState
+from orchestrator.search.agent.validation import require_action
+from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
-from orchestrator.search.export import fetch_export_data
 from orchestrator.search.filters import FilterTree
-from orchestrator.search.retrieval.engine import execute_search
-from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
-from orchestrator.search.retrieval.query_state import SearchQueryState
-from orchestrator.search.retrieval.validation import validate_filter_tree
-from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
+from orchestrator.search.query.export import fetch_export_data
+from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.validation import (
+    validate_aggregation_field,
+    validate_filter_path,
+    validate_filter_tree,
+    validate_temporal_grouping_field,
+)
 from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
@@ -53,27 +63,11 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
     return None
 
 
-def _set_parameters(
-    ctx: RunContext[StateDeps[SearchState]],
-    entity_type: EntityType,
-    action: str | ActionType,
-    query: str,
-    filters: Any | None,
-) -> None:
-    """Internal helper to set parameters."""
-    ctx.deps.state.parameters = {
-        "action": action,
-        "entity_type": entity_type,
-        "filters": filters,
-        "query": query,
-    }
-
-
 @search_toolset.tool
 async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
-    action: str | ActionType = ActionType.SELECT,
+    action: ActionType = ActionType.SELECT,
 ) -> StateSnapshotEvent:
     """Starts a completely new search, clearing all previous state.
 
@@ -94,7 +88,12 @@ async def start_new_search(
     ctx.deps.state.export_data = None
 
     # Set fresh parameters with no filters
-    _set_parameters(ctx, entity_type, action, final_query, None)
+    ctx.deps.state.parameters = {
+        "action": action,
+        "entity_type": entity_type,
+        "filters": None,
+        "query": final_query,
+    }
 
     logger.debug("New search started", parameters=ctx.deps.state.parameters)
 
@@ -108,13 +107,10 @@ async def start_new_search(
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
-) -> StateDeltaEvent:
+) -> StateSnapshotEvent:
     """Replace current filters atomically with a full FilterTree, or clear with None.
 
-    Requirements:
-    - Root/group operators must be 'AND' or 'OR' (uppercase).
-    - Provide either PathFilters or nested groups under `children`.
-    - See the FilterTree schema examples for the exact shape.
+    See FilterTree model for structure, operators, and examples.
     """
     if ctx.deps.state.parameters is None:
         raise ModelRetry("Search parameters are not initialized. Call start_new_search first.")
@@ -133,105 +129,89 @@ async def set_filter_tree(
     except PathNotFoundError as e:
         logger.debug(f"{PathNotFoundError.__name__}: {str(e)}")
         raise ModelRetry(f"{str(e)} Use discover_filter_paths tool to find valid paths.")
-    except FilterValidationError as e:
+    except QueryValidationError as e:
         # ModelRetry will trigger an agent retry, containing the specific validation error.
-        logger.debug(f"Filter validation failed: {str(e)}")
+        logger.debug(f"Query validation failed: {str(e)}")
         raise ModelRetry(str(e))
     except Exception as e:
         logger.error("Unexpected Filter validation exception", error=str(e))
         raise ModelRetry(f"Filter validation failed: {str(e)}. Please check your filter structure and try again.")
 
     filter_data = None if filters is None else filters.model_dump(mode="json", by_alias=True)
-    filters_existed = "filters" in ctx.deps.state.parameters
     ctx.deps.state.parameters["filters"] = filter_data
-    return StateDeltaEvent(
-        type=EventType.STATE_DELTA,
-        delta=[
-            JSONPatchOp.upsert(
-                path="/parameters/filters",
-                value=filter_data,
-                existed=filters_existed,
-            )
-        ],
+
+    # Use snapshot to workaround state persistence issue
+    # TODO: Fix root cause; state tree may be empty on frontend when parameters are being set
+    return StateSnapshotEvent(
+        type=EventType.STATE_SNAPSHOT,
+        snapshot=ctx.deps.state.model_dump(),
     )
 
 
 @search_toolset.tool
+@require_action(ActionType.SELECT)
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
 ) -> StateDeltaEvent:
-    """Execute the search with the current parameters and save to database."""
-    if not ctx.deps.state.parameters:
-        raise ValueError("No search parameters set")
+    """Execute a search to find and rank entities.
 
-    params = BaseSearchParameters.create(**ctx.deps.state.parameters)
+    Use this tool for SELECT action to find entities matching your criteria.
+    For counting or computing statistics, use run_aggregation instead.
+    """
+    # @require_action decorator guarantees parameters is not None
+    params = BaseQuery.create(**cast(dict[str, Any], ctx.deps.state.parameters))
+    params.limit = limit
+
+    # Execute with persistence
+    search_response, run_id, query_id = await execute_search_with_persistence(params, db.session, ctx.deps.state.run_id)
+
+    # Build state changes
+    run_id_existed = ctx.deps.state.run_id is not None
+    query_id_existed = ctx.deps.state.query_id is not None
+
+    ctx.deps.state.run_id = run_id
+    ctx.deps.state.query_id = query_id
+    ctx.deps.state.results_data, changes = build_state_changes_for_search(
+        search_response, query_id, run_id, run_id_existed, query_id_existed
+    )
+
+    return StateDeltaEvent(type=EventType.STATE_DELTA, delta=changes)
+
+
+@search_toolset.tool
+@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+async def run_aggregation(
+    ctx: RunContext[StateDeps[SearchState]],
+) -> StateDeltaEvent:
+    """Execute an aggregation to compute counts or statistics over entities.
+
+    Use this tool for COUNT or AGGREGATE actions after setting up:
+    - Grouping fields with set_grouping or set_temporal_grouping
+    - Aggregation functions with set_aggregations (for AGGREGATE action)
+    """
+    # @require_action decorator guarantees parameters is not None
+    params = BaseQuery.create(**cast(dict[str, Any], ctx.deps.state.parameters))
+
     logger.debug(
-        "Executing database search",
+        "Executing aggregation",
         search_entity_type=params.entity_type.value,
-        limit=limit,
         has_filters=params.filters is not None,
         query=params.query,
         action=params.action,
     )
 
-    if params.filters:
-        logger.debug("Search filters", filters=params.filters)
-
-    params.limit = limit
-
-    changes: list[JSONPatchOp] = []
-
-    if not ctx.deps.state.run_id:
-        agent_run = AgentRunTable(agent_type="search")
-
-        db.session.add(agent_run)
-        db.session.commit()
-        db.session.expire_all()  # Release connection to prevent stacking while agent runs
-
-        ctx.deps.state.run_id = agent_run.run_id
-        logger.debug("Created new agent run", run_id=str(agent_run.run_id))
-        changes.append(JSONPatchOp(op="add", path="/run_id", value=str(ctx.deps.state.run_id)))
-
-    # Get query with embedding and save to DB
-    search_response = await execute_search(params, db.session)
-    query_embedding = search_response.query_embedding
-    query_state = SearchQueryState(parameters=params, query_embedding=query_embedding)
-    query_number = db.session.query(SearchQueryTable).filter_by(run_id=ctx.deps.state.run_id).count() + 1
-    search_query = SearchQueryTable.from_state(
-        state=query_state,
-        run_id=ctx.deps.state.run_id,
-        query_number=query_number,
+    aggregation_response, run_id, query_id = await execute_aggregation_with_persistence(
+        params, db.session, ctx.deps.state.run_id
     )
-    db.session.add(search_query)
-    db.session.commit()
-    db.session.expire_all()
 
+    run_id_existed = ctx.deps.state.run_id is not None
     query_id_existed = ctx.deps.state.query_id is not None
-    ctx.deps.state.query_id = search_query.query_id
-    logger.debug("Saved search query", query_id=str(search_query.query_id), query_number=query_number)
-    changes.append(JSONPatchOp.upsert(path="/query_id", value=str(ctx.deps.state.query_id), existed=query_id_existed))
 
-    logger.debug(
-        "Search completed",
-        total_results=len(search_response.results),
-    )
-
-    # Store results data for both frontend display and agent context
-    results_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}"
-
-    results_data_existed = ctx.deps.state.results_data is not None
-    ctx.deps.state.results_data = SearchResultsData(
-        query_id=str(ctx.deps.state.query_id),
-        results_url=results_url,
-        total_count=len(search_response.results),
-        message=f"Found {len(search_response.results)} results.",
-        results=search_response.results,  # Include actual results in state
-    )
-    changes.append(
-        JSONPatchOp.upsert(
-            path="/results_data", value=ctx.deps.state.results_data.model_dump(), existed=results_data_existed
-        )
+    ctx.deps.state.run_id = run_id
+    ctx.deps.state.query_id = query_id
+    ctx.deps.state.aggregation_data, changes = build_state_changes_for_aggregation(
+        aggregation_response, query_id, run_id, run_id_existed, query_id_existed
     )
 
     return StateDeltaEvent(type=EventType.STATE_DELTA, delta=changes)
@@ -356,23 +336,13 @@ async def fetch_entity_details(
 
 
 @search_toolset.tool
+@require_action(ActionType.SELECT)
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
 ) -> StateSnapshotEvent:
     """Prepares export URL using the last executed search query."""
     if not ctx.deps.state.query_id or not ctx.deps.state.run_id:
         raise ValueError("No search has been executed yet. Run a search first before exporting.")
-
-    if not ctx.deps.state.parameters:
-        raise ValueError("No search parameters found. Run a search first before exporting.")
-
-    # Validate that export is only available for SELECT actions
-    action = ctx.deps.state.parameters.get("action", ActionType.SELECT)
-    if action != ActionType.SELECT:
-        raise ValueError(
-            f"Export is only available for SELECT actions. Current action is '{action}'. "
-            "Please run a SELECT search first."
-        )
 
     logger.debug(
         "Prepared query for export",
@@ -391,6 +361,85 @@ async def prepare_export(
 
     # Should use StateDelta here? Use snapshot to workaround state persistence issue
     # TODO: Fix root cause; state is empty on frontend when it should have data from run_search
+    return StateSnapshotEvent(
+        type=EventType.STATE_SNAPSHOT,
+        snapshot=ctx.deps.state.model_dump(),
+    )
+
+
+@search_toolset.tool(retries=2)
+@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+async def set_grouping(
+    ctx: RunContext[StateDeps[SearchState]],
+    group_by_paths: list[str],
+) -> StateSnapshotEvent:
+    """Set which field paths to group results by for aggregation.
+
+    Only used with COUNT or AGGREGATE actions. Paths must exist in the schema; use discover_filter_paths to verify.
+    """
+    for path in group_by_paths:
+        field_type = validate_filter_path(path)
+        if field_type is None:
+            raise ModelRetry(
+                f"Path '{path}' not found in database schema. "
+                f"Use discover_filter_paths(['{path.split('.')[-1]}']) to find valid paths."
+            )
+
+    ctx.deps.state.parameters["group_by"] = group_by_paths  # type: ignore[index]
+
+    return StateSnapshotEvent(
+        type=EventType.STATE_SNAPSHOT,
+        snapshot=ctx.deps.state.model_dump(),
+    )
+
+
+@search_toolset.tool(retries=2)
+@require_action(ActionType.AGGREGATE)
+async def set_aggregations(
+    ctx: RunContext[StateDeps[SearchState]],
+    aggregations: list[Aggregation],
+) -> StateSnapshotEvent:
+    """Define what aggregations to compute over the matching records.
+
+    Only used with AGGREGATE action. See Aggregation model (CountAggregation, FieldAggregation) for structure and field requirements.
+    """
+
+    # Validate field paths for FieldAggregations
+    try:
+        for agg in aggregations:
+            if isinstance(agg, FieldAggregation):
+                validate_aggregation_field(agg.type, agg.field)
+    except ValueError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+
+    ctx.deps.state.parameters["aggregations"] = [agg.model_dump() for agg in aggregations]  # type: ignore[index]
+
+    return StateSnapshotEvent(
+        type=EventType.STATE_SNAPSHOT,
+        snapshot=ctx.deps.state.model_dump(),
+    )
+
+
+@search_toolset.tool(retries=2)
+@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+async def set_temporal_grouping(
+    ctx: RunContext[StateDeps[SearchState]],
+    temporal_groups: list[TemporalGrouping],
+) -> StateSnapshotEvent:
+    """Set temporal grouping to group datetime fields by time periods.
+
+    Only used with COUNT or AGGREGATE actions. See TemporalGrouping model for structure, periods, and examples.
+    """
+
+    # Validate that fields exist and are datetime types
+    try:
+        for tg in temporal_groups:
+            validate_temporal_grouping_field(tg.field)
+    except ValueError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find datetime fields.")
+
+    ctx.deps.state.parameters["temporal_group_by"] = [tg.model_dump() for tg in temporal_groups]  # type: ignore[index]
+
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
         snapshot=ctx.deps.state.model_dump(),
