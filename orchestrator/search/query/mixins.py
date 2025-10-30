@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 
 from orchestrator.search.aggregations import Aggregation, TemporalGrouping
 
-
 __all__ = [
     "SearchMixin",
     "GroupingMixin",
