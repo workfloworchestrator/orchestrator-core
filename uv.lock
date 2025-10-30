@@ -1826,7 +1826,7 @@ wheels = [
 
 [[package]]
 name = "nwa-stdlib"
-version = "1.9.2"
+version = "1.10.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1837,14 +1837,14 @@ dependencies = [
     { name = "strawberry-graphql" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/1d/d0f4a27012da3e9093a7d9ab672d227407123da429bf35a448f73df4c977/nwa_stdlib-1.9.2.tar.gz", hash = "sha256:1c8a6350301207e7064f64745877eef57c5f0124c2a74b51d27773db20fafe9b", size = 32096 }
+sdist = { url = "https://files.pythonhosted.org/packages/86/9b/8feb4294de1acc2a3ad87d8f9129e28ab48f9af054d3ad8c2d1cc9109b37/nwa_stdlib-1.10.4.tar.gz", hash = "sha256:b18ba7604f82d0046ad1d41d2f33484494fd1a81c32ac3faaeef5ccb4bbe149b", size = 33709, upload-time = "2025-10-29T15:06:59.564Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/0a/9f2de80f58b87d3e124eaff7b6f867428d1e8ba2f0ac40e6e1ab4ceab75e/nwa_stdlib-1.9.2-py3-none-any.whl", hash = "sha256:6a17c1a490d7ebb3064027f1768fe8fadf0be37d4e357094817208f3f9c6501f", size = 27886 },
+    { url = "https://files.pythonhosted.org/packages/2a/78/9a52b8641000ad5fdf7fcf6afcfed0da45d7c13663375bb0f724507ba215/nwa_stdlib-1.10.4-py3-none-any.whl", hash = "sha256:d2df00fa57ee93b0d617f288fd4e39cbef0fefbe2f8256c66803d306ddd24eb5", size = 29020, upload-time = "2025-10-29T15:06:58.401Z" },
 ]
 
 [[package]]
 name = "oauth2-lib"
-version = "2.4.2"
+version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asyncstdlib" },
@@ -1857,9 +1857,9 @@ dependencies = [
     { name = "strawberry-graphql" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/ac/a4c88475d545abecf3a8583738c9603f600dfa321717ad95955b39a01fe4/oauth2_lib-2.4.2.tar.gz", hash = "sha256:a768a825ed64078989f11a98749b50b28c4a38d61fa8a9e0d849390aa5996a8c", size = 31121 }
+sdist = { url = "https://files.pythonhosted.org/packages/68/c1/086d1c41d1722e451ce284d566dfc223d1d47e64776a2f1a4f0d10c37515/oauth2_lib-2.5.0.tar.gz", hash = "sha256:a3ed61043418ebeecc13bb6ead89bdf7f161c9eee29242fb1af2bb292775f07a", size = 31156, upload-time = "2025-10-23T18:37:29.483Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7a/45/b7a435fd589cc0d8161e6c3b6e4ba7c90f5ec5e23daafab149764d18c019/oauth2_lib-2.4.2-py3-none-any.whl", hash = "sha256:e857c217abf6f832eeab48fa625a618b26b2510c24e5dad02743ec7a909bdd0a", size = 18079 },
+    { url = "https://files.pythonhosted.org/packages/33/de/79374aef63020c0e58589b813104ba96023ac3fba64f589f0ceb19fc82bf/oauth2_lib-2.5.0-py3-none-any.whl", hash = "sha256:9987594b2c2b338e3a10f7d47c50d0ec7b05aa7436e03d8e9c3b08cf8c26c86a", size = 18110, upload-time = "2025-10-23T18:37:28.476Z" },
 ]
 
 [[package]]
@@ -2019,8 +2019,8 @@ requires-dist = [
     { name = "litellm", marker = "extra == 'agent'", specifier = ">=1.75.7" },
     { name = "litellm", marker = "extra == 'search'", specifier = ">=1.75.7" },
     { name = "more-itertools", specifier = "~=10.7.0" },
-    { name = "nwa-stdlib", specifier = "~=1.9.2" },
-    { name = "oauth2-lib", specifier = "==2.4.2" },
+    { name = "nwa-stdlib", specifier = "~=1.10.3" },
+    { name = "oauth2-lib", specifier = ">=2.5.0" },
     { name = "orjson", specifier = "==3.10.18" },
     { name = "pgvector", specifier = ">=0.4.1" },
     { name = "prometheus-client", specifier = "==0.22.1" },

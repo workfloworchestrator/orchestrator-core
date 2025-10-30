@@ -235,7 +235,10 @@ def make_workflow(
     return wrapping_function
 
 
-def step(name: str) -> Callable[[StepFunc], Step]:
+def step(
+    name: str,
+    retry_auth_callback: Authorizer | None = None,
+) -> Callable[[StepFunc], Step]:
     """Mark a function as a workflow step."""
 
     def decorator(func: StepFunc) -> Step:
@@ -255,12 +258,19 @@ def step(name: str) -> Callable[[StepFunc], Step]:
                     logger.warning("Step failed", exc_info=ex)
                     return Failed(ex)
 
-        return make_step_function(wrapper, name)
+        return make_step_function(
+            wrapper,
+            name,
+            retry_auth_callback=retry_auth_callback,
+        )
 
     return decorator
 
 
-def retrystep(name: str) -> Callable[[StepFunc], Step]:
+def retrystep(
+    name: str,
+    retry_auth_callback: Authorizer | None = None,
+) -> Callable[[StepFunc], Step]:
     """Mark a function as a retryable workflow step.
 
     If this step fails it goes to `Waiting` were it will be retried periodically. If it `Success` it acts as a normal
@@ -283,7 +293,11 @@ def retrystep(name: str) -> Callable[[StepFunc], Step]:
                 except Exception as ex:
                     return Waiting(ex)
 
-        return make_step_function(wrapper, name)
+        return make_step_function(
+            wrapper,
+            name,
+            retry_auth_callback=retry_auth_callback,
+        )
 
     return decorator
 
@@ -349,7 +363,9 @@ def _extend_step_group_steps(name: str, steps: StepList) -> StepList:
     return enter_step >> steps >> exit_step
 
 
-def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
+def step_group(
+    name: str, steps: StepList, extract_form: bool = True, retry_auth_callback: Authorizer | None = None
+) -> Step:
     """Add a group of steps to the workflow as a single step.
 
     A step group is a sequence of steps that act as a single step.
@@ -362,6 +378,7 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
         name: The name of the step
         steps: The sub steps in the step group
         extract_form: Whether to attach the first form of the sub steps to the step group
+        retry_auth_callback: Callback to determine if user is authorized to retry this group on failure
     """
 
     steps = _extend_step_group_steps(name, steps)
@@ -392,7 +409,7 @@ def step_group(name: str, steps: StepList, extract_form: bool = True) -> Step:
 
     # Make sure we return a form is a sub step has a form
     form = next((sub_step.form for sub_step in steps if sub_step.form), None) if extract_form else None
-    return make_step_function(func, name, form)
+    return make_step_function(func, name, form, retry_auth_callback=retry_auth_callback)
 
 
 def _create_endpoint_step(key: str = DEFAULT_CALLBACK_ROUTE_KEY) -> StepFunc:
