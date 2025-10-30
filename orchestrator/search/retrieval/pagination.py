@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.exceptions import InvalidCursorError
-from orchestrator.search.query.models import QueryTypes
+from orchestrator.search.query.queries import SelectQuery
 from orchestrator.search.query.results import SearchResponse
 
 
@@ -45,7 +45,7 @@ class PageCursor(BaseModel):
 def encode_next_page_cursor(
     search_response: SearchResponse,
     cursor: PageCursor | None,
-    query: QueryTypes,
+    query: SelectQuery,
 ) -> str | None:
     """Create next page cursor if there are more results.
 
@@ -55,7 +55,7 @@ def encode_next_page_cursor(
     Args:
         search_response: SearchResponse containing results and query_embedding
         cursor: Current page cursor (None for first page, PageCursor for subsequent pages)
-        query: Query plan to save for pagination consistency
+        query: SelectQuery for search operation to save for pagination consistency
 
     Returns:
         Encoded cursor for next page, or None if no more results
@@ -68,7 +68,7 @@ def encode_next_page_cursor(
 
     # If this is the first page, save query state to database
     if cursor is None:
-        query_state = QueryState(parameters=query, query_embedding=search_response.query_embedding)
+        query_state = QueryState(query=query, query_embedding=search_response.query_embedding)
         search_query = SearchQueryTable.from_state(state=query_state)
 
         db.session.add(search_query)

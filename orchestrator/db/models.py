@@ -733,9 +733,9 @@ class SearchQueryTable(BaseModel):
         """Create a SearchQueryTable instance from a QueryState.
 
         Args:
-            state: The search query state with parameters and embedding
+            state: QueryState wrapping the query and embedding
             run_id: Optional agent run ID (NULL for regular API searches)
-            query_number: QueryTypes number within the run (default=1)
+            query_number: Query number within the run (default=1)
 
         Returns:
             SearchQueryTable instance ready to be added to the database.
@@ -743,7 +743,7 @@ class SearchQueryTable(BaseModel):
         return cls(
             run_id=run_id,
             query_number=query_number,
-            parameters=state.parameters.model_dump(),
+            parameters=state.query.model_dump(),
             query_embedding=state.query_embedding,
         )
 

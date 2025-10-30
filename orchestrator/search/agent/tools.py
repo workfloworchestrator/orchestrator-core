@@ -40,7 +40,7 @@ from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
 from orchestrator.search.query.export import fetch_export_data
-from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query, SelectQuery
 from orchestrator.search.query.validation import (
     validate_aggregation_field,
     validate_filter_path,
@@ -85,17 +85,27 @@ async def start_new_search(
 
     # Clear all state
     ctx.deps.state.results_data = None
+    ctx.deps.state.aggregation_data = None
     ctx.deps.state.export_data = None
+    ctx.deps.state.action = action
 
-    # Set fresh parameters with no filters
-    ctx.deps.state.parameters = {
-        "action": action,
-        "entity_type": entity_type,
-        "filters": None,
-        "query": final_query,
-    }
+    # Create the appropriate query object based on action
+    if action == ActionType.SELECT:
+        ctx.deps.state.query = SelectQuery(
+            entity_type=entity_type,
+            query_text=final_query,
+        )
+    elif action == ActionType.COUNT:
+        ctx.deps.state.query = CountQuery(
+            entity_type=entity_type,
+        )
+    else:  # ActionType.AGGREGATE
+        ctx.deps.state.query = AggregateQuery(
+            entity_type=entity_type,
+            aggregations=[],  # Will be set by set_aggregations tool
+        )
 
-    logger.debug("New search started", parameters=ctx.deps.state.parameters)
+    logger.debug("New search started", action=action.value, query_type=type(ctx.deps.state.query).__name__)
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -112,10 +122,10 @@ async def set_filter_tree(
 
     See FilterTree model for structure, operators, and examples.
     """
-    if ctx.deps.state.parameters is None:
-        raise ModelRetry("Search parameters are not initialized. Call start_new_search first.")
+    if ctx.deps.state.query is None:
+        raise ModelRetry("Search query is not initialized. Call start_new_search first.")
 
-    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
+    entity_type = ctx.deps.state.query.entity_type
 
     logger.debug(
         "Setting filter tree",
@@ -137,8 +147,7 @@ async def set_filter_tree(
         logger.error("Unexpected Filter validation exception", error=str(e))
         raise ModelRetry(f"Filter validation failed: {str(e)}. Please check your filter structure and try again.")
 
-    filter_data = None if filters is None else filters.model_dump(mode="json", by_alias=True)
-    ctx.deps.state.parameters["filters"] = filter_data
+    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"filters": filters})
 
     # Use snapshot to workaround state persistence issue
     # TODO: Fix root cause; state tree may be empty on frontend when parameters are being set
@@ -159,14 +168,10 @@ async def run_search(
     Use this tool for SELECT action to find entities matching your criteria.
     For counting or computing statistics, use run_aggregation instead.
     """
-    # @require_action decorator guarantees parameters is not None
-    params = BaseQuery.create(**cast(dict[str, Any], ctx.deps.state.parameters))
-    params.limit = limit
+    query = cast(SelectQuery, cast(Query, ctx.deps.state.query).model_copy(update={"limit": limit}))
 
-    # Execute with persistence
-    search_response, run_id, query_id = await execute_search_with_persistence(params, db.session, ctx.deps.state.run_id)
+    search_response, run_id, query_id = await execute_search_with_persistence(query, db.session, ctx.deps.state.run_id)
 
-    # Build state changes
     run_id_existed = ctx.deps.state.run_id is not None
     query_id_existed = ctx.deps.state.query_id is not None
 
@@ -190,19 +195,17 @@ async def run_aggregation(
     - Grouping fields with set_grouping or set_temporal_grouping
     - Aggregation functions with set_aggregations (for AGGREGATE action)
     """
-    # @require_action decorator guarantees parameters is not None
-    params = BaseQuery.create(**cast(dict[str, Any], ctx.deps.state.parameters))
+    query = cast(CountQuery | AggregateQuery, ctx.deps.state.query)
 
     logger.debug(
         "Executing aggregation",
-        search_entity_type=params.entity_type.value,
-        has_filters=params.filters is not None,
-        query_text=params.query_text,
-        action=params.action,
+        search_entity_type=query.entity_type.value,
+        has_filters=query.filters is not None,
+        action=query.action,
     )
 
     aggregation_response, run_id, query_id = await execute_aggregation_with_persistence(
-        params, db.session, ctx.deps.state.run_id
+        query, db.session, ctx.deps.state.run_id
     )
 
     run_id_existed = ctx.deps.state.run_id is not None
@@ -228,10 +231,11 @@ async def discover_filter_paths(
     Returns a dictionary where each key is a field_name from the input list and
     the value is its discovery result.
     """
-    if not entity_type and ctx.deps.state.parameters:
-        entity_type = EntityType(ctx.deps.state.parameters.get("entity_type"))
     if not entity_type:
-        entity_type = EntityType.SUBSCRIPTION
+        if ctx.deps.state.query:
+            entity_type = ctx.deps.state.query.entity_type
+        else:
+            raise ModelRetry("Entity type not specified and no query in state. Call start_new_search first.")
 
     all_results = {}
     for field_name in field_names:
@@ -317,10 +321,10 @@ async def fetch_entity_details(
     if not ctx.deps.state.results_data or not ctx.deps.state.results_data.results:
         raise ValueError("No search results available. Run a search first before fetching entity details.")
 
-    if not ctx.deps.state.parameters:
-        raise ValueError("No search parameters found.")
+    if ctx.deps.state.query is None:
+        raise ValueError("Search query is not initialized.")
 
-    entity_type = EntityType(ctx.deps.state.parameters["entity_type"])
+    entity_type = ctx.deps.state.query.entity_type
 
     entity_ids = [r.entity_id for r in ctx.deps.state.results_data.results[:limit]]
 
@@ -385,7 +389,7 @@ async def set_grouping(
                 f"Use discover_filter_paths(['{path.split('.')[-1]}']) to find valid paths."
             )
 
-    ctx.deps.state.parameters["group_by"] = group_by_paths  # type: ignore[index]
+    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"group_by": group_by_paths})
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -403,7 +407,6 @@ async def set_aggregations(
 
     Only used with AGGREGATE action. See Aggregation model (CountAggregation, FieldAggregation) for structure and field requirements.
     """
-
     # Validate field paths for FieldAggregations
     try:
         for agg in aggregations:
@@ -412,7 +415,7 @@ async def set_aggregations(
     except ValueError as e:
         raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
 
-    ctx.deps.state.parameters["aggregations"] = [agg.model_dump() for agg in aggregations]  # type: ignore[index]
+    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -430,7 +433,6 @@ async def set_temporal_grouping(
 
     Only used with COUNT or AGGREGATE actions. See TemporalGrouping model for structure, periods, and examples.
     """
-
     # Validate that fields exist and are datetime types
     try:
         for tg in temporal_groups:
@@ -438,7 +440,7 @@ async def set_temporal_grouping(
     except ValueError as e:
         raise ModelRetry(f"{str(e)} Use discover_filter_paths to find datetime fields.")
 
-    ctx.deps.state.parameters["temporal_group_by"] = [tg.model_dump() for tg in temporal_groups]  # type: ignore[index]
+    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"temporal_group_by": temporal_groups})
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,

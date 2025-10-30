@@ -22,7 +22,7 @@ from orchestrator.db.database import WrappedSession
 from orchestrator.search.agent.json_patch import JSONPatchOp
 from orchestrator.search.agent.state import AggregationResultsData, SearchResultsData
 from orchestrator.search.query import engine
-from orchestrator.search.query.models import QueryTypes
+from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 from orchestrator.search.query.results import AggregationResponse, SearchResponse
 from orchestrator.search.query.state import QueryState
 from orchestrator.settings import app_settings
@@ -31,14 +31,14 @@ logger = structlog.get_logger(__name__)
 
 
 async def execute_search_with_persistence(
-    query: QueryTypes,
+    query: SelectQuery,
     db_session: WrappedSession,
     run_id: UUID | None,
 ) -> tuple[SearchResponse, UUID, UUID]:
     """Execute search, persist to DB, return response and IDs.
 
     Args:
-        query: Query plan
+        query: SelectQuery for search operation
         db_session: Database session
         run_id: Existing run ID or None to create new one
 
@@ -62,7 +62,7 @@ async def execute_search_with_persistence(
 
     # Save to database
     query_embedding = search_response.query_embedding
-    query_state = QueryState(parameters=query, query_embedding=query_embedding)
+    query_state = QueryState(query=query, query_embedding=query_embedding)
     query_number = db_session.query(SearchQueryTable).filter_by(run_id=run_id).count() + 1
     search_query = SearchQueryTable.from_state(
         state=query_state,
@@ -86,14 +86,14 @@ async def execute_search_with_persistence(
 
 
 async def execute_aggregation_with_persistence(
-    query: QueryTypes,
+    query: CountQuery | AggregateQuery,
     db_session: WrappedSession,
     run_id: UUID | None,
 ) -> tuple[AggregationResponse, UUID, UUID]:
     """Execute aggregation, persist to DB, return response and IDs.
 
     Args:
-        query: Query plan
+        query: CountQuery or AggregateQuery for aggregation operations
         db_session: Database session
         run_id: Existing run ID or None to create new one
 
@@ -116,7 +116,7 @@ async def execute_aggregation_with_persistence(
     aggregation_response = await engine.execute_aggregation(query, db_session)
 
     # Save to database
-    query_state = QueryState(parameters=query, query_embedding=None)
+    query_state = QueryState(query=query, query_embedding=None)
     query_number = db_session.query(SearchQueryTable).filter_by(run_id=run_id).count() + 1
     search_query = SearchQueryTable.from_state(
         state=query_state,

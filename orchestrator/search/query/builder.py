@@ -22,9 +22,10 @@ from sqlalchemy.sql.selectable import CTE
 from sqlalchemy_utils.types.ltree import Ltree
 
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.search.core.types import ActionType, EntityType, FieldType, FilterOp, UIType
+from orchestrator.search.aggregations import AggregationType, BaseAggregation, CountAggregation
+from orchestrator.search.core.types import EntityType, FieldType, FilterOp, UIType
 from orchestrator.search.filters import LtreeFilter
-from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query
 
 
 class LeafInfo(BaseModel):
@@ -57,7 +58,7 @@ def create_path_autocomplete_lquery(prefix: str) -> str:
     return f"{prefix}*.*"
 
 
-def build_candidate_query(query: BaseQuery) -> Select:
+def build_candidate_query(query: Query) -> Select:
     """Build the base query for retrieving candidate entities.
 
     Constructs a `SELECT` statement that retrieves distinct `entity_id` values
@@ -65,7 +66,7 @@ def build_candidate_query(query: BaseQuery) -> Select:
     filters from the provided query plan.
 
     Args:
-        query: The query plan containing the entity type and optional filters.
+        query: Any query type (SelectQuery, CountQuery, AggregateQuery) containing entity type and optional filters.
 
     Returns:
         Select: The SQLAlchemy `Select` object representing the query.
@@ -179,8 +180,14 @@ def _build_pivot_cte(base_query: Select, pivot_fields: list[str]) -> CTE:
     )
 
 
-def _build_grouping_columns(query: BaseQuery, pivot_cte: CTE) -> tuple[list[Any], list[Any], list[str]]:
+def _build_grouping_columns(
+    query: CountQuery | AggregateQuery, pivot_cte: CTE
+) -> tuple[list[Any], list[Any], list[str]]:
     """Build GROUP BY columns and their SELECT columns.
+
+    Args:
+        query: CountQuery or AggregateQuery with group_by and temporal_group_by fields
+        pivot_cte: The pivoted CTE containing entity fields as columns
 
     Returns:
         tuple: (select_columns, group_by_columns, group_column_names)
@@ -188,7 +195,6 @@ def _build_grouping_columns(query: BaseQuery, pivot_cte: CTE) -> tuple[list[Any]
             - group_by_columns: List of columns for GROUP BY clause
             - group_column_names: List of column names (labels) that are grouping columns
     """
-    from orchestrator.search.aggregations import BaseAggregation
 
     select_columns = []
     group_by_columns = []
@@ -212,15 +218,19 @@ def _build_grouping_columns(query: BaseQuery, pivot_cte: CTE) -> tuple[list[Any]
     return select_columns, group_by_columns, group_column_names
 
 
-def _build_aggregation_columns(query: BaseQuery, pivot_cte: CTE) -> list[Label]:
-    """Build aggregation columns (COUNT, SUM, AVG, MIN, MAX)."""
-    from orchestrator.search.aggregations import AggregationType, CountAggregation
+def _build_aggregation_columns(query: CountQuery | AggregateQuery, pivot_cte: CTE) -> list[Label]:
+    """Build aggregation columns (COUNT, SUM, AVG, MIN, MAX).
 
-    if query.action == ActionType.COUNT:
-        count_agg = CountAggregation(type=AggregationType.COUNT, alias="count")
-        return [count_agg.to_expression(pivot_cte.c.entity_id)]
+    Args:
+        query: CountQuery or AggregateQuery
+        pivot_cte: The pivoted CTE containing entity fields as columns
 
-    if query.action == ActionType.AGGREGATE and query.aggregations:
+    Returns:
+        List of labeled aggregation expressions
+    """
+
+    if isinstance(query, AggregateQuery):
+        # AGGREGATE query with custom aggregations
         agg_columns = []
         for agg in query.aggregations:
             if isinstance(agg, CountAggregation):
@@ -229,7 +239,9 @@ def _build_aggregation_columns(query: BaseQuery, pivot_cte: CTE) -> list[Label]:
                 agg_columns.append(agg.to_expression(pivot_cte.c))
         return agg_columns
 
-    return []
+    # CountQuery without aggregations
+    count_agg = CountAggregation(type=AggregationType.COUNT, alias="count")
+    return [count_agg.to_expression(pivot_cte.c.entity_id)]
 
 
 def build_simple_count_query(base_query: Select) -> Select:
@@ -246,7 +258,7 @@ def build_simple_count_query(base_query: Select) -> Select:
     )
 
 
-def build_aggregation_query(query: BaseQuery, base_query: Select) -> tuple[Select, list[str]]:
+def build_aggregation_query(query: CountQuery | AggregateQuery, base_query: Select) -> tuple[Select, list[str]]:
     """Build aggregation query with GROUP BY and aggregation functions.
 
     Handles EAV storage by pivoting rows to columns, then applying SQL aggregations.
@@ -254,7 +266,7 @@ def build_aggregation_query(query: BaseQuery, base_query: Select) -> tuple[Selec
     in the engine.
 
     Args:
-        query: Query plan including group_by and aggregations
+        query: CountQuery or AggregateQuery with group_by and optional aggregations
         base_query: Base candidate query with filters applied
 
     Returns:

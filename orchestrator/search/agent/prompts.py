@@ -77,10 +77,10 @@ async def get_base_instructions() -> str:
 async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> str:
     """Dynamically provides 'next step' coaching based on the current state."""
     state = ctx.deps.state
-    param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
+    query_state_str = json.dumps(state.query.model_dump(), indent=2, default=str) if state.query else "Not set."
     results_count = state.results_data.total_count if state.results_data else 0
     aggregation_groups = state.aggregation_data.total_groups if state.aggregation_data else 0
-    action = state.parameters.get("action", ActionType.SELECT) if state.parameters else ActionType.SELECT
+    action = state.action or ActionType.SELECT
 
     if state.export_data:
         next_step_guidance = (
@@ -88,7 +88,7 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
             "Simply confirm to the user that the export is ready for download. "
             "DO NOT include or mention the download URL - the UI will display it automatically."
         )
-    elif not state.parameters or not state.parameters.get("entity_type"):
+    elif not state.query:
         next_step_guidance = (
             f"INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`. "
             f"For counting or aggregation queries, set action='{ActionType.COUNT.value}' or action='{ActionType.AGGREGATE.value}'."
@@ -144,9 +144,9 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
         ---
         ## CURRENT STATE
 
-        **Current Search Parameters:**
+        **Current Query:**
         ```json
-        {param_state_str}
+        {query_state_str}
         ```
 
         **Status:** {status_summary}
