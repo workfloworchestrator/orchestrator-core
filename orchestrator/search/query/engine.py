@@ -33,14 +33,14 @@ from .state import QueryState
 logger = structlog.get_logger(__name__)
 
 
-async def _execute_search_internal(
+async def _execute_search(
     query: BaseQuery,
     db_session: Session,
     limit: int,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
 ) -> SearchResponse:
-    """Internal function to execute search with specified query.
+    """Internal implementation to execute search with specified query.
 
     Args:
         query: The query plan with vector, fuzzy, or filter criteria.
@@ -100,14 +100,14 @@ async def execute_search(
             f"Got '{query.action}'. Use execute_aggregation for COUNT/AGGREGATE."
         )
 
-    return await _execute_search_internal(query, db_session, query.limit, cursor, query_embedding)
+    return await _execute_search(query, db_session, query.limit, cursor, query_embedding)
 
 
-async def execute_search_for_export(
+async def execute_export(
     query_state: QueryState,
     db_session: Session,
 ) -> list[dict]:
-    """Execute a search for export and fetch flattened entity data.
+    """Execute a search and export flattened entity data.
 
     Args:
         query_state: Query state containing parameters and query_embedding.
@@ -116,7 +116,7 @@ async def execute_search_for_export(
     Returns:
         List of flattened entity records suitable for export.
     """
-    search_response = await _execute_search_internal(
+    search_response = await _execute_search(
         query=query_state.parameters,
         db_session=db_session,
         limit=query_state.parameters.export_limit,

@@ -201,7 +201,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
     """
     try:
         query_state = QueryState.load_from_id(query_id)
-        export_records = await engine.execute_search_for_export(query_state, db.session)
+        export_records = await engine.execute_export(query_state, db.session)
         return ExportResponse(page=export_records)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
