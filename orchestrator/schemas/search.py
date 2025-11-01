@@ -16,7 +16,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.search.core.types import SearchMetadata
-from orchestrator.search.schemas.results import ComponentInfo, LeafInfo
+from orchestrator.search.query.builder import ComponentInfo, LeafInfo
 
 T = TypeVar("T")
 

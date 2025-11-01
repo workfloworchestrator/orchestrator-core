@@ -14,13 +14,13 @@
 from orchestrator.search.core.types import FilterOp
 
 
-class FilterValidationError(Exception):
-    """Base exception for filter validation errors."""
+class QueryValidationError(Exception):
+    """Base exception for all query validation errors."""
 
     pass
 
 
-class InvalidLtreePatternError(FilterValidationError):
+class InvalidLtreePatternError(QueryValidationError):
     """Raised when an ltree pattern has invalid ltree query syntax."""
 
     def __init__(self, pattern: str) -> None:
@@ -28,7 +28,7 @@ class InvalidLtreePatternError(FilterValidationError):
         super().__init__(message)
 
 
-class EmptyFilterPathError(FilterValidationError):
+class EmptyFilterPathError(QueryValidationError):
     """Raised when a filter path is empty or contains only whitespace."""
 
     def __init__(self) -> None:
@@ -38,7 +38,7 @@ class EmptyFilterPathError(FilterValidationError):
         super().__init__(message)
 
 
-class PathNotFoundError(FilterValidationError):
+class PathNotFoundError(QueryValidationError):
     """Raised when a filter path doesn't exist in the database schema.
 
     Examples:
@@ -53,7 +53,7 @@ class PathNotFoundError(FilterValidationError):
         super().__init__(message)
 
 
-class IncompatibleFilterTypeError(FilterValidationError):
+class IncompatibleFilterTypeError(QueryValidationError):
     """Raised when a filter operator is incompatible with the field's data type.
 
     Examples:
@@ -75,7 +75,7 @@ class IncompatibleFilterTypeError(FilterValidationError):
         super().__init__(message)
 
 
-class InvalidEntityPrefixError(FilterValidationError):
+class InvalidEntityPrefixError(QueryValidationError):
     """Raised when a filter path doesn't have the correct entity type prefix.
 
     Examples:
@@ -87,4 +87,35 @@ class InvalidEntityPrefixError(FilterValidationError):
 
     def __init__(self, path: str, expected_prefix: str, entity_type: str) -> None:
         message = f"Filter path '{path}' must start with '{expected_prefix}' for {entity_type} searches, or use '*' for wildcard paths."
+        super().__init__(message)
+
+
+class IncompatibleAggregationTypeError(QueryValidationError):
+    """Raised when an aggregation function is incompatible with the field's data type.
+
+    Examples:
+        Using SUM on a string field:
+
+        >>> print(IncompatibleAggregationTypeError('sum', 'string', 'subscription.name', ['integer', 'float']))
+        Aggregation 'sum' requires numeric fields (integer, float), but 'subscription.name' has type 'string'.
+    """
+
+    def __init__(self, agg_type: str, field_type: str, path: str, expected_types: list[str]) -> None:
+        expected_types_str = ", ".join(expected_types)
+        message = f"Aggregation '{agg_type}' requires numeric fields ({expected_types_str}), but '{path}' has type '{field_type}'."
+        super().__init__(message)
+
+
+class IncompatibleTemporalGroupingTypeError(QueryValidationError):
+    """Raised when temporal grouping is used on a non-datetime field.
+
+    Examples:
+        Using temporal grouping on a string field:
+
+        >>> print(IncompatibleTemporalGroupingTypeError('subscription.name', 'string'))
+        Temporal grouping requires a datetime field, but 'subscription.name' has type 'string'.
+    """
+
+    def __init__(self, path: str, field_type: str) -> None:
+        message = f"Temporal grouping requires a datetime field, but '{path}' has type '{field_type}'."
         super().__init__(message)

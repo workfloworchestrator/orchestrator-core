@@ -41,9 +41,11 @@ LOGGER_OVERRIDES = dict(
     [
         logger_config("asyncio"),
         logger_config("httpcore"),
+        logger_config("openai", default_level="WARNING"),
         logger_config("orchestrator.graphql.autoregistration"),
         logger_config("sqlalchemy.engine", default_level="WARNING"),
         logger_config("uvicorn"),
         logger_config("LiteLLM", default_level="WARNING"),
+        logger_config("pydantic_ai", default_level="DEBUG"),
     ]
 )

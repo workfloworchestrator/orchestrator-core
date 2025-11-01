@@ -11,39 +11,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Generic, TypeVar, cast
 from uuid import UUID
 
+import structlog
 from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.search.schemas.parameters import SearchParameters
+from orchestrator.search.query.queries import BaseQuery, Query
+
+logger = structlog.get_logger(__name__)
+
+T = TypeVar("T", bound=Query)
 
 
-class SearchQueryState(BaseModel):
-    """State of a search query including parameters and embedding.
+class QueryState(BaseModel, Generic[T]):
+    """State of a query including parameters and embedding.
 
-    This model provides a complete snapshot of what was searched and how.
-    Used for both agent and regular API searches.
+    Thin wrapper around SearchQueryTable that stores query as JSONB blob.
+    Generic over query type for type-safe loading.
+    Used for both agent and regular API queries.
     """
 
-    parameters: SearchParameters = Field(discriminator="entity_type")
+    query: T
     query_embedding: list[float] | None = Field(default=None, description="The embedding vector for semantic search")
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def load_from_id(cls, query_id: UUID | str) -> "SearchQueryState":
-        """Load query state from database by query_id.
+    def load_from_id(cls, query_id: UUID | str, expected_type: type[T]) -> "QueryState[T]":
+        """Load query state from database by query_id with type validation.
 
         Args:
             query_id: UUID or string UUID of the saved query
+            expected_type: Expected query type class (SelectQuery, ExportQuery, etc.)
 
         Returns:
-            SearchQueryState loaded from database
+            QueryState with validated query type
 
         Raises:
-            ValueError: If query_id format is invalid
+            ValueError: If query_id format is invalid or query type doesn't match expected
             QueryStateNotFoundError: If query not found in database
         """
         if isinstance(query_id, UUID):
@@ -58,4 +66,16 @@ class SearchQueryState(BaseModel):
         if not search_query:
             raise QueryStateNotFoundError(f"Query {query_uuid} not found in database")
 
-        return cls.model_validate(search_query)
+        # Clamp limit to valid range to handle legacy queries outside the current limits
+        if "limit" in search_query.parameters and search_query.parameters["limit"] > BaseQuery.MAX_LIMIT:
+            logger.warning(
+                "Loaded query limit exceeds maximum, clamping to MAX_LIMIT",
+                query_id=query_uuid,
+                original_limit=search_query.parameters["limit"],
+                clamped_to=BaseQuery.MAX_LIMIT,
+            )
+            search_query.parameters["limit"] = BaseQuery.MAX_LIMIT
+
+        query = cast(T, expected_type.from_dict(search_query.parameters))
+
+        return cls(query=query, query_embedding=search_query.query_embedding)

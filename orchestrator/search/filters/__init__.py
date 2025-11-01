@@ -19,6 +19,7 @@ from .base import (
     StringFilter,
 )
 from .date_filters import DateFilter, DateRangeFilter, DateValueFilter
+from .definitions import TypeDefinition, ValueSchema
 from .ltree_filters import LtreeFilter
 from .numeric_filter import NumericFilter, NumericRangeFilter, NumericValueFilter
 
@@ -37,4 +38,7 @@ __all__ = [
     "DateFilter",
     "LtreeFilter",
     "NumericFilter",
+    # Schema types
+    "TypeDefinition",
+    "ValueSchema",
 ]

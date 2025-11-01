@@ -105,7 +105,8 @@ class ActionType(str, Enum):
     """Defines the explicit, safe actions the agent can request."""
 
     SELECT = "select"  # Retrieve a list of matching records.
-    # COUNT = "count"  # For phase1; the agent will not support this yet.
+    COUNT = "count"  # Count matching records, optionally grouped.
+    AGGREGATE = "aggregate"  # Compute aggregations (sum, avg, etc.) over matching records.
 
 
 class UIType(str, Enum):

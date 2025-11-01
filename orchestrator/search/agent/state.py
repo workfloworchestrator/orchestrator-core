@@ -11,12 +11,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
 
-from orchestrator.search.schemas.results import SearchResult
+from orchestrator.search.core.types import ActionType
+from orchestrator.search.query.queries import Query
+from orchestrator.search.query.results import AggregationResult, SearchResult
+
+
+class AggregationResultsData(BaseModel):
+    """Aggregation results data for frontend display and agent context."""
+
+    action: str = "view_aggregation"
+    query_id: str
+    results_url: str
+    total_groups: int
+    message: str
+    results: list[AggregationResult] = []
 
 
 class ExportData(BaseModel):
@@ -42,6 +54,8 @@ class SearchResultsData(BaseModel):
 class SearchState(BaseModel):
     run_id: UUID | None = None
     query_id: UUID | None = None
-    parameters: dict[str, Any] | None = None
+    action: ActionType | None = None
+    query: Query | None = None
     results_data: SearchResultsData | None = None
+    aggregation_data: AggregationResultsData | None = None
     export_data: ExportData | None = None
