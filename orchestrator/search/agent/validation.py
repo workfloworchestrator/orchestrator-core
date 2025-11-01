@@ -15,6 +15,7 @@
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable
 
+import structlog
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -23,6 +24,8 @@ from orchestrator.search.core.types import ActionType
 
 if TYPE_CHECKING:
     from orchestrator.search.agent.state import SearchState
+
+logger = structlog.get_logger(__name__)
 
 
 def require_action(*allowed_actions: ActionType) -> Callable:
@@ -51,13 +54,20 @@ def require_action(*allowed_actions: ActionType) -> Callable:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(ctx: "RunContext[StateDeps[SearchState]]", *args: Any, **kwargs: Any) -> Any:
-            if ctx.deps.state.parameters is None or "action" not in ctx.deps.state.parameters:
-                raise ModelRetry("Search parameters are not initialized. Call start_new_search first.")
+            if ctx.deps.state.action is None or ctx.deps.state.query is None:
+                logger.warning(f"Action validation failed for {func.__name__}: action or query is None")
+                raise ModelRetry("Search action and query are not initialized. Call start_new_search first.")
 
-            current_action = ctx.deps.state.parameters["action"]
+            current_action = ctx.deps.state.action
 
             if current_action not in allowed_actions:
                 allowed_names = ", ".join(a.value for a in allowed_actions)
+                logger.warning(
+                    "Invalid action for tool",
+                    tool=func.__name__,
+                    allowed_actions=allowed_names,
+                    current_action=current_action.value,
+                )
                 raise ModelRetry(
                     f"{func.__name__} is only available for {allowed_names} action(s). "
                     f"Current action is '{current_action.value}'."

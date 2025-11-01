@@ -15,7 +15,7 @@ import structlog
 from sqlalchemy.orm import Session
 
 from orchestrator.search.core.embedding import QueryEmbedder
-from orchestrator.search.core.types import ActionType, SearchMetadata
+from orchestrator.search.core.types import SearchMetadata
 from orchestrator.search.query.results import (
     AggregationResponse,
     SearchResponse,
@@ -27,23 +27,22 @@ from orchestrator.search.retrieval.retrievers import Retriever
 
 from .builder import build_aggregation_query, build_candidate_query, build_simple_count_query
 from .export import fetch_export_data
-from .models import BaseQuery
-from .state import QueryState
+from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
 
 
-async def _execute_search_internal(
-    query: BaseQuery,
+async def _execute_search(
+    query: SelectQuery | ExportQuery,
     db_session: Session,
     limit: int,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
 ) -> SearchResponse:
-    """Internal function to execute search with specified query.
+    """Internal implementation to execute search with specified query.
 
     Args:
-        query: The query plan with vector, fuzzy, or filter criteria.
+        query: The SELECT or EXPORT query with vector, fuzzy, or filter criteria.
         db_session: The active SQLAlchemy session for executing the query.
         limit: Maximum number of results to return.
         cursor: Optional pagination cursor.
@@ -76,7 +75,7 @@ async def _execute_search_internal(
 
 
 async def execute_search(
-    query: BaseQuery,
+    query: SelectQuery,
     db_session: Session,
     cursor: PageCursor | None = None,
     query_embedding: list[float] | None = None,
@@ -86,7 +85,7 @@ async def execute_search(
     This executes a SELECT action search using vector/fuzzy/filter search with ranking.
 
     Args:
-        query: Query plan with SELECT action
+        query: SelectQuery with search criteria
         db_session: Database session
         cursor: Optional pagination cursor
         query_embedding: Optional pre-computed embedding
@@ -94,61 +93,51 @@ async def execute_search(
     Returns:
         SearchResponse with ranked results
     """
-    if query.action != ActionType.SELECT:
-        raise ValueError(
-            f"execute_search only handles SELECT actions. "
-            f"Got '{query.action}'. Use execute_aggregation for COUNT/AGGREGATE."
-        )
-
-    return await _execute_search_internal(query, db_session, query.limit, cursor, query_embedding)
+    return await _execute_search(query, db_session, query.limit, cursor, query_embedding)
 
 
-async def execute_search_for_export(
-    query_state: QueryState,
+async def execute_export(
+    query: ExportQuery,
     db_session: Session,
+    query_embedding: list[float] | None = None,
 ) -> list[dict]:
-    """Execute a search for export and fetch flattened entity data.
+    """Execute a search and export flattened entity data.
 
     Args:
-        query_state: Query state containing parameters and query_embedding.
-        db_session: The active SQLAlchemy session for executing the query.
+        query: ExportQuery with search criteria
+        db_session: Database session
+        query_embedding: Optional pre-computed embedding
 
     Returns:
         List of flattened entity records suitable for export.
     """
-    search_response = await _execute_search_internal(
-        query=query_state.parameters,
+    search_response = await _execute_search(
+        query=query,
         db_session=db_session,
-        limit=query_state.parameters.export_limit,
-        query_embedding=query_state.query_embedding,
+        limit=query.limit,
+        query_embedding=query_embedding,
     )
 
     entity_ids = [res.entity_id for res in search_response.results]
-    return fetch_export_data(query_state.parameters.entity_type, entity_ids)
+    return fetch_export_data(query.entity_type, entity_ids)
 
 
 async def execute_aggregation(
-    query: BaseQuery,
+    query: CountQuery | AggregateQuery,
     db_session: Session,
 ) -> AggregationResponse:
     """Execute aggregation query and return formatted results.
 
     Args:
-        query: Query plan with COUNT or AGGREGATE action
+        query: CountQuery or AggregateQuery
         db_session: Database session
 
     Returns:
         AggregationResponse with results and metadata
     """
-    if query.action not in (ActionType.COUNT, ActionType.AGGREGATE):
-        raise ValueError(
-            f"execute_aggregation only handles COUNT and AGGREGATE actions. "
-            f"Got '{query.action}'. Use execute_search for SELECT."
-        )
-
     candidate_query = build_candidate_query(query)
 
-    if query.action == ActionType.COUNT and not query.group_by and not query.temporal_group_by:
+    if isinstance(query, CountQuery) and not query.group_by and not query.temporal_group_by:
         # Simple count without grouping
         agg_query = build_simple_count_query(candidate_query)
         group_column_names: list[str] = []

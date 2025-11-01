@@ -9,7 +9,7 @@ from orchestrator.db import db
 from orchestrator.search.core.types import EntityType, FilterOp, UIType
 from orchestrator.search.filters import EqualityFilter, FilterTree, LtreeFilter, PathFilter
 from orchestrator.search.query import engine
-from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.queries import SelectQuery
 from orchestrator.search.query.validation import get_structured_filter_schema
 
 app = typer.Typer(help="Experiment with the subscription search indexes.")
@@ -31,7 +31,7 @@ def structured(path: str, value: str, entity_type: EntityType = EntityType.SUBSC
         ...
     """
     path_filter = PathFilter(path=path, condition=EqualityFilter(op=FilterOp.EQ, value=value), value_kind=UIType.STRING)
-    query = BaseQuery.create(entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), limit=limit)
+    query = SelectQuery(entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), limit=limit)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_filtered_paths_only(search_response.results, query, db.session)
     display_results(search_response.results, db.session, "Match")
@@ -50,7 +50,7 @@ def semantic(query_text: str, entity_type: EntityType = EntityType.SUBSCRIPTION,
         },
         ...
     """
-    query = BaseQuery.create(entity_type=entity_type, query_text=query_text, limit=limit)
+    query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_results(search_response.results, db.session, "Distance")
 
@@ -68,7 +68,7 @@ def fuzzy(term: str, entity_type: EntityType = EntityType.SUBSCRIPTION, limit: i
         },
         ...
     """
-    query = BaseQuery.create(entity_type=entity_type, query_text=term, limit=limit)
+    query = SelectQuery(entity_type=entity_type, query_text=term, limit=limit)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_results(search_response.results, db.session, "Similarity")
 
@@ -94,7 +94,7 @@ def hierarchical(
 
     path_filter = PathFilter(path="ltree_hierarchical_filter", condition=condition, value_kind=UIType.STRING)
 
-    query = BaseQuery.create(
+    query = SelectQuery(
         entity_type=entity_type, filters=FilterTree.from_flat_and([path_filter]), query_text=query_text, limit=limit
     )
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
@@ -108,7 +108,7 @@ def hybrid(query_text: str, term: str, entity_type: EntityType = EntityType.SUBS
     Example:
         dotenv run python main.py search hybrid "reptile store" "Kingswood"
     """
-    query = BaseQuery.create(entity_type=entity_type, query_text=query_text, limit=limit)
+    query = SelectQuery(entity_type=entity_type, query_text=query_text, limit=limit)
     logger.info("Executing Hybrid Search", query_text=query_text, term=term)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
     display_results(search_response.results, db.session, "Hybrid Score")
@@ -196,7 +196,7 @@ def nested_demo(entity_type: EntityType = EntityType.SUBSCRIPTION, limit: int = 
         }
     )
 
-    query = BaseQuery.create(entity_type=entity_type, filters=tree, limit=limit)
+    query = SelectQuery(entity_type=entity_type, filters=tree, limit=limit)
     search_response = asyncio.run(engine.execute_search(query=query, db_session=db.session))
 
     display_results(search_response.results, db.session, "Score")

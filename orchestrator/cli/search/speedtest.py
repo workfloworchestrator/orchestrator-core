@@ -13,7 +13,7 @@ from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.core.validators import is_uuid
 from orchestrator.search.query import engine
-from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.queries import SelectQuery
 
 logger = structlog.get_logger(__name__)
 console = Console()
@@ -51,7 +51,7 @@ async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[
 
 
 async def run_single_query(query_text: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
-    query = BaseQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=30)
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=30)
 
     query_embedding = None
 

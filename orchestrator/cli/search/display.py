@@ -21,7 +21,7 @@ from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.queries import BaseQuery
 from orchestrator.search.query.results import SearchResult
 
 logger = structlog.get_logger(__name__)

@@ -34,7 +34,7 @@ from .exceptions import (
     PathNotFoundError,
     QueryValidationError,
 )
-from .models import BaseQuery, ProcessQuery, ProductQuery, QueryTypes, SubscriptionQuery, WorkflowQuery
+from .queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
 from .results import (
     AggregationResponse,
     AggregationResult,
@@ -68,13 +68,12 @@ __all__ = [
     "PathNotFoundError",
     "QueryValidationError",
     # Query models
-    "BaseQuery",
-    "ProcessQuery",
-    "ProductQuery",
-    "QueryTypes",
-    "SubscriptionQuery",
+    "AggregateQuery",
+    "CountQuery",
+    "ExportQuery",
+    "Query",
+    "SelectQuery",
     "TemporalGrouping",
-    "WorkflowQuery",
     # Results
     "AggregationResponse",
     "AggregationResult",

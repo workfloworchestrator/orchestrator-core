@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Generic, TypeVar, cast
 from uuid import UUID
 
 import structlog
@@ -18,35 +19,39 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.db import SearchQueryTable, db
 from orchestrator.search.core.exceptions import QueryStateNotFoundError
-from orchestrator.search.query.models import BaseQuery, QueryTypes
+from orchestrator.search.query.queries import BaseQuery, Query
 
 logger = structlog.get_logger(__name__)
 
+T = TypeVar("T", bound=Query)
 
-class QueryState(BaseModel):
+
+class QueryState(BaseModel, Generic[T]):
     """State of a query including parameters and embedding.
 
-    This model provides a complete snapshot of what was queried and how.
+    Thin wrapper around SearchQueryTable that stores query as JSONB blob.
+    Generic over query type for type-safe loading.
     Used for both agent and regular API queries.
     """
 
-    parameters: QueryTypes = Field(discriminator="entity_type")
+    query: T
     query_embedding: list[float] | None = Field(default=None, description="The embedding vector for semantic search")
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def load_from_id(cls, query_id: UUID | str) -> "QueryState":
-        """Load query state from database by query_id.
+    def load_from_id(cls, query_id: UUID | str, expected_type: type[T]) -> "QueryState[T]":
+        """Load query state from database by query_id with type validation.
 
         Args:
             query_id: UUID or string UUID of the saved query
+            expected_type: Expected query type class (SelectQuery, ExportQuery, etc.)
 
         Returns:
-            QueryState loaded from database
+            QueryState with validated query type
 
         Raises:
-            ValueError: If query_id format is invalid
+            ValueError: If query_id format is invalid or query type doesn't match expected
             QueryStateNotFoundError: If query not found in database
         """
         if isinstance(query_id, UUID):
@@ -71,4 +76,6 @@ class QueryState(BaseModel):
             )
             search_query.parameters["limit"] = BaseQuery.MAX_LIMIT
 
-        return cls.model_validate(search_query)
+        query = cast(T, expected_type.from_dict(search_query.parameters))
+
+        return cls(query=query, query_embedding=search_query.query_embedding)

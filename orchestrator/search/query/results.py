@@ -21,7 +21,7 @@ from sqlalchemy.engine.row import RowMapping
 from orchestrator.search.core.types import EntityType, FilterOp, SearchMetadata
 from orchestrator.search.filters import FilterTree
 
-from .models import BaseQuery
+from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 
 
 class MatchingField(BaseModel):
@@ -73,7 +73,7 @@ class AggregationResponse(BaseModel):
 def format_aggregation_response(
     result_rows: Sequence[RowMapping],
     group_column_names: list[str],
-    query: BaseQuery,
+    query: CountQuery | AggregateQuery,
 ) -> AggregationResponse:
     """Format raw aggregation query results into AggregationResponse.
 
@@ -99,8 +99,6 @@ def format_aggregation_response(
                 aggregations[key] = value if value is not None else 0
 
         results.append(AggregationResult(group_values=group_values, aggregations=aggregations))
-
-    from orchestrator.search.core.types import SearchMetadata
 
     metadata = SearchMetadata(
         search_type="aggregation",
@@ -139,7 +137,7 @@ def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
 
 
 def format_search_response(
-    db_rows: Sequence[RowMapping], query: "BaseQuery", metadata: SearchMetadata
+    db_rows: Sequence[RowMapping], query: "SelectQuery | ExportQuery", metadata: SearchMetadata
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
@@ -148,7 +146,7 @@ def format_search_response(
 
     Args:
         db_rows: The rows returned from the executed SQLAlchemy query.
-        query: The query plan, including query text and filters.
+        query: SelectQuery or ExportQuery with search criteria.
         metadata: Metadata about the search execution.
 
     Returns:
