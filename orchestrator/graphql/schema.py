@@ -63,7 +63,12 @@ from orchestrator.graphql.schemas.settings import StatusType
 from orchestrator.graphql.schemas.subscription import SubscriptionInterface
 from orchestrator.graphql.schemas.version import VersionType
 from orchestrator.graphql.schemas.workflow import Workflow
-from orchestrator.graphql.types import SCALAR_OVERRIDES, OrchestratorContext, ScalarOverrideType, StrawberryModelType
+from orchestrator.graphql.types import (
+    SCALAR_OVERRIDES,
+    OrchestratorContext,
+    ScalarOverrideType,
+    StrawberryModelType,
+)
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
 from orchestrator.settings import app_settings
 
