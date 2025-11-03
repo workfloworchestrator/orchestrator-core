@@ -123,7 +123,7 @@ IPv6InterfaceType = strawberry.scalar(
 )
 
 IntType = strawberry.scalar(
-    NewType("Int", int),
+    NewType("IntType", int),
     description="An arbitrary precision integer",
     serialize=lambda v: v,
     parse_value=lambda v: v,
