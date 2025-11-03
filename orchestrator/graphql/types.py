@@ -17,7 +17,7 @@ from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 from typing import Any, NewType, TypeVar
 
 import strawberry
-from graphql import GraphQLError
+from graphql import GraphQLError, GraphQLNamedType
 from strawberry.dataloader import DataLoader
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 from strawberry.scalars import JSON
@@ -122,8 +122,11 @@ IPv6InterfaceType = strawberry.scalar(
     parse_value=lambda v: v,
 )
 
+# TODO: Remove Hack to prevent the error: `Redefinition of reserved type 'Int'`
+if hasattr(GraphQLNamedType, "reserved_types"):
+    GraphQLNamedType.reserved_types.pop("Int", None)
 IntType = strawberry.scalar(
-    NewType("IntType", int),
+    NewType("Int", int),
     description="An arbitrary precision integer",
     serialize=lambda v: v,
     parse_value=lambda v: v,
