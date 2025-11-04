@@ -63,6 +63,9 @@ def test_process_is_allowed_with_historic_workflow_only_left_in_db(
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
         "data": {
-            "process": {"processId": str(process_id), "userPermissions": {"resumeAllowed": True, "retryAllowed": True}}
+            "process": {
+                "processId": str(process_id),
+                "userPermissions": {"resumeAllowed": False, "retryAllowed": False},
+            }
         }
     }
