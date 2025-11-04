@@ -18,7 +18,7 @@ import structlog
 from sqlalchemy import BindParameter, Numeric, Select, literal
 
 from orchestrator.search.core.types import FieldType, SearchMetadata
-from orchestrator.search.query.models import BaseQuery
+from orchestrator.search.query.queries import ExportQuery, SelectQuery
 
 from ..pagination import PageCursor
 
@@ -43,7 +43,7 @@ class Retriever(ABC):
     @classmethod
     def route(
         cls,
-        query: BaseQuery,
+        query: "SelectQuery | ExportQuery",
         cursor: PageCursor | None,
         query_embedding: list[float] | None = None,
     ) -> "Retriever":
@@ -56,9 +56,9 @@ class Retriever(ABC):
         - Structured: only filters available
 
         Args:
-            query: Query plan including vector queries, fuzzy terms, and filters
+            query: SelectQuery or ExportQuery with search criteria
             cursor: Pagination cursor for cursor-based paging
-            query_embedding: QueryTypes embedding for semantic search, or None if not available
+            query_embedding: Query embedding for semantic search, or None if not available
 
         Returns:
             A concrete retriever instance based on available search criteria
