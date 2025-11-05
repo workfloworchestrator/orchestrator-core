@@ -22,9 +22,8 @@ from orchestrator.search.aggregations import (
     TemporalPeriod,
 )
 from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter, StringFilter
+from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
-
 
 # =============================================================================
 # Building Block Fixtures
