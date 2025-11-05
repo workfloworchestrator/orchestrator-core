@@ -15,8 +15,8 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.search.core.types import BooleanOperator, FilterOp, UIType
-from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter, StringFilter
+from orchestrator.search.core.types import BooleanOperator, FilterOp
+from orchestrator.search.filters import FilterTree, PathFilter, StringFilter
 
 pytestmark = pytest.mark.search
 
