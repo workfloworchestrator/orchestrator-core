@@ -42,19 +42,24 @@ Configure the database URI in your local environment:
 export DATABASE_URI=postgresql://nwa:nwa@localhost:5432/orchestrator-core
 ```
 
-### Step 3 - Create main.py
+### Step 3 - Create main.py and wsgi.py
 
-Create a `main.py` file.
+Create a `main.py` file for running the CLI.
 
 ```python
-from orchestrator import OrchestratorCore
 from orchestrator.cli.main import app as core_cli
-from orchestrator.settings import AppSettings
-
-app = OrchestratorCore(base_settings=AppSettings())
 
 if __name__ == "__main__":
     core_cli()
+```
+
+Create a `wsgi.py` file for running the web server.
+
+```python
+from orchestrator import OrchestratorCore
+from orchestrator.settings import AppSettings
+
+app = OrchestratorCore(base_settings=AppSettings())
 ```
 
 ### Step 4 - Run the database migrations
@@ -70,7 +75,7 @@ python main.py db upgrade heads
 
 ```shell
 export OAUTH2_ACTIVE=False
-uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) page to view and interact with the API.

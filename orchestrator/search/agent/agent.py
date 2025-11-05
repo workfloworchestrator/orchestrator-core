@@ -16,7 +16,7 @@ from typing import Any
 import structlog
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.agent import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -28,12 +28,12 @@ logger = structlog.get_logger(__name__)
 
 
 def build_agent_instance(
-    model: str | OpenAIModel, agent_tools: list[FunctionToolset[Any]] | None = None
+    model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
 ) -> Agent[StateDeps[SearchState], str]:
     """Build and configure the search agent instance.
 
     Args:
-        model: The LLM model to use (string or OpenAIModel instance)
+        model: The LLM model to use (string or OpenAIChatModel instance)
         agent_tools: Optional list of additional toolsets to include
 
     Returns:

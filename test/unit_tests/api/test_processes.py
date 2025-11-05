@@ -33,7 +33,9 @@ from orchestrator.workflow import (
     init,
     inputstep,
     make_workflow,
+    retrystep,
     step,
+    step_group,
     workflow,
 )
 from pydantic_forms.core import FormPage
@@ -649,7 +651,7 @@ def authorize_resume_workflow():
 
 
 @pytest.fixture
-def process_on_resume(authorize_resume_workflow):
+def process_on_resumable_inputstep(authorize_resume_workflow):
     process_id = uuid4()
     process = ProcessTable(
         process_id=process_id,
@@ -667,7 +669,7 @@ def process_on_resume(authorize_resume_workflow):
 
 
 @pytest.fixture
-def process_on_retry(authorize_resume_workflow):
+def process_on_retriable_inputstep(authorize_resume_workflow):
     process_id = uuid4()
     process = ProcessTable(
         process_id=process_id,
@@ -687,29 +689,33 @@ def process_on_retry(authorize_resume_workflow):
 
 
 @pytest.fixture
-def process_on_unauthorize_resume(process_on_resume):
+def process_on_unauthorized_resume(process_on_resumable_inputstep):
     authorize_resume_step = ProcessStepTable(
-        process_id=process_on_resume, name="authorized_resume", status=StepStatus.SUCCESS, state={"confirm": True}
+        process_id=process_on_resumable_inputstep,
+        name="authorized_resume",
+        status=StepStatus.SUCCESS,
+        state={"confirm": True},
     )
 
     db.session.add(authorize_resume_step)
     db.session.commit()
 
-    return process_on_resume
+    return process_on_resumable_inputstep
 
 
-def test_authorized_resume_input_step(test_client, process_on_resume):
-    response = test_client.put(f"/api/processes/{process_on_resume}/resume", json=[{"confirm": True}])
+def test_authorized_resume_input_step(test_client, process_on_resumable_inputstep):
+    response = test_client.put(f"/api/processes/{process_on_resumable_inputstep}/resume", json=[{"confirm": True}])
     assert HTTPStatus.NO_CONTENT == response.status_code
 
 
-def test_unauthorized_resume_input_step_retry(test_client, process_on_retry):
-    response = test_client.put(f"/api/processes/{process_on_retry}/resume", json=[{"confirm": True}])
+def test_unauthorized_resume_input_step_retry(test_client, process_on_retriable_inputstep):
+    # The current inputstep should be allowing resumes but not retries, and should be FAILED.
+    response = test_client.put(f"/api/processes/{process_on_retriable_inputstep}/resume", json=[{"confirm": True}])
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def test_unauthorized_resume_input_step(test_client, process_on_unauthorize_resume):
-    response = test_client.put(f"/api/processes/{process_on_unauthorize_resume}/resume", json=[{"confirm": True}])
+def test_unauthorized_resume_input_step(test_client, process_on_unauthorized_resume):
+    response = test_client.put(f"/api/processes/{process_on_unauthorized_resume}/resume", json=[{"confirm": True}])
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
@@ -824,9 +830,9 @@ def test_continue_awaiting_process_endpoint(mock_db, mock_get_celery_task, test_
     mock_get_celery_task.assert_called_once_with(RESUME_WORKFLOW)
 
 
-def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, process_on_resume):
+def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, process_on_resumable_inputstep):
     response = test_client.post(
-        f"/api/processes/{process_on_resume}/callback/{callback_key}", json={"callback_response": True}
+        f"/api/processes/{process_on_resumable_inputstep}/callback/{callback_key}", json={"callback_response": True}
     )
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json() == {
@@ -834,3 +840,236 @@ def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, pr
         "status": 409,
         "title": "Conflict",
     }
+
+
+@pytest.fixture
+def authorize_step_group_retry_workflow():
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    steps = StepList([])
+    authorized_retry = step_group("authorized_retry", steps, retry_auth_callback=allow)
+    unauthorized_retry = step_group("unauthorized_retry", steps, retry_auth_callback=disallow)
+
+    # Default retry is disallow so we can test that authorized_retry overrides this.
+    @workflow("test_step_group_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    def test_step_group_workflow():
+        return init >> authorized_retry >> unauthorized_retry >> done
+
+    with WorkflowInstanceForTests(test_step_group_workflow, "test_step_group_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_retriable_step_group(authorize_step_group_retry_workflow):
+    """A process stuck on a failed step group that CAN be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_group_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unretriable_step_group(authorize_step_group_retry_workflow):
+    """A process stuck on a failed step group that CANNOT be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_group_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="unauthorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    success_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="unauthorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(success_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_authorized_step_group_retry(test_client, process_on_retriable_step_group):
+    response = test_client.put(f"/api/processes/{process_on_retriable_step_group}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_step_group_retry(test_client, process_on_unretriable_step_group):
+    response = test_client.put(f"/api/processes/{process_on_unretriable_step_group}/resume", json=[{"confirm": True}])
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def authorize_step_retry_workflow():
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    @step("authorized_retry", retry_auth_callback=allow)
+    def authorized_retry(state):
+        return
+
+    @step("unauthorized_retry", retry_auth_callback=disallow)
+    def unauthorized_retry(state):
+        return
+
+    # Default retry is disallow so we can test that authorized_retry overrides this.
+    @workflow("test_step_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    def test_step_group_workflow():
+        return init >> authorized_retry >> unauthorized_retry >> done
+
+    with WorkflowInstanceForTests(test_step_group_workflow, "test_step_group_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_retriable_step(authorize_step_retry_workflow):
+    """A process stuck on a failed step group that CAN be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unretriable_step(authorize_step_retry_workflow):
+    """A process stuck on a failed step group that CANNOT be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_step_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="unauthorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    success_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="unauthorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(success_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_authorized_step_retry(test_client, process_on_retriable_step):
+    response = test_client.put(f"/api/processes/{process_on_retriable_step}/resume", json={})
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_step_retry(test_client, process_on_unretriable_step):
+    response = test_client.put(f"/api/processes/{process_on_unretriable_step}/resume", json={})
+    assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def authorize_retrystep_retry_workflow():
+    def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    @retrystep("authorized_retry", retry_auth_callback=allow)
+    def authorized_retry(state):
+        return
+
+    @retrystep("unauthorized_retry", retry_auth_callback=disallow)
+    def unauthorized_retry(state):
+        return
+
+    # Default retry is disallow so we can test that authorized_retry overrides this.
+    @workflow("test_retrystep_retry_workflow", target=Target.CREATE, retry_auth_callback=disallow)
+    def test_step_group_workflow():
+        return init >> authorized_retry >> unauthorized_retry >> done
+
+    with WorkflowInstanceForTests(test_step_group_workflow, "test_step_group_workflow") as wf:
+        yield wf
+
+
+@pytest.fixture
+def process_on_retriable_retrystep(authorize_retrystep_retry_workflow):
+    """A process stuck on a failed retrystep that CAN be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_retrystep_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="authorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+@pytest.fixture
+def process_on_unretriable_retrystep(authorize_retrystep_retry_workflow):
+    """A process stuck on a failed retrystep that CANNOT be retried."""
+    process_id = uuid4()
+    process = ProcessTable(
+        process_id=process_id,
+        workflow_id=authorize_retrystep_retry_workflow.workflow_id,
+        last_status=ProcessStatus.FAILED,
+        last_step="unauthorized_retry",
+    )
+    init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+    success_step = ProcessStepTable(process_id=process_id, name="authorized_retry", status=StepStatus.SUCCESS, state={})
+    failed_step = ProcessStepTable(process_id=process_id, name="unauthorized_retry", status=StepStatus.FAILED, state={})
+
+    db.session.add(process)
+    db.session.add(init_step)
+    db.session.add(success_step)
+    db.session.add(failed_step)
+    db.session.commit()
+
+    return process_id
+
+
+def test_authorized_retrystep_retry(test_client, process_on_retriable_retrystep):
+    response = test_client.put(f"/api/processes/{process_on_retriable_retrystep}/resume", json={})
+    assert HTTPStatus.NO_CONTENT == response.status_code
+
+
+def test_unauthorized_retrystep_retry(test_client, process_on_unretriable_retrystep):
+    response = test_client.put(f"/api/processes/{process_on_unretriable_retrystep}/resume", json={})
+    assert HTTPStatus.FORBIDDEN == response.status_code

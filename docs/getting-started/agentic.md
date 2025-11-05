@@ -51,13 +51,21 @@ docker run --rm --name temp-orch-db -e POSTGRES_PASSWORD=rootpassword -p 5432:54
 docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb orchestrator-core -O nwa'
 ```
 
-### Step 3 - Create the main.py:
+### Step 3 - Create the main.py and wsgi.py:
 
 Create a `main.py` file.
 
 ```python
-from orchestrator import AgenticOrchestratorCore
 from orchestrator.cli.main import app as core_cli
+
+if __name__ == "__main__":
+    core_cli()
+```
+
+Create a `wsgi.py` file.
+
+```python
+from orchestrator import AgenticOrchestratorCore
 from orchestrator.settings import app_settings
 from orchestrator.llm_settings import llm_settings
 
@@ -72,9 +80,6 @@ app = AgenticOrchestratorCore(
     llm_model=llm_settings.AGENT_MODEL,
     agent_tools=[]
 )
-
-if __name__ == "__main__":
-    core_cli()
 ```
 
 ### Step 4 - Run the database migrations:
@@ -100,7 +105,7 @@ python main.py db upgrade heads
 export DATABASE_URI=postgresql://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
 export OAUTH2_ACTIVE=False
 
-uvicorn --reload --host 127.0.0.1 --port 8080 main:app
+uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 </div>

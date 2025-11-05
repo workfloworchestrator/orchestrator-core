@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF, GÉANT.
+# Copyright 2019-2025 SURF, GÉANT, ESnet.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 """This is the orchestrator workflow engine."""
 
-__version__ = "4.6.0rc1"
+__version__ = "4.6.1"
 
 
 from structlog import get_logger

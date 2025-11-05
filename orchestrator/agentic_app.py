@@ -26,7 +26,7 @@ from orchestrator.cli.main import app as cli_app
 from orchestrator.llm_settings import LLMSettings, llm_settings
 
 if TYPE_CHECKING:
-    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.models.openai import OpenAIChatModel
 
 logger = get_logger(__name__)
 
@@ -36,7 +36,7 @@ class LLMOrchestratorCore(OrchestratorCore):
         self,
         *args: Any,
         llm_settings: LLMSettings = llm_settings,
-        agent_model: "OpenAIModel | str | None" = None,
+        agent_model: "OpenAIChatModel | str | None" = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the `LLMOrchestratorCore` class.
