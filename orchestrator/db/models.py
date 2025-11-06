@@ -711,7 +711,7 @@ class SearchQueryTable(BaseModel):
     parameters = mapped_column(pg.JSONB, nullable=False)
 
     # Query embedding for semantic search (pgvector)
-    query_embedding = mapped_column(Vector(1536), nullable=True)
+    query_embedding = mapped_column(Vector(llm_settings.EMBEDDING_DIMENSION), nullable=True)
 
     executed_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
 

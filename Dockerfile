@@ -21,4 +21,4 @@ RUN pip install /tmp/*.whl --no-cache-dir
 RUN useradd orchestrator
 USER orchestrator
 WORKDIR /home/orchestrator
-CMD ["uvicorn", "--host", "0.0.0.0", "--port", "8080", "main:app"]
+CMD ["uvicorn", "--host", "0.0.0.0", "--port", "8080", "wsgi:app"]

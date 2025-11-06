@@ -7,12 +7,12 @@
 From the `example-orchestrator` folder, use Uvicorn to start the orchestrator:
 
 ```shell
-uvicorn --host 127.0.0.1 --port 8080 main:app
+uvicorn --host 127.0.0.1 --port 8080 wsgi:app
 ```
 
 If you are running without authentication set up, you can set the environment variable to false from the command line:
 ```
-OAUTH2_ACTIVE=false uvicorn --host localhost --port 8080 main:app
+OAUTH2_ACTIVE=false uvicorn --host localhost --port 8080 wsgi:app
 ```
 
 Visit [the app](http://127.0.0.1:8080/api/docs) to view the API documentation.

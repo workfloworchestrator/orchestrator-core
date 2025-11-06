@@ -5,7 +5,7 @@ This module contains the main `OrchestratorCore` class for the `FastAPI` backend
 provides the ability to run the CLI.
 """
 
-# Copyright 2019-2020 SURF, ESnet, GÉANT.
+# Copyright 2019-2025 SURF, ESnet, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
