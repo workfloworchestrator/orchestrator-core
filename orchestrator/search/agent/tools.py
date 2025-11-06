@@ -15,7 +15,7 @@ import json
 from typing import Any, cast
 
 import structlog
-from ag_ui.core import EventType, StateDeltaEvent, StateSnapshotEvent
+from ag_ui.core import EventType, StateSnapshotEvent
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -28,19 +28,20 @@ from orchestrator.api.api_v1.endpoints.search import (
 )
 from orchestrator.db import db
 from orchestrator.search.agent.handlers import (
-    build_state_changes_for_aggregation,
-    build_state_changes_for_search,
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
 )
-from orchestrator.search.agent.state import ExportData, SearchState
+from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.validation import require_action
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
+from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
 from orchestrator.search.query.export import fetch_export_data
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query, SelectQuery
+from orchestrator.search.query.results import AggregationResponse, AggregationResult, ExportData, VisualizationType
+from orchestrator.search.query.state import QueryState
 from orchestrator.search.query.validation import (
     validate_aggregation_field,
     validate_filter_path,
@@ -84,9 +85,7 @@ async def start_new_search(
     )
 
     # Clear all state
-    ctx.deps.state.results_data = None
-    ctx.deps.state.aggregation_data = None
-    ctx.deps.state.export_data = None
+    ctx.deps.state.results_count = None
     ctx.deps.state.action = action
 
     # Create the appropriate query object based on action
@@ -162,7 +161,7 @@ async def set_filter_tree(
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
-) -> StateDeltaEvent:
+) -> AggregationResponse:
     """Execute a search to find and rank entities.
 
     Use this tool for SELECT action to find entities matching your criteria.
@@ -172,23 +171,46 @@ async def run_search(
 
     search_response, run_id, query_id = await execute_search_with_persistence(query, db.session, ctx.deps.state.run_id)
 
-    run_id_existed = ctx.deps.state.run_id is not None
-    query_id_existed = ctx.deps.state.query_id is not None
-
     ctx.deps.state.run_id = run_id
     ctx.deps.state.query_id = query_id
-    ctx.deps.state.results_data, changes = build_state_changes_for_search(
-        search_response, query_id, run_id, run_id_existed, query_id_existed
+    ctx.deps.state.results_count = len(search_response.results)
+
+    # Convert SearchResults to AggregationResults for consistent rendering
+    aggregation_results = [
+        AggregationResult(
+            group_values={
+                "entity_id": result.entity_id,
+                "title": result.entity_title,
+                "entity_type": result.entity_type.value,
+            },
+            aggregations={"score": result.score},
+        )
+        for result in search_response.results
+    ]
+
+    # For now use the default table visualization for search results
+    aggregation_response = AggregationResponse(
+        results=aggregation_results,
+        total_groups=len(aggregation_results),
+        metadata=search_response.metadata,
+        visualization_type=VisualizationType(type="table"),
     )
 
-    return StateDeltaEvent(type=EventType.STATE_DELTA, delta=changes)
+    logger.debug(
+        "Search completed",
+        total_count=ctx.deps.state.results_count,
+        query_id=str(query_id),
+    )
+
+    return aggregation_response
 
 
 @search_toolset.tool
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)
 async def run_aggregation(
     ctx: RunContext[StateDeps[SearchState]],
-) -> StateDeltaEvent:
+    visualization_type: VisualizationType,
+) -> AggregationResponse:
     """Execute an aggregation to compute counts or statistics over entities.
 
     Use this tool for COUNT or AGGREGATE actions after setting up:
@@ -208,16 +230,20 @@ async def run_aggregation(
         query, db.session, ctx.deps.state.run_id
     )
 
-    run_id_existed = ctx.deps.state.run_id is not None
-    query_id_existed = ctx.deps.state.query_id is not None
-
     ctx.deps.state.run_id = run_id
     ctx.deps.state.query_id = query_id
-    ctx.deps.state.aggregation_data, changes = build_state_changes_for_aggregation(
-        aggregation_response, query_id, run_id, run_id_existed, query_id_existed
+    ctx.deps.state.results_count = aggregation_response.total_groups
+
+    aggregation_response.visualization_type = visualization_type
+
+    logger.debug(
+        "Aggregation completed",
+        total_groups=aggregation_response.total_groups,
+        visualization_type=visualization_type.type,
+        query_id=str(query_id),
     )
 
-    return StateDeltaEvent(type=EventType.STATE_DELTA, delta=changes)
+    return aggregation_response
 
 
 @search_toolset.tool
@@ -316,17 +342,21 @@ async def fetch_entity_details(
         JSON string containing detailed entity information.
 
     Raises:
-        ValueError: If no search results are available.
+        ModelRetry: If no search has been executed.
     """
-    if not ctx.deps.state.results_data or not ctx.deps.state.results_data.results:
-        raise ValueError("No search results available. Run a search first before fetching entity details.")
+    if ctx.deps.state.query_id is None:
+        raise ModelRetry("No query_id found. Run a search first.")
 
-    if ctx.deps.state.query is None:
-        raise ValueError("Search query is not initialized.")
+    # Load the saved query and re-execute it to get entity IDs
+    query_state = QueryState.load_from_id(ctx.deps.state.query_id, SelectQuery)
+    query = query_state.query.model_copy(update={"limit": limit})
+    search_response = await engine.execute_search(query, db.session)
+    entity_ids = [r.entity_id for r in search_response.results]
 
-    entity_type = ctx.deps.state.query.entity_type
+    if not entity_ids:
+        return json.dumps({"message": "No entities found in search results."})
 
-    entity_ids = [r.entity_id for r in ctx.deps.state.results_data.results[:limit]]
+    entity_type = query.entity_type
 
     logger.debug(
         "Fetching detailed entity data",
@@ -343,10 +373,13 @@ async def fetch_entity_details(
 @require_action(ActionType.SELECT)
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
-) -> StateSnapshotEvent:
-    """Prepares export URL using the last executed search query."""
+) -> ExportData:
+    """Prepares export URL using the last executed search query.
+
+    Returns export data which is displayed directly in the UI.
+    """
     if not ctx.deps.state.query_id or not ctx.deps.state.run_id:
-        raise ValueError("No search has been executed yet. Run a search first before exporting.")
+        raise ModelRetry("No search has been executed yet. Run a search first before exporting.")
 
     logger.debug(
         "Prepared query for export",
@@ -355,20 +388,15 @@ async def prepare_export(
 
     download_url = f"{app_settings.BASE_URL}/api/search/queries/{ctx.deps.state.query_id}/export"
 
-    ctx.deps.state.export_data = ExportData(
+    export_data = ExportData(
         query_id=str(ctx.deps.state.query_id),
         download_url=download_url,
         message="Export ready for download.",
     )
 
-    logger.debug("Export data set in state", export_data=ctx.deps.state.export_data.model_dump())
+    logger.debug("Export prepared", query_id=export_data.query_id)
 
-    # Should use StateDelta here? Use snapshot to workaround state persistence issue
-    # TODO: Fix root cause; state is empty on frontend when it should have data from run_search
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
-    )
+    return export_data
 
 
 @search_toolset.tool(retries=2)

@@ -19,13 +19,10 @@ import structlog
 
 from orchestrator.db import AgentRunTable, SearchQueryTable
 from orchestrator.db.database import WrappedSession
-from orchestrator.search.agent.json_patch import JSONPatchOp
-from orchestrator.search.agent.state import AggregationResultsData, SearchResultsData
 from orchestrator.search.query import engine
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 from orchestrator.search.query.results import AggregationResponse, SearchResponse
 from orchestrator.search.query.state import QueryState
-from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -130,83 +127,3 @@ async def execute_aggregation_with_persistence(
     logger.debug("Saved aggregation query", query_id=str(search_query.query_id), query_number=query_number)
 
     return aggregation_response, run_id, search_query.query_id
-
-
-def build_state_changes_for_search(
-    search_response: SearchResponse,
-    query_id: UUID,
-    run_id: UUID,
-    run_id_existed: bool,
-    query_id_existed: bool,
-) -> tuple[SearchResultsData, list[JSONPatchOp]]:
-    """Build state data and JSON patch changes for search results.
-
-    Args:
-        search_response: Search response from engine
-        query_id: Query ID from database
-        run_id: Agent run ID
-        run_id_existed: Whether run_id existed before
-        query_id_existed: Whether query_id existed before
-
-    Returns:
-        Tuple of (results_data, json_patch_changes)
-    """
-    changes: list[JSONPatchOp] = []
-
-    if not run_id_existed:
-        changes.append(JSONPatchOp(op="add", path="/run_id", value=str(run_id)))
-
-    changes.append(JSONPatchOp.upsert(path="/query_id", value=str(query_id), existed=query_id_existed))
-
-    results_url = f"{app_settings.BASE_URL}/api/search/queries/{query_id}"
-    results_data = SearchResultsData(
-        query_id=str(query_id),
-        results_url=results_url,
-        total_count=len(search_response.results),
-        message=f"Found {len(search_response.results)} results.",
-        results=search_response.results,
-    )
-
-    changes.append(JSONPatchOp.upsert(path="/results_data", value=results_data.model_dump(), existed=True))
-
-    return results_data, changes
-
-
-def build_state_changes_for_aggregation(
-    aggregation_response: AggregationResponse,
-    query_id: UUID,
-    run_id: UUID,
-    run_id_existed: bool,
-    query_id_existed: bool,
-) -> tuple[AggregationResultsData, list[JSONPatchOp]]:
-    """Build state data and JSON patch changes for aggregation results.
-
-    Args:
-        aggregation_response: Aggregation response from engine
-        query_id: Query ID from database
-        run_id: Agent run ID
-        run_id_existed: Whether run_id existed before
-        query_id_existed: Whether query_id existed before
-
-    Returns:
-        Tuple of (aggregation_data, json_patch_changes)
-    """
-    changes: list[JSONPatchOp] = []
-
-    if not run_id_existed:
-        changes.append(JSONPatchOp(op="add", path="/run_id", value=str(run_id)))
-
-    changes.append(JSONPatchOp.upsert(path="/query_id", value=str(query_id), existed=query_id_existed))
-
-    results_url = f"{app_settings.BASE_URL}/api/search/queries/{query_id}"
-    aggregation_data = AggregationResultsData(
-        query_id=str(query_id),
-        results_url=results_url,
-        total_groups=aggregation_response.total_groups,
-        message=f"Found {aggregation_response.total_groups} groups.",
-        results=aggregation_response.results,
-    )
-
-    changes.append(JSONPatchOp.upsert(path="/aggregation_data", value=aggregation_data.model_dump(), existed=True))
-
-    return aggregation_data, changes

@@ -78,45 +78,37 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
     """Dynamically provides 'next step' coaching based on the current state."""
     state = ctx.deps.state
     query_state_str = json.dumps(state.query.model_dump(), indent=2, default=str) if state.query else "Not set."
-    results_count = state.results_data.total_count if state.results_data else 0
-    aggregation_groups = state.aggregation_data.total_groups if state.aggregation_data else 0
+    results_count = state.results_count or 0
     action = state.action or ActionType.SELECT
 
-    if state.export_data:
-        next_step_guidance = (
-            "INSTRUCTION: Export has been prepared successfully. "
-            "Simply confirm to the user that the export is ready for download. "
-            "DO NOT include or mention the download URL - the UI will display it automatically."
-        )
-    elif not state.query:
+    if not state.query:
         next_step_guidance = (
             f"INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`. "
             f"For counting or aggregation queries, set action='{ActionType.COUNT.value}' or action='{ActionType.AGGREGATE.value}'."
         )
-    elif aggregation_groups > 0:
-        # Aggregation results available
-        next_step_guidance = dedent(
-            f"""
-            INSTRUCTION: Aggregation completed successfully.
-            Found {aggregation_groups} groups with computed aggregations.
-
-            The aggregation_data contains group_values and aggregations for each group.
-            Answer the user's question using this aggregated data directly.
-            """
-        )
     elif results_count > 0:
-        next_step_guidance = dedent(
-            f"""
-            INSTRUCTION: Search completed successfully.
-            Found {results_count} results containing only: entity_id, title, score.
+        if action in (ActionType.COUNT, ActionType.AGGREGATE):
+            # Aggregation completed
+            next_step_guidance = (
+                "INSTRUCTION: Aggregation completed successfully. "
+                "The results are already displayed in the UI. "
+                "Simply confirm completion to the user in a brief sentence. "
+                "DO NOT repeat, summarize, or restate the aggregation data."
+            )
+        else:
+            # Search completed
+            next_step_guidance = dedent(
+                f"""
+                INSTRUCTION: Search completed successfully.
+                Found {results_count} results containing only: entity_id, title, score.
 
-            Choose your next action based on what the user requested:
-            1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do nothing else.
-            2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
-            3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
-            4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly.
-            """
-        )
+                Choose your next action based on what the user requested:
+                1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do not repeat the results.
+                2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
+                3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
+                4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly. Simply confirm the export is ready. Do not repeat the results.
+                """
+            )
     elif action in (ActionType.COUNT, ActionType.AGGREGATE):
         # COUNT or AGGREGATE action but no results yet
         next_step_guidance = (
@@ -133,11 +125,7 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
             "If no specific filters are needed, you can proceed directly to `run_search`."
         )
 
-    status_summary = (
-        f"Results: {results_count}"
-        if results_count > 0
-        else f"Aggregation Groups: {aggregation_groups}" if aggregation_groups > 0 else "No results yet"
-    )
+    status_summary = f"Results: {results_count}" if results_count > 0 else "No results yet"
 
     return dedent(
         f"""

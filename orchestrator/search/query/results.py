@@ -14,6 +14,7 @@
 """Query execution result models and formatting functions."""
 
 from collections.abc import Sequence
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine.row import RowMapping
@@ -22,6 +23,21 @@ from orchestrator.search.core.types import EntityType, FilterOp, SearchMetadata
 from orchestrator.search.filters import FilterTree
 
 from .queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
+
+
+class VisualizationType(BaseModel):
+    """Visualization type for aggregation results.
+
+    Choose based on the query context:
+    - 'pie': For categorical distributions (e.g., subscriptions by status, products by type)
+    - 'line': For time-series data (e.g., subscriptions created per month, trends over time)
+    - 'table': For detailed data or multiple grouping dimensions (default)
+    """
+
+    type: Literal["pie", "line", "table"] = Field(
+        default="table",
+        description="Visualization render type: 'pie' for categorical distributions, 'line' for time-series, 'table' for detailed data",
+    )
 
 
 class MatchingField(BaseModel):
@@ -66,8 +82,18 @@ class AggregationResponse(BaseModel):
     results: list[AggregationResult]
     total_groups: int
     metadata: SearchMetadata
+    visualization_type: VisualizationType = Field(default_factory=VisualizationType)
 
     model_config = ConfigDict(extra="forbid")
+
+
+class ExportData(BaseModel):
+    """Export metadata for download."""
+
+    action: str = "export"
+    query_id: str
+    download_url: str
+    message: str
 
 
 def format_aggregation_response(
