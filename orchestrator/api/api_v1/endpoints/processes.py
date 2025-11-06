@@ -101,7 +101,7 @@ def get_steps_to_evaluate_for_rbac(pstat: ProcessStat) -> StepList:
     return StepList(past_steps >> first(remaining_steps))
 
 
-def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer | None, Authorizer | None]:
+def get_auth_callbacks(steps: StepList, workflow: Workflow | None) -> tuple[Authorizer | None, Authorizer | None]:
     """Iterate over workflow and prior steps to determine correct authorization callbacks for the current step.
 
     It's safest to always iterate through the steps. We could track these callbacks statefully
@@ -112,6 +112,9 @@ def get_auth_callbacks(steps: StepList, workflow: Workflow) -> tuple[Authorizer 
     - RESUME callback is explicit RESUME callback, else previous START/RESUME callback
     - RETRY callback is explicit RETRY, else explicit RESUME, else previous RETRY
     """
+    if not workflow:
+        return None, None
+
     # Default to workflow start callbacks
     auth_resume = workflow.authorize_callback
     # auth_retry defaults to the workflow start callback if not otherwise specified.
