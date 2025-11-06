@@ -42,7 +42,12 @@ from orchestrator.types import SubscriptionLifecycle
 from orchestrator.utils.json import json_dumps
 from orchestrator.utils.redis_client import create_redis_client
 from pydantic_forms.core import FormPage
-from test.unit_tests.fixtures.processes import mocked_processes, mocked_processes_resumeall, test_workflow  # noqa: F401
+from test.unit_tests.fixtures.processes import (  # noqa: F401
+    mocked_processes,
+    mocked_processes_resumeall,
+    test_workflow,
+    test_workflow_soft_deleted,
+)
 from test.unit_tests.fixtures.products.product_blocks.product_block_list_nested import (  # noqa: F401
     test_product_block_list_nested,
     test_product_block_list_nested_db_in_use_by_block,

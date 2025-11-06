@@ -86,11 +86,11 @@ class ProcessType:
         oidc_user = await info.context.get_current_user
         workflow = get_workflow(self.workflow_name)
         process = load_process(db.session.get(ProcessTable, self.process_id))  # type: ignore[arg-type]
-        auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)  # type: ignore[arg-type]
+        auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)
 
         return FormUserPermissionsType(
-            retryAllowed=auth_retry and auth_retry(oidc_user),  # type: ignore[arg-type]
-            resumeAllowed=auth_resume and auth_resume(oidc_user),  # type: ignore[arg-type]
+            retryAllowed=bool(auth_retry and auth_retry(oidc_user)),
+            resumeAllowed=bool(auth_resume and auth_resume(oidc_user)),
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
