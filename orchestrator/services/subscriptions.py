@@ -14,7 +14,6 @@
 """Module that provides service functions on subscriptions."""
 
 import pickle  # noqa: S403
-from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime
 from hashlib import md5
@@ -292,69 +291,6 @@ def retrieve_subscription_by_subscription_instance_value(
         .distinct(SubscriptionTable.subscription_id)
     )
     return db.session.scalars(stmt).one_or_none()
-
-
-def find_values_for_resource_types(
-    subscription_id: UUID | UUIDstr, resource_types: Sequence[str], strict: bool = True
-) -> dict[str, list[str]]:
-    """Find values for resource types by subscription ID.
-
-    This function issues a single SQL query to find one or more resource types for a given subscription. As
-    multiple values per resource type are possible (think of a BGP subscription with multiple SAPs, with each SAP
-    sharing the same resource types) values are always returned as a list, even when there is only a single value.
-
-    In case of shared resource types (hence multiple values), the order of the values matches across resource types:
-    Meaning: in case of the above example with multiple, say two, SAPs, should we have requested the resource types::
-
-        ('customer_ipv4_mtu', 'customer_ipv6_mtu'),
-
-    we would get back::
-
-        {
-            'customer_ipv4_mtu': ['1500', '9000'],
-            'customer_ipv6_mtu': ['9000', '9000'],
-        }
-
-    The first element of each list belong to the same SAP, likewise the second element of each list belongs to the
-    same SAP. This allows you to implicitly correlate values.
-
-    Args:
-        subscription_id: The id of the subscription.
-        resource_types: A sequence of resource type names.
-        strict:
-            True: raise `ValueError` if one or more requested resource types were not found,
-            False: ignore resource types that weren't found.
-
-    Returns:
-        A dictionary of resource type names to lists of values.
-
-    Raises:
-        ValueError: if strict == True and one or more resource types were requested but not found.
-
-    """
-    # the `order_by` on `subscription_instance_id` is there to guarantee the matched ordering across resource_types
-    # (see also docstring)
-    stmt = (
-        select(SubscriptionInstanceValueTable)
-        .join(ResourceTypeTable)
-        .join(SubscriptionInstanceTable)
-        .filter(
-            SubscriptionInstanceTable.subscription_id == subscription_id,
-            ResourceTypeTable.resource_type.in_(resource_types),
-        )
-        .order_by(SubscriptionInstanceTable.subscription_instance_id)
-        .with_only_columns(ResourceTypeTable.resource_type, SubscriptionInstanceValueTable.value)
-    )
-    resource_type_values = db.session.execute(stmt).all()
-
-    rt2v: dict[str, list[str]] = defaultdict(list)
-    for resource_type, value in resource_type_values:
-        rt2v[resource_type].append(value)
-    if strict:
-        missing = set(resource_types) - set(rt2v.keys())
-        if missing:
-            raise ValueError(f"Could not find requested resource types: '{','.join(missing)}'!")
-    return rt2v
 
 
 def query_in_use_by_subscriptions(subscription_id: UUID, filter_statuses: list[str] | None = None) -> Query:
