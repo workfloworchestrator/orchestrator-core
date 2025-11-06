@@ -306,14 +306,13 @@ def find_values_for_resource_types(
     In case of shared resource types (hence multiple values), the order of the values matches across resource types:
     Meaning: in case of the above example with multiple, say two, SAPs, should we have requested the resource types::
 
-        ('customer_ipv4_mtu', 'customer_ipv6_mtu', 'port_subscription_id'),
+        ('customer_ipv4_mtu', 'customer_ipv6_mtu'),
 
     we would get back::
 
         {
             'customer_ipv4_mtu': ['1500', '9000'],
             'customer_ipv6_mtu': ['9000', '9000'],
-            'port_subscription_id': ['654a1e7f-9afb-43b7-ba8f-cdf9d48494aa', '2f86be06-a5b7-40ee-a71b-137d6b48a37e']
         }
 
     The first element of each list belong to the same SAP, likewise the second element of each list belongs to the

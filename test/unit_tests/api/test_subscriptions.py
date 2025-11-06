@@ -33,11 +33,8 @@ from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, done, init, workflow
 from test.unit_tests.config import (
     IMS_CIRCUIT_ID,
-    INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
     IPAM_PREFIX_ID,
-    PARENT_IP_PREFIX_SUBSCRIPTION_ID,
     PEER_GROUP_SUBSCRIPTION_ID,
-    PORT_SUBSCRIPTION_ID,
 )
 from test.unit_tests.conftest import do_refresh_subscriptions_search_view
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -50,7 +47,6 @@ SSP_SUBSCRIPTION_ID = str(uuid4())
 SSP_SUBSCRIPTION_BLOCK_ID = str(uuid4())
 IP_PREFIX_SUBSCRIPTION_ID = str(uuid4())
 INVALID_SUBSCRIPTION_ID = str(uuid4())
-INVALID_PORT_SUBSCRIPTION_ID = str(uuid4())
 
 PORT_A_PRODUCT_ID = str(uuid4())
 PORT_B_PRODUCT_ID = str(uuid4())
@@ -62,7 +58,6 @@ def seed():
     # These resource types are special
     resources = [
         ResourceTypeTable(resource_type=IMS_CIRCUIT_ID, description="Desc"),
-        ResourceTypeTable(resource_type=PORT_SUBSCRIPTION_ID, description="Desc"),
     ]
     product_blocks = [
         ProductBlockTable(name="ProductBlockA", description="description a", status="active", resource_types=resources)
@@ -177,14 +172,12 @@ def seed():
 
     lp_subscription_instance_values_ssp = [
         SubscriptionInstanceValueTable(resource_type=resources[0], value="54321"),
-        SubscriptionInstanceValueTable(resource_type=resources[1], value=str(PORT_A_SUBSCRIPTION_ID)),
     ]
     lp_subscription_instance_ssp = SubscriptionInstanceTable(
         product_block=product_blocks[0], values=lp_subscription_instance_values_ssp
     )
     lp_subscription_instance_values_msp = [
         SubscriptionInstanceValueTable(resource_type=resources[0], value="54321"),
-        SubscriptionInstanceValueTable(resource_type=resources[1], value=str(SSP_SUBSCRIPTION_ID)),
     ]
     lp_subscription_instance_msp = SubscriptionInstanceTable(
         product_block=product_blocks[0], values=lp_subscription_instance_values_msp
@@ -220,20 +213,6 @@ def seed():
         fixed_inputs=fixed_inputs,
     )
 
-    invalid_tagged_subscription = SubscriptionTable(
-        subscription_id=INVALID_PORT_SUBSCRIPTION_ID,
-        description="desc",
-        status="active",
-        insync=False,
-        product=invalid_tagged_product,
-        customer_id=CUSTOMER_ID,
-        instances=[
-            SubscriptionInstanceTable(
-                product_block=product_blocks[0],
-                values=[SubscriptionInstanceValueTable(resource_type=resources[0], value="54321")],
-            )
-        ],
-    )
     db.session.add(port_a_product)
     db.session.add(ip_prefix_product)
     db.session.add(ip_prefix_subscription)
@@ -245,15 +224,11 @@ def seed():
     db.session.add(ssp_subscription)
     db.session.add(lp_subscription)
     db.session.add(invalid_subscription)
-    db.session.add(invalid_tagged_subscription)
     db.session.commit()
 
     RELATION_RESOURCE_TYPES.extend(
         [
-            PORT_SUBSCRIPTION_ID,
             IP_PREFIX_SUBSCRIPTION_ID,
-            INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-            PARENT_IP_PREFIX_SUBSCRIPTION_ID,
             PEER_GROUP_SUBSCRIPTION_ID,
         ]
     )
@@ -442,21 +417,6 @@ def seed_with_direct_relations():
         fixed_inputs=fixed_inputs,
     )
 
-    invalid_tagged_subscription = SubscriptionTable(
-        subscription_id=INVALID_PORT_SUBSCRIPTION_ID,
-        description="desc",
-        status="active",
-        insync=False,
-        product=invalid_tagged_product,
-        customer_id=CUSTOMER_ID,
-        instances=[
-            SubscriptionInstanceTable(
-                product_block=product_blocks[0],
-                values=[SubscriptionInstanceValueTable(resource_type=resources[0], value="54321")],
-            )
-        ],
-    )
-
     db.session.add(port_a_product)
     db.session.add(ip_prefix_product)
     db.session.add(ip_prefix_subscription)
@@ -468,7 +428,6 @@ def seed_with_direct_relations():
     db.session.add(ssp_subscription)
     db.session.add(lp_subscription)
     db.session.add(invalid_subscription)
-    db.session.add(invalid_tagged_subscription)
     db.session.commit()
     db.session.add(lp_subscription_instance_ssp_depends_on)
     db.session.add(lp_subscription_instance_msp_depends_on)
@@ -476,10 +435,7 @@ def seed_with_direct_relations():
 
     RELATION_RESOURCE_TYPES.extend(
         [
-            PORT_SUBSCRIPTION_ID,
             IP_PREFIX_SUBSCRIPTION_ID,
-            INTERNETPINNEN_PREFIX_SUBSCRIPTION_ID,
-            PARENT_IP_PREFIX_SUBSCRIPTION_ID,
             PEER_GROUP_SUBSCRIPTION_ID,
         ]
     )
@@ -492,20 +448,6 @@ def test_insync_404(seed, test_client):
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_insync_invalid_tagged(seed, test_client):
-    response = test_client.get(f"/api/subscriptions/workflows/{INVALID_PORT_SUBSCRIPTION_ID}")
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        "reason": "subscription.not_in_sync",
-        "create": [],
-        "modify": [],
-        "terminate": [],
-        "system": [],
-        "validate": [],
-        "reconcile": [],
-    }
-
-
 def test_in_use_by_subscriptions_not_insync(seed, test_client):
     # ensure that the used subscription of the MSP is out of sync
     service = get_subscription(SERVICE_SUBSCRIPTION_ID)
@@ -515,10 +457,10 @@ def test_in_use_by_subscriptions_not_insync(seed, test_client):
     # test the api endpoint
     response = test_client.get(f"/api/subscriptions/workflows/{PORT_A_SUBSCRIPTION_ID}")
     assert response.status_code == HTTPStatus.OK
+
     insync_info = response.json()
-    assert "reason" in insync_info
-    assert len(insync_info["locked_relations"]) == 1
-    assert insync_info["locked_relations"][0] == SERVICE_SUBSCRIPTION_ID
+    assert "reason" not in insync_info
+    assert "locked_relations" not in insync_info
 
 
 def test_in_use_by_subscriptions_insync(seed, test_client):
@@ -539,10 +481,10 @@ def test_depends_on_subscriptions_not_insync(seed, test_client):
     # test the api endpoint
     response = test_client.get(f"/api/subscriptions/workflows/{SERVICE_SUBSCRIPTION_ID}")
     assert response.status_code == HTTPStatus.OK
+
     insync_info = response.json()
-    assert "reason" in insync_info
-    assert len(insync_info["locked_relations"]) == 1
-    assert insync_info["locked_relations"][0] == PORT_A_SUBSCRIPTION_ID
+    assert "reason" not in insync_info
+    assert "locked_relations" not in insync_info
 
 
 def test_depends_on_subscriptions_insync(seed, test_client):
@@ -657,7 +599,7 @@ def test_product_block_paths(generic_subscription_1, generic_subscription_2):
 @pytest.mark.parametrize(
     "query, num_matches",
     [
-        ("id", 7),
+        ("id", 6),
         ("tag:(POR* | LP)", 1),
         ("tag:SP", 3),
         ("tag:(POR* | LP) | tag:SP", 4),

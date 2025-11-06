@@ -18,7 +18,7 @@ from orchestrator.workflow import ProcessStat, Step, Success, Workflow, runwf
 from orchestrator.workflows import ALL_WORKFLOWS, LazyWorkflowInstance
 from pydantic_forms.core import post_form
 from pydantic_forms.types import FormGenerator, InputForm, State
-from test.unit_tests.config import IMS_CIRCUIT_ID, PORT_SUBSCRIPTION_ID
+from test.unit_tests.config import IMS_CIRCUIT_ID
 
 logger = structlog.get_logger(__name__)
 
@@ -261,13 +261,9 @@ def assert_product_blocks_equal(expected, actual):
             id_ = items[0][IMS_CIRCUIT_ID]
             return f"1_{id_}"
         if name == "Service Attach Point":
-            port_subscription_id = list(
-                filter(lambda k: list(k.keys())[0] == PORT_SUBSCRIPTION_ID, item["Service Attach Point"])
-            )
-            port_subscription_id = port_subscription_id[0][PORT_SUBSCRIPTION_ID]
             vlanrange = list(filter(lambda k: list(k.keys())[0] == "vlanrange", item["Service Attach Point"]))
             vlanrange = vlanrange[0]["vlanrange"]
-            return f"2_{port_subscription_id}_{vlanrange}"
+            return f"2_{vlanrange}"
         return name
 
     expected.sort(key=key_value_sort)

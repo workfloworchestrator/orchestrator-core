@@ -9,12 +9,10 @@ from orchestrator.db import (
     ProductBlockTable,
     ProductTable,
     ResourceTypeTable,
-    SubscriptionInstanceTable,
-    SubscriptionInstanceValueTable,
     SubscriptionTable,
     db,
 )
-from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, PORT_SUBSCRIPTION_ID, SERVICE_SPEED
+from test.unit_tests.config import CITY_TYPE, DOMAIN, IMS_CIRCUIT_ID, PORT_SPEED, SERVICE_SPEED
 from test.unit_tests.fixtures.workflows import add_soft_deleted_workflows  # noqa: F401
 
 PRODUCT_ID = uuid4()
@@ -79,8 +77,6 @@ def seed():
         product_id=uuid4(), name="P", description="P", product_type="Port", tag="P", status="active"
     )
 
-    port_subscription_id = ResourceTypeTable(resource_type=PORT_SUBSCRIPTION_ID, description="Port Subscription Id")
-    values = [SubscriptionInstanceValueTable(resource_type=port_subscription_id, value=str(depends_on_SUBSCRIPTION_ID))]
     subscription = SubscriptionTable(
         subscription_id=SUBSCRIPTION_ID,
         description="desc",
@@ -88,7 +84,6 @@ def seed():
         insync=True,
         product=product,
         customer_id=str(uuid4()),
-        instances=[SubscriptionInstanceTable(product_block=product_blocks[0], values=values)],
     )
     depends_on_subscription = SubscriptionTable(
         subscription_id=depends_on_SUBSCRIPTION_ID,
