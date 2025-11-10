@@ -65,6 +65,7 @@ class SearchResponse(BaseModel):
     results: list[SearchResult]
     metadata: SearchMetadata
     query_embedding: list[float] | None = None
+    has_more: bool = False
 
 
 class AggregationResult(BaseModel):

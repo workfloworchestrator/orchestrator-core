@@ -62,8 +62,7 @@ def encode_next_page_cursor(
     """
     from orchestrator.search.query.state import QueryState
 
-    has_next_page = len(search_response.results) == query.limit and query.limit > 0
-    if not has_next_page:
+    if not search_response.has_more:
         return None
 
     # If this is the first page, save query state to database
