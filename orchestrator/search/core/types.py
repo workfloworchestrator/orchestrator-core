@@ -262,7 +262,7 @@ class FieldType(str, Enum):
 
     def is_embeddable(self, value: str | None) -> bool:
         """Check if a field should be embedded."""
-        if value is None:
+        if value is None or value == "":
             return False
 
         # If inference suggests it's not actually a string, don't embed it
