@@ -11,16 +11,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+import functools
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
+from langfuse import observe
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.toolsets import FunctionToolset
+
+from llm_guard import scan_prompt
+from llm_guard.input_scanners import PromptInjection, Toxicity
 
 from orchestrator.api.api_v1.endpoints.search import (
     get_definitions,
@@ -30,7 +37,7 @@ from orchestrator.api.api_v1.endpoints.search import (
     search_subscriptions,
     search_workflows,
 )
-from orchestrator.schemas.search import SearchResultsSchema
+from orchestrator.schemas.search import SearchResultsSchema, SubscriptionSearchResult
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.retrieval.exceptions import FilterValidationError, PathNotFoundError
@@ -55,6 +62,7 @@ SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
 
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
+input_scanners = [PromptInjection(threshold=0.5)]
 
 def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
     for msg in reversed(ctx.messages):
@@ -66,6 +74,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
 
 
 @search_toolset.tool
+@observe(name="agent_endpoint")
 async def set_search_parameters(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
@@ -97,8 +106,8 @@ async def set_search_parameters(
         snapshot=ctx.deps.state.model_dump(),
     )
 
-
 @search_toolset.tool(retries=2)
+@observe(name="agent_endpoint")
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
@@ -139,8 +148,8 @@ async def set_filter_tree(
     ctx.deps.state.parameters["filters"] = filter_data
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
-
 @search_toolset.tool
+@observe(name="agent_endpoint")
 async def execute_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
@@ -176,13 +185,30 @@ async def execute_search(
         "Search completed",
         total_results=len(search_results.data) if search_results.data else 0,
     )
+    for result in search_results.data:
+        if not isinstance(result,SubscriptionSearchResult):
+            continue
+        for field in result.subscription.values():
+            scanDict(field)
 
     ctx.deps.state.results = search_results.data
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
+def scanDict(value: any):
+    if isinstance(value,dict):
+        for item in value:
+            scanDict(value[item])
+    if not isinstance(value,str):
+        return
+    logger.debug("Scanning search result", resultvalue=value)
+    _, _, scan_results = scan_prompt(
+        scanners=input_scanners,
+        prompt=str(value),
+    )
 
 @search_toolset.tool
+@observe(name="agent_endpoint")
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
     field_names: list[str],
@@ -243,8 +269,8 @@ async def discover_filter_paths(
     logger.debug("Returning found fieldname - path mapping", all_results=all_results)
     return all_results
 
-
 @search_toolset.tool
+@observe(name="agent_endpoint")
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
     definitions = await get_definitions()
