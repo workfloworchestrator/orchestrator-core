@@ -11,22 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from uuid import UUID
+from .base import (
+    Aggregation,
+    AggregationType,
+    BaseAggregation,
+    CountAggregation,
+    FieldAggregation,
+    TemporalGrouping,
+    TemporalPeriod,
+)
 
-from pydantic import BaseModel
-
-from orchestrator.search.core.types import ActionType
-from orchestrator.search.query.queries import Query
-
-
-class SearchState(BaseModel):
-    """Agent state for search operations.
-
-    Tracks the current search context and execution status.
-    """
-
-    run_id: UUID | None = None
-    query_id: UUID | None = None
-    action: ActionType | None = None
-    query: Query | None = None
-    results_count: int | None = None  # Number of results from last executed search/aggregation
+__all__ = [
+    "Aggregation",
+    "AggregationType",
+    "BaseAggregation",
+    "CountAggregation",
+    "FieldAggregation",
+    "TemporalGrouping",
+    "TemporalPeriod",
+]

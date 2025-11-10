@@ -21,35 +21,32 @@ from orchestrator.schemas.search import (
     PathsResponse,
     SearchResultsSchema,
 )
+from orchestrator.schemas.search_requests import SearchRequest
 from orchestrator.search.core.exceptions import InvalidCursorError, QueryStateNotFoundError
 from orchestrator.search.core.types import EntityType, UIType
-from orchestrator.search.filters.definitions import generate_definitions
-from orchestrator.search.retrieval import SearchQueryState, execute_search, execute_search_for_export
-from orchestrator.search.retrieval.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
+from orchestrator.search.filters.definitions import TypeDefinition, generate_definitions
+from orchestrator.search.query import QueryState, engine
+from orchestrator.search.query.builder import build_paths_query, create_path_autocomplete_lquery, process_path_rows
+from orchestrator.search.query.queries import ExportQuery, SelectQuery
+from orchestrator.search.query.results import SearchResult
+from orchestrator.search.query.validation import is_lquery_syntactically_valid
 from orchestrator.search.retrieval.pagination import PageCursor, encode_next_page_cursor
-from orchestrator.search.retrieval.validation import is_lquery_syntactically_valid
-from orchestrator.search.schemas.parameters import (
-    ProcessSearchParameters,
-    ProductSearchParameters,
-    SearchParameters,
-    SubscriptionSearchParameters,
-    WorkflowSearchParameters,
-)
-from orchestrator.search.schemas.results import SearchResult, TypeDefinition
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
 
 
 async def _perform_search_and_fetch(
-    search_params: SearchParameters | None = None,
+    entity_type: EntityType | None = None,
+    request: SearchRequest | None = None,
     cursor: str | None = None,
     query_id: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
     """Execute search with optional pagination.
 
     Args:
-        search_params: Search parameters for new search
+        entity_type: Entity type to search
+        request: Search request for new search
         cursor: Pagination cursor (loads saved query state)
         query_id: Saved query ID to retrieve and execute
 
@@ -58,27 +55,31 @@ async def _perform_search_and_fetch(
     """
     try:
         page_cursor: PageCursor | None = None
+        query: SelectQuery
 
         if cursor:
             page_cursor = PageCursor.decode(cursor)
-            query_state = SearchQueryState.load_from_id(page_cursor.query_id)
+            query_state = QueryState.load_from_id(page_cursor.query_id, SelectQuery)
+            query = query_state.query
+
         elif query_id:
-            query_state = SearchQueryState.load_from_id(query_id)
-        elif search_params:
-            query_state = SearchQueryState(parameters=search_params, query_embedding=None)
+            query_state = QueryState.load_from_id(query_id, SelectQuery)
+            query = query_state.query
+
+        elif request and entity_type:
+            query = request.to_query(entity_type)
+            query_state = QueryState(query=query, query_embedding=None)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either search_params, cursor, or query_id must be provided",
+                detail="Either (request + entity_type), cursor, or query_id must be provided",
             )
 
-        search_response = await execute_search(
-            query_state.parameters, db.session, page_cursor, query_state.query_embedding
-        )
+        search_response = await engine.execute_search(query, db.session, page_cursor, query_state.query_embedding)
         if not search_response.results:
             return SearchResultsSchema(search_metadata=search_response.metadata)
 
-        next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query_state.parameters)
+        next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query)
         has_next_page = next_page_cursor is not None
         page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
 
@@ -98,34 +99,34 @@ async def _perform_search_and_fetch(
 
 @router.post("/subscriptions", response_model=SearchResultsSchema[SearchResult])
 async def search_subscriptions(
-    search_params: SubscriptionSearchParameters,
+    request: SearchRequest,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(EntityType.SUBSCRIPTION, request, cursor)
 
 
 @router.post("/workflows", response_model=SearchResultsSchema[SearchResult])
 async def search_workflows(
-    search_params: WorkflowSearchParameters,
+    request: SearchRequest,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(EntityType.WORKFLOW, request, cursor)
 
 
 @router.post("/products", response_model=SearchResultsSchema[SearchResult])
 async def search_products(
-    search_params: ProductSearchParameters,
+    request: SearchRequest,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(EntityType.PRODUCT, request, cursor)
 
 
 @router.post("/processes", response_model=SearchResultsSchema[SearchResult])
 async def search_processes(
-    search_params: ProcessSearchParameters,
+    request: SearchRequest,
     cursor: str | None = None,
 ) -> SearchResultsSchema[SearchResult]:
-    return await _perform_search_and_fetch(search_params, cursor)
+    return await _perform_search_and_fetch(EntityType.PROCESS, request, cursor)
 
 
 @router.get(
@@ -191,7 +192,7 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
     as flattened records suitable for CSV download.
 
     Args:
-        query_id: Query UUID
+        query_id: QueryTypes UUID
 
     Returns:
         ExportResponse containing 'page' with an array of flattened entity records.
@@ -200,8 +201,17 @@ async def export_by_query_id(query_id: str) -> ExportResponse:
         HTTPException: 404 if query not found, 400 if invalid data
     """
     try:
-        query_state = SearchQueryState.load_from_id(query_id)
-        export_records = await execute_search_for_export(query_state, db.session)
+        # Load SelectQuery from the database (what gets saved during search)
+        query_state = QueryState.load_from_id(query_id, SelectQuery)
+
+        # Convert to ExportQuery with export-appropriate limit
+        export_query = ExportQuery(
+            entity_type=query_state.query.entity_type,
+            filters=query_state.query.filters,
+            query_text=query_state.query.query_text,
+        )
+
+        export_records = await engine.execute_export(export_query, db.session, query_state.query_embedding)
         return ExportResponse(page=export_records)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))

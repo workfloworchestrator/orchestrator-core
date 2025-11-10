@@ -12,8 +12,8 @@ from orchestrator.db import db
 from orchestrator.search.core.embedding import QueryEmbedder
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.core.validators import is_uuid
-from orchestrator.search.retrieval.engine import execute_search
-from orchestrator.search.schemas.parameters import BaseSearchParameters
+from orchestrator.search.query import engine
+from orchestrator.search.query.queries import SelectQuery
 
 logger = structlog.get_logger(__name__)
 console = Console()
@@ -50,23 +50,25 @@ async def generate_embeddings_for_queries(queries: list[str]) -> dict[str, list[
     return embedding_lookup
 
 
-async def run_single_query(query: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
-    search_params = BaseSearchParameters(entity_type=EntityType.SUBSCRIPTION, query=query, limit=30)
+async def run_single_query(query_text: str, embedding_lookup: dict[str, list[float]]) -> dict[str, Any]:
+    query = SelectQuery(entity_type=EntityType.SUBSCRIPTION, query_text=query_text, limit=30)
 
     query_embedding = None
 
-    if is_uuid(query):
-        logger.debug("Using fuzzy-only ranking for full UUID", query=query)
+    if is_uuid(query_text):
+        logger.debug("Using fuzzy-only ranking for full UUID", query_text=query_text)
     else:
-        query_embedding = embedding_lookup[query]
+        query_embedding = embedding_lookup[query_text]
 
     with db.session as session:
         start_time = time.perf_counter()
-        response = await execute_search(search_params, session, cursor=None, query_embedding=query_embedding)
+        response = await engine.execute_search(
+            query=query, db_session=session, cursor=None, query_embedding=query_embedding
+        )
         end_time = time.perf_counter()
 
         return {
-            "query": query,
+            "query": query_text,
             "time": end_time - start_time,
             "results": len(response.results),
             "search_type": response.metadata.search_type if hasattr(response, "metadata") else "unknown",

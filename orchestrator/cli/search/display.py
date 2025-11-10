@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import json
-import re
 
 import structlog
 from sqlalchemy import and_
@@ -22,37 +21,13 @@ from orchestrator.db.database import WrappedSession
 from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.core.types import EntityType
 from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
-from orchestrator.search.schemas.parameters import BaseSearchParameters
-from orchestrator.search.schemas.results import SearchResult
+from orchestrator.search.query.queries import BaseQuery
+from orchestrator.search.query.results import SearchResult
 
 logger = structlog.get_logger(__name__)
 
 
-def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
-    """Finds all occurrences of individual words from the term, including both word boundary and substring matches."""
-    if not text or not term:
-        return []
-
-    all_matches = []
-    words = [w.strip() for w in term.split() if w.strip()]
-
-    for word in words:
-        # First find word boundary matches
-        word_boundary_pattern = rf"\b{re.escape(word)}\b"
-        word_matches = list(re.finditer(word_boundary_pattern, text, re.IGNORECASE))
-        all_matches.extend([(m.start(), m.end()) for m in word_matches])
-
-        # Then find all substring matches
-        substring_pattern = re.escape(word)
-        substring_matches = list(re.finditer(substring_pattern, text, re.IGNORECASE))
-        all_matches.extend([(m.start(), m.end()) for m in substring_matches])
-
-    return sorted(set(all_matches))
-
-
-def display_filtered_paths_only(
-    results: list[SearchResult], search_params: BaseSearchParameters, db_session: WrappedSession
-) -> None:
+def display_filtered_paths_only(results: list[SearchResult], query: BaseQuery, db_session: WrappedSession) -> None:
     """Display only the paths that were searched for in the results."""
     if not results:
         logger.info("No results found.")
@@ -60,7 +35,7 @@ def display_filtered_paths_only(
 
     logger.info("--- Search Results ---")
 
-    searched_paths = search_params.filters.get_all_paths() if search_params.filters else []
+    searched_paths = query.filters.get_all_paths() if query.filters else []
     if not searched_paths:
         return
 

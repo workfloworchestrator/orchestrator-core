@@ -19,6 +19,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 
 from orchestrator.search.agent.state import SearchState
+from orchestrator.search.core.types import ActionType
 
 logger = structlog.get_logger(__name__)
 
@@ -33,7 +34,6 @@ async def get_base_instructions() -> str:
 
         Your ultimate goal is to **find information** that answers the user's request.
 
-        To do this, you will perform either a broad search or a filtered search.
         For **filtered searches**, your primary method is to **construct a valid `FilterTree` object**.
         To do this correctly, you must infer the exact structure, operators, and nesting rules from the Pydantic schema of the `set_filter_tree` tool itself.
 
@@ -48,15 +48,19 @@ async def get_base_instructions() -> str:
         ---
         ### 3. Execution Workflow
 
-        Follow these steps in strict order:
+        Follow these steps:
 
-        1.  **Set Context**: If the user is asking for a NEW search, call `start_new_search`.
-        2.  **Analyze for Filters**: Based on the user's request, decide if specific filters are necessary.
-            - **If filters ARE required**, follow these sub-steps:
-                a. **Gather Intel**: Identify all needed field names, then call `discover_filter_paths` and `get_valid_operators` **once each** to get all required information.
-                b. **Construct FilterTree**: Build the `FilterTree` object.
-                c. **Set Filters**: Call `set_filter_tree`.
-        3.  **Execute**: Call `run_search`. This is done for both filtered and non-filtered searches.
+        1.  **Set Context**: Call `start_new_search` with appropriate entity_type and action
+        2.  **Set Filters** (if needed): Discover paths, build FilterTree, call `set_filter_tree`
+            - IMPORTANT: Temporal constraints like "in 2025", "in January", "between X and Y" require filters on datetime fields
+            - Filters restrict WHICH records to include; grouping controls HOW to aggregate them
+        3.  **Set Grouping/Aggregations** (for COUNT/AGGREGATE):
+            - For temporal grouping (per month, per year, per day, etc.): Use `set_temporal_grouping`
+            - For regular grouping (by status, by name, etc.): Use `set_grouping`
+            - For aggregations: Use `set_aggregations`
+        4.  **Execute**:
+            - For SELECT action: Call `run_search()`
+            - For COUNT/AGGREGATE actions: Call `run_aggregation()`
 
         After search execution, follow the dynamic instructions based on the current state.
 
@@ -73,31 +77,46 @@ async def get_base_instructions() -> str:
 async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> str:
     """Dynamically provides 'next step' coaching based on the current state."""
     state = ctx.deps.state
-    param_state_str = json.dumps(state.parameters, indent=2, default=str) if state.parameters else "Not set."
-    results_count = state.results_data.total_count if state.results_data else 0
+    query_state_str = json.dumps(state.query.model_dump(), indent=2, default=str) if state.query else "Not set."
+    results_count = state.results_count or 0
+    action = state.action or ActionType.SELECT
 
-    if state.export_data:
+    if not state.query:
         next_step_guidance = (
-            "INSTRUCTION: Export has been prepared successfully. "
-            "Simply confirm to the user that the export is ready for download. "
-            "DO NOT include or mention the download URL - the UI will display it automatically."
-        )
-    elif not state.parameters or not state.parameters.get("entity_type"):
-        next_step_guidance = (
-            "INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`."
+            f"INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`. "
+            f"For counting or aggregation queries, set action='{ActionType.COUNT.value}' or action='{ActionType.AGGREGATE.value}'."
         )
     elif results_count > 0:
-        next_step_guidance = dedent(
-            f"""
-            INSTRUCTION: Search completed successfully.
-            Found {results_count} results containing only: entity_id, title, score.
+        if action in (ActionType.COUNT, ActionType.AGGREGATE):
+            # Aggregation completed
+            next_step_guidance = (
+                "INSTRUCTION: Aggregation completed successfully. "
+                "The results are already displayed in the UI. "
+                "Simply confirm completion to the user in a brief sentence. "
+                "DO NOT repeat, summarize, or restate the aggregation data."
+            )
+        else:
+            # Search completed
+            next_step_guidance = dedent(
+                f"""
+                INSTRUCTION: Search completed successfully.
+                Found {results_count} results containing only: entity_id, title, score.
 
-            Choose your next action based on what the user requested:
-            1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do nothing else.
-            2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
-            3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
-            4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly.
-            """
+                Choose your next action based on what the user requested:
+                1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do not repeat the results.
+                2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
+                3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
+                4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly. Simply confirm the export is ready. Do not repeat the results.
+                """
+            )
+    elif action in (ActionType.COUNT, ActionType.AGGREGATE):
+        # COUNT or AGGREGATE action but no results yet
+        next_step_guidance = (
+            "INSTRUCTION: Aggregation context is set. "
+            "For temporal queries (per month, per year, over time): call `set_temporal_grouping` with datetime field and period. "
+            "For regular grouping: call `set_grouping` with paths to group by. "
+            f"For {ActionType.AGGREGATE.value.upper()}: call `set_aggregations` with aggregation specs. "
+            "Then call `run_aggregation`."
         )
     else:
         next_step_guidance = (
@@ -106,17 +125,19 @@ async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> s
             "If no specific filters are needed, you can proceed directly to `run_search`."
         )
 
+    status_summary = f"Results: {results_count}" if results_count > 0 else "No results yet"
+
     return dedent(
         f"""
         ---
         ## CURRENT STATE
 
-        **Current Search Parameters:**
+        **Current Query:**
         ```json
-        {param_state_str}
+        {query_state_str}
         ```
 
-        **Current Results Count:** {results_count}
+        **Status:** {status_summary}
 
         ---
         ## NEXT ACTION REQUIRED
