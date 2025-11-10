@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from typing import List, TypeAlias, cast
+from typing import TypeAlias, cast
 
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.forms import FormPage
@@ -18,12 +18,12 @@ def summary_form(product_name: str, summary_data: dict) -> Generator:
     yield SummaryForm
 
 
-def create_summary_form(user_input: dict, product_name: str, fields: List[str]) -> Generator:
+def create_summary_form(user_input: dict, product_name: str, fields: list[str]) -> Generator:
     columns = [[str(user_input[nm]) for nm in fields]]
     yield from summary_form(product_name, {"labels": fields, "columns": columns})
 
 
-def modify_summary_form(user_input: dict, block: ProductBlockModel, fields: List[str]) -> Generator:
+def modify_summary_form(user_input: dict, block: ProductBlockModel, fields: list[str]) -> Generator:
     before = [str(getattr(block, nm)) for nm in fields]  # type: ignore[attr-defined]
     after = [str(user_input[nm]) for nm in fields]
     yield from summary_form(

@@ -93,7 +93,17 @@ async def execute_search(
     Returns:
         SearchResponse with ranked results
     """
-    return await _execute_search(query, db_session, query.limit, cursor, query_embedding)
+
+    # Fetch one extra to determine if there is a next page
+    fetch_limit = query.limit + 1 if query.limit > 0 else query.limit
+    response = await _execute_search(query, db_session, fetch_limit, cursor, query_embedding)
+    has_more = len(response.results) > query.limit and query.limit > 0
+
+    # Trim to requested limit
+    response.results = response.results[: query.limit]
+    response.has_more = has_more
+
+    return response
 
 
 async def execute_export(
