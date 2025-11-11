@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["uv"]
+    },
+    {
+      "matchPackageNames": ["python"],
+      "rangeStrategy": "widen"
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "ignorePaths": [
+    "Dockerfile"
+  ]
+}
