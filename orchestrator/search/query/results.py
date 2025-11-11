@@ -193,8 +193,8 @@ def format_search_response(
 
         if (
             user_query
-            and (text := row.get(Retriever.HIGHLIGHT_TEXT_LABEL))
-            and (path := row.get(Retriever.HIGHLIGHT_PATH_LABEL))
+            and (text := row.get(Retriever.HIGHLIGHT_TEXT_LABEL)) is not None
+            and (path := row.get(Retriever.HIGHLIGHT_PATH_LABEL)) is not None
         ):
             if not isinstance(text, str):
                 text = str(text)
