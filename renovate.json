@@ -2,5 +2,20 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["uv"]
+    },
+    {
+      "matchPackageNames": ["python"],
+      "rangeStrategy": "bump"
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "ignorePaths": [
+    "Dockerfile"
   ]
 }
