@@ -209,7 +209,6 @@ def create_graphql_router(
     schema = OrchestratorSchema(
         query=query,
         mutation=mutation,
-        enable_federation_2=app_settings.FEDERATION_ENABLED,
         types=tuple(models.values()),
         extensions=extensions,
         scalar_overrides=scalar_overrides,
