@@ -9,7 +9,7 @@
     },
     {
       "matchPackageNames": ["python"],
-      "rangeStrategy": "bump"
+      "rangeStrategy": "widen"
     }
   ],
   "lockFileMaintenance": {
