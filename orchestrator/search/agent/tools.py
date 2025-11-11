@@ -27,6 +27,7 @@ from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.toolsets import FunctionToolset
 
 from llm_guard import scan_prompt
+from llm_guard.model import Model
 from llm_guard.input_scanners import PromptInjection, Toxicity
 
 from orchestrator.api.api_v1.endpoints.search import (
@@ -62,7 +63,107 @@ SEARCH_FN_MAP: dict[EntityType, SearchFn] = {
 
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
-input_scanners = [PromptInjection(threshold=0.5)]
+
+
+# python
+from typing import Any, Dict, Optional
+
+class PipelineOutputAdapter:
+    """
+    Wraps a pipeline callable and adapts outputs by:
+      - remapping labels via `label_map`
+      - forcing a specific label via `force_label`
+      - adding a constant `score_offset` (optionally clamped to [0, 1])
+    """
+    def __init__(
+        self,
+        base_pipeline,
+        label_map: Optional[Dict[str, str]] = None,
+        force_label: Optional[str] = None,
+        clamp_to_unit: bool = True,
+    ):
+        self._base = base_pipeline
+        self._label_map = dict(label_map) if label_map else None
+        self._force_label = force_label
+        self._clamp = bool(clamp_to_unit)
+
+    def __call__(self, *args, **kwargs):
+        result = self._base(*args, **kwargs)
+        return self._adapt(result)
+
+    def _adapt(self, obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return self._adapt_dict(obj)
+        if isinstance(obj, list):
+            return [self._adapt(x) for x in obj]
+        return obj
+
+    def _adapt_dict(self, d: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(d)
+        logger.debug("Adapting output", out=out)
+        # Force or remap label
+        if self._force_label is not None:
+            if out["label"] == "jailbreak":
+                out["label"] = self._force_label
+        elif self._label_map and isinstance(out.get("label"), str):
+            out["label"] = self._label_map.get(out["label"], out["label"])
+
+        return out
+
+
+def attach_pipeline_adapter(
+    scanner: Any,
+    *,
+    label_map: Optional[Dict[str, str]] = None,
+    force_label: Optional[str] = "INJECTION",
+    clamp_to_unit: bool = False,
+) -> bool:
+    """
+    Attempts to wrap the scanner's underlying pipeline-like callable.
+    Returns True if successfully attached, else False.
+    Tries common attribute names used for HF pipelines.
+    """
+    candidates = ("pipeline", "_pipeline", "pipe", "classifier", "_classifier")
+    for name in candidates:
+        base = getattr(scanner, name, None)
+        if callable(base):
+            setattr(
+                scanner,
+                name,
+                PipelineOutputAdapter(
+                    base,
+                    label_map=label_map,
+                    force_label=force_label,
+                    clamp_to_unit=clamp_to_unit,
+                ),
+            )
+            return True
+    return False
+
+
+# Usage example with your snippet:
+
+model = Model(
+    path="qualifire/prompt-injection-sentinel",
+    pipeline_kwargs={
+        "return_token_type_ids": False,
+        "max_length": 512,
+        "truncation": True,
+    },
+)
+
+# Create the scanner as usual
+prompt_scanner = PromptInjection(model=model)
+
+# Inject the adapter so scoring sees label='INJECTION' and score+1.0
+# clamp_to_unit=False allows scores > 1.0 before rounding in your scorer
+attached = attach_pipeline_adapter(
+    prompt_scanner,
+    force_label="INJECTION",
+)
+
+# Use the adapted scanner
+input_scanners = [prompt_scanner]
 
 def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
     for msg in reversed(ctx.messages):
