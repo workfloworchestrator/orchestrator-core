@@ -1,9 +1,13 @@
 name: Build and push container image
 
 on:
+  # Build and push the image in releases
   release:
     types: [prereleased, released]
-
+  # Build the image in pull requests
+  pull_request:
+    paths:
+      - 'Dockerfile'
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -23,6 +27,7 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Log in to the container registry
+        if: github.event_name == 'release'
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
@@ -48,11 +53,21 @@ jobs:
             type=raw,value=edge,enable=true,priority=400
 
       - name: Build and push Docker image
-        if: ${{ !env.ACT }}
+        if: github.event_name == 'release'
         uses: docker/build-push-action@v4
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Test building the Docker image
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
