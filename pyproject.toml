@@ -60,7 +60,7 @@ dependencies = [
     "redis==5.1.1",
     "semver==3.0.4",
     "sentry-sdk[fastapi]>=2.29.1",
-    "sqlalchemy==2.0.41",
+    "sqlalchemy==2.0.44",
     "sqlalchemy-utils==0.41.2",
     "strawberry-graphql>=0.281.0",
     "structlog>=25.4.0",
