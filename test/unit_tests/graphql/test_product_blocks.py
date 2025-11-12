@@ -9,6 +9,17 @@ from orchestrator import app_settings
 from test.unit_tests.helpers import assert_no_diff
 
 
+def sort_product_block_list_fields(product_blocks):
+    for block in product_blocks:
+        for field in ["resourceTypes", "dependsOn", "inUseBy"]:
+            if field in block:
+                block[field].sort(key=lambda x: x["description"])
+
+
+def sort_product_blocks(product_blocks: list[dict]) -> None:
+    product_blocks.sort(key=lambda x: x["name"])
+
+
 def get_product_blocks_query(
     first: int = 10,
     after: int = 0,
@@ -81,10 +92,12 @@ def test_product_blocks_query(test_client, query_args, num_results):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
-    assert len(product_blocks) == num_results
+    sort_product_blocks(actual_product_blocks)
+
+    assert len(actual_product_blocks) == num_results
 
     assert pageinfo == {
         "hasPreviousPage": False,
@@ -102,10 +115,10 @@ def test_product_blocks_payload(test_client):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
-    assert len(product_blocks) == 2
+    assert len(actual_product_blocks) == 2
 
     assert pageinfo == {
         "hasPreviousPage": False,
@@ -115,7 +128,7 @@ def test_product_blocks_payload(test_client):
         "totalItems": 6,
     }
 
-    expected = [
+    expected_product_blocks = [
         {
             "name": "PB_1",
             "endDate": None,
@@ -142,10 +155,11 @@ def test_product_blocks_payload(test_client):
             "inUseBy": [],
         },
     ]
-    product_blocks.sort(
-        key=lambda x: x["name"]
-    )  # No sort in the query; sort before the `assert` to prevent flaky tests
-    assert product_blocks == expected
+
+    sort_product_block_list_fields(actual_product_blocks)
+    sort_product_block_list_fields(expected_product_blocks)
+
+    assert actual_product_blocks == expected_product_blocks
 
 
 @pytest.mark.parametrize(
@@ -165,10 +179,10 @@ def test_product_block_query_with_relations(test_client, query_args):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
-    assert len(product_blocks) == 3
+    assert len(actual_product_blocks) == 3
     assert pageinfo == {
         "hasPreviousPage": False,
         "hasNextPage": False,
@@ -177,7 +191,7 @@ def test_product_block_query_with_relations(test_client, query_args):
         "totalItems": 3,
     }
 
-    expected = [
+    expected_product_blocks = [
         {
             "name": "SubBlockOneForTest",
             "endDate": None,
@@ -220,8 +234,13 @@ def test_product_block_query_with_relations(test_client, query_args):
         },
     ]
 
-    exclude_paths = [f"root[{i}]['createdAt']" for i in range(len(expected))]
-    assert_no_diff(expected, product_blocks, exclude_paths=exclude_paths)
+    sort_product_blocks(actual_product_blocks)
+    sort_product_blocks(expected_product_blocks)
+    sort_product_block_list_fields(actual_product_blocks)
+    sort_product_block_list_fields(expected_product_blocks)
+
+    exclude_paths = [f"root[{i}]['createdAt']" for i in range(len(expected_product_blocks))]
+    assert_no_diff(expected_product_blocks, actual_product_blocks, exclude_paths=exclude_paths)
 
 
 def test_product_blocks_has_previous_page(test_client):
@@ -231,7 +250,7 @@ def test_product_blocks_has_previous_page(test_client):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
     assert pageinfo == {
@@ -242,10 +261,9 @@ def test_product_blocks_has_previous_page(test_client):
         "totalItems": 6,
     }
 
-    assert len(product_blocks) == 5
-    product_blocks.sort(key=lambda x: x["name"])  # No sort in the query; sort before the assert to prevent flaky tests
-    assert product_blocks[0]["name"] == "PB_2"
-    assert product_blocks[1]["name"] == "PB_3"
+    assert len(actual_product_blocks) == 5
+    assert actual_product_blocks[0]["name"] == "PB_2"
+    assert actual_product_blocks[1]["name"] == "PB_3"
 
 
 @pytest.mark.parametrize(
@@ -261,7 +279,7 @@ def test_product_blocks_filter_by_resource_types(test_client, query_args):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
     assert pageinfo == {
@@ -271,7 +289,7 @@ def test_product_blocks_filter_by_resource_types(test_client, query_args):
         "startCursor": 0,
         "totalItems": 1,
     }
-    assert product_blocks[0]["name"] == "PB_1"
+    assert actual_product_blocks[0]["name"] == "PB_1"
 
 
 def test_product_blocks_filter_by_products(test_client):
@@ -283,7 +301,7 @@ def test_product_blocks_filter_by_products(test_client):
     assert HTTPStatus.OK == response.status_code
     result = response.json()
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
     assert pageinfo == {
@@ -293,8 +311,9 @@ def test_product_blocks_filter_by_products(test_client):
         "endCursor": 1,
         "totalItems": 2,
     }
-    assert product_blocks[0]["name"] == "PB_1"
-    assert product_blocks[1]["name"] == "PB_2"
+
+    assert actual_product_blocks[0]["name"] == "PB_1"
+    assert actual_product_blocks[1]["name"] == "PB_2"
 
 
 def test_product_blocks_sort_by_tag(test_client):
@@ -304,10 +323,10 @@ def test_product_blocks_sort_by_tag(test_client):
     result = response.json()
 
     product_blocks_data = result["data"]["productBlocks"]
-    product_blocks = product_blocks_data["page"]
+    actual_product_blocks = product_blocks_data["page"]
     pageinfo = product_blocks_data["pageInfo"]
 
-    assert [p_block["tag"] for p_block in product_blocks] == ["TEST", "TEST", "TEST", "PB3", "PB2", "PB1"]
+    assert [p_block["tag"] for p_block in actual_product_blocks] == ["TEST", "TEST", "TEST", "PB3", "PB2", "PB1"]
     assert pageinfo == {
         "hasNextPage": False,
         "hasPreviousPage": False,
