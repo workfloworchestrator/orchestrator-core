@@ -17,5 +17,9 @@
   },
   "ignorePaths": [
     "Dockerfile"
-  ]
+  ],
+  "schedule": [
+    "* 1-3 * * *"
+  ],
+  "timezone": "Europe/Amsterdam"
 }
