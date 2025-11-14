@@ -19,7 +19,7 @@
     "Dockerfile"
   ],
   "schedule": [
-    "* 1-3 * * *"
+    "* 1-5 * * *"
   ],
   "timezone": "Europe/Amsterdam",
   "updateNotScheduled": false
