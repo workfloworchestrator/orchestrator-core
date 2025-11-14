@@ -18,6 +18,7 @@ from graphql import GraphQLError
 from pydantic.alias_generators import to_camel as to_lower_camel
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import contains_eager
+from starlette.concurrency import run_in_threadpool
 from strawberry.experimental.pydantic.conversion_types import StrawberryTypeFromPydantic
 
 from nwastdlib.asyncio import gather_nice
@@ -101,7 +102,7 @@ async def format_subscription(info: OrchestratorInfo, subscription: Subscription
 async def resolve_subscription(info: OrchestratorInfo, id: UUID) -> SubscriptionInterface | None:
     stmt = select(SubscriptionTable).where(SubscriptionTable.subscription_id == id)
 
-    if subscription := db.session.scalar(stmt):
+    if subscription := await run_in_threadpool(db.session.scalar, stmt):
         return await format_subscription(info, subscription)
     return None
 
@@ -141,12 +142,13 @@ async def resolve_subscriptions(
         stmt = filter_by_query_string(stmt, query)
 
     stmt = cast(Select, sort_subscriptions(stmt, pydantic_sort_by, _error_handler))
-    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+    total = await run_in_threadpool(db.session.scalar, select(func.count()).select_from(stmt.subquery()))
     stmt = apply_range_to_statement(stmt, after, after + first + 1)
 
     graphql_subscriptions: list[SubscriptionInterface] = []
     if is_querying_page_data(info):
-        subscriptions = db.session.scalars(stmt).all()
+        scalars = await run_in_threadpool(db.session.scalars, stmt)
+        subscriptions = scalars.all()
         graphql_subscriptions = list(await gather_nice((format_subscription(info, p) for p in subscriptions)))  # type: ignore
     logger.info("Resolve subscriptions", filter_by=filter_by, total=total)
 
