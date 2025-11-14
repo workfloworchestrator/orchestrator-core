@@ -9,7 +9,8 @@
     },
     {
       "matchPackageNames": ["python"],
-      "rangeStrategy": "widen"
+      "rangeStrategy": "widen",
+      "enabled": false
     }
   ],
   "lockFileMaintenance": {
