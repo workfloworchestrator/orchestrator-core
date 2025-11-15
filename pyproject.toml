@@ -47,7 +47,7 @@ dependencies = [
     "more-itertools~=10.8.0",
     "nwa-stdlib~=1.10.3",
     "oauth2-lib>=2.5.0",
-    "orjson==3.10.18",
+    "orjson==3.11.4",
     "pgvector>=0.4.1",
     "prometheus-client==0.22.1",
     "psycopg2-binary==2.9.11",
