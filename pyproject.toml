@@ -49,7 +49,7 @@ dependencies = [
     "oauth2-lib>=2.5.0",
     "orjson==3.11.4",
     "pgvector>=0.4.1",
-    "prometheus-client==0.22.1",
+    "prometheus-client==0.23.1",
     "psycopg2-binary==2.9.11",
     "pydantic-forms>=1.4.0",
     "pydantic-settings~=2.9.1",
