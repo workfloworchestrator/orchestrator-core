@@ -286,27 +286,118 @@ async def execute_search(
         "Search completed",
         total_results=len(search_results.data) if search_results.data else 0,
     )
-    for result in search_results.data:
-        if not isinstance(result,SubscriptionSearchResult):
-            continue
-        for field in result.subscription.values():
-            scanDict(field)
+    #scan_search_results(search_results.data)
 
     ctx.deps.state.results = search_results.data
 
     return StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state.model_dump())
 
-def scanDict(value: any):
-    if isinstance(value,dict):
-        for item in value:
-            scanDict(value[item])
-    if not isinstance(value,str):
-        return
-    logger.debug("Scanning search result", resultvalue=value)
-    _, _, scan_results = scan_prompt(
+
+@observe(name="agent_scan_content")
+def scan_search_results(data):
+    """Scan search results for each subscription and return on first invalid result"""
+    for result in data:
+        if not isinstance(result, SubscriptionSearchResult):
+            continue
+
+        # Scan each value in the subscription dictionary
+        for field_key, field_value in result.subscription.items():
+            logger.debug("Processing subscription field", field_key=field_key)
+
+            prompt, valid, scan_results = scan_dict_recursive(field_value)
+
+            # Debug logging for each scan
+            logger.debug("Scan results",
+                         field_key=field_key,
+                         prompt=prompt,
+                         valid=valid,
+                         scan_results=scan_results)
+
+            # Check if valid is a dictionary (from scan_prompt) and any scanner failed
+            if prompt is not None and scan_results is not None:
+                is_invalid = False
+                if isinstance(valid, dict):
+                    # Check if any scanner returned False
+                    is_invalid = any(not v for v in valid.values())
+                else:
+                    # Fallback for boolean valid
+                    is_invalid = not valid
+
+                if is_invalid:
+                    logger.info("Found invalid content, returning scan results",
+                                field_key=field_key,
+                                prompt=prompt[:100] if prompt else None,
+                                valid_results=valid)
+                    return prompt, scan_results
+
+    logger.debug("All scan results valid or no string content found")
+    return None, None
+
+
+@observe(name="agent_scan_instance")
+def scan_dict_recursive(value):
+    """Recursively scan dictionary values for string content"""
+    if isinstance(value, dict):
+        for item_key, item_value in value.items():
+            logger.debug("Scanning nested dict item", item_key=item_key)
+            prompt, valid, scan_results = scan_dict_recursive(item_value)
+
+            # Check if we got a result and if it's invalid
+            if prompt is not None and scan_results is not None:
+                is_invalid = False
+                if isinstance(valid, dict):
+                    # Check if any scanner returned False
+                    is_invalid = any(not v for v in valid.values())
+                else:
+                    # Fallback for boolean valid
+                    is_invalid = not valid
+
+                if is_invalid:
+                    return prompt, valid, scan_results
+
+        # If we get here, all nested items were valid or not strings
+        return None, True, None
+
+    elif isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            logger.debug("Scanning list item", index=i)
+            prompt, valid, scan_results = scan_dict_recursive(item)
+
+            # Check if we got a result and if it's invalid
+            if prompt is not None and scan_results is not None:
+                is_invalid = False
+                if isinstance(valid, dict):
+                    # Check if any scanner returned False
+                    is_invalid = any(not v for v in valid.values())
+                else:
+                    # Fallback for boolean valid
+                    is_invalid = not valid
+
+                if is_invalid:
+                    return prompt, valid, scan_results
+
+        # If we get here, all list items were valid or not strings
+        return None, True, None
+
+    # If it's not a string, skip scanning
+    if not isinstance(value, str):
+        return None, True, None
+
+    logger.debug("Scanning string value", value_length=len(value))
+
+    # Scan the string prompt
+    prompt, valid, scan_results = scan_prompt(
         scanners=input_scanners,
         prompt=str(value),
     )
+
+    logger.debug("String scan completed",
+                 prompt_length=len(prompt) if prompt else 0,
+                 valid=valid,
+                 has_scan_results=scan_results is not None)
+
+    return prompt, valid, scan_results
+
 
 @search_toolset.tool
 @observe(name="agent_endpoint")

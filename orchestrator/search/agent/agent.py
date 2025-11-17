@@ -23,6 +23,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import FunctionToolset
 from starlette.responses import Response
+from langfuse import observe
 
 from llm_guard import scan_output, scan_prompt
 from llm_guard.input_scanners import Anonymize, PromptInjection, TokenLimit, Toxicity
@@ -64,7 +65,7 @@ def _any_failed(results: list[dict[str, Any]] | Any) -> bool:
         # Be conservative if results format is unexpected
         return True
 
-
+@observe(name="agent_endpoint")
 def build_agent_router(model: str | OpenAIModel, toolsets: list[FunctionToolset[Any]] | None = None) -> APIRouter:
     router = APIRouter()
 
@@ -144,6 +145,7 @@ def build_agent_router(model: str | OpenAIModel, toolsets: list[FunctionToolset[
         logger.error("Agent init failed; serving disabled stub.", error=str(e))
         error_msg = f"Agent disabled: {str(e)}"
 
+        @observe(name="agent_endpoint")
         @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
         async def _disabled(path: str) -> None:
             raise HTTPException(status_code=503, detail=error_msg)
