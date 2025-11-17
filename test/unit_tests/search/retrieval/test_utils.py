@@ -134,7 +134,7 @@ class TestTruncateTextWithHighlights:
 
     def test_no_highlights_remain_after_truncation(self):
         """If all highlights are outside truncated range, should return None."""
-        text = ("x" * 1000)
+        text = "x" * 1000
         highlights = [(900, 905)]
         result_text, result_highlights = truncate_text_with_highlights(
             text, highlights, max_length=100, context_chars=10
