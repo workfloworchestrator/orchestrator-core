@@ -6,6 +6,7 @@
             "subscription_id": "Subscription",
             "version": "Version",
             "subscription_id_info": "The subscription for this action",
+            "vlan_info": "The vlan id for this service port",
             "product_type": "Product Type"
         }
     },
