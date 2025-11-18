@@ -1,6 +1,6 @@
 # Security Policy
 
-To get more information about security regarding this project. Join our [discord](https://discord.com/invite/fQkQn5ajFR) 
+To get more information about security regarding this project. Join our [discord](https://discord.com/invite/fQkQn5ajFR)
 
 ## Supported Versions
 
