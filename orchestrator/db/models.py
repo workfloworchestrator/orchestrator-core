@@ -796,3 +796,20 @@ class AiSearchIndex(BaseModel):
     content_hash = mapped_column(String(64), nullable=False, index=True)
 
     __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)
+
+
+class WorkflowAppSchedulerJob(BaseModel):
+    __tablename__ = "workflows_apscheduler_jobs"
+
+    workflow_id = mapped_column(
+        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True,
+        nullable=False
+    )
+    schedule_id = mapped_column(
+        ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True,
+        nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),
+    )
