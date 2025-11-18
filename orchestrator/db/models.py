@@ -805,9 +805,14 @@ class WorkflowAppSchedulerJob(BaseModel):
         UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True,
         nullable=False
     )
-    schedule_id = mapped_column(
-        ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True,
-        nullable=False
+
+    # NOTE: Cannot use standard APScheduler job ID here because the table might not exist on migration
+    # Deleting on cascade happens on event based apscheduler job removal
+    schedule_id: Mapped[str] = mapped_column(
+        String(512),
+        primary_key=True,
+        nullable=False,
+        index=True
     )
 
     __table_args__ = (

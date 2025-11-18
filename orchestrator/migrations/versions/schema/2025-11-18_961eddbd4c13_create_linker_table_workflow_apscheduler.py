@@ -20,19 +20,21 @@ def upgrade() -> None:
         """
         CREATE TABLE workflows_apscheduler_jobs (
             workflow_id UUID NOT NULL,
-            schedule_id VARCHAR NOT NULL,
+            schedule_id VARCHAR(512) NOT NULL,
             PRIMARY KEY (workflow_id, schedule_id),
             CONSTRAINT fk_workflow
                 FOREIGN KEY (workflow_id)
                     REFERENCES workflows (workflow_id)
                     ON DELETE CASCADE,
-            CONSTRAINT fk_schedule
-                FOREIGN KEY (schedule_id)
-                    REFERENCES apscheduler_jobs (id)
-                    ON DELETE CASCADE,
             CONSTRAINT uq_workflow_schedule UNIQUE (workflow_id, schedule_id)
         );
         """
+    )
+
+    op.create_index(
+        'ix_workflows_apscheduler_jobs_schedule_id',
+        'workflows_apscheduler_jobs',
+        ['schedule_id']
     )
 
 def downgrade() -> None:
