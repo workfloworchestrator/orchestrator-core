@@ -2208,7 +2208,7 @@ wheels = [
 
 [[package]]
 name = "nwa-stdlib"
-version = "1.10.5"
+version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2219,9 +2219,9 @@ dependencies = [
     { name = "strawberry-graphql" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/88/2f/1fe122f989594d1f46acaa41006aa0eab232bada4d0cc129c87f9f6b72dc/nwa_stdlib-1.10.5.tar.gz", hash = "sha256:8c69f67213c50e0833fb19dc23c2dc824027b8b547da8548353302113f643857", size = 33683, upload-time = "2025-10-30T13:00:45.538Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/5d/565ef496ccd454816780bd94fe6e6bc2bdc16ff6ea50b3125d58075a854d/nwa_stdlib-1.11.0.tar.gz", hash = "sha256:1042cf7dee7c189b89d4d65fd09be7e1d1ce52150b7dac874336e8770de56e88", size = 33705, upload-time = "2025-11-18T10:57:33.296Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/af/d9/6424b3c39c30e9d1c5a958e1df55f0a7ebb58ab14903b839fffb58abf4e8/nwa_stdlib-1.10.5-py3-none-any.whl", hash = "sha256:05ddf51c709df3afa00218c31e7cb781a89a0039e3e57f3ed9c5e55a5de945da", size = 29021, upload-time = "2025-10-30T13:00:43.362Z" },
+    { url = "https://files.pythonhosted.org/packages/51/02/f208820d21ac8e6ee6754231abdc37e32b8ab9ff97f0668ea657c8b43a70/nwa_stdlib-1.11.0-py3-none-any.whl", hash = "sha256:eff09378555c9ec5b25be25dff7e071315744912f06ec0d8b0818bb6cfc3337f", size = 29021, upload-time = "2025-11-18T10:57:32.422Z" },
 ]
 
 [[package]]
@@ -2401,7 +2401,7 @@ requires-dist = [
     { name = "litellm", marker = "extra == 'agent'", specifier = ">=1.75.7" },
     { name = "litellm", marker = "extra == 'search'", specifier = ">=1.75.7" },
     { name = "more-itertools", specifier = "~=10.8.0" },
-    { name = "nwa-stdlib", specifier = "~=1.10.3" },
+    { name = "nwa-stdlib", specifier = "~=1.11.0" },
     { name = "oauth2-lib", specifier = ">=2.5.0" },
     { name = "orjson", specifier = "==3.11.4" },
     { name = "pgvector", specifier = ">=0.4.1" },
