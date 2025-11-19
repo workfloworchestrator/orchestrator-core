@@ -14,7 +14,6 @@
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from dateutil.parser import parse as dt_parse
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 from sqlalchemy import TIMESTAMP, and_
 from sqlalchemy import cast as sa_cast
@@ -27,10 +26,10 @@ def _validate_date_string(v: Any) -> Any:
     if not isinstance(v, str):
         return v
     try:
-        dt_parse(v)
+        datetime.fromisoformat(v)
         return v
     except Exception as exc:
-        raise ValueError("is not a valid date or datetime string") from exc
+        raise ValueError("is not a valid ISO-8601 date or datetime string") from exc
 
 
 DateValue = datetime | date | str
@@ -44,8 +43,8 @@ class DateRange(BaseModel):
 
     @model_validator(mode="after")
     def _order(self) -> "DateRange":
-        to_datetime = dt_parse(str(self.end))
-        from_datetime = dt_parse(str(self.start))
+        to_datetime = datetime.fromisoformat(str(self.end))
+        from_datetime = datetime.fromisoformat(str(self.start))
         if to_datetime <= from_datetime:
             raise ValueError("'to' must be after 'from'")
         return self
