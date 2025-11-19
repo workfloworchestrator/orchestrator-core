@@ -58,7 +58,7 @@ dependencies = [
     "python-dateutil==2.9.0.post0",
     "python-rapidjson>=1.22,<1.23",
     "pytz==2025.2",
-    "redis==5.1.1",
+    "redis==5.3.1",
     "semver==3.0.4",
     "sentry-sdk[fastapi]>=2.29.1",
     "sqlalchemy==2.0.44",
