@@ -10,17 +10,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import typer
 import time
 
-import typer
+from orchestrator.utils.redis_client import Redis
 
+from orchestrator.schedules.service import (
+    process_scheduler_queue, SCHEDULER_QUEUE
+)
 from orchestrator.schedules.scheduler import (
     get_all_scheduler_tasks,
     get_scheduler,
     get_scheduler_task,
 )
+from orchestrator.utils.redis_client import create_redis_client
+from orchestrator.settings import app_settings
 
 app: typer.Typer = typer.Typer()
 
@@ -28,9 +32,33 @@ app: typer.Typer = typer.Typer()
 @app.command()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
-    with get_scheduler():
-        while True:
+
+    def _get_scheduled_task_item_from_queue(redis_conn: Redis) -> tuple[str, bytes] | None:
+        """Get an item from the Redis Queue for scheduler tasks."""
+        try:
+            typer.echo(f"Getting scheduled task from queue: {redis_conn}")
+            return redis_conn.brpop(SCHEDULER_QUEUE, timeout=1)
+        except ConnectionError:
+            typer.echo("Redis unavailable. Retrying in 3s...")
+            time.sleep(3)
+        except Exception as exc:
+            typer.echo(f"Unexpected error: {exc}")
             time.sleep(1)
+
+        return None
+
+    typer.echo("Starting scheduler...")
+    with get_scheduler() as scheduler_connection:
+        reddis_connection = create_redis_client(app_settings.CACHE_URI)
+        while True:
+            typer.echo(f"Scheduler started at {scheduler_connection}")
+            item = _get_scheduled_task_item_from_queue(reddis_connection)
+            typer.echo(f"Scheduler started at {item}")
+            if not item:
+                continue
+
+            process_scheduler_queue(item, scheduler_connection)
+
 
 
 @app.command()

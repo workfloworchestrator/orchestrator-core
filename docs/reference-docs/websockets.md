@@ -18,7 +18,7 @@ The main component is the `WebSocketManager` (WSM) which has the following respo
 3. Provide an interface to pass messages from a backend process (workflow/task)
 
 In a setup with multiple isolated Orchestrator instances the WSM is initialized multiple times as well, therefore clients can be connected to any arbitrary WSM instance.
-Letting a backend process broadcast messages to all clients thus requires a message broker, for which we use [Redis Pub/Sub](https://redis.io/docs/manual/pubsub).
+Letting a backend process broadcast messages to all clients thus requires a message broker, for which we use [Redis Pub/Sub](https://redis.io/docs/latest/develop/pubsub/).
 
 There are 2 WSM implementations: a `MemoryWebsocketManager` for development/testing, and a `BroadcastWebsocketManager` that connects to Redis. We'll continue to discuss the latter.
 
