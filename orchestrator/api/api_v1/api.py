@@ -29,6 +29,7 @@ from orchestrator.api.api_v1.endpoints import (
     user,
     workflows,
     ws,
+    schedules
 )
 from orchestrator.llm_settings import llm_settings
 from orchestrator.security import authorize
@@ -88,6 +89,9 @@ api_router.include_router(
 api_router.include_router(
     ws.router, prefix="/ws", tags=["Core", "Events"]
 )  # Auth on the websocket is handled in the Websocket Manager
+api_router.include_router(
+    schedules.router, prefix="/schedules", tags=["Schedules"], dependencies=[Depends(authorize)]
+)
 
 if llm_settings.SEARCH_ENABLED:
     from orchestrator.api.api_v1.endpoints import search

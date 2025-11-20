@@ -796,3 +796,25 @@ class AiSearchIndex(BaseModel):
     content_hash = mapped_column(String(64), nullable=False, index=True)
 
     __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)
+
+
+class WorkflowAppSchedulerJob(BaseModel):
+    __tablename__ = "workflows_apscheduler_jobs"
+
+    workflow_id = mapped_column(
+        UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True,
+        nullable=False
+    )
+
+    # NOTE: Cannot use standard APScheduler job ID here because the table might not exist on migration
+    # Deleting on cascade happens on event based apscheduler job removal
+    schedule_id: Mapped[str] = mapped_column(
+        String(512),
+        primary_key=True,
+        nullable=False,
+        index=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),
+    )
