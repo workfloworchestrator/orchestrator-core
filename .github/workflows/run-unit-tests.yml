@@ -68,7 +68,7 @@ jobs:
           SEARCH_ENABLED: true
 
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # gives error 'Could not find a repository associated with upload token'
           fail_ci_if_error: false
