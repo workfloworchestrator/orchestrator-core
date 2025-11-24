@@ -381,7 +381,8 @@ def test_form_translations(worker_id):
     used_translations = set()
 
     # In order to properly wrap a classmethod we need to do special stuff
-    old_init_subclass = FormPage.__dict__["__pydantic_init_subclass__"]
+    old_init_subclass = FormPage.__dict__.get("__pydantic_init_subclass__")  # pydantic < 2.12
+    old_on_complete = FormPage.__dict__.get("__pydantic_on_complete__")  # pydantic >= 2.12
 
     # Wrap a form function that is certain to be called to extract the used form fields
     @classmethod
@@ -394,7 +395,9 @@ def test_form_translations(worker_id):
                     pytest.fail(f"Missing translation for field {field_name} in  {cls.__name__}")
 
         # Because the original is a classmethod we need to conform to the descriptor protocol
-        return old_init_subclass.__get__(None, cls)(*args, **kwargs)
+        if old_init_subclass:
+            return old_init_subclass.__get__(None, cls)(*args, **kwargs)
+        return old_on_complete.__get__(None, cls)()
 
     FormPage.__pydantic_init_subclass__ = init_subclass_wrapper
     try:
