@@ -544,12 +544,26 @@ def test_resume_all_processes_value_error(test_client, mocked_processes_resumeal
 )
 def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, expected_user):
     # given
+    async def allow(_: object) -> bool:
+        return True
+
+    fake_workflow = make_workflow(
+        f=lambda _: None,
+        description="fake",
+        initial_input_form=None,
+        target=Target.CREATE,
+        steps=StepList([]),
+        authorize_callback=allow,
+        retry_auth_callback=allow,
+    )
     url_params = {"reporter": reporter} if reporter is not None else {}
     fastapi_depends = {authenticate: lambda: oidc_user}
     with (
+        mock.patch("orchestrator.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
         mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,
         mock.patch.dict(fastapi_app.dependency_overrides, fastapi_depends),
     ):
+        mock_get_workflow.return_value = fake_workflow
         mock_start_process.return_value = uuid.uuid4()
         # when
         response = test_client.post("/api/processes/fake_workflow", json=[], params=url_params)
@@ -609,7 +623,7 @@ def test_new_process_higher_version_invalid(test_client, generic_subscription_1)
 
 
 def test_unauthorized_to_run_process(test_client):
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
     @workflow("unauthorized_workflow", target=Target.CREATE, authorize_callback=disallow)
@@ -623,10 +637,10 @@ def test_unauthorized_to_run_process(test_client):
 
 @pytest.fixture
 def authorize_resume_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     class ConfirmForm(FormPage):
@@ -719,19 +733,19 @@ def test_unauthorized_resume_input_step(test_client, process_on_unauthorized_res
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def _A(_: OIDCUserModel) -> bool:
+async def _A(_: OIDCUserModel) -> bool:
     return True
 
 
-def _B(_: OIDCUserModel) -> bool:
+async def _B(_: OIDCUserModel) -> bool:
     return True
 
 
-def _C(_: OIDCUserModel) -> bool:
+async def _C(_: OIDCUserModel) -> bool:
     return True
 
 
-def _D(_: OIDCUserModel) -> bool:
+async def _D(_: OIDCUserModel) -> bool:
     return True
 
 
@@ -844,10 +858,10 @@ def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, pr
 
 @pytest.fixture
 def authorize_step_group_retry_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     steps = StepList([])
@@ -919,10 +933,10 @@ def test_unauthorized_step_group_retry(test_client, process_on_unretriable_step_
 
 @pytest.fixture
 def authorize_step_retry_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     @step("authorized_retry", retry_auth_callback=allow)
@@ -998,10 +1012,10 @@ def test_unauthorized_step_retry(test_client, process_on_unretriable_step):
 
 @pytest.fixture
 def authorize_retrystep_retry_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     @retrystep("authorized_retry", retry_auth_callback=allow)

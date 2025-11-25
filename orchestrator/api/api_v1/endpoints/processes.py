@@ -63,9 +63,11 @@ from orchestrator.websocket import (
     WS_CHANNELS,
     broadcast_invalidate_status_counts,
     broadcast_process_update_to_websocket,
+    sync_broadcast_invalidate_status_counts,
     websocket_manager,
 )
 from orchestrator.workflow import ProcessStat, ProcessStatus, StepList, Workflow
+from orchestrator.workflows import get_workflow
 from pydantic_forms.types import JSON, State
 
 router = APIRouter()
@@ -165,7 +167,7 @@ def delete(process_id: UUID) -> None:
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
 
-    broadcast_invalidate_status_counts()
+    sync_broadcast_invalidate_status_counts()
     broadcast_process_update_to_websocket(process.process_id)
 
 
@@ -175,7 +177,7 @@ def delete(process_id: UUID) -> None:
     status_code=HTTPStatus.CREATED,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def new_process(
+async def new_process(
     workflow_key: str,
     request: Request,
     json_data: list[dict[str, Any]] | None = Body(...),
@@ -183,6 +185,14 @@ def new_process(
     user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> dict[str, UUID]:
     broadcast_func = api_broadcast_process_data(request)
+
+    workflow = get_workflow(workflow_key)
+    if not workflow:
+        raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
+
+    if not await workflow.authorize_callback(user_model):
+        raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
+
     process_id = start_process(
         workflow_key, user_inputs=json_data, user_model=user_model, user=user, broadcast_func=broadcast_func
     )
@@ -196,7 +206,7 @@ def new_process(
     status_code=HTTPStatus.NO_CONTENT,
     dependencies=[Depends(check_global_lock, use_cache=False)],
 )
-def resume_process_endpoint(
+async def resume_process_endpoint(
     process_id: UUID,
     request: Request,
     json_data: JSON = Body(...),
@@ -211,13 +221,13 @@ def resume_process_endpoint(
     pstat = load_process(process)
     auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(pstat), pstat.workflow)
     if process.last_status == ProcessStatus.SUSPENDED:
-        if auth_resume is not None and not auth_resume(user_model):
+        if auth_resume is not None and not (await auth_resume(user_model)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to resume step")
     elif process.last_status in (ProcessStatus.FAILED, ProcessStatus.WAITING):
-        if auth_retry is not None and not auth_retry(user_model):
+        if auth_retry is not None and not (await auth_retry(user_model)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 
-    broadcast_invalidate_status_counts()
+    await broadcast_invalidate_status_counts()
     broadcast_func = api_broadcast_process_data(request)
 
     resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
@@ -316,7 +326,7 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
     broadcast_func = api_broadcast_process_data(request)
     try:
         abort_process(process, user, broadcast_func=broadcast_func)
-        broadcast_invalidate_status_counts()
+        sync_broadcast_invalidate_status_counts()
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))

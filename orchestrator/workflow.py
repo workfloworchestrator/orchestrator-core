@@ -193,7 +193,7 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
     return form_generator
 
 
-def allow(_: OIDCUserModel | None) -> bool:
+async def allow(_: OIDCUserModel | None) -> bool:
     """Default function to return True in absence of user-defined authorize function."""
     return True
 
@@ -1453,9 +1453,9 @@ def errorlogger(error: ErrorDict) -> None:
 
 def invalidate_status_counts() -> None:
     """Broadcast invalidate status counts to the websocket."""
-    from orchestrator.websocket import broadcast_invalidate_status_counts
+    from orchestrator.websocket import sync_broadcast_invalidate_status_counts
 
-    broadcast_invalidate_status_counts()
+    sync_broadcast_invalidate_status_counts()
 
 
 def _exec_steps(steps: StepList, starting_process: Process, dblogstep: StepLogFuncInternal) -> Process:
