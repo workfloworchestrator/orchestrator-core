@@ -1,0 +1,10 @@
+{
+  "models": [
+    {
+      "name": "OpenAI Large",
+      "model": "openai/text-embedding-3-large",
+      "dimension": 3072,
+      "description": "Compare against baseline (text-embedding-3-small). Vectors >2000 dims will be truncated due to HNSW index limit."
+    }
+  ]
+}
