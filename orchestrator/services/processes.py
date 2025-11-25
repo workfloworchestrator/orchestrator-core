@@ -39,7 +39,7 @@ from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.types import BroadcastFunc
 from orchestrator.utils.datetime import nowtz
 from orchestrator.utils.errors import error_state_to_dict
-from orchestrator.websocket import broadcast_invalidate_status_counts, broadcast_process_update_to_websocket
+from orchestrator.websocket import broadcast_process_update_to_websocket, sync_broadcast_invalidate_status_counts
 from orchestrator.workflow import (
     CALLBACK_TOKEN_KEY,
     DEFAULT_CALLBACK_PROGRESS_KEY,
@@ -121,7 +121,7 @@ def _db_create_process(stat: ProcessStat) -> None:
 
 def delete_process(process_id: UUID) -> None:
     db.session.execute(delete(ProcessTable).where(ProcessTable.process_id == process_id))
-    broadcast_invalidate_status_counts()
+    sync_broadcast_invalidate_status_counts()
     db.session.commit()
 
 
@@ -421,10 +421,6 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
     return process_id
 
 
-def error_message_unauthorized(workflow_key: str) -> str:
-    return f"User is not authorized to execute '{workflow_key}' workflow"
-
-
 def create_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
@@ -441,9 +437,6 @@ def create_process(
 
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    if not workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(workflow_key))
 
     initial_state = {
         "process_id": process_id,
