@@ -10,8 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,6 +55,11 @@ def maybe_record_ground_truth(request, worker_id, database):
     if worker_id != "master":
         pytest.exit("Ground truth recording only runs on main worker")
 
+    # Suspend output capturing for benchmark
+    capman = request.config.pluginmanager.get_plugin("capturemanager")
+    if capman:
+        capman.suspend_global_capture(in_=True)
+
     from test.integration_test.search.scripts.record_ground_truth import record_ground_truth
 
     # Run the recording
@@ -64,9 +69,9 @@ def maybe_record_ground_truth(request, worker_id, database):
         import traceback
 
         traceback.print_exc()
-        pytest.exit("Ground truth recording failed", returncode=1)
+        os._exit(1)
 
-    pytest.exit("Ground truth recording complete", returncode=0)
+    os._exit(0)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -82,6 +87,11 @@ def maybe_run_benchmark(request, worker_id, database):
 
     if worker_id != "master":
         pytest.exit("Benchmark only runs on main worker")
+
+    # Suspend output capturing for benchmark
+    capman = request.config.pluginmanager.get_plugin("capturemanager")
+    if capman:
+        capman.suspend_global_capture(in_=True)
 
     # Setup test data
     from orchestrator.db import ProductTable, SubscriptionTable
@@ -104,18 +114,18 @@ def maybe_run_benchmark(request, worker_id, database):
 
         session.commit()
 
-    from test.integration_test.search.scripts.benchmark import compare_models
+    from test.integration_test.search.scripts.benchmark.benchmark import run_benchmark
 
     # Run the benchmark
     try:
-        asyncio.run(compare_models())
+        asyncio.run(run_benchmark())
     except Exception:
         import traceback
 
         traceback.print_exc()
-        pytest.exit("Benchmark failed", returncode=1)
+        os._exit(1)
 
-    pytest.exit("Benchmark complete", returncode=0)
+    os._exit(0)
 
 
 @pytest.fixture(scope="session", autouse=True)
