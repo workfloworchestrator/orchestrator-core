@@ -21,6 +21,7 @@ from orchestrator.schedules.scheduler import (
     get_scheduler_task,
 )
 from orchestrator.schedules.service import SCHEDULER_QUEUE, workflow_scheduler_queue
+from orchestrator.settings import app_settings
 from orchestrator.utils.redis_client import create_redis_client
 
 app: typer.Typer = typer.Typer()
@@ -42,9 +43,11 @@ def run() -> None:
         return None
 
     with get_scheduler() as scheduler_connection:
-        redis_connection = create_redis_client("redis://localhost:6380/0")
+        redis_connection = create_redis_client(app_settings.CACHE_URI)
+        typer.echo(f"redis_connection Waiting for scheduled tasks...{redis_connection}")
         while True:
             item = _get_scheduled_task_item_from_queue(redis_connection)
+            typer.echo(f"Waiting for scheduled tasks...{item}")
             if not item:
                 continue
 

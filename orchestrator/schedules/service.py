@@ -94,31 +94,31 @@ def add_delete_scheduled_task_to_queue(payload: APSchedulerJob) -> None:
     logger.info("Added delete scheduled task to queue.")
 
 
-def add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
+def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     """Add an entry to the linker table workflows_apscheduler_jobs.
 
     Args:
         workflow_id: UUID The workflow ID.
         schedule_id: str The schedule ID.
     """
-    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow_id, schedule_id=schedule_id)
-    db.session.add(workflows_apscheduler_job)
-    db.session.commit()
+    with db.session.begin():
+        workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow_id, schedule_id=schedule_id)
+        db.session.add(workflows_apscheduler_job)
 
 
-def delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
+def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     """Delete an entry from the linker table workflows_apscheduler_jobs.
 
     Args:
         workflow_id: UUID The workflow ID.
         schedule_id: str The schedule ID.
     """
-    db.session.execute(
-        delete(WorkflowApschedulerJob).where(
-            WorkflowApschedulerJob.workflow_id == workflow_id, WorkflowApschedulerJob.schedule_id == schedule_id
+    with db.session.begin():
+        db.session.execute(
+            delete(WorkflowApschedulerJob).where(
+                WorkflowApschedulerJob.workflow_id == workflow_id, WorkflowApschedulerJob.schedule_id == schedule_id
+            )
         )
-    )
-    db.session.commit()
 
 
 def run_start_workflow_scheduler_task(workflow_name: str) -> None:
@@ -144,7 +144,7 @@ def _add_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseSched
     func = run_start_workflow_scheduler_task
 
     # Ensure payload has required data
-    if not payload.trigger or not payload.workflow_name or not payload.name or not payload.kwargs:
+    if not payload.trigger or not payload.workflow_name or not payload.name or not payload.kwargs or not payload.workflow_id:
         raise ValueError("Trigger must be specified for scheduled tasks.")
 
     scheduler_connection.add_job(
@@ -155,6 +155,8 @@ def _add_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseSched
         kwargs={"workflow_name": payload.workflow_name},
         **(payload.kwargs or {}),
     )
+
+    _add_linker_entry(workflow_id=payload.workflow_id, schedule_id=payload.workflow_name)
 
 
 def _update_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseScheduler) -> None:
@@ -187,6 +189,7 @@ def _delete_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseSc
     logger.info(f"Deleting scheduled task: {payload}")
 
     scheduler_connection.remove_job(job_id=payload.workflow_name)
+    _delete_linker_entry(workflow_id=payload.workflow_id, schedule_id=payload.workflow_name)
 
 
 def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection: BaseScheduler) -> None:

@@ -29,9 +29,11 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     PrimaryKeyConstraint,
     Select,
     String,
@@ -796,6 +798,14 @@ class AiSearchIndex(BaseModel):
     content_hash = mapped_column(String(64), nullable=False, index=True)
 
     __table_args__ = (PrimaryKeyConstraint("entity_id", "path", name="pk_ai_search_index"),)
+
+
+class APSchedulerJobStoreModel(BaseModel):
+    __tablename__ = "apscheduler_jobs"
+
+    id = mapped_column(String(191), primary_key=True)
+    next_run_time = mapped_column(Float, nullable=True)
+    job_state = mapped_column(LargeBinary, nullable=False)
 
 
 class WorkflowApschedulerJob(BaseModel):
