@@ -265,7 +265,7 @@ async def discover_filter_paths(
 
     all_results = {}
     for field_name in field_names:
-        paths_response = await list_paths(prefix="", q=field_name, entity_type=entity_type, limit=100)
+        paths_response = await list_paths(prefix="", q=field_name, entity_type=entity_type, limit=100)  # type: ignore
 
         matching_leaves = []
         for leaf in paths_response.leaves:

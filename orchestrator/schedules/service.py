@@ -37,26 +37,22 @@ def serialize_payload(payload: APSchedulerJob, scheduled_type: str) -> bytes:
     """Serialize the payload to bytes for Redis storage.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task payload.
-        :param scheduled_type: str The type of scheduled task (create, update, delete).
-        :return: bytes The serialized payload.
+        payload: APSchedulerJob The scheduled task payload.
+        scheduled_type: str The type of scheduled task (create, update, delete).
     """
     payload.scheduled_type = scheduled_type
     json_dump = payload.model_dump_json()
-    bytes_dump = json_dump.encode()
-    return bytes_dump
+    return json_dump.encode()
 
 
 def deserialize_payload(bytes_dump: bytes) -> APSchedulerJob:
     """Deserialize the payload from bytes for Redis retrieval.
 
     Args:
-        :param bytes_dump: bytes The serialized payload.
-        :return: APSchedulerJob The scheduled task payload.
+        bytes_dump: bytes The serialized payload.
     """
     json_dump = bytes_dump.decode()
-    payload = APSchedulerJob.model_validate_json(json_dump)
-    return payload
+    return APSchedulerJob.model_validate_json(json_dump)
 
 
 def add_create_scheduled_task_to_queue(payload: APSchedulerJob) -> None:
@@ -66,8 +62,7 @@ def add_create_scheduled_task_to_queue(payload: APSchedulerJob) -> None:
     the linker table workflows_apscheduler_jobs.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task to create.
-        :return: None
+        payload: APSchedulerJob The scheduled task to create.
     """
     bytes_dump = serialize_payload(payload, SCHEDULER_Q_CREATE)
     reddis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
@@ -78,8 +73,7 @@ def add_update_scheduled_task_to_queue(payload: APSchedulerJob) -> None:
     """Update a scheduled task service function.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task to update.
-        :return: None
+        payload: APSchedulerJob The scheduled task to update.
     """
     bytes_dump = serialize_payload(payload, SCHEDULER_Q_UPDATE)
     reddis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
@@ -93,8 +87,7 @@ def add_delete_scheduled_task_to_queue(payload: APSchedulerJob) -> None:
     the linker table workflows_apscheduler_jobs.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task to delete.
-        :return: None
+        payload: APSchedulerJob The scheduled task to delete.
     """
     bytes_dump = serialize_payload(payload, SCHEDULER_Q_DELETE)
     reddis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
@@ -105,9 +98,8 @@ def add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     """Add an entry to the linker table workflows_apscheduler_jobs.
 
     Args:
-        :param workflow_id: UUID The workflow ID.
-        :param schedule_id: str The schedule ID.
-        :return: None
+        workflow_id: UUID The workflow ID.
+        schedule_id: str The schedule ID.
     """
     workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow_id, schedule_id=schedule_id)
     db.session.add(workflows_apscheduler_job)
@@ -118,9 +110,8 @@ def delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     """Delete an entry from the linker table workflows_apscheduler_jobs.
 
     Args:
-        :param workflow_id: UUID The workflow ID.
-        :param schedule_id: str The schedule ID.
-        :return: None
+        workflow_id: UUID The workflow ID.
+        schedule_id: str The schedule ID.
     """
     db.session.execute(
         delete(WorkflowApschedulerJob).where(
@@ -134,8 +125,7 @@ def run_start_workflow_scheduler_task(workflow_name: str) -> None:
     """Function to start a workflow from the scheduler.
 
     Args:
-        :param workflow_name: str The name of the workflow to start.
-        :return: None
+        workflow_name: str The name of the workflow to start.
     """
     logger.info(f"Starting workflow: {workflow_name}")
     start_process(workflow_name)
@@ -145,9 +135,8 @@ def _add_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseSched
     """Create a new scheduled task in the scheduler and also in the linker table.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task to create.
-        :param scheduler_connection: BaseScheduler The scheduler connection.
-        :return: None
+        payload: APSchedulerJob The scheduled task to create.
+        scheduler_connection: BaseScheduler The scheduler connection.
     """
     logger.info(f"Adding scheduled task: {payload}")
 
@@ -176,9 +165,8 @@ def _update_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseSc
     Do not insert in linker table - it should already exist.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task to update.
-        :param scheduler_connection: BaseScheduler The scheduler connection.
-        :return: None
+        payload: APSchedulerJob The scheduled task to update.
+        scheduler_connection: BaseScheduler The scheduler connection.
     """
     logger.info(f"Updating scheduled task: {payload}")
 
@@ -193,9 +181,8 @@ def _delete_scheduled_task(payload: APSchedulerJob, scheduler_connection: BaseSc
     """Delete an existing scheduled task in the scheduler and also in the linker table.
 
     Args:
-        :param payload: APSchedulerJob The scheduled task to delete.
-        :param scheduler_connection: BaseScheduler The scheduler connection.
-        :return: None
+        payload: APSchedulerJob The scheduled task to delete.
+        scheduler_connection: BaseScheduler The scheduler connection.
     """
     logger.info(f"Deleting scheduled task: {payload}")
 
@@ -206,9 +193,8 @@ def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection
     """Process an item from the scheduler queue.
 
     Args:
-        :param queue_item: tuple[str, bytes] The item from the scheduler queue.
-        :param scheduler_connection: BaseScheduler The scheduler connection.
-        :return: None
+        queue_item: tuple[str, bytes] The item from the scheduler queue.
+        scheduler_connection: BaseScheduler The scheduler connection.
     """
     try:
         _, bytes_dump = queue_item

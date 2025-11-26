@@ -10,29 +10,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Dict
+from typing import Any, Dict, Literal
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
 class APSchedulerJob(BaseModel):
     workflow_name: str = Field(..., description="ID/name of the workflow to run e.g. 'my_workflow_name'")
-    workflow_id: UUID | None = Field(
-        None, description="UUID of the workflow associated with this scheduled task"
-    )
+    workflow_id: UUID | None = Field(None, description="UUID of the workflow associated with this scheduled task")
 
-    name: str | None = Field(
-        None, description="Human readable name e.g. 'My Process'"
-    )
+    name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
 
-    trigger: Literal["interval", "cron", "date"] | None = Field(
-        None, description="APScheduler trigger type"
-    )
+    trigger: Literal["interval", "cron", "date"] | None = Field(None, description="APScheduler trigger type")
 
     kwargs: Dict[str, Any] | None = Field(
-        default_factory=dict, description="Arguments passed to the job function"
+        default_factory=lambda: {}, description="Arguments passed to the job function"
     )
 
-    scheduled_type: str | None = Field(
-        None, description="Type of scheduled task operation"
-    )
+    scheduled_type: str | None = Field(None, description="Type of scheduled task operation")
