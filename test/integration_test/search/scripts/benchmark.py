@@ -104,7 +104,7 @@ async def reindex_with_model(model_config: ModelConfig) -> None:
     from ..helpers import index_subscription
 
     # Generate embeddings for all test subscriptions
-    descriptions = [sub["description"] for sub in TEST_SUBSCRIPTIONS]
+    descriptions = [str(sub["description"]) for sub in TEST_SUBSCRIPTIONS]
 
     embeddings = EmbeddingIndexer.get_embeddings_from_api_batch(descriptions, dry_run=False)
 
@@ -240,7 +240,7 @@ def display_ranking_comparison(query_results: list[BenchmarkResult], expected_ra
     # Build mapping from subscription_id to description (truncated to 50 chars)
     id_to_desc = {
         str(sub["subscription_id"]): (
-            sub["description"][:47] + "..." if len(sub["description"]) > 50 else sub["description"]
+            str(sub["description"])[:47] + "..." if len(str(sub["description"])) > 50 else str(sub["description"])
         )
         for sub in TEST_SUBSCRIPTIONS
     }
