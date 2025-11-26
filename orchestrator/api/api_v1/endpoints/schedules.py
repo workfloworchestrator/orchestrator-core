@@ -15,9 +15,11 @@ from http import HTTPStatus
 from fastapi.routing import APIRouter
 
 from orchestrator.schedules.service import (
-    add_create_scheduled_task_to_queue, add_update_scheduled_task_to_queue, add_delete_scheduled_task_to_queue,
-    APSchedulerJob
+    add_create_scheduled_task_to_queue,
+    add_delete_scheduled_task_to_queue,
+    add_update_scheduled_task_to_queue,
 )
+from orchestrator.schemas.schedules import APSchedulerJob
 
 router = APIRouter()
 
@@ -31,7 +33,7 @@ def create_scheduled_task(payload: APSchedulerJob) -> dict[str, str]:
 
 
 @router.put("/", status_code=HTTPStatus.OK, response_model=dict[str, str])
-async def update_scheduled_task(payload: APSchedulerJob) ->  dict[str, str]:
+async def update_scheduled_task(payload: APSchedulerJob) -> dict[str, str]:
     """Update a scheduled task."""
     payload.scheduled_type = "update"  # Override to ensure the correct type
     add_update_scheduled_task_to_queue(payload)
@@ -39,7 +41,7 @@ async def update_scheduled_task(payload: APSchedulerJob) ->  dict[str, str]:
 
 
 @router.delete("/", status_code=HTTPStatus.OK, response_model=dict[str, str])
-async def delete_scheduled_task(payload: APSchedulerJob) ->  dict[str, str]:
+async def delete_scheduled_task(payload: APSchedulerJob) -> dict[str, str]:
     """Delete a scheduled task."""
     payload.scheduled_type = "delete"  # Override to ensure the correct type
     add_delete_scheduled_task_to_queue(payload)
