@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.13']
+        python-version: ['3.13', '3.14']
         postgres-version: ['17']
       fail-fast: false
     container: ubuntu:latest
@@ -48,13 +48,13 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Install uv and set the python version
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.9.8"
+          version: "0.9.12"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
