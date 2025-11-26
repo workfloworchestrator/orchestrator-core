@@ -13,7 +13,7 @@ SEARCH_ENABLED=true uv run pytest test/integration_test/search/
 Generate baseline embeddings and rankings:
 
 ```bash
-SEARCH_ENABLED=true uv run pytest test/integration_test/search/ --record -s
+SEARCH_ENABLED=true uv run pytest test/integration_test/search/ --record
 ```
 
 **When to regenerate:**
@@ -27,7 +27,7 @@ SEARCH_ENABLED=true uv run pytest test/integration_test/search/ --record -s
 Compare embedding models against baseline:
 
 ```bash
-SEARCH_ENABLED=true EMBEDDING_DIMENSION=2000 uv run pytest test/integration_test/search/ --benchmark -s
+SEARCH_ENABLED=true EMBEDDING_DIMENSION=2000 uv run pytest test/integration_test/search/ --benchmark
 ```
 
 **Configure models** by editing `data/models.json`
