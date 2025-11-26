@@ -72,7 +72,7 @@ jobs:
       - name: Add $HOME/.cargo/bin to PATH
         run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-      - uses: CodSpeedHQ/action@v3
+      - uses: CodSpeedHQ/action@v4
         with:
           run: CACHE_URI=redis://redis DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB uv run pytest test/unit_tests --codspeed
           token: ${{ secrets.CODSPEED_TOKEN }}
