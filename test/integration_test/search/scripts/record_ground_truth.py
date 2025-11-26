@@ -35,7 +35,7 @@ async def generate_entity_embeddings() -> dict[str, list[float]]:
     ) as progress:
         progress.add_task(f"Generating embeddings for {len(TEST_SUBSCRIPTIONS)} entities...", total=None)
 
-        descriptions = [sub["description"] for sub in TEST_SUBSCRIPTIONS]
+        descriptions = [str(sub["description"]) for sub in TEST_SUBSCRIPTIONS]
         embeddings_list = EmbeddingIndexer.get_embeddings_from_api_batch(descriptions, dry_run=False)
 
         # Map descriptions to embeddings
