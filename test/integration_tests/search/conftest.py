@@ -60,7 +60,7 @@ def maybe_record_ground_truth(request, worker_id, database):
     if capman:
         capman.suspend_global_capture(in_=True)
 
-    from test.integration_test.search.scripts.record_ground_truth import record_ground_truth
+    from test.integration_tests.search.scripts.record_ground_truth import record_ground_truth
 
     # Run the recording
     try:
@@ -114,7 +114,7 @@ def maybe_run_benchmark(request, worker_id, database):
 
         session.commit()
 
-    from test.integration_test.search.scripts.benchmark.benchmark import run_benchmark
+    from test.integration_tests.search.scripts.benchmark.benchmark import run_benchmark
 
     # Run the benchmark
     try:
