@@ -30,8 +30,8 @@ async def reindex_with_model(model_config, target_dimension: int, console) -> No
     from orchestrator.cli.search.resize_embedding import alter_embedding_column_dimension
     from orchestrator.db import SubscriptionTable, db
     from orchestrator.search.core.embedding import EmbeddingIndexer
-    from test.integration_test.search.fixtures import TEST_SUBSCRIPTIONS
-    from test.integration_test.search.helpers import index_subscription
+    from test.integration_tests.search.fixtures import TEST_SUBSCRIPTIONS
+    from test.integration_tests.search.helpers import index_subscription
 
     console.print(f"Re-indexing with {model_config.name}...")
 
@@ -95,9 +95,9 @@ async def benchmark_single_model(
     from orchestrator.search.core.types import EntityType
     from orchestrator.search.query import engine
     from orchestrator.search.query.queries import SelectQuery
-    from test.integration_test.search.helpers import ModelConfig, load_benchmark_queries
-    from test.integration_test.search.scripts.benchmark.benchmark import BenchmarkResult
-    from test.integration_test.search.scripts.benchmark.metrics import (
+    from test.integration_tests.search.helpers import ModelConfig, load_benchmark_queries
+    from test.integration_tests.search.scripts.benchmark.benchmark import BenchmarkResult
+    from test.integration_tests.search.scripts.benchmark.metrics import (
         calculate_spearman_correlation,
         calculate_top_k_overlap,
     )
