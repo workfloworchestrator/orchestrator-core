@@ -72,6 +72,7 @@ def display_ranking_comparison(query_results, expected_ranking: list[str]) -> No
 
 def display_benchmark_results(results, queries, models) -> None:
     """Display benchmark results with simple metrics and visual comparisons."""
+    from statistics import median
 
     # Group results by model
     results_by_model = defaultdict(list)
@@ -81,22 +82,22 @@ def display_benchmark_results(results, queries, models) -> None:
     console.print("\n=== Summary by Model ===\n")
     summary_table = Table(show_header=True)
     summary_table.add_column("Model")
-    summary_table.add_column("Avg Latency", justify="right")
-    summary_table.add_column("Avg Rank Corr", justify="right")
-    summary_table.add_column("Avg Top-5 Overlap", justify="right")
+    summary_table.add_column("Median Latency", justify="right")
+    summary_table.add_column("Median Rank Corr", justify="right")
+    summary_table.add_column("Median Top-5 Overlap", justify="right")
 
     for model_name, model_results in results_by_model.items():
-        avg_latency = sum(r.latency_ms for r in model_results) / len(model_results)
+        median_latency = median(r.latency_ms for r in model_results)
 
         corr_values = [r.rank_correlation for r in model_results if r.rank_correlation is not None]
         top5_values = [r.top_k_overlap[5] for r in model_results if r.top_k_overlap and 5 in r.top_k_overlap]
 
         if corr_values:
-            avg_corr = sum(corr_values) / len(corr_values)
-            avg_top5 = sum(top5_values) / len(top5_values) if top5_values else 0.0
-            summary_table.add_row(model_name, f"{avg_latency:.1f}ms", f"{avg_corr:.3f}", f"{avg_top5:.1%}")
+            median_corr = median(corr_values)
+            median_top5 = median(top5_values) if top5_values else 0.0
+            summary_table.add_row(model_name, f"{median_latency:.1f}ms", f"{median_corr:.3f}", f"{median_top5:.1%}")
         else:
-            summary_table.add_row(model_name, f"{avg_latency:.1f}ms", "N/A", "N/A")
+            summary_table.add_row(model_name, f"{median_latency:.1f}ms", "N/A", "N/A")
 
     console.print(summary_table)
 
