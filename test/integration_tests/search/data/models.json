@@ -11,6 +11,12 @@
       "model": "openai/text-embedding-ada-002",
       "dimension": 1536,
       "description": "Previous generation OpenAI embedding model for comparison."
+    },
+    {
+      "name": "OpenAI Ada v 2 truncated embeddings (500)",
+      "model": "openai/text-embedding-ada-002",
+      "dimension": 500,
+      "description": "Previous generation OpenAI embedding model for comparison."
     }
   ]
 }

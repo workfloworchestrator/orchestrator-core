@@ -1,0 +1,67 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Pytest LLM Tests
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+
+jobs:
+  container_job:
+    name: Pytest Celery Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.14']
+        postgres-version: ['17']
+      fail-fast: false
+    container: ubuntu:latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+          POSTGRES_DB: orchestrator-core-test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.9.12"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Run pytest LLM integration tests
+        env:
+          DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
+          ENVIRONMENT: TESTING
+          PYTHONPATH: .
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SEARCH_ENABLED: "true"
+        run: |
+          uv run pytest test/integration_tests/search -v
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # gives error 'Could not find a repository associated with upload token'
+          fail_ci_if_error: false
+          files: ./coverage.xml
