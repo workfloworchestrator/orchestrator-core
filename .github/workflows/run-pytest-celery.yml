@@ -5,13 +5,13 @@ name: Pytest Celery Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_call:
   pull_request:
   workflow_dispatch:
 
 env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   container_job:
@@ -19,8 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.13', '3.14']
-        postgres-version: ['17']
+        python-version: ["3.13", "3.14"]
+        postgres-version: ["17"]
       fail-fast: false
     container: ubuntu:latest
     services:
@@ -79,4 +79,4 @@ jobs:
           DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DB \
           CELERY_BROKER_URL=$CELERY_BROKER_URL \
           CELERY_RESULT_BACKEND=$CELERY_RESULT_BACKEND \
-          uv run pytest test/integration_test/test_with_pytest_celery.py -v
+          uv run pytest test/integration_tests/test_with_pytest_celery.py -v
