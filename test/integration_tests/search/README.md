@@ -27,7 +27,7 @@ SEARCH_ENABLED=true uv run pytest test/integration_tests/search/ --record
 Compare embedding models against baseline:
 
 ```bash
-SEARCH_ENABLED=true EMBEDDING_DIMENSION=2000 uv run pytest test/integration_tests/search/ --benchmark
+SEARCH_ENABLED=true uv run pytest test/integration_tests/search/ --benchmark
 ```
 
 **Configure models** by editing `data/models.json`
