@@ -5,7 +5,7 @@ Integration tests and benchmarking for search functionality.
 ## Run Integration Tests
 
 ```bash
-SEARCH_ENABLED=true uv run pytest test/integration_test/search/
+SEARCH_ENABLED=true uv run pytest test/integration_tests/search/
 ```
 
 ## Record Ground Truth
@@ -13,7 +13,7 @@ SEARCH_ENABLED=true uv run pytest test/integration_test/search/
 Generate baseline embeddings and rankings:
 
 ```bash
-SEARCH_ENABLED=true uv run pytest test/integration_test/search/ --record
+SEARCH_ENABLED=true uv run pytest test/integration_tests/search/ --record
 ```
 
 **When to regenerate:**
@@ -27,7 +27,7 @@ SEARCH_ENABLED=true uv run pytest test/integration_test/search/ --record
 Compare embedding models against baseline:
 
 ```bash
-SEARCH_ENABLED=true EMBEDDING_DIMENSION=2000 uv run pytest test/integration_test/search/ --benchmark
+SEARCH_ENABLED=true uv run pytest test/integration_tests/search/ --benchmark
 ```
 
 **Configure models** by editing `data/models.json`
