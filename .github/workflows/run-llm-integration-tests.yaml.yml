@@ -12,7 +12,7 @@ env:
 
 jobs:
   container_job:
-    name: Pytest Celery Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    name: Pytest LLM Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
