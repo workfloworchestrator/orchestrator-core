@@ -110,7 +110,7 @@ dev = [
     "deepdiff>=8.5.0",
     "dirty-equals>=0.9.0",
     "jsonref>=1.1.0",
-    "mypy==1.9",
+    "mypy==1.19.0",
     "mypy-extensions>=1.1.0",
     "pre-commit>=4.2.0",
     "pydocstyle>=6.3.0",
