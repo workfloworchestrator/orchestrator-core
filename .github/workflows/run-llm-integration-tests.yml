@@ -57,7 +57,7 @@ jobs:
           PYTHONPATH: .
           SEARCH_ENABLED: "true"
         run: |
-          uv run pytest test/integration_tests/search -v
+          SEARCH_ENABLED=true uv run pytest test/integration_tests/search -v
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3
