@@ -6,6 +6,7 @@ name: Pytest LLM Tests
 on:
   push:
     branches: [main]
+  pull_request:
 
 env:
   UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
@@ -54,7 +55,6 @@ jobs:
           DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
           ENVIRONMENT: TESTING
           PYTHONPATH: .
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEARCH_ENABLED: "true"
         run: |
           uv run pytest test/integration_tests/search -v
