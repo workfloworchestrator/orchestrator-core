@@ -5,10 +5,10 @@ name: Pytest LLM Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 env:
-  UV_LOCKED: true  # Assert that the `uv.lock` will remain unchanged
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
 
 jobs:
   container_job:
@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.14']
-        postgres-version: ['17']
+        python-version: ["3.14"]
+        postgres-version: ["17"]
       fail-fast: false
     container: ubuntu:latest
     services:
@@ -57,7 +57,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEARCH_ENABLED: "true"
         run: |
-          SEARCH_ENABLED=true uv run pytest test/integration_tests/search -v
+          uv run pytest test/integration_tests/search -v
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3

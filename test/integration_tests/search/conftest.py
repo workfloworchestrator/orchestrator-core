@@ -162,11 +162,12 @@ def embedding_fixtures() -> dict[str, list[float]]:
 def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
     """Mock embedding API calls to return recorded embeddings.
 
-    This ensures consistent test results without calling the actual OpenAI API.
+    This ensures consistent test results without calling the actual API.
+    Only mocks async (llm_aembedding) as it's used during query execution.
     """
 
-    def mock_embedding_sync(model: str, input: list[str], **kwargs) -> MagicMock:
-        """Mock synchronous embedding call."""
+    async def mock_embedding_async(model: str, input: list[str], **kwargs) -> MagicMock:
+        """Mock async embedding call for query execution."""
         mock_response = MagicMock()
         mock_response.data = []
 
@@ -178,7 +179,7 @@ def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
 
         return mock_response
 
-    with patch("orchestrator.search.core.embedding.llm_embedding", side_effect=mock_embedding_sync):
+    with patch("orchestrator.search.core.embedding.llm_aembedding", side_effect=mock_embedding_async):
         yield
 
 
