@@ -289,7 +289,7 @@ class TestAggregationBuilderFeatures:
             AggregateQuery(
                 entity_type=EntityType.SUBSCRIPTION,
                 aggregations=[
-                    FieldAggregation(type=agg_type, field="subscription.price", alias="test_agg"),  # type: ignore[list-item]
+                    FieldAggregation(type=agg_type, field="subscription.price", alias="test_agg"),  # type: ignore[arg-type]
                 ],
                 temporal_group_by=[temporal_grouping_month],
                 cumulative=True,
@@ -300,7 +300,7 @@ class TestAggregationBuilderFeatures:
         query = AggregateQuery(
             entity_type=EntityType.SUBSCRIPTION,
             aggregations=[
-                FieldAggregation(type=AggregationType.SUM, field="subscription.price", alias="total_revenue"),  # type: ignore[list-item]
+                FieldAggregation(type=AggregationType.SUM, field="subscription.price", alias="total_revenue"),
             ],
             temporal_group_by=[temporal_grouping_month],
             cumulative=True,
