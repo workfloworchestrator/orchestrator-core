@@ -217,12 +217,12 @@ def indexed_subscriptions(db_session, test_subscriptions, mock_embeddings, embed
     the full product registry setup. The focus is on testing search ranking with
     semantically meaningful descriptions.
     """
-    for sub in test_subscriptions:
+    for idx, sub in enumerate(test_subscriptions, start=1):
         embedding = embedding_fixtures.get(sub.description.lower())
         if embedding is None:
             raise ValueError(f"No embedding found for subscription '{sub.description}' in ground_truth.json. ")
 
-        index_subscription(sub, embedding, db.session)
+        index_subscription(sub, embedding, db.session, subscription_index=idx)
 
     db.session.commit()
 

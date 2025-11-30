@@ -13,7 +13,7 @@
 
 from typing import Annotated, Any, ClassVar, Literal, Self, Union
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, model_validator
 
 from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterTree
@@ -111,6 +111,20 @@ class AggregateQuery(BaseQuery, GroupingMixin, AggregationMixin):
 
     query_type: Literal["aggregate"] = "aggregate"
     _action: ClassVar[ActionType] = ActionType.AGGREGATE
+
+    @model_validator(mode="after")
+    def validate_cumulative_aggregation_types(self) -> Self:
+        """Validate that cumulative is only used with COUNT and SUM aggregations."""
+        if self.cumulative:
+            from orchestrator.search.aggregations import AggregationType
+
+            for agg in self.aggregations:
+                if agg.type in (AggregationType.AVG, AggregationType.MIN, AggregationType.MAX):
+                    raise ValueError(
+                        f"Cumulative aggregations are not supported for {agg.type.value.upper()} aggregations. "
+                        f"Cumulative only works with COUNT and SUM."
+                    )
+        return self
 
     def get_pivot_fields(self) -> list[str]:
         """Get all fields needed for EAV pivot including aggregation fields."""
