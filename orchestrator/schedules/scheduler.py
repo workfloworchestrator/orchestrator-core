@@ -26,6 +26,7 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.filters.filters import CallableErrorHandler
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.sorting import SortOrder
+from orchestrator.schedules.service import get_linker_entries_by_schedule_id
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 
 executors = {
@@ -74,6 +75,7 @@ def get_scheduler(paused: bool = False) -> Generator[BackgroundScheduler, Any, N
 
 class ScheduledTask(BaseModel):
     id: str
+    workflow_id: str | None = None
     name: str | None = None
     next_run_time: datetime | None = None
     trigger: str
@@ -160,6 +162,40 @@ def default_error_handler(message: str, **context) -> None:  # type: ignore
     raise ValueError(f"{message} {_format_context(context)}")
 
 
+def enrich_with_workflow_id(scheduled_tasks: list[ScheduledTask]) -> list[ScheduledTask]:
+    """Does a get call to the linker table to get the workflow_id for each scheduled task.
+
+    Returns all the scheduled tasks with the workflow_id added.
+    """
+
+    enriched_tasks = []
+    for task in scheduled_tasks:
+        linker_entries = get_linker_entries_by_schedule_id(task.id)
+        if not linker_entries:
+            enriched_tasks.append(
+                ScheduledTask(
+                    id=task.id,
+                    workflow_id=None,
+                    name=task.name,
+                    next_run_time=task.next_run_time,
+                    trigger=str(task.trigger),
+                )
+            )
+            continue
+
+        for linker_entry in linker_entries:
+            enriched_tasks.append(
+                ScheduledTask(
+                    id=task.id,
+                    workflow_id=str(linker_entry.workflow_id),
+                    name=task.name,
+                    next_run_time=task.next_run_time,
+                    trigger=str(task.trigger),
+                )
+            )
+    return enriched_tasks
+
+
 def get_scheduler_tasks(
     first: int = 10,
     after: int = 0,
@@ -170,6 +206,7 @@ def get_scheduler_tasks(
     scheduled_tasks = get_all_scheduler_tasks()
     scheduled_tasks = filter_scheduled_tasks(scheduled_tasks, error_handler, filter_by)
     scheduled_tasks = sort_scheduled_tasks(scheduled_tasks, error_handler, sort_by)
+    scheduled_tasks = enrich_with_workflow_id(scheduled_tasks)
 
     total = len(scheduled_tasks)
     paginated_tasks = scheduled_tasks[after : after + first + 1]
@@ -177,6 +214,7 @@ def get_scheduler_tasks(
     return [
         ScheduledTask(
             id=task.id,
+            workflow_id=task.workflow_id,
             name=task.name,
             next_run_time=task.next_run_time,
             trigger=str(task.trigger),

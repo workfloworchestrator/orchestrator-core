@@ -13,19 +13,60 @@
 from typing import Any, Dict, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class APSchedulerJob(BaseModel):
-    workflow_name: str = Field(..., description="ID/name of the workflow to run e.g. 'my_workflow_name'")
-    workflow_id: UUID | None = Field(None, description="UUID of the workflow associated with this scheduled task")
-
     name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
 
-    trigger: Literal["interval", "cron", "date"] | None = Field(None, description="APScheduler trigger type")
 
-    kwargs: Dict[str, Any] | None = Field(
-        default_factory=lambda: {}, description="Arguments passed to the job function"
+class APSchedulerJobCreate(APSchedulerJob):
+    workflow_name: str = Field(..., description="Name of the workflow to run e.g. 'my_workflow_name'")
+    workflow_id: UUID = Field(..., description="UUID of the workflow associated with this scheduled task")
+
+    trigger: Literal["interval", "cron", "date"] = Field(..., description="APScheduler trigger type")
+    trigger_kwargs: Dict[str, Any] = Field(
+        default_factory=lambda: {},
+        description="Arguments passed to the job function",
+        examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
     )
 
-    scheduled_type: str | None = Field(None, description="Type of scheduled task operation")
+    @property
+    @computed_field
+    def scheduled_type(self) -> str:
+        # Avoid circular import
+        from orchestrator.schedules.service import SCHEDULER_Q_CREATE
+
+        return SCHEDULER_Q_CREATE
+
+
+class APSchedulerJobUpdate(APSchedulerJob):
+    schedule_id: UUID = Field(..., description="UUID of the scheduled task")
+
+    trigger: Literal["interval", "cron", "date"] | None = Field(None, description="APScheduler trigger type")
+    trigger_kwargs: Dict[str, Any] | None = Field(
+        default=None,
+        description="Arguments passed to the job function",
+        examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
+    )
+
+    @property
+    @computed_field
+    def scheduled_type(self) -> str:
+        # Avoid circular import
+        from orchestrator.schedules.service import SCHEDULER_Q_UPDATE
+
+        return SCHEDULER_Q_UPDATE
+
+
+class APSchedulerJobDelete(BaseModel):
+    workflow_id: UUID = Field(..., description="UUID of the workflow associated with this scheduled task")
+    schedule_id: UUID | None = Field(None, description="UUID of the scheduled task")
+
+    @property
+    @computed_field
+    def scheduled_type(self) -> str | None:
+        # Avoid circular import
+        from orchestrator.schedules.service import SCHEDULER_Q_DELETE
+
+        return SCHEDULER_Q_DELETE

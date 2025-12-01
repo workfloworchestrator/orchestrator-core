@@ -19,30 +19,27 @@ from orchestrator.schedules.service import (
     add_delete_scheduled_task_to_queue,
     add_update_scheduled_task_to_queue,
 )
-from orchestrator.schemas.schedules import APSchedulerJob
+from orchestrator.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 
 router = APIRouter()
 
 
 @router.post("/", status_code=HTTPStatus.CREATED, response_model=dict[str, str])
-def create_scheduled_task(payload: APSchedulerJob) -> dict[str, str]:
+def create_scheduled_task(payload: APSchedulerJobCreate) -> dict[str, str]:
     """Create a scheduled task."""
-    payload.scheduled_type = "create"  # Override to ensure the correct type
     add_create_scheduled_task_to_queue(payload)
     return {"message": "Added to Create Queue", "status": "CREATED"}
 
 
 @router.put("/", status_code=HTTPStatus.OK, response_model=dict[str, str])
-async def update_scheduled_task(payload: APSchedulerJob) -> dict[str, str]:
+async def update_scheduled_task(payload: APSchedulerJobUpdate) -> dict[str, str]:
     """Update a scheduled task."""
-    payload.scheduled_type = "update"  # Override to ensure the correct type
     add_update_scheduled_task_to_queue(payload)
     return {"message": "Added to Update Queue", "status": "UPDATED"}
 
 
 @router.delete("/", status_code=HTTPStatus.OK, response_model=dict[str, str])
-async def delete_scheduled_task(payload: APSchedulerJob) -> dict[str, str]:
+async def delete_scheduled_task(payload: APSchedulerJobDelete) -> dict[str, str]:
     """Delete a scheduled task."""
-    payload.scheduled_type = "delete"  # Override to ensure the correct type
     add_delete_scheduled_task_to_queue(payload)
     return {"message": "Added to Delete Queue", "status": "DELETED"}

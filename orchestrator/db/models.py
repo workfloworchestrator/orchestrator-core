@@ -815,8 +815,10 @@ class WorkflowApschedulerJob(BaseModel):
         UUIDType, ForeignKey("workflows.workflow_id", ondelete="CASCADE"), primary_key=True, nullable=False
     )
 
+    # Notice the VARCHAR(512) for schedule_id to accommodate longer IDs so
+    # that if APScheduler changes its ID format in the future, we are covered.
     schedule_id = mapped_column(
-        String(191), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False
+        String(512), ForeignKey("apscheduler_jobs.id", ondelete="CASCADE"), primary_key=True, nullable=False
     )
 
     __table_args__ = (UniqueConstraint("workflow_id", "schedule_id", name="uq_workflow_schedule"),)
