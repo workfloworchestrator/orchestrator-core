@@ -55,9 +55,9 @@ jobs:
           DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
           ENVIRONMENT: TESTING
           PYTHONPATH: .
-          SEARCH_ENABLED: "true"
+          SEARCH_ENABLED: true
         run: |
-          SEARCH_ENABLED=true uv run pytest test/integration_tests/search -v
+          uv run pytest test/integration_tests/search -v
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3
