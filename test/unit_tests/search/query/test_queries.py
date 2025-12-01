@@ -24,6 +24,8 @@ from orchestrator.search.aggregations import (
 )
 from orchestrator.search.core.types import ActionType, EntityType
 from orchestrator.search.filters import FilterTree
+from orchestrator.search.query.builder import build_aggregation_query, build_candidate_query
+from orchestrator.search.query.mixins import OrderBy, OrderDirection
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, Query, SelectQuery
 
 pytestmark = pytest.mark.search
@@ -219,6 +221,110 @@ class TestAggregateQueryConstruction:
         pivot_fields = query.get_pivot_fields()
         assert "subscription.start_date" in pivot_fields
         assert "subscription.end_date" in pivot_fields
+
+
+class TestAggregationBuilderFeatures:
+    """Test helper behaviors in aggregation builder."""
+
+    @pytest.mark.parametrize(
+        "query_factory,error_match",
+        [
+            (
+                lambda: CountQuery(entity_type=EntityType.SUBSCRIPTION, cumulative=True),
+                "cumulative requires at least one temporal grouping",
+            ),
+            (
+                lambda: CountQuery(
+                    entity_type=EntityType.SUBSCRIPTION,
+                    order_by=[OrderBy(field="count", direction=OrderDirection.DESC)],
+                ),
+                "order_by requires at least one grouping field",
+            ),
+            (
+                lambda: AggregateQuery(
+                    entity_type=EntityType.SUBSCRIPTION,
+                    aggregations=[],
+                    group_by=["subscription.status"],
+                ),
+                "at least 1 item",
+            ),
+        ],
+        ids=["cumulative-needs-temporal", "order_by-needs-grouping", "aggregations-required"],
+    )
+    def test_query_validation_errors(self, query_factory, error_match):
+        """Test that query construction raises appropriate validation errors."""
+        with pytest.raises(ValidationError, match=error_match):
+            query_factory()
+
+    def test_order_by_uses_group_field(self):
+        """Order by resolves field paths."""
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            group_by=["subscription.product.name"],
+            order_by=[OrderBy(field="subscription.product.name", direction=OrderDirection.DESC)],
+        )
+        base_query = build_candidate_query(query)
+        stmt, _ = build_aggregation_query(query, base_query)
+        sql = str(stmt.compile())
+
+        assert "ORDER BY" in sql.upper()
+        assert "DESC" in sql.upper()
+
+    @pytest.mark.parametrize(
+        "agg_type",
+        [AggregationType.AVG, AggregationType.MIN, AggregationType.MAX],
+        ids=["avg", "min", "max"],
+    )
+    def test_cumulative_rejects_unsupported_aggregations(
+        self,
+        temporal_grouping_month: TemporalGrouping,
+        agg_type: AggregationType,
+    ):
+        """Cumulative with AVG/MIN/MAX aggregations raises validation error at query construction.
+
+        These aggregation types are rejected because running versions (e.g., running average,
+        running minimum) have no clear business meaning for cumulative totals.
+        """
+        with pytest.raises(ValidationError, match=f"not supported for {agg_type.value.upper()} aggregations"):
+            AggregateQuery(
+                entity_type=EntityType.SUBSCRIPTION,
+                aggregations=[
+                    FieldAggregation(type=agg_type, field="subscription.price", alias="test_agg"),  # type: ignore[arg-type]
+                ],
+                temporal_group_by=[temporal_grouping_month],
+                cumulative=True,
+            )
+
+    def test_cumulative_allows_sum_aggregation(self, temporal_grouping_month: TemporalGrouping):
+        """Cumulative with SUM aggregation generates correct SQL."""
+        query = AggregateQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            aggregations=[
+                FieldAggregation(type=AggregationType.SUM, field="subscription.price", alias="total_revenue"),
+            ],
+            temporal_group_by=[temporal_grouping_month],
+            cumulative=True,
+        )
+        base_query = build_candidate_query(query)
+        stmt, _ = build_aggregation_query(query, base_query)
+
+        sql = str(stmt.compile()).lower()
+        assert "over" in sql  # Window function for cumulative
+        assert "total_revenue_cumulative" in sql  # Cumulative column alias
+
+    def test_cumulative_multiple_temporal_rejected(self, temporal_grouping_month: TemporalGrouping):
+        """Cumulative with multiple temporal groupings raises validation error at construction time."""
+        temporal_grouping_end_date = TemporalGrouping(
+            field="subscription.end_date",
+            period=TemporalPeriod.MONTH,
+        )
+
+        with pytest.raises(ValidationError, match="supports only a single temporal grouping"):
+            CountQuery(
+                entity_type=EntityType.SUBSCRIPTION,
+                temporal_group_by=[temporal_grouping_month, temporal_grouping_end_date],
+                cumulative=True,
+            )
 
 
 class TestQueryDiscriminator:

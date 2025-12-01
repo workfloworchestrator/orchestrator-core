@@ -162,11 +162,12 @@ def embedding_fixtures() -> dict[str, list[float]]:
 def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
     """Mock embedding API calls to return recorded embeddings.
 
-    This ensures consistent test results without calling the actual OpenAI API.
+    This ensures consistent test results without calling the actual API.
+    Only mocks async (llm_aembedding) as it's used during query execution.
     """
 
-    def mock_embedding_sync(model: str, input: list[str], **kwargs) -> MagicMock:
-        """Mock synchronous embedding call."""
+    async def mock_embedding_async(model: str, input: list[str], **kwargs) -> MagicMock:
+        """Mock async embedding call for query execution."""
         mock_response = MagicMock()
         mock_response.data = []
 
@@ -178,7 +179,7 @@ def mock_embeddings(embedding_fixtures: dict[str, list[float]]):
 
         return mock_response
 
-    with patch("orchestrator.search.core.embedding.llm_embedding", side_effect=mock_embedding_sync):
+    with patch("orchestrator.search.core.embedding.llm_aembedding", side_effect=mock_embedding_async):
         yield
 
 
@@ -217,12 +218,12 @@ def indexed_subscriptions(db_session, test_subscriptions, mock_embeddings, embed
     the full product registry setup. The focus is on testing search ranking with
     semantically meaningful descriptions.
     """
-    for sub in test_subscriptions:
+    for idx, sub in enumerate(test_subscriptions, start=1):
         embedding = embedding_fixtures.get(sub.description.lower())
         if embedding is None:
             raise ValueError(f"No embedding found for subscription '{sub.description}' in ground_truth.json. ")
 
-        index_subscription(sub, embedding, db.session)
+        index_subscription(sub, embedding, db.session, subscription_index=idx)
 
     db.session.commit()
 

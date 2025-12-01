@@ -61,6 +61,11 @@ class TemporalGrouping(BaseModel):
         },
     )
 
+    @property
+    def alias(self) -> str:
+        """Return the SQL-friendly alias for this temporal grouping."""
+        return f"{BaseAggregation.field_to_alias(self.field)}_{self.period.value}"
+
     def get_pivot_fields(self) -> list[str]:
         """Return fields that need to be pivoted for this temporal grouping."""
         return [self.field]
@@ -83,8 +88,7 @@ class TemporalGrouping(BaseModel):
         col = getattr(pivot_cte_columns, field_alias)
         truncated_col = func.date_trunc(self.period.value, cast(col, TIMESTAMP(timezone=True)))
 
-        # Column name without prefix
-        col_name = f"{field_alias}_{self.period.value}"
+        col_name = self.alias
         select_col = truncated_col.label(col_name)
         return select_col, truncated_col, col_name
 
