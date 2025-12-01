@@ -50,14 +50,8 @@ jobs:
           uv sync --all-extras --dev
 
       - name: Run pytest LLM integration tests
-        env:
-          DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
-          ENVIRONMENT: TESTING
-          PYTHONPATH: .
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SEARCH_ENABLED: "true"
         run: |
-          SEARCH_ENABLED=true uv run pytest test/integration_tests/search -v
+          DATABASE_URI=postgresql://nwa:nwa@postgres/orchestrator-core-test OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} SEARCH_ENABLED=True uv run pytest test/integration_tests/search -v
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3
