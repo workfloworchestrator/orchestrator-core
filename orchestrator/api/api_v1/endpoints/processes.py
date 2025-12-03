@@ -13,6 +13,7 @@
 
 """Module that implements process related API endpoints."""
 
+import asyncio
 import struct
 import zlib
 from http import HTTPStatus
@@ -193,8 +194,13 @@ async def new_process(
     if not await workflow.authorize_callback(user_model):
         raise_status(HTTPStatus.FORBIDDEN, f"User is not authorized to execute '{workflow_key}' workflow")
 
-    process_id = start_process(
-        workflow_key, user_inputs=json_data, user_model=user_model, user=user, broadcast_func=broadcast_func
+    process_id = await asyncio.to_thread(
+        start_process,
+        workflow_key,
+        user_inputs=json_data,
+        user_model=user_model,
+        user=user,
+        broadcast_func=broadcast_func,
     )
 
     return {"id": process_id}
@@ -213,7 +219,7 @@ async def resume_process_endpoint(
     user: str = Depends(user_name),
     user_model: OIDCUserModel | None = Depends(authenticate),
 ) -> None:
-    process = _get_process(process_id)
+    process = await asyncio.to_thread(_get_process, process_id)
 
     if not can_be_resumed(process.last_status):
         raise_status(HTTPStatus.CONFLICT, f"Resuming a {process.last_status.lower()} workflow is not possible")
@@ -230,7 +236,7 @@ async def resume_process_endpoint(
     await broadcast_invalidate_status_counts_async()
     broadcast_func = api_broadcast_process_data(request)
 
-    resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
+    await asyncio.to_thread(resume_process, process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
 
 
 @router.post(
