@@ -41,7 +41,7 @@ dependencies = [
     "click==8.*",
     "deepmerge==2.0",
     "deprecated>=1.2.18",
-    "fastapi~=0.122.0",
+    "fastapi~=0.123.1",
     "fastapi-etag==0.4.0",
     "itsdangerous>=2.2.0",
     "jinja2==3.1.6",
@@ -78,7 +78,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-core"
 # Published optional dependencies, or "extras"
 [project.optional-dependencies]
 celery = [
-    "celery~=5.5.1",
+    "celery~=5.6.0",
 ]
 search = [
     "litellm>=1.75.7",
