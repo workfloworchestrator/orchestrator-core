@@ -62,8 +62,8 @@ from orchestrator.utils.enrich_process import enrich_process
 from orchestrator.websocket import (
     WS_CHANNELS,
     broadcast_invalidate_status_counts,
+    broadcast_invalidate_status_counts_async,
     broadcast_process_update_to_websocket,
-    sync_broadcast_invalidate_status_counts,
     websocket_manager,
 )
 from orchestrator.workflow import ProcessStat, ProcessStatus, StepList, Workflow
@@ -167,7 +167,7 @@ def delete(process_id: UUID) -> None:
     db.session.delete(db.session.get(ProcessTable, process_id))
     db.session.commit()
 
-    sync_broadcast_invalidate_status_counts()
+    broadcast_invalidate_status_counts()
     broadcast_process_update_to_websocket(process.process_id)
 
 
@@ -227,7 +227,7 @@ async def resume_process_endpoint(
         if auth_retry is not None and not (await auth_retry(user_model)):
             raise_status(HTTPStatus.FORBIDDEN, "User is not authorized to retry step")
 
-    await broadcast_invalidate_status_counts()
+    await broadcast_invalidate_status_counts_async()
     broadcast_func = api_broadcast_process_data(request)
 
     resume_process(process, user=user, user_inputs=json_data, broadcast_func=broadcast_func)
@@ -326,7 +326,7 @@ def abort_process_endpoint(process_id: UUID, request: Request, user: str = Depen
     broadcast_func = api_broadcast_process_data(request)
     try:
         abort_process(process, user, broadcast_func=broadcast_func)
-        sync_broadcast_invalidate_status_counts()
+        broadcast_invalidate_status_counts()
         return
     except Exception as e:
         raise_status(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
