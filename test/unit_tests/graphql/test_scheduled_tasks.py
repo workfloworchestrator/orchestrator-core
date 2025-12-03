@@ -16,6 +16,7 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
   scheduledTasks(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
     page {
       id
+      workflowId
       name
       nextRunTime
       trigger
@@ -131,7 +132,7 @@ def test_scheduled_tasks_invalid_filter(test_client):
 
     expected_error_msg = (
         "Invalid filter arguments (invalid_filters=['idd'] valid_filter_keys"
-        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger'])"
+        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger', 'workflowId', 'workflow_id'])"
     )
 
     assert pageinfo == {
@@ -150,6 +151,10 @@ def test_scheduled_tasks_sort_by(test_client):
     data = get_scheduled_tasks_query(sort_by=[{"field": "name", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
+    print(response.json())
+    print(response.json())
+    print(response.json())
+    print(response.json())
     assert HTTPStatus.OK == response.status_code, response.text
     result = response.json()
     scheduled_tasks_data = result["data"]["scheduledTasks"]
