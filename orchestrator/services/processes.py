@@ -421,10 +421,6 @@ def _run_process_async(process_id: UUID, f: Callable) -> UUID:
     return process_id
 
 
-def error_message_unauthorized(workflow_key: str) -> str:
-    return f"User is not authorized to execute '{workflow_key}' workflow"
-
-
 def create_process(
     workflow_key: str,
     user_inputs: list[State] | None = None,
@@ -441,9 +437,6 @@ def create_process(
 
     if not workflow:
         raise_status(HTTPStatus.NOT_FOUND, "Workflow does not exist")
-
-    if not workflow.authorize_callback(user_model):
-        raise_status(HTTPStatus.FORBIDDEN, error_message_unauthorized(workflow_key))
 
     initial_state = {
         "process_id": process_id,

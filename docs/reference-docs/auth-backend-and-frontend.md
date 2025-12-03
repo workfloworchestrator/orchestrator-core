@@ -275,7 +275,8 @@ app.register_graphql_authorization(graphql_authorization_instance)
     Role-based access control for workflows is currently in beta.
     Initial support has been added to the backend, but the feature is not fully communicated through the UI yet.
 
-Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[OIDCUserModel, bool]`, which return True when the input user is authorized, otherwise False.
+Certain `orchestrator-core` decorators accept authorization callbacks of type `type Authorizer = Callable[[OIDCUserModel | None], Awaitable[bool]]`, which return True when the input user is authorized, otherwise False.
+In other words, authorization callbacks are async, take a nullable OIDCUserModel (or subclass) as argument, and return a bool.
 
 A table (below) is available for comparing possible configuration states with the policy that will be enforced.
 

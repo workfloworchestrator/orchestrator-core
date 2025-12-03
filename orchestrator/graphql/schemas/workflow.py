@@ -38,4 +38,4 @@ class Workflow:
         workflow_table = get_original_model(self, WorkflowTable)
         workflow = get_workflow(workflow_table.name)
 
-        return workflow.authorize_callback(oidc_user)  # type: ignore
+        return await workflow.authorize_callback(oidc_user)  # type: ignore
