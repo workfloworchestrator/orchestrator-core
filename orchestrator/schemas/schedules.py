@@ -13,7 +13,11 @@
 from typing import Any, Dict, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, PrivateAttr
+
+SCHEDULER_Q_CREATE = "create"
+SCHEDULER_Q_UPDATE = "update"
+SCHEDULER_Q_DELETE = "delete"
 
 
 class APSchedulerJob(BaseModel):
@@ -31,13 +35,7 @@ class APSchedulerJobCreate(APSchedulerJob):
         examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
     )
 
-    @property
-    @computed_field
-    def scheduled_type(self) -> str:
-        # Avoid circular import
-        from orchestrator.schedules.service import SCHEDULER_Q_CREATE
-
-        return SCHEDULER_Q_CREATE
+    _scheduled_type: str = PrivateAttr(default=SCHEDULER_Q_CREATE)
 
 
 class APSchedulerJobUpdate(APSchedulerJob):
@@ -50,23 +48,11 @@ class APSchedulerJobUpdate(APSchedulerJob):
         examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
     )
 
-    @property
-    @computed_field
-    def scheduled_type(self) -> str:
-        # Avoid circular import
-        from orchestrator.schedules.service import SCHEDULER_Q_UPDATE
-
-        return SCHEDULER_Q_UPDATE
+    _scheduled_type: str = PrivateAttr(default=SCHEDULER_Q_UPDATE)
 
 
 class APSchedulerJobDelete(BaseModel):
     workflow_id: UUID = Field(..., description="UUID of the workflow associated with this scheduled task")
     schedule_id: UUID | None = Field(None, description="UUID of the scheduled task")
 
-    @property
-    @computed_field
-    def scheduled_type(self) -> str | None:
-        # Avoid circular import
-        from orchestrator.schedules.service import SCHEDULER_Q_DELETE
-
-        return SCHEDULER_Q_DELETE
+    _scheduled_type: str = PrivateAttr(default=SCHEDULER_Q_DELETE)

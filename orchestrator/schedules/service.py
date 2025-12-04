@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import logging
 from typing import cast
 from uuid import UUID, uuid4
@@ -23,7 +24,14 @@ from sqlalchemy import delete
 from orchestrator import app_settings
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowApschedulerJob
-from orchestrator.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
+from orchestrator.schemas.schedules import (
+    SCHEDULER_Q_CREATE,
+    SCHEDULER_Q_DELETE,
+    SCHEDULER_Q_UPDATE,
+    APSchedulerJobCreate,
+    APSchedulerJobDelete,
+    APSchedulerJobUpdate,
+)
 from orchestrator.services.processes import start_process
 from orchestrator.services.workflows import get_workflow_by_workflow_id
 from orchestrator.utils.redis_client import create_redis_client
@@ -31,9 +39,7 @@ from orchestrator.utils.redis_client import create_redis_client
 redis_connection = create_redis_client(app_settings.CACHE_URI)
 
 SCHEDULER_QUEUE = "scheduler:queue:"
-SCHEDULER_Q_CREATE = "create"
-SCHEDULER_Q_UPDATE = "update"
-SCHEDULER_Q_DELETE = "delete"
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,9 @@ def serialize_payload(payload: APSchedulerJobCreate | APSchedulerJobUpdate | APS
     Args:
         payload: APSchedulerJobCreate | APSchedulerJobUpdate | APSchedulerJobDelete The scheduled task payload.
     """
-    json_dump = payload.model_dump_json()
-    return json_dump.encode()
+    data = json.loads(payload.model_dump_json())
+    data["scheduled_type"] = payload._scheduled_type
+    return json.dumps(data).encode()
 
 
 def deserialize_payload(bytes_dump: bytes) -> APSchedulerJobCreate | APSchedulerJobUpdate | APSchedulerJobDelete:
@@ -226,7 +233,7 @@ def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: 
     modify_kwargs = {}
 
     if trigger:
-        modify_kwargs["trigger"] = trigger
+        job = job.reschedule(trigger=trigger)
 
     if payload.name:
         modify_kwargs["name"] = payload.name
@@ -259,13 +266,14 @@ def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection
         _, bytes_dump = queue_item
         payload = deserialize_payload(bytes_dump)
 
-        if payload.scheduled_type == SCHEDULER_Q_CREATE:
+        if payload._scheduled_type == SCHEDULER_Q_CREATE:
             _add_scheduled_task(cast(APSchedulerJobCreate, payload), scheduler_connection)
-        elif payload.scheduled_type == SCHEDULER_Q_UPDATE:
+        elif payload._scheduled_type == SCHEDULER_Q_UPDATE:
             _update_scheduled_task(cast(APSchedulerJobUpdate, payload), scheduler_connection)
-        elif payload.scheduled_type == SCHEDULER_Q_DELETE:
+        elif payload._scheduled_type == SCHEDULER_Q_DELETE:
             _delete_scheduled_task(cast(APSchedulerJobDelete, payload), scheduler_connection)
         else:
             logger.warning(f"Unexpected schedule type: {payload.scheduled_type}")
     except Exception as e:
+        logger.exception(e)
         logger.error(f"Error processing scheduler queue item: {e}")

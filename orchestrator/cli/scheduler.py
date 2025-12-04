@@ -20,7 +20,13 @@ from orchestrator.schedules.scheduler import (
     get_scheduler,
     get_scheduler_task,
 )
-from orchestrator.schedules.service import SCHEDULER_QUEUE, workflow_scheduler_queue
+from orchestrator.schedules.service import (
+    SCHEDULER_QUEUE,
+    add_create_scheduled_task_to_queue,
+    workflow_scheduler_queue,
+)
+from orchestrator.schemas.schedules import APSchedulerJobCreate
+from orchestrator.services.workflows import get_workflow_by_name
 from orchestrator.settings import app_settings
 from orchestrator.utils.redis_client import create_redis_client
 
@@ -80,3 +86,42 @@ def force(task_id: str) -> None:
     except Exception as e:
         typer.echo(f"Task execution failed: {e}")
         raise typer.Exit(code=1)
+
+
+@app.command()
+def load_initial_schedule() -> None:
+    """Load the initial schedule into the scheduler."""
+    initial_schedules = [
+        {
+            "name": "Task Resume Workflows",
+            "workflow_name": "task_resume_workflows",
+            "workflow_id": f"{get_workflow_by_name("task_resume_workflows").workflow_id}",
+            "trigger": "interval",
+            "trigger_kwargs": {"hours": 1},
+        },
+        {
+            "name": "Task Clean Up Tasks",
+            "workflow_name": "task_clean_up_tasks",
+            "workflow_id": f"{get_workflow_by_name("task_clean_up_tasks").workflow_id}",
+            "trigger": "interval",
+            "trigger_kwargs": {"hours": 6},
+        },
+        {
+            "name": "Validate Products Pre-conditions",
+            "workflow_name": "pre_conditions_check_task_validate_products",
+            "workflow_id": f"{get_workflow_by_name("pre_conditions_check_task_validate_products").workflow_id}",
+            "trigger": "cron",
+            "trigger_kwargs": {"hour": 2, "minute": 30},
+        },
+        {
+            "name": "Validate Subscriptions Workflow",
+            "workflow_name": "validate_subscriptions_workflow",
+            "workflow_id": f"{get_workflow_by_name("validate_subscriptions_workflow").workflow_id}",
+            "trigger": "cron",
+            "trigger_kwargs": {"hour": 0, "minute": 10},
+        },
+    ]
+
+    for schedule in initial_schedules:
+        typer.echo(f"Initial Schedule: {schedule}")
+        add_create_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))

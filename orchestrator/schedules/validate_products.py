@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2025 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,17 +14,12 @@ from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessTable
-from orchestrator.schedules.scheduler import scheduler
 from orchestrator.services.processes import start_process
+from orchestrator.targets import Target
+from orchestrator.workflow import StepList, init, step, workflow
 
 
-@scheduler.scheduled_job(  # type: ignore[misc]
-    id="validate-products",
-    name="Validate Products and inactive subscriptions",
-    trigger="cron",
-    hour=2,
-    minute=30,
-)
+@step("Validate products")
 def validate_products() -> None:
     uncompleted_products = db.session.scalar(
         select(func.count())
@@ -33,3 +28,10 @@ def validate_products() -> None:
     )
     if not uncompleted_products:
         start_process("task_validate_products")
+
+    return
+
+
+@workflow("Validate products pre-conditions", target=Target.SYSTEM)
+def pre_conditions_check_task_validate_products() -> StepList:
+    return init >> validate_products

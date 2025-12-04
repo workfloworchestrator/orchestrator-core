@@ -112,4 +112,7 @@ LazyWorkflowInstance(".tasks.resume_workflows", "task_resume_workflows")
 LazyWorkflowInstance(".tasks.validate_products", "task_validate_products")
 LazyWorkflowInstance(".tasks.validate_product_type", "task_validate_product_type")
 
+LazyWorkflowInstance("orchestrator.schedules.validate_products", "pre_conditions_check_task_validate_products")
+LazyWorkflowInstance("orchestrator.schedules.validate_subscriptions", "validate_subscriptions_workflow")
+
 __doc__ = make_workflow_index_doc(ALL_WORKFLOWS)
