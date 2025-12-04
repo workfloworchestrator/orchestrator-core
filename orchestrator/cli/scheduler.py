@@ -10,17 +10,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 import time
 
 import typer
+from redis import Redis
 
 from orchestrator.schedules.scheduler import (
     get_all_scheduler_tasks,
     get_scheduler,
     get_scheduler_task,
 )
+from orchestrator.schedules.service import (
+    SCHEDULER_QUEUE,
+    add_create_scheduled_task_to_queue,
+    workflow_scheduler_queue,
+)
+from orchestrator.schemas.schedules import APSchedulerJobCreate
+from orchestrator.services.workflows import get_workflow_by_name
+from orchestrator.settings import app_settings
+from orchestrator.utils.redis_client import create_redis_client
 
 app: typer.Typer = typer.Typer()
 
@@ -28,9 +36,28 @@ app: typer.Typer = typer.Typer()
 @app.command()
 def run() -> None:
     """Start scheduler and loop eternally to keep thread alive."""
-    with get_scheduler():
-        while True:
+
+    def _get_scheduled_task_item_from_queue(redis_conn: Redis) -> tuple[str, bytes] | None:
+        """Get an item from the Redis Queue for scheduler tasks."""
+        try:
+            return redis_conn.brpop(SCHEDULER_QUEUE, timeout=1)
+        except ConnectionError:
+            time.sleep(3)
+        except Exception:
             time.sleep(1)
+
+        return None
+
+    with get_scheduler() as scheduler_connection:
+        redis_connection = create_redis_client(app_settings.CACHE_URI)
+        typer.echo(f"redis_connection Waiting for scheduled tasks...{redis_connection}")
+        while True:
+            item = _get_scheduled_task_item_from_queue(redis_connection)
+            typer.echo(f"Waiting for scheduled tasks...{item}")
+            if not item:
+                continue
+
+            workflow_scheduler_queue(item, scheduler_connection)
 
 
 @app.command()
@@ -59,3 +86,50 @@ def force(task_id: str) -> None:
     except Exception as e:
         typer.echo(f"Task execution failed: {e}")
         raise typer.Exit(code=1)
+
+
+@app.command()
+def load_initial_schedule() -> None:
+    """Load the initial schedule into the scheduler."""
+    initial_schedules = [
+        {
+            "name": "Task Resume Workflows",
+            "workflow_name": "task_resume_workflows",
+            "workflow_id": "",
+            "trigger": "interval",
+            "trigger_kwargs": {"hours": 1},
+        },
+        {
+            "name": "Task Clean Up Tasks",
+            "workflow_name": "task_clean_up_tasks",
+            "workflow_id": "",
+            "trigger": "interval",
+            "trigger_kwargs": {"hours": 6},
+        },
+        {
+            "name": "Validate Products Pre-conditions",
+            "workflow_name": "pre_conditions_check_task_validate_products",
+            "workflow_id": "",
+            "trigger": "cron",
+            "trigger_kwargs": {"hour": 2, "minute": 30},
+        },
+        {
+            "name": "Validate Subscriptions Workflow",
+            "workflow_name": "validate_subscriptions_workflow",
+            "workflow_id": "",
+            "trigger": "cron",
+            "trigger_kwargs": {"hour": 0, "minute": 10},
+        },
+    ]
+
+    for schedule in initial_schedules:
+        # enrich with workflow id
+        workflow = get_workflow_by_name(schedule.get("workflow_name"))
+        if not workflow:
+            typer.echo(f"Workflow '{schedule['workflow_name']}' not found. Skipping schedule.")
+            continue
+
+        schedule["workflow_id"] = workflow.workflow_id
+
+        typer.echo(f"Initial Schedule: {schedule}")
+        add_create_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
