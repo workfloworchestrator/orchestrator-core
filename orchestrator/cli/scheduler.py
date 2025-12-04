@@ -122,10 +122,9 @@ def load_initial_schedule() -> None:
         },
     ]
 
-
     for schedule in initial_schedules:
         # enrich with workflow id
-        workflow = get_workflow_by_name(schedule["workflow_name"])
+        workflow = get_workflow_by_name(schedule.get("workflow_name"))
         if not workflow:
             typer.echo(f"Workflow '{schedule['workflow_name']}' not found. Skipping schedule.")
             continue
@@ -133,4 +132,4 @@ def load_initial_schedule() -> None:
         schedule["workflow_id"] = workflow.workflow_id
 
         typer.echo(f"Initial Schedule: {schedule}")
-        add_create_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))
+        add_create_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
