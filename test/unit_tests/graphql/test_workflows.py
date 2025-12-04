@@ -94,7 +94,7 @@ def test_workflows_query(test_client):
         "hasNextPage": True,
         "startCursor": 0,
         "endCursor": 1,
-        "totalItems": 5,
+        "totalItems": 7,
     }
 
 
@@ -113,16 +113,18 @@ def test_workflows_has_previous_page(test_client):
         "hasNextPage": False,
         "hasPreviousPage": True,
         "startCursor": 1,
-        "endCursor": 4,
-        "totalItems": 5,
+        "endCursor": 6,
+        "totalItems": 7,
     }
 
-    assert len(workflows) == 4
+    assert len(workflows) == 6
     assert [workflow["name"] for workflow in workflows] == [
+        "pre_conditions_check_task_validate_products",
         "task_clean_up_tasks",
         "task_resume_workflows",
         "task_validate_product_type",
         "task_validate_products",
+        "validate_subscriptions_workflow",
     ]
 
 
@@ -146,13 +148,14 @@ def test_workflows_filter_by_name(test_client, query_args):
 
     assert "errors" not in result
     assert pageinfo == {
-        "endCursor": 3,
+        "endCursor": 4,
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "totalItems": 4,
+        "totalItems": 5,
     }
     expected_workflows = [
+        "pre_conditions_check_task_validate_products",
         "task_clean_up_tasks",
         "task_resume_workflows",
         "task_validate_product_type",
@@ -227,14 +230,16 @@ def test_workflows_sort_by_resource_type_desc(test_client):
         "hasNextPage": False,
         "hasPreviousPage": False,
         "startCursor": 0,
-        "endCursor": 4,
-        "totalItems": 5,
+        "endCursor": 6,
+        "totalItems": 7,
     }
     expected_workflows = [
+        "validate_subscriptions_workflow",
         "task_validate_products",
         "task_validate_product_type",
         "task_resume_workflows",
         "task_clean_up_tasks",
+        "pre_conditions_check_task_validate_products",
         "modify_note",
     ]
     assert [rt["name"] for rt in workflows] == expected_workflows

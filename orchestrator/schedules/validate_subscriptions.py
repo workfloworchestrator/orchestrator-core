@@ -56,6 +56,6 @@ def validate_subscriptions() -> None:
         start_validation_workflow_for_workflows(subscription=subscription, workflows=validation_product_workflows)
 
 
-@workflow("Validate subscriptions", target=Target.SYSTEM)
+@workflow("Validate subscriptions workflow", target=Target.SYSTEM)
 def validate_subscriptions_workflow() -> StepList:
     return init >> validate_subscriptions

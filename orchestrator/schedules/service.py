@@ -273,7 +273,7 @@ def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection
         elif payload._scheduled_type == SCHEDULER_Q_DELETE:
             _delete_scheduled_task(cast(APSchedulerJobDelete, payload), scheduler_connection)
         else:
-            logger.warning(f"Unexpected schedule type: {payload.scheduled_type}")
+            logger.warning(f"Unexpected schedule type: {payload._scheduled_type}")
     except Exception as e:
         logger.exception(e)
         logger.error(f"Error processing scheduler queue item: {e}")

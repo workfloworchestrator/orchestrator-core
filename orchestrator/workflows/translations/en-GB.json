@@ -16,6 +16,8 @@
         "task_resume_workflows": "Resume all workflows that are stuck on tasks with the status 'waiting'",
         "task_validate_products": "Validate Products and Subscriptions",
         "task_validate_product_type": "Validate all subscriptions of Product Type",
-        "reset_subscription_description": "Reset description of a subscription to default"
+        "reset_subscription_description": "Reset description of a subscription to default",
+        "pre_conditions_check_task_validate_products": "Run Pre-Conditions before validate products",
+        "validate_subscriptions_workflow": "Validate subscriptions workflow"
     }
 }

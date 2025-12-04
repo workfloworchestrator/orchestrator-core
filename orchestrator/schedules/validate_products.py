@@ -32,6 +32,6 @@ def validate_products() -> None:
     return
 
 
-@workflow("Validate products pre-conditions", target=Target.SYSTEM)
+@workflow("Run Pre-Conditions before validate products", target=Target.SYSTEM)
 def pre_conditions_check_task_validate_products() -> StepList:
     return init >> validate_products

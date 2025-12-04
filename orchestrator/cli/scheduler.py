@@ -95,33 +95,42 @@ def load_initial_schedule() -> None:
         {
             "name": "Task Resume Workflows",
             "workflow_name": "task_resume_workflows",
-            "workflow_id": f"{get_workflow_by_name("task_resume_workflows").workflow_id}",
+            "workflow_id": "",
             "trigger": "interval",
             "trigger_kwargs": {"hours": 1},
         },
         {
             "name": "Task Clean Up Tasks",
             "workflow_name": "task_clean_up_tasks",
-            "workflow_id": f"{get_workflow_by_name("task_clean_up_tasks").workflow_id}",
+            "workflow_id": "",
             "trigger": "interval",
             "trigger_kwargs": {"hours": 6},
         },
         {
             "name": "Validate Products Pre-conditions",
             "workflow_name": "pre_conditions_check_task_validate_products",
-            "workflow_id": f"{get_workflow_by_name("pre_conditions_check_task_validate_products").workflow_id}",
+            "workflow_id": "",
             "trigger": "cron",
             "trigger_kwargs": {"hour": 2, "minute": 30},
         },
         {
             "name": "Validate Subscriptions Workflow",
             "workflow_name": "validate_subscriptions_workflow",
-            "workflow_id": f"{get_workflow_by_name("validate_subscriptions_workflow").workflow_id}",
+            "workflow_id": "",
             "trigger": "cron",
             "trigger_kwargs": {"hour": 0, "minute": 10},
         },
     ]
 
+
     for schedule in initial_schedules:
+        # enrich with workflow id
+        workflow = get_workflow_by_name(schedule["workflow_name"])
+        if not workflow:
+            typer.echo(f"Workflow '{schedule['workflow_name']}' not found. Skipping schedule.")
+            continue
+
+        schedule["workflow_id"] = workflow.workflow_id
+
         typer.echo(f"Initial Schedule: {schedule}")
         add_create_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))

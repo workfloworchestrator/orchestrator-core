@@ -2,6 +2,7 @@ import contextlib
 import datetime
 import os
 import typing
+import uuid
 from contextlib import closing
 from typing import Any, cast
 from uuid import uuid4
@@ -36,6 +37,7 @@ from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseMo
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.schedules.scheduler import get_scheduler
+from orchestrator.schedules.service import run_start_workflow_scheduler_task
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
@@ -879,3 +881,27 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
         yield monitor_queries
     else:
         yield noop
+
+
+@pytest.fixture
+def scheduler_with_jobs():
+    def _create(amount: int, remove_jobs=True, job_name: str = "Test Job", workflow_name: str = "task_clean_up_tasks"):
+        with get_scheduler() as scheduler:
+            # First remove all existing jobs
+            if remove_jobs:
+                for job in scheduler.get_jobs():
+                    scheduler.remove_job(job.id)
+
+            for i in range(amount):
+                scheduler.add_job(
+                    func=run_start_workflow_scheduler_task,
+                    trigger="interval",
+                    id=str(uuid.uuid4()),
+                    name=job_name + f" {i}",
+                    kwargs={"workflow_name": workflow_name},
+                    hours=2,
+                )
+
+            return scheduler
+
+    return _create
