@@ -12,6 +12,7 @@
 # limitations under the License.
 from http import HTTPStatus
 
+import structlog
 from fastapi.routing import APIRouter
 
 from orchestrator.schedules.service import (
@@ -21,7 +22,9 @@ from orchestrator.schedules.service import (
 )
 from orchestrator.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 
-router = APIRouter()
+logger = structlog.get_logger(__name__)
+
+router: APIRouter = APIRouter()
 
 
 @router.post("/", status_code=HTTPStatus.CREATED, response_model=dict[str, str])

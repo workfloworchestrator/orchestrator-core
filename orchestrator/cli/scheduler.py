@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from typing import cast
 
 import typer
 from redis import Redis
@@ -124,7 +125,9 @@ def load_initial_schedule() -> None:
 
     for schedule in initial_schedules:
         # enrich with workflow id
-        workflow = get_workflow_by_name(schedule.get("workflow_name"))
+        workflow_name = cast(str, schedule.get("workflow_name"))
+        workflow = get_workflow_by_name(workflow_name)
+
         if not workflow:
             typer.echo(f"Workflow '{schedule['workflow_name']}' not found. Skipping schedule.")
             continue

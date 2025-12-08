@@ -1,32 +1,40 @@
-import pytest
+from unittest.mock import Mock, patch
 from uuid import uuid4
-import json
-from unittest.mock import MagicMock, patch, Mock
-from apscheduler.schedulers.base import BaseScheduler
+
+import pytest
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+
+from orchestrator.cli.scheduler import (
+    SCHEDULER_QUEUE,
+    get_scheduler,
+    workflow_scheduler_queue,
+)
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.schedules.service import (
-    serialize_payload,
-    deserialize_payload,
+    _add_scheduled_task,
+    _build_trigger_on_update,
+    _delete_scheduled_task,
+    _update_scheduled_task,
     add_create_scheduled_task_to_queue,
+    add_delete_scheduled_task_to_queue,
     add_update_scheduled_task_to_queue,
-    add_delete_scheduled_task_to_queue, get_linker_entries_by_schedule_id, _add_linker_entry,
-    run_start_workflow_scheduler_task, _add_scheduled_task, _build_trigger_on_update, _update_scheduled_task,
-    _delete_scheduled_task
+    deserialize_payload,
+    get_linker_entries_by_schedule_id,
+    run_start_workflow_scheduler_task,
+    serialize_payload,
 )
 from orchestrator.schemas.schedules import (
-    APSchedulerJobCreate,
-    APSchedulerJobUpdate,
-    APSchedulerJobDelete,
     SCHEDULER_Q_CREATE,
-    SCHEDULER_Q_UPDATE,
     SCHEDULER_Q_DELETE,
+    SCHEDULER_Q_UPDATE,
+    APSchedulerJobCreate,
+    APSchedulerJobDelete,
+    APSchedulerJobUpdate,
 )
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.date import DateTrigger
-
-from orchestrator.cli.scheduler import *
+from orchestrator.services.workflows import get_workflow_by_name
 
 
 def test_serialize_deserialize_payload_create():
@@ -131,7 +139,6 @@ def test_get_linker_entries_by_schedule_id(scheduler_with_jobs):
     assert linker_entries[0].schedule_id == schedule_id
 
 
-
 @patch("orchestrator.schedules.service.start_process")
 def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
     workflow_name = "task_validate_products"
@@ -145,7 +152,7 @@ def test_run_start_workflow_scheduler_task_calls_start_process_once(mock_start):
 @patch("orchestrator.schedules.service.get_workflow_by_workflow_id")
 @patch("orchestrator.schedules.service.db.session.begin")
 def test_add_scheduled_task_creates_scheduler_job_and_linker_entry(
-        mock_linker_entry, mock_get_workflow, mock_db_begin, clear_all_scheduler_jobs
+    mock_linker_entry, mock_get_workflow, mock_db_begin, clear_all_scheduler_jobs
 ):
     clear_all_scheduler_jobs()
 
@@ -209,10 +216,7 @@ def test_delete_scheduled_task_calls_remove_and_linker_delete(mock_delete_linker
     schedule_id = uuid4()
     workflow_id = uuid4()
 
-    payload = APSchedulerJobDelete(
-        schedule_id=schedule_id,
-        workflow_id=workflow_id
-    )
+    payload = APSchedulerJobDelete(schedule_id=schedule_id, workflow_id=workflow_id)
 
     mock_scheduler = Mock()
     mock_scheduler.remove_job = Mock()
@@ -224,10 +228,7 @@ def test_delete_scheduled_task_calls_remove_and_linker_delete(mock_delete_linker
     mock_scheduler.remove_job.assert_called_once_with(job_id=str(schedule_id))
 
     # --- Assert linker entry removal ---
-    mock_delete_linker_entry.assert_called_once_with(
-        workflow_id=workflow_id,
-        schedule_id=str(schedule_id)
-    )
+    mock_delete_linker_entry.assert_called_once_with(workflow_id=workflow_id, schedule_id=str(schedule_id))
 
 
 def test_build_trigger_on_update_interval():

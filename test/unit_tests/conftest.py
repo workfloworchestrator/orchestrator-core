@@ -889,7 +889,7 @@ def scheduler_with_jobs():
         remove_jobs=True,
         job_name: str = "Test Job",
         workflow_name: str = "task_clean_up_tasks",
-        schedule_id: str = None,
+        schedule_id: str = str(uuid.uuid4()),
         trigger: str = "interval",
         trigger_kwargs: dict = None,
     ):
@@ -900,11 +900,8 @@ def scheduler_with_jobs():
                 for job in scheduler.get_jobs():
                     scheduler.remove_job(job.id)
 
-            if not trigger_kwargs:
+            if trigger_kwargs is None:
                 trigger_kwargs = {"hours": 1}
-
-            if not schedule_id:
-                schedule_id = str(uuid.uuid4())
 
             scheduler.add_job(
                 func=run_start_workflow_scheduler_task,
