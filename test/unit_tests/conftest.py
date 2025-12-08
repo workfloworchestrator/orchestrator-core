@@ -885,23 +885,49 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
 
 @pytest.fixture
 def scheduler_with_jobs():
-    def _create(amount: int, remove_jobs=True, job_name: str = "Test Job", workflow_name: str = "task_clean_up_tasks"):
+    def _create(
+        remove_jobs=True,
+        job_name: str = "Test Job",
+        workflow_name: str = "task_clean_up_tasks",
+        schedule_id: str = None,
+        trigger: str = "interval",
+        trigger_kwargs: dict = None,
+    ):
+
         with get_scheduler() as scheduler:
             # First remove all existing jobs
             if remove_jobs:
                 for job in scheduler.get_jobs():
                     scheduler.remove_job(job.id)
 
-            for i in range(amount):
-                scheduler.add_job(
-                    func=run_start_workflow_scheduler_task,
-                    trigger="interval",
-                    id=str(uuid.uuid4()),
-                    name=job_name + f" {i}",
-                    kwargs={"workflow_name": workflow_name},
-                    hours=2,
-                )
+            if not trigger_kwargs:
+                trigger_kwargs = {"hours": 1}
+
+            if not schedule_id:
+                schedule_id = str(uuid.uuid4())
+
+            scheduler.add_job(
+                func=run_start_workflow_scheduler_task,
+                trigger=trigger,
+                id=schedule_id,
+                name=job_name,
+                kwargs={"workflow_name": workflow_name},
+                **trigger_kwargs,
+            )
 
             return scheduler
 
     return _create
+
+
+@pytest.fixture
+def clear_all_scheduler_jobs():
+    """Fixture to clear all scheduler jobs before and after the test."""
+
+    def _clear():
+        with get_scheduler() as scheduler:
+            # Clear all jobs before the test
+            for job in scheduler.get_jobs():
+                scheduler.remove_job(job.id)
+
+    return _clear

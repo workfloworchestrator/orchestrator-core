@@ -58,7 +58,7 @@ class AppSettings(BaseSettings):
     WORKFLOWS_SWAGGER_HOST: str = "localhost"
     WORKFLOWS_GUI_URI: str = "http://localhost:3000"
     BASE_URL: str = "http://localhost:8080"  # Base URL for the API (used for generating export URLs)
-    DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost:5432/nwa-workflows"  # type: ignore
+    DATABASE_URI: PostgresDsn = "postgresql://nwa:nwa@localhost/orchestrator-core"  # type: ignore
     MAX_WORKERS: int = 5
     MAIL_SERVER: str = "localhost"
     MAIL_PORT: int = 25
