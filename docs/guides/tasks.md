@@ -116,23 +116,56 @@ Even if the task does not have any form input, an entry will still need to be ma
 
 > from `4.3.0` we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and schedule tasks from the API.
 
-The schedule file is essentially the crontab associated with the task.
-Continuing with our previous example:
-
-```python
-# schedules/nightly_sync.py
-
-from orchestrator.schedules.scheduler import scheduler
-from orchestrator.services.processes import start_process
+> from `4.6.5` we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system.
+> Although we do no longer support the `@scheduler.scheduled_job()` decorator, it is still available because it is part of [apscheduler].
+> Therefore, we do NOT recommend using it for new schedules. Because you will miss a Linker Table join between schedules and workflows/tasks.
 
 
-# previously `scheduler()` which is now deprecated
-@scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="cron", hour=1)
-def run_nightly_sync() -> None:
-    start_process("task_sync_from")
+Schedules can be created, updated, and deleted via the API. They can be retrieved via the already existing GraphQL API.
+
+*Example POST*
+
+To create a schedule, you can now simply run a `POST` request to the `/api/schedules` endpoint with a JSON body containing the schedule details.
+An example body to create a nightly sync schedule would look like this:
+
+```json
+{
+  "name": "Nightly Product Validation",
+  "workflow_name": "validate_products",
+  "workflow_id": "e96cc6bb-9494-4ac1-a572-050988487ee1",
+  "trigger": "interval",
+  "trigger_kwargs": {
+    "hours": 12
+  }
+}
 ```
 
-This schedule will start the `task_sync_from` task every day at 01:00.
+Respectively, you can update or delete schedules via `PUT` and `DELETE` requests to the same endpoint.
+
+*Example PUT*
+
+With `PUT` you can only update the `name`, `trigger`, and `trigger_kwargs` of an existing schedule.
+For example, to update the above schedule to run every 24 hours instead of every 12 hours
+```json
+{
+  "schedule_id": "c1b6e5e3-d9f0-48f2-bc65-3c9c33fcf561",
+  "name": "Updated Nightly Cleanup",
+  "trigger": "interval",
+  "trigger_kwargs": {
+    "hours": 24
+  }
+}
+```
+
+*Example DELETE*
+
+To delete a schedule, you only need to provide the `schedule_id` in the `DELETE` call
+```json
+{
+  "workflow_id": "b67d4ca7-19fb-4b83-a022-34c6322fb5f1",
+  "schedule_id": "1fe43a96-b0f4-4c89-b9b7-87db14bbd8d3"
+}
+```
 
 There are multiple triggers that can be used ([trigger docs]):
 
@@ -146,17 +179,24 @@ There are multiple triggers that can be used ([trigger docs]):
 For detailed configuration options, see the [APScheduler scheduling docs].
 
 The scheduler automatically loads any schedules that are imported before the scheduler starts.
-To keep things organized and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a `/schedules/__init__.py`.
 
-> `ALL_SCHEDULERS` (Backwards Compatibility)
 > In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
-> This is no longer required, but ALL_SCHEDULERS is still supported for backwards compatibility.
+> This is no longer required, and ALL_SCHEDULERS is deprecated.
 
 ## The scheduler
 
 The scheduler is invoked via `python main.py scheduler`.
 Try `--help` or review the [CLI docs][cli-docs] to learn more.
 
+### Initial schedules
+Previous hard-coded schedules can be ported to the new system by creating them via the API or CLI.
+Run the following CLI command to import previously existing schedules and change them if needed via the API.
+
+```shell
+python main.py scheduler load-initial-schedule
+```
+
+> Remember, that if you do not explicitly import these, they will not be available to the scheduler.
 ### Manually executing tasks
 
 When doing development, it is possible to manually make the scheduler run your task even if your Orchestrator instance is not in "scheduler mode."
@@ -165,11 +205,11 @@ Shell into your running instance and run the following:
 
 ```shell
 docker exec -it backend /bin/bash
-python main.py scheduler force run_nightly_sync
+python main.py scheduler force "c1b6e5e3-d9f0-48f2-bc65-3c9c33fcf561"
 ```
 
-...where `run_nightly_sync` is the job defined in the schedule file - not the name of the task.
-This doesn't depend on the UI being up, and you can get the logging output.
+...where `c1b6e5e3-d9f0-48f2-bc65-3c9c33fcf561` is the job id of the schedule you want to run.
+The job id can be found via the GraphQL API or directly in the database.
 
 ### Starting the scheduler
 
@@ -212,30 +252,6 @@ if [ $status -ne 0 ]; then
 fi
 ```
 
-
-## Developer notes
-
-### Executing multiple tasks
-
-If one needs to execute multiple tasks in concert with each other, one can not call a task from another task. Which is to say, calling `start_process` is a "top level" call. Trying to call it inside an already invoked task does not work.
-
-But the schedule (ie: crontab) files are also code modules so one can achieve the same thing there:
-
-```python
-@scheduler(name="Nightly sync", time_unit="day", at="00:10")
-def run_nightly_sync() -> None:
-    subs = Subscription.query.filter(
-        Subscription.description.like("Node%Provisioned")
-    ).all()
-    logger.info("Node schedule subs", subs=subs)
-
-    for sub in subs:
-        sub_id = sub.subscription_id
-        logger.info("Validate node enrollment", sub_id=sub_id)
-        start_process("validate_node_enrollment", [{"subscription_id": sub_id}])
-
-    start_process("task_sync_from")
-```
 
 [schedule]: https://pypi.org/project/schedule/
 [apscheduler]: https://pypi.org/project/APScheduler/
