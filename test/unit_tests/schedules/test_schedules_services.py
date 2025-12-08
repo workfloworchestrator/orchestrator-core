@@ -6,14 +6,12 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from orchestrator.cli.scheduler import (
-    SCHEDULER_QUEUE,
-    get_scheduler,
-    workflow_scheduler_queue,
-)
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowApschedulerJob
+from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.schedules.service import (
+    SCHEDULER_QUEUE,
+    workflow_scheduler_queue,
     _add_scheduled_task,
     _build_trigger_on_update,
     _delete_scheduled_task,

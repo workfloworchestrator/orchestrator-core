@@ -891,7 +891,7 @@ def scheduler_with_jobs():
         workflow_name: str = "task_clean_up_tasks",
         schedule_id: str = str(uuid.uuid4()),
         trigger: str = "interval",
-        trigger_kwargs: dict = None,
+        trigger_kwargs: dict | None = None,
     ):
 
         with get_scheduler() as scheduler:
