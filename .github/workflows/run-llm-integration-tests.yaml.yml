@@ -42,7 +42,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           # It is considered best practice to pin to a specific uv version.
-          version: "0.9.15"
+          version: "0.9.16"
           python-version: ${{ matrix.python-version }}
 
       - name: Install project and dependencies
