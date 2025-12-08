@@ -8,7 +8,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowApschedulerJob
-from orchestrator.schedules.scheduler import get_scheduler
+from orchestrator.schedules.scheduler import enrich_with_workflow_id, get_scheduler
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
     _add_scheduled_task,
@@ -324,3 +324,137 @@ def test_workflow_scheduler_queue_delete(mock_delete, mock_update, mock_create):
     mock_delete.assert_called_once()
     mock_update.assert_not_called()
     mock_create.assert_not_called()
+
+
+def test_enrich_schedule_with_workflow_id(scheduler_with_jobs):
+    workflow_name = "task_validate_products"
+    workflow = get_workflow_by_name(workflow_name)
+
+    schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=schedule_id)
+
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
+
+    # Get all jobs from the scheduler
+    with get_scheduler() as scheduler:
+        jobs = scheduler.get_jobs()
+        enriched_tasks = enrich_with_workflow_id(jobs)
+
+    assert len(enriched_tasks) == 1
+    assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
+
+
+def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs):
+    workflow_name = "task_validate_products"
+    workflow = get_workflow_by_name(workflow_name)
+
+    schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=schedule_id)
+
+    no_linker_schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=no_linker_schedule_id, remove_jobs=False)
+
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
+
+    # Get all jobs from the scheduler
+    with get_scheduler() as scheduler:
+        jobs = scheduler.get_jobs()
+        enriched_tasks = enrich_with_workflow_id(jobs)
+
+    assert len(enriched_tasks) == 2
+    assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
+
+    # Get linker entries for the job without linker entry
+    assert enriched_tasks[1].workflow_id is None
+
+
+def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs):
+    workflow_name = "task_validate_products"
+    workflow = get_workflow_by_name(workflow_name)
+
+    schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=schedule_id)
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
+
+    schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=schedule_id, remove_jobs=False)
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
+
+    schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=schedule_id, remove_jobs=False)
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
+
+    # Get all jobs from the scheduler
+    with get_scheduler() as scheduler:
+        jobs = scheduler.get_jobs()
+        enriched_tasks = enrich_with_workflow_id(jobs)
+
+    assert len(enriched_tasks) == 3
+    assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
+    assert enriched_tasks[1].workflow_id == str(workflow.workflow_id)
+    assert enriched_tasks[2].workflow_id == str(workflow.workflow_id)
+
+
+@patch("orchestrator.schedules.service.get_workflow_by_workflow_id", return_value=None)
+def test_add_scheduled_task_raises_if_workflow_missing(mock_get_workflow):
+    payload = APSchedulerJobCreate(
+        name="Test",
+        workflow_name="wf",
+        workflow_id=uuid4(),
+        trigger="interval",
+        trigger_kwargs={"seconds": 10},
+    )
+
+    with patch("orchestrator.schedules.service.db.session.begin"):
+        with pytest.raises(ValueError, match="Workflow with id"):
+            _add_scheduled_task(payload, scheduler_connection=Mock())
+
+
+def test_update_scheduled_task_raises_if_job_missing():
+    payload = APSchedulerJobUpdate(
+        schedule_id=uuid4(),
+        name="Test",
+        trigger="interval",
+        trigger_kwargs={"seconds": 5},
+    )
+
+    scheduler = Mock()
+    scheduler.get_job.return_value = None
+
+    with pytest.raises(ValueError, match="does not exist"):
+        _update_scheduled_task(payload, scheduler)
+
+
+def test_update_scheduled_task_no_trigger_does_not_reschedule():
+    payload = APSchedulerJobUpdate(
+        schedule_id=uuid4(),
+        name="NewName",
+        trigger=None,
+        trigger_kwargs=None,
+    )
+
+    mock_job = Mock()
+    scheduler = Mock()
+    scheduler.get_job.return_value = mock_job
+
+    _update_scheduled_task(payload, scheduler)
+
+    mock_job.reschedule.assert_not_called()
+    mock_job.modify.assert_called_once_with(name="NewName")
+
+
+@patch("orchestrator.schedules.service._delete_linker_entry")
+def test_delete_scheduled_task_schedule_id_none(mock_delete_linker):
+    payload = APSchedulerJobDelete(workflow_id=uuid4(), schedule_id=None)
+
+    scheduler = Mock()
+
+    _delete_scheduled_task(payload, scheduler)
+
+    scheduler.remove_job.assert_called_once_with(job_id="None")
+    mock_delete_linker.assert_called_once()
