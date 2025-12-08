@@ -11,7 +11,6 @@ from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.schedules.scheduler import get_scheduler
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
-    workflow_scheduler_queue,
     _add_scheduled_task,
     _build_trigger_on_update,
     _delete_scheduled_task,
@@ -23,6 +22,7 @@ from orchestrator.schedules.service import (
     get_linker_entries_by_schedule_id,
     run_start_workflow_scheduler_task,
     serialize_payload,
+    workflow_scheduler_queue,
 )
 from orchestrator.schemas.schedules import (
     SCHEDULER_Q_CREATE,
