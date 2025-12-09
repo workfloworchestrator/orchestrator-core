@@ -101,6 +101,7 @@ def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
     """
     workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow_id, schedule_id=schedule_id)
     db.session.add(workflows_apscheduler_job)
+    db.session.commit()
 
 
 def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
@@ -115,6 +116,7 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
             WorkflowApschedulerJob.workflow_id == workflow_id, WorkflowApschedulerJob.schedule_id == schedule_id
         )
     )
+    db.session.commit()
 
 
 def run_start_workflow_scheduler_task(workflow_name: str) -> None:

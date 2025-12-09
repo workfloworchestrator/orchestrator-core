@@ -53,10 +53,8 @@ def run() -> None:
 
     with get_scheduler() as scheduler_connection:
         redis_connection = create_redis_client(app_settings.CACHE_URI)
-        typer.echo(f"redis_connection Waiting for scheduled tasks...{redis_connection}")
         while True:
             item = _get_scheduled_task_item_from_queue(redis_connection)
-            typer.echo(f"Waiting for scheduled tasks...{item}")
             if not item:
                 continue
 
