@@ -15,11 +15,7 @@ from http import HTTPStatus
 import structlog
 from fastapi.routing import APIRouter
 
-from orchestrator.schedules.service import (
-    add_create_scheduled_task_to_queue,
-    add_delete_scheduled_task_to_queue,
-    add_update_scheduled_task_to_queue,
-)
+from orchestrator.schedules.service import add_scheduled_task_to_queue
 from orchestrator.schemas.schedules import APSchedulerJobCreate, APSchedulerJobDelete, APSchedulerJobUpdate
 
 logger = structlog.get_logger(__name__)
@@ -27,22 +23,22 @@ logger = structlog.get_logger(__name__)
 router: APIRouter = APIRouter()
 
 
-@router.post("/", status_code=HTTPStatus.CREATED, response_model=dict[str, str])
+@router.post("/", status_code=HTTPStatus.CREATED)
 def create_scheduled_task(payload: APSchedulerJobCreate) -> dict[str, str]:
     """Create a scheduled task."""
-    add_create_scheduled_task_to_queue(payload)
+    add_scheduled_task_to_queue(payload)
     return {"message": "Added to Create Queue", "status": "CREATED"}
 
 
-@router.put("/", status_code=HTTPStatus.OK, response_model=dict[str, str])
+@router.put("/", status_code=HTTPStatus.OK)
 async def update_scheduled_task(payload: APSchedulerJobUpdate) -> dict[str, str]:
     """Update a scheduled task."""
-    add_update_scheduled_task_to_queue(payload)
+    add_scheduled_task_to_queue(payload)
     return {"message": "Added to Update Queue", "status": "UPDATED"}
 
 
-@router.delete("/", status_code=HTTPStatus.OK, response_model=dict[str, str])
+@router.delete("/", status_code=HTTPStatus.OK)
 async def delete_scheduled_task(payload: APSchedulerJobDelete) -> dict[str, str]:
     """Delete a scheduled task."""
-    add_delete_scheduled_task_to_queue(payload)
+    add_scheduled_task_to_queue(payload)
     return {"message": "Added to Delete Queue", "status": "DELETED"}

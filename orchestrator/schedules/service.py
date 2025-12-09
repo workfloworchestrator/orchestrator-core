@@ -12,7 +12,6 @@
 # limitations under the License.
 import json
 import logging
-from typing import cast
 from uuid import UUID, uuid4
 
 from apscheduler.schedulers.base import BaseScheduler
@@ -25,12 +24,11 @@ from orchestrator import app_settings
 from orchestrator.db import db
 from orchestrator.db.models import WorkflowApschedulerJob
 from orchestrator.schemas.schedules import (
-    SCHEDULER_Q_CREATE,
-    SCHEDULER_Q_DELETE,
-    SCHEDULER_Q_UPDATE,
     APSchedulerJobCreate,
     APSchedulerJobDelete,
+    APSchedulerJobs,
     APSchedulerJobUpdate,
+    APSJobAdapter,
 )
 from orchestrator.services.processes import start_process
 from orchestrator.services.workflows import get_workflow_by_workflow_id
@@ -44,33 +42,28 @@ SCHEDULER_QUEUE = "scheduler:queue:"
 logger = logging.getLogger(__name__)
 
 
-def serialize_payload(payload: APSchedulerJobCreate | APSchedulerJobUpdate | APSchedulerJobDelete) -> bytes:
+def serialize_payload(payload: APSchedulerJobs) -> bytes:
     """Serialize the payload to bytes for Redis storage.
 
     Args:
-        payload: APSchedulerJobCreate | APSchedulerJobUpdate | APSchedulerJobDelete The scheduled task payload.
+        payload: APSchedulerJobs The scheduled task payload.
     """
     data = json.loads(payload.model_dump_json())
-    data["scheduled_type"] = payload._scheduled_type
+    data["scheduled_type"] = payload.scheduled_type
     return json.dumps(data).encode()
 
 
-def deserialize_payload(bytes_dump: bytes) -> APSchedulerJobCreate | APSchedulerJobUpdate | APSchedulerJobDelete:
+def deserialize_payload(bytes_dump: bytes) -> APSchedulerJobs:
     """Deserialize the payload from bytes for Redis retrieval.
 
     Args:
         bytes_dump: bytes The serialized payload.
     """
     json_dump = bytes_dump.decode()
-
-    if SCHEDULER_Q_UPDATE in json_dump:
-        return APSchedulerJobUpdate.model_validate_json(json_dump)
-    if SCHEDULER_Q_DELETE in json_dump:
-        return APSchedulerJobDelete.model_validate_json(json_dump)
-    return APSchedulerJobCreate.model_validate_json(json_dump)
+    return APSJobAdapter.validate_json(json_dump)
 
 
-def add_create_scheduled_task_to_queue(payload: APSchedulerJobCreate) -> None:
+def add_scheduled_task_to_queue(payload: APSchedulerJobs) -> None:
     """Create a scheduled task service function.
 
     We need to create a apscheduler job, and put the workflow and schedule_id in
@@ -81,44 +74,22 @@ def add_create_scheduled_task_to_queue(payload: APSchedulerJobCreate) -> None:
     """
     bytes_dump = serialize_payload(payload)
     redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
-    logger.info("Added create scheduled task to queue.")
+    logger.info("Added scheduled task to queue.")
 
 
-def add_update_scheduled_task_to_queue(payload: APSchedulerJobUpdate) -> None:
-    """Update a scheduled task service function.
-
-    Args:
-        payload: APSchedulerJobUpdate The scheduled task to update.
-    """
-    bytes_dump = serialize_payload(payload)
-    redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
-    logger.info("Updated scheduled task to queue.")
-
-
-def add_delete_scheduled_task_to_queue(payload: APSchedulerJobDelete) -> None:
-    """Delete a scheduled task service function.
-
-    We need to delete a apscheduler job, and remove the workflow and schedule_id in
-    the linker table workflows_apscheduler_jobs.
+def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[WorkflowApschedulerJob]:
+    """Get linker table entries for multiple schedule IDs in a single query.
 
     Args:
-        payload: APSchedulerJobDelete The scheduled task to delete.
-    """
-    bytes_dump = serialize_payload(payload)
-    redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
-    logger.info("Added delete scheduled task to queue.")
-
-
-def get_linker_entries_by_schedule_id(schedule_id: str) -> list[WorkflowApschedulerJob]:
-    """Get linker table entries by schedule ID.
-
-    Args:
-        schedule_id: str The schedule ID.
+        schedule_ids: list[str] — One or many schedule IDs.
 
     Returns:
-        list[WorkflowApschedulerJob]: The linker table entries.
+        list[WorkflowApschedulerJob]: All linker table rows matching those IDs.
     """
-    return db.session.query(WorkflowApschedulerJob).filter(WorkflowApschedulerJob.schedule_id == schedule_id).all()
+    if not schedule_ids:
+        return []
+
+    return db.session.query(WorkflowApschedulerJob).filter(WorkflowApschedulerJob.schedule_id.in_(schedule_ids)).all()
 
 
 def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
@@ -128,9 +99,8 @@ def _add_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
         workflow_id: UUID The workflow ID.
         schedule_id: str The schedule ID.
     """
-    with db.session.begin():
-        workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow_id, schedule_id=schedule_id)
-        db.session.add(workflows_apscheduler_job)
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
 
 
 def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
@@ -140,12 +110,11 @@ def _delete_linker_entry(workflow_id: UUID, schedule_id: str) -> None:
         workflow_id: UUID The workflow ID.
         schedule_id: str The schedule ID.
     """
-    with db.session.begin():
-        db.session.execute(
-            delete(WorkflowApschedulerJob).where(
-                WorkflowApschedulerJob.workflow_id == workflow_id, WorkflowApschedulerJob.schedule_id == schedule_id
-            )
+    db.session.execute(
+        delete(WorkflowApschedulerJob).where(
+            WorkflowApschedulerJob.workflow_id == workflow_id, WorkflowApschedulerJob.schedule_id == schedule_id
         )
+    )
 
 
 def run_start_workflow_scheduler_task(workflow_name: str) -> None:
@@ -169,11 +138,10 @@ def _add_scheduled_task(payload: APSchedulerJobCreate, scheduler_connection: Bas
 
     workflow_description = None
     # Check if a workflow exists - we cannot schedule a non-existing workflow
-    with db.session.begin():
-        workflow = get_workflow_by_workflow_id(str(payload.workflow_id))
-        if not workflow:
-            raise ValueError(f"Workflow with id {payload.workflow_id} does not exist.")
-        workflow_description = workflow.description
+    workflow = get_workflow_by_workflow_id(str(payload.workflow_id))
+    if not workflow:
+        raise ValueError(f"Workflow with id {payload.workflow_id} does not exist.")
+    workflow_description = workflow.description
 
     # This function is always the same for scheduled tasks, it will run the workflow
     func = run_start_workflow_scheduler_task
@@ -202,13 +170,15 @@ def _build_trigger_on_update(
         logger.info("Skipping building trigger as no trigger information is provided.")
         return None
 
-    if trigger_name == "interval":
-        return IntervalTrigger(**trigger_kwargs)
-    if trigger_name == "cron":
-        return CronTrigger(**trigger_kwargs)
-    if trigger_name == "date":
-        return DateTrigger(**trigger_kwargs)
-    raise ValueError(f"Invalid trigger type: {trigger_name}")
+    match trigger_name:
+        case "interval":
+            return IntervalTrigger(**trigger_kwargs)
+        case "cron":
+            return CronTrigger(**trigger_kwargs)
+        case "date":
+            return DateTrigger(**trigger_kwargs)
+        case _:
+            raise ValueError(f"Invalid trigger type: {trigger_name}")
 
 
 def _update_scheduled_task(payload: APSchedulerJobUpdate, scheduler_connection: BaseScheduler) -> None:
@@ -265,15 +235,17 @@ def workflow_scheduler_queue(queue_item: tuple[str, bytes], scheduler_connection
     try:
         _, bytes_dump = queue_item
         payload = deserialize_payload(bytes_dump)
+        match payload:
+            case APSchedulerJobCreate():
+                _add_scheduled_task(payload, scheduler_connection)
 
-        if payload._scheduled_type == SCHEDULER_Q_CREATE:
-            _add_scheduled_task(cast(APSchedulerJobCreate, payload), scheduler_connection)
-        elif payload._scheduled_type == SCHEDULER_Q_UPDATE:
-            _update_scheduled_task(cast(APSchedulerJobUpdate, payload), scheduler_connection)
-        elif payload._scheduled_type == SCHEDULER_Q_DELETE:
-            _delete_scheduled_task(cast(APSchedulerJobDelete, payload), scheduler_connection)
-        else:
-            logger.warning(f"Unexpected schedule type: {payload._scheduled_type}")
-    except Exception as e:
-        logger.exception(e)
-        logger.error(f"Error processing scheduler queue item: {e}")
+            case APSchedulerJobUpdate():
+                _update_scheduled_task(payload, scheduler_connection)
+
+            case APSchedulerJobDelete():
+                _delete_scheduled_task(payload, scheduler_connection)
+
+            case _:
+                logger.warning(f"Unexpected schedule type: {payload}")  # type: ignore
+    except Exception:
+        logger.exception("Error processing scheduler queue item")

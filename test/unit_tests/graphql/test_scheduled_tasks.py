@@ -45,11 +45,13 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
     ).encode("utf-8")
 
 
-def test_scheduled_tasks_query(test_client, scheduler_with_jobs):
+def test_scheduled_tasks_query(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(first=2)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -72,11 +74,13 @@ def test_scheduled_tasks_query(test_client, scheduler_with_jobs):
     }
 
 
-def test_scheduled_tasks_has_previous_page(test_client, scheduler_with_jobs):
+def test_scheduled_tasks_has_previous_page(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -99,12 +103,13 @@ def test_scheduled_tasks_has_previous_page(test_client, scheduler_with_jobs):
     assert len(scheduled_tasks) == 3
 
 
-def test_scheduled_tasks_filter(test_client, scheduler_with_jobs):
+def test_scheduled_tasks_filter(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     scheduler_with_jobs(
         job_name="subscriptions-validator", workflow_name="subscriptions-validator", schedule_id=f"{uuid4()}"
     )
     scheduler_with_jobs(
-        remove_jobs=False,
         job_name="validate-products",
         workflow_name="subscriptions-validator",
         schedule_id=f"{uuid4()}",
@@ -163,24 +168,21 @@ def test_scheduled_tasks_invalid_filter(test_client):
     assert not scheduled_tasks
 
 
-def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs):
+def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     scheduler_with_jobs(
         job_name="Validate Products and inactive subscriptions",
         workflow_name="validate-products",
         schedule_id=f"{uuid4()}",
     )
     scheduler_with_jobs(
-        remove_jobs=False,
         job_name="Subscriptions Validator",
         workflow_name="subscriptions-validator",
         schedule_id=f"{uuid4()}",
     )
-    scheduler_with_jobs(
-        remove_jobs=False, job_name="Resume workflows", workflow_name="task-resume-workflows", schedule_id=f"{uuid4()}"
-    )
-    scheduler_with_jobs(
-        remove_jobs=False, job_name="Clean up tasks", workflow_name="task-clean-up-tasks", schedule_id=f"{uuid4()}"
-    )
+    scheduler_with_jobs(job_name="Resume workflows", workflow_name="task-resume-workflows", schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(job_name="Clean up tasks", workflow_name="task-clean-up-tasks", schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(sort_by=[{"field": "name", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -208,11 +210,13 @@ def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs):
     assert [job["name"] for job in scheduled_tasks] == expected_workflows
 
 
-def test_scheduled_tasks_invalid_sort(test_client, scheduler_with_jobs):
+def test_scheduled_tasks_invalid_sort(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     scheduler_with_jobs(schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
-    scheduler_with_jobs(remove_jobs=False, schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(sort_by=[{"field": "namee", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})

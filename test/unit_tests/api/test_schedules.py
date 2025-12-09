@@ -3,7 +3,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_create_scheduled_task_to_queue")
+@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_create_scheduled_task(mock_add, test_client):
     body = {
         "name": "Test Job",
@@ -24,7 +24,7 @@ def test_create_scheduled_task(mock_add, test_client):
     mock_add.assert_called_once()
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_update_scheduled_task_to_queue")
+@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_update_scheduled_task(mock_add, test_client):
     body = {
         "schedule_id": str(uuid4()),
@@ -46,7 +46,7 @@ def test_update_scheduled_task(mock_add, test_client):
     mock_add.assert_called_once()
 
 
-@patch("orchestrator.api.api_v1.endpoints.schedules.add_delete_scheduled_task_to_queue")
+@patch("orchestrator.api.api_v1.endpoints.schedules.add_scheduled_task_to_queue")
 def test_delete_scheduled_task(mock_add, test_client):
     body = {
         "schedule_id": str(uuid4()),

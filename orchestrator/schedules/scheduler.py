@@ -26,7 +26,7 @@ from orchestrator.db.filters import Filter
 from orchestrator.db.filters.filters import CallableErrorHandler
 from orchestrator.db.sorting import Sort
 from orchestrator.db.sorting.sorting import SortOrder
-from orchestrator.schedules.service import get_linker_entries_by_schedule_id
+from orchestrator.schedules.service import get_linker_entries_by_schedule_ids
 from orchestrator.utils.helpers import camel_to_snake, to_camel
 
 executors = {
@@ -167,33 +167,22 @@ def enrich_with_workflow_id(scheduled_tasks: list[ScheduledTask]) -> list[Schedu
 
     Returns all the scheduled tasks with the workflow_id added.
     """
+    schedule_ids = [task.id for task in scheduled_tasks]
 
-    enriched_tasks = []
-    for task in scheduled_tasks:
-        linker_entries = get_linker_entries_by_schedule_id(task.id)
-        if not linker_entries:
-            enriched_tasks.append(
-                ScheduledTask(
-                    id=task.id,
-                    workflow_id=None,
-                    name=task.name,
-                    next_run_time=task.next_run_time,
-                    trigger=str(task.trigger),
-                )
-            )
-            continue
+    entries = {
+        str(entry.schedule_id): str(entry.workflow_id) for entry in get_linker_entries_by_schedule_ids(schedule_ids)
+    }
 
-        for linker_entry in linker_entries:
-            enriched_tasks.append(
-                ScheduledTask(
-                    id=task.id,
-                    workflow_id=str(linker_entry.workflow_id),
-                    name=task.name,
-                    next_run_time=task.next_run_time,
-                    trigger=str(task.trigger),
-                )
-            )
-    return enriched_tasks
+    return [
+        ScheduledTask(
+            id=task.id,
+            workflow_id=entries.get(task.id, None),
+            name=task.name,
+            next_run_time=task.next_run_time,
+            trigger=str(task.trigger),
+        )
+        for task in scheduled_tasks
+    ]
 
 
 def get_scheduler_tasks(

@@ -23,7 +23,7 @@ from orchestrator.schedules.scheduler import (
 )
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
-    add_create_scheduled_task_to_queue,
+    add_scheduled_task_to_queue,
     workflow_scheduler_queue,
 )
 from orchestrator.schemas.schedules import APSchedulerJobCreate
@@ -42,9 +42,11 @@ def run() -> None:
         """Get an item from the Redis Queue for scheduler tasks."""
         try:
             return redis_conn.brpop(SCHEDULER_QUEUE, timeout=1)
-        except ConnectionError:
+        except ConnectionError as e:
+            typer.echo(f"There was a connection error with Redis. Retrying in 3 seconds... {e}")
             time.sleep(3)
-        except Exception:
+        except Exception as e:
+            typer.echo(f"There was an unexpected error with Redis. Retrying in 1 second... {e}")
             time.sleep(1)
 
         return None
@@ -135,4 +137,4 @@ def load_initial_schedule() -> None:
         schedule["workflow_id"] = workflow.workflow_id
 
         typer.echo(f"Initial Schedule: {schedule}")
-        add_create_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
+        add_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore

@@ -112,16 +112,62 @@ Even if the task does not have any form input, an entry will still need to be ma
 }
 ```
 
-## The schedule file
+## The schedule file (DEPRECATED)
+> This section is deprecated and will be removed in version 5.0.0, please refer to the [new scheduling system](#the-schedule-api)
+> below.
 
 > from `4.3.0` we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and schedule tasks from the API.
 
-> from `4.6.5` we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system.
+The schedule file is essentially the crontab associated with the task.
+Continuing with our previous example:
+
+```python
+# schedules/nightly_sync.py
+
+from orchestrator.schedules.scheduler import scheduler
+from orchestrator.services.processes import start_process
+
+
+# previously `scheduler()` which is now deprecated
+@scheduler.scheduled_job(id="nightly-sync", name="Nightly sync", trigger="cron", hour=1)
+def run_nightly_sync() -> None:
+    start_process("task_sync_from")
+```
+
+This schedule will start the `task_sync_from` task every day at 01:00.
+
+There are multiple triggers that can be used ([trigger docs]):
+
+- [IntervalTrigger]: use when you want to run the task at fixed intervals of time.
+- [CronTrigger]: use when you want to run the task periodically at certain time(s) of day.
+- [DateTrigger]: use when you want to run the task just once at a certain point of time.
+- [CalendarIntervalTrigger]: use when you want to run the task on calendar-based intervals, at a specific time of day.
+- [AndTrigger]: use when you want to combine multiple triggers so the task only runs when **all** of them would fire at the same time.
+- [OrTrigger]: use when you want to combine multiple triggers so the task runs when **any one** of them would fire.
+
+For detailed configuration options, see the [APScheduler scheduling docs].
+
+The scheduler automatically loads any schedules that are imported before the scheduler starts.
+To keep things organized and consistent (similar to how workflows are handled), it’s recommended to place your schedules in a `/schedules/__init__.py`.
+
+> `ALL_SCHEDULERS` (Backwards Compatibility)
+> In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
+> This is no longer required, but ALL_SCHEDULERS is still supported for backwards compatibility.
+
+
+## The schedule API
+
+> from `4.3.0` we switched from [schedule] package to [apscheduler] to allow schedules to be stored in the DB and schedule tasks from the API.
+
+> from `4.7.0` we deprecated `@scheduler.scheduled_job()` provided by [apscheduler] in favor of a more dynamic API based system.
 > Although we do no longer support the `@scheduler.scheduled_job()` decorator, it is still available because it is part of [apscheduler].
 > Therefore, we do NOT recommend using it for new schedules. Because you will miss a Linker Table join between schedules and workflows/tasks.
 
 
-Schedules can be created, updated, and deleted via the API. They can be retrieved via the already existing GraphQL API.
+Schedules can be created, updated, and deleted via the REST API, and retrieved via the already existing GraphQL API. It
+will become possible to manage schedules through the
+UI ([development ticket](https://github.com/workfloworchestrator/orchestrator-ui-library/issues/2215)), but you may also
+use the API directly to automate configuration of your schedules.
 
 *Example POST*
 
@@ -181,7 +227,8 @@ For detailed configuration options, see the [APScheduler scheduling docs].
 The scheduler automatically loads any schedules that are imported before the scheduler starts.
 
 > In previous versions, schedules needed to be explicitly listed in an ALL_SCHEDULERS variable.
-> This is no longer required, and ALL_SCHEDULERS is deprecated.
+> This is no longer required; ALL_SCHEDULERS is deprecated as of orchestrator-core 4.7.0 and will be removed in 5.0.0.
+> Follow-up ticket to remove deprecated code: [#1276](https://github.com/workfloworchestrator/orchestrator-core/issues/1276)
 
 ## The scheduler
 
@@ -189,8 +236,9 @@ The scheduler is invoked via `python main.py scheduler`.
 Try `--help` or review the [CLI docs][cli-docs] to learn more.
 
 ### Initial schedules
-Previous hard-coded schedules can be ported to the new system by creating them via the API or CLI.
-Run the following CLI command to import previously existing schedules and change them if needed via the API.
+From version orchestrator-core >= `4.7.0`, the scheduler uses the database to store schedules instead of hard-coded schedule files.
+Previous versions (orchestrator-core < `4.7.0` had hard-coded schedules. These can be ported to the new system by creating them via the API or CLI.
+Run the following CLI command to import previously existing orchestrator-core schedules and change them if needed via the API.
 
 ```shell
 python main.py scheduler load-initial-schedule

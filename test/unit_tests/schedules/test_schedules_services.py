@@ -15,11 +15,9 @@ from orchestrator.schedules.service import (
     _build_trigger_on_update,
     _delete_scheduled_task,
     _update_scheduled_task,
-    add_create_scheduled_task_to_queue,
-    add_delete_scheduled_task_to_queue,
-    add_update_scheduled_task_to_queue,
+    add_scheduled_task_to_queue,
     deserialize_payload,
-    get_linker_entries_by_schedule_id,
+    get_linker_entries_by_schedule_ids,
     run_start_workflow_scheduler_task,
     serialize_payload,
     workflow_scheduler_queue,
@@ -49,10 +47,7 @@ def test_serialize_deserialize_payload_create():
         trigger_kwargs={"seconds": 10},
         schedule_id=uuid4(),
     )
-    payload_delete = APSchedulerJobDelete(
-        workflow_id=uuid4(),
-        schedule_id=uuid4(),
-    )
+    payload_delete = APSchedulerJobDelete(workflow_id=uuid4(), schedule_id=uuid4())
 
     serialized_create = serialize_payload(payload_create)
     serialized_update = serialize_payload(payload_update)
@@ -62,9 +57,9 @@ def test_serialize_deserialize_payload_create():
     assert isinstance(deserialize_payload(serialized_update), APSchedulerJobUpdate)
     assert isinstance(deserialize_payload(serialized_delete), APSchedulerJobDelete)
 
-    assert deserialize_payload(serialized_create)._scheduled_type == SCHEDULER_Q_CREATE
-    assert deserialize_payload(serialized_update)._scheduled_type == SCHEDULER_Q_UPDATE
-    assert deserialize_payload(serialized_delete)._scheduled_type == SCHEDULER_Q_DELETE
+    assert deserialize_payload(serialized_create).scheduled_type == SCHEDULER_Q_CREATE
+    assert deserialize_payload(serialized_update).scheduled_type == SCHEDULER_Q_UPDATE
+    assert deserialize_payload(serialized_delete).scheduled_type == SCHEDULER_Q_DELETE
 
 
 @patch("orchestrator.schedules.service.redis_connection")
@@ -77,7 +72,7 @@ def test_add_create_scheduled_task_to_queue_raw(mock_redis):
         trigger_kwargs={"seconds": 5},
     )
 
-    add_create_scheduled_task_to_queue(payload)
+    add_scheduled_task_to_queue(payload)
 
     # Extract call args
     queue, bytes_arg = mock_redis.lpush.call_args[0]
@@ -96,7 +91,7 @@ def test_add_update_scheduled_task_to_queue(mock_redis):
         schedule_id=uuid4(),
     )
 
-    add_update_scheduled_task_to_queue(payload)
+    add_scheduled_task_to_queue(payload)
 
     queue, bytes_arg = mock_redis.lpush.call_args[0]
 
@@ -112,7 +107,7 @@ def test_add_delete_scheduled_task_to_queue(mock_redis):
         schedule_id=uuid4(),
     )
 
-    add_delete_scheduled_task_to_queue(payload)
+    add_scheduled_task_to_queue(payload)
 
     queue, bytes_arg = mock_redis.lpush.call_args[0]
 
@@ -121,7 +116,7 @@ def test_add_delete_scheduled_task_to_queue(mock_redis):
     assert b"workflow_id" in bytes_arg
 
 
-def test_get_linker_entries_by_schedule_id(scheduler_with_jobs):
+def test_get_linker_entries_by_schedule_ids(scheduler_with_jobs):
     workflow_name = "task_validate_products"
     workflow = get_workflow_by_name(workflow_name)
 
@@ -131,7 +126,7 @@ def test_get_linker_entries_by_schedule_id(scheduler_with_jobs):
     workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
     db.session.add(workflows_apscheduler_job)
 
-    linker_entries = get_linker_entries_by_schedule_id(schedule_id)
+    linker_entries = get_linker_entries_by_schedule_ids([schedule_id])
 
     assert len(linker_entries) == 1
     assert linker_entries[0].schedule_id == schedule_id
@@ -326,7 +321,9 @@ def test_workflow_scheduler_queue_delete(mock_delete, mock_update, mock_create):
     mock_create.assert_not_called()
 
 
-def test_enrich_schedule_with_workflow_id(scheduler_with_jobs):
+def test_enrich_schedule_with_workflow_id(scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     workflow_name = "task_validate_products"
     workflow = get_workflow_by_name(workflow_name)
 
@@ -345,7 +342,9 @@ def test_enrich_schedule_with_workflow_id(scheduler_with_jobs):
     assert enriched_tasks[0].workflow_id == str(workflow.workflow_id)
 
 
-def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs):
+def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     workflow_name = "task_validate_products"
     workflow = get_workflow_by_name(workflow_name)
 
@@ -353,7 +352,7 @@ def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs):
     scheduler_with_jobs(schedule_id=schedule_id)
 
     no_linker_schedule_id = f"{uuid4()}"
-    scheduler_with_jobs(schedule_id=no_linker_schedule_id, remove_jobs=False)
+    scheduler_with_jobs(schedule_id=no_linker_schedule_id)
 
     workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
     db.session.add(workflows_apscheduler_job)
@@ -370,7 +369,9 @@ def test_enrich_schedule_with_and_without_workflow_id(scheduler_with_jobs):
     assert enriched_tasks[1].workflow_id is None
 
 
-def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs):
+def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
     workflow_name = "task_validate_products"
     workflow = get_workflow_by_name(workflow_name)
 
@@ -380,12 +381,12 @@ def test_enrich_all_schedule_with_workflow_id(scheduler_with_jobs):
     db.session.add(workflows_apscheduler_job)
 
     schedule_id = f"{uuid4()}"
-    scheduler_with_jobs(schedule_id=schedule_id, remove_jobs=False)
+    scheduler_with_jobs(schedule_id=schedule_id)
     workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
     db.session.add(workflows_apscheduler_job)
 
     schedule_id = f"{uuid4()}"
-    scheduler_with_jobs(schedule_id=schedule_id, remove_jobs=False)
+    scheduler_with_jobs(schedule_id=schedule_id)
     workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
     db.session.add(workflows_apscheduler_job)
 

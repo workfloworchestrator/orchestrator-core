@@ -886,20 +886,14 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
 @pytest.fixture
 def scheduler_with_jobs():
     def _create(
-        remove_jobs=True,
         job_name: str = "Test Job",
         workflow_name: str = "task_clean_up_tasks",
         schedule_id: str = str(uuid.uuid4()),
         trigger: str = "interval",
         trigger_kwargs: dict | None = None,
     ):
-
         with get_scheduler() as scheduler:
             # First remove all existing jobs
-            if remove_jobs:
-                for job in scheduler.get_jobs():
-                    scheduler.remove_job(job.id)
-
             if trigger_kwargs is None:
                 trigger_kwargs = {"hours": 1}
 

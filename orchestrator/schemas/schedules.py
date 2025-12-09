@@ -10,10 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Literal
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, TypeAdapter
 
 SCHEDULER_Q_CREATE = "create"
 SCHEDULER_Q_UPDATE = "update"
@@ -21,38 +21,51 @@ SCHEDULER_Q_DELETE = "delete"
 
 
 class APSchedulerJob(BaseModel):
-    name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
+    scheduled_type: Literal["create", "update", "delete"] = Field(..., description="Discriminator for job type")
 
 
 class APSchedulerJobCreate(APSchedulerJob):
+    name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
     workflow_name: str = Field(..., description="Name of the workflow to run e.g. 'my_workflow_name'")
     workflow_id: UUID = Field(..., description="UUID of the workflow associated with this scheduled task")
 
     trigger: Literal["interval", "cron", "date"] = Field(..., description="APScheduler trigger type")
-    trigger_kwargs: Dict[str, Any] = Field(
+    trigger_kwargs: dict[str, Any] = Field(
         default_factory=lambda: {},
-        description="Arguments passed to the job function",
+        description="Arguments passed to the trigger on job creation",
         examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
     )
 
-    _scheduled_type: str = PrivateAttr(default=SCHEDULER_Q_CREATE)
+    scheduled_type: Literal["create"] = Field("create", frozen=True)
 
 
 class APSchedulerJobUpdate(APSchedulerJob):
+    name: str | None = Field(None, description="Human readable name e.g. 'My Process'")
     schedule_id: UUID = Field(..., description="UUID of the scheduled task")
 
     trigger: Literal["interval", "cron", "date"] | None = Field(None, description="APScheduler trigger type")
-    trigger_kwargs: Dict[str, Any] | None = Field(
+    trigger_kwargs: dict[str, Any] | None = Field(
         default=None,
         description="Arguments passed to the job function",
         examples=[{"hours": 12}, {"minutes": 30}, {"days": 1, "hours": 2}],
     )
 
-    _scheduled_type: str = PrivateAttr(default=SCHEDULER_Q_UPDATE)
+    scheduled_type: Literal["update"] = Field("update", frozen=True)
 
 
-class APSchedulerJobDelete(BaseModel):
+class APSchedulerJobDelete(APSchedulerJob):
     workflow_id: UUID = Field(..., description="UUID of the workflow associated with this scheduled task")
     schedule_id: UUID | None = Field(None, description="UUID of the scheduled task")
 
-    _scheduled_type: str = PrivateAttr(default=SCHEDULER_Q_DELETE)
+    scheduled_type: Literal["delete"] = Field("delete", frozen=True)
+
+
+APSchedulerJobs = Annotated[
+    Union[
+        APSchedulerJobCreate,
+        APSchedulerJobUpdate,
+        APSchedulerJobDelete,
+    ],
+    Field(discriminator="scheduled_type"),
+]
+APSJobAdapter = TypeAdapter(APSchedulerJobs)  # type: ignore
