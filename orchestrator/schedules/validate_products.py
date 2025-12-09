@@ -1,4 +1,4 @@
-# Copyright 2019-2025 SURF.
+# Copyright 2019-2020 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,8 +14,8 @@ from sqlalchemy import func, select
 
 from orchestrator.db import db
 from orchestrator.db.models import ProcessTable
-from orchestrator.services.processes import start_process
 from orchestrator.schedules.scheduler import scheduler
+from orchestrator.services.processes import start_process
 
 
 @scheduler.scheduled_job(  # type: ignore[misc]
