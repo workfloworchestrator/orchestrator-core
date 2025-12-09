@@ -110,15 +110,8 @@ def load_initial_schedule() -> None:
             "trigger_kwargs": {"hours": 6},
         },
         {
-            "name": "Validate Products Pre-conditions",
-            "workflow_name": "pre_conditions_check_task_validate_products",
-            "workflow_id": "",
-            "trigger": "cron",
-            "trigger_kwargs": {"hour": 2, "minute": 30},
-        },
-        {
-            "name": "Validate Subscriptions Workflow",
-            "workflow_name": "validate_subscriptions_workflow",
+            "name": "Task Validate Subscriptions",
+            "workflow_name": "task_validate_subscriptions",
             "workflow_id": "",
             "trigger": "cron",
             "trigger_kwargs": {"hour": 0, "minute": 10},

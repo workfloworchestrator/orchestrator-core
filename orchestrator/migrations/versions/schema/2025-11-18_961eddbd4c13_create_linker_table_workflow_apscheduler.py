@@ -20,14 +20,8 @@ depends_on = None
 
 workflows = [
     {
-        "name": "pre_conditions_check_task_validate_products",
-        "description": "Run Pre-Conditions before validate products",
-        "workflow_id": uuid4(),
-        "target": "SYSTEM",
-    },
-    {
-        "name": "validate_subscriptions_workflow",
-        "description": "Validate subscriptions workflow",
+        "name": "task_validate_subscriptions",
+        "description": "Validate subscriptions",
         "workflow_id": uuid4(),
         "target": "SYSTEM",
     },

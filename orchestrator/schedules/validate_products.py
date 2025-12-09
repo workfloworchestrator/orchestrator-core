@@ -15,11 +15,16 @@ from sqlalchemy import func, select
 from orchestrator.db import db
 from orchestrator.db.models import ProcessTable
 from orchestrator.services.processes import start_process
-from orchestrator.targets import Target
-from orchestrator.workflow import StepList, init, step, workflow
+from orchestrator.schedules.scheduler import scheduler
 
 
-@step("Validate products")
+@scheduler.scheduled_job(  # type: ignore[misc]
+    id="validate-products",
+    name="Validate Products and inactive subscriptions",
+    trigger="cron",
+    hour=2,
+    minute=30,
+)
 def validate_products() -> None:
     uncompleted_products = db.session.scalar(
         select(func.count())
@@ -28,10 +33,3 @@ def validate_products() -> None:
     )
     if not uncompleted_products:
         start_process("task_validate_products")
-
-    return
-
-
-@workflow("Run Pre-Conditions before validate products", target=Target.SYSTEM)
-def pre_conditions_check_task_validate_products() -> StepList:
-    return init >> validate_products

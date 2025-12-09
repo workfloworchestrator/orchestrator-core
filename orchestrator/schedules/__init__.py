@@ -13,7 +13,6 @@
 import warnings
 
 from orchestrator.schedules.validate_products import validate_products
-from orchestrator.schedules.validate_subscriptions import validate_subscriptions
 
 warnings.warn(
     "ALL_SCHEDULERS is deprecated; scheduling is now handled entirely through the scheduler API.",
@@ -21,6 +20,5 @@ warnings.warn(
     stacklevel=2,
 )
 ALL_SCHEDULERS: list = [
-    validate_subscriptions,
     validate_products,
 ]
