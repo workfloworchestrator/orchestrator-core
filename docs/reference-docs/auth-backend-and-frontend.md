@@ -529,8 +529,11 @@ are prioritized in different workflow and inputstep configurations.
 Assume we have the following function that can be used to create callbacks:
 
 ```python
-def allow_roles(*roles) -> Callable[OIDCUserModel|None, bool]:
-    def f(user: OIDCUserModel) -> bool:
+from oauth2_lib.fastapi import OIDCUserModel
+from orchestrator.workflows.utils import Authorizer
+
+def allow_roles(*roles) -> Authorizer:
+    async def f(user: OIDCUserModel) -> bool:
         if is_admin(user):  # Relative to your authorization provider
             return True
         for role in roles:
