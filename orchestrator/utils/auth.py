@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TypeAlias, TypeVar
 
 from oauth2_lib.fastapi import OIDCUserModel
@@ -7,4 +7,4 @@ from oauth2_lib.fastapi import OIDCUserModel
 
 # Can instead use "type Authorizer = ..." in later Python versions.
 T = TypeVar("T", bound=OIDCUserModel)
-Authorizer: TypeAlias = Callable[[T | None], bool]
+Authorizer: TypeAlias = Callable[[T | None], Awaitable[bool]]
