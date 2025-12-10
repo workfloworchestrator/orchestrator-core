@@ -2,6 +2,7 @@ import contextlib
 import datetime
 import os
 import typing
+import uuid
 from contextlib import closing
 from typing import Any, cast
 from uuid import uuid4
@@ -36,6 +37,7 @@ from orchestrator.db.database import ENGINE_ARGUMENTS, SESSION_ARGUMENTS, BaseMo
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.schedules.scheduler import get_scheduler
+from orchestrator.schedules.service import run_start_workflow_scheduler_task
 from orchestrator.services.translations import generate_translations
 from orchestrator.settings import app_settings
 from orchestrator.types import SubscriptionLifecycle
@@ -879,3 +881,44 @@ def monitor_sqlalchemy(pytestconfig, request, capsys):
         yield monitor_queries
     else:
         yield noop
+
+
+@pytest.fixture
+def scheduler_with_jobs():
+    def _create(
+        job_name: str = "Test Job",
+        workflow_name: str = "task_clean_up_tasks",
+        schedule_id: str = str(uuid.uuid4()),
+        trigger: str = "interval",
+        trigger_kwargs: dict | None = None,
+    ):
+        with get_scheduler() as scheduler:
+            # First remove all existing jobs
+            if trigger_kwargs is None:
+                trigger_kwargs = {"hours": 1}
+
+            scheduler.add_job(
+                func=run_start_workflow_scheduler_task,
+                trigger=trigger,
+                id=schedule_id,
+                name=job_name,
+                kwargs={"workflow_name": workflow_name},
+                **trigger_kwargs,
+            )
+
+            return scheduler
+
+    return _create
+
+
+@pytest.fixture
+def clear_all_scheduler_jobs():
+    """Fixture to clear all scheduler jobs before and after the test."""
+
+    def _clear():
+        with get_scheduler() as scheduler:
+            # Clear all jobs before the test
+            for job in scheduler.get_jobs():
+                scheduler.remove_job(job.id)
+
+    return _clear
