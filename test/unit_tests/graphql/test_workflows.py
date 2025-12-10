@@ -246,7 +246,7 @@ def test_workflows_sort_by_resource_type_desc(test_client):
 def test_workflows_not_allowed(test_client):
     forbidden_workflow_name = "unauthorized_workflow"
 
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
     @workflow(forbidden_workflow_name, target=Target.CREATE, authorize_callback=disallow)
