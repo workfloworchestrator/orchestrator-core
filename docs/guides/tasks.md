@@ -245,7 +245,7 @@ python main.py scheduler load-initial-schedule
 ```
 
 > Remember, that if you do not explicitly import these, they will not be available to the scheduler.
-> Importing schedules more than once will not create duplicates.
+> Importing schedules more than once will create duplicates.
 ### Manually executing tasks
 
 When doing development, it is possible to manually make the scheduler run your task even if your Orchestrator instance is not in "scheduler mode."
