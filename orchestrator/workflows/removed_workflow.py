@@ -22,8 +22,8 @@ authorizers = get_authorizers()
 # it does not do anything but is needed for the correct showing in the GUI.
 @workflow(
     "Dummy workflow to replace removed workflows",
-    authorize_callback=authorizers.internal_authorize_callback,
-    retry_auth_callback=authorizers.internal_retry_auth_callback,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def removed_workflow() -> StepList:
     return StepList()

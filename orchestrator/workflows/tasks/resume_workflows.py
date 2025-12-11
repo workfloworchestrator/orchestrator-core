@@ -112,8 +112,8 @@ def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State
 @workflow(
     "Resume all workflows that are stuck on tasks with the status 'waiting', 'created' or 'resumed'",
     target=Target.SYSTEM,
-    authorize_callback=authorizers.internal_authorize_callback,
-    retry_auth_callback=authorizers.internal_retry_auth_callback,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_resume_workflows() -> StepList:
     return init >> find_waiting_workflows >> resume_found_workflows >> restart_created_workflows >> done

@@ -58,8 +58,8 @@ def store_subscription_note(subscription_id: UUIDstr, note: str) -> State:
     "Modify Note",
     initial_input_form=wrap_modify_initial_input_form(initial_input_form),
     target=Target.MODIFY,
-    authorize_callback=authorizers.internal_authorize_callback,
-    retry_auth_callback=authorizers.internal_retry_auth_callback,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def modify_note() -> StepList:
     return init >> store_process_subscription() >> store_subscription_note >> done
