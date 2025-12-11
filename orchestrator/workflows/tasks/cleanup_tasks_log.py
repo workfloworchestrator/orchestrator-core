@@ -46,8 +46,8 @@ def remove_tasks() -> State:
 @workflow(
     "Clean up old tasks",
     target=Target.SYSTEM,
-    authorize_callback=authorizers.internal_authorize_callback,
-    retry_auth_callback=authorizers.internal_retry_auth_callback,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_clean_up_tasks() -> StepList:
     return init >> remove_tasks >> done
