@@ -1,80 +1,106 @@
-# Agentic application
-!!! danger
-    The features and api described in this section are under heavy development and therefore subject to change.
-    Be prepared for it to break.
+# LLM-enabled Orchestrator Core
 
-    **However if you don't care about an unstable API, using the features in this mode
-    of the orchestrator will unlock quite a bit of potential**
+__Enhance the Orchestrator's functionality by enabling LLM features, which unlock both the search and agent modules for natural language interaction.__
 
+## Features
 
-The Agentic mode of the Orchestrator can be unlocked by doing the following.
+### Search Module
+- Enables semantic and structured search across subscriptions, products, processes, and workflows
+- Utilizes vector embeddings for powerful search capabilities
+- Works with or without LLM integration
 
-### Pre-requisites
-- pg_vector installed in your postgres database
-- At minimum an `api_key` to talk to ChatGPT
-- The UI configured to with the LLM integration branch - still WIP - https://github.com/workfloworchestrator/example-orchestrator-ui/pull/72/files
+### Agent Module
+- Enables natural language interaction with the Orchestrator
+- Supports complex queries and operations through conversational interfaces
 
-### Step 1 - Install the package:
+!!! danger "Experimental Features"
+    The features and APIs described in this section are under active development and may change.
 
-Create a virtualenv and install the core including the LLM dependencies.
+    **Note:** While these features are experimental, they unlock significant potential for advanced use cases.
 
-<div class="termy">
+## Quick Start
 
-```shell
+### Prerequisites
+- PostgreSQL with `pgvector` extension
+- Python 3.9+
+- OpenAI API key (or compatible LLM provider)
+- (Optional) Configured UI for LLM integration
+
+### 1. Installation
+
+Create and activate a virtual environment:
+
+```bash
 python -m venv .venv
-source .venv/bin/activate
-pip install orchestrator-core[llm]
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-</div>
+Install the package with LLM dependencies:
 
-### Step 2 - Setup the database:
-
-Create a postgres database, make sure your postgres install has the `pgvector` extension installed:
-
-<div class="termy">
-
-```shell
-createuser -sP nwa
-createdb orchestrator-core -O nwa
+```bash
+pip install "orchestrator-core[agent,search]"
 ```
 
-</div>
+### 2. Database Setup
 
-Choose a password and remember it for later steps.
+#### Using Docker (Recommended)
 
-As an example, you can run these docker commands in separate shells to start a temporary postgres instance:
-
-```shell
-docker run --rm --name temp-orch-db -e POSTGRES_PASSWORD=rootpassword -p 5432:5432 pgvector/pgvector:pg17
-
-docker exec -it temp-orch-db su - postgres -c 'createuser -sP nwa && createdb orchestrator-core -O nwa'
+```bash
+docker run --name orch-db -e POSTGRES_PASSWORD=yourpassword -p 5432:5432 -d pgvector/pgvector:pg17
+docker exec -it orch-db createdb -U postgres orchestrator-core
 ```
 
-### Step 3 - Create the main.py and wsgi.py:
+#### Manual Setup
+1. Install PostgreSQL with pgvector
+2. Create a database and user:
+   ```sql
+   CREATE USER nwa WITH PASSWORD 'yourpassword';
+   CREATE DATABASE orchestrator-core OWNER nwa;
+   ```
+
+### 3. Configuration
+
+Create a `.env` file in your project root:
+
+```env
+DATABASE_URI=postgresql://nwa:yourpassword@localhost:5432/orchestrator-core
+OPENAI_API_KEY=your_openai_api_key
+AGENT_MODEL=gpt-4o-mini
+SEARCH_ENABLED=true
+AGENT_ENABLED=true
+```
+
+### 4. Application Setup
 
 Create a `main.py` file.
+This provides the CLI entrypoint to your Orchestrator.
 
 ```python
+import typer
+from nwastdlib.logging import initialise_logging
+from orchestrator import app_settings
 from orchestrator.cli.main import app as core_cli
+from orchestrator.db import init_database
+from orchestrator.log_config import LOGGER_OVERRIDES
+
+def init_cli_app() -> typer.Typer:
+    initialise_logging(LOGGER_OVERRIDES)
+    init_database(app_settings)
+    return core_cli()
 
 if __name__ == "__main__":
-    core_cli()
+    init_cli_app()
 ```
 
 Create a `wsgi.py` file.
+This will be used to run the Orchestrator API.
 
 ```python
-from orchestrator import AgenticOrchestratorCore
+from orchestrator import OrchestratorCore
 from orchestrator.settings import app_settings
 from orchestrator.llm_settings import llm_settings
 
-llm_settings.LLM_ENABLED = True
-llm_settings.AGENT_MODEL = 'gpt-4o-mini'
-llm_settings.OPENAI_API_KEY = 'xxxxx'
-
-
-app = AgenticOrchestratorCore(
+app = OrchestratorCore(
     base_settings=app_settings,
     llm_settings=llm_settings,
     llm_model=llm_settings.AGENT_MODEL,
@@ -82,58 +108,45 @@ app = AgenticOrchestratorCore(
 )
 ```
 
-### Step 4 - Run the database migrations:
+### 5. Database Migrations
 
-Initialize the migration environment and database tables.
-
-<div class="termy">
-
-```shell
-export DATABASE_URI=postgresql://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
-
+```bash
+export $(grep -v '^#' .env | xargs)
 python main.py db init
 python main.py db upgrade heads
 ```
 
-</div>
+### 6. Start the Application
 
-### Step 5 - Run the app
-
-<div class="termy">
-
-```shell
-export DATABASE_URI=postgresql://nwa:PASSWORD_FROM_STEP_2@localhost:5432/orchestrator-core
-export OAUTH2_ACTIVE=False
-
-uvicorn --reload --host 127.0.0.1 --port 8080 wsgi:app
+```bash
+uvicorn --reload --host 0.0.0.0 --port 8080 wsgi:app
 ```
 
-</div>
+### 7. Index Your Data
 
-### Step 6 - Index all your current subscriptions, processes, workflows and products:
+!!! warning "API Costs"
+    This step makes API calls to your LLM provider and may incur costs.
 
-!!! warning
-    This will call out to external LLM services and cost money
+```bash
+# Index all available data
+python main.py index all
 
-
-<div class="termy">
-
-```shell
+# Or index specific types
 python main.py index subscriptions
 python main.py index products
 python main.py index processes
-python main.py index workflows  
+python main.py index workflows
 ```
 
-</div>
+## Using the API
 
-### Step 7 - Profit :boom: :grin:
+Once running, you can access:
+- API Documentation: [http://localhost:8080/api/docs](http://localhost:8080/api/docs)
+- ReDoc: [http://localhost:8080/api/redoc](http://localhost:8080/api/redoc)
 
-Visit the [ReDoc](http://127.0.0.1:8080/api/redoc) or [OpenAPI](http://127.0.0.1:8080/api/docs) to view and interact with the API.
+## Next Steps
 
-
-### Next:
-
-- [Create a product.](../workshops/advanced/domain-models.md)
-- [Create a workflow for a product.](./workflows.md)
+- [Create a product](../workshops/advanced/domain-models.md)
+- [Create a workflow for a product](./workflows.md)
 - [Generate products and workflows](../reference-docs/cli.md#generate)
+- [Lookup the reference documentation](../reference-docs/app/agentic-app.md)

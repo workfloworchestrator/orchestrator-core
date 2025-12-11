@@ -1,7 +1,6 @@
 import json
 from http import HTTPStatus
-
-from orchestrator.schedules.scheduler import get_scheduler
+from uuid import uuid4
 
 
 def get_scheduled_tasks_query(
@@ -16,6 +15,7 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
   scheduledTasks(first: $first, after: $after, filterBy: $filterBy, sortBy: $sortBy) {
     page {
       id
+      workflowId
       name
       nextRunTime
       trigger
@@ -45,9 +45,13 @@ query ScheduledTasksQuery($first: Int!, $after: Int!, $filterBy: [GraphqlFilter!
     ).encode("utf-8")
 
 
-def test_scheduled_tasks_query(test_client):
-    with get_scheduler():
-        pass
+def test_scheduled_tasks_query(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
 
     data = get_scheduled_tasks_query(first=2)
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
@@ -70,7 +74,14 @@ def test_scheduled_tasks_query(test_client):
     }
 
 
-def test_scheduled_tasks_has_previous_page(test_client):
+def test_scheduled_tasks_has_previous_page(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+
     data = get_scheduled_tasks_query(after=1, sort_by=[{"field": "name", "order": "ASC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -92,7 +103,18 @@ def test_scheduled_tasks_has_previous_page(test_client):
     assert len(scheduled_tasks) == 3
 
 
-def test_scheduled_tasks_filter(test_client):
+def test_scheduled_tasks_filter(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
+    scheduler_with_jobs(
+        job_name="subscriptions-validator", workflow_name="subscriptions-validator", schedule_id=f"{uuid4()}"
+    )
+    scheduler_with_jobs(
+        job_name="validate-products",
+        workflow_name="subscriptions-validator",
+        schedule_id=f"{uuid4()}",
+    )
+
     data = get_scheduled_tasks_query(
         filter_by=[{"field": "name", "value": "validat"}], sort_by=[{"field": "name", "order": "ASC"}]
     )
@@ -116,7 +138,7 @@ def test_scheduled_tasks_filter(test_client):
         "subscriptions-validator",
         "validate-products",
     ]
-    assert [job["id"] for job in scheduled_tasks] == expected_workflows
+    assert [job["name"] for job in scheduled_tasks] == expected_workflows
 
 
 def test_scheduled_tasks_invalid_filter(test_client):
@@ -131,7 +153,7 @@ def test_scheduled_tasks_invalid_filter(test_client):
 
     expected_error_msg = (
         "Invalid filter arguments (invalid_filters=['idd'] valid_filter_keys"
-        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger'])"
+        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger', 'workflowId', 'workflow_id'])"
     )
 
     assert pageinfo == {
@@ -146,7 +168,22 @@ def test_scheduled_tasks_invalid_filter(test_client):
     assert not scheduled_tasks
 
 
-def test_scheduled_tasks_sort_by(test_client):
+def test_scheduled_tasks_sort_by(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
+    scheduler_with_jobs(
+        job_name="Validate Products and inactive subscriptions",
+        workflow_name="validate-products",
+        schedule_id=f"{uuid4()}",
+    )
+    scheduler_with_jobs(
+        job_name="Subscriptions Validator",
+        workflow_name="subscriptions-validator",
+        schedule_id=f"{uuid4()}",
+    )
+    scheduler_with_jobs(job_name="Resume workflows", workflow_name="task-resume-workflows", schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(job_name="Clean up tasks", workflow_name="task-clean-up-tasks", schedule_id=f"{uuid4()}")
+
     data = get_scheduled_tasks_query(sort_by=[{"field": "name", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -173,7 +210,14 @@ def test_scheduled_tasks_sort_by(test_client):
     assert [job["name"] for job in scheduled_tasks] == expected_workflows
 
 
-def test_scheduled_tasks_invalid_sort(test_client):
+def test_scheduled_tasks_invalid_sort(test_client, scheduler_with_jobs, clear_all_scheduler_jobs):
+    clear_all_scheduler_jobs()
+
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+    scheduler_with_jobs(schedule_id=f"{uuid4()}")
+
     data = get_scheduled_tasks_query(sort_by=[{"field": "namee", "order": "DESC"}])
     response = test_client.post("/api/graphql", content=data, headers={"Content-Type": "application/json"})
 
@@ -185,7 +229,7 @@ def test_scheduled_tasks_invalid_sort(test_client):
 
     expected_error_msg = (
         "Invalid sort arguments (invalid_sorting=['namee'] valid_sort_keys"
-        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger'])"
+        "=['id', 'name', 'nextRunTime', 'next_run_time', 'trigger', 'workflowId', 'workflow_id'])"
     )
 
     assert pageinfo == {

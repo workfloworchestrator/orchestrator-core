@@ -111,5 +111,6 @@ LazyWorkflowInstance(".tasks.cleanup_tasks_log", "task_clean_up_tasks")
 LazyWorkflowInstance(".tasks.resume_workflows", "task_resume_workflows")
 LazyWorkflowInstance(".tasks.validate_products", "task_validate_products")
 LazyWorkflowInstance(".tasks.validate_product_type", "task_validate_product_type")
+LazyWorkflowInstance(".tasks.validate_subscriptions", "task_validate_subscriptions")
 
 __doc__ = make_workflow_index_doc(ALL_WORKFLOWS)

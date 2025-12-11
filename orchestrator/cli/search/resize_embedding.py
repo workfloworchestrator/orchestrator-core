@@ -75,6 +75,9 @@ def alter_embedding_column_dimension(new_dimension: int) -> None:
         db.session.execute(text(f"ALTER TABLE search_queries ADD COLUMN query_embedding vector({new_dimension})"))
 
         db.session.commit()
+
+        db.session.close()
+
         logger.info(f"Altered embedding columns to dimension {new_dimension} in ai_search_index and search_queries")
 
     except SQLAlchemyError as e:

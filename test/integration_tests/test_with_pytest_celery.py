@@ -8,7 +8,7 @@ from orchestrator.db import db
 from orchestrator.services.tasks import NEW_TASK, NEW_WORKFLOW, RESUME_TASK, RESUME_WORKFLOW
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
-from test.integration_test.conftest import TestOrchestratorCelery
+from test.integration_tests.conftest import TestOrchestratorCelery
 
 
 @pytest.fixture(scope="module")

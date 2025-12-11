@@ -67,6 +67,21 @@ class EntityConfig(Generic[ModelT]):
 
 
 @dataclass(frozen=True)
+class ProcessConfig(EntityConfig[ProcessTable]):
+    """Processes need to eager load workflow for workflow_name field."""
+
+    def get_all_query(self, entity_id: str | None = None) -> Query | Select:
+        from sqlalchemy.orm import selectinload
+
+        # Only load workflow, not subscriptions (keeps it lightweight)
+        query = self.table.query.options(selectinload(ProcessTable.workflow))
+        if entity_id:
+            pk_column = getattr(self.table, self.pk_name)
+            query = query.filter(pk_column == UUID(entity_id))
+        return query
+
+
+@dataclass(frozen=True)
 class WorkflowConfig(EntityConfig[WorkflowTable]):
     """Workflows have a custom select() function that filters out deleted workflows."""
 
@@ -95,7 +110,7 @@ ENTITY_CONFIG_REGISTRY: dict[EntityType, EntityConfig] = {
         root_name="product",
         title_paths=["product.description", "product.name"],
     ),
-    EntityType.PROCESS: EntityConfig(
+    EntityType.PROCESS: ProcessConfig(
         entity_kind=EntityType.PROCESS,
         table=ProcessTable,
         traverser=ProcessTraverser,

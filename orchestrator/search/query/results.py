@@ -139,6 +139,63 @@ def format_aggregation_response(
     )
 
 
+def truncate_text_with_highlights(
+    text: str, highlight_indices: list[tuple[int, int]] | None = None, max_length: int = 500, context_chars: int = 100
+) -> tuple[str, list[tuple[int, int]] | None]:
+    """Truncate text to max_length while preserving context around the first highlight.
+
+    Args:
+        text: The text to truncate
+        highlight_indices: List of (start, end) tuples indicating highlight positions, or None
+        max_length: Maximum length of the returned text
+        context_chars: Number of characters to show before and after the first highlight
+
+    Returns:
+        Tuple of (truncated_text, adjusted_highlight_indices)
+    """
+    # If text is short enough, return as-is
+    if len(text) <= max_length:
+        return text, highlight_indices
+
+    # If no highlights, truncate from beginning
+    if not highlight_indices:
+        truncated_text = text[:max_length]
+        suffix = "..." if len(text) > max_length else ""
+        return truncated_text + suffix, None
+
+    # Use first highlight to determine what to show
+    first_highlight_start = highlight_indices[0][0]
+
+    # Calculate start position: try to center around first highlight
+    start = max(0, first_highlight_start - context_chars)
+    end = min(len(text), start + max_length)
+
+    # Adjust start if we hit the end boundary
+    if end == len(text) and (end - start) < max_length:
+        start = max(0, end - max_length)
+
+    truncated_text = text[start:end]
+
+    # Add ellipsis to indicate truncation
+    truncated_from_start = start > 0
+    truncated_from_end = end < len(text)
+
+    if truncated_from_start:
+        truncated_text = "..." + truncated_text
+    if truncated_from_end:
+        truncated_text = truncated_text + "..."
+
+    # Adjust highlight indices to be relative to truncated text
+    offset = start - (3 if truncated_from_start else 0)  # Account for leading "..."
+    adjusted_indices = []
+    for hl_start, hl_end in highlight_indices:
+        # Only include highlights that are within the truncated range
+        if hl_start >= start and hl_end <= end:
+            adjusted_indices.append((hl_start - offset, hl_end - offset))
+
+    return truncated_text, adjusted_indices if adjusted_indices else None
+
+
 def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
     """Finds all occurrences of individual words from the term, including both word boundary and substring matches."""
     import re
@@ -201,8 +258,9 @@ def format_search_response(
             if not isinstance(path, str):
                 path = str(path)
 
-            highlight_indices = generate_highlight_indices(text, user_query) or None
-            matching_field = MatchingField(text=text, path=path, highlight_indices=highlight_indices)
+            highlight_indices = generate_highlight_indices(text, user_query)
+            truncated_text, adjusted_indices = truncate_text_with_highlights(text, highlight_indices)
+            matching_field = MatchingField(text=truncated_text, path=path, highlight_indices=adjusted_indices)
 
         elif not user_query and query.filters and metadata.search_type == "structured":
             # Structured search (filter-only)

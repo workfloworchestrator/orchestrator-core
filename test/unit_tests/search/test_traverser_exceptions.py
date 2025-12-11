@@ -56,12 +56,12 @@ class TestTraverserExceptions:
                     SubscriptionTraverser._load_model(mock_subscription)
 
     def test_process_traverser_model_load_error(self):
-        """Test ProcessTraverser raises ModelLoadError when ProcessSchema validation fails."""
+        """Test ProcessTraverser raises ModelLoadError when ProcessBaseSchema validation fails."""
         # Create an invalid process that will fail validation
         mock_process = MagicMock(spec=ProcessTable)
         mock_process.process_id = "invalid-uuid"
 
-        with pytest.raises(ModelLoadError, match="Failed to load ProcessSchema for process_id"):
+        with pytest.raises(ModelLoadError, match="Failed to load ProcessBaseSchema for process_id"):
             ProcessTraverser._load_model(mock_process)
 
     def test_get_fields_handles_product_not_in_registry(self, caplog):

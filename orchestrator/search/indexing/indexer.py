@@ -45,6 +45,23 @@ def _maybe_begin(session: Session | None) -> Iterator[None]:
             yield
 
 
+@contextmanager
+def _maybe_progress(show_progress: bool, total_count: int | None, label: str) -> Iterator[Any]:
+    """Context manager that optionally creates a progress bar."""
+    if show_progress:
+        import typer
+
+        with typer.progressbar(
+            length=total_count,
+            label=label,
+            show_eta=True,
+            show_percent=bool(total_count),
+        ) as progress:
+            yield progress
+    else:
+        yield None
+
+
 class Indexer:
     """Index entities into `AiSearchIndex` using streaming reads and batched writes.
 
@@ -89,11 +106,21 @@ class Indexer:
         8) Repeat until the stream is exhausted.
     """
 
-    def __init__(self, config: EntityConfig, dry_run: bool, force_index: bool, chunk_size: int = 1000) -> None:
+    def __init__(
+        self,
+        config: EntityConfig,
+        dry_run: bool,
+        force_index: bool,
+        chunk_size: int = 1000,
+        show_progress: bool = False,
+        total_count: int | None = None,
+    ) -> None:
         self.config = config
         self.dry_run = dry_run
         self.force_index = force_index
         self.chunk_size = chunk_size
+        self.show_progress = show_progress
+        self.total_count = total_count
         self.embedding_model = llm_settings.EMBEDDING_MODEL
         self.logger = logger.bind(entity_kind=config.entity_kind.value)
         self._entity_titles: dict[str, str] = {}
@@ -116,13 +143,22 @@ class Indexer:
 
         with write_scope as database:
             session: Session | None = getattr(database, "session", None)
-            for entity in entities:
-                chunk.append(entity)
-                if len(chunk) >= self.chunk_size:
-                    flush()
 
-            if chunk:
-                flush()
+            with _maybe_progress(
+                self.show_progress, self.total_count, f"Indexing {self.config.entity_kind.value}"
+            ) as progress:
+                for entity in entities:
+                    chunk.append(entity)
+
+                    if len(chunk) >= self.chunk_size:
+                        flush()
+                        if progress:
+                            progress.update(self.chunk_size)
+
+                if chunk:
+                    flush()
+                    if progress:
+                        progress.update(len(chunk))
 
         final_log_message = (
             f"processed {total_records_processed} records and skipped {total_identical_records} identical records."

@@ -282,4 +282,7 @@ def build_aggregation_query(query: CountQuery | AggregateQuery, base_query: Sele
     if group_cols:
         stmt = stmt.group_by(*group_cols)
 
+    if query.temporal_group_by:
+        stmt = stmt.order_by(*group_cols)
+
     return stmt, group_col_names

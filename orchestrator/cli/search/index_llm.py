@@ -14,6 +14,7 @@ def subscriptions_command(
     subscription_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
+    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
 ) -> None:
     """Index subscription_search_index."""
     run_indexing_for_entity(
@@ -21,6 +22,7 @@ def subscriptions_command(
         entity_id=subscription_id,
         dry_run=dry_run,
         force_index=force_index,
+        show_progress=show_progress,
     )
 
 
@@ -29,6 +31,7 @@ def products_command(
     product_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
+    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
 ) -> None:
     """Index product_search_index."""
     run_indexing_for_entity(
@@ -36,6 +39,7 @@ def products_command(
         entity_id=product_id,
         dry_run=dry_run,
         force_index=force_index,
+        show_progress=show_progress,
     )
 
 
@@ -44,6 +48,7 @@ def processes_command(
     process_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
+    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
 ) -> None:
     """Index process_search_index."""
     run_indexing_for_entity(
@@ -51,6 +56,7 @@ def processes_command(
         entity_id=process_id,
         dry_run=dry_run,
         force_index=force_index,
+        show_progress=show_progress,
     )
 
 
@@ -59,6 +65,7 @@ def workflows_command(
     workflow_id: str | None = typer.Option(None, help="UUID (default = all)"),
     dry_run: bool = typer.Option(False, help="No DB writes"),
     force_index: bool = typer.Option(False, help="Force re-index (ignore hash cache)"),
+    show_progress: bool = typer.Option(False, help="Show per-entity progress"),
 ) -> None:
     """Index workflow_search_index."""
     run_indexing_for_entity(
@@ -66,6 +73,7 @@ def workflows_command(
         entity_id=workflow_id,
         dry_run=dry_run,
         force_index=force_index,
+        show_progress=show_progress,
     )
 
 

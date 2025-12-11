@@ -11,7 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any
+
 import structlog
+from sqlalchemy import func, select
 from sqlalchemy.orm import Query
 
 from orchestrator.db import db
@@ -23,12 +26,20 @@ from orchestrator.search.indexing.registry import ENTITY_CONFIG_REGISTRY
 logger = structlog.get_logger(__name__)
 
 
+def _get_entity_count(stmt: Any) -> int | None:
+    """Get total count of entities from a select statement."""
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    return db.session.execute(count_stmt).scalar()
+
+
 def run_indexing_for_entity(
     entity_kind: EntityType,
     entity_id: str | None = None,
     dry_run: bool = False,
     force_index: bool = False,
     chunk_size: int = 1000,
+    show_progress: bool = False,
 ) -> None:
     """Stream and index entities for the given kind.
 
@@ -46,6 +57,7 @@ def run_indexing_for_entity(
             existing hashes.
         chunk_size (int): Number of rows fetched per round-trip and passed to
             the indexer per batch.
+        show_progress (bool): When True, logs progress for each processed entity.
 
     Returns:
         None
@@ -60,10 +72,19 @@ def run_indexing_for_entity(
     else:
         stmt = q
 
+    total_count = _get_entity_count(stmt) if show_progress else None
+
     stmt = stmt.execution_options(stream_results=True, yield_per=chunk_size)
     entities = db.session.execute(stmt).scalars()
 
-    indexer = Indexer(config=config, dry_run=dry_run, force_index=force_index, chunk_size=chunk_size)
+    indexer = Indexer(
+        config=config,
+        dry_run=dry_run,
+        force_index=force_index,
+        chunk_size=chunk_size,
+        show_progress=show_progress,
+        total_count=total_count,
+    )
 
     with cache_subscription_models():
         indexer.run(entities)

@@ -193,7 +193,7 @@ def _handle_simple_input_form_generator(f: StateInputStepFunc) -> StateInputForm
     return form_generator
 
 
-def allow(_: OIDCUserModel | None) -> bool:
+async def allow(_: OIDCUserModel | None) -> bool:
     """Default function to return True in absence of user-defined authorize function."""
     return True
 

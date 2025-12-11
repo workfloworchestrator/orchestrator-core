@@ -154,7 +154,6 @@ from celery.signals import worker_shutting_down
 from nwastdlib.debugging import start_debugger
 from orchestrator.db import init_database
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
-from orchestrator.services.tasks import initialise_celery
 from orchestrator.types import BroadcastFunc
 from orchestrator.websocket import broadcast_process_update_to_websocket, init_websocket_manager
 from orchestrator.websocket.websocket_manager import WebSocketManager
@@ -220,6 +219,19 @@ celery.conf.update(
     task_send_sent_event=True,
 )
 ```
+
+Create a file with the above, for example `my_orchestrator/celery_client.py`.
+
+Next, update your `main.py` and `wsgi.py` to include the following imports:
+
+```python
+from orchestrator.services.tasks import initialise_celery
+from my_orchestrator.celery_client import celery
+```
+
+And finally, ensure both files include `initialise_celery(celery)` in the initialization of the CLI or API app.
+
+#### Redis
 
 As you can see in the code above, we are using Redis as a broker.
 You can of course replace this by RabbitMQ or another broker of your choice.

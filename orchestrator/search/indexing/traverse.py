@@ -29,7 +29,7 @@ from orchestrator.domain.base import ProductBlockModel, ProductModel
 from orchestrator.domain.lifecycle import (
     lookup_specialized_type,
 )
-from orchestrator.schemas.process import ProcessSchema
+from orchestrator.schemas.process import ProcessBaseSchema
 from orchestrator.schemas.workflow import WorkflowSchema
 from orchestrator.search.core.exceptions import ModelLoadError, ProductNotInRegistryError
 from orchestrator.search.core.types import LTREE_SEPARATOR, ExtractedField, FieldType
@@ -307,17 +307,39 @@ class ProductTraverser(BaseTraverser):
 
 
 class ProcessTraverser(BaseTraverser):
-    """Traverser for process entities using ProcessSchema model.
+    """Traverser for process entities using ProcessBaseSchema.
 
-    Note: Currently extracts only top-level process fields. Could be extended to include:
-    - Related subscriptions (entity.subscriptions)
-    - Related workflow information beyond workflow_name
+    Only indexes top-level process fields (no subscriptions or steps)
+    to keep the index size manageable.
     """
 
+    EXCLUDED_FIELDS = {"traceback", "failed_reason"}
+
     @classmethod
-    def _load_model(cls, process: ProcessTable) -> ProcessSchema:
-        """Load process model using ProcessSchema."""
-        return cls._load_model_with_schema(process, ProcessSchema, "process_id")
+    def _load_model(cls, entity: ProcessTable) -> ProcessBaseSchema | None:
+        return cls._load_model_with_schema(entity, ProcessBaseSchema, "process_id")
+
+    @classmethod
+    def get_fields(cls, entity: ProcessTable, pk_name: str, root_name: str) -> list[ExtractedField]:  # type: ignore[override]
+        """Extract fields from process, excluding fields in EXCLUDED_FIELDS."""
+        try:
+            model = cls._load_model(entity)
+            if model is None:
+                return []
+
+            return sorted(
+                (
+                    field
+                    for field in cls.traverse(model, root_name)
+                    if field.path.split(LTREE_SEPARATOR)[-1] not in cls.EXCLUDED_FIELDS
+                ),
+                key=lambda f: f.path,
+            )
+
+        except (ProductNotInRegistryError, ModelLoadError) as e:
+            entity_id = getattr(entity, pk_name, "unknown")
+            logger.error(f"Failed to extract fields from {entity.__class__.__name__}", id=str(entity_id), error=str(e))
+            return []
 
 
 class WorkflowTraverser(BaseTraverser):

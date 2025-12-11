@@ -17,7 +17,7 @@ from decimal import Decimal
 import structlog
 from sqlalchemy import BindParameter, Numeric, Select, literal
 
-from orchestrator.search.core.types import FieldType, SearchMetadata
+from orchestrator.search.core.types import EntityType, FieldType, SearchMetadata
 from orchestrator.search.query.queries import ExportQuery, SelectQuery
 
 from ..pagination import PageCursor
@@ -63,12 +63,15 @@ class Retriever(ABC):
         Returns:
             A concrete retriever instance based on available search criteria
         """
+
         from .fuzzy import FuzzyRetriever
         from .hybrid import RrfHybridRetriever
+        from .process import ProcessHybridRetriever
         from .semantic import SemanticRetriever
         from .structured import StructuredRetriever
 
         fuzzy_term = query.fuzzy_term
+        is_process = query.entity_type == EntityType.PROCESS
 
         # If vector_query exists but embedding generation failed, fall back to fuzzy search with full query text
         if query_embedding is None and query.vector_query is not None and query.query_text is not None:
@@ -76,10 +79,14 @@ class Retriever(ABC):
 
         # Select retriever based on available search criteria
         if query_embedding is not None and fuzzy_term is not None:
+            if is_process:
+                return ProcessHybridRetriever(query_embedding, fuzzy_term, cursor)
             return RrfHybridRetriever(query_embedding, fuzzy_term, cursor)
         if query_embedding is not None:
             return SemanticRetriever(query_embedding, cursor)
         if fuzzy_term is not None:
+            if is_process:
+                return ProcessHybridRetriever(None, fuzzy_term, cursor)
             return FuzzyRetriever(fuzzy_term, cursor)
 
         return StructuredRetriever(cursor)
