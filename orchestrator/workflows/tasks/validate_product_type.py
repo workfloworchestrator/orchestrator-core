@@ -91,8 +91,8 @@ def validate_product_type(product_type: str) -> State:
     "Validate all subscriptions of Product Type",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
-    authorize_callback=authorizers.internal_authorize_callback,
-    retry_auth_callback=authorizers.internal_retry_auth_callback,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_validate_product_type() -> StepList:
     return init >> validate_product_type >> done
