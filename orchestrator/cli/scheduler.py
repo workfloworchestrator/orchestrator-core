@@ -67,8 +67,30 @@ def show_schedule() -> None:
 
     in cli underscore is replaced by a dash `show-schedule`
     """
-    for task in get_all_scheduler_tasks():
-        typer.echo(f"[{task.id}] Next run: {task.next_run_time} | Trigger: {task.trigger}")
+    from rich.console import Console
+    from rich.table import Table
+
+    from orchestrator.schedules.service import get_linker_entries_by_schedule_ids
+
+    console = Console()
+
+    table = Table(title="Scheduled Tasks")
+    table.add_column("id", no_wrap=True)
+    table.add_column("name")
+    table.add_column("source")
+    table.add_column("next run time")
+    table.add_column("trigger")
+
+    scheduled_tasks = get_all_scheduler_tasks()
+    _schedule_ids = [task.id for task in scheduled_tasks]
+    api_managed = {str(i.schedule_id) for i in get_linker_entries_by_schedule_ids(_schedule_ids)}
+
+    for task in scheduled_tasks:
+        source = "API" if task.id in api_managed else "decorator"
+        run_time = str(task.next_run_time.replace(microsecond=0))
+        table.add_row(task.id, task.name, source, str(run_time), str(task.trigger))
+
+    console.print(table)
 
 
 @app.command()
