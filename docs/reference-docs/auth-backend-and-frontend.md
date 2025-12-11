@@ -34,7 +34,7 @@ WFO provides authentication based on an OIDC provider. The OIDC provider is pres
 
 #### Frontend
 
-The WFO frontend uses [NextAuth](3) to handle authentication. Authentication configuration can be found in [page/api/auth/[...nextauth].ts](4)
+The WFO frontend uses [NextAuth][3] to handle authentication. Authentication configuration can be found in [page/api/auth/[...nextauth].ts][4]
 
 **ENV variables**
 These variables need to be set for authentication to work on the frontend.
@@ -56,7 +56,7 @@ NEXTAUTH_SECRET=[SECRET] // Used by NextAuth to encrypt the JWT token
 
 With authentication turned on and these variables provided the frontend application will redirect unauthorized users to the login screen provided by the OIDC provider to request their credentials and return them to the page they tried to visit.
 
-Note: It's possible to add additional oidc providers including some that are provided by the NextAuth library like Google, Apple and others. See [NextAuthProviders](5) for more information.
+Note: It's possible to add additional oidc providers including some that are provided by the NextAuth library like Google, Apple and others. See [NextAuthProviders][5] for more information.
 
 ##### Authorization
 
@@ -219,7 +219,9 @@ class GraphqlAuthorization(ABC):
 
 ```
 
-Graphql Authorization decisions can be made based on request properties and user attributes
+Graphql Authorization decisions can be made based on request properties and user attributes.
+
+[Additional methods](#authorization-for-internal-workflows) exist for defining role-based access control for internal workflows.
 
 ### Example
 
@@ -527,6 +529,24 @@ For brevity, the `_callback` parameter suffix has been ommitted.
   </tbody>
 </table>
 
+### Authorization for internal workflows
+Users of Workflow Orchestrator can't directly access the `@workflow` decorators of tasks and workflows defined within `orchestrator-core`.
+However, authorization callbacks can still be passed via the `OrchestratorCore` class when initializing your WFO application.
+
+```python
+from orchestrator import OrchestratorCore
+
+app = OrchestratorCore()
+
+# Let foo and bar be Authorizers
+app.register_internal_authorize_callback(foo)
+app.register_internal_retry_auth_callback(bar)
+```
+
+If these callbacks are not registered, these workflows can be started and retried by all users by default.
+
+For more on application startup, see the [Settings Overview page][settings-overview].
+
 ### Examples
 Assume we have the following function that can be used to create callbacks:
 
@@ -591,6 +611,8 @@ We can now construct a variety of authorization policies.
     ```
 
     Note that we could specify `authorize_callback=allow_roles("user")` if helpful, or we can omit `authorize_callback` to fail over to any logged in user.
+
+[settings-overview]: ../../reference-docs/app/settings-overview
 
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://github.com/workfloworchestrator/example-orchestrator
