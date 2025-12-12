@@ -269,7 +269,7 @@ app.register_authorization(authorization_instance)
 app.register_graphql_authorization(graphql_authorization_instance)
 ```
 
-## Authorization and Workflows
+## Authorization and Workflows {: .beta }
 
 !!! Warning
     Role-based access control for workflows is currently in beta.

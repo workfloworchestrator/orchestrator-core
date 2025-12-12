@@ -118,6 +118,7 @@ extra_css:
     - "css/termynal.css"
     - "css/custom.css"
     - "css/style.css"
+    - "css/markers.css"
 extra_javascript:
     - "js/termynal.js"
     - "js/custom.js"
