@@ -89,8 +89,8 @@ class ProcessType:
         auth_resume, auth_retry = get_auth_callbacks(get_steps_to_evaluate_for_rbac(process), workflow)
 
         return FormUserPermissionsType(
-            retryAllowed=bool(auth_retry and auth_retry(oidc_user)),
-            resumeAllowed=bool(auth_resume and auth_resume(oidc_user)),
+            retryAllowed=bool(auth_retry and await auth_retry(oidc_user)),
+            resumeAllowed=bool(auth_resume and await auth_resume(oidc_user)),
         )
 
     @authenticated_field(description="Returns list of subscriptions of the process")  # type: ignore
