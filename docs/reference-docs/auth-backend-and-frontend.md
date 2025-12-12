@@ -269,7 +269,7 @@ app.register_authorization(authorization_instance)
 app.register_graphql_authorization(graphql_authorization_instance)
 ```
 
-## Authorization and Workflows
+## Authorization and Workflows {: .beta }
 
 !!! Warning
     Role-based access control for workflows is currently in beta.
@@ -281,43 +281,45 @@ In other words, authorization callbacks are async, take a nullable OIDCUserModel
 A table (below) is available for comparing possible configuration states with the policy that will be enforced.
 
 ### `@workflow`
-The `@workflow` decorator accepts the optional parameters `auth: Authorizer` and `retry_auth: Authorizer`.
 
-`auth` will be used to determine the authorization of a user to start the workflow.
-If `auth` is omitted, the workflow is authorized for any logged in user.
+The `@workflow` decorator accepts the optional parameters `authorize_callback: Authorizer` and `retry_auth_callback: Authorizer`.
 
-`retry_auth` will be used to determine the authorization of a user to start, resume, or retry the workflow from a failed step.
-If `retry_auth` is omitted, then `auth` is used to authorize.
+`authorize_callback` will be used to determine the authorization of a user to start the workflow.
+If `authorize_callback` is omitted, the workflow is authorized for any logged in user.
 
-(This does not percolate past an `@inputstep` that specifies `resume_auth` or `retry_auth`.)
+`retry_auth_callback` will be used to determine the authorization of a user to start, resume, or retry the workflow from a failed step.
+If `retry_auth_callback` is omitted, then `authorize_callback` is used to authorize.
+
+(This does not percolate past an `@inputstep` that specifies `resume_auth_callback` or `retry_auth_callback`.)
 
 Examples:
 
-* `auth=None, retry_auth=None`: any user may run the workflow.
-* `auth=A, retry_auth=B`: users authorized by A may start the workflow. Users authorized by B may retry on failure.
+* `authorize_callback=None, retry_auth_callback=None`: any user may run the workflow.
+* `authorize_callback=A, retry_auth_callback=B`: users authorized by A may start the workflow. Users authorized by B may retry on failure.
     * Example: starting the workflow is a decision that must be made by a product owner. Retrying can be made by an on-call member of the operations team.
-* `auth=None, retry_auth=B`: any user can start the workflow, but only users authorized by B may retry on failure.
+* `authorize_callback=None, retry_auth_callback=B`: any user can start the workflow, but only users authorized by B may retry on failure.
 
 ### `@inputstep`
-The `@inputstep` decorator accepts the optional parameters `resume_auth: Authorizer` and `retry_auth: Authorizer`.
+The `@inputstep` decorator accepts the optional parameters `resume_auth_callback: Authorizer` and `retry_auth_callback: Authorizer`.
 
-`resume_auth` will be used to determine the authorization of a user to resume the workflow when suspended at this inputstep.
-If `resume_auth` is omitted, then the workflow's `auth` will be used.
+`resume_auth_callback` will be used to determine the authorization of a user to resume the workflow when suspended at this inputstep.
+If `resume_auth_callback` is omitted, then the workflow's `authorize_callback` will be used.
 
-`retry_auth` will be used to determine the authorization of a user to retry the workflow from a failed step following the inputstep.
-If `retry_auth` is omitted, then `resume_auth` is used to authorize retries.
-If `resume_auth` is also omitted, then the workflow’s `retry_auth` is checked, and then the workflow’s `auth`.
+`retry_auth_callback` will be used to determine the authorization of a user to retry the workflow from a failed step following the inputstep.
+If `retry_auth_callback` is omitted, then `resume_auth_callback` is used to authorize retries.
+If `resume_auth_callback` is also omitted, then the workflow’s `retry_auth_callback` is checked, and then the workflow’s `authorize_callback`.
 
 In summary:
 
-* A workflow establishes `auth` for starting, resuming, or retrying.
-* The workflow can also establish `retry_auth`, which will override `auth` for retries.
-    * An inputstep can override the existing `auth` with `resume_auth` and the existing `retry_auth` with its own `retry_auth`.
+* A workflow establishes `authorize_callback` for starting, resuming, or retrying.
+* The workflow can also establish `retry_auth_callback`, which will override `authorize_callback` for retries.
+    * An inputstep can override the existing `authorize_callback` with `resume_auth_callback` and the existing `retry_auth_callback` with its own `retry_auth_callback`.
 * Subsequent inputsteps can do the same, but any None will not overwrite a previous not-None.
 
 ### Policy resolutions
 Below is an exhaustive table of how policies (implemented as callbacks `A`, `B`, `C`, and `D`)
 are prioritized in different workflow and inputstep configurations.
+For brevity, the `_callback` parameter suffix has been ommitted.
 
 <table>
   <thead>
@@ -334,7 +336,7 @@ are prioritized in different workflow and inputstep configurations.
       <th></th>
     </tr>
     <tr>
-      <th>auth</th>
+      <th>authorize</th>
       <th>retry_auth</th>
       <th>resume_auth</th>
       <th>retry_auth</th>
@@ -551,11 +553,11 @@ We can now construct a variety of authorization policies.
     Suppose we have a workflow W that needs to pause on inputstep `approval` for approval from finance. Ops (and only ops) should be able to start the workflow and retry any failed steps. Finance (and only finance) should be able to resume at the input step.
 
     ```python
-    @workflow("An expensive workflow", auth=allow_roles("ops"))
+    @workflow("An expensive workflow", authorize_callback=allow_roles("ops"))
     def W(...):
         return begin >> A >> ... >> notify_finance >> approval >> ... >> Z
 
-    @inputstep("Approval", resume_auth=allow_roles("finance"), retry_auth=allow_roles("ops"))
+    @inputstep("Approval", resume_auth_callback=allow_roles("finance"), retry_auth_callback=allow_roles("ops"))
     def approval(...):
         ...
     ```
@@ -568,27 +570,27 @@ We can now construct a variety of authorization policies.
     Dev can start the workflow and retry steps prior to S. Once step S is reached, Platform (and only Platform) can resume the workflow and retry later failed steps.
 
     ```python
-    @workflow("An expensive workflow", auth=allow_roles("dev"))
+    @workflow("An expensive workflow", authorize_callback=allow_roles("dev"))
     def W(...):
         return begin >> A >> ... >> notify_platform >> handoff >> ... >> Z
 
-    @inputstep("Hand-off", resume_auth=allow_roles("platform"))
+    @inputstep("Hand-off", resume_auth_callback=allow_roles("platform"))
     def handoff(...):
         ...
     ```
-    Notice that default behaviors let us ignore `retry_auth` arguments in both decorators.
+    Notice that default behaviors let us ignore `retry_auth_callback` arguments in both decorators.
 
 #### Restricted Retries Model
 !!!example
     Suppose we have a workflow that anyone can run, but with steps that should only be retried by users with certain backend access.
 
     ```python
-    @workflow("A workflow for any user", retry_auth=allow_roles("admin"))
+    @workflow("A workflow for any user", retry_auth_callback=allow_roles("admin"))
     def W(...):
         return begin >> A >> ... >> S >> ... >> Z
     ```
 
-    Note that we could specify `auth=allow_roles("user")` if helpful, or we can omit `auth` to fail open to any logged in user.
+    Note that we could specify `authorize_callback=allow_roles("user")` if helpful, or we can omit `authorize_callback` to fail over to any logged in user.
 
 [1]: https://github.com/workfloworchestrator/example-orchestrator-ui
 [2]: https://github.com/workfloworchestrator/example-orchestrator

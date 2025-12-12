@@ -1,5 +1,30 @@
 # Command Line Interface Commands
 
+This page documents CLI commands available in orchestrator-core.
+
+The syntax of a CLI command is:
+
+```
+python main.py <command> <sub_command>
+```
+
+Where:
+
+- `<command>` is one of the top-level headings in this page
+- `<sub_command>` is one of the secondary headings in this page
+
+Some examples:
+
+```
+python main.py db migrate_tasks
+
+python main.py generate workflows
+
+python main.py scheduler show-schedule
+```
+
+Each command can also be run with `--help` to get information directly in the CLI.
+
 Top level options:
 
 `--install-completion [bash|zsh|fish|powershell|pwsh]`
@@ -17,14 +42,15 @@ Interact with the application database. By default, does nothing, specify `main.
 
 ::: orchestrator.cli.database
     options:
-      show_signature: false
-      show_root_heading: false
       docstring_style: google
+      separate_signature: false
       show_docstring_parameters: false
       show_docstring_returns: false
+      show_root_heading: false
       show_root_toc_entry: false
-      show_symbol_type_toc: false
+      show_signature: false
       show_symbol_type_heading: false
+      show_symbol_type_toc: false
       members:
         - downgrade
         - heads
@@ -432,6 +458,8 @@ the code for the blocks used in other blocks should be generated first.
 
 ### config file
 
+<!-- TODO: this should be moved to Guides -->
+
 An example of a simple product configuration:
 
 ```yaml
@@ -742,17 +770,22 @@ None]
 
 ## scheduler
 
-Access all the scheduler functions.
+Commands to interact with the scheduler and scheduled jobs.
 
 ::: orchestrator.cli.scheduler
     options:
-        heading_level: 3
-        members:
-        - run
-        - force
-
-### show-schedule
-
-::: orchestrator.cli.scheduler.show_schedule
-    options:
-        heading_level: 4
+      docstring_style: google
+      separate_signature: false
+      show_docstring_parameters: false
+      show_docstring_returns: false
+      show_root_heading: false
+      show_root_toc_entry: false
+      show_signature: false
+      show_symbol_type_heading: false
+      show_symbol_type_toc: false
+      heading_level: 3
+      members:
+      - "run"
+      - "force"
+      - "show_schedule"
+      - "load_initial_schedule"

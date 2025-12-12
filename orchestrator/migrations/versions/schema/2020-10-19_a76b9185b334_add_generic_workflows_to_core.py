@@ -17,6 +17,7 @@ down_revision = "c112305b07d3"
 branch_labels = None
 depends_on = None
 
+# NOTE: this migration forgot to insert these workflows with is_task=true. Make sure to correct that if you copy this.
 workflows = [
     {"name": "modify_note", "description": "Modify Note", "workflow_id": uuid4(), "target": "MODIFY"},
     {"name": "task_clean_up_tasks", "description": "Clean up old tasks", "workflow_id": uuid4(), "target": "SYSTEM"},

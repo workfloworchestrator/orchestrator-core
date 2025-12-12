@@ -17,6 +17,7 @@ down_revision = "3323bcb934e7"
 branch_labels = None
 depends_on = None
 
+# NOTE: this migration forgot to insert these workflows with is_task=true. Make sure to correct that if you copy this.
 workflows = [
     {"name": "task_validate_products", "description": "Validate products", "workflow_id": uuid4(), "target": "SYSTEM"},
 ]
