@@ -184,9 +184,10 @@ nav:
           #       - Workflows
           #       - Tasks
           - Upgrade Guides:
-                - 2.x: guides/upgrading/2.0.md
-                - 3.x: guides/upgrading/3.0.md
-                - 4.x: guides/upgrading/4.0.md
+                - v2.x: guides/upgrading/2.0.md
+                - v3.x: guides/upgrading/3.0.md
+                - v4.x: guides/upgrading/4.0.md
+                - v4.7: guides/upgrading/4.7.md
     - Reference Documentation:
           - TL;DR: reference-docs/tldr.md
           - API docs:
