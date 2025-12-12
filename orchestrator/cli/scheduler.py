@@ -36,7 +36,13 @@ app: typer.Typer = typer.Typer()
 
 @app.command()
 def run() -> None:
-    """Start scheduler and loop eternally to keep thread alive."""
+    """Starts the scheduler in the foreground.
+
+    While running, this process will:
+
+      * Periodically wake up when the next schedule is due for execution, and run it
+      * Process schedule changes made through the schedule API
+    """
 
     def _get_scheduled_task_item_from_queue(redis_conn: Redis) -> tuple[str, bytes] | None:
         """Get an item from the Redis Queue for scheduler tasks."""
@@ -63,10 +69,7 @@ def run() -> None:
 
 @app.command()
 def show_schedule() -> None:
-    """Show the currently configured schedule.
-
-    in cli underscore is replaced by a dash `show-schedule`
-    """
+    """The `show-schedule` command shows an overview of the scheduled jobs."""
     from rich.console import Console
     from rich.table import Table
 
@@ -95,7 +98,16 @@ def show_schedule() -> None:
 
 @app.command()
 def force(task_id: str) -> None:
-    """Force the execution of (a) scheduler(s) based on a task_id."""
+    """Force the execution of (a) scheduler(s) based on a schedule ID.
+
+    Use the `show-schedule` command to determine the ID of the schedule to execute.
+
+    CLI Arguments:
+        ```sh
+        Arguments:
+            SCHEDULE_ID  ID of the schedule to execute
+        ```
+    """
     task = get_scheduler_task(task_id)
 
     if not task:
@@ -113,7 +125,18 @@ def force(task_id: str) -> None:
 
 @app.command()
 def load_initial_schedule() -> None:
-    """Load the initial schedule into the scheduler."""
+    """The `load-initial-schedule` command loads the initial schedule using the scheduler API.
+
+    The initial schedules are:
+      - Task Resume Workflows
+      - Task Clean Up Tasks
+      - Task Validate Subscriptions
+
+    !!! Warning
+        This command is not idempotent.
+
+        Please run `show-schedule` first to determine if the schedules already exist.
+    """
     initial_schedules = [
         {
             "name": "Task Resume Workflows",
