@@ -1090,7 +1090,20 @@ def test_unauthorized_retrystep_retry(test_client, process_on_unretriable_retrys
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def test_internal_authorize_callback(test_client, fastapi_app):
+@pytest.fixture
+def fastapi_app_for_auth_callbacks(fastapi_app):
+    """Reset auth callbacks after each fixture use.
+
+    Fixture fastapi_app has scope "session", so its cleanup won't run between tests.
+    This wraps the session fixture with a per-test fixture to ensure these callbacks are reset.
+    """
+    yield fastapi_app
+    # Clear internal RBAC settings
+    fastapi_app.register_internal_authorize_callback(None)
+    fastapi_app.register_internal_retry_auth_callback(None)
+
+
+def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks):
     """Test RBAC callbacks can restrict access to internal workflows."""
 
     async def disallow(_: OIDCUserModel | None = None) -> bool:
@@ -1105,7 +1118,7 @@ def test_internal_authorize_callback(test_client, fastapi_app):
         assert HTTPStatus.CREATED == response.status_code
 
         # Test that disallow now blocks us
-        fastapi_app.register_internal_authorize_callback(disallow)
+        fastapi_app_for_auth_callbacks.register_internal_authorize_callback(disallow)
         response = test_client.post("/api/processes/task_clean_up_tasks", json=[{}])
         assert HTTPStatus.FORBIDDEN == response.status_code
 
@@ -1134,7 +1147,7 @@ def internal_process_on_retry_step():
         yield process_id
 
 
-def test_internal_retry_auth_callback(test_client, fastapi_app, internal_process_on_retry_step):
+def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callbacks, internal_process_on_retry_step):
     """Test that RBAC callbacks can manage access to retrying internal workflows."""
 
     async def disallow(_: OIDCUserModel | None = None) -> bool:
@@ -1148,11 +1161,11 @@ def test_internal_retry_auth_callback(test_client, fastapi_app, internal_process
         mock_start_process.return_value = uuid4()
 
         # Start with disallow. This should block us.
-        fastapi_app.register_internal_retry_auth_callback(disallow)
+        fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(disallow)
         response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
         assert HTTPStatus.FORBIDDEN == response.status_code
 
         # Update to allow. This should succeed.
-        fastapi_app.register_internal_retry_auth_callback(allow)
+        fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(allow)
         response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
         assert HTTPStatus.NO_CONTENT == response.status_code
