@@ -14,10 +14,16 @@
 import pytest
 
 from orchestrator.db import db
-from orchestrator.search.aggregations import AggregationType, CountAggregation
+from orchestrator.search.aggregations import (
+    AggregationType,
+    CountAggregation,
+    TemporalGrouping,
+    TemporalPeriod,
+)
 from orchestrator.search.core.types import BooleanOperator, EntityType, FilterOp, UIType
 from orchestrator.search.filters import EqualityFilter, FilterTree, PathFilter
 from orchestrator.search.query import engine
+from orchestrator.search.query.mixins import OrderBy, OrderDirection
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, ExportQuery, SelectQuery
 from orchestrator.types import SubscriptionLifecycle
 
@@ -172,6 +178,61 @@ class TestAggregationQueryBuilder:
         assert len(response.results) == 1, "Should have 1 insync group (all active are insync=true)"
         assert response.results[0].group_values["insync"] == "true"
         assert response.results[0].aggregations["count"] == 21
+
+    @pytest.mark.asyncio
+    async def test_aggregate_with_cumulative(self, indexed_subscriptions):
+        """Test cumulative aggregation with temporal grouping.
+
+        Test data: 22 subscriptions distributed across 2024 (2 per month for Jan-Oct, 1 each for Nov-Dec).
+        Verifies that cumulative window functions produce correct running totals.
+        """
+        query = AggregateQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            temporal_group_by=[
+                TemporalGrouping(field="subscription.start_date", period=TemporalPeriod.MONTH),
+            ],
+            aggregations=[
+                CountAggregation(type=AggregationType.COUNT, alias="count"),
+            ],
+            cumulative=True,
+        )
+
+        response = await engine.execute_aggregation(query, db.session)
+
+        assert len(response.results) == 12, f"Should have 12 monthly groups, got {len(response.results)}"
+
+        expected_counts = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]  # Jan through Dec
+        expected_cumulative = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 21, 22]  # Running totals
+
+        for i, result in enumerate(response.results):
+            assert (
+                result.aggregations["count"] == expected_counts[i]
+            ), f"Month {i+1}: expected count {expected_counts[i]}, got {result.aggregations['count']}"
+            assert (
+                result.aggregations["count_cumulative"] == expected_cumulative[i]
+            ), f"Month {i+1}: expected cumulative {expected_cumulative[i]}, got {result.aggregations['count_cumulative']}"
+
+    @pytest.mark.asyncio
+    async def test_count_with_ordering(self, indexed_subscriptions):
+        """Test COUNT query with ORDER BY."""
+        query = CountQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            group_by=["status"],
+            order_by=[OrderBy(field="count", direction=OrderDirection.DESC)],
+        )
+
+        response = await engine.execute_aggregation(query, db.session)
+
+        # Should be ordered by count descending (active=21, provisioning=1)
+        assert len(response.results) == 2, "Should have 2 status groups"
+        assert (
+            response.results[0].group_values["status"] == SubscriptionLifecycle.ACTIVE.value
+        ), "First should be active"
+        assert response.results[0].aggregations["count"] == 21, "Active count should be 21"
+        assert (
+            response.results[1].group_values["status"] == SubscriptionLifecycle.PROVISIONING.value
+        ), "Second should be provisioning"
+        assert response.results[1].aggregations["count"] == 1, "Provisioning count should be 1"
 
 
 class TestExportQueryBuilder:
