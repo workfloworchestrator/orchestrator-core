@@ -60,14 +60,12 @@ jobs:
           uv sync --all-extras --dev
 
       - name: Run pytest LLM integration tests
+        run: CACHE_URI=redis://redis DATABASE_URI=postgresql://nwa:nwa@postgres/orchestrator-core-test uv run pytest test/integration_tests/search -v -rs
         env:
-          CACHE_URI: redis://redis
-          DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
           ENVIRONMENT: TESTING
           PYTHONPATH: .
           SEARCH_ENABLED: true
-        run: |
-          uv run pytest test/integration_tests/search -v -rs
+          REDIS_HOST: redis
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3
