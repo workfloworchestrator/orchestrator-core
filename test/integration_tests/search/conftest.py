@@ -18,11 +18,20 @@ import pytest
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.db.models import AiSearchIndex
-from orchestrator.llm_settings import llm_settings
 from orchestrator.search.core.types import EntityType
 
 from .fixtures import TEST_PRODUCT, TEST_SUBSCRIPTIONS
 from .helpers import index_subscription, load_ground_truth
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Ignore collecting tests from this directory when search is disabled."""
+    from orchestrator.llm_settings import llm_settings
+
+    # Skip this entire directory if search is disabled
+    if not llm_settings.SEARCH_ENABLED:
+        return True
+    return False
 
 
 def pytest_addoption(parser):
@@ -126,13 +135,6 @@ def maybe_run_benchmark(request, worker_id, database):
         os._exit(1)
 
     os._exit(0)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def check_search_enabled():
-    """Skip all tests in this directory if search is not enabled."""
-    if not llm_settings.SEARCH_ENABLED:
-        pytest.skip("Search is not enabled, skipping search integration tests")
 
 
 @pytest.fixture(scope="session")
