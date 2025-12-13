@@ -2484,7 +2484,7 @@ requires-dist = [
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
     { name = "sqlalchemy", specifier = "==2.0.45" },
     { name = "sqlalchemy-utils", specifier = "==0.42.0" },
-    { name = "strawberry-graphql", specifier = ">=0.281.0,<0.285.0" },
+    { name = "strawberry-graphql", specifier = ">=0.287.3,<0.288.0" },
     { name = "structlog", specifier = ">=25.4.0" },
     { name = "tabulate", specifier = "==0.9.0" },
     { name = "typer", specifier = "==0.20.0" },
@@ -4007,7 +4007,7 @@ wheels = [
 
 [[package]]
 name = "strawberry-graphql"
-version = "0.284.4"
+version = "0.287.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
@@ -4016,9 +4016,9 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/24/28cf6baf942bb6553b7d6912f40c616e38af10918f5dbfce12672d5e6e1d/strawberry_graphql-0.284.4.tar.gz", hash = "sha256:36e87a1921bbbe16426cfb9342ce86511c4d1fab5bcbf1fab40b01c15a770206", size = 210314, upload-time = "2025-11-10T22:29:41.836Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/45/5a466ecd7503ad165ed5050e694f3a871b4df085cfaff5c357259bef0ccc/strawberry_graphql-0.287.3.tar.gz", hash = "sha256:c81126cc75102aa32417048f074429d6c5c8d096424aa939fdb8827b8c5f84a9", size = 211998, upload-time = "2025-12-12T11:50:23.266Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/28/8bfddae615973acbd90b0e83586af95a880c9efaec992670481875aaa086/strawberry_graphql-0.284.4-py3-none-any.whl", hash = "sha256:4e3ed126e548e3a5821191c6a89f1dedeea1e034de8389eda26839425227ab14", size = 307069, upload-time = "2025-11-10T22:29:39.302Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/8e/ffd20e179cc8218465599922660323f453c7b955aca2b909e5b86ba61eb0/strawberry_graphql-0.287.3-py3-none-any.whl", hash = "sha256:2bb1f9b122ef1213f82f01cf27a095eb0776fda78e12af9e60c54de6e543797c", size = 309183, upload-time = "2025-12-12T11:50:20.574Z" },
 ]
 
 [[package]]
