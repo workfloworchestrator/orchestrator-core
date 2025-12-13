@@ -29,16 +29,10 @@ pytestmark = pytest.mark.search
 
 def pytest_ignore_collect(collection_path, config):
     """Ignore collecting tests from this directory when search is disabled."""
-    import os
     from orchestrator.llm_settings import llm_settings
-
-    search_env = os.getenv("SEARCH_ENABLED", "NOT_SET")
-    print(f"\n[pytest_ignore_collect] SEARCH_ENABLED env var: {search_env}")
-    print(f"[pytest_ignore_collect] llm_settings.SEARCH_ENABLED: {llm_settings.SEARCH_ENABLED}")
 
     # Skip this entire directory if search is disabled
     if not llm_settings.SEARCH_ENABLED:
-        print("[pytest_ignore_collect] SKIPPING - search is disabled")
         return True
     return False
 

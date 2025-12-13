@@ -35,7 +35,7 @@ EMBEDDING_DIMENSION_FIELD = Annotated[
 
 class LLMSettings(BaseSettings):
     # Feature flags for LLM functionality
-    SEARCH_ENABLED: bool = True  # Enable search/indexing with embeddings
+    SEARCH_ENABLED: bool = False  # Enable search/indexing with embeddings
     AGENT_ENABLED: bool = False  # Enable agentic functionality
 
     # Pydantic-ai Agent settings
