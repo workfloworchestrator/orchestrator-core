@@ -64,6 +64,10 @@ def get_workflow_by_name(workflow_name: str) -> WorkflowTable | None:
     return db.session.scalar(select(WorkflowTable).where(WorkflowTable.name == workflow_name))
 
 
+def get_workflow_by_workflow_id(workflow_id: str) -> WorkflowTable | None:
+    return db.session.scalar(select(WorkflowTable).where(WorkflowTable.workflow_id == workflow_id))
+
+
 def get_validation_product_workflows_for_subscription(
     subscription: SubscriptionTable,
 ) -> list:
