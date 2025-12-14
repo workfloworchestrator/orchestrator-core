@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
+from pydantic import ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -426,7 +427,10 @@ async def set_grouping(
     if order_by is not None:
         update_dict["order_by"] = order_by
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+    try:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+    except ValidationError as e:
+        raise ModelRetry(str(e))
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -459,7 +463,10 @@ async def set_aggregations(
     except QueryValidationError as e:
         raise ModelRetry(f"{str(e)}")
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+    try:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+    except ValidationError as e:
+        raise ModelRetry(str(e))
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -498,7 +505,10 @@ async def set_temporal_grouping(
     if order_by is not None:
         update_dict["order_by"] = order_by
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+    try:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+    except ValidationError as e:
+        raise ModelRetry(str(e))
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
