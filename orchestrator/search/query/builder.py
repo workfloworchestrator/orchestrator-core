@@ -291,10 +291,18 @@ def _apply_ordering(
     if query.order_by:
         order_expressions = []
         for instruction in query.order_by:
-            # Try direct field name first, then normalized alias
+            # 1) exact match
             col = columns_by_key.get(instruction.field)
             if col is None:
-                col = columns_by_key.get(BaseAggregation.field_to_alias(instruction.field))
+                # 2) temporal alias,
+                for tg in query.temporal_group_by or []:
+                    if instruction.field == tg.field or instruction.field == tg.alias:
+                        col = columns_by_key.get(tg.alias)
+                        if col is not None:
+                            break
+                if col is None:
+                    # 3) normalized field path
+                    col = columns_by_key.get(BaseAggregation.field_to_alias(instruction.field))
             if col is None:
                 raise ValueError(f"Cannot order by '{instruction.field}'; column not found.")
             order_expressions.append(col.desc() if instruction.direction == OrderDirection.DESC else col.asc())
