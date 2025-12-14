@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
+from pydantic import ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -39,13 +40,15 @@ from orchestrator.search.filters import FilterTree
 from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
 from orchestrator.search.query.export import fetch_export_data
+from orchestrator.search.query.mixins import OrderBy
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query, SelectQuery
 from orchestrator.search.query.results import AggregationResponse, AggregationResult, ExportData, VisualizationType
 from orchestrator.search.query.state import QueryState
 from orchestrator.search.query.validation import (
     validate_aggregation_field,
-    validate_filter_path,
     validate_filter_tree,
+    validate_grouping_fields,
+    validate_order_by_fields,
     validate_temporal_grouping_field,
 )
 from orchestrator.settings import app_settings
@@ -404,20 +407,30 @@ async def prepare_export(
 async def set_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     group_by_paths: list[str],
+    order_by: list[OrderBy] | None = None,
 ) -> StateSnapshotEvent:
     """Set which field paths to group results by for aggregation.
 
     Only used with COUNT or AGGREGATE actions. Paths must exist in the schema; use discover_filter_paths to verify.
-    """
-    for path in group_by_paths:
-        field_type = validate_filter_path(path)
-        if field_type is None:
-            raise ModelRetry(
-                f"Path '{path}' not found in database schema. "
-                f"Use discover_filter_paths(['{path.split('.')[-1]}']) to find valid paths."
-            )
+    Optionally specify ordering for the grouped results.
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"group_by": group_by_paths})
+    For order_by: You can order by grouping field paths OR aggregation aliases (e.g., 'count').
+    Grouping field paths will be validated; aggregation aliases cannot be validated until execution.
+    """
+    try:
+        validate_grouping_fields(group_by_paths)
+        validate_order_by_fields(order_by)
+    except PathNotFoundError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+
+    update_dict: dict[str, Any] = {"group_by": group_by_paths}
+    if order_by is not None:
+        update_dict["order_by"] = order_by
+
+    try:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+    except ValidationError as e:
+        raise ModelRetry(str(e))
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -434,16 +447,26 @@ async def set_aggregations(
     """Define what aggregations to compute over the matching records.
 
     Only used with AGGREGATE action. See Aggregation model (CountAggregation, FieldAggregation) for structure and field requirements.
+
     """
     # Validate field paths for FieldAggregations
     try:
         for agg in aggregations:
             if isinstance(agg, FieldAggregation):
                 validate_aggregation_field(agg.type, agg.field)
-    except ValueError as e:
-        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+    except PathNotFoundError as e:
+        raise ModelRetry(
+            f"{str(e)} "
+            f"You MUST call discover_filter_paths first to find valid fields. "
+            f"If the field truly doesn't exist, inform the user that this data is not available."
+        )
+    except QueryValidationError as e:
+        raise ModelRetry(f"{str(e)}")
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+    try:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+    except ValidationError as e:
+        raise ModelRetry(str(e))
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
@@ -456,19 +479,36 @@ async def set_aggregations(
 async def set_temporal_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     temporal_groups: list[TemporalGrouping],
+    cumulative: bool = False,
+    order_by: list[OrderBy] | None = None,
 ) -> StateSnapshotEvent:
     """Set temporal grouping to group datetime fields by time periods.
 
     Only used with COUNT or AGGREGATE actions. See TemporalGrouping model for structure, periods, and examples.
+    Optionally enable cumulative aggregations (running totals) and specify ordering.
+
+    For order_by: You can order by temporal field paths OR aggregation aliases (e.g., 'count').
+    Temporal field paths will be validated; aggregation aliases cannot be validated until execution.
     """
-    # Validate that fields exist and are datetime types
     try:
         for tg in temporal_groups:
             validate_temporal_grouping_field(tg.field)
-    except ValueError as e:
+        validate_order_by_fields(order_by)
+    except PathNotFoundError as e:
+        raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+    except QueryValidationError as e:
         raise ModelRetry(f"{str(e)} Use discover_filter_paths to find datetime fields.")
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"temporal_group_by": temporal_groups})
+    update_dict: dict[str, Any] = {"temporal_group_by": temporal_groups}
+    if cumulative:
+        update_dict["cumulative"] = cumulative
+    if order_by is not None:
+        update_dict["order_by"] = order_by
+
+    try:
+        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+    except ValidationError as e:
+        raise ModelRetry(str(e))
 
     return StateSnapshotEvent(
         type=EventType.STATE_SNAPSHOT,
