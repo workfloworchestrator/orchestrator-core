@@ -140,18 +140,22 @@ def save_ground_truth(entities: list[dict], queries: list[dict]) -> None:
         json.dump(ground_truth, f, indent=2)
 
 
-def index_subscription(subscription: SubscriptionTable, embedding: list[float], session) -> None:
-    """Index a single subscription into AiSearchIndex with three records.
+def index_subscription(
+    subscription: SubscriptionTable, embedding: list[float], session, subscription_index: int = 1
+) -> None:
+    """Index a single subscription into AiSearchIndex with multiple records.
 
     Creates:
     - description field with embedding (for semantic search)
     - status field without embedding (for filtering)
     - insync field without embedding (for filtering)
+    - start_date field without embedding (for temporal grouping)
 
     Args:
         subscription: The subscription to index
         embedding: The embedding vector for the subscription description
         session: The SQLAlchemy session to use
+        subscription_index: Index of subscription (1-based) used to generate test dates
     """
     # Index description with embedding
     index_record = AiSearchIndex(
@@ -191,3 +195,19 @@ def index_subscription(subscription: SubscriptionTable, embedding: list[float], 
         embedding=None,
     )
     session.add(insync_record)
+
+    # Cycle through all 12 months: index 1-12 -> Jan-Dec, 13-22 -> Jan-Oct
+    month = ((subscription_index - 1) % 12) + 1
+    start_date = f"2024-{month:02d}-01T00:00:00"
+
+    start_date_record = AiSearchIndex(
+        entity_type=EntityType.SUBSCRIPTION.value,
+        entity_id=subscription.subscription_id,
+        entity_title=subscription.description[:50],
+        path=Ltree("subscription.start_date"),
+        value=start_date,
+        value_type=FieldType.DATETIME.value,
+        content_hash=f"test_hash_start_date_{subscription.subscription_id}",
+        embedding=None,
+    )
+    session.add(start_date_record)

@@ -25,6 +25,7 @@ from orchestrator.db.models import AiSearchIndex
 from orchestrator.search.aggregations import AggregationType, BaseAggregation, CountAggregation
 from orchestrator.search.core.types import EntityType, FieldType, FilterOp, UIType
 from orchestrator.search.filters import LtreeFilter
+from orchestrator.search.query.mixins import OrderDirection
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, Query
 
 
@@ -181,7 +182,8 @@ def _build_pivot_cte(base_query: Select, pivot_fields: list[str]) -> CTE:
 
 
 def _build_grouping_columns(
-    query: CountQuery | AggregateQuery, pivot_cte: CTE
+    query: CountQuery | AggregateQuery,
+    pivot_cte: CTE,
 ) -> tuple[list[Any], list[Any], list[str]]:
     """Build GROUP BY columns and their SELECT columns.
 
@@ -244,6 +246,76 @@ def _build_aggregation_columns(query: CountQuery | AggregateQuery, pivot_cte: CT
     return [count_agg.to_expression(pivot_cte.c.entity_id)]
 
 
+def _apply_cumulative_aggregations(
+    stmt: Select,
+    query: CountQuery | AggregateQuery,
+    group_column_names: list[str],
+    aggregation_columns: list[Label],
+) -> Select:
+    """Add cumulative aggregation columns."""
+
+    # At this point, cumulative validation has already happened at query build time
+    # in GroupingMixin.validate_grouping_constraints, so we know:
+    # temporal_group_by exists and has exactly 1 element when cumulative=True
+    if not query.cumulative or not aggregation_columns or not query.temporal_group_by:
+        return stmt
+
+    temporal_alias = query.temporal_group_by[0].alias
+
+    base_subquery = stmt.subquery()
+    partition_cols = [base_subquery.c[name] for name in group_column_names if name != temporal_alias]
+    order_col = base_subquery.c[temporal_alias]
+
+    base_columns = [base_subquery.c[col] for col in base_subquery.c.keys()]
+
+    cumulative_columns = []
+    for agg_col in aggregation_columns:
+        cumulative_alias = f"{agg_col.key}_cumulative"
+        over_kwargs: dict[str, Any] = {"order_by": order_col}
+        if partition_cols:
+            over_kwargs["partition_by"] = partition_cols
+        cumulative_expr = func.sum(base_subquery.c[agg_col.key]).over(**over_kwargs).label(cumulative_alias)
+        cumulative_columns.append(cumulative_expr)
+
+    return select(*(base_columns + cumulative_columns)).select_from(base_subquery)
+
+
+def _apply_ordering(
+    stmt: Select,
+    query: CountQuery | AggregateQuery,
+    group_column_names: list[str],
+) -> Select:
+    """Apply ordering instructions to the SELECT statement."""
+    columns_by_key = {col.key: col for col in stmt.selected_columns}
+
+    if query.order_by:
+        order_expressions = []
+        for instruction in query.order_by:
+            # 1) exact match
+            col = columns_by_key.get(instruction.field)
+            if col is None:
+                # 2) temporal alias,
+                for tg in query.temporal_group_by or []:
+                    if instruction.field == tg.field or instruction.field == tg.alias:
+                        col = columns_by_key.get(tg.alias)
+                        if col is not None:
+                            break
+                if col is None:
+                    # 3) normalized field path
+                    col = columns_by_key.get(BaseAggregation.field_to_alias(instruction.field))
+            if col is None:
+                raise ValueError(f"Cannot order by '{instruction.field}'; column not found.")
+            order_expressions.append(col.desc() if instruction.direction == OrderDirection.DESC else col.asc())
+        return stmt.order_by(*order_expressions)
+
+    if query.temporal_group_by:
+        # Default ordering by all grouping columns (ascending)
+        order_expressions = [columns_by_key[col_name].asc() for col_name in group_column_names]
+        return stmt.order_by(*order_expressions)
+
+    return stmt
+
+
 def build_simple_count_query(base_query: Select) -> Select:
     """Build a simple count query without grouping.
 
@@ -282,7 +354,7 @@ def build_aggregation_query(query: CountQuery | AggregateQuery, base_query: Sele
     if group_cols:
         stmt = stmt.group_by(*group_cols)
 
-    if query.temporal_group_by:
-        stmt = stmt.order_by(*group_cols)
+    stmt = _apply_cumulative_aggregations(stmt, query, group_col_names, agg_cols)
+    stmt = _apply_ordering(stmt, query, group_col_names)
 
     return stmt, group_col_names

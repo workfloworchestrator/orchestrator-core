@@ -31,6 +31,7 @@ from orchestrator.search.query.exceptions import (
     InvalidLtreePatternError,
     PathNotFoundError,
 )
+from orchestrator.search.query.mixins import OrderBy
 
 
 def is_filter_compatible_with_field_type(filter_condition: FilterCondition, field_type: FieldType) -> bool:
@@ -207,3 +208,45 @@ def validate_temporal_grouping_field(field_path: str) -> None:
     # Validate field type is datetime
     if field_type_str != FieldType.DATETIME.value:
         raise IncompatibleTemporalGroupingTypeError(field_path, field_type_str)
+
+
+def validate_grouping_fields(group_by_paths: list[str]) -> None:
+    """Validate that all grouping field paths exist in the database.
+
+    Args:
+        group_by_paths: List of field paths to group by
+
+    Raises:
+        PathNotFoundError: If any path doesn't exist in the database
+    """
+    for path in group_by_paths:
+        field_type = validate_filter_path(path)
+        if field_type is None:
+            raise PathNotFoundError(path)
+
+
+def validate_order_by_fields(order_by: list[OrderBy] | None) -> None:
+    """Validate that order_by field paths exist in the database.
+
+    Args:
+        order_by: List of ordering instructions, or None
+
+    Raises:
+        PathNotFoundError: If a field path doesn't exist in the database
+
+    Note:
+        Only validates fields that appear to be paths (contain dots).
+        Aggregation aliases (no dots, like 'count') are skipped as they
+        cannot be validated until query execution time.
+    """
+    if order_by is None:
+        return
+
+    for order_instr in order_by:
+        # Skip aggregation aliases (no dots, e.g., 'count', 'revenue')
+        if "." not in order_instr.field:
+            continue
+
+        field_type = validate_filter_path(order_instr.field)
+        if field_type is None:
+            raise PathNotFoundError(order_instr.field)
