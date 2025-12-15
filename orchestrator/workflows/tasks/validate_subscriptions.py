@@ -24,7 +24,7 @@ from orchestrator.services.workflows import (
     get_validation_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
 )
-from orchestrator.settings import app_settings
+from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.workflow import StepList, init, step, workflow
 
@@ -32,6 +32,8 @@ logger = structlog.get_logger(__name__)
 
 
 task_semaphore = BoundedSemaphore(value=2)
+
+authorizers = get_authorizers()
 
 
 @step("Validate subscriptions")
@@ -56,6 +58,11 @@ def validate_subscriptions() -> None:
         start_validation_workflow_for_workflows(subscription=subscription, workflows=validation_product_workflows)
 
 
-@workflow("Validate subscriptions", target=Target.SYSTEM)
+@workflow(
+    "Validate subscriptions",
+    target=Target.SYSTEM,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
+)
 def task_validate_subscriptions() -> StepList:
     return init >> validate_subscriptions

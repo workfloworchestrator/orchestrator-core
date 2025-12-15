@@ -25,10 +25,12 @@ from orchestrator.services.workflows import (
     get_validation_product_workflows_for_subscription,
     start_validation_workflow_for_workflows,
 )
+from orchestrator.settings import get_authorizers
 from orchestrator.targets import Target
 from orchestrator.workflow import StepList, done, init, step, workflow
 from pydantic_forms.types import FormGenerator, State
 
+authorizers = get_authorizers()
 logger = structlog.get_logger(__name__)
 
 
@@ -86,7 +88,11 @@ def validate_product_type(product_type: str) -> State:
 
 
 @workflow(
-    "Validate all subscriptions of Product Type", target=Target.SYSTEM, initial_input_form=initial_input_form_generator
+    "Validate all subscriptions of Product Type",
+    target=Target.SYSTEM,
+    initial_input_form=initial_input_form_generator,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_validate_product_type() -> StepList:
     return init >> validate_product_type >> done

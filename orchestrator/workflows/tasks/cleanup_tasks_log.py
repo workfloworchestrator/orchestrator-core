@@ -17,11 +17,13 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, db
-from orchestrator.settings import app_settings
+from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
 from pydantic_forms.types import State
+
+authorizers = get_authorizers()
 
 
 @step("Clean up completed tasks older than TASK_LOG_RETENTION_DAYS")
@@ -41,6 +43,11 @@ def remove_tasks() -> State:
     return {"tasks_removed": count}
 
 
-@workflow("Clean up old tasks", target=Target.SYSTEM)
+@workflow(
+    "Clean up old tasks",
+    target=Target.SYSTEM,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
+)
 def task_clean_up_tasks() -> StepList:
     return init >> remove_tasks >> done

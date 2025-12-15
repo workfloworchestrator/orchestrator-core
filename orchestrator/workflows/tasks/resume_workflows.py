@@ -17,10 +17,12 @@ from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, db
 from orchestrator.services import processes
+from orchestrator.settings import get_authorizers
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
 from pydantic_forms.types import State, UUIDstr
 
+authorizers = get_authorizers()
 logger = structlog.get_logger(__name__)
 
 
@@ -110,6 +112,8 @@ def restart_created_workflows(created_state_process_ids: list[UUIDstr]) -> State
 @workflow(
     "Resume all workflows that are stuck on tasks with the status 'waiting', 'created' or 'resumed'",
     target=Target.SYSTEM,
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_resume_workflows() -> StepList:
     return init >> find_waiting_workflows >> resume_found_workflows >> restart_created_workflows >> done

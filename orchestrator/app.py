@@ -57,7 +57,8 @@ from orchestrator.graphql.types import ScalarOverrideType, StrawberryModelType
 from orchestrator.log_config import LOGGER_OVERRIDES
 from orchestrator.metrics import ORCHESTRATOR_METRICS_REGISTRY, initialize_default_metrics
 from orchestrator.services.process_broadcast_thread import ProcessDataBroadcastThread
-from orchestrator.settings import AppSettings, ExecutorType, app_settings
+from orchestrator.settings import AppSettings, ExecutorType, app_settings, get_authorizers
+from orchestrator.utils.auth import Authorizer
 from orchestrator.version import GIT_COMMIT_HASH
 from orchestrator.websocket import init_websocket_manager
 from pydantic_forms.exception_handlers.fastapi import form_error_handler
@@ -310,6 +311,38 @@ class OrchestratorCore(FastAPI):
             None
         """
         self.auth_manager.graphql_authorization = graphql_authorization_instance
+
+    def register_internal_authorize_callback(self, callback: Authorizer) -> None:
+        """Registers the authorize_callback for WFO's internal workflows and tasks.
+
+        Since RBAC policies are applied to workflows via decorator, this enables registration of callbacks
+        for workflows defined in orchestrator-core itself.
+        However, this assignment MUST be made before any workflows are run.
+
+        Args:
+            callback (Authorizer): The async Authorizer to run for the `authorize_callback` argument of internal workflows.
+
+        Returns:
+            None
+        """
+        authorizers = get_authorizers()
+        authorizers.internal_authorize_callback = callback
+
+    def register_internal_retry_auth_callback(self, callback: Authorizer) -> None:
+        """Registers the retry_auth_callback for WFO's internal workflows and tasks.
+
+        Since RBAC policies are applied to workflows via decorator, this enables registration of callbacks
+        for workflows defined in orchestrator-core itself.
+        However, this assignment MUST be made before any workflows are run.
+
+        Args:
+            callback (Authorizer): The async Authorizer to run for the `retry_auth_callback` argument of internal workflows.
+
+        Returns:
+            None
+        """
+        authorizers = get_authorizers()
+        authorizers.internal_retry_auth_callback = callback
 
 
 main_typer_app = typer.Typer()
