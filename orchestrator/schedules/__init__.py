@@ -15,7 +15,9 @@ import warnings
 from orchestrator.schedules.validate_products import validate_products
 
 warnings.warn(
-    "ALL_SCHEDULERS is deprecated; scheduling is now handled entirely through the scheduler API.",
+    "ALL_SCHEDULERS is deprecated and will be removed in 5.0.0. "
+    "Scheduling tasks can now be handled entirely through the API. "
+    "For more details, please consult https://workfloworchestrator.org/orchestrator-core/guides/upgrading/4.7/",
     DeprecationWarning,
     stacklevel=2,
 )
