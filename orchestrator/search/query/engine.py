@@ -73,24 +73,23 @@ def _get_retriever_from_override(
             if is_process
             else FuzzyRetriever(query.query_text, cursor)
         )
-    elif retriever_type == RetrieverType.SEMANTIC:
+    if retriever_type == RetrieverType.SEMANTIC:
         if query_embedding is None:
             raise ValueError(
                 "Semantic retriever requested but query embedding is not available. "
                 "Embedding generation may have failed."
             )
         return SemanticRetriever(query_embedding, cursor)
-    else:
-        if query_embedding is None:
-            raise ValueError(
-                "Hybrid retriever requested but query embedding is not available. "
-                "Embedding generation may have failed."
-            )
-        return (
-            ProcessHybridRetriever(query_embedding, query.query_text, cursor)
-            if is_process
-            else RrfHybridRetriever(query_embedding, query.query_text, cursor)
+    if query_embedding is None:
+        raise ValueError(
+            "Hybrid retriever requested but query embedding is not available. "
+            "Embedding generation may have failed."
         )
+    return (
+        ProcessHybridRetriever(query_embedding, query.query_text, cursor)
+        if is_process
+        else RrfHybridRetriever(query_embedding, query.query_text, cursor)
+    )
 
 
 async def _execute_search(
