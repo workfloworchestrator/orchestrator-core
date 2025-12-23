@@ -82,8 +82,7 @@ def _get_retriever_from_override(
         return SemanticRetriever(query_embedding, cursor)
     if query_embedding is None:
         raise ValueError(
-            "Hybrid retriever requested but query embedding is not available. "
-            "Embedding generation may have failed."
+            "Hybrid retriever requested but query embedding is not available. " "Embedding generation may have failed."
         )
     return (
         ProcessHybridRetriever(query_embedding, query.query_text, cursor)
