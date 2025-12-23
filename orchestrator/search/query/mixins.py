@@ -5,6 +5,7 @@ from typing import Self
 from pydantic import BaseModel, Field, model_validator
 
 from orchestrator.search.aggregations import Aggregation, TemporalGrouping
+from orchestrator.search.core.types import RetrieverType
 
 __all__ = [
     "SearchMixin",
@@ -39,6 +40,10 @@ class SearchMixin(BaseModel):
     """
 
     query_text: str | None = Field(default=None, description="Text query for semantic/fuzzy search")
+    retriever: RetrieverType | None = Field(
+        default=None,
+        description="Override retriever type (fuzzy/semantic/hybrid). If None, uses default routing logic.",
+    )
 
     @property
     def vector_query(self) -> str | None:
