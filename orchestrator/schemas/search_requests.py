@@ -14,7 +14,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from orchestrator.search.core.types import EntityType
+from orchestrator.search.core.types import EntityType, RetrieverType
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query.queries import SelectQuery
 
@@ -39,6 +39,10 @@ class SearchRequest(BaseModel):
         le=SelectQuery.MAX_LIMIT,
         description="Maximum number of search results to return.",
     )
+    retriever: RetrieverType | None = Field(
+        default=None,
+        description="Force a specific retriever type. If None, uses default routing logic.",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -56,4 +60,5 @@ class SearchRequest(BaseModel):
             filters=self.filters,
             query_text=self.query,
             limit=self.limit,
+            retriever=self.retriever,
         )
