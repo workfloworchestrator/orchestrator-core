@@ -718,6 +718,18 @@ toml = [
 ]
 
 [[package]]
+name = "cross-web"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/93/4f/bdb62e969649ee76d4741ef8eee34384ec2bc21cc66eb7fd244e6ad62be8/cross_web-0.4.0.tar.gz", hash = "sha256:4ae65619ddfcd06d6803432c0366342d7e8aeba10194b4e144d73a662e75370c", size = 157111, upload-time = "2025-12-25T20:45:21.989Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/d6/6c6a036655e5091b26b9f350dcf43821895325aa4727396b14c67679a957/cross_web-0.4.0-py3-none-any.whl", hash = "sha256:0c675bd26e91428cab31e3e927929b42da94aa96da92974e57c78f9a732d0e9b", size = 14200, upload-time = "2025-12-25T20:45:23.075Z" },
+]
+
+[[package]]
 name = "cryptography"
 version = "46.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1651,18 +1663,6 @@ wheels = [
 ]
 
 [[package]]
-name = "lia-web"
-version = "0.2.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/4e/847404ca9d36e3f5468c9e460aed565a02cbca0fdf81247da9f87fabc1b8/lia_web-0.2.3.tar.gz", hash = "sha256:ccc9d24cdc200806ea96a20b22fb68f4759e6becdb901bd36024df7921e848d7", size = 156761, upload-time = "2025-08-11T10:23:21.003Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/00/f2/c68a97c727c795119f1056ad2b7e716c23f26f004292517c435accf90b5c/lia_web-0.2.3-py3-none-any.whl", hash = "sha256:237c779c943cd4341527fc0adfcc3d8068f992ee051f4ef059b8474ee087f641", size = 13965, upload-time = "2025-08-11T10:23:20.215Z" },
-]
-
-[[package]]
 name = "litellm"
 version = "1.80.10"
 source = { registry = "https://pypi.org/simple" }
@@ -2489,7 +2489,7 @@ requires-dist = [
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
     { name = "sqlalchemy", specifier = "==2.0.45" },
     { name = "sqlalchemy-utils", specifier = "==0.42.1" },
-    { name = "strawberry-graphql", specifier = ">=0.281.0,<0.285.0" },
+    { name = "strawberry-graphql", specifier = ">=0.288.2,<0.289.0" },
     { name = "structlog", specifier = ">=25.4.0" },
     { name = "tabulate", specifier = "==0.9.0" },
     { name = "typer", specifier = "==0.20.1" },
@@ -4013,18 +4013,18 @@ wheels = [
 
 [[package]]
 name = "strawberry-graphql"
-version = "0.284.4"
+version = "0.288.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "cross-web" },
     { name = "graphql-core" },
-    { name = "lia-web" },
     { name = "packaging" },
     { name = "python-dateutil" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/24/28cf6baf942bb6553b7d6912f40c616e38af10918f5dbfce12672d5e6e1d/strawberry_graphql-0.284.4.tar.gz", hash = "sha256:36e87a1921bbbe16426cfb9342ce86511c4d1fab5bcbf1fab40b01c15a770206", size = 210314, upload-time = "2025-11-10T22:29:41.836Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/13/306dd2edb5f0c4aa51e2d071994a91ed1a0304e9feafa79ea0f04da51298/strawberry_graphql-0.288.2.tar.gz", hash = "sha256:853dbab407e3f5099f3a27dbf37786535894a0fbf150df5dde145fc290db607e", size = 215182, upload-time = "2026-01-01T20:01:19.277Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/28/8bfddae615973acbd90b0e83586af95a880c9efaec992670481875aaa086/strawberry_graphql-0.284.4-py3-none-any.whl", hash = "sha256:4e3ed126e548e3a5821191c6a89f1dedeea1e034de8389eda26839425227ab14", size = 307069, upload-time = "2025-11-10T22:29:39.302Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/14/15abfa6d289048eeb1b1cca4a582db08a3c1f42784b485c21ef54617e2c7/strawberry_graphql-0.288.2-py3-none-any.whl", hash = "sha256:ad72d7904582db333158568751bb6186a872380a8cc6671159d011d279382542", size = 313137, upload-time = "2026-01-01T20:01:17.32Z" },
 ]
 
 [[package]]
