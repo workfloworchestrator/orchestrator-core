@@ -459,3 +459,38 @@ def test_delete_scheduled_task_schedule_id_none(mock_delete_linker):
 
     scheduler.remove_job.assert_called_once_with(job_id="None")
     mock_delete_linker.assert_called_once()
+
+
+@patch("orchestrator.schedules.service.redis_connection")
+def test_add_create_scheduled_task_to_queue_twice(mock_redis, scheduler_with_jobs):
+    workflow_name = "task_validate_products"
+    workflow = get_workflow_by_name(workflow_name)
+
+    payload = APSchedulerJobCreate(
+        name="Validate Workflows Scheduled Job",
+        workflow_name=workflow_name,
+        workflow_id=workflow.workflow_id,
+        trigger="interval",
+        trigger_kwargs={"hours": 5},
+    )
+
+    result = add_scheduled_task_to_queue(payload)
+
+    # Extract call args
+    queue, bytes_arg = mock_redis.lpush.call_args[0]
+
+    assert result
+    assert queue == SCHEDULER_QUEUE
+    assert isinstance(bytes_arg, bytes)
+    assert b"workflow_name" in bytes_arg
+
+    # Add job to the database
+    schedule_id = f"{uuid4()}"
+    scheduler_with_jobs(schedule_id=schedule_id)
+
+    workflows_apscheduler_job = WorkflowApschedulerJob(workflow_id=workflow.workflow_id, schedule_id=schedule_id)
+    db.session.add(workflows_apscheduler_job)
+
+    # Try to add the same workflow again
+    result = add_scheduled_task_to_queue(payload, skip_when_exists=True)
+    assert not result

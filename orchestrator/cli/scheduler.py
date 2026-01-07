@@ -132,10 +132,7 @@ def load_initial_schedule() -> None:
       - Task Clean Up Tasks
       - Task Validate Subscriptions
 
-    !!! Warning
-        This command is not idempotent.
-
-        Please run `show-schedule` first to determine if the schedules already exist.
+    This command is idempotent. The schedules are only created when they do not already exist.
     """
     initial_schedules = [
         {
@@ -173,4 +170,4 @@ def load_initial_schedule() -> None:
         schedule["workflow_id"] = workflow.workflow_id
 
         typer.echo(f"Initial Schedule: {schedule}")
-        add_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
+        add_scheduled_task_to_queue(APSchedulerJobCreate(**schedule), skip_when_exists=True)  # type: ignore
