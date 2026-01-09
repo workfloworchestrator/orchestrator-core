@@ -26,7 +26,7 @@ from orchestrator.services.workflows import (
 )
 from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
-from orchestrator.workflow import StepList, init, step, workflow
+from orchestrator.workflow import StepList, done, init, step, workflow
 
 logger = structlog.get_logger(__name__)
 
@@ -65,4 +65,4 @@ def validate_subscriptions() -> None:
     retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_validate_subscriptions() -> StepList:
-    return init >> validate_subscriptions
+    return init >> validate_subscriptions >> done
