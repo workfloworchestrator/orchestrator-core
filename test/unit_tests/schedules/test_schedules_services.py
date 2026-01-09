@@ -16,6 +16,7 @@ from orchestrator.schedules.service import (
     _delete_scheduled_task,
     _update_scheduled_task,
     add_scheduled_task_to_queue,
+    add_unique_scheduled_task_to_queue,
     deserialize_payload,
     get_linker_entries_by_schedule_ids,
     run_start_workflow_scheduler_task,
@@ -462,7 +463,7 @@ def test_delete_scheduled_task_schedule_id_none(mock_delete_linker):
 
 
 @patch("orchestrator.schedules.service.redis_connection")
-def test_add_create_scheduled_task_to_queue_twice(mock_redis, scheduler_with_jobs):
+def test_add_unique_scheduled_task_to_queue(mock_redis, scheduler_with_jobs):
     workflow_name = "task_validate_products"
     workflow = get_workflow_by_name(workflow_name)
 
@@ -474,7 +475,7 @@ def test_add_create_scheduled_task_to_queue_twice(mock_redis, scheduler_with_job
         trigger_kwargs={"hours": 5},
     )
 
-    result = add_scheduled_task_to_queue(payload)
+    result = add_unique_scheduled_task_to_queue(payload)
 
     # Extract call args
     queue, bytes_arg = mock_redis.lpush.call_args[0]
@@ -492,5 +493,5 @@ def test_add_create_scheduled_task_to_queue_twice(mock_redis, scheduler_with_job
     db.session.add(workflows_apscheduler_job)
 
     # Try to add the same workflow again
-    result = add_scheduled_task_to_queue(payload, skip_when_exists=True)
+    result = add_unique_scheduled_task_to_queue(payload)
     assert not result
