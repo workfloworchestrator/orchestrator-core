@@ -33,7 +33,6 @@ from orchestrator.search.agent.handlers import (
     execute_search_with_persistence,
 )
 from orchestrator.search.agent.state import SearchState
-from orchestrator.search.agent.validation import require_action
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
@@ -55,7 +54,13 @@ from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
+# Main toolset with all tools (kept for backward compatibility)
 search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
+
+# Node-specific toolsets for graph control flow
+query_analysis_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
+filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
+execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
 
 def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
@@ -68,6 +73,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
 
 
 @search_toolset.tool
+@query_analysis_toolset.tool
 async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
@@ -116,6 +122,7 @@ async def start_new_search(
 
 
 @search_toolset.tool(retries=2)
+@filter_building_toolset.tool(retries=2)
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
@@ -160,7 +167,7 @@ async def set_filter_tree(
 
 
 @search_toolset.tool
-@require_action(ActionType.SELECT)
+@execution_toolset.tool
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
@@ -209,7 +216,7 @@ async def run_search(
 
 
 @search_toolset.tool
-@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+@execution_toolset.tool
 async def run_aggregation(
     ctx: RunContext[StateDeps[SearchState]],
     visualization_type: VisualizationType,
@@ -250,6 +257,7 @@ async def run_aggregation(
 
 
 @search_toolset.tool
+@filter_building_toolset.tool
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
     field_names: list[str],
@@ -313,6 +321,7 @@ async def discover_filter_paths(
 
 
 @search_toolset.tool
+@filter_building_toolset.tool
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
     definitions = await get_definitions()
@@ -373,7 +382,6 @@ async def fetch_entity_details(
 
 
 @search_toolset.tool
-@require_action(ActionType.SELECT)
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
 ) -> ExportData:
@@ -403,7 +411,7 @@ async def prepare_export(
 
 
 @search_toolset.tool(retries=2)
-@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+@filter_building_toolset.tool(retries=2)
 async def set_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     group_by_paths: list[str],
@@ -439,7 +447,6 @@ async def set_grouping(
 
 
 @search_toolset.tool(retries=2)
-@require_action(ActionType.AGGREGATE)
 async def set_aggregations(
     ctx: RunContext[StateDeps[SearchState]],
     aggregations: list[Aggregation],
@@ -475,7 +482,6 @@ async def set_aggregations(
 
 
 @search_toolset.tool(retries=2)
-@require_action(ActionType.COUNT, ActionType.AGGREGATE)
 async def set_temporal_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     temporal_groups: list[TemporalGrouping],
