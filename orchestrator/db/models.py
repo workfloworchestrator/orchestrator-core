@@ -38,7 +38,6 @@ from sqlalchemy import (
     Select,
     String,
     Table,
-    Text,
     TypeDecorator,
     UniqueConstraint,
     select,
@@ -68,6 +67,37 @@ logger = structlog.get_logger(__name__)
 
 TAG_LENGTH = 20
 STATUS_LENGTH = 255
+
+# Field length limits chosen based on expected usage patterns
+# These values are intended to be reasonable, but give lots of wiggle room
+# If these values are updated, they also need to be updated in a migration, as in migration d69e10434a04
+NOTE_LENGTH = 5000
+DESCRIPTION_LENGTH = 2000
+FAILED_REASON_LENGTH = 10000
+TRACEBACK_LENGTH = 50000
+RESOURCE_VALUE_LENGTH = 10000
+DOMAIN_MODEL_ATTR_LENGTH = 255
+
+
+class StringThatAutoConvertsToNullWhenEmpty(TypeDecorator):
+    """A String type that converts empty strings to NULL on save."""
+
+    impl = String
+    cache_ok = True
+    python_type = str
+
+    def __init__(self, length: int | None = None):
+        super().__init__(length)
+
+    def process_bind_param(self, value: str | None, dialect: Dialect) -> str | None:
+        """Called when saving to DB - convert empty/whitespace to NULL."""
+        if value is not None and value.strip() == "":
+            return None
+        return value
+
+    def process_result_value(self, value: str | None, dialect: Dialect) -> str | None:
+        """Called when loading from DB - return as-is."""
+        return value
 
 
 class UtcTimestampError(Exception, DontWrapMixin):
@@ -122,8 +152,8 @@ class ProcessTable(BaseModel):
     last_modified_at = mapped_column(
         UtcTimestamp, server_default=text("current_timestamp()"), onupdate=nowtz, nullable=False
     )
-    failed_reason = mapped_column(Text())
-    traceback = mapped_column(Text())
+    failed_reason = mapped_column(String(FAILED_REASON_LENGTH))
+    traceback = mapped_column(String(TRACEBACK_LENGTH))
     created_by = mapped_column(String(255), nullable=True)
     is_task = mapped_column(Boolean, nullable=False, server_default=text("false"), index=True)
 
@@ -223,7 +253,7 @@ class ProductTable(BaseModel):
 
     product_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     product_type = mapped_column(String(255), nullable=False)
     tag = mapped_column(String(TAG_LENGTH), nullable=False, index=True)
     status = mapped_column(String(STATUS_LENGTH), nullable=False)
@@ -302,7 +332,7 @@ class ProductBlockTable(BaseModel):
 
     product_block_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     tag = mapped_column(String(TAG_LENGTH))
     status = mapped_column(String(STATUS_LENGTH))
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
@@ -401,7 +431,7 @@ class ResourceTypeTable(BaseModel):
 
     resource_type_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     resource_type = mapped_column(String(510), nullable=False, unique=True)
-    description = mapped_column(Text())
+    description = mapped_column(String(DESCRIPTION_LENGTH))
 
     product_blocks = relationship(
         "ProductBlockTable", secondary=product_block_resource_type_association, back_populates="resource_types"
@@ -414,7 +444,7 @@ class WorkflowTable(BaseModel):
     workflow_id = mapped_column(UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
     name = mapped_column(String(), nullable=False, unique=True)
     target = mapped_column(String(), nullable=False)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     deleted_at = mapped_column(UtcTimestamp, deferred=True)
 
@@ -452,7 +482,7 @@ class SubscriptionInstanceRelationTable(BaseModel):
 
     # Needed to make sure subscription instance is populated in the right domain model attribute, if more than one
     # attribute uses the same product block model.
-    domain_model_attr = Column(Text())
+    domain_model_attr = Column(String(DOMAIN_MODEL_ATTR_LENGTH))
 
     in_use_by: Mapped[SubscriptionInstanceTable] = relationship(
         "SubscriptionInstanceTable", back_populates="depends_on_block_relations", foreign_keys=[in_use_by_id]
@@ -559,7 +589,7 @@ class SubscriptionInstanceValueTable(BaseModel):
     resource_type_id = mapped_column(
         UUIDType, ForeignKey("resource_types.resource_type_id"), nullable=False, index=True
     )
-    value = mapped_column(Text(), nullable=False)
+    value = mapped_column(String(RESOURCE_VALUE_LENGTH), nullable=False)
 
     resource_type = relationship("ResourceTypeTable", lazy="subquery")
     subscription_instance = relationship("SubscriptionInstanceTable", back_populates="values")
@@ -587,7 +617,7 @@ class SubscriptionCustomerDescriptionTable(BaseModel):
         index=True,
     )
     customer_id = mapped_column(String, nullable=False, index=True)
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     created_at = mapped_column(UtcTimestamp, nullable=False, server_default=text("current_timestamp()"))
     version = mapped_column(Integer, nullable=False, server_default="1")
 
@@ -600,14 +630,14 @@ class SubscriptionTable(BaseModel):
     subscription_id = mapped_column(
         UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True, nullable=False
     )
-    description = mapped_column(Text(), nullable=False)
+    description = mapped_column(String(DESCRIPTION_LENGTH), nullable=False)
     status = mapped_column(String(STATUS_LENGTH), nullable=False, index=True)
     product_id = mapped_column(UUIDType, ForeignKey("products.product_id"), nullable=False, index=True)
     customer_id = mapped_column(String, index=True, nullable=False)
     insync = mapped_column(Boolean(), nullable=False)
     start_date = mapped_column(UtcTimestamp, nullable=True)
     end_date = mapped_column(UtcTimestamp)
-    note = mapped_column(Text())
+    note = mapped_column(StringThatAutoConvertsToNullWhenEmpty(NOTE_LENGTH))
     version = mapped_column(Integer, nullable=False, server_default="1")
 
     product = relationship("ProductTable", foreign_keys=[product_id])
