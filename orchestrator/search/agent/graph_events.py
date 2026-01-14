@@ -36,6 +36,7 @@ class GraphNodeExitValue(TypedDict):
 
     node: str
     next_node: str | None
+    decision: str | None
 
 
 class GraphNodeExitEvent(CustomEvent):
@@ -43,18 +44,3 @@ class GraphNodeExitEvent(CustomEvent):
 
     name: str = Field(default="GRAPH_NODE_EXIT", frozen=True)
     value: GraphNodeExitValue
-
-
-class TransitionValue(TypedDict):
-    """Typed structure for TRANSITION event value."""
-
-    node: str
-    to_node: str
-    decision: str
-
-
-class TransitionEvent(CustomEvent):
-    """Event emitted when transitioning between graph nodes."""
-
-    name: str = Field(default="TRANSITION", frozen=True)
-    value: TransitionValue

@@ -4,7 +4,7 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_graph import GraphRunContext
 
-from orchestrator.search.agent.graph_events import GraphNodeExitEvent, TransitionEvent
+from orchestrator.search.agent.graph_events import GraphNodeExitEvent
 from orchestrator.search.agent.graph_nodes import (
     ExecutionNode,
     FilterBuildingNode,
@@ -39,38 +39,38 @@ async def test_graph_event_sequence():
     execution_node = ExecutionNode(search_agent=mock_agent, event_emitter=event_emitter)
     response_node = ResponseNode(search_agent=mock_agent, event_emitter=event_emitter)
 
-    # Test QueryAnalysisNode events
-    query_node._next_node_name = execution_node.get_node_name()
-    query_node._decision = "No filters needed"
-    await query_node.emit_transition_events()
+    # Test QueryAnalysisNode exit event
+    await query_node._emit_exit(FilterBuildingNode.__name__, "Query analysis complete")
 
-    # Test ExecutionNode events
+    # Test ExecutionNode exit event
     ctx = GraphRunContext(
         state=SearchState(action=ActionType.COUNT, query=CountQuery(entity_type=EntityType.SUBSCRIPTION)),
         deps=None,
     )
     ctx.state.results_count = 42
-    execution_node._agent_executed = True
-    await execution_node.run(ctx)
+    await execution_node._emit_exit(ResponseNode.__name__, "Execution complete")
 
-    # Test ResponseNode events
-    response_node._final_output = "Found 42 subscriptions"
-    await response_node.run(ctx)
+    # Test ResponseNode exit event (terminal node)
+    await response_node._emit_exit(None, "Response generation complete")
 
-    # Verify event sequence using typed events
-    assert len(emitted_events) == 5
-    assert isinstance(emitted_events[0], TransitionEvent)  # QueryAnalysisNode → ExecutionNode
-    assert isinstance(emitted_events[1], GraphNodeExitEvent)  # QueryAnalysisNode exit
-    assert isinstance(emitted_events[2], TransitionEvent)  # ExecutionNode → ResponseNode
-    assert isinstance(emitted_events[3], GraphNodeExitEvent)  # ExecutionNode exit
-    assert isinstance(emitted_events[4], GraphNodeExitEvent)  # ResponseNode exit (terminal)
+    # Verify event sequence
+    assert len(emitted_events) == 3
+    assert isinstance(emitted_events[0], GraphNodeExitEvent)  # QueryAnalysisNode exit
+    assert isinstance(emitted_events[1], GraphNodeExitEvent)  # ExecutionNode exit
+    assert isinstance(emitted_events[2], GraphNodeExitEvent)  # ResponseNode exit (terminal)
 
-    # Verify correct node flow
+    # Verify correct node flow and decisions
     assert emitted_events[0].value["node"] == QueryAnalysisNode.__name__
-    assert emitted_events[0].value["to_node"] == ExecutionNode.__name__
-    assert emitted_events[2].value["node"] == ExecutionNode.__name__
-    assert emitted_events[2].value["to_node"] == ResponseNode.__name__
-    assert emitted_events[4].value["next_node"] is None  # Terminal node
+    assert emitted_events[0].value["next_node"] == FilterBuildingNode.__name__
+    assert emitted_events[0].value["decision"] == "Query analysis complete"
+
+    assert emitted_events[1].value["node"] == ExecutionNode.__name__
+    assert emitted_events[1].value["next_node"] == ResponseNode.__name__
+    assert emitted_events[1].value["decision"] == "Execution complete"
+
+    assert emitted_events[2].value["node"] == ResponseNode.__name__
+    assert emitted_events[2].value["next_node"] is None  # Terminal node
+    assert emitted_events[2].value["decision"] == "Response generation complete"
 
 
 @pytest.mark.asyncio
@@ -87,15 +87,15 @@ async def test_node_toolsets_are_isolated():
     execution_node = ExecutionNode(search_agent=mock_agent, event_emitter=None)
 
     # Verify each node returns ONLY its specific toolset
-    query_toolsets = query_node.get_toolsets()
+    query_toolsets = query_node.toolsets
     assert len(query_toolsets) == 1
     assert query_toolsets[0] is query_analysis_toolset
 
-    filter_toolsets = filter_node.get_toolsets()
+    filter_toolsets = filter_node.toolsets
     assert len(filter_toolsets) == 1
     assert filter_toolsets[0] is filter_building_toolset
 
-    execution_toolsets = execution_node.get_toolsets()
+    execution_toolsets = execution_node.toolsets
     assert len(execution_toolsets) == 1
     assert execution_toolsets[0] is execution_toolset
 

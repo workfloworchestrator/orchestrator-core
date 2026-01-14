@@ -25,6 +25,7 @@ class SearchState(BaseModel):
     Tracks the current search context and execution status.
     """
 
+    user_input: str = ""  # Original user input text from current conversation turn
     run_id: UUID | None = None
     query_id: UUID | None = None
     action: ActionType | None = None

@@ -30,6 +30,46 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
+    """Prepare RunAgentInput by extracting user message and adding it to state.
+
+    This preprocessing is necessary because:
+    - AG-UI transforms messages into LLM prompts during processing
+    - We need the original user query text for tools and prompts
+    - The endpoint is the only place with access to raw messages before transformation
+
+    Args:
+        run_input: Original RunAgentInput from the client
+
+    Returns:
+        Modified RunAgentInput with user_input added to state
+    """
+    # Extract the most recent user message
+    # QueryAnalysisNode LLM will decide if it's a new search or follow-up
+    user_input = ""
+    for msg in reversed(run_input.messages):
+        if msg.role == "user" and msg.content:
+            user_input = msg.content
+            break
+
+    logger.debug("Extracted latest user message", user_input=user_input[:100] if user_input else "(empty)")
+
+    # Merge user_input with existing state from run_input
+    # AG-UI protocol: existing state fields are preserved, we just add/update user_input
+    state_dict = dict(run_input.state) if run_input.state else {}
+    state_dict["user_input"] = user_input
+
+    return RunAgentInput(
+        thread_id=run_input.thread_id,
+        run_id=run_input.run_id,
+        state=state_dict,
+        messages=run_input.messages,
+        tools=run_input.tools,
+        context=run_input.context,
+        forwarded_props=run_input.forwarded_props,
+    )
+
+
 @cache
 def get_agent(request: Request) -> GraphAgentAdapter:
     """Dependency to provide the agent instance.
@@ -61,22 +101,33 @@ async def agent_conversation(
         logger.error("Invalid request body", error=str(e))
         raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
 
+    # Prepare run_input with user message extracted into state
+    prepared_run_input = prepare_run_input(run_input)
+
     # Create memory stream for events
     send_stream, receive_stream = create_memory_object_stream[str]()
 
     async def run_agent_task() -> None:
         """Run the agent and send events to the stream."""
-        event_iterator = run_ag_ui(agent, run_input=run_input, deps=StateDeps(SearchState()))
+        try:
+            # AG-UI merges prepared_run_input.state into the agent's deps.state
+            event_iterator = run_ag_ui(agent, run_input=prepared_run_input, deps=StateDeps(SearchState()))
 
-        async for event in event_iterator:
-            # First, check if there are any graph events to inject
-            if hasattr(agent, "_current_graph_events"):
-                while agent._current_graph_events:
-                    custom_event = agent._current_graph_events.popleft()
-                    await send_stream.send(custom_event)
+            async for event_str in event_iterator:
+                # First, check if there are any graph events to inject
+                if hasattr(agent, "_current_graph_events"):
+                    while agent._current_graph_events:
+                        custom_event = agent._current_graph_events.popleft()
+                        await send_stream.send(custom_event)
 
-            # Then send the regular event
-            await send_stream.send(event)
+                # Then send the regular event
+                await send_stream.send(event_str)
+
+        except Exception as e:
+            logger.error("Error in run_agent_task", error=str(e), exc_info=True)
+            raise
+        finally:
+            await send_stream.aclose()
 
     async def stream_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events from the memory stream."""

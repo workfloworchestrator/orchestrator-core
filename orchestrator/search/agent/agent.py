@@ -135,14 +135,13 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         3. Yield those events in real-time to the frontend
         4. Continue until End node is reached
         """
-        # For search queries, we only handle text input
-        user_input = user_prompt if isinstance(user_prompt, str) else ""
-
         if deps is None:
             deps = StateDeps(SearchState())
+
         initial_state = deps.state
 
-        logger.info("GraphAgentAdapter: Starting real-time graph streaming", user_input=user_input)
+        # Get user input from state (populated by endpoint from run_input.messages via AG-UI)
+        user_input = initial_state.user_input
 
         try:
             graph_events: deque[Any] = deque()

@@ -65,7 +65,6 @@ async def test_graph_has_correct_edges():
 
     assert edges == {
         (QueryAnalysisNode, FilterBuildingNode),
-        (QueryAnalysisNode, ExecutionNode),
         (FilterBuildingNode, ExecutionNode),
         (ExecutionNode, ResultProcessingNode),
         (ExecutionNode, ResponseNode),

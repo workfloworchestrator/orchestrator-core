@@ -20,7 +20,6 @@ from pydantic import ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
-from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.toolsets import FunctionToolset
 
 from orchestrator.api.api_v1.endpoints.search import (
@@ -63,15 +62,6 @@ filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionTools
 execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
 
 
-def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
-    for msg in reversed(ctx.messages):
-        if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                    return part.content
-    return None
-
-
 @search_toolset.tool
 @query_analysis_toolset.tool
 async def start_new_search(
@@ -84,7 +74,7 @@ async def start_new_search(
     This MUST be the first tool called when the user asks for a NEW search.
     Warning: This will erase any existing filters, results, and search state.
     """
-    final_query = last_user_message(ctx) or ""
+    final_query = ctx.deps.state.user_input
 
     logger.debug(
         "Starting new search",
@@ -93,7 +83,7 @@ async def start_new_search(
         query=final_query,
     )
 
-    # Clear all state
+    # Initialize new search state
     ctx.deps.state.results_count = None
     ctx.deps.state.action = action
 
