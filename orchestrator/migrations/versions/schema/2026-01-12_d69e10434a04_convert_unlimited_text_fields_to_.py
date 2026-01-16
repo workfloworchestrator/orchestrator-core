@@ -1,4 +1,4 @@
-"""Convert unlimited text fields to limited nullable strings and normalize empty strings.
+"""Convert unlimited text fields to limited nullable strings and normalize empty subscription notes.
 
 Revision ID: d69e10434a04
 Revises: 9736496e3eba
@@ -9,6 +9,7 @@ Create Date: 2026-01-12 14:17:58.255515
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 # revision identifiers, used by Alembic.
 revision = "d69e10434a04"
@@ -135,7 +136,7 @@ TRIGGERS = [
 ]
 
 
-def drop_materialized_view_and_dependencies(conn) -> None:
+def drop_materialized_view_and_dependencies(conn: Connection) -> None:
     """Drop the subscriptions_search materialized view and all dependencies.
     Although previous migrations that have changed the view's dependencies have only
     dropped it is only strictly required that we drop the materialized view prior to
@@ -153,7 +154,7 @@ def drop_materialized_view_and_dependencies(conn) -> None:
     conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS subscriptions_search CASCADE;"))
 
 
-def recreate_materialized_view_and_dependencies(conn) -> None:
+def recreate_materialized_view_and_dependencies(conn: Connection) -> None:
     """Recreate the subscriptions_search materialized view and all dependencies."""
     # Create the materialized view
     conn.execute(text(f"CREATE MATERIALIZED VIEW subscriptions_search AS {SUBSCRIPTIONS_SEARCH_QUERY}"))
