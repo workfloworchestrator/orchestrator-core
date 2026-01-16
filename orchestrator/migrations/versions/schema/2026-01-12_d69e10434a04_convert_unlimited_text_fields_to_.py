@@ -138,11 +138,13 @@ TRIGGERS = [
 
 def drop_materialized_view_and_dependencies(conn: Connection) -> None:
     """Drop the subscriptions_search materialized view and all dependencies.
+
     Although previous migrations that have changed the view's dependencies have only
     dropped it is only strictly required that we drop the materialized view prior to
     altering the underlying columns, the approach below potentially prevents confusing
-    errors should the migration fail (i.e. if triggers fire mid-migration in a failure scenario)
+    errors should the migration fail (i.e. if triggers fire mid-migration in a failure scenario).
     """
+
     # Drop triggers first
     for trigger_name, table_name, _ in TRIGGERS:
         conn.execute(text(f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name};"))
