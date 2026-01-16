@@ -66,15 +66,44 @@ def deserialize_payload(bytes_dump: bytes) -> APSchedulerJobs:
 def add_scheduled_task_to_queue(payload: APSchedulerJobs) -> None:
     """Create a scheduled task service function.
 
-    We need to create a apscheduler job, and put the workflow and schedule_id in
-    the linker table workflows_apscheduler_jobs.
+    We need to create, update or delete an apscheduler job, and put the
+    workflow and schedule_id in the linker table workflows_apscheduler_jobs.
+    This is done by adding a job to a redis queue which will be executed
+    when the scheduler runs.
 
     Args:
-        payload: APSchedulerJobCreate The scheduled task to create.
+        payload: APSchedulerJobs The scheduled task to create, update or delete
     """
     bytes_dump = serialize_payload(payload)
     redis_connection.lpush(SCHEDULER_QUEUE, bytes_dump)
     logger.info("Added scheduled task to queue.")
+
+
+def add_unique_scheduled_task_to_queue(payload: APSchedulerJobCreate) -> bool:
+    """Create a unique scheduled task service function.
+
+    Checks if the workflow is already scheduled before creating an apscheduler
+    job, and putting the workflow and schedule_id in the linker table
+    workflows_apscheduler_jobs.
+    This is done by adding a job to a redis queue which will be executed
+    when the scheduler runs.
+
+    This function is not safe for concurrent usage and when the scheduler is not
+    running, as there might be a race condition between adding a job and checking
+    if it already exists in the database.
+
+    Args:
+        payload: APSchedulerJobCreate The scheduled task to create.
+
+    Returns:
+        True when the scheduled task was added to the queue
+        False when the scheduled task was not added to the queue
+    """
+    if db.session.query(WorkflowApschedulerJob).filter_by(workflow_id=payload.workflow_id).all():
+        logger.info(f"Not adding existing workflow {payload.workflow_name} as scheduled task.")
+        return False
+    add_scheduled_task_to_queue(payload)
+    return True
 
 
 def get_linker_entries_by_schedule_ids(schedule_ids: list[str]) -> list[WorkflowApschedulerJob]:

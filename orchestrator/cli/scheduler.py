@@ -23,7 +23,7 @@ from orchestrator.schedules.scheduler import (
 )
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
-    add_scheduled_task_to_queue,
+    add_unique_scheduled_task_to_queue,
     workflow_scheduler_queue,
 )
 from orchestrator.schemas.schedules import APSchedulerJobCreate
@@ -132,10 +132,8 @@ def load_initial_schedule() -> None:
       - Task Clean Up Tasks
       - Task Validate Subscriptions
 
-    !!! Warning
-        This command is not idempotent.
-
-        Please run `show-schedule` first to determine if the schedules already exist.
+    This command is idempotent since 4.7.1 when the scheduler is running. The schedules are only
+    created when they do not already exist in the database.
     """
     initial_schedules = [
         {
@@ -173,4 +171,4 @@ def load_initial_schedule() -> None:
         schedule["workflow_id"] = workflow.workflow_id
 
         typer.echo(f"Initial Schedule: {schedule}")
-        add_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
+        add_unique_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
