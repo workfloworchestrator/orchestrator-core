@@ -11,23 +11,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from uuid import UUID
+"""Schemas for agent graph structure."""
 
 from pydantic import BaseModel
 
-from orchestrator.search.core.types import ActionType
-from orchestrator.search.query.queries import Query
+
+class GraphNode(BaseModel):
+    """A node in the graph."""
+
+    id: str
+    label: str
+    description: str | None
 
 
-class SearchState(BaseModel):
-    """Agent state for search operations.
+class GraphEdge(BaseModel):
+    """An edge connecting two nodes."""
 
-    Tracks the current search context and execution status.
-    """
+    source: str
+    target: str
+    label: str | None
 
-    user_input: str = ""  # Original user input text from current conversation turn
-    run_id: UUID | None = None
-    query_id: UUID | None = None
-    action: ActionType | None = None
-    query: Query | None = None
-    results_count: int | None = None  # Number of results from last executed search/aggregation
+
+class GraphStructure(BaseModel):
+    """Response model for graph structure visualization."""
+
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    start_node: str

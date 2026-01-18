@@ -11,141 +11,155 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-from textwrap import dedent
 
-import structlog
-from pydantic_ai import RunContext
-from pydantic_ai.ag_ui import StateDeps
+from textwrap import dedent
 
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.core.types import ActionType
 
-logger = structlog.get_logger(__name__)
+
+def get_query_analysis_prompt(state: SearchState) -> str:
+    """Get prompt for QueryAnalysisNode to analyze user intent.
+
+    Args:
+        state: Current search state including user_input and existing query (if any)
+
+    Returns:
+        Formatted prompt instructing the agent to determine if this is a new search or follow-up
+    """
+    user_input = state.user_input
+    has_existing_query = state.query is not None
+
+    if has_existing_query:
+        return dedent(
+            f"""
+            User message: "{user_input}"
+
+            You have an existing search query already in progress.
+
+            Analyze the user's message and choose the appropriate action:
+
+            **If this is a NEW search request** (user wants to search for something different):
+            - Call `start_new_search` with appropriate entity_type and action
+            - entity_type: SUBSCRIPTION | PRODUCT | WORKFLOW | PROCESS
+            - action: {ActionType.SELECT.value} (listing) | {ActionType.COUNT.value} (counting) | {ActionType.AGGREGATE.value} (numeric operations)
+
+            **If this is a FOLLOW-UP request** (user wants more details/export on current results):
+            - Call `fetch_entity_details()` to get more information about current search results
+            - Call `prepare_export()` if user wants to export/download results
+            - Or other appropriate follow-up tools
+
+            IMPORTANT: Call the appropriate tool immediately without explanatory text.
+            """
+        ).strip()
+    else:
+        # First turn: simple new search
+        return dedent(
+            f"""
+            Call `start_new_search` with appropriate entity_type and action for: "{user_input}"
+
+            entity_type: SUBSCRIPTION | PRODUCT | WORKFLOW | PROCESS
+            action: {ActionType.SELECT.value} (listing) | {ActionType.COUNT.value} (counting) | {ActionType.AGGREGATE.value} (numeric operations)
+
+            IMPORTANT: Call the tool immediately without any explanatory text.
+            """
+        ).strip()
 
 
-async def get_base_instructions() -> str:
+def get_filter_building_prompt(state: SearchState) -> str:
+    """Get prompt for FilterBuildingNode to build filter trees.
+
+    Args:
+        state: Current search state with query information
+
+    Returns:
+        Formatted prompt with instructions for building filters
+    """
+    query_text = state.query.query_text if state.query and hasattr(state.query, "query_text") else "None"
+
     return dedent(
         f"""
-        You are an expert assistant designed to find relevant information by building and running database queries.
+        Query: "{query_text}"
 
-        ---
-        ### 1. Your Goal and Method
+        If specific filters needed (e.g., "active", "in 2025"):
+        1. Call `discover_filter_paths` to find valid paths
+        2. Call `get_valid_operators` for compatible operators
+        3. Build FilterTree and call `set_filter_tree(filters=...)`
 
-        Your ultimate goal is to **find information** that answers the user's request.
+        If NO specific filters needed (generic queries):
+        - Call `set_filter_tree(filters=None)`
 
-        For **filtered searches**, your primary method is to **construct a valid `FilterTree` object**.
-        To do this correctly, you must infer the exact structure, operators, and nesting rules from the Pydantic schema of the `set_filter_tree` tool itself.
-
-        ---
-        ### 2. Information-Gathering Tools
-
-        **If you determine that a `FilterTree` is needed**, use these tools to gather information first:
-
-        - **discover_filter_paths(field_names: list[str])**: Use this to discover all valid filter paths for a list of field names in a single call.
-        - **get_valid_operators()**: Use this to get the JSON map of all valid operators for each field type.
-
-        ---
-        ### 3. Execution Workflow
-
-        Follow these steps:
-
-        1.  **Set Context**: Call `start_new_search` with appropriate entity_type and action:
-            - `action={ActionType.SELECT.value}` for finding/searching entities
-            - `action={ActionType.COUNT.value}` for counting (e.g., "how many", "count by status", "monthly growth")
-            - `action={ActionType.AGGREGATE.value}` for numeric operations (SUM, AVG, MIN, MAX of specific fields)
-        2.  **Set Filters** (if needed): Discover paths, build FilterTree, call `set_filter_tree`
-            - IMPORTANT: Temporal constraints like "in 2025", "in January", "between X and Y" require filters on datetime fields
-            - Filters restrict WHICH records to include; grouping controls HOW to aggregate them
-        3.  **Set Grouping/Aggregations** (for {ActionType.COUNT.value}/{ActionType.AGGREGATE.value}):
-            - For temporal grouping (per month, per year, per day, etc.): Use `set_temporal_grouping`
-            - For regular grouping (by status, by name, etc.): Use `set_grouping`
-            - For {ActionType.AGGREGATE.value} action ONLY: Use `set_aggregations` to specify what to compute (SUM, AVG, etc.)
-            - For {ActionType.COUNT.value} action: Do NOT call `set_aggregations` (counting is automatic)
-        4.  **Execute**:
-            - For {ActionType.SELECT.value} action: Call `run_search()`
-            - For {ActionType.COUNT.value}/{ActionType.AGGREGATE.value} actions: Call `run_aggregation()`
-
-        After search execution, follow the dynamic instructions based on the current state.
-
-        ---
-        ### 4. Critical Rules
-
-        - **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you may attempt to map the question on an existing paths that are valid and available from `discover_filter_paths`. If you cannot infer a match, inform the user and do not include it in the `FilterTree`.
-        - **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool.
-        - **MATCH OPERATORS**: Only use operators that are compatible with the field type as confirmed by `get_filter_operators`.
+        Never guess paths. Temporal constraints like "in 2025" require datetime filters.
+        After calling the tools, briefly confirm what you did.
         """
-    )
+    ).strip()
 
 
-async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> str:
-    """Dynamically provides 'next step' coaching based on the current state."""
-    state = ctx.deps.state
-    query_state_str = json.dumps(state.query.model_dump(), indent=2, default=str) if state.query else "Not set."
+def get_execution_prompt(state: SearchState) -> str:
+    """Get prompt for ExecutionNode to execute search or aggregation.
+
+    Args:
+        state: Current search state with action and query information
+
+    Returns:
+        Formatted prompt with instructions for execution
+    """
+    action = state.action
+
+    if action == ActionType.SELECT:
+        return "Call `run_search()` to execute the search. Briefly confirm after calling."
+
+    elif action in (ActionType.COUNT, ActionType.AGGREGATE):
+        return dedent(
+            f"""
+            Action: {action.value}
+
+            Set up grouping if needed:
+            - Temporal: `set_temporal_grouping()`
+            - Regular: `set_grouping()`
+            - Aggregations (for AGGREGATE only, not COUNT): `set_aggregations()`
+
+            Then call `run_aggregation(visualization_type=...)` and confirm.
+            """
+        ).strip()
+
+    else:
+        return "Unknown action type. Cannot execute."
+
+
+def get_response_prompt(state: SearchState) -> str:
+    """Get prompt for ResponseNode to generate final response.
+
+    Args:
+        state: Current search state with results
+
+    Returns:
+        Formatted prompt with instructions for response generation
+    """
     results_count = state.results_count or 0
     action = state.action or ActionType.SELECT
 
-    if not state.query:
-        next_step_guidance = (
-            f"INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`. "
-            f"For counting or aggregation queries, set action='{ActionType.COUNT.value}' or action='{ActionType.AGGREGATE.value}'."
-        )
-    elif results_count > 0:
-        if action in (ActionType.COUNT, ActionType.AGGREGATE):
-            # Aggregation completed
-            next_step_guidance = (
-                "INSTRUCTION: Aggregation completed successfully. "
-                "The results are already displayed in the UI. "
-                "Simply confirm completion to the user in a brief sentence. "
-                "DO NOT repeat, summarize, or restate the aggregation data."
-            )
-        else:
-            # Search completed
-            next_step_guidance = dedent(
-                f"""
-                INSTRUCTION: Search completed successfully.
-                Found {results_count} results containing only: entity_id, title, score.
+    if action in (ActionType.COUNT, ActionType.AGGREGATE):
+        return dedent(
+            f"""
+            Aggregation completed with {results_count} result groups.
 
-                Choose your next action based on what the user requested:
-                1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do not repeat the results.
-                2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
-                3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
-                4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly. Simply confirm the export is ready. Do not repeat the results.
-                """
-            )
-    elif action in (ActionType.COUNT, ActionType.AGGREGATE):
-        # COUNT or AGGREGATE action but no results yet
-        next_step_guidance = (
-            "INSTRUCTION: Aggregation context is set. "
-            "For temporal queries (per month, per year, over time): call `set_temporal_grouping` with datetime field and period. "
-            "For regular grouping: call `set_grouping` with paths to group by. "
-            f"For {ActionType.AGGREGATE.value.upper()}: call `set_aggregations` with aggregation specs. "
-            "Then call `run_aggregation`."
-        )
+            The results are displayed in the UI visualization.
+            Confirm completion briefly - do NOT repeat the data.
+            """
+        ).strip()
+
     else:
-        next_step_guidance = (
-            "INSTRUCTION: Context is set. Now, analyze the user's request. "
-            "If specific filters ARE required, use the information-gathering tools to build a `FilterTree` and call `set_filter_tree`. "
-            "If no specific filters are needed, you can proceed directly to `run_search`."
-        )
+        # SELECT action
+        return dedent(
+            f"""
+            Search completed. Found {results_count} results (entity_id, title, score).
 
-    status_summary = f"Results: {results_count}" if results_count > 0 else "No results yet"
+            Based on the user's request:
+            - Generic search: Confirm completion and count (results already shown in UI)
+            - Specific question: Answer using current results or call `fetch_entity_details(entity_ids=[...])` if needed
+            - Export request: Call `prepare_export()` and confirm
 
-    return dedent(
-        f"""
-        ---
-        ## CURRENT STATE
-
-        **Current Query:**
-        ```json
-        {query_state_str}
-        ```
-
-        **Status:** {status_summary}
-
-        ---
-        ## NEXT ACTION REQUIRED
-
-        {next_step_guidance}
-        """
-    )
+            Keep response concise. Don't repeat data visible in the UI.
+            """
+        ).strip()
