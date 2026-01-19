@@ -22,6 +22,7 @@ from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.toolsets import FunctionToolset
+from langfuse import observe
 
 from orchestrator.api.api_v1.endpoints.search import (
     get_definitions,
@@ -66,7 +67,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
                     return part.content
     return None
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
@@ -114,7 +115,7 @@ async def start_new_search(
         snapshot=ctx.deps.state.model_dump(),
     )
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool(retries=2)
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
@@ -158,7 +159,7 @@ async def set_filter_tree(
         snapshot=ctx.deps.state.model_dump(),
     )
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 @require_action(ActionType.SELECT)
 async def run_search(
@@ -207,7 +208,7 @@ async def run_search(
 
     return aggregation_response
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)
 async def run_aggregation(
@@ -248,7 +249,7 @@ async def run_aggregation(
 
     return aggregation_response
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
@@ -311,7 +312,7 @@ async def discover_filter_paths(
     logger.debug("Returning found fieldname - path mapping", all_results=all_results)
     return all_results
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
@@ -325,7 +326,7 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
             operator_map[key] = type_def.operators
     return operator_map
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
@@ -371,7 +372,7 @@ async def fetch_entity_details(
 
     return json.dumps(detailed_data, indent=2)
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool
 @require_action(ActionType.SELECT)
 async def prepare_export(
@@ -401,7 +402,7 @@ async def prepare_export(
 
     return export_data
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool(retries=2)
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)
 async def set_grouping(
@@ -437,7 +438,7 @@ async def set_grouping(
         snapshot=ctx.deps.state.model_dump(),
     )
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool(retries=2)
 @require_action(ActionType.AGGREGATE)
 async def set_aggregations(
@@ -473,7 +474,7 @@ async def set_aggregations(
         snapshot=ctx.deps.state.model_dump(),
     )
 
-
+@observe(name="agent_toolset")
 @search_toolset.tool(retries=2)
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)
 async def set_temporal_grouping(
