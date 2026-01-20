@@ -6,6 +6,8 @@ Create Date: 2026-01-12 14:17:58.255515
 
 """
 
+from pathlib import Path
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import text
@@ -185,149 +187,9 @@ def recreate_materialized_view_and_dependencies(conn: Connection) -> None:
 
 def upgrade() -> None:
     conn = op.get_bind()
-
-    drop_materialized_view_and_dependencies(conn)
-
-    op.execute(
-        """
-        UPDATE subscriptions
-        SET note = NULL
-        WHERE note IS NOT NULL AND TRIM(note) = ''
-        """
-    )
-
-    op.execute(
-        """
-        UPDATE processes
-        SET failed_reason = NULL
-        WHERE failed_reason IS NOT NULL AND TRIM(failed_reason) = ''
-        """
-    )
-
-    op.execute(
-        """
-        UPDATE processes
-        SET traceback = NULL
-        WHERE traceback IS NOT NULL AND TRIM(traceback) = ''
-        """
-    )
-
-    op.execute(
-        """
-        UPDATE resource_types
-        SET description = NULL
-        WHERE description IS NOT NULL AND TRIM(description) = ''
-        """
-    )
-
-    op.execute(
-        """
-        UPDATE subscription_instance_relations
-        SET domain_model_attr = NULL
-        WHERE domain_model_attr IS NOT NULL AND TRIM(domain_model_attr) = ''
-        """
-    )
-
-    op.alter_column(
-        "subscriptions",
-        "note",
-        existing_type=sa.Text(),
-        type_=sa.String(NOTE_LENGTH),
-        existing_nullable=True,
-        nullable=True,
-    )
-
-    op.alter_column(
-        "subscriptions",
-        "description",
-        existing_type=sa.Text(),
-        type_=sa.String(DESCRIPTION_LENGTH),
-        existing_nullable=False,
-        nullable=False,
-    )
-
-    op.alter_column(
-        "processes",
-        "failed_reason",
-        existing_type=sa.Text(),
-        type_=sa.String(FAILED_REASON_LENGTH),
-        existing_nullable=True,
-        nullable=True,
-    )
-
-    op.alter_column(
-        "processes",
-        "traceback",
-        existing_type=sa.Text(),
-        type_=sa.String(TRACEBACK_LENGTH),
-        existing_nullable=True,
-        nullable=True,
-    )
-
-    op.alter_column(
-        "products",
-        "description",
-        existing_type=sa.Text(),
-        type_=sa.String(DESCRIPTION_LENGTH),
-        existing_nullable=False,
-        nullable=False,
-    )
-
-    op.alter_column(
-        "product_blocks",
-        "description",
-        existing_type=sa.Text(),
-        type_=sa.String(DESCRIPTION_LENGTH),
-        existing_nullable=False,
-        nullable=False,
-    )
-
-    op.alter_column(
-        "resource_types",
-        "description",
-        existing_type=sa.Text(),
-        type_=sa.String(DESCRIPTION_LENGTH),
-        existing_nullable=True,
-        nullable=True,
-    )
-
-    op.alter_column(
-        "workflows",
-        "description",
-        existing_type=sa.Text(),
-        type_=sa.String(DESCRIPTION_LENGTH),
-        existing_nullable=False,
-        nullable=False,
-    )
-
-    op.alter_column(
-        "subscription_customer_descriptions",
-        "description",
-        existing_type=sa.Text(),
-        type_=sa.String(DESCRIPTION_LENGTH),
-        existing_nullable=False,
-        nullable=False,
-    )
-
-    op.alter_column(
-        "subscription_instance_values",
-        "value",
-        existing_type=sa.Text(),
-        type_=sa.String(RESOURCE_VALUE_LENGTH),
-        existing_nullable=False,
-        nullable=False,
-    )
-
-    op.alter_column(
-        "subscription_instance_relations",
-        "domain_model_attr",
-        existing_type=sa.Text(),
-        type_=sa.String(DOMAIN_MODEL_ATTR_LENGTH),
-        existing_nullable=True,
-        nullable=True,
-    )
-
-    recreate_materialized_view_and_dependencies(conn)
+    revision_file_path = Path(__file__.replace(".py", "_upgrade.sql"))
+    with open(revision_file_path) as f:
+        conn.execute(sa.text(f.read()))
 
 
 def downgrade() -> None:
@@ -435,3 +297,4 @@ def downgrade() -> None:
     )
 
     recreate_materialized_view_and_dependencies(conn)
+
