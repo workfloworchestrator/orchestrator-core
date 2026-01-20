@@ -29,22 +29,6 @@ UPDATE subscriptions
 SET note = NULL
 WHERE note IS NOT NULL AND TRIM(note) = '';
 
-UPDATE processes
-SET failed_reason = NULL
-WHERE failed_reason IS NOT NULL AND TRIM(failed_reason) = '';
-
-UPDATE processes
-SET traceback = NULL
-WHERE traceback IS NOT NULL AND TRIM(traceback) = '';
-
-UPDATE resource_types
-SET description = NULL
-WHERE description IS NOT NULL AND TRIM(description) = '';
-
-UPDATE subscription_instance_relations
-SET domain_model_attr = NULL
-WHERE domain_model_attr IS NOT NULL AND TRIM(domain_model_attr) = '';
-
 -- Alter column types from TEXT to VARCHAR with limits
 ALTER TABLE subscriptions ALTER COLUMN note TYPE VARCHAR(5000);
 ALTER TABLE subscriptions ALTER COLUMN description TYPE VARCHAR(2000);
