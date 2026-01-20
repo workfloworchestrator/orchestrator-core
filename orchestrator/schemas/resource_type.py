@@ -11,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
+from orchestrator.db.models import DESCRIPTION_LENGTH
 from orchestrator.schemas.base import OrchestratorBaseModel
 
 
@@ -30,4 +32,4 @@ class ResourceTypeSchema(ResourceTypeBaseSchema):
 
 
 class ResourceTypePatchSchema(OrchestratorBaseModel):
-    description: str | None = None
+    description: Annotated[str, Field(max_length=DESCRIPTION_LENGTH)] | None = None
