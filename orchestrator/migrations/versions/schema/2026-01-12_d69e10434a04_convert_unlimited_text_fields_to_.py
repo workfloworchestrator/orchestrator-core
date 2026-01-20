@@ -10,8 +10,6 @@ from pathlib import Path
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy import text
-from sqlalchemy.engine import Connection
 
 # revision identifiers, used by Alembic.
 revision = "d69e10434a04"
@@ -32,4 +30,3 @@ def downgrade() -> None:
     revision_file_path = Path(__file__.replace(".py", "_downgrade.sql"))
     with open(revision_file_path) as f:
         conn.execute(sa.text(f.read()))
-
