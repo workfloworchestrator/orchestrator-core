@@ -30,6 +30,7 @@ from oauth2_lib.fastapi import OIDCUserModel
 from orchestrator.api.error_handling import raise_status
 from orchestrator.config.assignee import Assignee
 from orchestrator.db import EngineSettingsTable, ProcessStepTable, ProcessSubscriptionTable, ProcessTable, db
+from orchestrator.db.models import FAILED_REASON_LENGTH, TRACEBACK_LENGTH
 from orchestrator.distlock import distlock_manager
 from orchestrator.schemas.engine_settings import WorkerStatus
 from orchestrator.services.input_state import store_input_state
@@ -139,8 +140,9 @@ def _update_process(process_id: UUID, step: Step, process_state: WFProcess) -> P
         # pop also removes the traceback from the dict
         traceback = step_state.pop("traceback", None)
 
-        p.failed_reason = failed_reason
-        p.traceback = traceback
+        # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
+        p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
+        p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
 
         if process_state.isfailed() and p.is_task:
             # Check if we need a special failed status:
@@ -341,8 +343,11 @@ def _db_log_process_ex(process_id: UUID, ex: Exception) -> None:
     p.last_step = "Unknown"
     if p.last_status != ProcessStatus.WAITING:
         p.last_status = ProcessStatus.FAILED
-    p.failed_reason = str(ex)
-    p.traceback = show_ex(ex)
+    failed_reason = str(ex)
+    traceback = show_ex(ex)
+    # Truncate failed_reason (from end) and traceback (from start) to fit database constraints
+    p.failed_reason = failed_reason[:FAILED_REASON_LENGTH] if failed_reason else failed_reason
+    p.traceback = traceback[-TRACEBACK_LENGTH:] if traceback else traceback
     db.session.add(p)
     try:
         db.session.commit()
