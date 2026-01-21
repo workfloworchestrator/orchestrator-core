@@ -30,12 +30,10 @@ logger = structlog.get_logger(__name__)
 
 langfuse_client = get_client(public_key=llm_settings.LANGFUSE_PUBLIC_KEY)
 
-Agent.instrument_all()
-
 if langfuse_client.auth_check():
-    print("Langfuse client is authenticated and ready!")
+    logger.info("Langfuse client is authenticated and ready!")
 else:
-    print("Authentication failed. Please check your credentials and host.")
+    logger.info("Authentication failed. Please check your credentials and host.")
 
 @observe(name="agent_entrypoint")
 def build_agent_instance(
@@ -66,5 +64,6 @@ def build_agent_instance(
     )
     agent.instructions(get_base_instructions)
     agent.instructions(get_dynamic_instructions)
+    agent.instrument_all()
 
     return agent
