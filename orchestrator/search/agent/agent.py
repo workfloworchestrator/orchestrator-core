@@ -24,11 +24,12 @@ from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
 
-from langfuse import get_client
-
 logger = structlog.get_logger(__name__)
 
 if llm_settings.LANGFUSE_ENABLED:
+    from langfuse import get_client
+    from pydantic_ai import InstrumentationSettings
+
     logger.info("Langfuse is enabled. Initializing client...")
 
     langfuse_client = get_client()
@@ -37,6 +38,7 @@ if llm_settings.LANGFUSE_ENABLED:
         logger.info("Langfuse client is authenticated and ready!")
     else:
         logger.info("Authentication failed. Please check your credentials and host.")
+
 
 def build_agent_instance(
         model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
@@ -67,6 +69,8 @@ def build_agent_instance(
     agent.instructions(get_base_instructions)
     agent.instructions(get_dynamic_instructions)
     if llm_settings.LANGFUSE_ENABLED:
-        agent.instrument_all()
+        agent.instrument_all(instrument=InstrumentationSettings(
+            version=3
+        ))
 
     return agent
