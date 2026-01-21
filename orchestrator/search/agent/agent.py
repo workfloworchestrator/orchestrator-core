@@ -24,18 +24,20 @@ from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
 
-from langfuse import observe, get_client
+from langfuse import get_client
 
 logger = structlog.get_logger(__name__)
 
-langfuse_client = get_client(public_key=llm_settings.LANGFUSE_PUBLIC_KEY)
+if llm_settings.LANGFUSE_ENABLED:
+    logger.info("Langfuse is enabled. Initializing client...")
 
-if langfuse_client.auth_check():
-    logger.info("Langfuse client is authenticated and ready!")
-else:
-    logger.info("Authentication failed. Please check your credentials and host.")
+    langfuse_client = get_client(public_key=llm_settings.LANGFUSE_PUBLIC_KEY)
 
-@observe(name="agent_entrypoint")
+    if langfuse_client.auth_check():
+        logger.info("Langfuse client is authenticated and ready!")
+    else:
+        logger.info("Authentication failed. Please check your credentials and host.")
+
 def build_agent_instance(
         model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
 ) -> Agent[StateDeps[SearchState], str]:
@@ -60,10 +62,11 @@ def build_agent_instance(
             parallel_tool_calls=False,
         ),  # https://github.com/pydantic/pydantic-ai/issues/562
         toolsets=toolsets,
-        instrument=True
+        instrument=llm_settings.LANGFUSE_ENABLED
     )
     agent.instructions(get_base_instructions)
     agent.instructions(get_dynamic_instructions)
-    agent.instrument_all()
+    if llm_settings.LANGFUSE_ENABLED:
+        agent.instrument_all()
 
     return agent

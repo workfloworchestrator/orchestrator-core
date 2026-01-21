@@ -64,7 +64,7 @@ class LLMSettings(BaseSettings):
     LLM_FORCE_EXTENTION_MIGRATION: bool = False
 
     #Langfuse observation tool section
-    LANGFUSE_TRACING_ENABLED: bool = False
+    LANGFUSE_ENABLED: bool = False
     LANGFUSE_SECRET_KEY: str | None = None
     LANGFUSE_PUBLIC_KEY: str | None = None
     LANGFUSE_BASE_URL: str | None = None
