@@ -31,7 +31,7 @@ logger = structlog.get_logger(__name__)
 if llm_settings.LANGFUSE_ENABLED:
     logger.info("Langfuse is enabled. Initializing client...")
 
-    langfuse_client = get_client(public_key=llm_settings.LANGFUSE_PUBLIC_KEY)
+    langfuse_client = get_client()
 
     if langfuse_client.auth_check():
         logger.info("Langfuse client is authenticated and ready!")
