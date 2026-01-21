@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Any
 
 import structlog
@@ -24,13 +23,15 @@ from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
 
-from langfuse import observe
+from langfuse import observe, get_client
 
 logger = structlog.get_logger(__name__)
+client = get_client()
+
 
 @observe(name="agent_entrypoint")
 def build_agent_instance(
-    model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
+        model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
 ) -> Agent[StateDeps[SearchState], str]:
     """Build and configure the search agent instance.
 
