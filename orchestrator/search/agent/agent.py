@@ -19,6 +19,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import FunctionToolset
 
+from orchestrator import llm_settings
 from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic_instructions
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
@@ -26,8 +27,15 @@ from orchestrator.search.agent.tools import search_toolset
 from langfuse import observe, get_client
 
 logger = structlog.get_logger(__name__)
-client = get_client()
 
+langfuse_client = get_client(public_key=llm_settings.LANGFUSE_PUBLIC_KEY)
+
+Agent.instrument_all()
+
+if langfuse_client.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
 
 @observe(name="agent_entrypoint")
 def build_agent_instance(
