@@ -32,11 +32,13 @@ else:
     Model = Any
 
 from orchestrator.search.agent.graph_nodes import (
-    ExecutionNode,
+    NODE_DESCRIPTIONS,
+    AggregationNode,
     FilterBuildingNode,
-    QueryAnalysisNode,
-    ResponseNode,
-    ResultProcessingNode,
+    IntentNode,
+    SearchNode,
+    TextResponseNode,
+    create_node_agents,
 )
 from orchestrator.search.agent.schemas import GraphEdge, GraphNode, GraphStructure
 from orchestrator.search.agent.state import SearchState
@@ -52,13 +54,13 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
     but unused - the search_agent in graph nodes handles actual LLM calls.
     """
 
-    DEFAULT_START_NODE = QueryAnalysisNode
+    DEFAULT_START_NODE = IntentNode
 
     def __init__(
         self,
         model: "Model | KnownModelName | str",  # type: ignore[valid-type]
         graph: Graph[SearchState, None, str],
-        search_agent: Agent[StateDeps[SearchState], Any],
+        node_agents: dict[str, Agent[StateDeps[SearchState], Any]],
         *,
         deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
         model_settings: "ModelSettings | None" = None,
@@ -70,7 +72,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         Args:
             model: LLM model to use (required by Agent base class)
             graph: The pydantic-graph Graph instance to execute
-            search_agent: The search agent used within graph nodes for LLM reasoning
+            node_agents: Dictionary of specialized agents for each node
             deps_type: Dependencies type (defaults to StateDeps[SearchState])
             model_settings: Model settings
             toolsets: Tool sets (not used directly, but required by base class)
@@ -84,7 +86,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             instructions=instructions or [],
         )
         self.graph = graph
-        self.search_agent = search_agent
+        self.node_agents = node_agents
 
     def get_graph_structure(self) -> GraphStructure:
         """Build graph structure for visualization.
@@ -97,20 +99,29 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             GraphNode(
                 id=node_id,
                 label=node_id,
-                description=node_def.node.__doc__.split("\n")[0].strip() if node_def.node.__doc__ else None,
+                description=NODE_DESCRIPTIONS.get(node_id),
             )
             for node_id, node_def in self.graph.node_defs.items()
         ]
 
-        # Build edges
-        edges = []
-        for node_id, node_def in self.graph.node_defs.items():
-            for next_node_id, edge in node_def.next_node_edges.items():
-                edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
-            if node_def.end_edge:
-                edges.append(
-                    GraphEdge(source=node_id, target="__end__", label=getattr(node_def.end_edge, "label", None))
-                )
+        # TODO: Fix dynamic build: hardcoded based on routing logic
+        # since pydantic-graph uses dynamic routing based on node outputs.
+        edges = [
+            # From IntentNode
+            GraphEdge(source=IntentNode.__name__, target=SearchNode.__name__),
+            GraphEdge(source=IntentNode.__name__, target=AggregationNode.__name__),
+            GraphEdge(source=IntentNode.__name__, target=FilterBuildingNode.__name__),
+            GraphEdge(source=IntentNode.__name__, target=TextResponseNode.__name__),
+            # From FilterBuildingNode
+            GraphEdge(source=FilterBuildingNode.__name__, target=SearchNode.__name__),
+            GraphEdge(source=FilterBuildingNode.__name__, target=AggregationNode.__name__),
+            # From SearchNode
+            GraphEdge(source=SearchNode.__name__, target=TextResponseNode.__name__),
+            # From AggregationNode
+            GraphEdge(source=AggregationNode.__name__, target=TextResponseNode.__name__),
+            # From TextResponseNode to End
+            GraphEdge(source=TextResponseNode.__name__, target="__end__"),
+        ]
 
         return GraphStructure(nodes=nodes, edges=edges, start_node=self.DEFAULT_START_NODE.__name__)
 
@@ -155,7 +166,10 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
 
             start_node = self.DEFAULT_START_NODE(
                 user_input=user_input,
-                search_agent=self.search_agent,
+                node_agent=self.node_agents["intent_agent"],  # Required by BaseGraphNode but unused by IntentNode
+                intent_agent=self.node_agents["intent_agent"],
+                query_init_agent=self.node_agents["query_init_agent"],
+                agents=self.node_agents,
                 event_emitter=emit_graph_event,
             )
 
@@ -202,32 +216,27 @@ def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | N
 
     Args:
         model: The LLM model to use (string or model instance)
-        agent_tools: Optional list of additional toolsets to include
+        agent_tools: Optional list of additional toolsets to include (currently unused)
 
     Returns:
         GraphAgentAdapter instance
     """
-    search_agent = Agent(
-        model=model,
-        deps_type=StateDeps[SearchState],
-        retries=2,
-        toolsets=agent_tools if agent_tools else [],
-    )
+    node_agents = create_node_agents(model)
 
     graph: Graph[SearchState, None, str] = Graph(
         nodes=[
-            QueryAnalysisNode,
+            IntentNode,
             FilterBuildingNode,
-            ExecutionNode,
-            ResultProcessingNode,
-            ResponseNode,
+            SearchNode,
+            AggregationNode,
+            TextResponseNode,
         ],
     )
 
     adapter = GraphAgentAdapter(
         model=model,
         graph=graph,
-        search_agent=search_agent,
+        node_agents=node_agents,
         deps_type=StateDeps[SearchState],
     )
 

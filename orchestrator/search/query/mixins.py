@@ -140,8 +140,8 @@ class AggregationMixin(BaseModel):
     """
 
     aggregations: list[Aggregation] = Field(
-        description="Aggregations to compute (SUM, AVG, MIN, MAX, COUNT)",
-        min_length=1,
+        default_factory=list,
+        description="Aggregations to compute (SUM, AVG, MIN, MAX, COUNT). Must be set before execution.",
     )
 
     def get_aggregation_pivot_fields(self) -> list[str]:

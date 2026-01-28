@@ -29,7 +29,7 @@ class GraphEdge(BaseModel):
 
     source: str
     target: str
-    label: str | None
+    label: str | None = None
 
 
 class GraphStructure(BaseModel):

@@ -11,155 +11,128 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from textwrap import dedent
-
 from orchestrator.search.agent.state import SearchState
-from orchestrator.search.core.types import ActionType
 
 
-def get_query_analysis_prompt(state: SearchState) -> str:
-    """Get prompt for QueryAnalysisNode to analyze user intent.
+def get_intent_prompt() -> str:
+    """Get system prompt for IntentNode agent to classify user requests."""
+    return (
+        "You classify user requests into intents:\n"
+        "- SEARCH: Find/list entities without specific filters\n"
+        "- SEARCH_WITH_FILTERS: Find entities with conditions (status, dates, etc.)\n"
+        "- AGGREGATION: Count/stats without filters\n"
+        "- AGGREGATION_WITH_FILTERS: Count/stats with conditions\n"
+        "- TEXT_RESPONSE: General questions, greetings, out-of-scope\n\n"
+        "Return ONLY the intent enum value."
+    )
 
-    Args:
-        state: Current search state including user_input and existing query (if any)
 
-    Returns:
-        Formatted prompt instructing the agent to determine if this is a new search or follow-up
-    """
-    user_input = state.user_input
-    has_existing_query = state.query is not None
-
-    if has_existing_query:
-        return dedent(
-            f"""
-            User message: "{user_input}"
-
-            You have an existing search query already in progress.
-
-            Analyze the user's message and choose the appropriate action:
-
-            **If this is a NEW search request** (user wants to search for something different):
-            - Call `start_new_search` with appropriate entity_type and action
-            - entity_type: SUBSCRIPTION | PRODUCT | WORKFLOW | PROCESS
-            - action: {ActionType.SELECT.value} (listing) | {ActionType.COUNT.value} (counting) | {ActionType.AGGREGATE.value} (numeric operations)
-
-            **If this is a FOLLOW-UP request** (user wants more details/export on current results):
-            - Call `fetch_entity_details()` to get more information about current search results
-            - Call `prepare_export()` if user wants to export/download results
-            - Or other appropriate follow-up tools
-
-            IMPORTANT: Call the appropriate tool immediately without explanatory text.
-            """
-        ).strip()
-    else:
-        # First turn: simple new search
-        return dedent(
-            f"""
-            Call `start_new_search` with appropriate entity_type and action for: "{user_input}"
-
-            entity_type: SUBSCRIPTION | PRODUCT | WORKFLOW | PROCESS
-            action: {ActionType.SELECT.value} (listing) | {ActionType.COUNT.value} (counting) | {ActionType.AGGREGATE.value} (numeric operations)
-
-            IMPORTANT: Call the tool immediately without any explanatory text.
-            """
-        ).strip()
+def get_query_init_prompt() -> str:
+    """Get system prompt for query initialization agent."""
+    return (
+        "You initialize database searches by calling start_new_search.\n\n"
+        "entity_type options: SUBSCRIPTION | PRODUCT | WORKFLOW | PROCESS\n"
+        "action options:\n"
+        "- SELECT: For finding/listing entities\n"
+        "- COUNT: For counting operations (e.g., 'how many', 'count by status', 'per month')\n"
+        "- AGGREGATE: For numeric operations on fields (SUM, AVG, MIN, MAX)\n\n"
+        "Call the tool once, then respond 'Done.'"
+    )
 
 
 def get_filter_building_prompt(state: SearchState) -> str:
-    """Get prompt for FilterBuildingNode to build filter trees.
+    """Get prompt for FilterBuildingNode agent.
 
     Args:
-        state: Current search state with query information
+        state: Current search state with user input and query info
 
     Returns:
-        Formatted prompt with instructions for building filters
+        Complete prompt with instructions and user context
     """
-    query_text = state.query.query_text if state.query and hasattr(state.query, "query_text") else "None"
-
-    return dedent(
-        f"""
-        Query: "{query_text}"
-
-        If specific filters needed (e.g., "active", "in 2025"):
-        1. Call `discover_filter_paths` to find valid paths
-        2. Call `get_valid_operators` for compatible operators
-        3. Build FilterTree and call `set_filter_tree(filters=...)`
-
-        If NO specific filters needed (generic queries):
-        - Call `set_filter_tree(filters=None)`
-
-        Never guess paths. Temporal constraints like "in 2025" require datetime filters.
-        After calling the tools, briefly confirm what you did.
-        """
-    ).strip()
+    return (
+        "Build database query filters based on the user's request.\n\n"
+        "Instructions:\n"
+        "1. If specific filters are needed (e.g., 'active', 'in 2025'):\n"
+        "   - Call discover_filter_paths to find valid paths\n"
+        "   - Call get_valid_operators for compatible operators\n"
+        "   - Build FilterTree and call set_filter_tree(filters=...)\n"
+        "2. If NO specific filters needed (generic queries):\n"
+        "   - Call set_filter_tree(filters=None)\n\n"
+        "Rules:\n"
+        "- Never guess paths - always verify with discover_filter_paths\n"
+        "- Temporal constraints like 'in 2025' require datetime filters\n"
+        "- After calling tools, briefly confirm what you did\n\n"
+        f"User request: {state.user_input}"
+    )
 
 
-def get_execution_prompt(state: SearchState) -> str:
-    """Get prompt for ExecutionNode to execute search or aggregation.
+def get_search_execution_prompt(state: SearchState) -> str:
+    """Get prompt for SearchNode agent.
 
     Args:
-        state: Current search state with action and query information
+        state: Current search state
 
     Returns:
-        Formatted prompt with instructions for execution
+        Complete prompt for executing search
     """
-    action = state.action
-
-    if action == ActionType.SELECT:
-        return "Call `run_search()` to execute the search. Briefly confirm after calling."
-
-    elif action in (ActionType.COUNT, ActionType.AGGREGATE):
-        return dedent(
-            f"""
-            Action: {action.value}
-
-            Set up grouping if needed:
-            - Temporal: `set_temporal_grouping()`
-            - Regular: `set_grouping()`
-            - Aggregations (for AGGREGATE only, not COUNT): `set_aggregations()`
-
-            Then call `run_aggregation(visualization_type=...)` and confirm.
-            """
-        ).strip()
-
-    else:
-        return "Unknown action type. Cannot execute."
+    return (
+        "Execute the database search by calling run_search().\n"
+        "After calling the tool, respond with 'Done.'\n\n"
+        f"User request: {state.user_input}"
+    )
 
 
-def get_response_prompt(state: SearchState) -> str:
-    """Get prompt for ResponseNode to generate final response.
+def get_aggregation_execution_prompt(state: SearchState) -> str:
+    """Get prompt for AggregationNode agent.
 
     Args:
-        state: Current search state with results
+        state: Current search state with action and query info
 
     Returns:
-        Formatted prompt with instructions for response generation
+        Complete prompt for executing aggregation
+    """
+    action = state.action.value if state.action else "unknown"
+
+    return (
+        f"Execute the aggregation query (action: {action}).\n\n"
+        "Instructions:\n"
+        "1. Set up grouping if needed:\n"
+        "   - For temporal: call set_temporal_grouping()\n"
+        "   - For regular: call set_grouping()\n"
+        "2. For AGGREGATE action ONLY (not COUNT):\n"
+        "   - Call set_aggregations() to specify what to compute\n"
+        "3. Call run_aggregation(visualization_type=...) and respond 'Done.'\n\n"
+        f"User request: {state.user_input}"
+    )
+
+
+def get_text_response_prompt(state: SearchState) -> str:
+    """Get prompt for TextResponseNode agent.
+
+    Args:
+        state: Current search state
+
+    Returns:
+        Complete prompt for generating text response
     """
     results_count = state.results_count or 0
-    action = state.action or ActionType.SELECT
+    action = state.action
 
-    if action in (ActionType.COUNT, ActionType.AGGREGATE):
-        return dedent(
-            f"""
-            Aggregation completed with {results_count} result groups.
-
-            The results are displayed in the UI visualization.
-            Confirm completion briefly - do NOT repeat the data.
-            """
-        ).strip()
-
+    if action and action.value in ["count", "aggregate"]:
+        return (
+            f"Aggregation completed with {results_count} result groups.\n\n"
+            "The results are displayed in the UI visualization.\n"
+            "Provide a brief confirmation - do NOT repeat the data.\n\n"
+            f"User request: {state.user_input}"
+        )
     else:
-        # SELECT action
-        return dedent(
-            f"""
-            Search completed. Found {results_count} results (entity_id, title, score).
-
-            Based on the user's request:
-            - Generic search: Confirm completion and count (results already shown in UI)
-            - Specific question: Answer using current results or call `fetch_entity_details(entity_ids=[...])` if needed
-            - Export request: Call `prepare_export()` and confirm
-
-            Keep response concise. Don't repeat data visible in the UI.
-            """
-        ).strip()
+        return (
+            "Generate a helpful response to the user's question.\n\n"
+            f"User request: {state.user_input}\n"
+            f"Search results found: {results_count}\n\n"
+            "Instructions:\n"
+            "- If results_count is 0: Tell user nothing was found\n"
+            "- If results exist: Briefly confirm what was found\n"
+            "- Keep response concise\n"
+            "- Results are already displayed in the UI - don't repeat them"
+        )

@@ -32,18 +32,22 @@ from orchestrator.search.agent.graph_events import (
     GraphNodeExitValue,
 )
 from orchestrator.search.agent.prompts import (
-    get_execution_prompt,
+    get_aggregation_execution_prompt,
     get_filter_building_prompt,
-    get_query_analysis_prompt,
-    get_response_prompt,
+    get_intent_prompt,
+    get_query_init_prompt,
+    get_search_execution_prompt,
+    get_text_response_prompt,
 )
-from orchestrator.search.agent.state import SearchState
+from orchestrator.search.agent.state import IntentType, SearchState
 from orchestrator.search.agent.tools import (
+    SearchInitParams,
     execution_toolset,
     filter_building_toolset,
-    query_analysis_toolset,
     search_toolset,
 )
+from orchestrator.search.core.types import ActionType
+from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
 
@@ -55,27 +59,64 @@ def _current_timestamp_ms() -> int:
     return time_ns() // 1_000_000
 
 
-NODE_CONFIG = {
-    "QueryAnalysisNode": {
-        "prompt_fn": get_query_analysis_prompt,
-        "toolsets": [query_analysis_toolset],
-    },
-    "FilterBuildingNode": {
-        "prompt_fn": get_filter_building_prompt,
-        "toolsets": [filter_building_toolset],
-    },
-    "ExecutionNode": {
-        "prompt_fn": get_execution_prompt,
-        "toolsets": [execution_toolset],
-    },
-    "ResultProcessingNode": {
-        "prompt_fn": lambda _: "Process results: call fetch_entity_details or prepare_export if needed.",
-        "toolsets": [search_toolset],
-    },
-    "ResponseNode": {
-        "prompt_fn": get_response_prompt,
-        "toolsets": [],
-    },
+def create_node_agents(model: str) -> dict[str, Agent[StateDeps[SearchState], Any]]:
+    """Create specialized agents for each node that needs LLM calls.
+
+    Args:
+        model: The LLM model identifier to use for all agents
+
+    Returns:
+        Dictionary mapping node names to their specialized Agent instances
+    """
+    return {
+        "intent_agent": Agent(
+            model=model,
+            deps_type=StateDeps[SearchState],
+            output_type=IntentType,
+            retries=2,
+            system_prompt=get_intent_prompt(),
+        ),
+        "query_init_agent": Agent(
+            model=model,
+            deps_type=StateDeps[SearchState],
+            output_type=SearchInitParams,
+            retries=2,
+            system_prompt=get_query_init_prompt(),
+        ),
+        "filter_building_agent": Agent(
+            model=model,
+            deps_type=StateDeps[SearchState],
+            retries=2,
+            toolsets=[filter_building_toolset],
+        ),
+        "search_agent": Agent(
+            model=model,
+            deps_type=StateDeps[SearchState],
+            retries=2,
+            toolsets=[execution_toolset],
+        ),
+        "aggregation_agent": Agent(
+            model=model,
+            deps_type=StateDeps[SearchState],
+            retries=2,
+            toolsets=[filter_building_toolset, execution_toolset],
+        ),
+        "text_response_agent": Agent(
+            model=model,
+            deps_type=StateDeps[SearchState],
+            retries=2,
+            toolsets=[search_toolset],
+        ),
+    }
+
+
+# Node descriptions for graph visualization
+NODE_DESCRIPTIONS = {
+    "IntentNode": "Classifies user intent and initializes query",
+    "FilterBuildingNode": "Builds database query filters using FilterTree",
+    "SearchNode": "Executes database searches",
+    "AggregationNode": "Executes aggregations with grouping and visualization",
+    "TextResponseNode": "Generates text responses for general questions",
 }
 
 
@@ -83,7 +124,7 @@ NODE_CONFIG = {
 class BaseGraphNode:
     """Base class for all graph nodes with common fields and streaming logic."""
 
-    search_agent: Agent[StateDeps["SearchState"], str]
+    node_agent: Agent[StateDeps["SearchState"], Any]  # Dedicated agent for this node
     event_emitter: Callable[[BaseEvent], Awaitable[None]] | None = None
 
     @property
@@ -91,27 +132,12 @@ class BaseGraphNode:
         """Get the name of this node for event emission."""
         return self.__class__.__name__
 
-    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str | None:
-        """Get the prompt for the skill agent from NODE_CONFIG."""
-        config = NODE_CONFIG.get(self.node_name)
-        if not config:
-            return None
-        prompt_fn = config["prompt_fn"]
-        if not prompt_fn:
-            return None
-
-        return prompt_fn(ctx.state)
-
-    @property
-    def toolsets(self) -> list[Any]:
-        """Get the toolsets for this node from NODE_CONFIG."""
-        config = NODE_CONFIG.get(self.node_name)
-        if not config:
-            return []
-        return config["toolsets"]
+    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
+        """Get the prompt for this node's agent. Override in subclasses that need dynamic prompts."""
+        raise NotImplementedError(f"{self.node_name} must implement get_prompt() or override stream()")
 
     async def event_generator(self, ctx: GraphRunContext[SearchState, None]) -> AsyncIterator[AgentStreamEvent]:
-        """Generate events from the search agent as they happen."""
+        """Generate events from the node's dedicated agent as they happen."""
         # Emit GRAPH_NODE_ENTER event at the start
         if hasattr(self, "event_emitter") and self.event_emitter:
             value: GraphNodeEnterValue = {"node": self.node_name, "step_type": "graph_node"}
@@ -119,15 +145,13 @@ class BaseGraphNode:
             await self.event_emitter(graph_event)
 
         prompt = self.get_prompt(ctx)
-        if prompt is None:
-            return  # No prompt means no agent call
-
         state_deps = StateDeps(ctx.state)
-        toolsets = self.toolsets
 
-        # Start with clean message history to avoid empty/null content messages across nodes
-        async with self.search_agent.iter(
-            user_prompt=prompt, deps=state_deps, toolsets=toolsets, message_history=[]
+        # Use the node's dedicated agent
+        async with self.node_agent.iter(
+            user_prompt=prompt,
+            deps=state_deps,
+            message_history=[],
         ) as agent_run:
             async for agent_node in agent_run:
                 if Agent.is_model_request_node(agent_node):
@@ -158,104 +182,237 @@ class BaseGraphNode:
 
 
 @dataclass
-class QueryAnalysisNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     user_input: str = field(kw_only=True)
+    intent_agent: Agent[StateDeps[SearchState], IntentType] = field(kw_only=True)  # Separate intent classifier
+    query_init_agent: Agent[StateDeps[SearchState], Any] = field(kw_only=True)  # For calling start_new_search
+    agents: dict[str, Agent[StateDeps[SearchState], Any]] = field(kw_only=True)  # All agents for routing
 
-    async def run(self, ctx: GraphRunContext[SearchState, None]) -> FilterBuildingNode:
-        """Route to next node after query analysis.
+    @asynccontextmanager
+    async def stream(self, ctx: GraphRunContext[SearchState, None]) -> AsyncIterator[AsyncIterator[AgentStreamEvent]]:
+        """Use intent_agent to classify user input, then call start_new_search."""
 
-        The agent execution happened during stream(), so ctx.state is already updated.
-        Always route to FilterBuildingNode - the agent there will decide if filters are needed.
+        async def event_generator() -> AsyncIterator[AgentStreamEvent]:
+            # Emit enter event
+            if self.event_emitter:
+                value: GraphNodeEnterValue = {"node": self.node_name, "step_type": "graph_node"}
+                await self.event_emitter(GraphNodeEnterEvent(timestamp=_current_timestamp_ms(), value=value))
+
+            state_deps = StateDeps(ctx.state)
+
+            # Run intent classification (no streaming, just get result)
+            result = await self.intent_agent.run(self.user_input, deps=state_deps)
+            ctx.state.intent = result.output
+            logger.debug(f"{self.node_name}: Intent classified", intent=result.output.value)
+
+            # Use query_init_agent to get structured output (entity_type and action)
+            prompt = f'Determine entity_type and action for: "{self.user_input}"'
+
+            init_result = await self.query_init_agent.run(
+                user_prompt=prompt,
+                deps=state_deps,
+                message_history=[],
+            )
+
+            # Update state
+            entity_type = init_result.output.entity_type
+            action = init_result.output.action
+
+            # Clear state and initialize query
+            ctx.state.results_count = None
+            ctx.state.action = action
+
+            # Create the appropriate query object based on action
+            if action == ActionType.SELECT:
+                ctx.state.query = SelectQuery(entity_type=entity_type, query_text=self.user_input)
+            elif action == ActionType.COUNT:
+                ctx.state.query = CountQuery(entity_type=entity_type)
+            else:  # ActionType.AGGREGATE
+                ctx.state.query = AggregateQuery(entity_type=entity_type, aggregations=[])
+
+            logger.debug(
+                f"{self.node_name}: Query initialized",
+                entity_type=entity_type.value,
+                action=action.value,
+                query_type=type(ctx.state.query).__name__,
+            )
+
+            # Emit exit event
+            if self.event_emitter:
+                exit_value: GraphNodeExitValue = {
+                    "node": self.node_name,
+                    "next_node": "routing...",
+                    "decision": f"Intent: {ctx.state.intent.value if ctx.state.intent else 'unknown'}",
+                }
+                await self.event_emitter(GraphNodeExitEvent(timestamp=_current_timestamp_ms(), value=exit_value))
+
+            # Make this a proper async generator
+            return
+            yield  # pragma: no cover
+
+        yield event_generator()
+
+    async def run(
+        self, ctx: GraphRunContext[SearchState, None]
+    ) -> FilterBuildingNode | SearchNode | AggregationNode | TextResponseNode:
+        """Route based on the intent classified by the agent.
 
         Returns:
-            FilterBuildingNode - always route to filter building
+            Appropriate next node based on intent
         """
-        logger.debug(
-            f"{self.node_name}: Analysis complete",
-            action=ctx.state.action,
-            has_query=ctx.state.query is not None,
-        )
+        intent = ctx.state.intent
 
-        next_node = FilterBuildingNode(search_agent=self.search_agent, event_emitter=self.event_emitter)
-        await self._emit_exit(next_node.node_name, "Query analysis complete, proceeding to filter building")
+        logger.debug(f"{self.node_name}: Routing on intent", intent=intent.value if intent else None)
+
+        # Direct routes without filters
+        if intent == IntentType.SEARCH:
+            next_node = SearchNode(
+                node_agent=self.agents["search_agent"],
+                event_emitter=self.event_emitter,
+                agents=self.agents,
+            )
+            await self._emit_exit(next_node.node_name, "Search without filters")
+            return next_node
+
+        if intent == IntentType.AGGREGATION:
+            next_node = AggregationNode(
+                node_agent=self.agents["aggregation_agent"],
+                event_emitter=self.event_emitter,
+                agents=self.agents,
+            )
+            await self._emit_exit(next_node.node_name, "Aggregation without filters")
+            return next_node
+
+        # Routes through filter building
+        if intent == IntentType.SEARCH_WITH_FILTERS or intent == IntentType.AGGREGATION_WITH_FILTERS:
+            next_node = FilterBuildingNode(
+                node_agent=self.agents["filter_building_agent"],
+                event_emitter=self.event_emitter,
+                agents=self.agents,
+            )
+            await self._emit_exit(next_node.node_name, "Search with filters - needs filter building")
+            return next_node
+
+        # Fallback for TEXT_RESPONSE or unknown intents
+        next_node = TextResponseNode(
+            node_agent=self.agents["text_response_agent"],
+            event_emitter=self.event_emitter,
+        )
+        await self._emit_exit(next_node.node_name, f"Text response (intent: {intent.value if intent else 'unknown'})")
         return next_node
 
 
 @dataclass
 class FilterBuildingNode(BaseGraphNode, BaseNode[SearchState, None, str]):
-    async def run(self, ctx: GraphRunContext[SearchState, None]) -> ExecutionNode:
-        """Route to next node after filter building.
+    agents: dict[str, Agent[StateDeps[SearchState], Any]] = field(kw_only=True)  # All agents for routing
 
-        The agent execution happened during stream(), so ctx.state is already updated.
-        This method just handles routing logic.
+    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
+        """Get the filter building prompt."""
+        return get_filter_building_prompt(ctx.state)
+
+    async def run(self, ctx: GraphRunContext[SearchState, None]) -> SearchNode | AggregationNode:
+        """Route to SearchNode or AggregationNode based on intent.
+
+        Filter building complete - now route to the appropriate execution node.
 
         Returns:
-            ExecutionNode - always route to execution
+            SearchNode for SEARCH_WITH_FILTERS, AggregationNode for AGGREGATION_WITH_FILTERS
         """
+        intent = ctx.state.intent
+
         logger.debug(
             f"{self.node_name}: Filter building complete",
+            intent=intent.value if intent else None,
             has_filters=ctx.state.query.filters is not None if ctx.state.query else False,
         )
 
-        next_node = ExecutionNode(search_agent=self.search_agent, event_emitter=self.event_emitter)
-        await self._emit_exit(next_node.node_name, "Filter building complete, proceeding to execution")
+        if intent == IntentType.SEARCH_WITH_FILTERS:
+            next_node = SearchNode(
+                node_agent=self.agents["search_agent"],
+                event_emitter=self.event_emitter,
+                agents=self.agents,
+            )
+            await self._emit_exit(next_node.node_name, "Routing to search execution")
+            return next_node
+
+        # AGGREGATION_WITH_FILTERS intent
+        next_node = AggregationNode(
+            node_agent=self.agents["aggregation_agent"],
+            event_emitter=self.event_emitter,
+            agents=self.agents,
+        )
+        await self._emit_exit(next_node.node_name, "Routing to aggregation execution")
         return next_node
 
 
 @dataclass
-class ExecutionNode(BaseGraphNode, BaseNode[SearchState, None, str]):
-    async def run(self, ctx: GraphRunContext[SearchState, None]) -> ResultProcessingNode | ResponseNode:
-        """Route to next node after execution."""
-        logger.debug(
-            f"{self.node_name}: Execution complete",
+class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    agents: dict[str, Agent[StateDeps[SearchState], Any]] = field(kw_only=True)  # For potential routing
+
+    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
+        """Get the search execution prompt."""
+        return get_search_execution_prompt(ctx.state)
+
+    async def run(self, ctx: GraphRunContext[SearchState, None]) -> TextResponseNode:
+        """Execute search and route to TextResponseNode for final response.
+
+        Agent has already called run_search() during stream().
+        Now route to TextResponseNode to generate user-friendly response.
+        """
+        logger.info(
+            f"{self.node_name}: Search execution complete",
             results_count=ctx.state.results_count,
         )
 
-        # Always go to ResponseNode (ResultProcessingNode is kept for future use)
-        # Future: Could route to ResultProcessingNode for export/details functionality
-        next_node: ResultProcessingNode | ResponseNode = ResponseNode(
-            search_agent=self.search_agent, event_emitter=self.event_emitter
+        next_node = TextResponseNode(
+            node_agent=self.agents["text_response_agent"],
+            event_emitter=self.event_emitter,
         )
-        await self._emit_exit(next_node.node_name, "Execution complete, proceeding to response")
+        await self._emit_exit(next_node.node_name, "Search complete, generating response")
         return next_node
 
 
 @dataclass
-class ResultProcessingNode(BaseGraphNode, BaseNode[SearchState, None, str]):
-    async def run(self, ctx: GraphRunContext[SearchState, None]) -> ResponseNode:
-        """Route to next node after result processing.
+class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    agents: dict[str, Agent[StateDeps[SearchState], Any]] = field(kw_only=True)  # For potential routing
 
-        The agent execution happened during stream(), so ctx.state is already updated.
-        This method just handles routing logic.
+    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
+        """Get the aggregation execution prompt."""
+        return get_aggregation_execution_prompt(ctx.state)
 
-        Returns:
-            ResponseNode - always route to response
+    async def run(self, ctx: GraphRunContext[SearchState, None]) -> TextResponseNode:
+        """Execute aggregation and route to TextResponseNode for final response.
+
+        Agent has already called run_aggregation() during stream().
+        Now route to TextResponseNode to generate user-friendly response.
         """
-        logger.debug(f"{self.node_name}: Result processing complete")
+        logger.info(
+            f"{self.node_name}: Aggregation execution complete",
+            results_count=ctx.state.results_count,
+        )
 
-        next_node = ResponseNode(search_agent=self.search_agent, event_emitter=self.event_emitter)
-        await self._emit_exit(next_node.node_name, "Results processed, proceeding to response")
+        next_node = TextResponseNode(
+            node_agent=self.agents["text_response_agent"],
+            event_emitter=self.event_emitter,
+        )
+        await self._emit_exit(next_node.node_name, "Aggregation complete, generating response")
         return next_node
 
 
 @dataclass
-class ResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
+        """Get the text response prompt."""
+        return get_text_response_prompt(ctx.state)
+
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> End[str]:
-        """Return final output after response generation.
+        """Generate text-only response.
 
-        The agent execution happened during stream(), which generated the response text.
-        This method just emits final events and returns End.
-
-        Returns:
-            End with response text
+        Agent generates appropriate response during stream().
+        Just emit exit event and end.
         """
-        # For now, return a simple completion message
-        # TODO: Get actual response output from streaming agent execution
-        output = f"Search completed. Found {ctx.state.results_count or 0} results."
+        logger.info(f"{self.node_name}: Text response generation complete")
 
-        logger.info(f"{self.node_name}: Response generation complete", response_output=output)
-
-        # Emit EXIT event (no next node since this is the end)
-        await self._emit_exit(None, "Response generation complete")
-
+        output = "Response generated."
+        await self._emit_exit(None, "Text response complete")
         return End(output)
