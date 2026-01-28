@@ -38,7 +38,7 @@ from orchestrator.search.agent.graph_nodes import (
     IntentNode,
     SearchNode,
     TextResponseNode,
-    create_node_agents,
+    emit_end_event,
 )
 from orchestrator.search.agent.schemas import GraphEdge, GraphNode, GraphStructure
 from orchestrator.search.agent.state import SearchState
@@ -60,7 +60,6 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         self,
         model: "Model | KnownModelName | str",  # type: ignore[valid-type]
         graph: Graph[SearchState, None, str],
-        node_agents: dict[str, Agent[StateDeps[SearchState], Any]],
         *,
         deps_type: type[StateDeps[SearchState]] = StateDeps[SearchState],
         model_settings: "ModelSettings | None" = None,
@@ -70,9 +69,8 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         """Initialize the graph wrapper agent.
 
         Args:
-            model: LLM model to use (required by Agent base class)
+            model: LLM model to use (stored for node creation)
             graph: The pydantic-graph Graph instance to execute
-            node_agents: Dictionary of specialized agents for each node
             deps_type: Dependencies type (defaults to StateDeps[SearchState])
             model_settings: Model settings
             toolsets: Tool sets (not used directly, but required by base class)
@@ -86,7 +84,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             instructions=instructions or [],
         )
         self.graph = graph
-        self.node_agents = node_agents
+        self.model_name = model if isinstance(model, str) else str(model)
 
     def get_graph_structure(self) -> GraphStructure:
         """Build graph structure for visualization.
@@ -120,8 +118,11 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             # From AggregationNode
             GraphEdge(source=AggregationNode.__name__, target=TextResponseNode.__name__),
             # From TextResponseNode to End
-            GraphEdge(source=TextResponseNode.__name__, target="__end__"),
+            GraphEdge(source=TextResponseNode.__name__, target=End.__name__),
         ]
+
+        # Add End node for visualization
+        nodes.append(GraphNode(id=End.__name__, label="End", description="Graph execution complete"))
 
         return GraphStructure(nodes=nodes, edges=edges, start_node=self.DEFAULT_START_NODE.__name__)
 
@@ -155,47 +156,29 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         user_input = initial_state.user_input
 
         try:
-            graph_events: deque[Any] = deque()
             self._current_graph_events: deque[str] = deque()
-
-            async def emit_graph_event(event: Any) -> None:
-                """Callback for graph nodes to emit custom events."""
-                logger.debug(f"Graph event emitted: {event}")
-                graph_events.append(event)
-                self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
+            emit_event = lambda event: self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
 
             start_node = self.DEFAULT_START_NODE(
                 user_input=user_input,
-                node_agent=self.node_agents["intent_agent"],  # Required by BaseGraphNode but unused by IntentNode
-                intent_agent=self.node_agents["intent_agent"],
-                query_init_agent=self.node_agents["query_init_agent"],
-                agents=self.node_agents,
-                event_emitter=emit_graph_event,
+                model=self.model_name,
+                event_emitter=emit_event,
             )
 
             logger.debug("GraphAgentAdapter: Starting graph streaming", node=type(start_node).__name__)
 
             async with self.graph.iter(start_node=start_node, state=initial_state) as graph_run:
                 async for next_node in graph_run:
-                    # Yield any graph events from the previous node
-                    while graph_events:
-                        yield graph_events.popleft()
 
                     if isinstance(next_node, End):
-                        logger.debug("GraphAgentAdapter: Reached End node")
+                        emit_end_event(emit_event)
                         break
-
-                    logger.debug("GraphAgentAdapter: Processing node", node=type(next_node).__name__)
 
                     # Stream events from the node
                     ctx = GraphRunContext(state=graph_run.state, deps=graph_run.deps)
                     async with next_node.stream(ctx) as event_stream:  # type: ignore[attr-defined]
                         async for event in event_stream:
                             yield event
-
-                    # Yield graph events emitted by run()
-                    while graph_events:
-                        yield graph_events.popleft()
 
                 final_output = (
                     str(getattr(graph_run.result, "output", graph_run.result))
@@ -221,8 +204,6 @@ def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | N
     Returns:
         GraphAgentAdapter instance
     """
-    node_agents = create_node_agents(model)
-
     graph: Graph[SearchState, None, str] = Graph(
         nodes=[
             IntentNode,
@@ -236,7 +217,6 @@ def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | N
     adapter = GraphAgentAdapter(
         model=model,
         graph=graph,
-        node_agents=node_agents,
         deps_type=StateDeps[SearchState],
     )
 

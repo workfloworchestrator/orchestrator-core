@@ -17,30 +17,15 @@ from pydantic import Field
 from typing_extensions import TypedDict
 
 
-class GraphNodeEnterValue(TypedDict):
-    """Typed structure for GRAPH_NODE_ENTER event value."""
+class GraphNodeActiveValue(TypedDict):
+    """Typed structure for GRAPH_NODE_ACTIVE event value."""
 
     node: str
     step_type: str
 
 
-class GraphNodeEnterEvent(CustomEvent):
-    """Event emitted when entering a graph node."""
+class GraphNodeActiveEvent(CustomEvent):
+    """Event emitted when a graph node becomes active."""
 
-    name: str = Field(default="GRAPH_NODE_ENTER", frozen=True)
-    value: GraphNodeEnterValue
-
-
-class GraphNodeExitValue(TypedDict):
-    """Typed structure for GRAPH_NODE_EXIT event value."""
-
-    node: str
-    next_node: str | None
-    decision: str | None
-
-
-class GraphNodeExitEvent(CustomEvent):
-    """Event emitted when exiting a graph node."""
-
-    name: str = Field(default="GRAPH_NODE_EXIT", frozen=True)
-    value: GraphNodeExitValue
+    name: str = Field(default="GRAPH_NODE_ACTIVE", frozen=True)
+    value: GraphNodeActiveValue
