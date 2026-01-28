@@ -11,141 +11,128 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-from textwrap import dedent
-
-import structlog
-from pydantic_ai import RunContext
-from pydantic_ai.ag_ui import StateDeps
-
 from orchestrator.search.agent.state import SearchState
-from orchestrator.search.core.types import ActionType
-
-logger = structlog.get_logger(__name__)
 
 
-async def get_base_instructions() -> str:
-    return dedent(
-        f"""
-        You are an expert assistant designed to find relevant information by building and running database queries.
-
-        ---
-        ### 1. Your Goal and Method
-
-        Your ultimate goal is to **find information** that answers the user's request.
-
-        For **filtered searches**, your primary method is to **construct a valid `FilterTree` object**.
-        To do this correctly, you must infer the exact structure, operators, and nesting rules from the Pydantic schema of the `set_filter_tree` tool itself.
-
-        ---
-        ### 2. Information-Gathering Tools
-
-        **If you determine that a `FilterTree` is needed**, use these tools to gather information first:
-
-        - **discover_filter_paths(field_names: list[str])**: Use this to discover all valid filter paths for a list of field names in a single call.
-        - **get_valid_operators()**: Use this to get the JSON map of all valid operators for each field type.
-
-        ---
-        ### 3. Execution Workflow
-
-        Follow these steps:
-
-        1.  **Set Context**: Call `start_new_search` with appropriate entity_type and action:
-            - `action={ActionType.SELECT.value}` for finding/searching entities
-            - `action={ActionType.COUNT.value}` for counting (e.g., "how many", "count by status", "monthly growth")
-            - `action={ActionType.AGGREGATE.value}` for numeric operations (SUM, AVG, MIN, MAX of specific fields)
-        2.  **Set Filters** (if needed): Discover paths, build FilterTree, call `set_filter_tree`
-            - IMPORTANT: Temporal constraints like "in 2025", "in January", "between X and Y" require filters on datetime fields
-            - Filters restrict WHICH records to include; grouping controls HOW to aggregate them
-        3.  **Set Grouping/Aggregations** (for {ActionType.COUNT.value}/{ActionType.AGGREGATE.value}):
-            - For temporal grouping (per month, per year, per day, etc.): Use `set_temporal_grouping`
-            - For regular grouping (by status, by name, etc.): Use `set_grouping`
-            - For {ActionType.AGGREGATE.value} action ONLY: Use `set_aggregations` to specify what to compute (SUM, AVG, etc.)
-            - For {ActionType.COUNT.value} action: Do NOT call `set_aggregations` (counting is automatic)
-        4.  **Execute**:
-            - For {ActionType.SELECT.value} action: Call `run_search()`
-            - For {ActionType.COUNT.value}/{ActionType.AGGREGATE.value} actions: Call `run_aggregation()`
-
-        After search execution, follow the dynamic instructions based on the current state.
-
-        ---
-        ### 4. Critical Rules
-
-        - **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `discover_filter_paths` first. If a path does not exist, you may attempt to map the question on an existing paths that are valid and available from `discover_filter_paths`. If you cannot infer a match, inform the user and do not include it in the `FilterTree`.
-        - **USE FULL PATHS**: Always use the full, unambiguous path returned by the discovery tool.
-        - **MATCH OPERATORS**: Only use operators that are compatible with the field type as confirmed by `get_filter_operators`.
-        """
+def get_intent_prompt() -> str:
+    """Get system prompt for IntentNode agent to classify user requests."""
+    return (
+        "You classify user requests into intents:\n"
+        "- SEARCH: Find/list entities without specific filters\n"
+        "- SEARCH_WITH_FILTERS: Find entities with conditions (status, dates, etc.)\n"
+        "- AGGREGATION: Count/stats without filters\n"
+        "- AGGREGATION_WITH_FILTERS: Count/stats with conditions\n"
+        "- TEXT_RESPONSE: General questions, greetings, out-of-scope\n\n"
+        "Return ONLY the intent enum value."
     )
 
 
-async def get_dynamic_instructions(ctx: RunContext[StateDeps[SearchState]]) -> str:
-    """Dynamically provides 'next step' coaching based on the current state."""
-    state = ctx.deps.state
-    query_state_str = json.dumps(state.query.model_dump(), indent=2, default=str) if state.query else "Not set."
+def get_query_init_prompt() -> str:
+    """Get system prompt for query initialization agent."""
+    return (
+        "You initialize database searches by calling start_new_search.\n\n"
+        "entity_type options: SUBSCRIPTION | PRODUCT | WORKFLOW | PROCESS\n"
+        "action options:\n"
+        "- SELECT: For finding/listing entities\n"
+        "- COUNT: For counting operations (e.g., 'how many', 'count by status', 'per month')\n"
+        "- AGGREGATE: For numeric operations on fields (SUM, AVG, MIN, MAX)\n\n"
+        "Call the tool once, then respond 'Done.'"
+    )
+
+
+def get_filter_building_prompt(state: SearchState) -> str:
+    """Get prompt for FilterBuildingNode agent.
+
+    Args:
+        state: Current search state with user input and query info
+
+    Returns:
+        Complete prompt with instructions and user context
+    """
+    return (
+        "Build database query filters based on the user's request.\n\n"
+        "Instructions:\n"
+        "1. If specific filters are needed (e.g., 'active', 'in 2025'):\n"
+        "   - Call discover_filter_paths to find valid paths\n"
+        "   - Call get_valid_operators for compatible operators\n"
+        "   - Build FilterTree and call set_filter_tree(filters=...)\n"
+        "2. If NO specific filters needed (generic queries):\n"
+        "   - Call set_filter_tree(filters=None)\n\n"
+        "Rules:\n"
+        "- Never guess paths - always verify with discover_filter_paths\n"
+        "- Temporal constraints like 'in 2025' require datetime filters\n"
+        "- After calling tools, briefly confirm what you did\n\n"
+        f"User request: {state.user_input}"
+    )
+
+
+def get_search_execution_prompt(state: SearchState) -> str:
+    """Get prompt for SearchNode agent.
+
+    Args:
+        state: Current search state
+
+    Returns:
+        Complete prompt for executing search
+    """
+    return (
+        "Execute the database search by calling run_search().\n"
+        "After calling the tool, respond with 'Done.'\n\n"
+        f"User request: {state.user_input}"
+    )
+
+
+def get_aggregation_execution_prompt(state: SearchState) -> str:
+    """Get prompt for AggregationNode agent.
+
+    Args:
+        state: Current search state with action and query info
+
+    Returns:
+        Complete prompt for executing aggregation
+    """
+    action = state.action.value if state.action else "unknown"
+
+    return (
+        f"Execute the aggregation query (action: {action}).\n\n"
+        "Instructions:\n"
+        "1. Set up grouping if needed:\n"
+        "   - For temporal: call set_temporal_grouping()\n"
+        "   - For regular: call set_grouping()\n"
+        "2. For AGGREGATE action ONLY (not COUNT):\n"
+        "   - Call set_aggregations() to specify what to compute\n"
+        "3. Call run_aggregation(visualization_type=...) and respond 'Done.'\n\n"
+        f"User request: {state.user_input}"
+    )
+
+
+def get_text_response_prompt(state: SearchState) -> str:
+    """Get prompt for TextResponseNode agent.
+
+    Args:
+        state: Current search state
+
+    Returns:
+        Complete prompt for generating text response
+    """
     results_count = state.results_count or 0
-    action = state.action or ActionType.SELECT
+    action = state.action
 
-    if not state.query:
-        next_step_guidance = (
-            f"INSTRUCTION: The search context is not set. Your next action is to call `start_new_search`. "
-            f"For counting or aggregation queries, set action='{ActionType.COUNT.value}' or action='{ActionType.AGGREGATE.value}'."
-        )
-    elif results_count > 0:
-        if action in (ActionType.COUNT, ActionType.AGGREGATE):
-            # Aggregation completed
-            next_step_guidance = (
-                "INSTRUCTION: Aggregation completed successfully. "
-                "The results are already displayed in the UI. "
-                "Simply confirm completion to the user in a brief sentence. "
-                "DO NOT repeat, summarize, or restate the aggregation data."
-            )
-        else:
-            # Search completed
-            next_step_guidance = dedent(
-                f"""
-                INSTRUCTION: Search completed successfully.
-                Found {results_count} results containing only: entity_id, title, score.
-
-                Choose your next action based on what the user requested:
-                1. **Broad/generic search** (e.g., 'show me subscriptions'): Confirm search completed and report count. Do not repeat the results.
-                2. **Question answerable with entity_id/title/score**: Answer directly using the current results.
-                3. **Question requiring other details**: Call `fetch_entity_details` first, then answer with the detailed data.
-                4. **Export request** (phrases like 'export', 'download', 'save as CSV'): Call `prepare_export` directly. Simply confirm the export is ready. Do not repeat the results.
-                """
-            )
-    elif action in (ActionType.COUNT, ActionType.AGGREGATE):
-        # COUNT or AGGREGATE action but no results yet
-        next_step_guidance = (
-            "INSTRUCTION: Aggregation context is set. "
-            "For temporal queries (per month, per year, over time): call `set_temporal_grouping` with datetime field and period. "
-            "For regular grouping: call `set_grouping` with paths to group by. "
-            f"For {ActionType.AGGREGATE.value.upper()}: call `set_aggregations` with aggregation specs. "
-            "Then call `run_aggregation`."
+    if action and action.value in ["count", "aggregate"]:
+        return (
+            f"Aggregation completed with {results_count} result groups.\n\n"
+            "The results are displayed in the UI visualization.\n"
+            "Provide a brief confirmation - do NOT repeat the data.\n\n"
+            f"User request: {state.user_input}"
         )
     else:
-        next_step_guidance = (
-            "INSTRUCTION: Context is set. Now, analyze the user's request. "
-            "If specific filters ARE required, use the information-gathering tools to build a `FilterTree` and call `set_filter_tree`. "
-            "If no specific filters are needed, you can proceed directly to `run_search`."
+        return (
+            "Generate a helpful response to the user's question.\n\n"
+            f"User request: {state.user_input}\n"
+            f"Search results found: {results_count}\n\n"
+            "Instructions:\n"
+            "- If results_count is 0: Tell user nothing was found\n"
+            "- If results exist: Briefly confirm what was found\n"
+            "- Keep response concise\n"
+            "- Results are already displayed in the UI - don't repeat them"
         )
-
-    status_summary = f"Results: {results_count}" if results_count > 0 else "No results yet"
-
-    return dedent(
-        f"""
-        ---
-        ## CURRENT STATE
-
-        **Current Query:**
-        ```json
-        {query_state_str}
-        ```
-
-        **Status:** {status_summary}
-
-        ---
-        ## NEXT ACTION REQUIRED
-
-        {next_step_guidance}
-        """
-    )
