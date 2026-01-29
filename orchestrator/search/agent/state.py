@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -19,14 +20,26 @@ from orchestrator.search.core.types import ActionType
 from orchestrator.search.query.queries import Query
 
 
+class IntentType(str, Enum):
+    """User's intent - determines which node to route to."""
+
+    SEARCH = "search"
+    SEARCH_WITH_FILTERS = "search_with_filters"
+    AGGREGATION = "aggregation"
+    AGGREGATION_WITH_FILTERS = "aggregation_with_filters"
+    TEXT_RESPONSE = "text_response"
+
+
 class SearchState(BaseModel):
     """Agent state for search operations.
 
     Tracks the current search context and execution status.
     """
 
+    user_input: str = ""  # Original user input text from current conversation turn
     run_id: UUID | None = None
     query_id: UUID | None = None
     action: ActionType | None = None
     query: Query | None = None
     results_count: int | None = None  # Number of results from last executed search/aggregation
+    intent: IntentType | None = None  # User's intent, determines routing

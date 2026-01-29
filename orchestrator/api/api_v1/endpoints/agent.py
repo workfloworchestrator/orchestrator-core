@@ -12,38 +12,154 @@
 # limitations under the License.
 
 from functools import cache
-from typing import Annotated
+from typing import Annotated, AsyncGenerator
 
-from fastapi import APIRouter, Depends, Request
-from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
-from pydantic_ai.agent import Agent
-from starlette.responses import Response
+from ag_ui.core import RunAgentInput
+from anyio import create_memory_object_stream, create_task_group
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
+from pydantic_ai.ag_ui import SSE_CONTENT_TYPE, StateDeps, run_ag_ui
+from starlette.responses import Response, StreamingResponse
 from structlog import get_logger
 
-from orchestrator.search.agent import build_agent_instance
+from orchestrator.search.agent.agent import GraphAgentAdapter, build_agent_instance
+from orchestrator.search.agent.schemas import GraphStructure
 from orchestrator.search.agent.state import SearchState
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
+def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
+    """Prepare RunAgentInput by extracting user message and adding it to state.
+
+    This preprocessing is necessary because:
+    - AG-UI transforms messages into LLM prompts during processing
+    - We need the original user query text for tools and prompts
+    - The endpoint is the only place with access to raw messages before transformation
+
+    Args:
+        run_input: Original RunAgentInput from the client
+
+    Returns:
+        Modified RunAgentInput with user_input added to state
+    """
+    # Extract the most recent user message
+    # QueryAnalysisNode LLM will decide if it's a new search or follow-up
+    user_input = ""
+    for msg in reversed(run_input.messages):
+        if msg.role == "user" and msg.content:
+            user_input = msg.content
+            break
+
+    logger.debug("Extracted latest user message", user_input=user_input[:100] if user_input else "(empty)")
+
+    # Merge user_input with existing state from run_input
+    # AG-UI protocol: existing state fields are preserved, we just add/update user_input
+    state_dict = dict(run_input.state) if run_input.state else {}
+    state_dict["user_input"] = user_input
+
+    return RunAgentInput(
+        thread_id=run_input.thread_id,
+        run_id=run_input.run_id,
+        state=state_dict,
+        messages=run_input.messages,
+        tools=run_input.tools,
+        context=run_input.context,
+        forwarded_props=run_input.forwarded_props,
+    )
+
+
 @cache
-def get_agent(request: Request) -> Agent[StateDeps[SearchState], str]:
+def get_agent(request: Request) -> GraphAgentAdapter:
     """Dependency to provide the agent instance.
 
     The agent is built once and cached for the lifetime of the application.
     """
-    return build_agent_instance(request.app.agent_model)
+    model = request.app.agent_model
+
+    logger.debug("Building graph agent instance", model=model)
+    return build_agent_instance(model)
 
 
 @router.post("/")
 async def agent_conversation(
     request: Request,
-    agent: Annotated[Agent[StateDeps[SearchState], str], Depends(get_agent)],
+    agent: Annotated[GraphAgentAdapter, Depends(get_agent)],
 ) -> Response:
     """Agent conversation endpoint using pydantic-ai ag_ui protocol.
 
     This endpoint handles the interactive agent conversation for search.
+    Uses manual stream management to allow custom graph events to be injected.
     """
-    initial_state = SearchState()
-    return await handle_ag_ui_request(agent, request, deps=StateDeps(initial_state))
+
+    # Parse the request body to get RunAgentInput
+    try:
+        body = await request.json()
+        run_input = RunAgentInput(**body)
+    except ValidationError as e:
+        logger.error("Invalid request body", error=str(e))
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
+
+    # Prepare run_input with user message extracted into state
+    prepared_run_input = prepare_run_input(run_input)
+
+    # Create memory stream for events
+    send_stream, receive_stream = create_memory_object_stream[str]()
+
+    async def run_agent_task() -> None:
+        """Run the agent and send events to the stream."""
+        try:
+            # AG-UI merges prepared_run_input.state into the agent's deps.state
+            event_iterator = run_ag_ui(agent, run_input=prepared_run_input, deps=StateDeps(SearchState()))
+
+            async for event_str in event_iterator:
+                # First, check if there are any graph events to inject
+                if hasattr(agent, "_current_graph_events"):
+                    while agent._current_graph_events:
+                        custom_event = agent._current_graph_events.popleft()
+                        await send_stream.send(custom_event)
+
+                # Then send the regular event
+                await send_stream.send(event_str)
+
+        except Exception as e:
+            logger.error("Error in run_agent_task", error=str(e), exc_info=True)
+            raise
+        finally:
+            await send_stream.aclose()
+
+    async def stream_generator() -> AsyncGenerator[str, None]:
+        """Generate SSE events from the memory stream."""
+        async with create_task_group() as tg:
+            # Start agent execution in background
+            tg.start_soon(run_agent_task)
+
+            # Stream events as they arrive
+            async with receive_stream:
+                async for event in receive_stream:
+                    yield event
+
+    return StreamingResponse(stream_generator(), media_type=SSE_CONTENT_TYPE)
+
+
+@router.get("/graph")
+async def get_graph_structure(
+    request: Request,
+    agent: Annotated[GraphAgentAdapter, Depends(get_agent)],
+) -> GraphStructure:
+    """Get the agent graph structure for visualization.
+
+    Returns structured graph data (nodes and edges) that the frontend can use to:
+    - Visualize the graph structure
+    - Highlight nodes based on events received during execution
+
+    Args:
+        request: FastAPI request object
+        agent: The agent instance (injected by FastAPI dependency)
+
+    Returns:
+        GraphStructure with nodes, edges, and start_node
+    """
+    logger.info("Retrieving graph structure")
+    return agent.get_graph_structure()

@@ -16,11 +16,10 @@ from typing import Any, cast
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
-from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.toolsets import FunctionToolset
 
 from orchestrator.api.api_v1.endpoints.search import (
@@ -32,8 +31,7 @@ from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
 )
-from orchestrator.search.agent.state import SearchState
-from orchestrator.search.agent.validation import require_action
+from orchestrator.search.agent.state import SearchState, IntentType
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
@@ -55,19 +53,39 @@ from orchestrator.settings import app_settings
 
 logger = structlog.get_logger(__name__)
 
-search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=1)
+
+class IntentClassificationOutput(BaseModel):
+    """Wrapper for IntentType with classification guidance."""
+
+    intent: IntentType = Field(
+        description=(
+            "Classify user requests into intents:\n"
+            "- search: Find/list entities without specific filters\n"
+            "- search_with_filters: Find entities with conditions (status, dates, etc.)\n"
+            "- aggregation: Count/stats without filters\n"
+            "- aggregation_with_filters: Count/stats with conditions\n"
+            "- text_response: General questions, greetings, out-of-scope"
+        )
+    )
 
 
-def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
-    for msg in reversed(ctx.messages):
-        if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                    return part.content
-    return None
+class SearchInitParams(BaseModel):
+    """Structured output for initializing a search query."""
+
+    entity_type: EntityType
+    action: ActionType
 
 
-@search_toolset.tool
+# Main toolset with all tools
+search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+
+# Node-specific toolsets for graph control flow
+filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+result_actions_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+
+
+@search_toolset.tool(retries=1)
 async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
@@ -78,7 +96,7 @@ async def start_new_search(
     This MUST be the first tool called when the user asks for a NEW search.
     Warning: This will erase any existing filters, results, and search state.
     """
-    final_query = last_user_message(ctx) or ""
+    final_query = ctx.deps.state.user_input
 
     logger.debug(
         "Starting new search",
@@ -87,7 +105,7 @@ async def start_new_search(
         query=final_query,
     )
 
-    # Clear all state
+    # Initialize new search state
     ctx.deps.state.results_count = None
     ctx.deps.state.action = action
 
@@ -115,14 +133,17 @@ async def start_new_search(
     )
 
 
-@search_toolset.tool(retries=2)
+@search_toolset.tool
+@filter_building_toolset.tool
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
     filters: FilterTree | None,
-) -> StateSnapshotEvent:
+) -> Query:
     """Replace current filters atomically with a full FilterTree, or clear with None.
 
     See FilterTree model for structure, operators, and examples.
+
+    Returns the updated Query as structured output.
     """
     if ctx.deps.state.query is None:
         raise ModelRetry("Search query is not initialized. Call start_new_search first.")
@@ -149,18 +170,14 @@ async def set_filter_tree(
         logger.error("Unexpected Filter validation exception", error=str(e))
         raise ModelRetry(f"Filter validation failed: {str(e)}. Please check your filter structure and try again.")
 
-    ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"filters": filters})
+    updated_query = cast(Query, ctx.deps.state.query).model_copy(update={"filters": filters})
+    ctx.deps.state.query = updated_query
 
-    # Use snapshot to workaround state persistence issue
-    # TODO: Fix root cause; state tree may be empty on frontend when parameters are being set
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
-    )
+    return updated_query
 
 
 @search_toolset.tool
-@require_action(ActionType.SELECT)
+@execution_toolset.tool
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
@@ -209,7 +226,7 @@ async def run_search(
 
 
 @search_toolset.tool
-@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+@execution_toolset.tool
 async def run_aggregation(
     ctx: RunContext[StateDeps[SearchState]],
     visualization_type: VisualizationType,
@@ -221,6 +238,13 @@ async def run_aggregation(
     - Aggregation functions with set_aggregations (for AGGREGATE action)
     """
     query = cast(CountQuery | AggregateQuery, ctx.deps.state.query)
+
+    # Validate AGGREGATE action has aggregations set
+    if isinstance(query, AggregateQuery) and not query.aggregations:
+        raise ModelRetry(
+            "AGGREGATE action requires calling set_aggregations() first to specify which numeric operations to compute (SUM, AVG, MIN, MAX). "
+            "If you just want to count rows, use COUNT action instead."
+        )
 
     logger.debug(
         "Executing aggregation",
@@ -250,6 +274,7 @@ async def run_aggregation(
 
 
 @search_toolset.tool
+@filter_building_toolset.tool
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
     field_names: list[str],
@@ -313,6 +338,7 @@ async def discover_filter_paths(
 
 
 @search_toolset.tool
+@filter_building_toolset.tool
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
     definitions = await get_definitions()
@@ -327,6 +353,7 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
 
 
 @search_toolset.tool
+@result_actions_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
@@ -373,7 +400,7 @@ async def fetch_entity_details(
 
 
 @search_toolset.tool
-@require_action(ActionType.SELECT)
+@result_actions_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
 ) -> ExportData:
@@ -402,13 +429,13 @@ async def prepare_export(
     return export_data
 
 
-@search_toolset.tool(retries=2)
-@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+@search_toolset.tool
+@filter_building_toolset.tool
 async def set_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     group_by_paths: list[str],
     order_by: list[OrderBy] | None = None,
-) -> StateSnapshotEvent:
+) -> Query:
     """Set which field paths to group results by for aggregation.
 
     Only used with COUNT or AGGREGATE actions. Paths must exist in the schema; use discover_filter_paths to verify.
@@ -416,38 +443,42 @@ async def set_grouping(
 
     For order_by: You can order by grouping field paths OR aggregation aliases (e.g., 'count').
     Grouping field paths will be validated; aggregation aliases cannot be validated until execution.
+
+    Returns the updated Query as structured output.
     """
     try:
         validate_grouping_fields(group_by_paths)
         validate_order_by_fields(order_by)
     except PathNotFoundError as e:
         raise ModelRetry(f"{str(e)} Use discover_filter_paths to find valid paths.")
+    except Exception as e:
+        raise ModelRetry(f"Validation failed: {str(e)}")
 
     update_dict: dict[str, Any] = {"group_by": group_by_paths}
     if order_by is not None:
         update_dict["order_by"] = order_by
 
     try:
-        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+        updated_query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+        ctx.deps.state.query = updated_query
     except ValidationError as e:
         raise ModelRetry(str(e))
 
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
-    )
+    logger.debug(f"Grouping set by {len(group_by_paths)} field(s): {', '.join(group_by_paths)}")
+    return updated_query
 
 
-@search_toolset.tool(retries=2)
-@require_action(ActionType.AGGREGATE)
+@search_toolset.tool
+@execution_toolset.tool
 async def set_aggregations(
     ctx: RunContext[StateDeps[SearchState]],
     aggregations: list[Aggregation],
-) -> StateSnapshotEvent:
+) -> Query:
     """Define what aggregations to compute over the matching records.
 
     Only used with AGGREGATE action. See Aggregation model (CountAggregation, FieldAggregation) for structure and field requirements.
 
+    Returns the updated Query as structured output.
     """
     # Validate field paths for FieldAggregations
     try:
@@ -464,24 +495,23 @@ async def set_aggregations(
         raise ModelRetry(f"{str(e)}")
 
     try:
-        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+        updated_query = cast(Query, ctx.deps.state.query).model_copy(update={"aggregations": aggregations})
+        ctx.deps.state.query = updated_query
     except ValidationError as e:
         raise ModelRetry(str(e))
 
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
-    )
+    logger.debug(f"Aggregations configured: {len(aggregations)} aggregation(s)")
+    return updated_query
 
 
-@search_toolset.tool(retries=2)
-@require_action(ActionType.COUNT, ActionType.AGGREGATE)
+@search_toolset.tool
+@execution_toolset.tool
 async def set_temporal_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     temporal_groups: list[TemporalGrouping],
     cumulative: bool = False,
     order_by: list[OrderBy] | None = None,
-) -> StateSnapshotEvent:
+) -> Query:
     """Set temporal grouping to group datetime fields by time periods.
 
     Only used with COUNT or AGGREGATE actions. See TemporalGrouping model for structure, periods, and examples.
@@ -489,6 +519,8 @@ async def set_temporal_grouping(
 
     For order_by: You can order by temporal field paths OR aggregation aliases (e.g., 'count').
     Temporal field paths will be validated; aggregation aliases cannot be validated until execution.
+
+    Returns the updated Query as structured output.
     """
     try:
         for tg in temporal_groups:
@@ -506,11 +538,12 @@ async def set_temporal_grouping(
         update_dict["order_by"] = order_by
 
     try:
-        ctx.deps.state.query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+        updated_query = cast(Query, ctx.deps.state.query).model_copy(update=update_dict)
+        ctx.deps.state.query = updated_query
     except ValidationError as e:
         raise ModelRetry(str(e))
 
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
-    )
+    temporal_desc = ", ".join(f"{tg.field} by {tg.period}" for tg in temporal_groups)
+    cumulative_text = " (cumulative)" if cumulative else ""
+    logger.debug(f"Temporal grouping set: {temporal_desc}{cumulative_text}")
+    return updated_query
