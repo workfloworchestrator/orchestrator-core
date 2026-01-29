@@ -30,6 +30,7 @@ def test_reconcile_workflow_basic():
         "Done",
         "Unlock subscription",
         "Refresh subscription search index",
+        "Refresh process search index",
         "Done",
     ]
     assert step_names == expected_steps
@@ -58,6 +59,7 @@ def test_reconcile_workflow_additional_steps():
         "Extra Step",
         "Unlock subscription",
         "Refresh subscription search index",
+        "Refresh process search index",
         "Done",
     ]
     assert step_names == expected_steps
@@ -83,6 +85,7 @@ def test_reconcile_workflow_empty_function_steps():
         "Lock subscription",
         "Unlock subscription",
         "Refresh subscription search index",
+        "Refresh process search index",
         "Done",
     ]
     assert step_names == expected_steps
