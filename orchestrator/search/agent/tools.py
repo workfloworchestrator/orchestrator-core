@@ -16,7 +16,7 @@ from typing import Any, cast
 
 import structlog
 from ag_ui.core import EventType, StateSnapshotEvent
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -31,7 +31,7 @@ from orchestrator.search.agent.handlers import (
     execute_aggregation_with_persistence,
     execute_search_with_persistence,
 )
-from orchestrator.search.agent.state import SearchState
+from orchestrator.search.agent.state import SearchState, IntentType
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
 from orchestrator.search.core.types import ActionType, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
@@ -54,6 +54,21 @@ from orchestrator.settings import app_settings
 logger = structlog.get_logger(__name__)
 
 
+class IntentClassificationOutput(BaseModel):
+    """Wrapper for IntentType with classification guidance."""
+
+    intent: IntentType = Field(
+        description=(
+            "Classify user requests into intents:\n"
+            "- search: Find/list entities without specific filters\n"
+            "- search_with_filters: Find entities with conditions (status, dates, etc.)\n"
+            "- aggregation: Count/stats without filters\n"
+            "- aggregation_with_filters: Count/stats with conditions\n"
+            "- text_response: General questions, greetings, out-of-scope"
+        )
+    )
+
+
 class SearchInitParams(BaseModel):
     """Structured output for initializing a search query."""
 
@@ -67,6 +82,7 @@ search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_re
 # Node-specific toolsets for graph control flow
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+result_actions_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 
 
 @search_toolset.tool(retries=1)
@@ -337,6 +353,7 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
 
 
 @search_toolset.tool
+@result_actions_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
@@ -383,6 +400,7 @@ async def fetch_entity_details(
 
 
 @search_toolset.tool
+@result_actions_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
 ) -> ExportData:

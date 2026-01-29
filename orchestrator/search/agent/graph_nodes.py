@@ -16,13 +16,14 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Awaitable, Callable
+from typing import Any, AsyncIterator, Callable
 
 import structlog
 from ag_ui.core import BaseEvent
 from pydantic_ai import Agent
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.messages import AgentStreamEvent
+from pydantic_ai.run import AgentRunResultEvent
 from pydantic_graph import BaseNode, End, GraphRunContext
 
 from orchestrator.search.agent.graph_events import (
@@ -32,18 +33,11 @@ from orchestrator.search.agent.graph_events import (
 from orchestrator.search.agent.prompts import (
     get_aggregation_execution_prompt,
     get_filter_building_prompt,
-    get_intent_prompt,
-    get_query_init_prompt,
     get_search_execution_prompt,
     get_text_response_prompt,
 )
 from orchestrator.search.agent.state import IntentType, SearchState
-from orchestrator.search.agent.tools import (
-    SearchInitParams,
-    execution_toolset,
-    filter_building_toolset,
-    search_toolset,
-)
+from orchestrator.search.agent.tools import SearchInitParams, execution_toolset, filter_building_toolset, search_toolset
 from orchestrator.search.core.types import ActionType
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
@@ -55,16 +49,6 @@ def _current_timestamp_ms() -> int:
     from time import time_ns
 
     return time_ns() // 1_000_000
-
-
-# Node descriptions for graph visualization
-NODE_DESCRIPTIONS = {
-    "IntentNode": "Classifies user intent and initializes query",
-    "FilterBuildingNode": "Builds database query filters using FilterTree",
-    "SearchNode": "Executes database searches",
-    "AggregationNode": "Executes aggregations with grouping and visualization",
-    "TextResponseNode": "Generates text responses for general questions",
-}
 
 
 @dataclass
@@ -88,7 +72,9 @@ class BaseGraphNode:
         """Get the prompt for this node's agent. Override in subclasses that need dynamic prompts."""
         raise NotImplementedError(f"{self.node_name} must implement get_prompt() or override stream()")
 
-    async def event_generator(self, ctx: GraphRunContext[SearchState, None]) -> AsyncIterator[AgentStreamEvent]:
+    async def event_generator(
+        self, ctx: GraphRunContext[SearchState, None]
+    ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         """Generate events from the node's dedicated agent as they happen."""
         # Emit GRAPH_NODE_ACTIVE event when node becomes active
         if hasattr(self, "event_emitter") and self.event_emitter:
@@ -99,42 +85,41 @@ class BaseGraphNode:
         prompt = self.get_prompt(ctx)
         state_deps = StateDeps(ctx.state)
 
-        # Use the node's dedicated agent
-        async with self.node_agent.iter(
+        # Use the node's dedicated agent with AG-UI event processing
+        async for event in self.node_agent.run_stream_events(
             user_prompt=prompt,
             deps=state_deps,
             message_history=[],
-        ) as agent_run:
-            async for agent_node in agent_run:
-                if Agent.is_model_request_node(agent_node):
-                    async with agent_node.stream(agent_run.ctx) as event_stream:
-                        async for stream_event in event_stream:
-                            yield stream_event
+        ):
+            yield event
 
     @asynccontextmanager
-    async def stream(self, ctx: GraphRunContext[SearchState, None]) -> AsyncIterator[AsyncIterator[AgentStreamEvent]]:
+    async def stream(
+        self, ctx: GraphRunContext[SearchState, None]
+    ) -> AsyncIterator[AsyncIterator[AgentStreamEvent | AgentRunResultEvent[Any]]]:
         yield self.event_generator(ctx)
 
 
 @dataclass
 class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    description: str = field(default="Classifies user intent and initializes query", init=False)
     user_input: str = field(kw_only=True)
 
     def __post_init__(self):
         """Create the agents needed for this node."""
+        from orchestrator.search.agent.tools import IntentClassificationOutput
+
         self._intent_agent = Agent(
             model=self.model,
             deps_type=StateDeps[SearchState],
-            output_type=IntentType,
+            output_type=IntentClassificationOutput,
             retries=2,
-            system_prompt=get_intent_prompt(),
         )
         self._query_init_agent = Agent(
             model=self.model,
             deps_type=StateDeps[SearchState],
             output_type=SearchInitParams,
             retries=2,
-            system_prompt=get_query_init_prompt(),
         )
 
     @property
@@ -143,7 +128,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         raise NotImplementedError("IntentNode uses intent_agent and query_init_agent instead")
 
     @property
-    def intent_agent(self) -> Agent[StateDeps[SearchState], IntentType]:
+    def intent_agent(self) -> Agent[StateDeps[SearchState], Any]:
         return self._intent_agent
 
     @property
@@ -164,8 +149,8 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
             # Run intent classification (no streaming, just get result)
             result = await self.intent_agent.run(self.user_input, deps=state_deps)
-            ctx.state.intent = result.output
-            logger.debug(f"{self.node_name}: Intent classified", intent=result.output.value)
+            ctx.state.intent = result.output.intent
+            logger.debug(f"{self.node_name}: Intent classified", intent=result.output.intent.value)
 
             # Use query_init_agent to get structured output (entity_type and action)
             prompt = f'Determine entity_type and action for: "{self.user_input}"'
@@ -234,6 +219,8 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
 @dataclass
 class FilterBuildingNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    description: str = field(default="Builds database query filters using FilterTree", init=False)
+
     def __post_init__(self):
         """Create the agent for this node."""
         self._node_agent = Agent(
@@ -276,6 +263,8 @@ class FilterBuildingNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
 @dataclass
 class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    description: str = field(default="Executes database searches", init=False)
+
     def __post_init__(self):
         """Create the agent for this node."""
         self._node_agent = Agent(
@@ -293,12 +282,14 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         """Get the search execution prompt."""
         return get_search_execution_prompt(ctx.state)
 
-    async def run(self, ctx: GraphRunContext[SearchState, None]) -> TextResponseNode:
-        return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
+    async def run(self, ctx: GraphRunContext[SearchState, None]) -> End[str]:
+        return End("Search completed")
 
 
 @dataclass
 class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    description: str = field(default="Executes aggregations with grouping and visualization", init=False)
+
     def __post_init__(self):
         """Create the agent for this node."""
         self._node_agent = Agent(
@@ -316,12 +307,14 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         """Get the aggregation execution prompt."""
         return get_aggregation_execution_prompt(ctx.state)
 
-    async def run(self, ctx: GraphRunContext[SearchState, None]) -> TextResponseNode:
-        return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
+    async def run(self, ctx: GraphRunContext[SearchState, None]) -> End[str]:
+        return End("Aggregation completed")
 
 
 @dataclass
 class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    description: str = field(default="Generates text responses for general questions", init=False)
+
     def __post_init__(self):
         """Create the agent for this node."""
         self._node_agent = Agent(

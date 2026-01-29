@@ -32,7 +32,6 @@ else:
     Model = Any
 
 from orchestrator.search.agent.graph_nodes import (
-    NODE_DESCRIPTIONS,
     AggregationNode,
     FilterBuildingNode,
     IntentNode,
@@ -93,33 +92,33 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             GraphStructure with nodes, edges, and start_node
         """
         # Build nodes
-        nodes = [
-            GraphNode(
-                id=node_id,
-                label=node_id,
-                description=NODE_DESCRIPTIONS.get(node_id),
-            )
-            for node_id, node_def in self.graph.node_defs.items()
-        ]
+        nodes = []
+        for node_id, node_def in self.graph.node_defs.items():
+            # Get the node class from NodeDef
+            node_class = node_def.node
+            description = None
+            if hasattr(node_class, "__dataclass_fields__"):
+                fields = getattr(node_class, "__dataclass_fields__")
+                if "description" in fields:
+                    description = fields["description"].default
 
-        # TODO: Fix dynamic build: hardcoded based on routing logic
-        # since pydantic-graph uses dynamic routing based on node outputs.
-        edges = [
-            # From IntentNode
-            GraphEdge(source=IntentNode.__name__, target=SearchNode.__name__),
-            GraphEdge(source=IntentNode.__name__, target=AggregationNode.__name__),
-            GraphEdge(source=IntentNode.__name__, target=FilterBuildingNode.__name__),
-            GraphEdge(source=IntentNode.__name__, target=TextResponseNode.__name__),
-            # From FilterBuildingNode
-            GraphEdge(source=FilterBuildingNode.__name__, target=SearchNode.__name__),
-            GraphEdge(source=FilterBuildingNode.__name__, target=AggregationNode.__name__),
-            # From SearchNode
-            GraphEdge(source=SearchNode.__name__, target=TextResponseNode.__name__),
-            # From AggregationNode
-            GraphEdge(source=AggregationNode.__name__, target=TextResponseNode.__name__),
-            # From TextResponseNode to End
-            GraphEdge(source=TextResponseNode.__name__, target=End.__name__),
-        ]
+            nodes.append(
+                GraphNode(
+                    id=node_id,
+                    label=node_id,
+                    description=description,
+                )
+            )
+
+        # Build edges
+        edges = []
+        for node_id, node_def in self.graph.node_defs.items():
+            for next_node_id, edge in node_def.next_node_edges.items():
+                edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
+            if node_def.end_edge:
+                edges.append(
+                    GraphEdge(source=node_id, target=End.__name__, label=getattr(node_def.end_edge, "label", None))
+                )
 
         # Add End node for visualization
         nodes.append(GraphNode(id=End.__name__, label="End", description="Graph execution complete"))
