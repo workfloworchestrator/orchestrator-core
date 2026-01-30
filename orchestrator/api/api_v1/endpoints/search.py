@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from orchestrator.db import db
 from orchestrator.schemas.search import (
+    CursorInfoSchema,
     ExportResponse,
     PageInfoSchema,
     PathsResponse,
@@ -81,10 +82,24 @@ async def _perform_search_and_fetch(
 
         next_page_cursor = encode_next_page_cursor(search_response, page_cursor, query)
         has_next_page = next_page_cursor is not None
-        page_info = PageInfoSchema(has_next_page=has_next_page, next_page_cursor=next_page_cursor)
+        page_info = PageInfoSchema(
+            has_next_page=has_next_page,
+            next_page_cursor=next_page_cursor,
+        )
+
+        cursor_info = None
+        if search_response.total_items:
+            cursor_info = CursorInfoSchema(
+                total_items=search_response.total_items,
+                start_cursor=search_response.start_cursor,
+                end_cursor=search_response.end_cursor,
+            )
 
         return SearchResultsSchema(
-            data=search_response.results, page_info=page_info, search_metadata=search_response.metadata
+            data=search_response.results,
+            page_info=page_info,
+            search_metadata=search_response.metadata,
+            cursor=cursor_info,
         )
     except (InvalidCursorError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))

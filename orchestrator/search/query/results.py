@@ -66,6 +66,9 @@ class SearchResponse(BaseModel):
     metadata: SearchMetadata
     query_embedding: list[float] | None = None
     has_more: bool = False
+    total_items: int | None = None
+    start_cursor: int | None = None
+    end_cursor: int | None = None
 
 
 class AggregationResult(BaseModel):
@@ -221,7 +224,13 @@ def generate_highlight_indices(text: str, term: str) -> list[tuple[int, int]]:
 
 
 def format_search_response(
-    db_rows: Sequence[RowMapping], query: "SelectQuery | ExportQuery", metadata: SearchMetadata
+    db_rows: Sequence[RowMapping],
+    query: "SelectQuery | ExportQuery",
+    metadata: SearchMetadata,
+    query_embedding: list[float] | None,
+    total_items: int | None,
+    start_cursor: int | None,
+    end_cursor: int | None,
 ) -> SearchResponse:
     """Format database query results into a `SearchResponse`.
 
@@ -232,6 +241,10 @@ def format_search_response(
         db_rows: The rows returned from the executed SQLAlchemy query.
         query: SelectQuery or ExportQuery with search criteria.
         metadata: Metadata about the search execution.
+        query_embedding: query embedding for agent to save to DB.
+        total_items: total items of the query (only with structured search).
+        start_cursor: start cursor of the db_rows (only with structured search).
+        end_cursor: end cursor of the db_rows (only with structured search).
 
     Returns:
         SearchResponse: A list of `SearchResult` objects containing entity IDs, scores,
@@ -280,7 +293,14 @@ def format_search_response(
                 matching_field=matching_field,
             )
         )
-    return SearchResponse(results=results, metadata=metadata)
+    return SearchResponse(
+        results=results,
+        metadata=metadata,
+        total_items=total_items,
+        start_cursor=start_cursor,
+        end_cursor=end_cursor,
+        query_embedding=query_embedding,
+    )
 
 
 def _extract_matching_field_from_filters(filters: "FilterTree") -> MatchingField | None:
