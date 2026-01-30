@@ -31,6 +31,7 @@ from orchestrator.utils.state import form_inject_args
 from orchestrator.utils.validate_data_version import validate_data_version
 from orchestrator.workflow import Step, StepList, Workflow, begin, done, init, make_workflow, step
 from orchestrator.workflows.steps import (
+    refresh_process_search_index,
     refresh_subscription_search_index,
     resync,
     set_status,
@@ -225,6 +226,7 @@ def create_workflow(
             >> set_status(status)
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -271,6 +273,7 @@ def modify_workflow(
             >> (additional_steps or StepList())
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -318,6 +321,7 @@ def terminate_workflow(
             >> set_status(SubscriptionLifecycle.TERMINATED)
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
@@ -386,6 +390,7 @@ def reconcile_workflow(
             >> (additional_steps or StepList())
             >> resync
             >> refresh_subscription_search_index
+            >> refresh_process_search_index
             >> done
         )
 
