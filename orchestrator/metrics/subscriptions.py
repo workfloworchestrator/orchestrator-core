@@ -61,7 +61,7 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
             )
             .order_by(desc(subscription_count))
         ).all()
-    except ProgrammingError as e:
+    except ProgrammingError:
         # Database tables don't exist yet (e.g., during initial migration)
         return []
 
