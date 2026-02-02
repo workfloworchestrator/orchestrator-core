@@ -54,26 +54,26 @@ from orchestrator.settings import app_settings
 logger = structlog.get_logger(__name__)
 
 
-class IntentClassificationOutput(BaseModel):
-    """Wrapper for IntentType with classification guidance."""
+class IntentAndQueryInit(BaseModel):
+    """Combined intent classification and query initialization."""
 
     intent: IntentType = Field(
         description=(
-            "Classify user requests into intents:\n"
-            "- search: Find/list entities without specific filters\n"
-            "- search_with_filters: Find entities with conditions (status, dates, etc.)\n"
-            "- aggregation: Count/stats without filters\n"
-            "- aggregation_with_filters: Count/stats with conditions\n"
+            "Classify user requests into action intents based on context:\n"
+            "- search: Find/list/retrieve entities (SELECT queries) - use when NO results in state\n"
+            "- aggregation: Count/stats/group data (COUNT/AGGREGATE queries) - use when NO results in state\n"
+            "- result_actions: Export, fetch details, or visualize - use when results EXIST in state\n"
             "- text_response: General questions, greetings, out-of-scope"
         )
     )
-
-
-class SearchInitParams(BaseModel):
-    """Structured output for initializing a search query."""
-
-    entity_type: EntityType
-    action: ActionType
+    entity_type: EntityType | None = Field(
+        default=None,
+        description="REQUIRED for search/aggregation intents. Entity type: SUBSCRIPTION, PRODUCT, WORKFLOW, or PROCESS",
+    )
+    action: ActionType | None = Field(
+        default=None,
+        description="REQUIRED for search/aggregation intents. Action: SELECT (find/list), COUNT, or AGGREGATE (stats)",
+    )
 
 
 # Main toolset with all tools
@@ -81,6 +81,7 @@ search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_re
 
 # Node-specific toolsets for graph control flow
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+aggregation_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 result_actions_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 
@@ -222,6 +223,8 @@ async def run_search(
         query_id=str(query_id),
     )
 
+    # Note: State is automatically tracked by AG-UI through StateDeps
+    # We modified query_id, run_id, results_count above, which AG-UI will capture
     return aggregation_response
 
 
@@ -270,6 +273,7 @@ async def run_aggregation(
         query_id=str(query_id),
     )
 
+    # Return AggregationResponse for UI rendering (STATE_SNAPSHOT emitted from AggregationNode.run())
     return aggregation_response
 
 
@@ -424,13 +428,17 @@ async def prepare_export(
         message="Export ready for download.",
     )
 
+    # Save export URL to state for multi-turn tracking
+    ctx.deps.state.export_url = download_url
+
     logger.debug("Export prepared", query_id=export_data.query_id)
 
+    # Return ExportData for UI rendering (STATE_SNAPSHOT emitted from ResultActionsNode.run())
     return export_data
 
 
 @search_toolset.tool
-@filter_building_toolset.tool
+@aggregation_toolset.tool
 async def set_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     group_by_paths: list[str],
@@ -469,7 +477,7 @@ async def set_grouping(
 
 
 @search_toolset.tool
-@execution_toolset.tool
+@aggregation_toolset.tool
 async def set_aggregations(
     ctx: RunContext[StateDeps[SearchState]],
     aggregations: list[Aggregation],
@@ -505,7 +513,7 @@ async def set_aggregations(
 
 
 @search_toolset.tool
-@execution_toolset.tool
+@aggregation_toolset.tool
 async def set_temporal_grouping(
     ctx: RunContext[StateDeps[SearchState]],
     temporal_groups: list[TemporalGrouping],

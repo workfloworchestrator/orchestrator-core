@@ -104,14 +104,20 @@ async def agent_conversation(
     # Prepare run_input with user message extracted into state
     prepared_run_input = prepare_run_input(run_input)
 
+    logger.debug("Incoming request state",
+                 state_keys=list(prepared_run_input.state.keys()) if prepared_run_input.state else [],
+                 query_id=prepared_run_input.state.get('query_id') if prepared_run_input.state else None)
+
     # Create memory stream for events
     send_stream, receive_stream = create_memory_object_stream[str]()
 
     async def run_agent_task() -> None:
         """Run the agent and send events to the stream."""
         try:
-            # AG-UI merges prepared_run_input.state into the agent's deps.state
-            event_iterator = run_ag_ui(agent, run_input=prepared_run_input, deps=StateDeps(SearchState()))
+            # Create state from prepared_run_input (preserves state from previous turns)
+            state_dict = dict(prepared_run_input.state) if prepared_run_input.state else {}
+            initial_state = SearchState(**state_dict)
+            event_iterator = run_ag_ui(agent, run_input=prepared_run_input, deps=StateDeps(initial_state))
 
             async for event_str in event_iterator:
                 # First, check if there are any graph events to inject

@@ -33,8 +33,8 @@ else:
 
 from orchestrator.search.agent.graph_nodes import (
     AggregationNode,
-    FilterBuildingNode,
     IntentNode,
+    ResultActionsNode,
     SearchNode,
     TextResponseNode,
     emit_end_event,
@@ -185,7 +185,15 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                     else "Graph execution completed"
                 )
 
-            logger.info("GraphAgentAdapter: Graph streaming complete", final_output=final_output)
+                # Update deps.state with the final mutated state from the graph
+                # This ensures state persists across turns in multi-turn conversations
+                deps.state = graph_run.state
+
+            logger.info("GraphAgentAdapter: Graph streaming complete",
+                       final_output=final_output,
+                       final_state_keys=list(graph_run.state.model_dump().keys()),
+                       has_query_id=graph_run.state.query_id is not None)
+
             yield AgentRunResultEvent(result=AgentRunResult(output=final_output))
 
         except Exception as e:
@@ -206,9 +214,9 @@ def build_agent_instance(model: str, agent_tools: list[FunctionToolset[Any]] | N
     graph: Graph[SearchState, None, str] = Graph(
         nodes=[
             IntentNode,
-            FilterBuildingNode,
             SearchNode,
             AggregationNode,
+            ResultActionsNode,
             TextResponseNode,
         ],
     )

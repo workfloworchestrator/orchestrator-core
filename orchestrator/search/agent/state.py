@@ -21,12 +21,11 @@ from orchestrator.search.query.queries import Query
 
 
 class IntentType(str, Enum):
-    """User's intent - determines which node to route to."""
+    """User's intent - determines which action node to route to."""
 
     SEARCH = "search"
-    SEARCH_WITH_FILTERS = "search_with_filters"
     AGGREGATION = "aggregation"
-    AGGREGATION_WITH_FILTERS = "aggregation_with_filters"
+    RESULT_ACTIONS = "result_actions"  # export, fetch details, visualize
     TEXT_RESPONSE = "text_response"
 
 
@@ -43,3 +42,4 @@ class SearchState(BaseModel):
     query: Query | None = None
     results_count: int | None = None  # Number of results from last executed search/aggregation
     intent: IntentType | None = None  # User's intent, determines routing
+    export_url: str | None = None  # Export URL if export has been prepared
