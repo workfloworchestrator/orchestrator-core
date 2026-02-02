@@ -5,6 +5,7 @@ from prometheus_client.metrics_core import GaugeMetricFamily
 from prometheus_client.registry import Collector
 from pydantic import BaseModel
 from sqlalchemy import desc, func
+from sqlalchemy.exc import ProgrammingError
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.types import SubscriptionLifecycle
@@ -41,24 +42,28 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
     ;
     ```
     """
-    subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
-    return (
-        db.session.query(
-            SubscriptionTable.status.label("lifecycle_state"),
-            SubscriptionTable.customer_id,
-            SubscriptionTable.insync,
-            ProductTable.name.label("product_name"),
-            subscription_count,
-        )
-        .outerjoin(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
-        .group_by(
-            SubscriptionTable.status,
-            SubscriptionTable.customer_id,
-            SubscriptionTable.insync,
-            ProductTable.name,
-        )
-        .order_by(desc(subscription_count))
-    ).all()
+    try:
+        subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
+        return (
+            db.session.query(
+                SubscriptionTable.status.label("lifecycle_state"),
+                SubscriptionTable.customer_id,
+                SubscriptionTable.insync,
+                ProductTable.name.label("product_name"),
+                subscription_count,
+            )
+            .outerjoin(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
+            .group_by(
+                SubscriptionTable.status,
+                SubscriptionTable.customer_id,
+                SubscriptionTable.insync,
+                ProductTable.name,
+            )
+            .order_by(desc(subscription_count))
+        ).all()
+    except ProgrammingError as e:
+        # Database tables don't exist yet (e.g., during initial migration)
+        return []
 
 
 class SubscriptionCollector(Collector):
