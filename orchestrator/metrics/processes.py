@@ -4,13 +4,13 @@ from prometheus_client.metrics_core import GaugeMetricFamily, Metric
 from prometheus_client.registry import Collector
 from pydantic import BaseModel
 from sqlalchemy import desc, func
+from sqlalchemy.exc import ProgrammingError
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.db.models import ProcessSubscriptionTable
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
 from pydantic_forms.types import UUIDstr
-from sqlalchemy.exc import ProgrammingError
 
 
 class ProcessTableQueryResult(BaseModel):
@@ -62,40 +62,40 @@ def _get_processes() -> list[ProcessTableQueryResult]:
     ```
     """
     try:
-      process_count = func.count(WorkflowTable.name).label("process_count")
-      total_process_time = func.coalesce(
-          func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
-      ).label("total_runtime")
-      return (
-          db.session.query(
-              ProcessTable.last_status,
-              ProcessTable.created_by,
-              ProcessTable.is_task,
-              ProductTable.name.label("product_name"),
-              WorkflowTable.name.label("workflow_name"),
-              SubscriptionTable.customer_id,
-              WorkflowTable.target.label("workflow_target"),
-              process_count,
-              total_process_time,
-          )
-          .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
-          .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
-          .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
-          .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
-          .group_by(
-              ProcessTable.last_status,
-              ProcessTable.created_by,
-              ProcessTable.is_task,
-              ProductTable.name,
-              WorkflowTable.name,
-              SubscriptionTable.customer_id,
-              WorkflowTable.target,
-          )
-          .order_by(desc(process_count))
-      ).all()
-    except ProgrammingError as e:
-      # Database tables don't exist yet (e.g., during initial migration)
-       return []
+        process_count = func.count(WorkflowTable.name).label("process_count")
+        total_process_time = func.coalesce(
+            func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
+        ).label("total_runtime")
+        return (
+            db.session.query(
+                ProcessTable.last_status,
+                ProcessTable.created_by,
+                ProcessTable.is_task,
+                ProductTable.name.label("product_name"),
+                WorkflowTable.name.label("workflow_name"),
+                SubscriptionTable.customer_id,
+                WorkflowTable.target.label("workflow_target"),
+                process_count,
+                total_process_time,
+            )
+            .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
+            .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
+            .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
+            .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
+            .group_by(
+                ProcessTable.last_status,
+                ProcessTable.created_by,
+                ProcessTable.is_task,
+                ProductTable.name,
+                WorkflowTable.name,
+                SubscriptionTable.customer_id,
+                WorkflowTable.target,
+            )
+            .order_by(desc(process_count))
+        ).all()
+    except ProgrammingError:
+        # Database tables don't exist yet (e.g., during initial migration)
+        return []
 
 
 class ProcessCollector(Collector):
@@ -150,4 +150,3 @@ class ProcessCollector(Collector):
             process_seconds_total.add_metric(label_values, row.total_runtime)
 
         return [process_counts, process_seconds_total]
-
