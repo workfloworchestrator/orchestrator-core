@@ -182,9 +182,9 @@ class TestStructuredRetrieval:
         # Limited to 10 by query limit, but metadata should indicate more available
         assert len(response.results) == 10, f"Should return 10 results (limit), got {len(response.results)}"
         assert response.has_more is True, "Should indicate more results available"
-        assert response.total_items == 21, f"Should return the total 21, got {response.total_items}"
-        assert response.start_cursor == 0, f"Should return the start cursor 0, got {response.start_cursor}"
-        assert response.end_cursor == 10, f"Should return the end cursor 10, got {response.end_cursor}"
+        assert response.total_items == 21
+        assert response.start_cursor == 0
+        assert response.end_cursor == 9
 
         # Verify all results have status="active"
         result_ids = [UUID(r.entity_id) if isinstance(r.entity_id, str) else r.entity_id for r in response.results]
@@ -224,6 +224,37 @@ class TestStructuredRetrieval:
 
         assert len(response.results) == 5, f"Should return 5 results, got {len(response.results)}"
         assert response.has_more is False, "Should indicate no more results available"
-        assert response.total_items == 21, f"Should return the total 21, got {response.total_items}"
-        assert response.start_cursor == 16, f"Should return the start cursor 16, got {response.start_cursor}"
-        assert response.end_cursor == 20, f"Should return the end cursor 20, got {response.end_cursor}"
+        assert response.total_items == 21
+        assert response.start_cursor == 16
+        assert response.end_cursor == 20
+
+    @pytest.mark.asyncio
+    async def test_filter_only_uses_structured_retriever_with_no_results(self, indexed_subscriptions, mock_embeddings):
+        """Test that structured retriever with cursor correctly returns the total and start cursor."""
+
+        query = SelectQuery(
+            entity_type=EntityType.SUBSCRIPTION,
+            filters=FilterTree(
+                op=BooleanOperator.AND,
+                children=[
+                    PathFilter(
+                        path="status",
+                        condition=EqualityFilter(op=FilterOp.EQ, value="no results"),
+                        value_kind=UIType.STRING,
+                    )
+                ],
+            ),
+        )
+
+        response = await engine.execute_search(query, db.session)
+
+        # Verify structured retriever was used
+        assert (
+            response.metadata == SearchMetadata.structured()
+        ), f"Expected structured retriever, got {response.metadata}"
+
+        assert len(response.results) == 0
+        assert response.has_more is False
+        assert not response.total_items
+        assert not response.start_cursor
+        assert not response.end_cursor

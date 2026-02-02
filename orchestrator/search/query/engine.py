@@ -103,14 +103,15 @@ def _create_cursor_info(
     row_count: int,
 ) -> tuple[int | None, int | None, int | None]:
     total_count_stmt = Retriever.route(query, None, query_embedding).apply(candidate_query) if cursor else final_stmt
-    total_items = db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
-    total_items = total_items or 0
-    count_with_cursor = (
+    total_items_or_none = db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
+    total_items = total_items_or_none or 0
+    count_with_cursor_or_none = (
         db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
     )
-    count_with_cursor = count_with_cursor or 0
+    count_with_cursor = count_with_cursor_or_none or 0
     start_cursor = total_items - count_with_cursor
-    end_cursor = start_cursor + (row_count - 1)
+    row_end_cursor_count = row_count - (2 if row_count > query.limit else 1)
+    end_cursor = start_cursor + row_end_cursor_count
     return total_items, start_cursor, end_cursor
 
 
@@ -154,13 +155,14 @@ async def _execute_search(
 
     result = db_session.execute(final_stmt_with_limit).mappings().all()
     result_rows = list(result)
+    row_count = len(result_rows)
 
     total_items: int | None = None
     start_cursor: int | None = None
     end_cursor: int | None = None
-    if isinstance(retriever, StructuredRetriever):
+    if isinstance(retriever, StructuredRetriever) and row_count > 0:
         total_items, start_cursor, end_cursor = _create_cursor_info(
-            final_stmt, db_session, cursor, query, query_embedding, candidate_query, len(result_rows)
+            final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
         )
 
     return format_search_response(
