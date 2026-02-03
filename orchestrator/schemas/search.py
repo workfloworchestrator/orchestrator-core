@@ -34,10 +34,17 @@ class ProductSchema(BaseModel):
     product_type: str
 
 
+class CursorInfoSchema(BaseModel):
+    total_items: int | None = None
+    start_cursor: int | None = None
+    end_cursor: int | None = None
+
+
 class SearchResultsSchema(BaseModel, Generic[T]):
     data: list[T] = Field(default_factory=list)
     page_info: PageInfoSchema = Field(default_factory=PageInfoSchema)
     search_metadata: SearchMetadata | None = None
+    cursor: CursorInfoSchema | None = None
 
 
 class PathsResponse(BaseModel):

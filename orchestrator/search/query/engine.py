@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import structlog
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from orchestrator.search.core.embedding import QueryEmbedder
@@ -30,6 +31,7 @@ from orchestrator.search.retrieval.retrievers import (
     RrfHybridRetriever,
     SemanticRetriever,
 )
+from orchestrator.search.retrieval.retrievers.structured import StructuredRetriever
 
 from .builder import build_aggregation_query, build_candidate_query, build_simple_count_query
 from .export import fetch_export_data
@@ -91,6 +93,28 @@ def _get_retriever_from_override(
     )
 
 
+def _create_cursor_info(
+    final_stmt: Select,
+    db_session: Session,
+    cursor: PageCursor | None,
+    query: SelectQuery | ExportQuery,
+    query_embedding: list[float] | None,
+    candidate_query: Select,
+    row_count: int,
+) -> tuple[int | None, int | None, int | None]:
+    total_count_stmt = Retriever.route(query, None, query_embedding).apply(candidate_query) if cursor else final_stmt
+    total_items_or_none = db_session.scalar(select(func.count()).select_from(total_count_stmt.subquery()))
+    total_items = total_items_or_none or 0
+    count_with_cursor_or_none = (
+        db_session.scalar(select(func.count()).select_from(final_stmt.subquery())) if cursor else total_items
+    )
+    count_with_cursor = count_with_cursor_or_none or 0
+    start_cursor = total_items - count_with_cursor
+    row_end_cursor_count = row_count - (2 if row_count > query.limit else 1)
+    end_cursor = start_cursor + row_end_cursor_count
+    return total_items, start_cursor, end_cursor
+
+
 async def _execute_search(
     query: SelectQuery | ExportQuery,
     db_session: Session,
@@ -126,14 +150,24 @@ async def _execute_search(
     logger.debug("Using retriever", retriever_type=retriever.__class__.__name__)
 
     final_stmt = retriever.apply(candidate_query)
-    final_stmt = final_stmt.limit(limit)
-    logger.debug(final_stmt)
-    result = db_session.execute(final_stmt).mappings().all()
+    final_stmt_with_limit = final_stmt.limit(limit)
+    logger.debug(final_stmt_with_limit)
 
-    response = format_search_response(result, query, retriever.metadata)
-    # Store embedding in response for agent to save to DB
-    response.query_embedding = query_embedding
-    return response
+    result = db_session.execute(final_stmt_with_limit).mappings().all()
+    result_rows = list(result)
+    row_count = len(result_rows)
+
+    total_items: int | None = None
+    start_cursor: int | None = None
+    end_cursor: int | None = None
+    if isinstance(retriever, StructuredRetriever) and row_count > 0:
+        total_items, start_cursor, end_cursor = _create_cursor_info(
+            final_stmt, db_session, cursor, query, query_embedding, candidate_query, row_count
+        )
+
+    return format_search_response(
+        result_rows, query, retriever.metadata, query_embedding, total_items, start_cursor, end_cursor
+    )
 
 
 async def execute_search(
