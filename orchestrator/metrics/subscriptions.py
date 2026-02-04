@@ -42,6 +42,8 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
     ;
     ```
     """
+
+    result: list[SubscriptionTableQueryResult] | None = None
     with handle_missing_tables():
         subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
         result = (
@@ -62,7 +64,7 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
             .order_by(desc(subscription_count))
         ).all()
 
-    return result if "result" in locals() else []
+    return result or []
 
 
 class SubscriptionCollector(Collector):
