@@ -20,6 +20,7 @@ import structlog
 
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
+    ProdGenContext,
     create_dunder_init_files,
     find_root_product_block,
     get_all_fields,
@@ -63,7 +64,7 @@ def enrich_product_block(product_block: dict) -> dict:
     }
 
 
-def generate_product_blocks(context: dict) -> None:
+def generate_product_blocks(context: ProdGenContext) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]

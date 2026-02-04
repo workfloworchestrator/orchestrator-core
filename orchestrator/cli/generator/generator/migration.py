@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -24,11 +24,14 @@ from alembic.util import rev_id
 from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import (
+    ProdGenContext,
     find_root_product_block,
     get_product_block_depends_on,
     get_product_types_module,
+    set_depends_on,
     set_resource_types,
     sort_product_blocks_by_dependencies,
+    without_existing_blocks,
 )
 from orchestrator.cli.generator.generator.settings import product_generator_settings as settings
 
@@ -67,7 +70,7 @@ def get_heads() -> dict:
     return get_revisions(result)
 
 
-def create_data_head(context: dict, depends_on: str) -> None:
+def create_data_head(context: ProdGenContext | dict, depends_on: str) -> None:
     environment = context["environment"]
     writer = context["writer"]
 
@@ -79,7 +82,7 @@ def create_data_head(context: dict, depends_on: str) -> None:
     writer(path, content)
 
 
-def create_data_head_if_not_exists(context: dict) -> None:
+def create_data_head_if_not_exists(context: ProdGenContext | dict) -> None:
     heads = get_heads()
     if "data" not in heads:
         create_data_head(context=context, depends_on=heads["schema"])
@@ -137,7 +140,7 @@ def get_revision_info(migration_file: Path) -> dict:
         return extract_revision_info(original_content)
 
 
-def generate_product_migration(context: dict) -> None:
+def generate_product_migration(context: ProdGenContext) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]
@@ -166,14 +169,14 @@ def generate_product_migration(context: dict) -> None:
     else:
         product_variants = [((config["name"]), ())]
 
-    # Add depends_on_block_relations, sort the product blocks, set resource types and the root block
+    # Add depends_on_block_relations, sort the product blocks, set resource types, depends_on_blocks and the root block
     product_blocks = sort_product_blocks_by_dependencies(config.get("product_blocks", []))
-    block_depends_on = get_product_block_depends_on(product_blocks, include_existing_blocks=True)
     config["root_product_block"] = find_root_product_block(product_blocks)
+    block_depends_on = get_product_block_depends_on(product_blocks, include_existing_blocks=True)
     product_blocks = set_resource_types(product_blocks, block_depends_on)
-
-    for block in product_blocks:
-        block["depends_on_blocks"] = block_depends_on[block["type"]]
+    product_blocks = set_depends_on(product_blocks, block_depends_on)
+    if context["skip_existing_blocks"]:
+        product_blocks = without_existing_blocks(product_blocks)
 
     template = environment.get_template("new_product_migration.j2")
     config["product_blocks"] = product_blocks
