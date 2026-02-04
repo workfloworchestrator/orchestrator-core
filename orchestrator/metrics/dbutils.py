@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from typing import Generator, TypeVar
 
 import structlog
-from psychopg2 import errors as psychopg2_errors
+from psycopg import errors as psycopg_errors
 from sqlalchemy.exc import ProgrammingError
 
 logger = structlog.get_logger(__name__)
@@ -17,7 +17,7 @@ def handle_missing_tables() -> Generator[None, None, None]:
         yield
     except ProgrammingError as e:
         # Check if this is specifically an UndefinedTable error
-        if isinstance(e.orig, psychopg2_errors.UndefinedTable):
+        if isinstance(e.orig, psycopg_errors.UndefinedTable):
             logger.error(
                 "Database table not found; metrics will be empty. This is expected during initial migrations.",
                 exc_info=e,
