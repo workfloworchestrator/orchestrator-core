@@ -61,6 +61,8 @@ def _get_processes() -> list[ProcessTableQueryResult]:
     ;
     ```
     """
+
+    result: list[ProcessTableQueryResult] | None = None
     with handle_missing_tables():
         process_count = func.count(WorkflowTable.name).label("process_count")
         total_process_time = func.coalesce(
@@ -94,7 +96,7 @@ def _get_processes() -> list[ProcessTableQueryResult]:
             .order_by(desc(process_count))
         ).all()
 
-    return result if "result" in locals() else []
+    return result or []
 
 
 class ProcessCollector(Collector):
