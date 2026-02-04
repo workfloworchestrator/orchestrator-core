@@ -74,6 +74,15 @@ class IntentAndQueryInit(BaseModel):
         default=None,
         description="Required for search/aggregation intents. SELECT for finding entities, COUNT for counting, AGGREGATE for statistics.",
     )
+    end_actions: bool = Field(
+        default=False,
+        description=(
+            "Whether to end actions after completing the selected intent. "
+            "Set to True if the current request will be fully completed after this action executes, "
+            "meaning no further actions are needed and the system should wait for user input. "
+            "Set to False if more actions will be needed after this one completes (the action will loop back to intent classification)."
+        ),
+    )
 
 
 # Main toolset with all tools

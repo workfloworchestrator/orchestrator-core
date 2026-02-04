@@ -210,6 +210,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
 
             ctx.state.intent = result.output.intent
+            ctx.state.end_actions = result.output.end_actions
 
             # Only initialize query for search/aggregation intents (not result_actions or text_response)
             if result and result.output.intent in (IntentType.SEARCH, IntentType.AGGREGATION):
@@ -308,12 +309,15 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_search_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
-        """After search completes, route back to IntentNode to check for additional actions."""
+        """After search completes, route back to IntentNode or End based on end_actions flag."""
         query = ctx.state.query
         if query:
             query_json = query.model_dump_json(indent=2)
             results = ctx.state.results_count or 0
             self.record_node_visit(ctx, f"Executed search, {results} results:\n{query_json}")
+
+        if ctx.state.end_actions:
+            return End("Complete")
 
         return IntentNode(model=self.model, event_emitter=self.event_emitter)
 
@@ -340,12 +344,15 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_aggregation_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
-        """After aggregation completes, route back to IntentNode to check for additional actions."""
+        """After aggregation completes, route back to IntentNode or End based on end_actions flag."""
         query = ctx.state.query
         if query:
             query_json = query.model_dump_json(indent=2)
             results = ctx.state.results_count or 0
             self.record_node_visit(ctx, f"Executed aggregation, {results} groups:\n{query_json}")
+
+        if ctx.state.end_actions:
+            return End("Complete")
 
         return IntentNode(model=self.model, event_emitter=self.event_emitter)
 
@@ -375,7 +382,7 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_result_actions_prompt(results_count)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
-        """After result action completes, route back to IntentNode to check for additional actions."""
+        """After result action completes, route back to IntentNode or End based on end_actions flag."""
         # Record what this node did based on which tool was called
         if "prepare_export" in self._tool_calls_in_current_run:
             self.record_node_visit(ctx, "Export has been executed and download link delivered to user")
@@ -384,6 +391,9 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         else:
             # Fallback if no tool was called (shouldn't happen)
             self.record_node_visit(ctx, "Result action completed")
+
+        if ctx.state.end_actions:
+            return End("Complete")
 
         return IntentNode(model=self.model, event_emitter=self.event_emitter)
 

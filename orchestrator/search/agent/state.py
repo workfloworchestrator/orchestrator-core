@@ -45,5 +45,6 @@ class SearchState(BaseModel):
     results_count: int | None = None  # Number of results from last executed search/aggregation
     intent: IntentType | None = None  # User's intent, determines routing
     export_url: str | None = None  # Export URL if export has been prepared
+    end_actions: bool = False  # Whether to end after current action completes (set by IntentNode)
     message_history: list[ModelMessage] = []  # Conversation history, updated in real-time during graph execution
     visited_nodes: dict[str, str] = {}  # Maps node name to description of action performed

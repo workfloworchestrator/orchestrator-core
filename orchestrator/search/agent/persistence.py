@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic_graph.persistence import BaseStatePersistence, NodeSnapshot
+from pydantic_graph.persistence import BaseStatePersistence, EndSnapshot, NodeSnapshot
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from structlog import get_logger
@@ -174,6 +174,49 @@ class PostgresStatePersistence(BaseStatePersistence[SearchState]):
             has_query_id=state.query_id is not None,
         )
 
-        # Note: we don't have the actual node object, so we pass None
+        # Note: we don't have the actual node object, so we pass None and provide an id
         # This is a custom usage pattern where we manually load state, not using Graph.iter_from_persistence()
-        return NodeSnapshot(state=state, node=None)  # type: ignore
+        snapshot_id = f"snapshot_{self.run_id}_{db_snapshot.sequence_number}"
+        return NodeSnapshot(state=state, node=None, id=snapshot_id)  # type: ignore
+
+    async def load_all(self) -> list[NodeSnapshot[SearchState] | EndSnapshot[SearchState]]:
+        """Load all snapshots for this run (for debugging/history).
+
+        Returns:
+            List of all snapshots in sequence order
+        """
+        from pydantic_graph import End
+
+        stmt = (
+            select(GraphSnapshotTable)
+            .where(GraphSnapshotTable.run_id == self.run_id)
+            .order_by(GraphSnapshotTable.sequence_number)
+        )
+
+        result = self.session.execute(stmt)
+        db_snapshots = result.scalars().all()
+
+        snapshots: list[NodeSnapshot[SearchState] | EndSnapshot[SearchState]] = []
+        for db_snapshot in db_snapshots:
+            snapshot_data = db_snapshot.snapshot_data
+            snapshot_kind = snapshot_data.get("kind")
+
+            # Deserialize state
+            state_data = snapshot_data.get("state", {})
+            state = SearchState.model_validate(state_data)
+
+            if snapshot_kind == "end":
+                # Create EndSnapshot with the result
+                result_data = snapshot_data.get("result")
+                end = End(result_data)
+                snapshot_id = f"snapshot_{self.run_id}_{db_snapshot.sequence_number}"
+                snapshot = EndSnapshot(state=state, result=end, id=snapshot_id)
+            else:
+                # Create NodeSnapshot without node object
+                snapshot_id = f"snapshot_{self.run_id}_{db_snapshot.sequence_number}"
+                snapshot = NodeSnapshot(state=state, node=None, id=snapshot_id)  # type: ignore
+
+            snapshots.append(snapshot)
+
+        logger.debug("Loaded all snapshots", run_id=str(self.run_id), count=len(snapshots))
+        return snapshots
