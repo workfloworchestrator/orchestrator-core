@@ -73,17 +73,29 @@ def get_existing_product_blocks() -> dict[str, Any]:
     return dict(yield_blocks())
 
 
+def base_block_type(block_name: str) -> str:
+    """Returns the base type of a product block.
+
+    Args:
+        block_name: name of the product block suffixed with "Block[<lifecycle>]"
+
+    Examples:
+        >>> base_block_type("PortBlock")
+        "Port"
+        >>> base_block_type("PortBlockInactive")
+        "Port"
+    """
+    block_type, _lifecycle = block_name.rsplit("Block", maxsplit=1)
+    return block_type
+
+
 def get_product_block_depends_on(
     product_blocks: list[dict], include_existing_blocks: bool = False
 ) -> dict[str, set[str]]:
     _product_block_types = {block["type"] for block in product_blocks}
 
-    def base_type(block_name: str) -> str:
-        block_type, _lifecycle = block_name.rsplit("Block", maxsplit=1)
-        return block_type
-
     if include_existing_blocks:
-        existing_blocks = {base_type(block) for block in get_existing_product_blocks()}
+        existing_blocks = {base_block_type(block) for block in get_existing_product_blocks()}
         _product_block_types.update(existing_blocks)
 
     def dependencies(product_block: dict) -> Iterable[str]:
@@ -152,12 +164,36 @@ def set_resource_types(product_blocks: list[dict], block_dependencies: dict[str,
     """
 
     def resource_type_fields(product_block: dict) -> Iterable[dict]:
-        for field in product_block["fields"]:
+        for field in product_block.get("fields", []):
             field_type = field.get("list_type", field["type"])
             if field_type not in block_dependencies[product_block["type"]]:
                 yield field
 
     return [(block | {"resource_types": list(resource_type_fields(block))}) for block in product_blocks]
+
+
+def set_depends_on(product_blocks: list[dict], block_dependencies: dict[str, set[str]]) -> list[dict]:
+    """Returns product blocks enriched with a list 'depends_on_blocks'.
+
+    Args:
+        product_blocks: product blocks to enrich
+        block_dependencies: mapping of product blocks to dependent blocks
+    """
+    return [(block | {"depends_on_blocks": block_dependencies[block["type"]]}) for block in product_blocks]
+
+
+def without_existing_blocks(product_blocks: list[dict]) -> list[dict]:
+    """Returns product blocks without those that already exist in code.
+
+    This assumes that if the user intents to reuse an existing product block in a new product type, that they have
+    already generated (or manually created) the python files for that product block.
+
+    Args:
+        product_blocks: product blocks to filter
+    """
+    existing_block_names = {base_block_type(name) for name in (get_existing_product_blocks())}
+
+    return [block for block in product_blocks if block["type"] not in existing_block_names]
 
 
 def insert_into_imports(content: list[str], new_import: str) -> list[str]:
