@@ -163,3 +163,27 @@ def refresh_subscription_search_index(subscription: SubscriptionModel | None) ->
         # Don't fail workflow in case of unexpected error
         logger.warning("Error updated the subscriptions search index")
     return {}
+
+
+@step("Refresh process search index")
+def refresh_process_search_index(process_id: UUIDstr | None) -> State:
+    """Refresh process search index.
+
+    Args:
+        process_id: Process to refresh search index.
+
+    Returns:
+        State of the workflow.
+
+    """
+    try:
+        reset_search_index()
+        if llm_settings.SEARCH_ENABLED and process_id:
+            from orchestrator.search.core.types import EntityType
+            from orchestrator.search.indexing import run_indexing_for_entity
+
+            run_indexing_for_entity(EntityType.PROCESS, process_id)
+    except Exception:
+        # Don't fail workflow in case of unexpected error
+        logger.warning("Error updating the processes search index")
+    return {}
