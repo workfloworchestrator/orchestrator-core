@@ -1,0 +1,78 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Pytest LLM Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  UV_LOCKED: true # Assert that the `uv.lock` will remain unchanged
+
+jobs:
+  container_job:
+    name: Pytest LLM Tests Python (${{ matrix.python-version }}) Postgres (${{ matrix.postgres-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+        postgres-version: ["17"]
+      fail-fast: false
+    container: ubuntu:latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg${{ matrix.postgres-version }}
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: nwa
+          POSTGRES_USER: nwa
+          POSTGRES_DB: orchestrator-core-test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        # Docker Hub image
+        image: redis
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          # It is considered best practice to pin to a specific uv version.
+          version: "0.9.25"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Run pytest LLM integration tests
+        env:
+          CACHE_URI: redis://redis
+          DATABASE_URI: postgresql://nwa:nwa@postgres/orchestrator-core-test
+          ENVIRONMENT: TESTING
+          PYTHONPATH: .
+          SEARCH_ENABLED: true
+          REDIS_HOST: redis
+        run: |
+          uv run pytest test/integration_tests/search -v -rs
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # gives error 'Could not find a repository associated with upload token'
+          fail_ci_if_error: false
+          files: ./coverage.xml

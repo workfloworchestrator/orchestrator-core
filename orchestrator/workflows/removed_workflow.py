@@ -12,11 +12,18 @@
 # limitations under the License.
 
 
+from orchestrator.settings import get_authorizers
 from orchestrator.workflow import StepList, workflow
+
+authorizers = get_authorizers()
 
 
 # This workflow has been made to create the initial import process for a SN7 subscription
 # it does not do anything but is needed for the correct showing in the GUI.
-@workflow("Dummy workflow to replace removed workflows")
+@workflow(
+    "Dummy workflow to replace removed workflows",
+    authorize_callback=authorizers.authorize_callback,
+    retry_auth_callback=authorizers.retry_auth_callback,
+)
 def removed_workflow() -> StepList:
     return StepList()

@@ -38,6 +38,7 @@ from orchestrator.workflow import (
     step_group,
     workflow,
 )
+from orchestrator.workflows.tasks.cleanup_tasks_log import task_clean_up_tasks
 from pydantic_forms.core import FormPage
 from test.unit_tests.helpers import URL_STR_TYPE
 from test.unit_tests.workflows import WorkflowInstanceForTests
@@ -544,12 +545,26 @@ def test_resume_all_processes_value_error(test_client, mocked_processes_resumeal
 )
 def test_create_process_reporter(test_client, fastapi_app, oidc_user, reporter, expected_user):
     # given
+    async def allow(_: object) -> bool:
+        return True
+
+    fake_workflow = make_workflow(
+        f=lambda _: None,
+        description="fake",
+        initial_input_form=None,
+        target=Target.CREATE,
+        steps=StepList([]),
+        authorize_callback=allow,
+        retry_auth_callback=allow,
+    )
     url_params = {"reporter": reporter} if reporter is not None else {}
     fastapi_depends = {authenticate: lambda: oidc_user}
     with (
+        mock.patch("orchestrator.api.api_v1.endpoints.processes.get_workflow") as mock_get_workflow,
         mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process,
         mock.patch.dict(fastapi_app.dependency_overrides, fastapi_depends),
     ):
+        mock_get_workflow.return_value = fake_workflow
         mock_start_process.return_value = uuid.uuid4()
         # when
         response = test_client.post("/api/processes/fake_workflow", json=[], params=url_params)
@@ -609,7 +624,7 @@ def test_new_process_higher_version_invalid(test_client, generic_subscription_1)
 
 
 def test_unauthorized_to_run_process(test_client):
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
     @workflow("unauthorized_workflow", target=Target.CREATE, authorize_callback=disallow)
@@ -623,10 +638,10 @@ def test_unauthorized_to_run_process(test_client):
 
 @pytest.fixture
 def authorize_resume_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     class ConfirmForm(FormPage):
@@ -719,19 +734,19 @@ def test_unauthorized_resume_input_step(test_client, process_on_unauthorized_res
     assert HTTPStatus.FORBIDDEN == response.status_code
 
 
-def _A(_: OIDCUserModel) -> bool:
+async def _A(_: OIDCUserModel) -> bool:
     return True
 
 
-def _B(_: OIDCUserModel) -> bool:
+async def _B(_: OIDCUserModel) -> bool:
     return True
 
 
-def _C(_: OIDCUserModel) -> bool:
+async def _C(_: OIDCUserModel) -> bool:
     return True
 
 
-def _D(_: OIDCUserModel) -> bool:
+async def _D(_: OIDCUserModel) -> bool:
     return True
 
 
@@ -844,10 +859,10 @@ def test_continue_awaiting_process_endpoint_wrong_process_status(test_client, pr
 
 @pytest.fixture
 def authorize_step_group_retry_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     steps = StepList([])
@@ -919,10 +934,10 @@ def test_unauthorized_step_group_retry(test_client, process_on_unretriable_step_
 
 @pytest.fixture
 def authorize_step_retry_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     @step("authorized_retry", retry_auth_callback=allow)
@@ -998,10 +1013,10 @@ def test_unauthorized_step_retry(test_client, process_on_unretriable_step):
 
 @pytest.fixture
 def authorize_retrystep_retry_workflow():
-    def disallow(_: OIDCUserModel | None = None) -> bool:
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
         return False
 
-    def allow(_: OIDCUserModel | None = None) -> bool:
+    async def allow(_: OIDCUserModel | None = None) -> bool:
         return True
 
     @retrystep("authorized_retry", retry_auth_callback=allow)
@@ -1073,3 +1088,84 @@ def test_authorized_retrystep_retry(test_client, process_on_retriable_retrystep)
 def test_unauthorized_retrystep_retry(test_client, process_on_unretriable_retrystep):
     response = test_client.put(f"/api/processes/{process_on_unretriable_retrystep}/resume", json={})
     assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def fastapi_app_for_auth_callbacks(fastapi_app):
+    """Reset auth callbacks after each fixture use.
+
+    Fixture fastapi_app has scope "session", so its cleanup won't run between tests.
+    This wraps the session fixture with a per-test fixture to ensure these callbacks are reset.
+    """
+    yield fastapi_app
+    # Clear internal RBAC settings
+    fastapi_app.register_internal_authorize_callback(None)
+    fastapi_app.register_internal_retry_auth_callback(None)
+
+
+def test_internal_authorize_callback(test_client, fastapi_app_for_auth_callbacks):
+    """Test RBAC callbacks can restrict access to internal workflows."""
+
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+        # Just return a bogus UUID instead of actually starting a process.
+        mock_start_process.return_value = uuid4()
+
+        # Test that we succeed in the default case (no authorizer)
+        response = test_client.post("/api/processes/task_clean_up_tasks", json=[{}])
+        assert HTTPStatus.CREATED == response.status_code
+
+        # Test that disallow now blocks us
+        fastapi_app_for_auth_callbacks.register_internal_authorize_callback(disallow)
+        response = test_client.post("/api/processes/task_clean_up_tasks", json=[{}])
+        assert HTTPStatus.FORBIDDEN == response.status_code
+
+
+@pytest.fixture
+def internal_process_on_retry_step():
+    """A task_clean_up_tasks process stuck on a failed step."""
+    # Don't know the UUID of task_clean_up_tasks at test time, so we temporarily register a copy of it.
+    with WorkflowInstanceForTests(task_clean_up_tasks, "task_clean_up_tasks_again") as wf:
+        process_id = uuid4()
+        process = ProcessTable(
+            process_id=process_id,
+            workflow_id=wf.workflow_id,
+            last_status=ProcessStatus.FAILED,
+            last_step="remove_tasks",
+        )
+        init_step = ProcessStepTable(process_id=process_id, name="Start", status=StepStatus.SUCCESS, state={})
+        failed_step = ProcessStepTable(process_id=process_id, name="remove_tasks", status=StepStatus.FAILED, state={})
+
+        db.session.add(process)
+        db.session.add(init_step)
+        db.session.add(failed_step)
+        db.session.commit()
+
+        # Yield, not return, since we need the workflow to persist for the duration of the test.
+        yield process_id
+
+
+def test_internal_retry_auth_callback(test_client, fastapi_app_for_auth_callbacks, internal_process_on_retry_step):
+    """Test that RBAC callbacks can manage access to retrying internal workflows."""
+
+    async def disallow(_: OIDCUserModel | None = None) -> bool:
+        return False
+
+    async def allow(_: OIDCUserModel | None = None) -> bool:
+        return True
+
+    with mock.patch("orchestrator.api.api_v1.endpoints.processes.start_process") as mock_start_process:
+        # Just return a bogus UUID instead of actually starting a process.
+        mock_start_process.return_value = uuid4()
+
+        # Start with disallow. This should block us.
+        fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(disallow)
+        response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
+        assert HTTPStatus.FORBIDDEN == response.status_code
+
+        # Update to allow. This should succeed.
+        fastapi_app_for_auth_callbacks.register_internal_retry_auth_callback(allow)
+        response = test_client.put(f"/api/processes/{internal_process_on_retry_step}/resume", json={})
+        assert HTTPStatus.NO_CONTENT == response.status_code

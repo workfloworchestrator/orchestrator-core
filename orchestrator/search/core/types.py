@@ -40,27 +40,28 @@ class SearchMetadata:
     @classmethod
     def structured(cls) -> "SearchMetadata":
         return cls(
-            search_type="structured", description="This search performs a filter-based search using structured queries."
+            search_type="structured",
+            description="This search performs a filter-based search using structured queries.",
         )
 
     @classmethod
     def fuzzy(cls) -> "SearchMetadata":
         return cls(
-            search_type="fuzzy",
+            search_type=RetrieverType.FUZZY.value,
             description="This search performs a trigram similarity search.",
         )
 
     @classmethod
     def semantic(cls) -> "SearchMetadata":
         return cls(
-            search_type="semantic",
+            search_type=RetrieverType.SEMANTIC.value,
             description="This search performs a vector similarity search, using L2 distance on embeddings with minimum distance scoring (normalized).",
         )
 
     @classmethod
     def hybrid(cls) -> "SearchMetadata":
         return cls(
-            search_type="hybrid",
+            search_type=RetrieverType.HYBRID.value,
             description="This search performs reciprocal rank fusion combining trigram similarity, word_similarity, and L2 vector distance.",
         )
 
@@ -107,6 +108,14 @@ class ActionType(str, Enum):
     SELECT = "select"  # Retrieve a list of matching records.
     COUNT = "count"  # Count matching records, optionally grouped.
     AGGREGATE = "aggregate"  # Compute aggregations (sum, avg, etc.) over matching records.
+
+
+class RetrieverType(str, Enum):
+    """Defines available retriever types for search operations."""
+
+    FUZZY = "fuzzy"
+    SEMANTIC = "semantic"
+    HYBRID = "hybrid"
 
 
 class UIType(str, Enum):

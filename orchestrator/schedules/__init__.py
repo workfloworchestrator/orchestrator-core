@@ -10,16 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 
-
-from orchestrator.schedules.resume_workflows import run_resume_workflows
-from orchestrator.schedules.task_vacuum import vacuum_tasks
 from orchestrator.schedules.validate_products import validate_products
-from orchestrator.schedules.validate_subscriptions import validate_subscriptions
 
+warnings.warn(
+    "ALL_SCHEDULERS is deprecated and will be removed in 5.0.0. "
+    "Scheduling tasks can now be handled entirely through the API. "
+    "For more details, please consult https://workfloworchestrator.org/orchestrator-core/guides/upgrading/4.7/",
+    DeprecationWarning,
+    stacklevel=2,
+)
 ALL_SCHEDULERS: list = [
-    run_resume_workflows,
-    vacuum_tasks,
-    validate_subscriptions,
     validate_products,
 ]

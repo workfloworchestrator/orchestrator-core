@@ -17,10 +17,13 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, NonNegativeInt, PostgresDsn, RedisDsn
+from pydantic.main import BaseModel
 from pydantic_settings import BaseSettings
 
+from oauth2_lib.fastapi import OIDCUserModel
 from oauth2_lib.settings import oauth2lib_settings
 from orchestrator.services.settings_env_variables import expose_settings
+from orchestrator.utils.auth import Authorizer
 from orchestrator.utils.expose_settings import SecretStr as OrchSecretStr
 from pydantic_forms.types import strEnum
 
@@ -111,3 +114,48 @@ if app_settings.EXPOSE_SETTINGS:
     expose_settings("app_settings", app_settings)  # type: ignore
 if app_settings.EXPOSE_OAUTH_SETTINGS:
     expose_settings("oauth2lib_settings", oauth2lib_settings)  # type: ignore
+
+
+class Authorizers(BaseModel):
+    # Callbacks specifically for orchestrator-core callbacks.
+    # Separate from defaults for user-defined workflows and steps.
+    internal_authorize_callback: Authorizer | None = None
+    internal_retry_auth_callback: Authorizer | None = None
+
+    async def authorize_callback(self, user: OIDCUserModel | None) -> bool:
+        """This is the authorize_callback to be registered for workflows defined within orchestrator-core.
+
+        If Authorizers.internal_authorize_callback is None, this function will return True.
+        i.e. any user will be authorized to start internal workflows.
+        """
+        if self.internal_authorize_callback is None:
+            return True
+        return await self.internal_authorize_callback(user)
+
+    async def retry_auth_callback(self, user: OIDCUserModel | None) -> bool:
+        """This is the retry_auth_callback to be registered for workflows defined within orchestrator-core.
+
+        If Authorizers.internal_retry_auth_callback is None, this function will return True.
+        i.e. any user will be authorized to retry internal workflows on failure.
+        """
+        if self.internal_retry_auth_callback is None:
+            return True
+        return await self.internal_retry_auth_callback(user)
+
+
+_authorizers = Authorizers()
+
+
+def get_authorizers() -> Authorizers:
+    """Acquire singleton of app authorizers to assign these callbacks at app setup.
+
+    Ensures downstream users can acquire singleton without being tempted to do
+    from orchestrator.settings import authorizers
+    authorizers = my_authorizers
+    or
+    from orchestrator import settings
+    settings.authorizers = my_authorizers
+
+    ...each of which goes wrong in its own way.
+    """
+    return _authorizers
