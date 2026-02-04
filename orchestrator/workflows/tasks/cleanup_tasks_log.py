@@ -17,6 +17,7 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, db
+from orchestrator.db.models import AiSearchIndex
 from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
@@ -36,18 +37,41 @@ def remove_tasks() -> State:
         .filter(ProcessTable.last_modified_at <= cutoff)
     )
     count = 0
+    deleted_pid_list = []
     for task in tasks:
         db.session.delete(task)
         count += 1
+        deleted_pid_list.append(task.process_id)
 
-    return {"tasks_removed": count}
+    return {"tasks_removed": count, "deleted_process_id_list": deleted_pid_list}
+
+
+@step("Clean up ai_search_indexes")
+def cleanup_ai_search_index() -> State:
+    # TODO retrieve from state/previous step
+    deleted_process_id_list = []
+    rows_to_delete = db.session.scalars(
+        select(AiSearchIndex)
+        .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+    )
+    count = 0
+    for row in rows_to_delete:
+        db.session.delete(row)
+        count += 1
+
+    return {"ai_search_index_rows_deleted": count}
 
 
 @workflow(
-    "Clean up old tasks",
+    "Clean up old tasks and clean ai_search_index table",
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
 )
 def task_clean_up_tasks() -> StepList:
-    return init >> remove_tasks >> done
+    return (
+        init
+        >> remove_tasks
+        >> cleanup_ai_search_index
+        >> done
+    )
