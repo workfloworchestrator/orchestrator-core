@@ -16,14 +16,16 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from textwrap import dedent
 from typing import Any, AsyncIterator, Callable
 
 import structlog
 from ag_ui.core import BaseEvent
 from pydantic_ai import Agent
 from pydantic_ai.ag_ui import StateDeps
-from pydantic_ai.messages import AgentStreamEvent
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    FunctionToolCallEvent,
+)
 from pydantic_ai.run import AgentRunResultEvent
 from pydantic_graph import BaseNode, End, GraphRunContext
 
@@ -33,6 +35,8 @@ from orchestrator.search.agent.graph_events import (
 )
 from orchestrator.search.agent.prompts import (
     get_aggregation_execution_prompt,
+    get_intent_classification_prompt,
+    get_result_actions_prompt,
     get_search_execution_prompt,
     get_text_response_prompt,
 )
@@ -41,7 +45,6 @@ from orchestrator.search.agent.tools import (
     aggregation_toolset,
     execution_toolset,
     filter_building_toolset,
-    search_toolset,
 )
 from orchestrator.search.core.types import ActionType
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
@@ -62,11 +65,30 @@ class BaseGraphNode:
 
     model: str = field(kw_only=True)  # LLM model identifier
     event_emitter: Callable[[BaseEvent], None] | None = None
+    _tool_calls_in_current_run: list[str] = field(default_factory=list, init=False, repr=False)
+    _last_run_result: Any | None = field(default=None, init=False, repr=False)
 
     @property
     def node_name(self) -> str:
         """Get the name of this node for event emission."""
         return self.__class__.__name__
+
+    def emit_node_active_event(self) -> None:
+        """Emit GRAPH_NODE_ACTIVE event for this node."""
+        if self.event_emitter:
+            value: GraphNodeActiveValue = {"node": self.node_name, "step_type": "graph_node"}
+            self.event_emitter(GraphNodeActiveEvent(timestamp=_current_timestamp_ms(), value=value))
+
+    def record_node_visit(self, ctx: GraphRunContext[SearchState, None], action_description: str) -> None:
+        """Record this node's visit with an iteration number to track multiple visits.
+
+        Args:
+            ctx: Graph run context containing state
+            action_description: Description of what this node did
+        """
+        iteration = len([k for k in ctx.state.visited_nodes.keys() if k.startswith(self.__class__.__name__)]) + 1
+        key = f"{self.__class__.__name__}_{iteration}"
+        ctx.state.visited_nodes[key] = action_description
 
     @property
     def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
@@ -82,21 +104,47 @@ class BaseGraphNode:
     ) -> AsyncIterator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         """Generate events from the node's dedicated agent as they happen."""
         # Emit GRAPH_NODE_ACTIVE event when node becomes active
-        if hasattr(self, "event_emitter") and self.event_emitter:
-            value: GraphNodeActiveValue = {"node": self.node_name, "step_type": "graph_node"}
-            graph_event = GraphNodeActiveEvent(timestamp=_current_timestamp_ms(), value=value)
-            self.event_emitter(graph_event)
+        self.emit_node_active_event()
+
+        # Reset tool calls tracking and result for this run
+        self._tool_calls_in_current_run = []
+        self._last_run_result = None
 
         prompt = self.get_prompt(ctx)
         state_deps = StateDeps(ctx.state)
 
         # Use the node's dedicated agent with AG-UI event processing
         async for event in self.node_agent.run_stream_events(
-            user_prompt=prompt,
+            instructions=prompt,
             deps=state_deps,
-            message_history=[],
+            message_history=ctx.state.message_history,
         ):
+            # Track tool calls as they happen
+            try:
+                if isinstance(event, FunctionToolCallEvent):
+                    self._tool_calls_in_current_run.append(event.part.tool_name)
+            except Exception as e:
+                logger.error(f"Error tracking tool call: {e}", exc_info=True)
+
+            # Capture the final result event
+            if isinstance(event, AgentRunResultEvent):
+                self._last_run_result = event.result
+                logger.debug(
+                    f"{self.node_name}: Captured final result with {len(event.result.new_messages())} new messages"
+                )
+
             yield event
+
+        # After streaming completes, append new messages to state
+        if self._last_run_result is not None:
+            new_messages = self._last_run_result.new_messages()
+            ctx.state.message_history.extend(new_messages)
+            logger.debug(
+                f"{self.node_name}: Appended {len(new_messages)} new messages to history",
+                total_messages=len(ctx.state.message_history),
+            )
+        else:
+            logger.warning(f"{self.node_name}: No result captured - messages NOT updated")
 
     @asynccontextmanager
     async def stream(
@@ -108,7 +156,6 @@ class BaseGraphNode:
 @dataclass
 class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     description: str = field(default="Classifies user intent and initializes query", init=False)
-    user_input: str = field(kw_only=True)
 
     def __post_init__(self):
         """Create the agent for this node."""
@@ -132,56 +179,36 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
         async def event_generator() -> AsyncIterator[AgentStreamEvent]:
             # Emit GRAPH_NODE_ACTIVE event
-            if self.event_emitter:
-                value: GraphNodeActiveValue = {"node": self.node_name, "step_type": "graph_node"}
-                self.event_emitter(GraphNodeActiveEvent(timestamp=_current_timestamp_ms(), value=value))
-
-            state_deps = StateDeps(ctx.state)
-
-            # Check what has been completed from state
-            from orchestrator.search.core.types import ActionType
-
-            query_executed = ctx.state.action is not None  # Check if SELECT/COUNT/AGGREGATE was executed
-            export_done = ctx.state.export_url is not None
-
-            if export_done:
-                # Export completed, all work is done
-                ctx.state.intent = IntentType.TEXT_RESPONSE
-                logger.debug(f"{self.node_name}: Export complete, ending flow")
-                # Skip LLM call
-                return
-                yield  # pragma: no cover
-
-            if query_executed:
-                # After search/aggregation, check if user requested additional actions
-                query_json = ctx.state.query.model_dump_json(indent=2, exclude_none=True) if ctx.state.query else "{}"
-
-                prompt = dedent(
-                    f"""
-                    Executed query:
-                    {query_json}
-
-                    Original user request: {self.user_input}
-
-                    Determine if user requested ADDITIONAL actions beyond what was executed:
-                    - If user explicitly requested to export or fetch details: classify as 'result_actions'
-                    - If the executed query satisfies the entire request: classify as 'text_response'
-
-                    Examples:
-                    - Request: "search for subscriptions", Executed: SELECT query → text_response (done)
-                    - Request: "search for subscriptions AND export them", Executed: SELECT query → result_actions (export next)
-                    - Request: "count subscriptions per month", Executed: COUNT with temporal grouping → text_response (done)
-                    - Request: "what is the average price", Executed: AGGREGATE query → text_response (done)
-                    """
-                ).strip()
-            else:
-                # First routing, classify initial intent
-                prompt = f"User request: {self.user_input}"
+            self.emit_node_active_event()
+            prompt = get_intent_classification_prompt(
+                user_input=ctx.state.user_input,
+                visited_nodes=ctx.state.visited_nodes,
+            )
+            logger.debug(prompt=prompt)
 
             # Single LLM call for intent classification and query initialization
-            result = await self.node_agent.run(prompt, deps=state_deps)
+            result = await self.node_agent.run(
+                instructions=prompt, message_history=ctx.state.message_history, deps=StateDeps(ctx.state)
+            )
+
+            # Append new messages to state so subsequent nodes can see this conversation
+            new_messages = result.new_messages()
+            ctx.state.message_history.extend(new_messages)
+            logger.debug(
+                f"{self.node_name}: Appended {len(new_messages)} new messages to history",
+                total_messages=len(ctx.state.message_history),
+            )
 
             # Extract intent
+            logger.debug(
+                f"{self.node_name}: LLM response received",
+                intent=result.output.intent.value if result and result.output else None,
+                entity_type=(
+                    result.output.entity_type.value if result and result.output and result.output.entity_type else None
+                ),
+                action=result.output.action.value if result and result.output and result.output.action else None,
+            )
+
             ctx.state.intent = result.output.intent
 
             # Only initialize query for search/aggregation intents (not result_actions or text_response)
@@ -205,7 +232,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
                 # Create the appropriate query object based on action
                 if action == ActionType.SELECT:
-                    ctx.state.query = SelectQuery(entity_type=entity_type, query_text=self.user_input)
+                    ctx.state.query = SelectQuery(entity_type=entity_type, query_text=ctx.state.user_input)
                 elif action == ActionType.COUNT:
                     ctx.state.query = CountQuery(entity_type=entity_type)
                 else:  # ActionType.AGGREGATE
@@ -236,6 +263,10 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
         logger.debug(f"{self.node_name}: Routing on intent", intent=intent.value if intent else None)
 
+        # Record the routing decision
+        if intent:
+            self.record_node_visit(ctx, f"Routed to {intent.value}")
+
         if intent == IntentType.SEARCH:
             return SearchNode(model=self.model, event_emitter=self.event_emitter)
 
@@ -246,7 +277,9 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             return ResultActionsNode(model=self.model, event_emitter=self.event_emitter)
 
         if intent == IntentType.TEXT_RESPONSE:
-            # All work complete, pause the graph
+            return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
+
+        if intent == IntentType.NO_MORE_ACTIONS:
             return End("Complete")
 
         # Unknown state, end
@@ -275,18 +308,14 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_search_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
-        """After search completes, emit state and route back to IntentNode."""
-        # Emit STATE_SNAPSHOT for state persistence (after run_search modified state)
-        if self.event_emitter:
-            from ag_ui.core import EventType, StateSnapshotEvent
-            state_event = StateSnapshotEvent(
-                type=EventType.STATE_SNAPSHOT,
-                timestamp=_current_timestamp_ms(),
-                snapshot=ctx.state.model_dump()
-            )
-            self.event_emitter(state_event)
+        """After search completes, route back to IntentNode to check for additional actions."""
+        query = ctx.state.query
+        if query:
+            query_json = query.model_dump_json(indent=2)
+            results = ctx.state.results_count or 0
+            self.record_node_visit(ctx, f"Executed search, {results} results:\n{query_json}")
 
-        return IntentNode(model=self.model, event_emitter=self.event_emitter, user_input=ctx.state.user_input)
+        return IntentNode(model=self.model, event_emitter=self.event_emitter)
 
 
 @dataclass
@@ -311,18 +340,14 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return get_aggregation_execution_prompt(ctx.state)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
-        """After aggregation completes, emit state and route back to IntentNode."""
-        # Emit STATE_SNAPSHOT for state persistence (after run_aggregation modified state)
-        if self.event_emitter:
-            from ag_ui.core import EventType, StateSnapshotEvent
-            state_event = StateSnapshotEvent(
-                type=EventType.STATE_SNAPSHOT,
-                timestamp=_current_timestamp_ms(),
-                snapshot=ctx.state.model_dump()
-            )
-            self.event_emitter(state_event)
+        """After aggregation completes, route back to IntentNode to check for additional actions."""
+        query = ctx.state.query
+        if query:
+            query_json = query.model_dump_json(indent=2)
+            results = ctx.state.results_count or 0
+            self.record_node_visit(ctx, f"Executed aggregation, {results} groups:\n{query_json}")
 
-        return IntentNode(model=self.model, event_emitter=self.event_emitter, user_input=ctx.state.user_input)
+        return IntentNode(model=self.model, event_emitter=self.event_emitter)
 
 
 @dataclass
@@ -347,35 +372,20 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the result actions prompt."""
         results_count = ctx.state.results_count or 0
-        return dedent(
-            f"""
-            Act on existing search/aggregation results.
-
-            Current state: {results_count} results available from previous query.
-
-            Available actions:
-            - Export results: Call prepare_export()
-            - Fetch entity details: Call fetch_entity_details(limit=...)
-
-            User request: {ctx.state.user_input}
-
-            Execute the requested action and provide a brief confirmation.
-            """
-        ).strip()
+        return get_result_actions_prompt(results_count)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
-        """After result action completes, emit state and route back to IntentNode."""
-        # Emit STATE_SNAPSHOT for state persistence (after prepare_export modified state)
-        if self.event_emitter:
-            from ag_ui.core import EventType, StateSnapshotEvent
-            state_event = StateSnapshotEvent(
-                type=EventType.STATE_SNAPSHOT,
-                timestamp=_current_timestamp_ms(),
-                snapshot=ctx.state.model_dump()
-            )
-            self.event_emitter(state_event)
+        """After result action completes, route back to IntentNode to check for additional actions."""
+        # Record what this node did based on which tool was called
+        if "prepare_export" in self._tool_calls_in_current_run:
+            self.record_node_visit(ctx, "Export has been executed and download link delivered to user")
+        elif "fetch_entity_details" in self._tool_calls_in_current_run:
+            self.record_node_visit(ctx, "Entity details have been fetched and delivered to user")
+        else:
+            # Fallback if no tool was called (shouldn't happen)
+            self.record_node_visit(ctx, "Result action completed")
 
-        return IntentNode(model=self.model, event_emitter=self.event_emitter, user_input=ctx.state.user_input)
+        return IntentNode(model=self.model, event_emitter=self.event_emitter)
 
 
 @dataclass
@@ -387,8 +397,6 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         self._node_agent = Agent(
             model=self.model,
             deps_type=StateDeps[SearchState],
-            retries=2,
-            toolsets=[search_toolset],
         )
 
     @property

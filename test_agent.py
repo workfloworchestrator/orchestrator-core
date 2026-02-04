@@ -2,20 +2,28 @@
 
 import json
 import sys
+import uuid
 
 import httpx
 
 
-def test_agent(query: str, base_url: str = "http://localhost:8080"):
+def test_agent(query: str, base_url: str = "http://localhost:8080", thread_id: str | None = None):
     """Test the agent with a query."""
     print(f"\n{'='*60}")
     print(f"Query: {query}")
     print(f"{'='*60}\n")
 
+    if thread_id is None:
+        thread_id = str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
+
+    print(f"Thread ID: {thread_id}")
+    print(f"Run ID: {run_id}\n")
+
     endpoint = f"{base_url}/api/agent/"
     request_body = {
-        "threadId": "test-thread",
-        "runId": "test-run",
+        "threadId": thread_id,
+        "runId": run_id,
         "state": {},
         "messages": [{"role": "user", "id": "msg-1", "content": query}],
         "tools": [],
@@ -41,7 +49,8 @@ def test_agent(query: str, base_url: str = "http://localhost:8080"):
                 if not line or not line.startswith("data: "):
                     continue
 
-                event_json = line[6:]  # Remove "data: " prefix
+                event_json = line[6:].strip()  # Remove "data: " prefix and whitespace
+
                 try:
                     event_data = json.loads(event_json)
                     event_type = event_data.get("type")
@@ -93,10 +102,12 @@ def test_agent(query: str, base_url: str = "http://localhost:8080"):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python test_agent.py 'your search query'")
-        print("\nExample:")
+        print("Usage: python test_agent.py 'your search query' [thread_id]")
+        print("\nExamples:")
         print("  python test_agent.py 'Search for renewable energy'")
+        print("  python test_agent.py 'export them' <thread-id-from-previous-run>")
         sys.exit(1)
 
     query = sys.argv[1]
-    test_agent(query)
+    thread_id = sys.argv[2] if len(sys.argv) > 2 else None
+    test_agent(query, thread_id=thread_id)

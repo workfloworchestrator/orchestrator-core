@@ -19,10 +19,16 @@ from anyio import create_memory_object_stream, create_task_group
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
 from pydantic_ai.ag_ui import SSE_CONTENT_TYPE, StateDeps, run_ag_ui
+from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import Response, StreamingResponse
 from structlog import get_logger
 
+from uuid import UUID
+
+from orchestrator.db import db
+from orchestrator.db.models import AgentRunTable
 from orchestrator.search.agent.agent import GraphAgentAdapter, build_agent_instance
+from orchestrator.search.agent.persistence import PostgresStatePersistence
 from orchestrator.search.agent.schemas import GraphStructure
 from orchestrator.search.agent.state import SearchState
 
@@ -54,10 +60,14 @@ def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
 
     logger.debug("Extracted latest user message", user_input=user_input[:100] if user_input else "(empty)")
 
-    # Merge user_input with existing state from run_input
-    # AG-UI protocol: existing state fields are preserved, we just add/update user_input
+    # Convert AG-UI messages to pydantic-ai ModelMessage format
+    model_messages = AGUIAdapter.load_messages(run_input.messages)
+
+    # Build state dict for SearchState by extracting data from AG-UI messages
+    # Preserve any existing state fields from client, then add our derived fields
     state_dict = dict(run_input.state) if run_input.state else {}
     state_dict["user_input"] = user_input
+    state_dict["message_history"] = model_messages
 
     return RunAgentInput(
         thread_id=run_input.thread_id,
@@ -104,33 +114,59 @@ async def agent_conversation(
     # Prepare run_input with user message extracted into state
     prepared_run_input = prepare_run_input(run_input)
 
-    logger.debug("Incoming request state",
-                 state_keys=list(prepared_run_input.state.keys()) if prepared_run_input.state else [],
-                 query_id=prepared_run_input.state.get('query_id') if prepared_run_input.state else None)
-
     # Create memory stream for events
     send_stream, receive_stream = create_memory_object_stream[str]()
 
     async def run_agent_task() -> None:
         """Run the agent and send events to the stream."""
         try:
-            # Create state from prepared_run_input (preserves state from previous turns)
-            state_dict = dict(prepared_run_input.state) if prepared_run_input.state else {}
-            initial_state = SearchState(**state_dict)
-            event_iterator = run_ag_ui(agent, run_input=prepared_run_input, deps=StateDeps(initial_state))
+            run_id = UUID(prepared_run_input.run_id)
+            thread_id = prepared_run_input.thread_id
+
+            # Create or get agent run record for persistence tracking
+            agent_run = db.session.get(AgentRunTable, run_id)
+            if not agent_run:
+                agent_run = AgentRunTable(run_id=run_id, thread_id=thread_id, agent_type="search")
+                db.session.add(agent_run)
+                db.session.commit()
+                logger.debug("Created new agent run", run_id=str(run_id), thread_id=thread_id)
+
+            # Add run_id to state so tools and graph nodes can access it
+            prepared_run_input.state["run_id"] = run_id
+
+            # Create initial state for passing message_history to run_ag_ui
+            initial_state = SearchState(**prepared_run_input.state)
+
+            # Create PostgreSQL persistence for graph state snapshots (thread-based)
+            persistence = PostgresStatePersistence(thread_id=thread_id, run_id=run_id, session=db.session)
+
+            # Set persistence on agent instance (run_ag_ui doesn't support passing it as parameter)
+            agent._persistence = persistence
+
+            # Run agent with AG-UI protocol handling
+            event_iterator = run_ag_ui(
+                agent,
+                run_input=prepared_run_input,
+                deps=StateDeps(initial_state),
+                message_history=initial_state.message_history,
+            )
 
             async for event_str in event_iterator:
-                # First, check if there are any graph events to inject
+                # First, check if there are any custom graph events to inject
                 if hasattr(agent, "_current_graph_events"):
                     while agent._current_graph_events:
                         custom_event = agent._current_graph_events.popleft()
                         await send_stream.send(custom_event)
 
-                # Then send the regular event
+                # Then send the AG-UI event
                 await send_stream.send(event_str)
+
+            # Commit transaction to persist snapshots
+            db.session.commit()
 
         except Exception as e:
             logger.error("Error in run_agent_task", error=str(e), exc_info=True)
+            db.session.rollback()
             raise
         finally:
             await send_stream.aclose()

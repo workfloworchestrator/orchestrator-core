@@ -15,6 +15,7 @@ from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel
+from pydantic_ai.messages import ModelMessage
 
 from orchestrator.search.core.types import ActionType
 from orchestrator.search.query.queries import Query
@@ -25,8 +26,9 @@ class IntentType(str, Enum):
 
     SEARCH = "search"
     AGGREGATION = "aggregation"
-    RESULT_ACTIONS = "result_actions"  # export, fetch details, visualize
+    RESULT_ACTIONS = "result_actions"
     TEXT_RESPONSE = "text_response"
+    NO_MORE_ACTIONS = "no_more_actions"
 
 
 class SearchState(BaseModel):
@@ -43,3 +45,5 @@ class SearchState(BaseModel):
     results_count: int | None = None  # Number of results from last executed search/aggregation
     intent: IntentType | None = None  # User's intent, determines routing
     export_url: str | None = None  # Export URL if export has been prepared
+    message_history: list[ModelMessage] = []  # Conversation history, updated in real-time during graph execution
+    visited_nodes: dict[str, str] = {}  # Maps node name to description of action performed

@@ -121,3 +121,75 @@ def get_text_response_prompt(state: SearchState) -> str:
         User request: {state.user_input}
     """
     ).strip()
+
+
+def get_intent_classification_prompt(
+    user_input: str,
+    visited_nodes: dict[str, str] | None = None,
+) -> str:
+    """Get prompt for IntentNode classification.
+
+    Args:
+        user_input: Current user request to classify
+        visited_nodes: Dict mapping node names to descriptions of actions performed
+
+    Returns:
+        Complete prompt for intent classification
+    """
+
+    has_executed_actions = False
+    if visited_nodes:
+        has_executed_actions = True
+        actions_list = [f"        - {node}: {action}" for node, action in visited_nodes.items()]
+        visited_context = "\n\nActions performed in this run:\n" + "\n".join(actions_list)
+    else:
+        visited_context = "\n\nNo actions have been performed yet for this request."
+
+    # Only include completion rules if we've executed actions in this run
+    completion_rules = ""
+    if has_executed_actions:
+        completion_rules = f"""
+        - Check if ALL parts of the current request "{user_input}" have been completed by reviewing the "Actions performed in this run".
+        - Route to text_response if clarification is needed from the user before proceeding."""
+
+    return dedent(
+        f"""
+        You are routing requests in a conversation. You have access to the full conversation history for context.
+
+        Current request you are handling: "{user_input}"
+
+        IMPORTANT: The "Actions performed in this run" shows which action nodes have ALREADY BEEN EXECUTED for the current request and what they did.
+        All results from executed nodes are automatically streamed to the user immediately - searches return results, aggregations return visualizations, exports return download links.
+        {visited_context}
+
+        Decision rules:{completion_rules}
+
+        Classify the user's intent for the NEXT action needed for the current request, or "no_more_actions" if work is complete.
+        """
+    ).strip()
+
+
+def get_result_actions_prompt(results_count: int) -> str:
+    """Get prompt for ResultActionsNode agent.
+
+    Args:
+        results_count: Number of results available
+
+    Returns:
+        Complete prompt for result actions
+    """
+    return dedent(
+        f"""
+        Act on existing search/aggregation results.
+
+        Current state: {results_count} results available from previous query.
+
+        Available actions:
+        - If user wants to EXPORT/DOWNLOAD results: Call prepare_export() ONLY
+        - If user wants DETAILED INFORMATION about entities: Call fetch_entity_details(limit=...)
+
+        IMPORTANT: For export requests, ONLY call prepare_export(). Do NOT fetch entity details.
+
+        Execute the requested action and provide a brief confirmation.
+        """
+    ).strip()

@@ -15,8 +15,7 @@ import json
 from typing import Any, cast
 
 import structlog
-from ag_ui.core import EventType, StateSnapshotEvent
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.exceptions import ModelRetry
@@ -59,20 +58,21 @@ class IntentAndQueryInit(BaseModel):
 
     intent: IntentType = Field(
         description=(
-            "Classify user requests into action intents based on context:\n"
-            "- search: Find/list/retrieve entities (SELECT queries) - use when NO results in state\n"
-            "- aggregation: Count/stats/group data (COUNT/AGGREGATE queries) - use when NO results in state\n"
-            "- result_actions: Export, fetch details, or visualize - use when results EXIST in state\n"
-            "- text_response: General questions, greetings, out-of-scope"
+            "The user's intent:\n"
+            "- search: Find/search data\n"
+            "- aggregation: Count, group, or aggregate data\n"
+            "- result_actions: Export or Fetch details for a single entity\n"
+            "- text_response: General questions, greetings, or explanations\n"
+            "- no_more_actions: All requested work is complete"
         )
     )
     entity_type: EntityType | None = Field(
         default=None,
-        description="REQUIRED for search/aggregation intents. Entity type: SUBSCRIPTION, PRODUCT, WORKFLOW, or PROCESS",
+        description="Required for search/aggregation intents. The type of entity to query.",
     )
     action: ActionType | None = Field(
         default=None,
-        description="REQUIRED for search/aggregation intents. Action: SELECT (find/list), COUNT, or AGGREGATE (stats)",
+        description="Required for search/aggregation intents. SELECT for finding entities, COUNT for counting, AGGREGATE for statistics.",
     )
 
 
@@ -91,7 +91,7 @@ async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
     action: ActionType = ActionType.SELECT,
-) -> StateSnapshotEvent:
+) -> Query:
     """Starts a completely new search, clearing all previous state.
 
     This MUST be the first tool called when the user asks for a NEW search.
@@ -128,10 +128,7 @@ async def start_new_search(
 
     logger.debug("New search started", action=action.value, query_type=type(ctx.deps.state.query).__name__)
 
-    return StateSnapshotEvent(
-        type=EventType.STATE_SNAPSHOT,
-        snapshot=ctx.deps.state.model_dump(),
-    )
+    return ctx.deps.state.query
 
 
 @search_toolset.tool
@@ -273,7 +270,6 @@ async def run_aggregation(
         query_id=str(query_id),
     )
 
-    # Return AggregationResponse for UI rendering (STATE_SNAPSHOT emitted from AggregationNode.run())
     return aggregation_response
 
 
@@ -337,7 +333,6 @@ async def discover_filter_paths(
             }
 
         all_results[field_name] = result_for_field
-    logger.debug("Returning found fieldname - path mapping", all_results=all_results)
     return all_results
 
 
@@ -433,7 +428,6 @@ async def prepare_export(
 
     logger.debug("Export prepared", query_id=export_data.query_id)
 
-    # Return ExportData for UI rendering (STATE_SNAPSHOT emitted from ResultActionsNode.run())
     return export_data
 
 

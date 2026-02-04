@@ -681,17 +681,26 @@ class SubscriptionSearchView(BaseModel):
 
 
 class AgentRunTable(BaseModel):
-    """Agent conversation/session tracking."""
+    """Agent conversation/session tracking.
+
+    Each run represents a single turn in a conversation thread.
+    Multiple runs can belong to the same thread_id for multi-turn conversations.
+    """
 
     __tablename__ = "agent_runs"
 
     run_id = mapped_column("run_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    thread_id = mapped_column(String(255), nullable=False, index=True)  # Conversation thread ID
     agent_type = mapped_column(String(50), nullable=False)
     created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
 
     queries = relationship("SearchQueryTable", back_populates="run", cascade="delete", passive_deletes=True)
+    snapshots = relationship("GraphSnapshotTable", back_populates="run", cascade="delete", passive_deletes=True)
 
-    __table_args__ = (Index("ix_agent_runs_created_at", "created_at"),)
+    __table_args__ = (
+        Index("ix_agent_runs_created_at", "created_at"),
+        Index("ix_agent_runs_thread_id", "thread_id"),
+    )
 
 
 class SearchQueryTable(BaseModel):
@@ -748,6 +757,27 @@ class SearchQueryTable(BaseModel):
             parameters=state.query.model_dump(),
             query_embedding=state.query_embedding,
         )
+
+
+class GraphSnapshotTable(BaseModel):
+    """Pydantic-graph state snapshots for resumable agent conversations."""
+
+    __tablename__ = "graph_snapshots"
+
+    snapshot_id = mapped_column("snapshot_id", UUIDType, server_default=text("uuid_generate_v4()"), primary_key=True)
+    run_id = mapped_column(
+        "run_id", UUIDType, ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence_number = mapped_column(Integer, nullable=False)
+    snapshot_data = mapped_column(pg.JSONB, nullable=False)
+    created_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp()"), nullable=False)
+
+    run = relationship("AgentRunTable", back_populates="snapshots")
+
+    __table_args__ = (
+        Index("ix_graph_snapshots_run_id_sequence", "run_id", "sequence_number"),
+        UniqueConstraint("run_id", "sequence_number", name="uq_graph_snapshots_run_sequence"),
+    )
 
 
 class EngineSettingsTable(BaseModel):

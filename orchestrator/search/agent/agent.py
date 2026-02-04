@@ -84,6 +84,7 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         )
         self.graph = graph
         self.model_name = model if isinstance(model, str) else str(model)
+        self._persistence: Any | None = None
 
     def get_graph_structure(self) -> GraphStructure:
         """Build graph structure for visualization.
@@ -110,18 +111,13 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                 )
             )
 
-        # Build edges
+        # Build edges - only from IntentNode to action nodes
+        # Skip edges from action nodes back to IntentNode to avoid visual clutter
         edges = []
         for node_id, node_def in self.graph.node_defs.items():
-            for next_node_id, edge in node_def.next_node_edges.items():
-                edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
-            if node_def.end_edge:
-                edges.append(
-                    GraphEdge(source=node_id, target=End.__name__, label=getattr(node_def.end_edge, "label", None))
-                )
-
-        # Add End node for visualization
-        nodes.append(GraphNode(id=End.__name__, label="End", description="Graph execution complete"))
+            if node_id == IntentNode.__name__:
+                for next_node_id, edge in node_def.next_node_edges.items():
+                    edges.append(GraphEdge(source=node_id, target=next_node_id, label=getattr(edge, "label", None)))
 
         return GraphStructure(nodes=nodes, edges=edges, start_node=self.DEFAULT_START_NODE.__name__)
 
@@ -141,10 +137,16 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
         out custom events via pattern matching in UIEventStream.handle_event().
 
         The pattern:
-        1. graph.iter() yields the next node to execute (determined by previous node's result)
+        1. graph.iter() or graph.iter_from_persistence() yields the next node to execute
         2. Call node.stream(ctx) to get an async generator of AgentStreamEvents
         3. Yield those events in real-time to the frontend
         4. Continue until End node is reached
+
+        Args:
+            user_prompt: User input (not used - comes from deps.state.user_input)
+            deps: StateDeps containing SearchState
+            persistence: PostgresStatePersistence for resuming interrupted graphs
+            **kwargs: Additional arguments
         """
         if deps is None:
             deps = StateDeps(SearchState())
@@ -158,15 +160,42 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
             self._current_graph_events: deque[str] = deque()
             emit_event = lambda event: self._current_graph_events.append(f"data: {event.model_dump_json()}\n\n")
 
+            persistence = self._persistence
+            # If persistence provided, try to load previous state
+            if persistence:
+                snapshot = await persistence.load_next()
+                if snapshot:
+                    previous_state = snapshot.state
+                    logger.debug(
+                        "GraphAgentAdapter: Resuming from previous state",
+                        run_id=persistence.run_id,
+                        has_query_id=previous_state.query_id is not None,
+                    )
+                    # Use the loaded state as initial state, but update user_input and message_history for current turn
+                    initial_state = previous_state
+                    initial_state.user_input = user_input  # Update with current turn's input
+                    initial_state.message_history = (
+                        deps.state.message_history
+                    )  # Update with current conversation history
+                    initial_state.visited_nodes = {}  # Clear visited nodes for new run
+                else:
+                    # First message in thread
+                    initial_state.visited_nodes = {}
+            else:
+                # No persistence
+                initial_state.visited_nodes = {}
+
+            # No persistence or no snapshot - start fresh
             start_node = self.DEFAULT_START_NODE(
-                user_input=user_input,
                 model=self.model_name,
                 event_emitter=emit_event,
             )
 
-            logger.debug("GraphAgentAdapter: Starting graph streaming", node=type(start_node).__name__)
+            logger.debug("GraphAgentAdapter: Starting new graph execution", node=type(start_node).__name__)
 
-            async with self.graph.iter(start_node=start_node, state=initial_state) as graph_run:
+            async with self.graph.iter(
+                start_node=start_node, state=initial_state, persistence=persistence
+            ) as graph_run:
                 async for next_node in graph_run:
 
                     if isinstance(next_node, End):
@@ -189,10 +218,12 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                 # This ensures state persists across turns in multi-turn conversations
                 deps.state = graph_run.state
 
-            logger.info("GraphAgentAdapter: Graph streaming complete",
-                       final_output=final_output,
-                       final_state_keys=list(graph_run.state.model_dump().keys()),
-                       has_query_id=graph_run.state.query_id is not None)
+            logger.debug(
+                "GraphAgentAdapter: Graph streaming complete",
+                final_output=final_output,
+                final_state_keys=list(graph_run.state.model_dump().keys()),
+                has_query_id=graph_run.state.query_id is not None,
+            )
 
             yield AgentRunResultEvent(result=AgentRunResult(output=final_output))
 
