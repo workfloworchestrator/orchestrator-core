@@ -7,6 +7,7 @@ from sqlalchemy import desc, func
 
 from orchestrator.db import ProcessTable, ProductTable, SubscriptionTable, WorkflowTable, db
 from orchestrator.db.models import ProcessSubscriptionTable
+from orchestrator.metrics.dbutils import handle_missing_tables
 from orchestrator.targets import Target
 from orchestrator.workflow import ProcessStatus
 from pydantic_forms.types import UUIDstr
@@ -60,37 +61,42 @@ def _get_processes() -> list[ProcessTableQueryResult]:
     ;
     ```
     """
-    process_count = func.count(WorkflowTable.name).label("process_count")
-    total_process_time = func.coalesce(
-        func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
-    ).label("total_runtime")
-    return (
-        db.session.query(
-            ProcessTable.last_status,
-            ProcessTable.created_by,
-            ProcessTable.is_task,
-            ProductTable.name.label("product_name"),
-            WorkflowTable.name.label("workflow_name"),
-            SubscriptionTable.customer_id,
-            WorkflowTable.target.label("workflow_target"),
-            process_count,
-            total_process_time,
-        )
-        .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
-        .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
-        .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
-        .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
-        .group_by(
-            ProcessTable.last_status,
-            ProcessTable.created_by,
-            ProcessTable.is_task,
-            ProductTable.name,
-            WorkflowTable.name,
-            SubscriptionTable.customer_id,
-            WorkflowTable.target,
-        )
-        .order_by(desc(process_count))
-    ).all()
+
+    result: list[ProcessTableQueryResult] | None = None
+    with handle_missing_tables():
+        process_count = func.count(WorkflowTable.name).label("process_count")
+        total_process_time = func.coalesce(
+            func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
+        ).label("total_runtime")
+        result = (
+            db.session.query(
+                ProcessTable.last_status,
+                ProcessTable.created_by,
+                ProcessTable.is_task,
+                ProductTable.name.label("product_name"),
+                WorkflowTable.name.label("workflow_name"),
+                SubscriptionTable.customer_id,
+                WorkflowTable.target.label("workflow_target"),
+                process_count,
+                total_process_time,
+            )
+            .join(WorkflowTable, WorkflowTable.workflow_id == ProcessTable.workflow_id)
+            .join(ProcessSubscriptionTable, ProcessSubscriptionTable.process_id == ProcessTable.process_id)
+            .join(SubscriptionTable, SubscriptionTable.subscription_id == ProcessSubscriptionTable.subscription_id)
+            .join(ProductTable, ProductTable.product_id == SubscriptionTable.product_id)
+            .group_by(
+                ProcessTable.last_status,
+                ProcessTable.created_by,
+                ProcessTable.is_task,
+                ProductTable.name,
+                WorkflowTable.name,
+                SubscriptionTable.customer_id,
+                WorkflowTable.target,
+            )
+            .order_by(desc(process_count))
+        ).all()
+
+    return result or []
 
 
 class ProcessCollector(Collector):
