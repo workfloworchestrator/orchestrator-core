@@ -61,12 +61,12 @@ def _get_processes() -> list[ProcessTableQueryResult]:
     ;
     ```
     """
-    try:
+    with handle_missing_tables():
         process_count = func.count(WorkflowTable.name).label("process_count")
         total_process_time = func.coalesce(
             func.sum(func.extract("epoch", (ProcessTable.last_modified_at - ProcessTable.started_at))), 0
         ).label("total_runtime")
-        return (
+        result = (
             db.session.query(
                 ProcessTable.last_status,
                 ProcessTable.created_by,
@@ -93,9 +93,8 @@ def _get_processes() -> list[ProcessTableQueryResult]:
             )
             .order_by(desc(process_count))
         ).all()
-    except ProgrammingError:
-        # Database tables don't exist yet (e.g., during initial migration)
-        return []
+
+    return result if "result" in locals() else []
 
 
 class ProcessCollector(Collector):
