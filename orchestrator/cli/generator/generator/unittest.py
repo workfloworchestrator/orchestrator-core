@@ -18,6 +18,7 @@ import structlog
 from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.helpers import (
+    ProdGenContext,
     get_all_fields,
     get_product_file_name,
     get_product_types_module,
@@ -106,7 +107,7 @@ def generate_test_terminate_workflow(environment: Environment, config: dict, wri
     writer(path, content)
 
 
-def generate_unit_tests(context: dict) -> None:
+def generate_unit_tests(context: ProdGenContext) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]

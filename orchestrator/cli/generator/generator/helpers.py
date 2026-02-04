@@ -1,4 +1,4 @@
-# Copyright 2019-2020 SURF.
+# Copyright 2019-2026 SURF.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,13 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
-from collections.abc import Generator, Iterable
+from collections.abc import Callable, Generator, Iterable
 from importlib import import_module
 from os import listdir, path
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import structlog
+from jinja2 import Environment
 from more_itertools import first, one
 
 from orchestrator.cli.generator.generator.enums import to_dict
@@ -26,6 +27,15 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.utils.helpers import camel_to_snake, snake_to_camel
 
 logger = structlog.getLogger(__name__)
+
+
+class ProdGenContext(TypedDict):
+    config: dict
+    environment: Environment
+    python_version: str
+    tdd: bool | None
+    writer: Callable
+    skip_existing_blocks: bool
 
 
 def get_workflow(config: dict, workflow_name: str) -> dict:

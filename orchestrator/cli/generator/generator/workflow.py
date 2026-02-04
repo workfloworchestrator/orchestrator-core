@@ -22,6 +22,7 @@ from jinja2 import Environment
 
 from orchestrator.cli.generator.generator.enums import get_int_enums, get_str_enums
 from orchestrator.cli.generator.generator.helpers import (
+    ProdGenContext,
     get_constrained_ints,
     get_existing_product_blocks,
     get_input_fields,
@@ -83,7 +84,7 @@ def insert_lazy_workflow_instances(environment: Environment, config: dict, write
         writer(path, import_statement + content)  # will create file if not dryrun
 
 
-def generate_workflows(context: dict) -> None:
+def generate_workflows(context: ProdGenContext) -> None:
     config = context["config"]
     environment = context["environment"]
     writer = context["writer"]
