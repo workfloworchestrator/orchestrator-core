@@ -70,7 +70,7 @@ def get_heads() -> dict:
     return get_revisions(result)
 
 
-def create_data_head(context: ProdGenContext, depends_on: str) -> None:
+def create_data_head(context: ProdGenContext | dict, depends_on: str) -> None:
     environment = context["environment"]
     writer = context["writer"]
 
@@ -82,7 +82,7 @@ def create_data_head(context: ProdGenContext, depends_on: str) -> None:
     writer(path, content)
 
 
-def create_data_head_if_not_exists(context: ProdGenContext) -> None:
+def create_data_head_if_not_exists(context: ProdGenContext | dict) -> None:
     heads = get_heads()
     if "data" not in heads:
         create_data_head(context=context, depends_on=heads["schema"])
