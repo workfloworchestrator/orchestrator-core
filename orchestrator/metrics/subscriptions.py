@@ -42,9 +42,9 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
     ;
     ```
     """
-    try:
+    with handle_missing_tables():
         subscription_count = func.count(SubscriptionTable.subscription_id).label("subscription_count")
-        return (
+        result = (
             db.session.query(
                 SubscriptionTable.status.label("lifecycle_state"),
                 SubscriptionTable.customer_id,
@@ -61,9 +61,8 @@ def _get_subscriptions() -> list[SubscriptionTableQueryResult]:
             )
             .order_by(desc(subscription_count))
         ).all()
-    except ProgrammingError:
-        # Database tables don't exist yet (e.g., during initial migration)
-        return []
+
+    return result if "result" in locals() else []
 
 
 class SubscriptionCollector(Collector):
