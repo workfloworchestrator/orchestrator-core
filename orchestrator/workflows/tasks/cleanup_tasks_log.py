@@ -47,9 +47,7 @@ def remove_tasks() -> State:
 
 
 @step("Clean up ai_search_indexes")
-def cleanup_ai_search_index() -> State:
-    # TODO retrieve from state/previous step
-    deleted_process_id_list = []
+def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     rows_to_delete = db.session.scalars(
         select(AiSearchIndex)
         .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
