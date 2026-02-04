@@ -5,7 +5,6 @@ from prometheus_client.metrics_core import GaugeMetricFamily
 from prometheus_client.registry import Collector
 from pydantic import BaseModel
 from sqlalchemy import desc, func
-from sqlalchemy.exc import ProgrammingError
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
 from orchestrator.metrics.dbutils import handle_missing_tables
