@@ -8,6 +8,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.exc import ProgrammingError
 
 from orchestrator.db import ProductTable, SubscriptionTable, db
+from orchestrator.metrics.dbutils import handle_missing_tables
 from orchestrator.types import SubscriptionLifecycle
 from pydantic_forms.types import UUIDstr
 
