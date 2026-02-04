@@ -81,9 +81,9 @@ def base_block_type(block_name: str) -> str:
 
     Examples:
         >>> base_block_type("PortBlock")
-        "Port"
+        'Port'
         >>> base_block_type("PortBlockInactive")
-        "Port"
+        'Port'
     """
     block_type, _lifecycle = block_name.rsplit("Block", maxsplit=1)
     return block_type
