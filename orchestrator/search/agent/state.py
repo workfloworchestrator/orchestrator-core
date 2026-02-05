@@ -14,9 +14,9 @@
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel
-from pydantic_ai.messages import ModelMessage
+from pydantic import BaseModel, Field
 
+from orchestrator.search.agent.environment import ConversationEnvironment
 from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import Query
 
@@ -46,5 +46,8 @@ class SearchState(BaseModel):
     intent: IntentType | None = None  # User's intent, determines routing
     export_url: str | None = None  # Export URL if export has been prepared
     end_actions: bool = False  # Whether to end after current action completes (set by IntentNode)
-    message_history: list[ModelMessage] = []  # Conversation history, updated in real-time during graph execution
     visited_nodes: dict[str, str] = {}  # Maps node name to description of action performed
+    environment: ConversationEnvironment = Field(default_factory=ConversationEnvironment)
+
+    class Config:
+        arbitrary_types_allowed = True

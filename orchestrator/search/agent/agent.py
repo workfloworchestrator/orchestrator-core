@@ -171,21 +171,19 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                         run_id=persistence.run_id,
                         has_query_id=previous_state.query_id is not None,
                     )
-                    # Use the loaded state as initial state, but update user_input and message_history for current turn
+                    # Use the loaded state as initial state, but update user_input for current turn
                     initial_state = previous_state
                     initial_state.user_input = user_input  # Update with current turn's input
-                    initial_state.message_history = (
-                        deps.state.message_history
-                    )  # Update with current conversation history
                     initial_state.visited_nodes = {}  # Clear visited nodes for new run
                 else:
                     # First message in thread
                     initial_state.visited_nodes = {}
             else:
-                # No persistence
                 initial_state.visited_nodes = {}
 
-            # No persistence or no snapshot - start fresh
+            if not initial_state.environment.current_turn or initial_state.environment.current_turn.user_question != user_input:
+                initial_state.environment.start_turn(user_input)
+
             start_node = self.DEFAULT_START_NODE(
                 model=self.model_name,
                 event_emitter=emit_event,
@@ -214,9 +212,10 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                     else "Graph execution completed"
                 )
 
-                # Update deps.state with the final mutated state from the graph
-                # This ensures state persists across turns in multi-turn conversations
                 deps.state = graph_run.state
+
+                # complete_turn() is now called by nodes before returning End()
+                # This ensures the automatic snapshot_end() captures the completed turn
 
             logger.debug(
                 "GraphAgentAdapter: Graph streaming complete",

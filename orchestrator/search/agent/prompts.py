@@ -27,12 +27,23 @@ def get_search_execution_prompt(state: SearchState) -> str:
     Returns:
         Complete prompt for executing search with optional filtering
     """
+    env = state.environment
+    conversation = env.format_for_llm(max_turns=3)
+
     return dedent(
         f"""
+        ## Recent Conversation
+        {conversation}
+
+        ## Current Request
+        "{state.user_input}"
+
+        ---
+
         You are an expert assistant designed to find relevant information by building and running database queries.
 
         ### Your Task
-        Execute a database search to answer the user's request: "{state.user_input}"
+        Execute a database search to answer the user's request.
 
         ### Filtering Rules (if query requires filters)
         - **NEVER GUESS PATHS IN THE DATABASE**: You *must* verify every filter path by calling `{tools.discover_filter_paths.__name__}` first
@@ -61,14 +72,24 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
     """
     from orchestrator.search.core.types import QueryOperation
 
+    env = state.environment
+    conversation = env.format_for_llm(max_turns=3)
     query_operation = state.query_operation.value if state.query_operation else "unknown"
 
     return dedent(
         f"""
+        ## Recent Conversation
+        {conversation}
+
+        ## Current Request
+        "{state.user_input}"
+
+        ---
+
         You are an expert assistant designed to find relevant information by building and running database queries.
 
         ### Your Task
-        Execute an aggregation query (operation: {query_operation}) for: "{state.user_input}"
+        Execute an aggregation query (operation: {query_operation}) for the user's request.
 
         ### Filtering Rules (if query requires filters to restrict WHICH records)
         - Temporal constraints like "in 2025", "between X and Y" require filters on datetime fields
@@ -123,10 +144,20 @@ def get_text_response_prompt(state: SearchState, is_forced_response: bool = Fals
         ).strip()
 
     # Normal TEXT_RESPONSE intent
+    env = state.environment
+    conversation = env.format_for_llm(max_turns=3)
     entity_types = ", ".join([et.value for et in EntityType])
 
     return dedent(
         f"""
+        ## Recent Conversation
+        {conversation}
+
+        ## Current Request
+        "{state.user_input}"
+
+        ---
+
         You are a search assistant that helps users find and analyze data.
 
         Available capabilities:
@@ -138,75 +169,79 @@ def get_text_response_prompt(state: SearchState, is_forced_response: bool = Fals
         - Fetch detailed information about specific entities
 
         Generate a helpful response to the user's question.
-
-        User request: {state.user_input}
     """
     ).strip()
 
 
-def get_intent_classification_prompt(
-    user_input: str,
-    visited_nodes: dict[str, str] | None = None,
-) -> str:
-    """Get prompt for IntentNode classification.
+def get_intent_classification_prompt(state: SearchState) -> str:
+    env = state.environment
+    conversation = env.format_for_llm(max_turns=3)
+    current_turn = env.format_current_turn()
+    current_context = env.format_current_context()
 
-    Args:
-        user_input: Current user request to classify
-        visited_nodes: Dict mapping node names to descriptions of actions performed
-
-    Returns:
-        Complete prompt for intent classification
-    """
-
-    if visited_nodes:
-        actions_list = "\n".join([f"- {node}: {action}" for node, action in visited_nodes.items()])
+    if state.visited_nodes:
+        actions_list = "\n".join([f"- {node}: {action}" for node, action in state.visited_nodes.items()])
     else:
-        actions_list = "None - this is the first action for this request"
+        actions_list = "None"
 
     return dedent(
         f"""
         # Intent Classification
 
-        You are routing requests in a conversation.
-        You have access to:
-          - The graph state
-          - the full conversation history for context and reference.
+        ## Recent Conversation
+        {conversation}
 
-        ## Current Request
-        "{user_input}"
+        ## Current Turn
+        {current_turn}
 
-        ## Context Understanding
-        - **Conversation history**: Contains previous user messages and actions from earlier in the conversation (for context only)
-        - **Actions performed in this run**: Shows ONLY what has been executed for the CURRENT request (listed below)
+        ## Current Context
+        {current_context}
 
-        ## Actions Performed in This Run
+        ## Actions in This Graph Run
         {actions_list}
 
+        ## Current Request
+        "{state.user_input}"
+
         ## Decision Rules
-        1. Execute the necessary actions for the CURRENT request, even if the conversation history shows similar past actions
-        2. Check if ALL parts of the CURRENT request have been completed by reviewing the actions performed above
-        3. Set `end_actions=True` if the next action will complete the request (no more actions needed after it)
-        4. Use `no_more_actions` intent if no further actions are needed at all
+        1. Recent conversation is for reference
+        2. Current context shows what's available for follow-up
+        3. Execute actions for the CURRENT request
+        4. Set end_actions=True if next action completes the request
+        5. Use no_more_actions if no further actions needed
 
-        ## Task
-        Classify the user's intent for the **NEXT single action** needed for the current request, or {IntentType.NO_MORE_ACTIONS.value} if work is complete.
-
-        Note: This is a graph that circles back after each action completes. Return ONE intent for the immediate next step only - do not plan multiple steps ahead.
+        Classify the user's intent for the NEXT single action.
         """
     ).strip()
 
 
-def get_result_actions_prompt(results_count: int) -> str:
+def get_result_actions_prompt(state: SearchState) -> str:
     """Get prompt for ResultActionsNode agent.
 
     Args:
-        results_count: Number of results available
+        state: Current search state with environment and user input
 
     Returns:
         Complete prompt for result actions
     """
+    env = state.environment
+    conversation = env.format_for_llm(max_turns=3)
+    current_context = env.format_current_context()
+    results_count = state.results_count or 0
+
     return dedent(
         f"""
+        ## Recent Conversation
+        {conversation}
+
+        ## Current Request
+        "{state.user_input}"
+
+        ## Current Context
+        {current_context}
+
+        ---
+
         Act on existing search/aggregation results.
 
         Current state: {results_count} results available from previous query.

@@ -67,7 +67,6 @@ def prepare_run_input(run_input: RunAgentInput) -> RunAgentInput:
     # Preserve any existing state fields from client, then add our derived fields
     state_dict = dict(run_input.state) if run_input.state else {}
     state_dict["user_input"] = user_input
-    state_dict["message_history"] = model_messages
 
     return RunAgentInput(
         thread_id=run_input.thread_id,
@@ -131,14 +130,32 @@ async def agent_conversation(
                 db.session.commit()
                 logger.debug("Created new agent run", run_id=str(run_id), thread_id=thread_id)
 
-            # Add run_id to state so tools and graph nodes can access it
             prepared_run_input.state["run_id"] = run_id
 
-            # Create initial state for passing message_history to run_ag_ui
-            initial_state = SearchState(**prepared_run_input.state)
-
-            # Create PostgreSQL persistence for graph state snapshots (thread-based)
             persistence = PostgresStatePersistence(thread_id=thread_id, run_id=run_id, session=db.session)
+
+            snapshot = await persistence.load_next()
+            if snapshot:
+                initial_state = snapshot.state
+                initial_state.user_input = prepared_run_input.state["user_input"]
+                initial_state.run_id = run_id
+                logger.debug(
+                    "Loaded previous state from persistence",
+                    completed_turns=len(initial_state.environment.completed_turns),
+                    current_turn=initial_state.environment.current_turn is not None,
+                    has_context=(
+                        initial_state.environment.current_context.query_id is not None
+                        or initial_state.environment.current_context.results_available
+                    ),
+                    query_id=(
+                        str(initial_state.environment.current_context.query_id)
+                        if initial_state.environment.current_context.query_id
+                        else None
+                    ),
+                )
+            else:
+                initial_state = SearchState(**prepared_run_input.state)
+                logger.debug("Created fresh state (no previous snapshot)")
 
             # Set persistence on agent instance (run_ag_ui doesn't support passing it as parameter)
             agent._persistence = persistence
@@ -148,7 +165,6 @@ async def agent_conversation(
                 agent,
                 run_input=prepared_run_input,
                 deps=StateDeps(initial_state),
-                message_history=initial_state.message_history,
             )
 
             async for event_str in event_iterator:
