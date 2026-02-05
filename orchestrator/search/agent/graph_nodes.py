@@ -46,10 +46,11 @@ from orchestrator.search.agent.prompts import (
 from orchestrator.search.agent.state import IntentType, SearchState
 from orchestrator.search.agent.tools import (
     IntentAndQueryInit,
+    aggregation_execution_toolset,
     aggregation_toolset,
-    execution_toolset,
     filter_building_toolset,
     result_actions_toolset,
+    search_execution_toolset,
 )
 from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
@@ -286,7 +287,7 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             model=self.model,
             deps_type=StateDeps[SearchState],
             retries=2,
-            toolsets=[filter_building_toolset, execution_toolset],
+            toolsets=[filter_building_toolset, search_execution_toolset],
         )
 
     @property
@@ -338,7 +339,7 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             model=self.model,
             deps_type=StateDeps[SearchState],
             retries=2,
-            toolsets=[filter_building_toolset, aggregation_toolset, execution_toolset],
+            toolsets=[filter_building_toolset, aggregation_toolset, aggregation_execution_toolset],
         )
 
     @property

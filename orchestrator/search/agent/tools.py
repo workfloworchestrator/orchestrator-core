@@ -91,64 +91,14 @@ class IntentAndQueryInit(BaseModel):
     )
 
 
-# Main toolset with all tools
-search_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
-
 # Node-specific toolsets for graph control flow
 filter_building_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 aggregation_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
-execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+search_execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
+aggregation_execution_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 result_actions_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolset(max_retries=2)
 
 
-@search_toolset.tool(retries=1)
-async def start_new_search(
-    ctx: RunContext[StateDeps[SearchState]],
-    entity_type: EntityType,
-    query_operation: QueryOperation = QueryOperation.SELECT,
-) -> Query:
-    """Starts a completely new search, clearing all previous state.
-
-    This MUST be the first tool called when the user asks for a NEW search.
-    Warning: This will erase any existing filters, results, and search state.
-    """
-    final_query = ctx.deps.state.user_input
-
-    logger.debug(
-        "Starting new search",
-        entity_type=entity_type.value,
-        query_operation=query_operation,
-        query=final_query,
-    )
-
-    # Initialize new search state
-    ctx.deps.state.results_count = None
-    ctx.deps.state.query_operation = query_operation
-
-    # Create the appropriate query object based on query_operation
-    if query_operation == QueryOperation.SELECT:
-        ctx.deps.state.query = SelectQuery(
-            entity_type=entity_type,
-            query_text=final_query,
-        )
-    elif query_operation == QueryOperation.COUNT:
-        ctx.deps.state.query = CountQuery(
-            entity_type=entity_type,
-        )
-    else:  # QueryOperation.AGGREGATE
-        ctx.deps.state.query = AggregateQuery(
-            entity_type=entity_type,
-            aggregations=[],  # Will be set by set_aggregations tool
-        )
-
-    logger.debug(
-        "New search started", query_operation=query_operation.value, query_type=type(ctx.deps.state.query).__name__
-    )
-
-    return ctx.deps.state.query
-
-
-@search_toolset.tool
 @filter_building_toolset.tool
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
@@ -161,7 +111,7 @@ async def set_filter_tree(
     Returns the updated Query as structured output.
     """
     if ctx.deps.state.query is None:
-        raise ModelRetry("Search query is not initialized. Call start_new_search first.")
+        raise ModelRetry("Search query is not initialized. IntentNode should have initialized it.")
 
     entity_type = ctx.deps.state.query.entity_type
 
@@ -191,8 +141,7 @@ async def set_filter_tree(
     return updated_query
 
 
-@search_toolset.tool
-@execution_toolset.tool
+@search_execution_toolset.tool
 async def run_search(
     ctx: RunContext[StateDeps[SearchState]],
     limit: int = 10,
@@ -242,8 +191,7 @@ async def run_search(
     return aggregation_response
 
 
-@search_toolset.tool
-@execution_toolset.tool
+@aggregation_execution_toolset.tool
 async def run_aggregation(
     ctx: RunContext[StateDeps[SearchState]],
     visualization_type: VisualizationType,
@@ -290,7 +238,6 @@ async def run_aggregation(
     return aggregation_response
 
 
-@search_toolset.tool
 @filter_building_toolset.tool
 async def discover_filter_paths(
     ctx: RunContext[StateDeps[SearchState]],
@@ -306,7 +253,7 @@ async def discover_filter_paths(
         if ctx.deps.state.query:
             entity_type = ctx.deps.state.query.entity_type
         else:
-            raise ModelRetry("Entity type not specified and no query in state. Call start_new_search first.")
+            raise ModelRetry("Entity type not specified and no query in state. IntentNode should have initialized it.")
 
     all_results = {}
     for field_name in field_names:
@@ -353,7 +300,6 @@ async def discover_filter_paths(
     return all_results
 
 
-@search_toolset.tool
 @filter_building_toolset.tool
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
@@ -368,7 +314,6 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
     return operator_map
 
 
-@search_toolset.tool
 @result_actions_toolset.tool
 async def fetch_entity_details(
     ctx: RunContext[StateDeps[SearchState]],
@@ -415,7 +360,6 @@ async def fetch_entity_details(
     return json.dumps(detailed_data, indent=2)
 
 
-@search_toolset.tool
 @result_actions_toolset.tool
 async def prepare_export(
     ctx: RunContext[StateDeps[SearchState]],
@@ -448,7 +392,6 @@ async def prepare_export(
     return export_data
 
 
-@search_toolset.tool
 @aggregation_toolset.tool
 async def set_grouping(
     ctx: RunContext[StateDeps[SearchState]],
@@ -487,7 +430,6 @@ async def set_grouping(
     return updated_query
 
 
-@search_toolset.tool
 @aggregation_toolset.tool
 async def set_aggregations(
     ctx: RunContext[StateDeps[SearchState]],
@@ -523,7 +465,6 @@ async def set_aggregations(
     return updated_query
 
 
-@search_toolset.tool
 @aggregation_toolset.tool
 async def set_temporal_grouping(
     ctx: RunContext[StateDeps[SearchState]],
