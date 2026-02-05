@@ -66,6 +66,7 @@ def last_user_message(ctx: RunContext[StateDeps[SearchState]]) -> str | None:
                     return part.content
     return None
 
+
 @search_toolset.tool
 async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
@@ -113,6 +114,7 @@ async def start_new_search(
         snapshot=ctx.deps.state.model_dump(),
     )
 
+
 @search_toolset.tool(retries=2)
 async def set_filter_tree(
     ctx: RunContext[StateDeps[SearchState]],
@@ -155,6 +157,7 @@ async def set_filter_tree(
         type=EventType.STATE_SNAPSHOT,
         snapshot=ctx.deps.state.model_dump(),
     )
+
 
 @search_toolset.tool
 @require_action(ActionType.SELECT)
@@ -204,6 +207,7 @@ async def run_search(
 
     return aggregation_response
 
+
 @search_toolset.tool
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)
 async def run_aggregation(
@@ -243,6 +247,7 @@ async def run_aggregation(
     )
 
     return aggregation_response
+
 
 @search_toolset.tool
 async def discover_filter_paths(
@@ -306,6 +311,7 @@ async def discover_filter_paths(
     logger.debug("Returning found fieldname - path mapping", all_results=all_results)
     return all_results
 
+
 @search_toolset.tool
 async def get_valid_operators() -> dict[str, list[FilterOp]]:
     """Gets the mapping of field types to their valid filter operators."""
@@ -318,6 +324,7 @@ async def get_valid_operators() -> dict[str, list[FilterOp]]:
         if hasattr(type_def, "operators"):
             operator_map[key] = type_def.operators
     return operator_map
+
 
 @search_toolset.tool
 async def fetch_entity_details(
@@ -364,6 +371,7 @@ async def fetch_entity_details(
 
     return json.dumps(detailed_data, indent=2)
 
+
 @search_toolset.tool
 @require_action(ActionType.SELECT)
 async def prepare_export(
@@ -392,6 +400,7 @@ async def prepare_export(
     logger.debug("Export prepared", query_id=export_data.query_id)
 
     return export_data
+
 
 @search_toolset.tool(retries=2)
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)
@@ -428,6 +437,7 @@ async def set_grouping(
         snapshot=ctx.deps.state.model_dump(),
     )
 
+
 @search_toolset.tool(retries=2)
 @require_action(ActionType.AGGREGATE)
 async def set_aggregations(
@@ -462,6 +472,7 @@ async def set_aggregations(
         type=EventType.STATE_SNAPSHOT,
         snapshot=ctx.deps.state.model_dump(),
     )
+
 
 @search_toolset.tool(retries=2)
 @require_action(ActionType.COUNT, ActionType.AGGREGATE)

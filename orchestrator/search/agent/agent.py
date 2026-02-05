@@ -41,7 +41,7 @@ if llm_settings.LANGFUSE_ENABLED:
 
 
 def build_agent_instance(
-        model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
+    model: str | OpenAIChatModel, agent_tools: list[FunctionToolset[Any]] | None = None
 ) -> Agent[StateDeps[SearchState], str]:
     """Build and configure the search agent instance.
 
@@ -64,13 +64,11 @@ def build_agent_instance(
             parallel_tool_calls=False,
         ),  # https://github.com/pydantic/pydantic-ai/issues/562
         toolsets=toolsets,
-        instrument=llm_settings.LANGFUSE_ENABLED
+        instrument=llm_settings.LANGFUSE_ENABLED,
     )
     agent.instructions(get_base_instructions)
     agent.instructions(get_dynamic_instructions)
     if llm_settings.LANGFUSE_ENABLED:
-        agent.instrument_all(instrument=InstrumentationSettings(
-            version=3
-        ))
+        agent.instrument_all(instrument=InstrumentationSettings(version=3))
 
     return agent
