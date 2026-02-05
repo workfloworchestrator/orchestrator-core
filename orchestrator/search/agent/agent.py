@@ -20,7 +20,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import FunctionToolset
 
-from orchestrator import llm_settings
+from orchestrator.llm_settings import llm_settings
 from orchestrator.search.agent.prompts import get_base_instructions, get_dynamic_instructions
 from orchestrator.search.agent.state import SearchState
 from orchestrator.search.agent.tools import search_toolset
