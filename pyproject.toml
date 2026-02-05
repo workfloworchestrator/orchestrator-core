@@ -88,6 +88,9 @@ agent = [
     "ag-ui-protocol>=0.1.10",
     "litellm>=1.75.7",
 ]
+langfuse = [
+    "langfuse>=2"
+]
 
 # Local dependencies for development
 [dependency-groups]
