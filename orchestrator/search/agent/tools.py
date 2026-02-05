@@ -32,7 +32,7 @@ from orchestrator.search.agent.handlers import (
 )
 from orchestrator.search.agent.state import SearchState, IntentType
 from orchestrator.search.aggregations import Aggregation, FieldAggregation, TemporalGrouping
-from orchestrator.search.core.types import ActionType, EntityType, FilterOp
+from orchestrator.search.core.types import QueryOperation, EntityType, FilterOp
 from orchestrator.search.filters import FilterTree
 from orchestrator.search.query import engine
 from orchestrator.search.query.exceptions import PathNotFoundError, QueryValidationError
@@ -70,7 +70,7 @@ class IntentAndQueryInit(BaseModel):
         default=None,
         description="Required for search/aggregation intents. The type of entity to query.",
     )
-    action: ActionType | None = Field(
+    query_operation: QueryOperation | None = Field(
         default=None,
         description="Required for search/aggregation intents. SELECT for finding entities, COUNT for counting, AGGREGATE for statistics.",
     )
@@ -99,7 +99,7 @@ result_actions_toolset: FunctionToolset[StateDeps[SearchState]] = FunctionToolse
 async def start_new_search(
     ctx: RunContext[StateDeps[SearchState]],
     entity_type: EntityType,
-    action: ActionType = ActionType.SELECT,
+    query_operation: QueryOperation = QueryOperation.SELECT,
 ) -> Query:
     """Starts a completely new search, clearing all previous state.
 
@@ -111,31 +111,31 @@ async def start_new_search(
     logger.debug(
         "Starting new search",
         entity_type=entity_type.value,
-        action=action,
+        query_operation=query_operation,
         query=final_query,
     )
 
     # Initialize new search state
     ctx.deps.state.results_count = None
-    ctx.deps.state.action = action
+    ctx.deps.state.query_operation = query_operation
 
-    # Create the appropriate query object based on action
-    if action == ActionType.SELECT:
+    # Create the appropriate query object based on query_operation
+    if query_operation == QueryOperation.SELECT:
         ctx.deps.state.query = SelectQuery(
             entity_type=entity_type,
             query_text=final_query,
         )
-    elif action == ActionType.COUNT:
+    elif query_operation == QueryOperation.COUNT:
         ctx.deps.state.query = CountQuery(
             entity_type=entity_type,
         )
-    else:  # ActionType.AGGREGATE
+    else:  # QueryOperation.AGGREGATE
         ctx.deps.state.query = AggregateQuery(
             entity_type=entity_type,
             aggregations=[],  # Will be set by set_aggregations tool
         )
 
-    logger.debug("New search started", action=action.value, query_type=type(ctx.deps.state.query).__name__)
+    logger.debug("New search started", query_operation=query_operation.value, query_type=type(ctx.deps.state.query).__name__)
 
     return ctx.deps.state.query
 
@@ -259,7 +259,7 @@ async def run_aggregation(
         "Executing aggregation",
         search_entity_type=query.entity_type.value,
         has_filters=query.filters is not None,
-        action=query.action,
+        query_operation=query.query_operation,
     )
 
     aggregation_response, run_id, query_id = await execute_aggregation_with_persistence(

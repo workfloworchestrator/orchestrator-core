@@ -102,8 +102,8 @@ class EntityType(str, Enum):
     PROCESS = "PROCESS"
 
 
-class ActionType(str, Enum):
-    """Defines the explicit, safe actions the agent can request."""
+class QueryOperation(str, Enum):
+    """Defines the type of database query operation to perform."""
 
     SELECT = "select"  # Retrieve a list of matching records.
     COUNT = "count"  # Count matching records, optionally grouped.

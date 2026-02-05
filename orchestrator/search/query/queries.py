@@ -15,7 +15,7 @@ from typing import Annotated, Any, ClassVar, Literal, Self, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, model_validator
 
-from orchestrator.search.core.types import ActionType, EntityType
+from orchestrator.search.core.types import QueryOperation, EntityType
 from orchestrator.search.filters import FilterTree
 
 from .mixins import (
@@ -37,7 +37,7 @@ class BaseQuery(BaseModel):
     DEFAULT_EXPORT_LIMIT: ClassVar[int] = 1000
     MAX_EXPORT_LIMIT: ClassVar[int] = 10000
 
-    _action: ClassVar[ActionType]
+    _query_operation: ClassVar[QueryOperation]
 
     entity_type: EntityType
     filters: FilterTree | None = Field(default=None, description="Structured filters to apply")
@@ -45,8 +45,8 @@ class BaseQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     @property
-    def action(self) -> ActionType:
-        return self._action
+    def query_operation(self) -> QueryOperation:
+        return self._query_operation
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -68,7 +68,7 @@ class SelectQuery(BaseQuery, SearchMixin):
     """
 
     query_type: Literal["select"] = "select"
-    _action: ClassVar[ActionType] = ActionType.SELECT
+    _query_operation: ClassVar[QueryOperation] = QueryOperation.SELECT
 
     limit: int = Field(
         default=BaseQuery.DEFAULT_LIMIT,
@@ -85,7 +85,7 @@ class ExportQuery(BaseQuery, SearchMixin):
     """
 
     query_type: Literal["export"] = "export"
-    _action: ClassVar[ActionType] = ActionType.SELECT
+    _query_operation: ClassVar[QueryOperation] = QueryOperation.SELECT
 
     limit: int = Field(
         default=BaseQuery.DEFAULT_EXPORT_LIMIT,
@@ -99,7 +99,7 @@ class CountQuery(BaseQuery, GroupingMixin):
     """Query for COUNT operations with optional grouping."""
 
     query_type: Literal["count"] = "count"
-    _action: ClassVar[ActionType] = ActionType.COUNT
+    _query_operation: ClassVar[QueryOperation] = QueryOperation.COUNT
 
 
 class AggregateQuery(BaseQuery, GroupingMixin, AggregationMixin):
@@ -110,7 +110,7 @@ class AggregateQuery(BaseQuery, GroupingMixin, AggregationMixin):
     """
 
     query_type: Literal["aggregate"] = "aggregate"
-    _action: ClassVar[ActionType] = ActionType.AGGREGATE
+    _query_operation: ClassVar[QueryOperation] = QueryOperation.AGGREGATE
 
     @model_validator(mode="after")
     def validate_cumulative_aggregation_types(self) -> Self:

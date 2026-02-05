@@ -46,7 +46,7 @@ from orchestrator.search.agent.tools import (
     execution_toolset,
     filter_building_toolset,
 )
-from orchestrator.search.core.types import ActionType
+from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import AggregateQuery, CountQuery, SelectQuery
 
 logger = structlog.get_logger(__name__)
@@ -165,6 +165,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             model=self.model,
             deps_type=StateDeps[SearchState],
             output_type=IntentAndQueryInit,
+            name="classify_intent",
             retries=2,
         )
 
@@ -206,7 +207,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
                 entity_type=(
                     result.output.entity_type.value if result and result.output and result.output.entity_type else None
                 ),
-                action=result.output.action.value if result and result.output and result.output.action else None,
+                query_operation=result.output.query_operation.value if result and result.output and result.output.query_operation else None,
             )
 
             ctx.state.intent = result.output.intent
@@ -215,28 +216,28 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             # Only initialize query for search/aggregation intents (not result_actions or text_response)
             if result and result.output.intent in (IntentType.SEARCH, IntentType.AGGREGATION):
                 entity_type = result.output.entity_type
-                action = result.output.action
+                query_operation = result.output.query_operation
 
-                if not entity_type or not action:
-                    raise ValueError("entity_type and action required for search/aggregation intents")
+                if not entity_type or not query_operation:
+                    raise ValueError("entity_type and query_operation required for search/aggregation intents")
 
                 logger.debug(
                     f"{self.node_name}: Intent classified and query initialized",
                     intent=result.output.intent.value,
                     entity_type=entity_type.value,
-                    action=action.value,
+                    query_operation=query_operation.value,
                 )
 
                 # Clear state and initialize query
                 ctx.state.results_count = None
-                ctx.state.action = action
+                ctx.state.query_operation = query_operation
 
-                # Create the appropriate query object based on action
-                if action == ActionType.SELECT:
+                # Create the appropriate query object based on query_operation
+                if query_operation == QueryOperation.SELECT:
                     ctx.state.query = SelectQuery(entity_type=entity_type, query_text=ctx.state.user_input)
-                elif action == ActionType.COUNT:
+                elif query_operation == QueryOperation.COUNT:
                     ctx.state.query = CountQuery(entity_type=entity_type)
-                else:  # ActionType.AGGREGATE
+                else:  # QueryOperation.AGGREGATE
                     ctx.state.query = AggregateQuery(entity_type=entity_type, aggregations=[])
             else:
                 intent_value = None
@@ -258,7 +259,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         """Route based on the intent classified by the agent.
 
         Returns:
-            Appropriate action node based on intent, or End to pause
+            Appropriate action node based on intent, TextResponseNode for completion message, or End if work is done
         """
         intent = ctx.state.intent
 
@@ -281,10 +282,16 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
 
         if intent == IntentType.NO_MORE_ACTIONS:
+            # Only route to TextResponseNode if no actions were performed (to avoid silent end)
+            # If actions were performed, they already streamed results to user, so just end
+            if not ctx.state.visited_nodes:
+                return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
             return End("Complete")
 
-        # Unknown state, end
-        return End("No action needed")
+        # If we have actions, end; otherwise send completion message
+        if ctx.state.visited_nodes:
+            return End("Complete")
+        return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
 
 
 @dataclass
@@ -400,6 +407,13 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
 @dataclass
 class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
+    """Generates text responses for general questions or completion acknowledgments.
+
+    This node handles two cases:
+    1. TEXT_RESPONSE intent: User asks general questions, greetings, or out-of-scope queries
+    2. NO_MORE_ACTIONS intent: Generates a brief completion message when work is done
+    """
+
     description: str = field(default="Generates text responses for general questions", init=False)
 
     def __post_init__(self):
@@ -414,8 +428,10 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         return self._node_agent
 
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
-        """Get the text response prompt."""
-        return get_text_response_prompt(ctx.state)
+        """Get the text response prompt (delegates to prompts.py)."""
+        # Only forced response if NO_MORE_ACTIONS and no actions were performed
+        is_forced = ctx.state.intent == IntentType.NO_MORE_ACTIONS and not ctx.state.visited_nodes
+        return get_text_response_prompt(ctx.state, is_forced_response=is_forced)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> End[str]:
         """Text response completes the flow."""

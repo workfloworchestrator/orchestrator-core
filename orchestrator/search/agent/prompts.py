@@ -14,7 +14,7 @@
 from textwrap import dedent
 
 from orchestrator.search.agent import tools
-from orchestrator.search.agent.state import SearchState
+from orchestrator.search.agent.state import IntentType, SearchState
 from orchestrator.search.core.types import EntityType
 
 
@@ -54,21 +54,21 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
     """Get prompt for AggregationNode agent.
 
     Args:
-        state: Current search state with action and query info
+        state: Current search state with query_operation and query info
 
     Returns:
         Complete prompt for executing aggregation with optional filtering and grouping
     """
-    from orchestrator.search.core.types import ActionType
+    from orchestrator.search.core.types import QueryOperation
 
-    action = state.action.value if state.action else "unknown"
+    query_operation = state.query_operation.value if state.query_operation else "unknown"
 
     return dedent(
         f"""
         You are an expert assistant designed to find relevant information by building and running database queries.
 
         ### Your Task
-        Execute an aggregation query (action: {action}) for: "{state.user_input}"
+        Execute an aggregation query (operation: {query_operation}) for: "{state.user_input}"
 
         ### Filtering Rules (if query requires filters to restrict WHICH records)
         - Temporal constraints like "in 2025", "between X and Y" require filters on datetime fields
@@ -83,25 +83,46 @@ def get_aggregation_execution_prompt(state: SearchState) -> str:
         ### Steps
         1. If filters needed: Call {tools.discover_filter_paths.__name__}, {tools.get_valid_operators.__name__}, build FilterTree, call {tools.set_filter_tree.__name__}
         2. Set grouping: Temporal ({tools.set_temporal_grouping.__name__}) or regular ({tools.set_grouping.__name__})
-        3. For {ActionType.AGGREGATE.value} action ONLY: Call {tools.set_aggregations.__name__}. For {ActionType.COUNT.value}: Do NOT call (counting is automatic)
+        3. For {QueryOperation.AGGREGATE.value} operation ONLY: Call {tools.set_aggregations.__name__}. For {QueryOperation.COUNT.value}: Do NOT call (counting is automatic)
         4. Call {tools.run_aggregation.__name__}(visualization_type=...)
         5. Briefly confirm what was computed (1-2 sentences). DO NOT list results - visualization shows them
     """
     ).strip()
 
 
-def get_text_response_prompt(state: SearchState) -> str:
+def get_text_response_prompt(state: SearchState, is_forced_response: bool = False) -> str:
     """Get prompt for TextResponseNode agent.
 
-    This node only handles TEXT_RESPONSE intent (general questions, greetings, out-of-scope).
-    It never receives search/aggregation results since those flows end at execution nodes.
+    This node handles two cases:
+    1. TEXT_RESPONSE intent: General questions, greetings, out-of-scope queries
+    2. NO_MORE_ACTIONS intent: Completion acknowledgment (is_forced_response=True)
 
     Args:
         state: Current search state
+        is_forced_response: If True, generate completion message because no actions were taken
 
     Returns:
         Complete prompt for generating text response
     """
+    if is_forced_response:
+        return dedent(
+            f"""
+            The user said: "{state.user_input}"
+
+            The system determined no actions were needed for this request.
+
+            Briefly acknowledge this and ask what they'd like to do next.
+
+            Examples:
+            - "Looks like that's already handled. What else can I help with?"
+            - "Nothing more to do here. Anything else?"
+            - "All set. What would you like next?"
+
+            Keep it brief.
+            """
+        ).strip()
+
+    # Normal TEXT_RESPONSE intent
     entity_types = ", ".join([et.value for et in EntityType])
 
     return dedent(
@@ -137,34 +158,40 @@ def get_intent_classification_prompt(
         Complete prompt for intent classification
     """
 
-    has_executed_actions = False
     if visited_nodes:
-        has_executed_actions = True
-        actions_list = [f"        - {node}: {action}" for node, action in visited_nodes.items()]
-        visited_context = "\n\nActions performed in this run:\n" + "\n".join(actions_list)
+        actions_list = "\n".join([f"- {node}: {action}" for node, action in visited_nodes.items()])
     else:
-        visited_context = "\n\nNo actions have been performed yet for this request."
-
-    # Only include completion rules if we've executed actions in this run
-    completion_rules = ""
-    if has_executed_actions:
-        completion_rules = f"""
-        - Check if ALL parts of the current request "{user_input}" have been completed by reviewing the "Actions performed in this run".
-        - Route to text_response if clarification is needed from the user before proceeding."""
+        actions_list = "None - this is the first action for this request"
 
     return dedent(
         f"""
-        You are routing requests in a conversation. You have access to the full conversation history for context.
+        # Intent Classification
 
-        Current request you are handling: "{user_input}"
+        You are routing requests in a conversation.
+        You have access to:
+          - The graph state
+          - the full conversation history for context and reference.
 
-        IMPORTANT: The "Actions performed in this run" shows which action nodes have ALREADY BEEN EXECUTED for the current request and what they did.
-        All results from executed nodes are automatically streamed to the user immediately - searches return results, aggregations return visualizations, exports return download links.
-        {visited_context}
+        ## Current Request
+        "{user_input}"
 
-        Decision rules:{completion_rules}
+        ## Context Understanding
+        - **Conversation history**: Contains previous user messages and actions from earlier in the conversation (for context only)
+        - **Actions performed in this run**: Shows ONLY what has been executed for the CURRENT request (listed below)
 
-        Classify the user's intent for the NEXT action needed for the current request, or "no_more_actions" if work is complete.
+        ## Actions Performed in This Run
+        {actions_list}
+
+        ## Decision Rules
+        1. Execute the necessary actions for the CURRENT request, even if the conversation history shows similar past actions
+        2. Check if ALL parts of the CURRENT request have been completed by reviewing the actions performed above
+        3. Set `end_actions=True` if the next action will complete the request (no more actions needed after it)
+        4. Use `no_more_actions` intent if no further actions are needed at all
+
+        ## Task
+        Classify the user's intent for the **NEXT single action** needed for the current request, or {IntentType.NO_MORE_ACTIONS.value} if work is complete.
+
+        Note: This is a graph that circles back after each action completes. Return ONE intent for the immediate next step only - do not plan multiple steps ahead.
         """
     ).strip()
 

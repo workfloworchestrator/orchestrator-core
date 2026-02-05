@@ -17,7 +17,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from pydantic_ai.messages import ModelMessage
 
-from orchestrator.search.core.types import ActionType
+from orchestrator.search.core.types import QueryOperation
 from orchestrator.search.query.queries import Query
 
 
@@ -40,7 +40,7 @@ class SearchState(BaseModel):
     user_input: str = ""  # Original user input text from current conversation turn
     run_id: UUID | None = None
     query_id: UUID | None = None
-    action: ActionType | None = None
+    query_operation: QueryOperation | None = None  # Type of query operation (SELECT, COUNT, AGGREGATE)
     query: Query | None = None
     results_count: int | None = None  # Number of results from last executed search/aggregation
     intent: IntentType | None = None  # User's intent, determines routing

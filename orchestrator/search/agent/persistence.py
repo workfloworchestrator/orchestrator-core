@@ -154,12 +154,7 @@ class PostgresStatePersistence(BaseStatePersistence[SearchState]):
         snapshot_data = db_snapshot.snapshot_data
         snapshot_kind = snapshot_data.get("kind")
 
-        # If the latest snapshot is an EndSnapshot, start fresh (graph completed)
-        if snapshot_kind == "end":
-            logger.debug("Graph already completed for this run", run_id=str(self.run_id))
-            return None
-
-        # Deserialize state from snapshot
+        # Deserialize state from snapshot (works for both node and end snapshots)
         state_data = snapshot_data.get("state", {})
         state = SearchState.model_validate(state_data)
 
