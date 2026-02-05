@@ -72,7 +72,13 @@ class IntentAndQueryInit(BaseModel):
     )
     query_operation: QueryOperation | None = Field(
         default=None,
-        description="Required for search/aggregation intents. SELECT for finding entities, COUNT for counting, AGGREGATE for statistics.",
+        description=(
+            "Required for search/aggregation intents.\n"
+            "- SELECT: Find/Search/Retrieve individual entity records (e.g., 'find subscriptions', 'show products')\n"
+            "- COUNT: Count records, especially when grouping by fields \n"
+            "- AGGREGATE: Compute sum, avg, min, max over records \n"
+            "IMPORTANT: Any request with 'by <field>' or 'per <field>' typically needs COUNT or AGGREGATE, not SELECT."
+        ),
     )
     end_actions: bool = Field(
         default=False,
@@ -135,7 +141,9 @@ async def start_new_search(
             aggregations=[],  # Will be set by set_aggregations tool
         )
 
-    logger.debug("New search started", query_operation=query_operation.value, query_type=type(ctx.deps.state.query).__name__)
+    logger.debug(
+        "New search started", query_operation=query_operation.value, query_type=type(ctx.deps.state.query).__name__
+    )
 
     return ctx.deps.state.query
 
