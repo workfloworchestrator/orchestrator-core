@@ -62,6 +62,12 @@ class LLMSettings(BaseSettings):
     # Toggle creation of extensions
     LLM_FORCE_EXTENTION_MIGRATION: bool = False
 
+    # Langfuse observation tool section
+    LANGFUSE_ENABLED: bool = False
+    LANGFUSE_SECRET_KEY: str | None = None
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_BASE_URL: str | None = None
+
     @field_validator("EMBEDDING_MODEL")
     def validate_embedding_model_format(cls, v: str) -> str:
         """Validate that embedding model is in 'vendor/model' format."""
