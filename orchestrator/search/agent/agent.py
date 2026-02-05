@@ -65,7 +65,7 @@ def build_agent_instance(
             parallel_tool_calls=False,
         ),  # https://github.com/pydantic/pydantic-ai/issues/562
         toolsets=toolsets,
-        instrument=llm_settings.LANGFUSE_ENABLED
+        instrument=llm_settings.LANGFUSE_ENABLED,
     )
     agent.instructions(get_base_instructions)
     agent.instructions(get_dynamic_instructions)
