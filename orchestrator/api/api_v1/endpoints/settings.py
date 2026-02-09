@@ -29,7 +29,7 @@ from orchestrator.schemas import (
 )
 from orchestrator.security import authenticate
 from orchestrator.services import processes, settings
-from orchestrator.services.settings import generate_engine_global_status
+from orchestrator.services.settings import generate_engine_global_status, get_actual_running_processes_count
 from orchestrator.services.settings_env_variables import get_all_exposed_settings
 from orchestrator.settings import ExecutorType, app_settings
 from orchestrator.utils.expose_settings import SettingsExposedSchema
@@ -174,6 +174,9 @@ def generate_engine_status_response(
     """
     result = EngineSettingsSchema.model_validate(engine_settings)
     result.global_status = generate_engine_global_status(engine_settings)
+    # Override the flawed counter with the actual count from the database
+    # See: https://github.com/workfloworchestrator/orchestrator-core/issues/1258
+    result.running_processes = get_actual_running_processes_count()
     return result
 
 
