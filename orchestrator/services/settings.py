@@ -15,10 +15,10 @@
 import requests
 import structlog
 from requests.exceptions import RequestException
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from orchestrator.db import EngineSettingsTable, db
+from orchestrator.db import EngineSettingsTable, ProcessTable, db
 from orchestrator.schemas.engine_settings import EngineSettingsSchema, GlobalStatusEnum
 from orchestrator.settings import app_settings
 
@@ -35,11 +35,62 @@ def get_engine_settings_for_update() -> EngineSettingsTable:
     return db.session.execute(select(EngineSettingsTable).with_for_update()).scalar_one()
 
 
+def get_actual_running_processes_count() -> int:
+    """Get the actual count of running processes from the database.
+
+    This is more reliable than the running_processes counter in EngineSettingsTable,
+    which uses a flawed increment/decrement mechanism that can drift over time.
+
+    A process is considered "running" if it's in any active state in the database
+    (not completed/failed/aborted), regardless of whether it's currently executing in a thread.
+    This includes processes that are paused by the global lock but still have active status.
+
+    This choice was made because:
+    1. It accurately reflects the database state (source of truth)
+    2. It's more reliable than thread-based counting
+    3. It matches user expectations when viewing the UI
+    4. When the engine is paused, users need to know how many processes are pending
+
+    Active states include: created, running, suspended, waiting, awaiting_callback, and resumed.
+
+    Returns:
+        The actual number of processes with an active status
+    """
+    # Import here to avoid circular dependency (orchestrator.workflow imports from this module)
+    from orchestrator.workflow import ProcessStatus
+
+    # Define the terminal (non-running) statuses using the ProcessStatus enum
+    terminal_statuses = [
+        ProcessStatus.COMPLETED,
+        ProcessStatus.FAILED,
+        ProcessStatus.ABORTED,
+        ProcessStatus.API_UNAVAILABLE,
+        ProcessStatus.INCONSISTENT_DATA,
+    ]
+
+    return db.session.execute(
+        select(func.count()).select_from(ProcessTable).where(ProcessTable.last_status.not_in(terminal_statuses))
+    ).scalar_one()
+
+
 def generate_engine_global_status(engine_settings: EngineSettingsTable) -> GlobalStatusEnum:
-    """Returns the global status of the engine."""
-    if engine_settings.global_lock and engine_settings.running_processes > 0:
+    """Returns the global status of the engine.
+
+    This function queries the actual count of running processes from the database
+    instead of relying on the flawed increment/decrement counter in engine_settings.running_processes.
+
+    Note: When the engine is locked (paused), processes stop executing but may still
+    have active status in the database. We count these as "running" because they represent
+    pending work that will resume when the lock is released. This gives users accurate
+    visibility into how many processes are pending.
+
+    See: https://github.com/workfloworchestrator/orchestrator-core/issues/1258
+    """
+    running_count = get_actual_running_processes_count()
+
+    if engine_settings.global_lock and running_count > 0:
         return GlobalStatusEnum.PAUSING
-    if engine_settings.global_lock and engine_settings.running_processes == 0:
+    if engine_settings.global_lock and running_count == 0:
         return GlobalStatusEnum.PAUSED
     return GlobalStatusEnum.RUNNING
 
