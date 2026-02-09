@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, db
 from orchestrator.db.models import AiSearchIndex
+from orchestrator.search.core.types import EntityType
 from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
@@ -50,6 +51,7 @@ def remove_tasks() -> State:
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     rows_to_delete = db.session.scalars(
         select(AiSearchIndex)
+        .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
         .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
     )
     count = 0
@@ -61,7 +63,7 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
 
 
 @workflow(
-    "Clean up old tasks and clean ai_search_index table",
+    "Clean up old tasks",
     target=Target.SYSTEM,
     authorize_callback=authorizers.authorize_callback,
     retry_auth_callback=authorizers.retry_auth_callback,
