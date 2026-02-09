@@ -84,7 +84,7 @@ search = [
     "litellm>=1.80.0",
 ]
 agent = [
-    "pydantic-ai-slim >=1.27.0",
+    "pydantic-ai-slim >=1.56.0",
     "ag-ui-protocol>=0.1.10",
     "litellm>=1.75.7",
 ]
