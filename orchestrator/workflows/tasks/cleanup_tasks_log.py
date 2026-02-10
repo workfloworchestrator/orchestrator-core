@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import structlog
 
 from datetime import timedelta
 
@@ -26,6 +27,7 @@ from orchestrator.workflow import ProcessStatus, StepList, done, init, step, wor
 from pydantic_forms.types import State
 
 authorizers = get_authorizers()
+logger = structlog.get_logger(__name__)
 
 
 @step("Clean up completed tasks older than TASK_LOG_RETENTION_DAYS")
@@ -49,17 +51,23 @@ def remove_tasks() -> State:
 
 @step("Clean up ai_search_indexes")
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
-    rows_to_delete = db.session.scalars(
-        select(AiSearchIndex)
-        .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
-        .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
-    )
+    """ try catch for now, in version 5 the ai_search_index table will always exist"""
     count = 0
-    for row in rows_to_delete:
-        db.session.delete(row)
-        count += 1
+    try:
+        rows_to_delete = db.session.scalars(
+            select(AiSearchIndex)
+            .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
+            .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+        )
+        for row in rows_to_delete:
+            db.session.delete(row)
+            count += 1
 
-    return {"ai_search_index_rows_deleted": count}
+        return {"ai_search_index_rows_deleted": count}
+
+    except Exception as exc:
+        logger.warning("Table ai_search_index does not exist", error=str(exc))
+        return {"ai_search_index_rows_deleted": count, "ai_search_table_exists": False}
 
 
 @workflow(
