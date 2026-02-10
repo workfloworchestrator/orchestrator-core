@@ -51,7 +51,7 @@ def remove_tasks() -> State:
 
 @step("Clean up ai_search_indexes")
 def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
-    """ try catch for now, in version 5 the ai_search_index table will always exist"""
+    """ try catch for now, in version 5 the ai_search_index table will always exist."""
     count = 0
     try:
         if len(deleted_process_id_list) > 0:
