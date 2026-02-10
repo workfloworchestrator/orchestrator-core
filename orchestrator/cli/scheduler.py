@@ -19,7 +19,7 @@ from redis import Redis
 from orchestrator.schedules.scheduler import (
     get_all_scheduler_tasks,
     get_scheduler,
-    get_scheduler_task,
+    get_scheduler_task, enrich_with_workflow_id,
 )
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
@@ -172,3 +172,19 @@ def load_initial_schedule() -> None:
 
         typer.echo(f"Initial Schedule: {schedule}")
         add_unique_scheduled_task_to_queue(APSchedulerJobCreate(**schedule))  # type: ignore
+
+
+@app.command()
+def list_all_ap_scheduled_tasks() -> None:
+    """Returns a list of all scheduled tasks in the APScheduler instance.
+
+    This also includes tasks that are scheduled through the decorator and not through the API, which can be useful for debugging.
+    """
+    typer.echo("Get all scheduled tasks from APScheduler:")
+
+    all_scheduled_tasks = get_all_scheduler_tasks()
+    all_scheduled_tasks = enrich_with_workflow_id(all_scheduled_tasks)  # type: ignore
+    for task in all_scheduled_tasks:
+        typer.echo(task)
+
+    typer.echo("Total scheduled tasks: {}".format(len(all_scheduled_tasks)))
