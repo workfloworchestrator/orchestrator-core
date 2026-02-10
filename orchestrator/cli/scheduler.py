@@ -183,7 +183,10 @@ def list_all_ap_scheduled_tasks() -> None:
     typer.echo("Get all scheduled tasks from APScheduler:")
 
     all_scheduled_tasks = get_all_scheduler_tasks()
-    all_scheduled_tasks = enrich_with_workflow_id(all_scheduled_tasks)  # type: ignore
+    all_scheduled_tasks = enrich_with_workflow_id(
+        scheduled_tasks=all_scheduled_tasks,  # type: ignore
+        include_decorator_scheduled_tasks=True
+    )
     for task in all_scheduled_tasks:
         typer.echo(task)
 
