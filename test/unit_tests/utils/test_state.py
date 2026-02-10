@@ -549,3 +549,165 @@ def test_list_of_uuid_parameter_with_default_and_string_in_state():
     assert len(result) == 1
     assert isinstance(result[0], UUID), f"Expected UUID but got {type(result[0])}"
     assert result[0] == valid_uuid
+
+
+def test_build_arguments_empty_signature():
+    """Test that a function with no parameters returns an empty argument list."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_no_params():
+        pass
+
+    result = _build_arguments(step_no_params, {})
+    assert result == []
+
+
+def test_build_arguments_state_param_injects_entire_dict():
+    """Test that a parameter named 'state' receives the entire state dict."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_with_state(state: State, other: int):
+        pass
+
+    test_state = {"other": 42, "extra_key": "extra_value"}
+    result = _build_arguments(step_with_state, test_state)
+
+    assert len(result) == 2
+    assert result[0] is test_state  # entire state dict
+    assert result[1] == 42
+
+
+def test_build_arguments_state_param_at_different_positions():
+    """Test 'state' param works at any position in signature."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_state_middle(a: int, state: State, b: str):
+        pass
+
+    test_state = {"a": 1, "b": "test"}
+    result = _build_arguments(step_state_middle, test_state)
+
+    assert result == [1, test_state, "test"]
+
+
+def test_build_arguments_varargs_and_kwargs_ignored():
+    """Test that *args and **kwargs are ignored and a warning is logged."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_with_varargs(a: int, *args, b: str, **kwargs):
+        pass
+
+    test_state = {"a": 10, "b": "hello"}
+    result = _build_arguments(step_with_varargs, test_state)
+
+    # Should only process 'a' and 'b', ignoring *args and **kwargs
+    assert result == [10, "hello"]
+
+
+def test_build_arguments_missing_required_param_includes_qualname():
+    """Test that missing required param raises KeyError with module+qualname."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_func(required_param: str):
+        pass
+
+    state = {}
+
+    with pytest.raises(KeyError) as exc_info:
+        _build_arguments(step_func, state)
+
+    error_msg = str(exc_info.value)
+    assert "Could not find key 'required_param' in state." in error_msg
+    assert "for function" in error_msg
+    assert "test_state" in error_msg  # module name
+    assert "step_func" in error_msg  # function name
+
+
+def test_build_arguments_non_uuid_default_no_conversion():
+    """Test that non-UUID types with defaults don't trigger UUID conversion."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step(count: int = 10, name: str = "default"):
+        pass
+
+    state = {"count": 42}  # 'name' missing, should use default
+    result = _build_arguments(step, state)
+
+    assert result == [42, "default"]
+
+
+def test_build_arguments_mixed_parameters():
+    """Test a function with multiple parameter types to ensure correct ordering."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_func(
+        required_uuid: UUID,
+        required_str: str,
+        optional_int: int = 42,
+        optional_uuid: UUID | None = None,
+    ):
+        pass
+
+    test_uuid1 = uuid4()
+    test_uuid2 = uuid4()
+    state = {
+        "required_uuid": str(test_uuid1),
+        "required_str": "hello",
+        "optional_uuid": str(test_uuid2),
+        # optional_int not in state, should use default
+    }
+
+    result = _build_arguments(step_func, state)
+
+    assert len(result) == 4
+    assert isinstance(result[0], UUID)
+    assert result[0] == test_uuid1
+    assert result[1] == "hello"
+    assert result[2] == 42  # default
+    assert isinstance(result[3], UUID)
+    assert result[3] == test_uuid2
+
+
+def test_build_arguments_empty_state_with_all_defaults():
+    """Test that empty state works when all params have defaults."""
+    from orchestrator.utils.state import _build_arguments
+
+    def step_func(a: int = 1, b: str = "default"):
+        pass
+
+    state = {}
+    result = _build_arguments(step_func, state)
+
+    assert result == [1, "default"]
+
+
+def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
+    """Test that list[Any] for SubscriptionModel raises ValueError with expected message."""
+    from typing import Any
+
+    from orchestrator.domain.base import SubscriptionModel
+    from orchestrator.types import is_list_type
+    from orchestrator.utils.state import _build_arguments
+
+    # Create a function with list[Any] annotation that would trigger the guard
+    def step_func(models: list[Any]):
+        pass
+
+    # Monkeypatch is_list_type to return True for this annotation
+    # (simulating the case where we detect it's a list type intended for SubscriptionModel)
+    original_is_list_type = is_list_type
+
+    def patched_is_list_type(annotation, target_type):
+        if target_type == SubscriptionModel and annotation == list[Any]:
+            return True
+        return original_is_list_type(annotation, target_type)
+
+    monkeypatch.setattr("orchestrator.utils.state.is_list_type", patched_is_list_type)
+
+    state = {"models": []}
+
+    with pytest.raises(ValueError) as exc_info:
+        _build_arguments(step_func, state)
+
+    error_msg = str(exc_info.value)
+    assert "Step function argument 'models' cannot be serialized from database with type 'Any'" in error_msg

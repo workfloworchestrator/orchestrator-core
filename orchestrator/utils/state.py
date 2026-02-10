@@ -133,7 +133,159 @@ def _save_models(state: State) -> None:
             _save_models(value)
 
 
-def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # noqa: C901
+def _is_subscription_model_type(annotation: Any) -> bool:
+    """Check if annotation is a SubscriptionModel subclass (safe for typing types)."""
+    try:
+        return issubclass(annotation, SubscriptionModel)
+    except Exception:
+        return False
+
+
+def _convert_to_uuid(v: Any) -> UUID:
+    """Convert value to UUID instance if it is not already one."""
+    return v if isinstance(v, UUID) else UUID(v)
+
+
+def _convert_uuid_value(value: Any, annotation: Any, param_name: str) -> Any:
+    """Apply UUID conversion based on annotation type.
+
+    Args:
+        value: The value to convert
+        annotation: The parameter annotation
+        param_name: Parameter name for error messages
+
+    Returns:
+        Converted value (UUID, list[UUID], Optional[UUID], or unchanged)
+
+    Raises:
+        ValueError: If UUID conversion fails
+    """
+    if annotation == UUID:
+        return _convert_to_uuid(value)
+    if is_list_type(annotation, UUID):
+        return [_convert_to_uuid(item) for item in value]
+    if is_optional_type(annotation, UUID):
+        return None if value is None else _convert_to_uuid(value)
+    return value
+
+
+def _handle_subscription_model_param(param_name: str, annotation: Any, state: State) -> SubscriptionModel:
+    """Load a single required SubscriptionModel from database.
+
+    Args:
+        param_name: Parameter name
+        annotation: The SubscriptionModel subclass
+        state: Workflow state
+
+    Returns:
+        Loaded and validated SubscriptionModel instance
+
+    Raises:
+        KeyError: If subscription_id not found in state
+    """
+    subscription_id = _get_sub_id(state.get(param_name))
+    if subscription_id:
+        sub_mod = annotation.from_subscription(subscription_id)
+        validate_subscription_model_product_type(sub_mod)
+        return sub_mod
+    logger.error("Could not find key in state.", key=param_name, state=state)
+    raise KeyError(f"Could not find key '{param_name}' in state.")
+
+
+def _handle_subscription_model_list_param(param: inspect.Parameter, state: State) -> list[SubscriptionModel]:
+    """Load a list of SubscriptionModels from database.
+
+    Args:
+        param: The parameter with list[SubscriptionModel] annotation
+        state: Workflow state
+
+    Returns:
+        List of loaded and validated SubscriptionModel instances
+
+    Raises:
+        ValueError: If list element type is Any
+    """
+    subscription_ids = [_get_sub_id(item) for item in state.get(param.name, [])]
+    # Actual type is first argument from list type
+    actual_type = get_args(param.annotation)[0]
+    if actual_type == Any:
+        raise ValueError(f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'")
+    subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
+    for sub_mod in subscriptions:
+        validate_subscription_model_product_type(sub_mod)
+    return subscriptions
+
+
+def _handle_optional_subscription_model_param(
+    param_name: str, annotation: Any, state: State
+) -> SubscriptionModel | None:
+    """Load an optional SubscriptionModel from database.
+
+    Args:
+        param_name: Parameter name
+        annotation: The Optional[SubscriptionModel] annotation
+        state: Workflow state
+
+    Returns:
+        Loaded and validated SubscriptionModel instance or None
+    """
+    subscription_id = _get_sub_id(state.get(param_name))
+    if subscription_id:
+        # Actual type is first argument from optional type
+        sub_mod = get_args(annotation)[0].from_subscription(subscription_id)
+        validate_subscription_model_product_type(sub_mod)
+        return sub_mod
+    return None
+
+
+def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc | InputStepFunc) -> Any:
+    """Handle non-SubscriptionModel parameter: retrieve from state and apply UUID conversion.
+
+    Args:
+        param: The parameter to process
+        state: Workflow state
+        func: The step function (for error messages)
+
+    Returns:
+        The processed argument value
+
+    Raises:
+        KeyError: If required parameter missing from state
+        ValueError: If type conversion fails
+    """
+    param_name = param.name
+    has_default = param.default is not inspect.Parameter.empty
+
+    if has_default:
+        # Get value from state or use default
+        value = state.get(param_name, param.default)
+        # Only apply conversion if value came from state (not the default itself)
+        if value is not param.default:
+            try:
+                return _convert_uuid_value(value, param.annotation, param_name)
+            except ValueError as value_error:
+                logger.error("Could not convert value to expected type.", key=param_name, state=state, value=value)
+                raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
+        else:
+            return value
+    else:
+        # Required parameter: must be in state
+        try:
+            value = state[param_name]
+            return _convert_uuid_value(value, param.annotation, param_name)
+        except KeyError as key_error:
+            logger.error("Could not find key in state.", key=param_name, state=state)
+            raise KeyError(
+                f"Could not find key '{param_name}' in state. for function {func.__module__}.{func.__qualname__}"
+            ) from key_error
+        except ValueError as value_error:
+            logger.error(
+                "Could not convert value to expected type.", key=param_name, state=state, value=state[param_name]
+            )
+            raise ValueError(f"Could not convert value '{state[param_name]}' to {param.annotation}") from value_error
+
+
+def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:
     """Build actual arguments based on step function signature and state.
 
     What the step function requests in its function signature is what this function retrieves from the state or DB.
@@ -154,14 +306,9 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
          ValueError: if requested argument cannot be converted to the expected type.
 
     """
-
     sig = inspect.signature(func)
     if not sig.parameters:
         return []
-
-    def _convert_to_uuid(v: Any) -> UUID:
-        """Converts the value to a UUID instance if it is not already one."""
-        return v if isinstance(v, UUID) else UUID(v)
 
     arguments: list[Any] = []
     for name, param in sig.parameters.items():
@@ -170,87 +317,23 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
             logger.warning("*args and **kwargs are not supported as step params")
             continue
 
-        # If we find an argument named "state" we use the whole state as argument to
+        # If we find an argument named "state" we use the whole state as argument
         # This is mainly to be backward compatible with code that needs the whole state...
         # TODO: Remove this construction
         if name == "state":
             arguments.append(state)
             continue
 
-        # Workaround for the fact that you can't call issubclass on typing types
-        try:
-            is_subscription_model_type = issubclass(param.annotation, SubscriptionModel)
-        except Exception:
-            is_subscription_model_type = False
-
-        if is_subscription_model_type:
-            subscription_id = _get_sub_id(state.get(name))
-            if subscription_id:
-                sub_mod = param.annotation.from_subscription(subscription_id)
-                validate_subscription_model_product_type(sub_mod)
-                arguments.append(sub_mod)
-            else:
-                logger.error("Could not find key in state.", key=name, state=state)
-                raise KeyError(f"Could not find key '{name}' in state.")
+        # Handle SubscriptionModel parameters (plain, list, optional)
+        if _is_subscription_model_type(param.annotation):
+            arguments.append(_handle_subscription_model_param(name, param.annotation, state))
         elif is_list_type(param.annotation, SubscriptionModel):
-            subscription_ids = [_get_sub_id(item) for item in state.get(name, [])]
-            # Actual type is first argument from list type
-            if (actual_type := get_args(param.annotation)[0]) == Any:
-                raise ValueError(
-                    f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'"
-                )
-            subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
-            for sub_mod in subscriptions:
-                validate_subscription_model_product_type(sub_mod)
-            arguments.append(subscriptions)
+            arguments.append(_handle_subscription_model_list_param(param, state))
         elif is_optional_type(param.annotation, SubscriptionModel):
-            subscription_id = _get_sub_id(state.get(name))
-            if subscription_id:
-                # Actual type is first argument from optional type
-                sub_mod = get_args(param.annotation)[0].from_subscription(subscription_id)
-                validate_subscription_model_product_type(sub_mod)
-                arguments.append(sub_mod)
-            else:
-                arguments.append(None)
-        elif param.default is not inspect.Parameter.empty:
-            # Parameter has a default value; get from state or use default
-            value = state.get(name, param.default)
-            # Apply type conversion if needed (unless value is the default itself)
-            if value is not param.default:
-                try:
-                    if param.annotation == UUID:
-                        arguments.append(_convert_to_uuid(value))
-                    elif is_list_type(param.annotation, UUID):
-                        arguments.append([_convert_to_uuid(item) for item in value])
-                    elif is_optional_type(param.annotation, UUID):
-                        arguments.append(None if value is None else _convert_to_uuid(value))
-                    else:
-                        arguments.append(value)
-                except ValueError as value_error:
-                    logger.error("Could not convert value to expected type.", key=name, state=state, value=value)
-                    raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
-            else:
-                # Value is the default, use it as-is
-                arguments.append(value)
+            arguments.append(_handle_optional_subscription_model_param(name, param.annotation, state))
         else:
-            try:
-                value = state[name]
-                if param.annotation == UUID:
-                    arguments.append(_convert_to_uuid(value))
-                elif is_list_type(param.annotation, UUID):
-                    arguments.append([_convert_to_uuid(item) for item in value])
-                elif is_optional_type(param.annotation, UUID):
-                    arguments.append(None if value is None else _convert_to_uuid(value))
-                else:
-                    arguments.append(value)
-            except KeyError as key_error:
-                logger.error("Could not find key in state.", key=name, state=state)
-                raise KeyError(
-                    f"Could not find key '{name}' in state. for function {func.__module__}.{func.__qualname__}"
-                ) from key_error
-            except ValueError as value_error:
-                logger.error("Could not convert value to expected type.", key=name, state=state, value=state[name])
-                raise ValueError(f"Could not convert value '{state[name]}' to {param.annotation}") from value_error
+            # Handle all other parameters (UUID conversion, defaults, required)
+            arguments.append(_handle_value_param(param, state, func))
 
     return arguments
 
