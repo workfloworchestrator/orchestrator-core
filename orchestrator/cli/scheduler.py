@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
+import time, json
 from typing import cast
 
 import typer
@@ -180,9 +180,6 @@ def list_all_ap_scheduled_tasks() -> None:
 
     This also includes tasks that are scheduled through the decorator and not through the API, which can be useful for debugging.
     """
-    def _pretty_print_scheduled_task(task: ScheduledTask) -> str:
-        return f"ID: {task.id}, Name: {task.name}, Workflow ID: {task.workflow_id}, Next Run Time: {task.next_run_time}, Trigger: {task.trigger}\n"
-
     typer.echo("Get all scheduled tasks from APScheduler:")
 
     all_scheduled_tasks = get_all_scheduler_tasks()
@@ -190,7 +187,18 @@ def list_all_ap_scheduled_tasks() -> None:
         scheduled_tasks=all_scheduled_tasks,  # type: ignore
         include_decorator_scheduled_tasks=True
     )
-    for task in all_scheduled_tasks:
-        typer.echo(_pretty_print_scheduled_task(task))
+
+    result = [
+        {
+            "id": task.id,
+            "name": task.name,
+            "workflow_id": task.workflow_id,
+            "next_run_time": str(task.next_run_time.replace(microsecond=0)),
+            "trigger": str(task.trigger),
+        }
+        for task in all_scheduled_tasks
+    ]
+
+    typer.echo(json.dumps(result, indent=4))
 
     typer.echo("Total scheduled tasks: {}".format(len(all_scheduled_tasks)))
