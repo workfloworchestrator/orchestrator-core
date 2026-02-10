@@ -7,7 +7,7 @@ import pytest
 from nwastdlib import const
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-from orchestrator.utils.state import extract, form_inject_args, inject_args
+from orchestrator.utils.state import _build_arguments, extract, form_inject_args, inject_args
 from pydantic_forms.core import FormPage, post_form
 from pydantic_forms.types import State
 
@@ -35,7 +35,7 @@ def test_extract_key_error():
     key = "I don't exist"
     with pytest.raises(KeyError) as excinfo:
         extract((key,), STATE)
-        assert key in excinfo.value.args
+    assert key in excinfo.value.args
 
 
 def test_state() -> None:
@@ -81,7 +81,8 @@ def test_state() -> None:
     def step_func_empty():
         pass
 
-    step_func_state(STATE)
+    result = step_func_empty(STATE)
+    assert result == STATE
 
 
 def test_inject_args(generic_product_1, generic_product_type_1) -> None:
@@ -553,7 +554,6 @@ def test_list_of_uuid_parameter_with_default_and_string_in_state():
 
 def test_build_arguments_empty_signature():
     """Test that a function with no parameters returns an empty argument list."""
-    from orchestrator.utils.state import _build_arguments
 
     def step_no_params():
         pass
@@ -564,7 +564,6 @@ def test_build_arguments_empty_signature():
 
 def test_build_arguments_state_param_injects_entire_dict():
     """Test that a parameter named 'state' receives the entire state dict."""
-    from orchestrator.utils.state import _build_arguments
 
     def step_with_state(state: State, other: int):
         pass
@@ -579,7 +578,6 @@ def test_build_arguments_state_param_injects_entire_dict():
 
 def test_build_arguments_state_param_at_different_positions():
     """Test 'state' param works at any position in signature."""
-    from orchestrator.utils.state import _build_arguments
 
     def step_state_middle(a: int, state: State, b: str):
         pass
@@ -590,11 +588,10 @@ def test_build_arguments_state_param_at_different_positions():
     assert result == [1, test_state, "test"]
 
 
-def test_build_arguments_varargs_and_kwargs_ignored():
+def test_build_arguments_varargs_and_kwargs_ignored(caplog):
     """Test that *args and **kwargs are ignored and a warning is logged."""
-    from orchestrator.utils.state import _build_arguments
 
-    def step_with_varargs(a: int, *args, b: str, **kwargs):
+    def step_with_varargs(a: int, b: str, *args, **kwargs):
         pass
 
     test_state = {"a": 10, "b": "hello"}
@@ -603,10 +600,12 @@ def test_build_arguments_varargs_and_kwargs_ignored():
     # Should only process 'a' and 'b', ignoring *args and **kwargs
     assert result == [10, "hello"]
 
+    # Verify warning was logged (twice: once for *args, once for **kwargs)
+    assert "*args and **kwargs are not supported as step params" in caplog.text
+
 
 def test_build_arguments_missing_required_param_includes_qualname():
     """Test that missing required param raises KeyError with module+qualname."""
-    from orchestrator.utils.state import _build_arguments
 
     def step_func(required_param: str):
         pass
@@ -625,7 +624,6 @@ def test_build_arguments_missing_required_param_includes_qualname():
 
 def test_build_arguments_non_uuid_default_no_conversion():
     """Test that non-UUID types with defaults don't trigger UUID conversion."""
-    from orchestrator.utils.state import _build_arguments
 
     def step(count: int = 10, name: str = "default"):
         pass
@@ -638,7 +636,6 @@ def test_build_arguments_non_uuid_default_no_conversion():
 
 def test_build_arguments_mixed_parameters():
     """Test a function with multiple parameter types to ensure correct ordering."""
-    from orchestrator.utils.state import _build_arguments
 
     def step_func(
         required_uuid: UUID,
@@ -670,7 +667,6 @@ def test_build_arguments_mixed_parameters():
 
 def test_build_arguments_empty_state_with_all_defaults():
     """Test that empty state works when all params have defaults."""
-    from orchestrator.utils.state import _build_arguments
 
     def step_func(a: int = 1, b: str = "default"):
         pass
@@ -687,7 +683,6 @@ def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
 
     from orchestrator.domain.base import SubscriptionModel
     from orchestrator.types import is_list_type
-    from orchestrator.utils.state import _build_arguments
 
     # Create a function with list[Any] annotation that would trigger the guard
     def step_func(models: list[Any]):
@@ -711,3 +706,133 @@ def test_build_arguments_subscription_model_list_any_guard(monkeypatch):
 
     error_msg = str(exc_info.value)
     assert "Step function argument 'models' cannot be serialized from database with type 'Any'" in error_msg
+
+
+def test_inject_args_subscription_model_dict_form(generic_product_1, generic_product_type_1) -> None:
+    """Test that required SubscriptionModel parameter supports dict form with subscription_id."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+    product_id = generic_product_1.product_id
+    state = {"product": product_id, "customer_id": str(uuid4())}
+    generic_sub = GenericProductOneInactive.from_product_id(
+        product_id=state["product"], customer_id=state["customer_id"], status=SubscriptionLifecycle.INITIAL
+    )
+    generic_sub.pb_1.rt_1 = "test"
+    generic_sub.pb_2.rt_2 = 42
+    generic_sub.pb_2.rt_3 = "test2"
+
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub.save()
+
+    @inject_args
+    def step_existing(generic_sub: GenericProduct) -> State:
+        assert generic_sub.subscription_id
+        assert generic_sub.pb_1.rt_1 == "test"
+        return {"generic_sub": generic_sub}
+
+    # Set generic_sub as dict form with subscription_id
+    state["generic_sub"] = {"subscription_id": str(generic_sub.subscription_id)}
+
+    state_amended = step_existing(state)
+    assert "generic_sub" in state_amended
+    assert isinstance(state_amended["generic_sub"], GenericProduct)
+    assert state_amended["generic_sub"].pb_1.rt_1 == "test"
+
+
+def test_inject_args_list_subscription_model_dict_items(generic_product_1, generic_product_type_1) -> None:
+    """Test that list[SubscriptionModel] parameter supports dict items with subscription_id."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+    product_id = generic_product_1.product_id
+    state = {"product": product_id, "customer_id": str(uuid4())}
+    generic_sub = GenericProductOneInactive.from_product_id(
+        product_id=state["product"], customer_id=state["customer_id"], status=SubscriptionLifecycle.INITIAL
+    )
+    generic_sub.pb_1.rt_1 = "test"
+    generic_sub.pb_2.rt_2 = 42
+    generic_sub.pb_2.rt_3 = "test2"
+
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub.save()
+
+    @inject_args
+    def step_existing(generic_sub: list[GenericProduct]) -> State:
+        assert len(generic_sub) == 1
+        assert generic_sub[0].subscription_id
+        assert generic_sub[0].pb_1.rt_1 == "test"
+        return {"generic_sub": generic_sub}
+
+    # Set generic_sub as list with dict items
+    state["generic_sub"] = [{"subscription_id": str(generic_sub.subscription_id)}]
+
+    state_amended = step_existing(state)
+    assert "generic_sub" in state_amended
+    assert len(state_amended["generic_sub"]) == 1
+    assert isinstance(state_amended["generic_sub"][0], GenericProduct)
+
+
+def test_inject_args_dict_missing_subscription_id_raises_key_error(generic_product_1, generic_product_type_1) -> None:
+    """Test that dict missing subscription_id raises KeyError like 'not found'."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+
+    @inject_args
+    def step_existing(generic_sub: GenericProduct) -> State:
+        return {"generic_sub": generic_sub}
+
+    # Set generic_sub as empty dict (missing subscription_id)
+    state = {"generic_sub": {}}
+
+    with pytest.raises(KeyError) as exc_info:
+        step_existing(state)
+
+    error_msg = str(exc_info.value)
+    assert "Could not find key 'generic_sub' in state." in error_msg
+
+
+def test_inject_args_subscription_model_instance_in_state_raises_assertion_error(
+    generic_product_1, generic_product_type_1
+) -> None:
+    """Test invariant: state must not contain SubscriptionModel instances before a step."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+    product_id = generic_product_1.product_id
+    state = {"product": product_id, "customer_id": str(uuid4())}
+    generic_sub = GenericProductOneInactive.from_product_id(
+        product_id=state["product"], customer_id=state["customer_id"], status=SubscriptionLifecycle.INITIAL
+    )
+    # Set required fields before converting to ACTIVE
+    generic_sub.pb_1.rt_1 = "test"
+    generic_sub.pb_2.rt_2 = 42
+    generic_sub.pb_2.rt_3 = "test2"
+
+    generic_sub = SubscriptionModel.from_other_lifecycle(generic_sub, SubscriptionLifecycle.ACTIVE)
+    generic_sub.save()
+
+    @inject_args
+    def step_existing(generic_sub: GenericProduct) -> State:
+        return {"generic_sub": generic_sub}
+
+    # Put actual SubscriptionModel instance in state (violates invariant)
+    state["generic_sub"] = generic_sub
+
+    with pytest.raises(AssertionError) as exc_info:
+        step_existing(state)
+
+    error_msg = str(exc_info.value)
+    assert "There should be no SubscriptionModel instances in the state before a step!" in error_msg
+
+
+def test_inject_args_list_invalid_items_raises_value_error(generic_product_1, generic_product_type_1) -> None:
+    """Test that list[SubscriptionModel] with invalid items raises ValueError early."""
+    GenericProductOneInactive, GenericProduct = generic_product_type_1
+
+    @inject_args
+    def step_existing(generic_sub: list[GenericProduct]) -> State:
+        return {"generic_sub": generic_sub}
+
+    # Set generic_sub with invalid items that cannot yield UUIDs
+    state = {"generic_sub": ["not-a-uuid", {}]}
+
+    with pytest.raises(ValueError) as exc_info:
+        step_existing(state)
+
+    error_msg = str(exc_info.value)
+    assert "Could not extract valid subscription_id from all items in list parameter 'generic_sub'" in error_msg
+    assert "Invalid items:" in error_msg

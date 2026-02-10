@@ -203,13 +203,30 @@ def _handle_subscription_model_list_param(param: inspect.Parameter, state: State
         List of loaded and validated SubscriptionModel instances
 
     Raises:
-        ValueError: If list element type is Any
+        ValueError: If list element type is Any or if any list item cannot yield a valid subscription_id
     """
-    subscription_ids = [_get_sub_id(item) for item in state.get(param.name, [])]
-    # Actual type is first argument from list type
+    # Check type annotation first - fail fast for Any type
     actual_type = get_args(param.annotation)[0]
     if actual_type == Any:
         raise ValueError(f"Step function argument '{param.name}' cannot be serialized from database with type 'Any'")
+
+    items = state.get(param.name, [])
+    subscription_ids = [_get_sub_id(item) for item in items]
+
+    # Check for None IDs (invalid items that couldn't be converted to UUIDs)
+    if None in subscription_ids:
+        invalid_items = [item for item, sid in zip(items, subscription_ids) if sid is None]
+        logger.error(
+            "Could not extract subscription_id from list items.",
+            key=param.name,
+            invalid_items=invalid_items,
+            state=state,
+        )
+        raise ValueError(
+            f"Could not extract valid subscription_id from all items in list parameter '{param.name}'. "
+            f"Invalid items: {invalid_items}"
+        )
+
     subscriptions = [actual_type.from_subscription(subscription_id) for subscription_id in subscription_ids]
     for sub_mod in subscriptions:
         validate_subscription_model_product_type(sub_mod)
