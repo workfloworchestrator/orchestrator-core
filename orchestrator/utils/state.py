@@ -213,7 +213,25 @@ def _build_arguments(func: StepFunc | InputStepFunc, state: State) -> list:  # n
             else:
                 arguments.append(None)
         elif param.default is not inspect.Parameter.empty:
-            arguments.append(state.get(name, param.default))
+            # Parameter has a default value; get from state or use default
+            value = state.get(name, param.default)
+            # Apply type conversion if needed (unless value is the default itself)
+            if value is not param.default:
+                try:
+                    if param.annotation == UUID:
+                        arguments.append(_convert_to_uuid(value))
+                    elif is_list_type(param.annotation, UUID):
+                        arguments.append([_convert_to_uuid(item) for item in value])
+                    elif is_optional_type(param.annotation, UUID):
+                        arguments.append(None if value is None else _convert_to_uuid(value))
+                    else:
+                        arguments.append(value)
+                except ValueError as value_error:
+                    logger.error("Could not convert value to expected type.", key=name, state=state, value=value)
+                    raise ValueError(f"Could not convert value '{value}' to {param.annotation}") from value_error
+            else:
+                # Value is the default, use it as-is
+                arguments.append(value)
         else:
             try:
                 value = state[name]

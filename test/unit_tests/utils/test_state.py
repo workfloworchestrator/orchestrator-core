@@ -488,3 +488,64 @@ def test_uuid_parameter_with_default_value():
     state = {}  # missing key, so the default should be used
     new_state = step(state)
     assert new_state["result"] == default_uuid
+
+
+def test_uuid_parameter_with_default_value_and_string_in_state():
+    # Test that when a UUID parameter has a default and a string is provided in state,
+    # it gets converted to UUID (not left as a string).
+
+    default_uuid = uuid4()
+
+    @inject_args
+    def step(uuid_param: UUID = default_uuid) -> State:
+        return {"result": uuid_param}
+
+    state = {"uuid_param": str(default_uuid)}
+    new_state = step(state)
+    assert isinstance(new_state["result"], UUID), f"Expected UUID but got {type(new_state['result'])}"
+    assert new_state["result"] == default_uuid
+
+
+def test_optional_uuid_parameter_with_default_none_and_string_in_state():
+    # Test that Optional[UUID] with default None converts string to UUID when present.
+
+    @inject_args
+    def step(uuid_param: UUID | None = None) -> State:
+        return {"result": uuid_param}
+
+    valid_uuid = uuid4()
+    state = {"uuid_param": str(valid_uuid)}
+    new_state = step(state)
+    assert isinstance(new_state["result"], UUID), f"Expected UUID but got {type(new_state['result'])}"
+    assert new_state["result"] == valid_uuid
+
+
+def test_optional_uuid_parameter_with_default_none_missing_key():
+    # Test that Optional[UUID] with default None returns None when key is missing.
+
+    @inject_args
+    def step(uuid_param: UUID | None = None) -> State:
+        return {"result": uuid_param}
+
+    state = {}
+    new_state = step(state)
+    assert new_state["result"] is None
+
+
+def test_list_of_uuid_parameter_with_default_and_string_in_state():
+    # Test that list[UUID] with a default converts strings to UUIDs when present.
+
+    default_list = [uuid4()]
+
+    @inject_args
+    def step(uuid_list: list[UUID] = default_list) -> State:
+        return {"result": uuid_list}
+
+    valid_uuid = uuid4()
+    state = {"uuid_list": [str(valid_uuid)]}
+    new_state = step(state)
+    result = new_state["result"]
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0], UUID), f"Expected UUID but got {type(result[0])}"
+    assert result[0] == valid_uuid
