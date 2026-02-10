@@ -174,12 +174,6 @@ class GraphAgentAdapter(Agent[StateDeps[SearchState], str]):
                     # Use the loaded state as initial state, but update user_input for current turn
                     initial_state = previous_state
                     initial_state.user_input = user_input  # Update with current turn's input
-                    initial_state.visited_nodes = {}  # Clear visited nodes for new run
-                else:
-                    # First message in thread
-                    initial_state.visited_nodes = {}
-            else:
-                initial_state.visited_nodes = {}
 
             if not initial_state.environment.current_turn or initial_state.environment.current_turn.user_question != user_input:
                 initial_state.environment.start_turn(user_input)

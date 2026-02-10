@@ -31,7 +31,7 @@ from pydantic_ai.run import AgentRunResultEvent
 from pydantic_graph import BaseNode, End, GraphRunContext
 
 from orchestrator.search.agent import tools
-from orchestrator.search.agent.environment import ActionRecord
+from orchestrator.search.agent.environment import NodeStep, ToolStep
 from orchestrator.search.agent.graph_events import (
     GraphNodeActiveEvent,
     GraphNodeActiveValue,
@@ -83,16 +83,18 @@ class BaseGraphNode:
             value: GraphNodeActiveValue = {"node": self.node_name, "step_type": "graph_node"}
             self.event_emitter(GraphNodeActiveEvent(timestamp=_current_timestamp_ms(), value=value))
 
-    def record_node_visit(self, ctx: GraphRunContext[SearchState, None], action_description: str) -> None:
-        """Record this node's visit with an iteration number to track multiple visits.
+    def record_node_entry(self, ctx: GraphRunContext[SearchState, None]) -> None:
+        """Record entering this node as a NodeStep."""
+        # Finish previous node if any
+        if ctx.state.environment.current_turn and ctx.state.environment.current_turn.current_node_step:
+            ctx.state.environment.finish_node_step()
 
-        Args:
-            ctx: Graph run context containing state
-            action_description: Description of what this node did
-        """
-        iteration = len([k for k in ctx.state.visited_nodes.keys() if k.startswith(self.__class__.__name__)]) + 1
-        key = f"{self.__class__.__name__}_{iteration}"
-        ctx.state.visited_nodes[key] = action_description
+        # Start new node step
+        node_step = NodeStep(
+            step_type=self.__class__.__name__,
+            description=f"Executing {self.__class__.__name__}",
+        )
+        ctx.state.environment.start_node_step(node_step)
 
     @property
     def node_agent(self) -> Agent[StateDeps[SearchState], Any]:
@@ -153,6 +155,7 @@ class BaseGraphNode:
 @dataclass
 class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     description: str = field(default="Classifies user intent and initializes query", init=False)
+    _decision_reason: str | None = field(default=None, init=False)
 
     def __post_init__(self):
         """Create the agent for this node."""
@@ -176,7 +179,7 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         async def event_generator() -> AsyncIterator[AgentStreamEvent]:
             self.emit_node_active_event()
             prompt = get_intent_classification_prompt(ctx.state)
-
+            print(prompt)
             result = await self.node_agent.run(instructions=prompt, message_history=[], deps=StateDeps(ctx.state))
 
             # Extract intent
@@ -196,6 +199,9 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
             ctx.state.intent = result.output.intent
             ctx.state.end_actions = result.output.end_actions
+
+            # Store decision_reason on the node instance so run() can use it after record_node_entry()
+            self._decision_reason = result.output.decision_reason
 
             # Only initialize query for search/aggregation intents (not result_actions or text_response)
             if result and result.output.intent in (IntentType.SEARCH, IntentType.AGGREGATION):
@@ -238,11 +244,17 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
         Returns:
             Appropriate action node based on intent, TextResponseNode for completion message, or End if work is done
         """
-        intent = ctx.state.intent
+        self.record_node_entry(ctx)
 
-        # Record the routing decision
-        if intent:
-            self.record_node_visit(ctx, f"Routed to {intent.value}")
+        # Apply decision_reason to the node step we just created
+        if (
+            self._decision_reason
+            and ctx.state.environment.current_turn
+            and ctx.state.environment.current_turn.current_node_step
+        ):
+            ctx.state.environment.current_turn.current_node_step.decision_reason = self._decision_reason
+
+        intent = ctx.state.intent
 
         if intent == IntentType.SEARCH:
             return SearchNode(model=self.model, event_emitter=self.event_emitter)
@@ -257,9 +269,13 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
 
         if intent == IntentType.NO_MORE_ACTIONS:
-            # Only route to TextResponseNode if no actions were performed (to avoid silent end)
-            # If actions were performed, they already streamed results to user, so just end
-            if not ctx.state.visited_nodes:
+            # Only route to TextResponseNode if no steps were performed (to avoid silent end)
+            # If steps were performed, they already streamed results to user, so just end
+            has_steps = ctx.state.environment.current_turn and (
+                len(ctx.state.environment.current_turn.node_steps) > 0
+                or ctx.state.environment.current_turn.current_node_step is not None
+            )
+            if not has_steps:
                 return TextResponseNode(model=self.model, event_emitter=self.event_emitter)
             ctx.state.environment.complete_turn(
                 assistant_answer="Complete",
@@ -267,8 +283,12 @@ class IntentNode(BaseGraphNode, BaseNode[SearchState, None, str]):
             )
             return End("Complete")
 
-        # If we have actions, end; otherwise send completion message
-        if ctx.state.visited_nodes:
+        # If we have steps, end; otherwise send completion message
+        has_steps = ctx.state.environment.current_turn and (
+            len(ctx.state.environment.current_turn.node_steps) > 0
+            or ctx.state.environment.current_turn.current_node_step is not None
+        )
+        if has_steps:
             ctx.state.environment.complete_turn(
                 assistant_answer="Complete",
                 query_id=ctx.state.query_id,
@@ -297,19 +317,18 @@ class SearchNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the search execution prompt."""
         prompt = get_search_execution_prompt(ctx.state)
+        print(prompt)
         return prompt
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
+        self.record_node_entry(ctx)
         query = ctx.state.query
         if query:
-            query_json = query.model_dump_json(indent=2)
             results = ctx.state.results_count or 0
-            self.record_node_visit(ctx, f"Executed search, {results} results:\n{query_json}")
 
-            ctx.state.environment.record_action(
-                ActionRecord(
-                    action_type="search",
-                    node_type=self.__class__.__name__,
+            ctx.state.environment.record_tool_step(
+                ToolStep(
+                    step_type="run_search",
                     description=f"Searched {results} {query.entity_type.value}",
                     entity_type=query.entity_type.value,
                     results_count=results,
@@ -349,19 +368,18 @@ class AggregationNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the aggregation execution prompt."""
         prompt = get_aggregation_execution_prompt(ctx.state)
+        print(prompt)
         return prompt
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
+        self.record_node_entry(ctx)
         query = ctx.state.query
         if query:
-            query_json = query.model_dump_json(indent=2)
             results = ctx.state.results_count or 0
-            self.record_node_visit(ctx, f"Executed aggregation, {results} groups:\n{query_json}")
 
-            ctx.state.environment.record_action(
-                ActionRecord(
-                    action_type="aggregation",
-                    node_type=self.__class__.__name__,
+            ctx.state.environment.record_tool_step(
+                ToolStep(
+                    step_type="run_aggregation",
                     description=f"Aggregated {results} groups for {query.entity_type.value}",
                     entity_type=query.entity_type.value,
                     results_count=results,
@@ -401,31 +419,42 @@ class ResultActionsNode(BaseGraphNode, BaseNode[SearchState, None, str]):
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the result actions prompt."""
         prompt = get_result_actions_prompt(ctx.state)
+        print(prompt)
         return prompt
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> IntentNode | End[str]:
+        self.record_node_entry(ctx)
+
         tool_action_map = {
             tools.prepare_export.__name__: ("export", "Prepared export for results"),
             tools.fetch_entity_details.__name__: ("fetch_details", "Fetched entity details"),
         }
 
-        # Record action for the tool that was called
+        logger.debug(
+            f"{self.__class__.__name__}: Tool calls tracked",
+            tool_calls=self._tool_calls_in_current_run,
+        )
+
+        # Record step for the tool that was called
         for tool_name in self._tool_calls_in_current_run:
             if tool_name in tool_action_map:
-                action_type, description = tool_action_map[tool_name]
-                self.record_node_visit(ctx, f"{description} - tool executed and delivered to user")
-                ctx.state.environment.record_action(
-                    ActionRecord(
-                        action_type=action_type,
-                        node_type=self.__class__.__name__,
+                step_type, description = tool_action_map[tool_name]
+
+                # Capture query snapshot if available (shows what results are being acted on)
+                query_snapshot = None
+                if ctx.state.query:
+                    query_snapshot = ctx.state.query.model_dump()
+
+                ctx.state.environment.record_tool_step(
+                    ToolStep(
+                        step_type=step_type,
                         description=description,
                         results_count=ctx.state.results_count or 0,
                         success=True,
+                        query_snapshot=query_snapshot,
                     )
                 )
                 break
-        else:
-            self.record_node_visit(ctx, "Result action completed")
 
         if ctx.state.end_actions:
             ctx.state.environment.complete_turn(
@@ -461,12 +490,17 @@ class TextResponseNode(BaseGraphNode, BaseNode[SearchState, None, str]):
 
     def get_prompt(self, ctx: GraphRunContext[SearchState, None]) -> str:
         """Get the text response prompt (delegates to prompts.py)."""
-        # Only forced response if NO_MORE_ACTIONS and no actions were performed
-        is_forced = ctx.state.intent == IntentType.NO_MORE_ACTIONS and not ctx.state.visited_nodes
+        # Only forced response if NO_MORE_ACTIONS and no steps were performed
+        has_steps = ctx.state.environment.current_turn and (
+            len(ctx.state.environment.current_turn.node_steps) > 0
+            or ctx.state.environment.current_turn.current_node_step is not None
+        )
+        is_forced = ctx.state.intent == IntentType.NO_MORE_ACTIONS and not has_steps
         return get_text_response_prompt(ctx.state, is_forced_response=is_forced)
 
     async def run(self, ctx: GraphRunContext[SearchState, None]) -> End[str]:
         """Text response completes the flow."""
+        self.record_node_entry(ctx)
         ctx.state.environment.complete_turn(
             assistant_answer="Complete",
             query_id=ctx.state.query_id,

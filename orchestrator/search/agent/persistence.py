@@ -128,7 +128,7 @@ class PostgresStatePersistence(BaseStatePersistence[SearchState]):
         """Retrieve a node snapshot with status 'created' and set its status to 'pending'.
 
         Loads across all runs in the thread to maintain context (e.g., query_id, results).
-        visited_nodes is cleared in agent.py at the start of each run to prevent cross-run pollution.
+        Steps are tracked in environment.current_turn and reset at the start of each turn.
 
         Returns:
             The NodeSnapshot from the most recent snapshot, or None if no snapshots exist
@@ -140,7 +140,7 @@ class PostgresStatePersistence(BaseStatePersistence[SearchState]):
             select(GraphSnapshotTable)
             .join(AgentRunTable, GraphSnapshotTable.run_id == AgentRunTable.run_id)
             .where(AgentRunTable.thread_id == self.thread_id)
-            .order_by(GraphSnapshotTable.created_at.desc())
+            .order_by(AgentRunTable.created_at.desc(), GraphSnapshotTable.sequence_number.desc())
             .limit(1)
         )
 

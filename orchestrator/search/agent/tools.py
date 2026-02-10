@@ -89,6 +89,14 @@ class IntentAndQueryInit(BaseModel):
             "Set to False if more actions will be needed after this one completes (the action will loop back to intent classification)."
         ),
     )
+    decision_reason: str = Field(
+        description=(
+            "Brief explanation of why this intent/action was chosen. "
+            "This helps track the decision-making process and prevents duplicate actions in cyclic graphs. "
+            "Example: 'User wants active subscriptions, need to search with status filter' or "
+            "'Search already complete with 10 results, request fulfilled'"
+        )
+    )
 
 
 # Node-specific toolsets for graph control flow

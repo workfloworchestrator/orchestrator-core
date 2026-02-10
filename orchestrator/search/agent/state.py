@@ -46,7 +46,6 @@ class SearchState(BaseModel):
     intent: IntentType | None = None  # User's intent, determines routing
     export_url: str | None = None  # Export URL if export has been prepared
     end_actions: bool = False  # Whether to end after current action completes (set by IntentNode)
-    visited_nodes: dict[str, str] = {}  # Maps node name to description of action performed
     environment: ConversationEnvironment = Field(default_factory=ConversationEnvironment)
 
     class Config:
