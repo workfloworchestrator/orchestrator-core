@@ -14,7 +14,6 @@
 from datetime import timedelta
 
 import structlog
-from pydantic_forms.types import State
 from sqlalchemy import select
 
 from orchestrator.db import ProcessTable, db
@@ -24,6 +23,7 @@ from orchestrator.settings import app_settings, get_authorizers
 from orchestrator.targets import Target
 from orchestrator.utils.datetime import nowtz
 from orchestrator.workflow import ProcessStatus, StepList, done, init, step, workflow
+from pydantic_forms.types import State
 
 authorizers = get_authorizers()
 logger = structlog.get_logger(__name__)
