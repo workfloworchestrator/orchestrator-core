@@ -178,7 +178,7 @@ To upgrade all dependencies in the lockfile to the latest version (taking versio
 uv sync --all-groups --all-extras --upgrade
 ```
 
-The github project has Dependabot enabled which can create PRs for dependency upgrades.
+The github project has Renovate enabled which can create PRs for dependency upgrades.
 
 ### What is uv.lock for?
 
