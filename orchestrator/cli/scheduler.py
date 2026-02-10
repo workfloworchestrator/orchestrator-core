@@ -19,7 +19,7 @@ from redis import Redis
 from orchestrator.schedules.scheduler import (
     get_all_scheduler_tasks,
     get_scheduler,
-    get_scheduler_task, enrich_with_workflow_id,
+    get_scheduler_task, enrich_with_workflow_id, ScheduledTask,
 )
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
@@ -180,6 +180,9 @@ def list_all_ap_scheduled_tasks() -> None:
 
     This also includes tasks that are scheduled through the decorator and not through the API, which can be useful for debugging.
     """
+    def _pretty_print_scheduled_task(task: ScheduledTask) -> str:
+        return f"ID: {task.id}, Name: {task.name}, Workflow ID: {task.workflow_id}, Next Run Time: {task.next_run_time}, Trigger: {task.trigger}\n"
+
     typer.echo("Get all scheduled tasks from APScheduler:")
 
     all_scheduled_tasks = get_all_scheduler_tasks()
@@ -188,6 +191,6 @@ def list_all_ap_scheduled_tasks() -> None:
         include_decorator_scheduled_tasks=True
     )
     for task in all_scheduled_tasks:
-        typer.echo(task)
+        typer.echo(_pretty_print_scheduled_task(task))
 
     typer.echo("Total scheduled tasks: {}".format(len(all_scheduled_tasks)))
