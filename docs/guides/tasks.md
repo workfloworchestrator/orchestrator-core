@@ -308,6 +308,42 @@ if [ $status -ne 0 ]; then
 fi
 ```
 
+### Decorator vs API
+Tasks can be scheduled using the `@scheduler.scheduled_job()` decorator, but this is not recommended for new schedules because it does not create a Linker Table join between schedules and workflows/tasks.
+Instead, it is recommended to use the API to create schedules, as described above in the [new scheduling system](#the-schedule-api) section.
+
+From the Frontend, you will not be able to see schedules that were created using the `@scheduler.scheduled_job()` decorator, because we actively filter those out of the GraphQL response. This is because they do not have a Linker Table join between schedules and workflows/tasks, which is necessary for the frontend to display them properly.
+If you want to see all schedules, you can:
+
+1. Directly query the database for schedules
+2. Run the `python main.py scheduler list-all-ap-scheduled-tasks` command to see all schedules, including those created with the `@scheduler.scheduled_job()` decorator.
+   3. > This command will effectively run a Database query to list all schedules, including those created with the `@scheduler.scheduled_job()` decorator. It will print the schedule id, name, trigger, and trigger kwargs for each schedule.
+
+
+Example result for running `python main.py scheduler list-all-ap-scheduled-tasks`:
+
+```
+Get all scheduled tasks from APScheduler:
+[
+    {
+        "id": "29637aae-64ab-440d-b0d7-394049fe7588",
+        "name": "Task Clean Up Tasks",
+        "workflow_id": "6d644947-9cff-42d5-a03c-bbebc077ecf2",  <--- This is a task created with the decorator
+        "next_run_time": "2026-02-11 05:21:09+00:00",
+        "trigger": "interval[6:00:00]"
+    },
+    {
+        "id": "validate-some-task",
+        "name": "Valideate some task",
+        "workflow_id": null,  <--- This is a task created with the decorator
+        "next_run_time": "2026-02-11 07:00:00+00:00",
+        "trigger": "cron[hour='7']"
+    },
+    ...
+]  
+```
+
+
 <!-- link definitions -->
 
 [schedule]: https://pypi.org/project/schedule/
