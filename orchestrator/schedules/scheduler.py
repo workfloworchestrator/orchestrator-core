@@ -163,8 +163,8 @@ def default_error_handler(message: str, **context) -> None:  # type: ignore
 
 
 def enrich_with_workflow_id(
-        scheduled_tasks: list[ScheduledTask],
-        include_decorator_scheduled_tasks: bool = False,
+    scheduled_tasks: list[ScheduledTask],
+    include_decorator_scheduled_tasks: bool = False,
 ) -> list[ScheduledTask]:
     """Adds workflow_id to scheduled tasks via linker table.
 
@@ -174,8 +174,7 @@ def enrich_with_workflow_id(
     schedule_ids = [task.id for task in scheduled_tasks]
 
     entries = {
-        str(entry.schedule_id): str(entry.workflow_id)
-        for entry in get_linker_entries_by_schedule_ids(schedule_ids)
+        str(entry.schedule_id): str(entry.workflow_id) for entry in get_linker_entries_by_schedule_ids(schedule_ids)
     }
 
     return [
@@ -187,8 +186,7 @@ def enrich_with_workflow_id(
             trigger=str(task.trigger),
         )
         for task in scheduled_tasks
-        if (workflow_id := entries.get(task.id)) is not None
-           or include_decorator_scheduled_tasks
+        if (workflow_id := entries.get(task.id)) is not None or include_decorator_scheduled_tasks
     ]
 
 

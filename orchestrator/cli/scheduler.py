@@ -10,16 +10,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time, json
+import json
+import time
 from typing import cast
 
 import typer
 from redis import Redis
 
 from orchestrator.schedules.scheduler import (
+    enrich_with_workflow_id,
     get_all_scheduler_tasks,
     get_scheduler,
-    get_scheduler_task, enrich_with_workflow_id, ScheduledTask,
+    get_scheduler_task,
 )
 from orchestrator.schedules.service import (
     SCHEDULER_QUEUE,
@@ -184,8 +186,7 @@ def list_all_ap_scheduled_tasks() -> None:
 
     all_scheduled_tasks = get_all_scheduler_tasks()
     all_scheduled_tasks = enrich_with_workflow_id(
-        scheduled_tasks=all_scheduled_tasks,  # type: ignore
-        include_decorator_scheduled_tasks=True
+        scheduled_tasks=all_scheduled_tasks, include_decorator_scheduled_tasks=True  # type: ignore
     )
 
     result = [
@@ -193,7 +194,7 @@ def list_all_ap_scheduled_tasks() -> None:
             "id": task.id,
             "name": task.name,
             "workflow_id": task.workflow_id,
-            "next_run_time": str(task.next_run_time.replace(microsecond=0)),
+            "next_run_time": (str(task.next_run_time.replace(microsecond=0)) if task.next_run_time else "None"),
             "trigger": str(task.trigger),
         }
         for task in all_scheduled_tasks
