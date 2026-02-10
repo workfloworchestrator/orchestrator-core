@@ -54,14 +54,15 @@ def cleanup_ai_search_index(deleted_process_id_list: list) -> State:
     """ try catch for now, in version 5 the ai_search_index table will always exist"""
     count = 0
     try:
-        rows_to_delete = db.session.scalars(
-            select(AiSearchIndex)
-            .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
-            .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
-        )
-        for row in rows_to_delete:
-            db.session.delete(row)
-            count += 1
+        if len(deleted_process_id_list) > 0:
+            rows_to_delete = db.session.scalars(
+                select(AiSearchIndex)
+                .filter(AiSearchIndex.entity_type == EntityType.PROCESS)
+                .filter(AiSearchIndex.entity_id.in_(deleted_process_id_list))
+            )
+            for row in rows_to_delete:
+                db.session.delete(row)
+                count += 1
 
         return {"ai_search_index_rows_deleted": count}
 
