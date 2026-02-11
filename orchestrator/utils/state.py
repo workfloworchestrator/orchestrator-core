@@ -277,7 +277,7 @@ def _handle_value_param(param: inspect.Parameter, state: State, func: StepFunc |
         # Get value from state or use default
         value = state.get(param_name, param.default)
         # Only apply conversion if value came from state (not the default itself)
-        if value is not param.default:
+        if value != param.default:
             try:
                 return _convert_uuid_value(value, param.annotation, param_name)
             except ValueError as value_error:
