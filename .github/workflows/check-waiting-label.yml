@@ -1,0 +1,21 @@
+name: Block PRs to main with 'waiting' label
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - labeled
+      - unlabeled
+      - synchronize
+
+jobs:
+  fail-if-labeled:
+    if: contains(github.event.pull_request.labels.*.name, 'waiting')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if PR has 'waiting' label
+        run: |
+          echo "This PR is labeled 'waiting' and cannot be merged."
+          exit 1
