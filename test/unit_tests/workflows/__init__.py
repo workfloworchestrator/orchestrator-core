@@ -208,7 +208,7 @@ def run_workflow(
 ) -> tuple[WFProcess, ProcessStat, list[tuple[Step, WFProcess]]]:
     # ATTENTION!! This code needs to be as similar as possible to `server.services.processes.start_process`
     # The main differences are: we use a different step log function, and we don't run in
-    # a separate thread
+    # a separate thread. Note: run_predicate evaluation happens inside create_process.
     user_data = _sanitize_input(input_data)
     user = "john.doe"
 
